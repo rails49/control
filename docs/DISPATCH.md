@@ -1,28 +1,65 @@
 # Dispatch
 
-The dispatcher accepts route requests from the scheduler and tries to satisfy
-them in the shortest time possible.
+The dispatcher accepts requests from the scheduler and tries to satisfy them in
+the shortest time possible. It is **online** — it commits to decisions without
+knowing future requests — and is the research core of this project: deadlock
+avoidance at high throughput. Terminology follows [CONTEXT.md](../CONTEXT.md).
 
-**Time model:** each transition through a connection (vertex) takes one unit of
-time, e.g. one minute. Travel time within blocks is ignored.
+## Semantics
 
-Dispatching is a complex task in general. It includes:
+- **Admission** — a request is rejected only if it is topologically
+  unroutable: no route exists on an empty layout, or the train does not fit
+  the destination block. All other requests are accepted and queued.
+- **Fixed routes** — a route is chosen when the train starts moving and never
+  changed; only its locks are incremental
+  ([ADR-0002](adr/0002-fixed-route-per-request.md)).
+- **No reversal** — routes are strict pass-throughs; terminal blocks occur
+  only as endpoints ([ADR-0001](adr/0001-no-reversal-within-a-route.md)).
+- **Event-driven** — the dispatcher reacts to events such as *train arrived
+  at block* and never reads a clock, so the simulator and real hardware drive
+  it the same way.
 
-1. **Find** a route satisfying the request, or reject the request if no such
-   route exists.
-2. **Lock** the route and assign it to a driver.
-3. **Unlock** the route once the assigned train has passed, making it available
-   for new requests.
-4. **Lock lazily** to optimize total throughput: reserve only the parts of a
-   route needed for the train to advance — usually the block the train is in
-   plus the next block in the route.
+## Time model
 
-   Lazy locking can deadlock. Two trains entering a section of two facing blocks
-   with no other connections between them each wait for the other to depart.
-   Avoiding this, e.g. with a reservation scheme, is what makes dispatching
-   challenging.
-5. **Optimize speed** by exploiting complex connectors that admit several trains
-   at once. The connector below accepts two trains simultaneously on its two
-   straight sections, but only one train at a time on either crossing route.
+The simulator uses synchronous discrete **ticks**: each tick, every moving
+train completes one transit into its next block. Travel time within blocks is
+ignored. An event-driven clock with real traversal times can replace ticks
+later without changing the dispatcher.
+
+## Locking
+
+1. **Full-route locking** (baseline) — lock every block and transit of a route
+   before the train moves; unlock each behind the train. Trivially
+   deadlock-free, low throughput. Serves as the benchmark yardstick.
+2. **Incremental locking** (research core) — lock only what the train needs to
+   advance: usually its current block plus the next transit and block.
+   High throughput, but naive incremental locking deadlocks — e.g. two trains
+   entering a section of two facing blocks with no other connections between
+   them each wait forever for the other to depart. The deadlock-avoidance
+   layer that prevents this, ideally with a proof of deadlock freedom, is the
+   central problem.
+3. **Transit concurrency** — connections declare which transits conflict, so
+   e.g. a crossing accepts two trains simultaneously on its straight transits
+   but only one on either crossing transit.
 
    ![Crossing connector](image.png)
+
+## Research
+
+First work item: a survey assessing known theory against this model —
+banker's-style safety checks (applicable because routes are fixed),
+resource-allocation graphs and cycle detection, deadlock avoidance in AGV
+systems, Petri-net approaches, and railway zone control — ending in a
+recommended algorithm and a sketch of its deadlock-freedom argument.
+
+## Metrics
+
+Benchmarks feed the dispatcher a fixed list of requests and report:
+
+- **Makespan** (headline) — ticks from first arrival until the last request
+  completes.
+- **Per-request latency** — completion − arrival; mean and max (catches
+  starvation).
+- **Resource utilization** — fraction of ticks each block/transit is occupied
+  or locked.
+- **Trains moved per tick** — instantaneous parallelism.
