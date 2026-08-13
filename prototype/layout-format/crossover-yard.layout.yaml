@@ -1,0 +1,50 @@
+# PROTOTYPE — throwaway, for reacting to. Ticket #5, map #1.
+#
+# Crossover Yard: two parallel main lines joined by a double crossover
+# (docs/image.png), with a terminal yard block at each end.
+#
+#     yard_w ]---+===  up_w  ===\ /===  up_e  ===+---[ yard_e
+#                |               X               |
+#                +===  dn_w  ===/ \===  dn_e  ===+
+#
+# Block ends are written `<block>.A` / `<block>.B`. Terminal blocks are not
+# declared: a block is terminal iff only one of its ends appears in any
+# connection (here yard_w.A and yard_e.B appear nowhere).
+
+layout: crossover-yard
+units: mm
+
+blocks:
+  yard_w: { length: 1400 }
+  up_w: { length: 3200 }
+  up_e: { length: 3200 }
+  dn_w: { length: 3200 }
+  dn_e: { length: 3200 }
+  yard_e: { length: 1400 }
+
+# A connection joins one end of each of one or more blocks. Its transits are
+# the traversable end-pairs, each named so conflicts can reference it. Transits
+# are UNDIRECTED — one entry covers both directions of travel.
+#
+# Conflicts are declared by INVERSION: every pair of transits at a connection
+# conflicts unless listed in `concurrent`. A turnout therefore declares
+# nothing, and a forgotten declaration costs throughput, never safety.
+connections:
+  west_ladder: # turnout: yard throat, west end
+    transits:
+      to_up: [yard_w.B, up_w.A]
+      to_dn: [yard_w.B, dn_w.A]
+
+  crossover: # double crossover — four blocks, partial concurrency
+    transits:
+      up_straight: [up_w.B, up_e.A]
+      dn_straight: [dn_w.B, dn_e.A]
+      up_to_dn: [up_w.B, dn_e.A]
+      dn_to_up: [dn_w.B, up_e.A]
+    concurrent:
+      - [up_straight, dn_straight] # the only pair that can be used at once
+
+  east_ladder: # turnout: yard throat, east end
+    transits:
+      from_up: [up_e.B, yard_e.A]
+      from_dn: [dn_e.B, yard_e.A]
