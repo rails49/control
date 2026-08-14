@@ -36,8 +36,8 @@ later without changing the dispatcher.
    High throughput, but naive incremental locking deadlocks — e.g. two trains
    entering a section of two facing blocks with no other connections between
    them each wait forever for the other to depart. The deadlock-avoidance
-   layer that prevents this, ideally with a proof of deadlock freedom, is the
-   central problem.
+   layer that prevents this is the central problem; see
+   [SAFETY.md](SAFETY.md).
 3. **Transit concurrency** — connections declare which transits conflict, so
    e.g. a crossing accepts two trains simultaneously on its straight transits
    but only one on either crossing transit.
@@ -46,11 +46,13 @@ later without changing the dispatcher.
 
 ## Research
 
-First work item: a survey assessing known theory against this model —
-banker's-style safety checks (applicable because routes are fixed),
-resource-allocation graphs and cycle detection, deadlock avoidance in AGV
-systems, Petri-net approaches, and railway zone control — ending in a
-recommended algorithm and a sketch of its deadlock-freedom argument.
+The [survey](research/deadlock-avoidance-survey.md) assessed known theory
+against this model — banker's-style safety checks (applicable because routes
+are fixed), resource-allocation graphs and cycle detection, deadlock avoidance
+in AGV systems, Petri-net approaches, and railway zone control. The resulting
+choice is a route-aware banker's safety check
+([ADR-0003](adr/0003-route-aware-bankers-safety-check.md)); the check itself
+and its deadlock-freedom argument are in [SAFETY.md](SAFETY.md).
 
 ## Metrics
 
