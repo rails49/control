@@ -1,0 +1,167 @@
+"""Asset store: the CRUD contract over the milestone-1 YAML binding.
+
+Two coarse document types (ADR-0010) keyed by name — `crossover-yard` for
+layouts, layout-qualified `crossover-yard/meet` for scenarios. Verbs:
+``get``, ``put`` (whole-document create-or-replace), ``delete``, ``list``.
+Validation — schema and referential integrity — runs at ``put`` and again
+at ``get``, because the YAML files are hand-authored and never passed
+through ``put``. A ``get`` never returns an invalid document; all
+derivation (conflict matrix, terminals, arrival-end expansion, fit
+pruning) stays consumer-side.
+"""
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, cast
+
+import yaml
+
+from tc49.layout import Layout, as_mapping, check_end, check_keys, check_name
+
+
+@dataclass(frozen=True)
+class TrainSpec:
+    length: int
+    at: str  # starting block
+
+
+@dataclass(frozen=True)
+class RequestSpec:
+    train: str
+    depart: str  # '<block>.<end>', or a bare end letter for chained requests
+    arrivals: tuple[str, ...]  # arrival ends: '<block>.<end>' or bare '<block>'
+    at: int
+
+
+@dataclass(frozen=True)
+class Scenario:
+    name: str
+    layout: str
+    trains: dict[str, TrainSpec]
+    requests: tuple[RequestSpec, ...]
+
+
+class AssetStore:
+    def __init__(self, root: Path) -> None:
+        self._root = root
+
+    def get(self, name: str) -> Layout | Scenario:
+        if "/" in name:
+            return self._load_scenario(name)
+        return Layout.from_document(self._read(self._layout_path(name)))
+
+    def list(self, layout: str | None = None) -> list[str]:
+        if layout is None:
+            paths = (self._root / "layouts").glob("*.layout.yaml")
+            return sorted(p.name.removesuffix(".layout.yaml") for p in paths)
+        paths = (self._root / "scenarios" / layout).glob("*.scenario.yaml")
+        return sorted(
+            f"{layout}/{p.name.removesuffix('.scenario.yaml')}" for p in paths
+        )
+
+    def put(self, doc: dict[str, Any]) -> None:
+        if "scenario" in doc:
+            scenario = self._validate_scenario(doc)
+            path = self._scenario_path(f"{scenario.layout}/{scenario.name}")
+        else:
+            layout = Layout.from_document(doc)
+            path = self._layout_path(layout.name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(doc, sort_keys=False))
+
+    def delete(self, name: str) -> None:
+        path = self._scenario_path(name) if "/" in name else self._layout_path(name)
+        path.unlink()
+
+    def _layout_path(self, name: str) -> Path:
+        return self._root / "layouts" / f"{name}.layout.yaml"
+
+    def _scenario_path(self, name: str) -> Path:
+        layout, _, scenario = name.partition("/")
+        return self._root / "scenarios" / layout / f"{scenario}.scenario.yaml"
+
+    def _read(self, path: Path) -> Any:
+        return yaml.safe_load(path.read_text())
+
+    def _load_scenario(self, name: str) -> Scenario:
+        scenario = self._validate_scenario(self._read(self._scenario_path(name)))
+        if f"{scenario.layout}/{scenario.name}" != name:
+            raise ValueError(
+                f"scenario '{name}': file names itself"
+                f" '{scenario.layout}/{scenario.name}'"
+            )
+        return scenario
+
+    def _validate_scenario(self, doc: Any) -> Scenario:
+        check_keys(
+            doc, "scenario document", {"scenario", "layout", "trains", "requests"}
+        )
+        name, layout_id = doc["scenario"], doc["layout"]
+        check_name(name, "scenario")
+        check_name(layout_id, "scenario's layout")
+        where = f"scenario '{name}'"
+        try:
+            layout = self.get(layout_id)
+        except FileNotFoundError:
+            raise ValueError(f"{where}: names unknown layout '{layout_id}'") from None
+        assert isinstance(layout, Layout)
+
+        trains: dict[str, TrainSpec] = {}
+        for train, spec in as_mapping(doc["trains"], f"{where}: trains").items():
+            check_keys(spec, f"{where}: train '{train}'", {"length", "at"})
+            length, at = spec["length"], spec["at"]
+            if not isinstance(length, int) or length <= 0:
+                raise ValueError(
+                    f"{where}: train '{train}': length must be a positive"
+                    f" integer, got {length!r}"
+                )
+            if at not in layout.blocks:
+                raise ValueError(
+                    f"{where}: train '{train}' starts at unknown block '{at}'"
+                )
+            trains[train] = TrainSpec(length, at)
+
+        requests: list[RequestSpec] = []
+        if not isinstance(doc["requests"], list):
+            raise TypeError(f"{where}: requests must be a list")
+        for i, spec in enumerate(cast(list[Any], doc["requests"])):
+            here = f"{where}: request {i + 1}"
+            check_keys(spec, here, {"train", "from", "to", "at"})
+            train, depart, to, at = (
+                str(spec["train"]),
+                str(spec["from"]),
+                spec["to"],
+                spec["at"],
+            )
+            if train not in trains:
+                raise ValueError(f"{here}: unknown train '{train}'")
+            if not isinstance(at, int) or at < 0:
+                raise ValueError(
+                    f"{here}: 'at' must be a non-negative tick, got {at!r}"
+                )
+            _check_departure_end(depart, layout, here)
+            if not isinstance(to, list) or not to:
+                raise ValueError(
+                    f"{here}: 'to' must be a non-empty list of arrival ends"
+                )
+            arrivals: list[str] = []
+            for entry in (str(e) for e in cast(list[Any], to)):
+                block = entry.partition(".")[0]
+                if block not in layout.blocks:
+                    raise ValueError(
+                        f"{here}: arrival '{entry}' names unknown block '{block}'"
+                    )
+                if "." in entry:
+                    check_end(entry, layout.blocks, here)
+                arrivals.append(entry)
+            requests.append(RequestSpec(train, depart, tuple(arrivals), at))
+
+        return Scenario(name, layout_id, trains, tuple(requests))
+
+
+def _check_departure_end(depart: str, layout: Layout, where: str) -> None:
+    """Validate a 'from' entry: a full end, or a bare end letter for a
+    chained request whose block is unknown at authoring time. Whether the
+    train actually stands there is the dispatcher's admission check."""
+    if depart not in ("A", "B"):
+        check_end(depart, layout.blocks, where)
