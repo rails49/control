@@ -48,4 +48,8 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 
 ### Live maps
 
-- [Milestone 1 spec map](https://github.com/iot49/tc49/issues/1) — the way to a buildable spec for the simulator, dispatcher, and benchmark harness.
+None. Start one with `/wayfinder`.
+
+### Completed maps
+
+- [Milestone 1 spec map](https://github.com/iot49/tc49/issues/1) — the way to a buildable spec for the simulator, dispatcher, and benchmark harness. Reached; the spec is `docs/`.
