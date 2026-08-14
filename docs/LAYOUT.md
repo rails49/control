@@ -1,8 +1,10 @@
 # Layout and scenario files
 
 The two document types of the asset store
-([SYSTEM.md](SYSTEM.md#asset-store)), which validates both at `put` — schema
-and cross-references — so components read them unchecked. Terminology follows
+([SYSTEM.md](SYSTEM.md#asset-store)), which validates both — schema and
+cross-references, at `put` and, in the milestone-1 YAML binding, again at
+`get`, since these files are hand-authored — so components read them
+unchecked. Terminology follows
 [CONTEXT.md](../CONTEXT.md); the semantics of what these files describe are in
 [GOALS.md](GOALS.md) and [DISPATCH.md](DISPATCH.md).
 
@@ -105,9 +107,9 @@ requests:
   name an end the train crosses, so orientation is a consequence of the route
   rather than a fact needing to be recorded. The one place this shows is the
   degenerate request — a train already standing in an arrival block completes
-  at latency 0 whichever end that arrival names, because there is no final
-  transit to constrain and nothing to check the end against
-  ([DISPATCH.md](DISPATCH.md#requests)).
+  at its first launch attempt without moving, whichever end that arrival
+  names, because there is no final transit to constrain and nothing to check
+  the end against ([DISPATCH.md](DISPATCH.md#requests)).
 - **`from` requires the end and takes the block optionally.** `from: yard_w.B`
   states the working the way a reader wants to see it, and is checked by the
   dispatcher at admission against where the train actually stands — the

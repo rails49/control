@@ -226,8 +226,20 @@ never as the normal stop condition.
   golden numbers are recorded at the default. There is no `|dest|` flag: a
   named scenario writes its arrival ends out request by request, so `|dest|` is
   a property of the file rather than a knob on the run.
-- **`tc49 sweep`** writes one JSONL row per run — every axis plus every metric
-  — to a gitignored `out/`. No aggregation is baked in.
+- **`tc49 sweep`** takes no arguments and runs exactly the grid above — the
+  grid is the research design, not a knob, and this page is its single
+  source of truth; flags arrive when a second grid is actually wanted. It
+  writes one JSONL row per run — every axis plus every metric — to a
+  gitignored `out/`. No aggregation is baked in.
+
+**How a number becomes golden.** The gotthard scenarios above and the two
+property-test layouts of [ARCHITECTURE.md](ARCHITECTURE.md#tests) are
+implementation work, authored from these descriptions. Golden numbers are
+recorded from the first run made *after* the four Hypothesis properties and
+the boundary-condition tests pass — never before, or "golden" means
+"whatever the first run printed, bugs included". The comparison table is
+reviewed by the owner before the goldens are committed, and any later
+intentional change to a golden states its reason in the commit.
 
 **Golden numbers are viable here**, which they usually are not, for a specific
 reason: every metric is in **ticks**, not wall-clock, and the determinism

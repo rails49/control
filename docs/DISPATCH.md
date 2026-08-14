@@ -9,8 +9,9 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../CONTEXT.md).
 ## Semantics
 
 - **Admission** — a request is rejected only if no arrival end survives: none
-  is a block the train fits, or none is reachable on an empty layout from the
-  departure end. All other requests are accepted and queued.
+  is a block the train fits, none is an end any route can enter through, or —
+  settled at the first launch attempt, from the origin — none is reachable.
+  All other requests are accepted and queued.
 - **Fixed routes** — a route is chosen when the train starts moving and never
   changed; only its locks are incremental
   ([ADR-0002](adr/0002-fixed-route-per-request.md)).
@@ -66,12 +67,17 @@ because a prune that leaves candidates standing changes nothing observable: the
 chooser simply has fewer routes to order, and `route_chosen`'s `k_tried`
 already says how many it examined.
 
-A request naming the train's current block is accepted with an empty route and
-completes immediately, at latency 0, whichever end that arrival names. An empty
-route has no final transit for the end to constrain and no stored facing to
-check it against ([LAYOUT.md](LAYOUT.md#scenario-schema)) — this is the one
-case where the arrival end is vacuous. Treating it as degenerate rather than as
-an error keeps the admission rule free of special cases.
+A request naming the train's current block is accepted with an empty route,
+whichever end that arrival names. Whether a request is degenerate is decided
+at the **first launch attempt**, alongside reachability — it depends on the
+origin block, which for a chained working is unknown until the predecessor
+completes. The launch commits an empty route and completes in the same grant
+phase, moving nothing and locking nothing, so the request's latency is the
+one-tick admission-to-scan skew every request pays. An empty route has no
+final transit for the end to constrain and no stored facing to check it
+against ([LAYOUT.md](LAYOUT.md#scenario-schema)) — this is the one case where
+the arrival end is vacuous. Treating it as degenerate rather than as an error
+keeps the admission rule free of special cases.
 
 A request may be pending for a train that is already active on an earlier
 request; chained workings make this routine. It needs no mechanism — an active
@@ -118,9 +124,13 @@ resource set.
 
 ### Queue discipline
 
-Greedy, in arrival order. At every grant phase whose buffered events released
-resources, the dispatcher scans pending requests oldest-first and launches
-each whose conditions hold, skipping the rest that round. The ordering key is an explicit policy point —
+Greedy, in arrival order. At **every** grant phase the dispatcher scans
+pending requests oldest-first and launches each whose conditions hold,
+skipping the rest that round. Unconditionally: the first launch of a run
+follows an admission, not a release, so a scan gated on released resources
+would never start the batch workload. Skipping a scan when nothing was
+released *and* nothing was admitted since the previous phase is a valid
+optimization, not a semantic rule. The ordering key is an explicit policy point —
 priority classes could replace arrival order without touching the safety core —
 but milestone 1 ships arrival order only.
 
@@ -197,7 +207,8 @@ grantable in tick `n`'s grant phase, but the grantee's cross command executes
 at tick `n+1`. A convoy
 therefore starts with a one-tick stagger and then flows at one block per train
 per tick — the backward-propagating start wave real trains have. Minimum
-latency is one tick per transit.
+latency is the one-tick admission-to-scan skew plus one tick per transit;
+the degenerate request's launch-and-complete is the zero-transit case.
 
 **Sensors are anonymous.** The layout interface reports only
 `block_occupied(block)` and `block_vacated(block)`, with no train identity —
@@ -252,5 +263,5 @@ and each metric is computed as a pure function of the event trace
 - **Per-request latency** — completion − arrival; mean and max (catches
   starvation).
 - **Resource utilization** — fraction of ticks each block/transit is occupied
-  or locked.
+  or locked, over the whole run (tick 0 through the trace's final tick).
 - **Cross commands per tick** — instantaneous parallelism.

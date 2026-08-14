@@ -16,8 +16,8 @@ file formats [LAYOUT.md](LAYOUT.md), and the suite that exercises it all
 The dispatcher is the deep module of this codebase: routing, queueing,
 locking and the safety check all sit behind the bus footprint of
 [SYSTEM.md](SYSTEM.md#dispatcher), and it holds no collaborators — it reads
-its layout snapshot at startup and thereafter only consumes and publishes
-events. Its state is the pending-request queue, the lock table, the set of
+its layout and stock snapshot at startup ([SYSTEM.md](SYSTEM.md#dispatcher))
+and thereafter only consumes and publishes events. Its state is the pending-request queue, the lock table, the set of
 active routes, and the sensor events buffered since the last tick.
 
 `Request`, `Route`, `Move` and friends survive as internal dataclasses — the
@@ -58,7 +58,10 @@ derives from the tapped events of [SYSTEM.md](SYSTEM.md#the-trace):
   stamp.
 - **Per-request latency** — `request_completed` stamp minus the request's
   `at` tick, correlated by id; mean and max.
-- **Utilization** — `lock_granted`/`lock_released` spans per resource.
+- **Utilization** — `lock_granted`/`lock_released` spans per resource, as a
+  fraction of the whole run: tick 0 through the trace's final tick. Standing
+  locks are in the trace from the dispatcher's startup emission
+  ([SYSTEM.md](SYSTEM.md#dispatcher)), so idle trains count.
 - **Parallelism** — `cross` commands per tick.
 - **Stall report** — for each request admitted but never completed when the
   trace ends, the last `grant_refused` for its id names the obstacles: which
@@ -96,8 +99,8 @@ src/tc49/
                 and termination
   trace.py      the trace tap — canonical JSONL serialization, read/write
   metrics.py    metrics(trace) -> Metrics
-  cli.py        `tc49 bench` / `tc49 sweep`, a scenario as the single
-                argument
+  cli.py        `tc49 bench <scenario>`; `tc49 sweep` takes no arguments —
+                the grid of BENCHMARKS.md is the fixed research design
 
 layouts/                    <layout>.layout.yaml — the durable railroads
 scenarios/<layout>/         <scenario>.scenario.yaml — stock and requests

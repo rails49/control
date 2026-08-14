@@ -174,7 +174,11 @@ until a second consumer exists.
 `tc49/layout/tick`; the four app components only ever subscribe, which keeps
 every one of them clock-free — the dispatcher never learns what tick it is.
 In milestone 1 the simulator advances the tick only when the bus is quiescent
-(queue drained); that is loop-owner pacing, not a bus-contract promise. A
+(queue drained); that is loop-owner pacing, not a bus-contract promise.
+Advancing means: execute the pending commands, publish their sensor events,
+**then** publish the tick — a tick's sensors precede the tick itself, so the
+grant phase the tick triggers finds them in its buffered set. Publishing the
+tick first would slip every grant by a tick. A
 hardware adapter later picks its own cadence behind the same event: the
 publisher swaps, the contract doesn't.
 
@@ -224,7 +228,11 @@ verbs without appearing in the contract.
 - **The store validates, consumers derive** — `get` never returns an
   invalid document. Schema conformance and referential integrity (the
   scenario's layout exists, named blocks exist, connection endpoints are
-  real block ends) are guaranteed at `put`, which rejects invalid documents.
+  real block ends) are enforced at whichever verb a document enters through:
+  `put` rejects invalid documents, and the milestone-1 YAML binding runs the
+  same validator at `get`, because its documents are hand-authored files
+  that never passed through `put`. A mistyped end fails loudly at load, not
+  as a `KeyError` mid-run.
   All derivation stays consumer-side: the conflict matrix by inversion
   ([ADR-0006](adr/0006-conflicts-declared-by-inversion.md)), terminal-block
   derivation, arrival-end expansion, fit pruning.
@@ -256,7 +264,12 @@ last request is out it sets `exhausted`, the milestone-1 termination signal.
 
 ### Dispatcher
 
-*Reads* the layout. *Subscribes* `tc49/layout/+` and
+*Reads* the layout, and from the scenario its stock — train lengths for the
+admission fit check, initial placement to seed the standing locks. Neither
+fact can come off the bus: sensors are anonymous, so the lock table the
+dispatcher recovers identity from must be seeded before the first sensor
+event, and `request_submitted` carries no length. *Subscribes*
+`tc49/layout/+` and
 `tc49/schedule/request_submitted`. *Publishes* the eight `tc49/dispatch/*`
 events.
 
@@ -274,7 +287,10 @@ is processed at the next boundary: a deferred grant, conservative and safe.
 Granted moves are published one event each (`move_granted`), distinct from
 the `lock_granted` ledger — the move is the driver's command; the ledger
 feeds the utilization metric, and a `FullRoute` launch locks a whole route
-in one grant while granting one move.
+in one grant while granting one move. At startup, having seeded its lock
+table from the scenario, the dispatcher publishes each train's standing
+lock as `lock_granted` — the trace must carry initial occupancy, or the
+utilization metric is blind to idle trains.
 
 ### Driver
 
@@ -309,7 +325,9 @@ the app" wants them. The milestone-1 **simulator** applies `align` and
 advancing ticks when the scheduler is `exhausted` and a tick's cascade
 produced no commands ([BENCHMARKS.md](BENCHMARKS.md#termination)). That stop
 rule is milestone-1 pacing, not bus contract — a hardware adapter never
-terminates.
+terminates. Sensor events report moves only: initial occupancy is never
+published — the dispatcher seeds its standing locks from the scenario, and
+the occupancy topics are event topics, facts that happened, not state.
 
 ### Asset store
 
@@ -328,7 +346,9 @@ UI subscribes to exactly what the trace already proves sufficient.
 
 Each line is flat: `{"tick": …, "event": …, …payload}`, with `event` set to
 the topic's leaf (globally unique, per the inventory invariant) and `tick`
-stamped by the tap from the last tick number it observed. Key order is
+stamped by the tap from the last tick number it observed — `0` for events
+delivered before the first tick event, such as the startup standing locks.
+Key order is
 canonical — `tick`, `event`, then the event's fields in inventory order —
 which is what makes the determinism property a byte compare
 ([ARCHITECTURE.md](ARCHITECTURE.md#tests)).

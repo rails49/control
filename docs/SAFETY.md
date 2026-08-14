@@ -71,8 +71,7 @@ survey's §2.
 
 Tentatively apply the grant, evaluate `safe()` on the resulting state, and
 commit the grant only if it holds. A refused train stays parked holding its
-standing block lock, and is reconsidered at the next grant phase that releases
-resources.
+standing block lock, and is reconsidered at every subsequent grant phase.
 
 - **Every incremental grant** (next transit + next block).
 - **Every launch**, which is itself an allocation — see route selection below.

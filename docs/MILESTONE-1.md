@@ -22,7 +22,8 @@ in-process bus — plus a benchmark harness:
 - A **pytest suite** — the four Hypothesis properties over the real assembly
   on the bus, the boundary-condition examples, and golden-number assertions
   on the named scenarios.
-- A **benchmark CLI** that takes a `(layout, scenario)` pair, prints the four
+- A **benchmark CLI** that takes a scenario (which names its layout,
+  [LAYOUT.md](LAYOUT.md)), prints the four
   metrics of [DISPATCH.md](DISPATCH.md#metrics), and can dump the structured
   event trace ([BENCHMARKS.md](BENCHMARKS.md)).
 
