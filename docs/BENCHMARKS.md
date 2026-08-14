@@ -74,6 +74,10 @@ headed.
 because the claim that arrival-end sets buy throughput is a claim, and this
 suite measures rather than assumes:
 
+The axis is really three *intents* — one end, one track, one station — and the
+counts are what Gotthard's three-track stations make of them. A layout with
+four-track stations sweeps `{1, 2, 8}` for the same three intents:
+
 | `\|dest\|` | What the request says | Written |
 | --- | --- | --- |
 | 1 | one track, one way round | `to: [claro_2.B]` |

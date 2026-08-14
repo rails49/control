@@ -89,12 +89,17 @@ drop in later behind the same interface. Milestone 1's chooser:
 it keeps its plain meaning: how many alternatives a launch may try before
 staying pending.
 
-Step 4 does more work than it used to. On Gotthard every station-to-station
-candidate is two transits, so transit count separates nothing and the
-lexicographic rule alone decides which `k` get tried — every train tries the
-same lowest-numbered tracks first, concentrating contention rather than
-spreading it. That is kept deliberately. Determinism is a tested property and
-byte-identical traces are what make golden numbers viable, so the effect is
+Step 4 does more work than it used to. Arrival ends on parallel tracks of one
+station tend to be **equidistant** — a station is reached by the same line
+whichever of its tracks the train ends on — so where the old form's candidates
+differed in length and were separated by step 3, a set's candidates frequently
+tie and step 4 alone decides which `k` get tried. Every train then tries the
+same lexicographically smallest tracks first, concentrating contention rather
+than spreading it. How much this bites is a property of the layout: it is worst
+where a station's tracks are symmetric, and absent where they are not.
+
+That is kept deliberately. Determinism is a tested property and byte-identical
+traces are what make golden numbers viable, so the effect is
 [measured](BENCHMARKS.md#the-k-axis) rather than pre-empted; congestion-aware
 costing is the drop-in if the sweep says it is needed.
 

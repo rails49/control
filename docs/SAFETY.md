@@ -112,10 +112,17 @@ the safety check never sees it.
 `k` is configurable and is a benchmark axis, not merely a cap: `k = 1` is a
 pure single-route gate, larger `k` is route-around and finish-somewhere-else,
 and the interesting question — what permissiveness actually buys in makespan —
-is measured, not assumed. How far the sweep usefully runs is a property of the
-railroad *and of the request*: Gotthard offers exactly one minimal route per
-arrival end, so `k` past `|dest|` buys nothing and `k` at `|dest| = 1` is
-inert ([BENCHMARKS.md](BENCHMARKS.md#the-k-axis)).
+is measured, not assumed.
+
+How far the sweep usefully runs is a property of the railroad *and of the
+request*, never of the algorithm. Two bounds hold on any layout: `k = 1` with a
+single arrival end is a pure gate, since one arrival end reachable one way is
+one candidate; and `k` past the number of candidates a request actually has
+buys nothing. Where that ceiling falls is what varies — a layout with several
+paths between two points raises it, one with a single path leaves `k` inert
+however many arrival ends a request names.
+[BENCHMARKS.md](BENCHMARKS.md#the-k-axis) works the ceiling out for the encoded
+railroads and sweeps `k` only where it can bite.
 
 ## Why it is deadlock-free
 
