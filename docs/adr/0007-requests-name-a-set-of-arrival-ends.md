@@ -17,20 +17,28 @@ yellow reversing loop and a second request
 ([LAYOUT.md](../LAYOUT.md#reading-a-layout)). The request was the only place
 that fact could be expressed and it had no way to express it.
 
-But constraining it alone would have gutted the benchmark. At Claro each end of
-each through track is served by exactly one line — blue 1 reaches track 3, blue
-2 reaches tracks 1 and 2, the yellow reaches all three from the west — so
-naming the arrival end *is* naming the line. Every request would have had
-exactly one minimal route, `k` would have been inert in both directions, and
+But constraining it alone removes route choice, and on some layouts removes it
+entirely. Wherever a station track's two ends face different approaches — the
+common case, since that is what a through station *is* — naming the arrival end
+also names the approach, and a request that named one arrival end would have
+exactly one route. The dispatcher would have nothing left to choose and the
+deadlock-avoidance layer nothing to route around.
+
+Gotthard is the instance that made this concrete rather than the reason for it.
+At Claro each end of each through track is served by exactly one line — blue 1
+reaches track 3, blue 2 reaches tracks 1 and 2, the yellow reaches all three
+from the west — so every request would have collapsed to a single candidate and
 [BENCHMARKS.md](../BENCHMARKS.md#the-k-axis)'s headline measurement would have
-had nothing left to measure.
+had nothing left to measure. A layout with several paths to one arrival end
+would suffer less; none would suffer nothing.
 
 **The set is what pays for it.** Naming both ends of one block reproduces the
 old semantics exactly, so nothing is lost; naming several tracks says the thing
 a station actually offers — more than one track will take this train — which
-the old form could not say at all. Measured on the encoding, one minimal route
-exists per arrival end, so the candidate count a launch may try is now the
-caller's to set. `k` becomes live on the whole workload rather than half of it.
+the old form could not say at all. The candidate count a launch works with
+becomes the caller's to set rather than a fact about the topology, which is
+what makes the flexibility measurable on any layout instead of only where the
+track plan happens to supply alternatives.
 
 ## Consequences
 
