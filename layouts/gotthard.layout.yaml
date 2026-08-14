@@ -1,0 +1,118 @@
+# Gotthard — the railroad this project dispatches. Ticket #10, map #1.
+#
+# Transcribed from Gotthard.pdf (WinTrack). Format per #5: named transits over
+# `<block>.A|B` end-pairs, conflicts declared by INVERSION (every pair of
+# transits at a connection conflicts unless listed `concurrent`), terminal
+# blocks derived rather than declared.
+#
+# Shape — two stations, two paths between them:
+#
+#     [Claro 1,2,3] ==east ladder== line_blue  ===\
+#          |                        line_pink  ====[Airolo 1,2,3]
+#          +======== west ladder == line_yellow ===/
+#
+# Trains run Claro <-> Airolo either over the blue/pink pair into Claro's EAST
+# end, or round the yellow loop into Claro's WEST end.
+#
+# WHICH of those two a train takes is fixed by the request's departure end, not
+# by the dispatcher: routes are strict pass-throughs (ADR-0001), so a train
+# leaving Claro westward can only reach Airolo over the yellow loop, and one
+# leaving eastward can only go over blue or pink. `k` therefore chooses between
+# BLUE AND PINK ONLY, and k=2 exhausts it. Longer simple routes exist — they
+# run to the far station, turn there, and come back — but they consume all
+# three line sections where the direct route needs one, so they are worse under
+# contention, not better. See the amendment on #8.
+#
+# Everything not listed as a block below is connection: every turnout, the
+# whole right-hand return loop, and both crossings. A connection can be metres
+# of track — a train transits it but can never stop in it.
+#
+# Transit LENGTH is deliberately not modelled: every transit costs one tick
+# regardless (#8), so the long return loop and a station ladder cost the same.
+#
+# A consequence of strict pass-through worth knowing: there is no route from
+# one station track to another at the SAME station — a train entering claro_1
+# at its east end would have to leave by the same end. Changing platform is two
+# requests with a reversal at rest between them, which is what ADR-0001 says
+# and what a real railway does.
+
+layout: gotthard
+units: mm
+
+# ASSUMED — lengths are read off the plan to the nearest track section and are
+# only used for the admission fit check (does the train fit the destination
+# block). Correct any that would wrongly accept or reject a real train.
+blocks:
+  claro_1: { length: 1500 }
+  claro_2: { length: 1500 }
+  claro_3: { length: 1500 }
+  # Sidings are trailing dead ends, buffer-stopped, one off each end of tracks
+  # 1 and 3 — so they derive as terminal blocks and can only ever be a route's
+  # endpoint. A train parked in one blocks nothing but requests destined to it.
+  claro_1_siding_w: { length: 900 }
+  claro_1_siding_e: { length: 900 }
+  claro_3_siding_w: { length: 900 }
+  claro_3_siding_e: { length: 900 }
+
+  airolo_1: { length: 1200 }
+  airolo_2: { length: 1200 }
+  airolo_3: { length: 1200 }
+  airolo_1_siding: { length: 700 } # dead end off the north throat
+
+  line_blue: { length: 3000 }
+  line_pink: { length: 3000 }
+  line_yellow: { length: 4000 }
+
+connections:
+  # Claro's west throat: the yellow loop fans out to all three through tracks.
+  #
+  # ASSUMED — every throat below is modelled as a FULL ladder: each line
+  # section reaches all three station tracks. If the real turnout geometry is
+  # partial (say line_blue only reaches tracks 1 and 2), delete the transits
+  # that do not exist. This assumption errs toward permitting moves, so a wrong
+  # one lets the simulator route a train where the railroad cannot.
+  claro_west:
+    transits:
+      yellow_1: [line_yellow.B, claro_1.A]
+      yellow_2: [line_yellow.B, claro_2.A]
+      yellow_3: [line_yellow.B, claro_3.A]
+      siding_1w: [claro_1.A, claro_1_siding_w.A]
+      siding_3w: [claro_3.A, claro_3_siding_w.A]
+    # No `concurrent` pairs declared: under inversion this makes the throat
+    # fully exclusive, which costs throughput and never safety (#5). Declare
+    # pairs here once the real turnout geometry says which are independent —
+    # e.g. a siding move at track 3 while a train runs yellow -> track 1.
+
+  # Claro's east throat: three through tracks onto either line section.
+  # ASSUMED: the other two sidings trail off this end.
+  claro_east:
+    transits:
+      blue_1: [claro_1.B, line_blue.A]
+      blue_2: [claro_2.B, line_blue.A]
+      blue_3: [claro_3.B, line_blue.A]
+      pink_1: [claro_1.B, line_pink.A]
+      pink_2: [claro_2.B, line_pink.A]
+      pink_3: [claro_3.B, line_pink.A]
+      siding_1e: [claro_1.B, claro_1_siding_e.A]
+      siding_3e: [claro_3.B, claro_3_siding_e.A]
+    # Fully exclusive by inversion — see the note above. The obvious candidate
+    # pair is blue_1 + pink_3 (opposite ends of the ladder, disjoint turnouts).
+
+  # Airolo's south throat, facing the blue/pink pair.
+  airolo_south:
+    transits:
+      blue_1: [line_blue.B, airolo_1.A]
+      blue_2: [line_blue.B, airolo_2.A]
+      blue_3: [line_blue.B, airolo_3.A]
+      pink_1: [line_pink.B, airolo_1.A]
+      pink_2: [line_pink.B, airolo_2.A]
+      pink_3: [line_pink.B, airolo_3.A]
+
+  # Airolo's north throat, facing the yellow loop.
+  # ASSUMED: Airolo's single siding trails off this end.
+  airolo_north:
+    transits:
+      yellow_1: [line_yellow.A, airolo_1.B]
+      yellow_2: [line_yellow.A, airolo_2.B]
+      yellow_3: [line_yellow.A, airolo_3.B]
+      siding_1: [airolo_1.B, airolo_1_siding.A]
