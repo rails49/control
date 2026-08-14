@@ -25,10 +25,10 @@ class Dispatcher:
 
 ```python
 @dataclass(frozen=True)
-class Request:                  # (train, departure end, destination block)
+class Request:                  # (train, departure end, arrival ends)
     train: str
-    depart: str                 # "<block>.A" | "<block>.B"
-    dest: str                   # block id
+    depart: str                 # "A" | "B" | "<block>.A" | "<block>.B"
+    dest: tuple[str, ...]       # arrival ends, "<block>.A" | "<block>.B"
     at: int                     # arrival tick
 
 @dataclass(frozen=True)
@@ -52,6 +52,18 @@ class Step:
 independent: there is no backend protocol to implement, so the simulator and a
 future DCC-EX driver consume the same values by different means, and a test
 needs neither. The dispatcher never reads a clock and never calls out.
+
+`dest` is a **tuple of arrival ends**, any one of which satisfies the request
+([ADR-0007](adr/0007-requests-name-a-set-of-arrival-ends.md)); the loader has
+already expanded bare block ids and pruned ends the train cannot fit. `depart`
+carries the block only when the author knew it — for a chained working the
+departure block is wherever the dispatcher parked the train, so the end alone
+is what a scenario can state ([LAYOUT.md](LAYOUT.md#scenario-schema)).
+
+`submit` therefore no longer answers the whole admission question. It rejects a
+request no arrival end fits, but reachability needs the origin block and is
+settled at the first launch attempt, so `advance` can return a
+`request_rejected` event as well.
 
 `advance` takes a tick's sensor events as a **batch**, not one at a time,
 because [#4](https://github.com/iot49/tc49/issues/4) fixes grant order — active
@@ -109,8 +121,8 @@ From the dispatcher:
 
 | Event | Fields |
 | --- | --- |
-| `request_admitted` | `train`, `depart`, `dest` |
-| `request_rejected` | `train`, `depart`, `dest`, `reason` |
+| `request_admitted` | `train`, `depart`, `dest` (survivors), `pruned` |
+| `request_rejected` | `train`, `depart`, `dest`, `reason` (`no_fit`, `no_entry`, `unreachable`) |
 | `route_chosen` | `train`, `route`, `k_tried` |
 | `grant_refused` | `train`, `reason` (`unsafe`, `held`, `transit_conflict`) |
 | `lock_granted` | `train`, `resources` |
@@ -133,10 +145,19 @@ final state the trace never recorded.
 Every event carries `tick` and `event`:
 
 ```json
-{"tick": 0, "event": "request_admitted", "train": "freight_1", "depart": "yard_w.B", "dest": "yard_e"}
+{"tick": 0, "event": "request_admitted", "train": "freight_1", "depart": "yard_w.B", "dest": ["yard_e.A"], "pruned": [{"entry": "yard_e.B", "reason": "no_entry"}]}
 {"tick": 0, "event": "route_chosen", "train": "freight_1", "route": ["yard_w", "to_dn", "dn_w"], "k_tried": 1}
 {"tick": 1, "event": "grant_refused", "train": "express_2", "reason": "unsafe"}
 ```
+
+`pruned` carries each dropped arrival end with its reason. It feeds no metric —
+like `grant_refused` and `route_chosen` it is a dispatcher-internal fact, and it
+is here for the same reason they are: without it a narrowed request is
+indistinguishable from one that was authored narrow.
+
+`route_chosen` needs no arrival-end field. The route's last block and last
+transit already say which end the dispatcher committed to, and so does
+`request_completed` by way of it.
 
 `grant_refused` and `route_chosen` are the reason the trace is worth having.
 They are dispatcher-internal facts, and a benchmark that reports makespan
@@ -163,9 +184,10 @@ src/tc49/
   layout.py    Layout — blocks, connections, transits, conflict matrix
                (expanded from `concurrent` by inversion), derived terminal
                blocks, step()
-  routing.py   candidates(layout, req, k) — k-shortest, DISPATCH.md's
-               ordering and dedupe-by-resource-set
-  scenario.py  Scenario — trains, requests, YAML loading (LAYOUT.md)
+  routing.py   candidates(layout, req, origin, k) — k-shortest over every
+               arrival end merged, DISPATCH.md's ordering
+  scenario.py  Scenario — trains, requests, YAML loading and arrival-end
+               expansion (LAYOUT.md)
   dispatch.py  Dispatcher — submit/advance, queue, lock table, state
   locking.py   LockingStrategy, FullRoute, Incremental
   safety.py    safe()
@@ -192,8 +214,10 @@ pluggable policy per #3, and the layout should not know about it.
 pytest, with Hypothesis for the deadlock hunt. The generator produces **train
 placements and request sequences over a fixed library of hand-written
 layouts** — deadlock is a property of request interleaving, not of exotic
-topology, so that is where the search pressure belongs. The library is chosen
-to be adversarial:
+topology, so that is where the search pressure belongs. Arrival-end *sets* are
+part of what it draws, and they shrink toward singletons, so a counterexample
+reduces to the tightest request that still deadlocks. The library is chosen to
+be adversarial:
 
 - `facing-pair` — two facing blocks with no other connection, DISPATCH.md's
   minimal deadlock.
