@@ -86,15 +86,17 @@ connections:
       siding_6: [claro_3.A, claro_6.A] # ASSUMED: south sidings at the west end
       siding_7: [claro_3.A, claro_7.A]
 
-  # Claro east: both blue lines reach all three through tracks, and the two
-  # north-east sidings trail off blue 1 — off the LINE, not off a track.
+  # Claro east: the two blue lines DIVIDE the station rather than both serving
+  # all of it. Blue 1 reaches track 1 and the two north-east sidings; blue 2
+  # reaches tracks 2 and 3. The sidings hang off the LINE, not off a track.
+  #
+  # This is what makes the yellow loop matter: track 1 is reachable from the
+  # east only over blue 1, so a train for track 1 that finds blue 1 occupied
+  # has no second eastern option — its alternative is the west end entirely.
   claro_east:
     transits:
       blue_1_1: [line_blue_1.A, claro_1.B]
-      blue_1_2: [line_blue_1.A, claro_2.B] # ASSUMED: blue 1 reaches all three
-      blue_1_3: [line_blue_1.A, claro_3.B]
-      blue_2_1: [line_blue_2.A, claro_1.B]
-      blue_2_2: [line_blue_2.A, claro_2.B] # ASSUMED: blue 2 reaches all three
-      blue_2_3: [line_blue_2.A, claro_3.B]
       siding_4: [line_blue_1.A, claro_4.A]
       siding_5: [line_blue_1.A, claro_5.A]
+      blue_2_2: [line_blue_2.A, claro_2.B]
+      blue_2_3: [line_blue_2.A, claro_3.B]
