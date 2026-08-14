@@ -3,8 +3,9 @@
 The module structure of the milestone-1 implementation: what the dispatcher's
 interface is, how a backend drives it, what the event trace carries, and how it
 is all tested. Terminology follows [CONTEXT.md](../CONTEXT.md); the dispatch
-model is [DISPATCH.md](DISPATCH.md) and the avoidance layer
-[SAFETY.md](SAFETY.md). The two seam decisions are recorded in
+model is [DISPATCH.md](DISPATCH.md), the avoidance layer [SAFETY.md](SAFETY.md),
+the file formats [LAYOUT.md](LAYOUT.md), and the suite that exercises it all
+[BENCHMARKS.md](BENCHMARKS.md). The two seam decisions are recorded in
 [ADR-0004](adr/0004-dispatcher-returns-commands.md) and
 [ADR-0005](adr/0005-seam-at-locking-strategy.md).
 
@@ -16,7 +17,7 @@ at all.
 
 ```python
 class Dispatcher:
-    def __init__(self, layout: Layout, locking: LockingStrategy, k: int = 4): ...
+    def __init__(self, layout: Layout, locking: LockingStrategy, k: int = 2): ...
 
     def submit(self, req: Request) -> Admission: ...
     def advance(self, sensors: Sequence[Sensor]) -> Step: ...
@@ -123,6 +124,11 @@ From the backend:
 | `block_occupied` | `block` |
 | `block_vacated` | `block` |
 | `train_moved` | `train`, `from`, `transit`, `to` |
+| `run_stalled` | `pending`, `obstacles` |
+
+`run_stalled` exists because metrics are a pure function of the trace, so the
+stall diagnosis of [BENCHMARKS.md](BENCHMARKS.md#termination) cannot be read off
+final state the trace never recorded.
 
 Every event carries `tick` and `event`:
 
@@ -154,17 +160,24 @@ makes every metric testable against a hand-written trace, with no run required.
 
 ```
 src/tc49/
-  layout.py    Layout — blocks, connections, transits, conflict matrix,
-               derived terminal blocks, step()
-  routing.py   candidates(layout, req, k) — k-shortest, #3's ordering
-  scenario.py  Scenario — trains, requests, YAML loading
+  layout.py    Layout — blocks, connections, transits, conflict matrix
+               (expanded from `concurrent` by inversion), derived terminal
+               blocks, step()
+  routing.py   candidates(layout, req, k) — k-shortest, DISPATCH.md's
+               ordering and dedupe-by-resource-set
+  scenario.py  Scenario — trains, requests, YAML loading (LAYOUT.md)
   dispatch.py  Dispatcher — submit/advance, queue, lock table, state
   locking.py   LockingStrategy, FullRoute, Incremental
   safety.py    safe()
   trace.py     TraceEvent types, JSONL read/write
   sim.py       Simulator — applies moves, emits sensors, owns the tick loop
   metrics.py   metrics(trace) -> Metrics
-  cli.py       benchmark CLI, takes a scenario as its single argument
+  cli.py       `tc49 bench` / `tc49 sweep`, a scenario as the single argument
+
+layouts/                    <layout>.layout.yaml — the durable railroads
+scenarios/<layout>/         <scenario>.scenario.yaml — stock and requests
+benchmarks/expected/        <name>.json — golden numbers, asserted in pytest
+out/                        sweep JSONL, gitignored
 ```
 
 Routing sits outside `Layout` so that `Layout` stays a data structure rather
@@ -186,7 +199,8 @@ to be adversarial:
   minimal deadlock.
 - `single-track-meet` — a passing loop that forces meet-pass decisions.
 - `crossover-yard` — the double crossover of `image.png`, exercising partial
-  transit concurrency.
+  transit concurrency; already written, at
+  [`layouts/crossover-yard.layout.yaml`](../layouts/crossover-yard.layout.yaml).
 
 Four properties:
 

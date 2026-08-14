@@ -16,14 +16,20 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 ├── CONTEXT.md                              ← the glossary
 ├── docs/
 │   ├── GOALS.md                            ← assets and operations
+│   ├── MILESTONE-1.md                      ← scope: what is built first, what is not
 │   ├── DISPATCH.md                         ← dispatch semantics, locking, metrics
+│   ├── SAFETY.md                           ← the deadlock-freedom argument
+│   ├── ARCHITECTURE.md                     ← modules, interfaces, trace, tests
+│   ├── LAYOUT.md                           ← layout and scenario file formats
+│   ├── BENCHMARKS.md                       ← layouts, workloads, sweep axes
 │   └── adr/
 │       ├── 0001-no-reversal-within-a-route.md
-│       └── 0002-fixed-route-per-request.md
-└── ...
+│       └── ...
+├── layouts/                                ← the encoded railroads
+└── scenarios/                              ← stock and request lists
 ```
 
-`docs/GOALS.md` and `docs/DISPATCH.md` are spec prose, not glossary or decisions — read them for what the system does; read `CONTEXT.md` for what the words mean.
+Everything under `docs/` except `adr/` is spec prose, not glossary or decisions — read it for what the system does; read `CONTEXT.md` for what the words mean.
 
 ## Use the glossary's vocabulary
 

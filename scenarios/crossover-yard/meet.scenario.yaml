@@ -1,0 +1,27 @@
+# crossover-yard/meet — the small, fast named benchmark (#8).
+#
+# A scenario is one layout, the stock standing on it, and the fixed request
+# list fed to the dispatcher. Kept separate from the layout so one layout can
+# carry many scenarios. Format per docs/LAYOUT.md.
+#
+# This one is the meet: two trains starting nose-to-nose on the up line, each
+# needing the other's end of the railroad. Full-route locking serialises them;
+# incremental locking should route one over the crossover onto the down line.
+
+scenario: meet
+layout: crossover-yard
+
+# A train has a length and a starting block. It has no facing: routes are
+# strict pass-throughs (ADR-0001) and the request names the departure end,
+# so orientation never needs storing.
+trains:
+  freight_1: { length: 1100, at: yard_w }
+  express_2: { length: 600, at: up_e }
+
+# request = (train, departure end, destination block, arrival tick).
+# `from` repeats the train's own block so the file is self-checking and reads
+# without cross-referencing; the loader rejects a mismatch.
+requests:
+  - { train: freight_1, from: yard_w.B, to: yard_e, at: 0 }
+  - { train: express_2, from: up_e.A, to: yard_w, at: 0 }
+  - { train: freight_1, from: yard_e.A, to: yard_w, at: 12 } # return working

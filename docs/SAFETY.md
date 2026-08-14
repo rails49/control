@@ -95,15 +95,19 @@ launch(req, k):
   stay pending
 ```
 
-`candidates(req, k)` yields at most `k` simple routes in the order fixed by
-the dispatch policy — fewest transits, lexicographic tie-break, and only
-routes whose every block fits the train. The route is fixed once chosen, so
+`candidates(req, k)` yields at most `k` simple routes in the order fixed by the
+dispatch policy — fewest transits, lexicographic tie-break, only routes whose
+every block fits the train, and **deduped by resource set** so that `k` is spent
+on genuine alternatives rather than on one option spelled two ways
+([DISPATCH.md](DISPATCH.md#route-selection)). The route is fixed once chosen, so
 [ADR-0002](adr/0002-fixed-route-per-request.md) is untouched.
 
 `k` is configurable and is a benchmark axis, not merely a cap: `k = 1` is a
-pure single-route gate, `k = ∞` is unbounded route-around, and the interesting
+pure single-route gate, larger `k` is route-around, and the interesting
 question — what permissiveness actually buys in makespan — is measured, not
-assumed.
+assumed. How far the sweep usefully runs is a property of the railroad, not of
+the algorithm; on Gotthard it is `k ∈ {1, 2}`
+([BENCHMARKS.md](BENCHMARKS.md#the-k-axis)).
 
 ## Why it is deadlock-free
 

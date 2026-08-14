@@ -27,10 +27,11 @@ the possible ones exist:
 | 2 | Track segment, possibly of length zero | `a ↔ b` |
 | 3 | Turnout | Only some, e.g. `a ↔ b` and `a ↔ c` but not `b ↔ c` |
 
-When a transit from `a` to `b` exists, the reverse transit usually does too.
-Each connection also declares which of its transits conflict; non-conflicting
-transits (e.g. the two straight paths of a crossing) may be used by two trains
-simultaneously.
+Transits are undirected, so one entry covers both directions of travel. Each
+connection also declares which of its transits are **`concurrent`** — usable by
+two trains at once, e.g. the two straight paths of a crossing. Everything not
+declared conflicts, which is why a plain turnout declares nothing at all
+([ADR-0006](adr/0006-conflicts-declared-by-inversion.md)).
 
 > **Note** the resemblance to a graph, with connections as vertices and blocks
 > as edges.

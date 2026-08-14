@@ -14,18 +14,26 @@ A section of track without turnouts where a train can park, oriented with ends
 _Avoid_: section, segment, track
 
 **Terminal block**:
-A block with only one connected end. Can only be the start or end of a route,
-never intermediate.
-_Avoid_: dead end, siding
+A block with only one connected end, derived from the connections rather than
+declared. Can only be the start or end of a route, never intermediate.
+_Avoid_: dead end. *Siding* is a physical description — a trailing dead-end
+track, which is usually a terminal block — and stays available as such (Claro's
+`claro_4`–`claro_7` are sidings). It is not a synonym for the model concept:
+say "terminal block" when the one connected end is what matters.
 
 **Connection**:
 The junction joining one end of each of one or more blocks, realized by zero or
-more turnouts. Declares its transits and which of them conflict.
+more turnouts. Declares its named transits and, **by inversion**, which pairs of
+them are `concurrent`; every pair not declared conflicts
+([ADR-0006](docs/adr/0006-conflicts-declared-by-inversion.md)).
 _Avoid_: connector, junction, node
 
 **Transit**:
-One traversable (end, end) pair through a connection. Two non-conflicting
-transits may be in use simultaneously.
+One traversable (end, end) pair through a connection, always named.
+**Undirected** — one transit covers both directions of travel — and
+**self-exclusive**, so head-on use is excluded structurally. Two transits at the
+same connection may be in use simultaneously only if the connection declares
+them `concurrent`.
 _Avoid_: route (reserved for the request-level path), path, crossing
 
 ### Stock
@@ -46,14 +54,26 @@ _Avoid_: order, job
 A train's full path for a request: an alternating sequence of blocks and
 transits, fixed when the train starts moving. Strictly pass-through — a train
 enters each block at one end and exits at the other; reversal happens only
-between requests, at rest.
+between requests, at rest. Also a **simple path**: no block or transit occurs
+twice. So a reversing loop turns a train over *two* requests, not one — not
+because reversal is forbidden (the loop needs none) but because the second leg
+would revisit the loop's own blocks.
 _Avoid_: itinerary, journey, plan
 
 **Lock**:
 Exclusive claim on a block or transit by one train. Incremental locking claims
 only the current and next resources of a route; full-route locking claims all
-of them up front.
+of them up front. Occupancy is a **standing lock**: every train, moving or
+parked, requested or not, always holds the lock on the block it stands in.
 _Avoid_: reservation, allocation
+
+**Active / idle train**:
+A train is **active** while it has a committed route — launched, not yet
+completed — and **idle** otherwise, whether or not a request for it is pending.
+An idle train's standing lock makes its block *permanently* unavailable, since
+nothing in the dispatcher will move it; this is what
+[SAFETY.md](docs/SAFETY.md) means by a permanent obstacle.
+_Avoid_: running/stopped, busy/free
 
 **Tick**:
 The discrete time unit of the simulator: each tick, a moving train completes
