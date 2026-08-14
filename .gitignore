@@ -3,3 +3,7 @@ scratch/
 out/
 .claude/settings.local.json
 .claude/.cc-writes/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
