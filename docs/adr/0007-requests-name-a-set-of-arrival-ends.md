@@ -48,8 +48,8 @@ track plan happens to supply alternatives.
   the end and makes the block optional, asserted when present
   ([LAYOUT.md](../LAYOUT.md#scenario-schema)).
 - **Admission splits in two.** The fit check needs only lengths and stays at
-  `submit`; routability needs the origin block and moves to the first launch
-  attempt, so `advance` can now emit `request_rejected` too
+  admission; routability needs the origin block and moves to the first launch
+  attempt, which can now publish `request_rejected` too
   ([DISPATCH.md](../DISPATCH.md#requests)).
 - **Dedupe-by-resource-set is retired.** Its motivating case — one route
   entering the destination at `A`, another at `B` — is now a genuine choice the

@@ -48,8 +48,9 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 
 ### Live maps
 
-- [System organization map](https://github.com/iot49/tc49/issues/13) — the way to `docs/SYSTEM.md`: component decomposition (asset store, scheduler, dispatcher, driver, layout interface) and the bus/CRUD contracts between them.
+_None._
 
 ### Completed maps
 
+- [System organization map](https://github.com/iot49/tc49/issues/13) — the way to `docs/SYSTEM.md`: component decomposition (asset store, scheduler, dispatcher, driver, layout interface) and the bus/CRUD contracts between them. Reached; the spec is `docs/SYSTEM.md` with ADRs 0008–0010.
 - [Milestone 1 spec map](https://github.com/iot49/tc49/issues/1) — the way to a buildable spec for the simulator, dispatcher, and benchmark harness. Reached; the spec is `docs/`.

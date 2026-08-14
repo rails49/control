@@ -5,16 +5,23 @@ describes the whole system; this page fixes the boundary of its first slice.
 
 ## Deliverable
 
-A Python simulator, a dispatcher, and a benchmark harness:
+The system of [SYSTEM.md](SYSTEM.md) — the components wired over the
+in-process bus — plus a benchmark harness:
 
 - The **dispatcher** of [DISPATCH.md](DISPATCH.md), with both locking
   strategies real from day one — full-route locking as the baseline yardstick,
   incremental locking with the route-aware safety check of
   [SAFETY.md](SAFETY.md) as the research core.
-- The **simulator** backend, owning the tick loop of
-  [ARCHITECTURE.md](ARCHITECTURE.md#who-owns-the-loop).
-- A **pytest suite** — the four Hypothesis properties, the boundary-condition
-  examples, and golden-number assertions on the named scenarios.
+- The **scheduler** and **driver** — thin but real bus components: the
+  scheduler releases the scenario's fixed request list at its `at` ticks, the
+  driver translates each granted move into layout commands.
+- The **simulator**, implementing the layout interface: executes commands,
+  reports occupancy, publishes the tick, and owns pacing and termination.
+- The **asset store** in its milestone-1 binding — the Python library over
+  the YAML files of [LAYOUT.md](LAYOUT.md).
+- A **pytest suite** — the four Hypothesis properties over the real assembly
+  on the bus, the boundary-condition examples, and golden-number assertions
+  on the named scenarios.
 - A **benchmark CLI** that takes a `(layout, scenario)` pair, prints the four
   metrics of [DISPATCH.md](DISPATCH.md#metrics), and can dump the structured
   event trace ([BENCHMARKS.md](BENCHMARKS.md)).
@@ -31,11 +38,14 @@ Python throughout, with `uv` for versions and environments — run things with
 
 The core is **independent of the layout's hardware**, and milestone 1 builds
 only that core. Of [GOALS.md](GOALS.md)'s three operations, dispatching is the
-whole subject; the other two are stubbed to the minimum that exercises it:
+whole subject; the other two are real components kept to the minimum that
+exercises it:
 
-- **Scheduling** is a fixed request list read from a scenario file. There is no
-  arrival process and no continual-arrivals scheduler.
-- **Driving** is the simulator advancing each train one transit per tick.
+- **Scheduling** is a fixed request list read from a scenario file, released
+  by the layout-blind scheduler of [SYSTEM.md](SYSTEM.md#scheduler). There is
+  no arrival process and no continual-arrivals scheduler.
+- **Driving** is the stateless translator of [SYSTEM.md](SYSTEM.md#driver),
+  with the simulator advancing each train one transit per tick.
 
 ## Rigor bar
 
@@ -50,7 +60,8 @@ Each of these was ruled out deliberately, not overlooked:
 
 | Not in milestone 1 | Why |
 | --- | --- |
-| A physical layout behind the layout interface | a later effort ([GOALS.md](GOALS.md)); the `Move`-as-data interface is the hook |
+| A physical layout behind the layout interface | a later effort ([GOALS.md](GOALS.md)); the transit-level command vocabulary of [SYSTEM.md](SYSTEM.md#layout-interface) is the hook |
+| MQTT transport, out-of-process deployment | the bus contract is already MQTT-safe ([ADR-0008](adr/0008-bus-contract-is-the-mqtt-safe-intersection.md)); the in-process bus is the milestone binding |
 | A real scheduler with continual arrivals | requests are a fixed batch here |
 | Human driving | the simulator drives |
 | UI / visualization | the event trace is the hook for a future one |

@@ -1,6 +1,7 @@
 # Dispatch
 
-The dispatcher accepts requests from the scheduler and tries to satisfy them in
+The dispatcher accepts requests from the scheduler — as events on the bus
+([SYSTEM.md](SYSTEM.md#dispatcher)) — and tries to satisfy them in
 the shortest time possible. It is **online** — it commits to decisions without
 knowing future requests — and is the research core of this project: deadlock
 avoidance at high throughput. Terminology follows [CONTEXT.md](../CONTEXT.md).
@@ -15,8 +16,9 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../CONTEXT.md).
   ([ADR-0002](adr/0002-fixed-route-per-request.md)).
 - **No reversal** — routes are strict pass-throughs; terminal blocks occur
   only as endpoints ([ADR-0001](adr/0001-no-reversal-within-a-route.md)).
-- **Event-driven** — the dispatcher reacts to events such as *train arrived
-  at block* and never reads a clock, so a simulator and a physical layout drive
+- **Event-driven** — the dispatcher reacts to bus events and never reads a
+  clock — it never even learns the tick number
+  ([SYSTEM.md](SYSTEM.md#time)) — so a simulator and a physical layout drive
   it the same way.
 
 ### Requests
@@ -42,18 +44,22 @@ thing a station actually offers: more than one track will take this train.
 **Admission is decided in two stages**, because the two halves of the old rule
 need different information:
 
-- At `submit`, arrival ends are pruned if the block cannot fit the train, or if
-  the end appears in no connection — a terminal block's dead end, which no
-  route can ever enter through. Both are facts about the layout and the train,
-  so both are decidable the moment the request arrives.
+- At admission — on receipt of the request event — arrival ends are pruned if
+  the block cannot fit the train, or if the end appears in no connection — a
+  terminal block's dead end, which no route can ever enter through. Both are
+  facts about the layout and the train, so both are decidable the moment the
+  request arrives. A stated departure block is checked here too, against where
+  the train actually stands: the scheduler is layout-blind, so every
+  feasibility check is the dispatcher's ([SYSTEM.md](SYSTEM.md#scheduler)).
 - At the first launch attempt, arrival ends not reachable from the origin are
   pruned. This needs the origin block, which for a chained working is not known
-  until its predecessor completes — so `advance` can emit `request_rejected`
-  too, and rejection is no longer purely a `submit`-time answer.
+  until its predecessor completes — so `request_rejected` can also be
+  published at the first launch attempt, and rejection is not purely an
+  admission-time answer.
 
-Either stage rejects the request if it empties the set. The `submit` stage
+Either stage rejects the request if it empties the set. The admission stage
 records what it dropped, with reasons, on `request_admitted`
-([ARCHITECTURE.md](ARCHITECTURE.md#event-trace)) — that is where an authoring
+([SYSTEM.md](SYSTEM.md#event-inventory)) — that is where an authoring
 slip shows up, so a mistyped end is visible at a known tick instead of silently
 narrowing the experiment. The launch stage records nothing unless it rejects,
 because a prune that leaves candidates standing changes nothing observable: the
@@ -112,9 +118,9 @@ resource set.
 
 ### Queue discipline
 
-Greedy, in arrival order. On every resource-releasing event the dispatcher
-scans pending requests oldest-first and launches each whose conditions hold,
-skipping the rest that round. The ordering key is an explicit policy point —
+Greedy, in arrival order. At every grant phase whose buffered events released
+resources, the dispatcher scans pending requests oldest-first and launches
+each whose conditions hold, skipping the rest that round. The ordering key is an explicit policy point —
 priority classes could replace arrival order without touching the safety core —
 but milestone 1 ships arrival order only.
 
@@ -147,39 +153,48 @@ lock. Latency is completion tick − arrival tick.
 
 ## Time model
 
-The simulator uses synchronous discrete **ticks**: each tick, every moving
-train completes one transit into its next block. Travel time within blocks is
+Time is synchronous discrete **ticks**: each tick, every moving train
+completes one transit into its next block. Travel time within blocks is
 ignored, and so is transit length — the long return loop and a station ladder
-both cost one tick. An event-driven clock with real traversal times can replace
+both cost one tick. The tick's ownership and mechanics belong to
+[SYSTEM.md](SYSTEM.md#time): the layout interface publishes the tick event,
+and the dispatcher — which never learns the tick number — treats each tick
+event as its **grant boundary**. What follows is the dispatcher's semantics
+at that boundary. An event-driven clock with real traversal times can replace
 ticks later without changing the dispatcher.
 
-**Each tick has three phases, in order:**
+**Buffer until the boundary.** Sensor events arrive as atomic facts and are
+buffered; the tick event triggers the grant phase, which treats everything
+buffered since the previous tick as a **set**. Grants are a pure function of
+that set, never of the order events happened to arrive — and under a future
+MQTT transport a straggling sensor is simply processed at the next boundary:
+a deferred grant, conservative and safe, never an unsafe one.
 
-1. **Admit** — requests whose arrival tick is `n` are admitted and queued.
-2. **Move + release** — every train holding a granted increment completes its
-   transit, emitting `block_occupied(new)` and `block_vacated(old)`, and
-   atomically releases its origin block and the transit.
-3. **Grant** — the dispatcher reacts to those events and grants. Grants take
-   effect at tick `n+1`.
-
-Event and reaction stay within one tick, so the dispatcher's causality never
-crosses a tick boundary.
+**One tick still produces the three phases**, now as the cascade the tick
+event causes rather than a loop written out: the layout executes the previous
+grant phase's commands and reports the moves (`block_occupied(new)`,
+`block_vacated(old)` — the origin block and transit release atomically); the
+scheduler's due requests arrive and are admitted on receipt; the grant phase
+runs over the buffered set. Everything published in reaction to one tick is
+handled at the next, so grants take effect one tick after the releases that
+enabled them.
 
 **Lock footprint.** A train moving from `X` through `T` into `Y` holds
 `{X, T, Y}` for the move and releases `X` and `T` atomically on arrival. `T`
 and `Y` are granted together, which is what makes a transit never held across a
 wait — the premise the whole deadlock argument rests on.
 
-**Grant order** — within phase 3, active trains first (by request arrival tick,
-tie-break train id), then pending launches oldest-first. Draining work in
-progress before admitting new holders favours makespan and mirrors the progress
-argument of [SAFETY.md](SAFETY.md): advancing the head of the witness ordering
-is always safe, while launching adds a resource holder. Because `advance` takes
-a whole tick's sensor events as a batch, this order never depends on the order
-sensors happen to fire.
+**Grant order** — within the grant phase, active trains first (by request
+arrival tick, tie-break train id), then pending launches oldest-first.
+Draining work in progress before admitting new holders favours makespan and
+mirrors the progress argument of [SAFETY.md](SAFETY.md): advancing the head of
+the witness ordering is always safe, while launching adds a resource holder.
+Because the grant phase takes the whole buffered set, this order never depends
+on the order sensors happen to fire.
 
-**No same-tick handoff.** A lock released in phase 2 of tick `n` is grantable in
-phase 3 of tick `n`, but the grantee does not move until tick `n+1`. A convoy
+**No same-tick handoff.** A lock released by the moves reported at tick `n` is
+grantable in tick `n`'s grant phase, but the grantee's cross command executes
+at tick `n+1`. A convoy
 therefore starts with a one-tick stagger and then flows at one block per train
 per tick — the backward-propagating start wave real trains have. Minimum
 latency is one tick per transit.
@@ -238,4 +253,4 @@ and each metric is computed as a pure function of the event trace
   starvation).
 - **Resource utilization** — fraction of ticks each block/transit is occupied
   or locked.
-- **Trains moved per tick** — instantaneous parallelism.
+- **Cross commands per tick** — instantaneous parallelism.

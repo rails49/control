@@ -4,7 +4,8 @@ Dispatching trains on a model railroad: deadlock-free, high-throughput
 allocation of track to scheduling requests. The app never touches hardware:
 whatever drives the track implements the **layout interface** — reporting
 sensor readings, executing turnout and throttle commands. A simulator
-implements it first, a physical layout later.
+implements it first, a physical layout later. Components communicate over an
+event bus and an asset CRUD contract ([docs/SYSTEM.md](docs/SYSTEM.md)).
 
 ## Language
 
@@ -89,7 +90,38 @@ nothing in the dispatcher will move it; this is what
 _Avoid_: running/stopped, busy/free
 
 **Tick**:
-The discrete time unit of the simulator: each tick, a moving train completes
-one transit. Travel time within blocks is ignored. The dispatcher itself is
-event-driven and never reads a clock.
+The discrete time unit: each tick, a moving train completes one transit.
+Published as an event by the layout interface, carrying a deterministic
+counter, and doubling as the dispatcher's grant boundary
+([ADR-0009](docs/adr/0009-layout-interface-owns-time.md)). Travel time within
+blocks is ignored. The dispatcher never reads a clock and never learns the
+tick number.
 _Avoid_: step, cycle
+
+### Bus
+
+**Topic**:
+A named bus channel, `tc49/<role>/<leaf>`, the role — `layout`, `schedule`,
+`dispatch`, `drive` — naming its single writer. Consumers subscribe by prefix
+filter; the full inventory is
+[SYSTEM.md](docs/SYSTEM.md#event-inventory).
+_Avoid_: channel, queue
+
+**Event topic / state topic**:
+Every topic is exactly one of the two. An event topic carries facts that
+happened and is never replayed; a state topic is last-value-wins, delivered
+to late subscribers, and marked in the path (`…/state/<name>`).
+_Avoid_: retained message (the MQTT mechanism, not the model concept)
+
+**Command**:
+An imperative event the layout interface executes: `align` (set a connection
+to a transit) and `cross` (a train crosses a transit into a block). The only
+imperatives on the bus — everything else is a past-tense fact.
+_Avoid_: instruction
+
+**Request id**:
+The scheduler-minted identity of a request, deterministic in scenario order
+(`<train>-1`, `<train>-2`, …) — never clock-derived. Both idempotency key
+(duplicate events are dropped) and correlation key threading a request's
+lifecycle and move events.
+_Avoid_: event id (there is no universal envelope id)

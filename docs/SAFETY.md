@@ -23,8 +23,8 @@ A consequence worth stating: a train mid-transit from `X` to `Y` holds
 `{X, T, Y}`, and its lock on `X` is released on `block_vacated(X)` — the
 sensor confirming the train has fully cleared it — never on
 `block_occupied(Y)`. Real trains straddle the boundary; the release rule
-handles that without the dispatcher knowing. In the simulator both events fire
-in the same phase, so the two behave identically.
+handles that without the dispatcher knowing. In the simulator both events land
+in the same tick's buffered set, so the two behave identically.
 
 ## State
 
@@ -71,7 +71,8 @@ survey's §2.
 
 Tentatively apply the grant, evaluate `safe()` on the resulting state, and
 commit the grant only if it holds. A refused train stays parked holding its
-standing block lock, and is reconsidered on the next releasing event.
+standing block lock, and is reconsidered at the next grant phase that releases
+resources.
 
 - **Every incremental grant** (next transit + next block).
 - **Every launch**, which is itself an allocation — see route selection below.
@@ -149,7 +150,7 @@ needs a block held by a train frozen behind it. Hence no deadlock.
 ordering `t₁…tₖ`. Every block on `rem(t₁)` is free or held by `t₁` itself, so
 `t₁`'s next transit and block are grantable, and granting them preserves
 safety — `t₁` remains the head of the same witness. The dispatcher re-examines
-waiting trains on every event, so the grant is eventually issued. Each advance
+waiting trains at every grant phase, so the grant is eventually issued. Each advance
 strictly decreases total remaining route length, a natural number, so every
 active train reaches its destination.
 

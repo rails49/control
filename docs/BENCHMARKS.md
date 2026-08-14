@@ -2,7 +2,7 @@
 
 What the benchmark harness runs and what it reports. The four metrics are
 defined in [DISPATCH.md](DISPATCH.md#metrics), the trace they are computed from
-in [ARCHITECTURE.md](ARCHITECTURE.md#event-trace), and the file formats in
+in [SYSTEM.md](SYSTEM.md#the-trace), and the file formats in
 [LAYOUT.md](LAYOUT.md).
 
 The suite has **two roles over one layout library**. Hand-authored named
@@ -183,17 +183,24 @@ fourth path between the stations; this railroad has none.
 
 ## Termination
 
-**Quiescence, exactly detected — not a timeout.** Under batch arrivals no
-request arrives after tick 0, so a tick yielding no move and no completion
-leaves the state byte-identical next tick. The dispatcher is deterministic and
-event-driven; no events means no change, forever. This is a proof, not a
-heuristic.
+**Quiescence, exactly detected — not a timeout.** The simulator stops
+advancing ticks when the scheduler's `exhausted` state is set and a tick's
+cascade produced no commands ([SYSTEM.md](SYSTEM.md#layout-interface)). That
+is exact, not heuristic: under batch arrivals no request arrives after tick 0,
+so a commandless tick leaves the state byte-identical next tick — the
+dispatcher is deterministic and event-driven; no events means no change,
+forever. The stop rule is milestone-1 pacing, not bus contract; a hardware
+adapter never terminates.
 
-If requests remain pending at quiescence, [SAFETY.md](SAFETY.md) leaves exactly
-one possible cause: a permanent obstacle — an idle train parked across every
-candidate route. The harness therefore **names it** (which train, which block,
-how many candidates it blocks), emits `run_stalled`, and reports the run
-`stalled`. Stalled runs are excluded from makespan aggregates.
+If requests remain pending when the trace ends, [SAFETY.md](SAFETY.md) leaves
+exactly one possible cause: a permanent obstacle — an idle train parked across
+every candidate route. The run's `stalled` status and its diagnosis are
+**derived from the trace**, not stored: a stalled request is one
+`request_admitted` but never `request_completed`, and the last
+`grant_refused` for its id names the obstacles — which train (`holder`),
+which block (`resource`), how many candidates it blocked (the list's length)
+([SYSTEM.md](SYSTEM.md#event-inventory)). Stalled runs are excluded from
+makespan aggregates.
 
 This turns the conditional-liveness proviso of SAFETY.md from a paragraph into
 a visible, tested output. The same detector powers property 2 in

@@ -1,6 +1,8 @@
 # Layout and scenario files
 
-The two file formats the dispatcher reads. Terminology follows
+The two document types of the asset store
+([SYSTEM.md](SYSTEM.md#asset-store)), which validates both at `put` — schema
+and cross-references — so components read them unchecked. Terminology follows
 [CONTEXT.md](../CONTEXT.md); the semantics of what these files describe are in
 [GOALS.md](GOALS.md) and [DISPATCH.md](DISPATCH.md).
 
@@ -107,8 +109,10 @@ requests:
   transit to constrain and nothing to check the end against
   ([DISPATCH.md](DISPATCH.md#requests)).
 - **`from` requires the end and takes the block optionally.** `from: yard_w.B`
-  states the working the way a reader wants to see it, and is checked — at load
-  time for a train's first request, at admission for any later one. But a
+  states the working the way a reader wants to see it, and is checked by the
+  dispatcher at admission against where the train actually stands — the
+  scheduler is layout-blind, so every feasibility check is the dispatcher's
+  ([SYSTEM.md](SYSTEM.md#scheduler)). But a
   chained working can no longer state it: where the previous request parked the
   train is a dispatcher choice among that request's arrival ends, unknown when
   the file is written. Those write `from: A`, and the block is whatever the
