@@ -36,10 +36,14 @@ the starvation job [SAFETY.md](SAFETY.md) assigns it. Named scenarios stay free
 to stagger `at:` for storytelling.
 
 **Line workings** — generated requests run station to station,
-`claro_{1,2,3} ↔ airolo_{1,2,3}`, destination track uniform, chained into a
-connected walk per train: request *n+1* departs from wherever request *n* parked
-the train. The departure end is a free choice, since ADR-0001 permits reversal
-at rest between requests.
+`claro_{1,2,3} ↔ airolo_{1,2,3}`, chained into a connected walk per train:
+request *n+1* departs from wherever request *n* parked the train. The departure
+end is a free choice, since ADR-0001 permits reversal at rest between requests.
+
+Chained requests therefore name **no departure block** — which track the
+dispatcher parked the train on is its choice among the previous request's
+arrival ends, so the generator emits `from: A` or `from: B` and only a train's
+first working states a block ([LAYOUT.md](LAYOUT.md#scenario-schema)).
 
 **The departure end is picked uniformly**, not "the end facing the chosen
 route". A request departing Claro *west* has one line available and one
@@ -62,72 +66,116 @@ bite are **idle trains on station tracks**: a working train before it launches,
 or one that has finished its last working and now sits where somebody else is
 headed.
 
-**Sweep axes**: trains 2–5, 3 workings each, seeds 0–9, `k ∈ {1, 2}`,
-locking ∈ {`FullRoute`, `Incremental`}.
+**Sweep axes**: trains 2–5, 3 workings each, seeds 0–9, `|dest| ∈ {1, 2, 6}`,
+`k ∈ {1, 2, 4, 6}`, locking ∈ {`FullRoute`, `Incremental`}.
+
+**`|dest|` is the flexibility axis** — how many arrival ends a request names
+([ADR-0007](adr/0007-requests-name-a-set-of-arrival-ends.md)). It exists
+because the claim that arrival-end sets buy throughput is a claim, and this
+suite measures rather than assumes:
+
+| `\|dest\|` | What the request says | Written |
+| --- | --- | --- |
+| 1 | one track, one way round | `to: [claro_2.B]` |
+| 2 | one track, either way round — **the old semantics** | `to: [claro_2]` |
+| 6 | any track at the other station, either way round | `to: [claro_1, claro_2, claro_3]` |
+
+`|dest| = 2` is the continuity point: it is exactly the request this model had
+before arrival ends existed, so it is the column every other column is read
+against.
 
 Working trains start on station tracks, of which Gotthard has six. **The axis
 stops at 5 for that reason**: at six, every station track holds an idle train,
-every request's destination is therefore a permanent obstacle, `safe()` refuses
-every launch, and the run quiesces `stalled` at tick 0 on every seed. That
-point measures the stall detector, not throughput, so it is excluded rather
-than swept. At five there is always a free track for the first launch, and each
-completion frees another.
+every arrival block is therefore a permanent obstacle at every `|dest|`,
+`safe()` refuses every launch, and the run quiesces `stalled` at tick 0 on
+every seed. That point measures the stall detector, not throughput, so it is
+excluded rather than swept. At five there is always a free track for the first
+launch, and each completion frees another.
 
 ### The generator
 
 Everything below is drawn from a single seeded RNG, in this order, so a
-`(layout, trains, workings, seed)` tuple names one exact workload:
+`(layout, trains, workings, |dest|, seed)` tuple names one exact workload:
 
 1. **Placement** — sample `trains` distinct station tracks from the six, one
    train each. Train lengths are fixed per train id so the fit check is
    deterministic; any length that fits every station track will do.
 2. **Workings** — for each train in id order, chain `workings` requests. The
-   first departs from its placement; each later one departs from where the
-   previous parked it. The destination is uniform over the three tracks at the
-   *other* station, and the departure end is uniform over `A`/`B`.
+   first departs from its placement and states that block; each later one
+   states only its end. The departure end is uniform over `A`/`B`, and the
+   arrival ends are drawn at the swept `|dest|`: at 6, all three tracks of the
+   *other* station; at 2, one track uniform over the three; at 1, one track
+   uniform and then one of its two ends uniform.
 3. **Arrival** — every request at tick 0.
 
-A generated request may be unroutable from the end drawn (a departure end that
-fits no route to that destination); redraw the end, then the destination. Do
-not silently drop the request — the workings-per-train count is a sweep axis
-and must hold.
+**No redraw is needed on Gotthard**, and the rule that replaces it is weaker
+than the old one. Reachability now depends on the origin block, which for a
+chained working is not known when the file is written, so the generator cannot
+check it — it is settled at the first launch attempt
+([DISPATCH.md](DISPATCH.md#requests)). What makes this safe here is a property
+of the railroad, verified against the encoding: every one of the six
+station-to-station arrival ends is reachable from every origin track by either
+departure end, so no draw can be unroutable at any `|dest|`. A layout without
+that property needs the request redrawn — end first, then arrival ends — since
+the workings-per-train count is a sweep axis and must hold.
 
 ## The `k` axis
 
 `k` caps the candidate routes a launch may try before giving up
 ([SAFETY.md](SAFETY.md#route-selection)). `k = 1` is a pure gate — wait for the
-one route; `k = 2` is route-around — take the other line instead. That contrast
-is the headline measurement.
+one route; `k > 1` is route-around, and with arrival-end sets it is also
+finish-somewhere-else. That contrast is the headline measurement.
 
-**`k ∈ {1, 2}` because two is all this railroad offers**, measured on the
-finished encoding rather than argued. For all 36 station-to-station requests:
+**`k` and `|dest|` are not independent axes.** Enumerated on the finished
+encoding, Gotthard yields **exactly one minimal route per arrival end** — every
+station-to-station route is two transits, so the candidate count a launch has
+to work with is `|dest|` itself:
 
-| Requests | Minimal routes | Distinct lines | `k` |
-| --- | --- | --- | --- |
-| Claro → Airolo (18) | 2 | 1 | inert |
-| Airolo → Claro (18) | 2 | 2 | `k = 2` chooses |
+| `\|dest\|` | Direction | Minimal routes | Distinct lines | `k` |
+| --- | --- | --- | --- | --- |
+| 1 | either | 1 | 1 | inert |
+| 2 | Claro → Airolo | 2 | 1 | arrival end only |
+| 2 | Airolo → Claro | 2 | 2 | `k = 2` chooses a line |
+| 6 | Claro → Airolo | 6 | 1 | arrival track only |
+| 6 | Airolo → Claro | 6 | 3 | `k` chooses among all three lines |
 
-The asymmetry is structural. At Claro each track's east end is served by
-exactly one blue line (blue 1 reaches track 3; blue 2 reaches tracks 1 and 2)
-and its west end by the yellow, so the departure end and destination track
-together fix the line — nothing left to choose. Departing Airolo, all three
-lines meet at the single WX310 junction and two of them reach any given Claro
-track, so a train for `claro_3` can take blue 1 or the yellow.
+Three things to read off it:
 
-Two consequences a reader will otherwise get wrong:
+- **`k > |dest|` is a dead cell.** The minimal set is exhausted at `|dest|`
+  candidates and the next tier is a 6-transit detour, so the sweep runs `k` up
+  to `|dest|` and no further.
+- **`k` is wholly inert at `|dest| = 1`.** One arrival end is one route, in
+  both directions. This is the cost of constraining the arrival end, and it is
+  why [ADR-0007](adr/0007-requests-name-a-set-of-arrival-ends.md) does not
+  constrain it without also allowing a set.
+- **The old asymmetry is gone at `|dest| ≥ 2`.** `k` used to bite on half the
+  workload — Claro departures had one line and nothing to choose. They still
+  have one line, but now several arrival tracks on it, so `k` chooses *where
+  the train finishes* rather than *how it gets there*. Both directions are
+  live; only what `k` buys differs, and the sweep should still report the two
+  directions separately because those are different mechanisms.
 
-- **`k` bites on half the workload.** Report the `k=1` → `k=2` comparison
-  **per direction**. An aggregate makespan improvement is diluted by the 18
-  requests where `k` could not have done anything.
-- **`k` candidates are not `k` alternatives.** Where a request has only one
-  line, its two minimal routes differ solely in which end they enter the
-  destination track by — same blocks, same contention. Hence the dedupe-by-
-  resource-set rule in [DISPATCH.md](DISPATCH.md#route-selection).
+The line asymmetry itself is structural and unchanged. At Claro each track's
+east end is served by exactly one blue line (blue 1 reaches track 3; blue 2
+reaches tracks 1 and 2) and its west end by the yellow, so the departure end
+and arrival end together fix the line. Departing Airolo, all three lines meet
+at the single WX310 junction and every one of them reaches every Claro track,
+so at `|dest| = 6` a train has all three to choose between.
 
-`k ≥ 3` reaches only 6-transit detours that consume all three line sections
-where the direct route needs one. They are worse under contention, not better,
-and less likely to pass the safety check. A layout where `k` could pay past 2
-would need a fourth path between the stations; this railroad has none.
+**Expect a lexicographic bias at `k < |dest|`.** Every candidate ties at two
+transits, so the tie-break alone orders them
+([DISPATCH.md](DISPATCH.md#route-selection)) and every train tries `claro_1`,
+then `claro_2`, first. At `|dest| = 6, k = 2` that is six trains contending for
+the same two tracks while four sit unused — so `k = 2` may well come in *worse*
+than `k = 6`, and possibly worse than `|dest| = 2`. That is a prediction the
+grid is shaped to confirm or refute, not a defect to fix in advance;
+congestion-aware costing is the remedy if it holds.
+
+`k ≥ 7` reaches only 6-transit detours that consume all three line sections
+where the direct route needs one — verified: between the two tiers there is
+nothing. They are worse under contention, not better, and less likely to pass
+the safety check. A layout where `k` could pay past `|dest|` would need a
+fourth path between the stations; this railroad has none.
 
 ## Termination
 
@@ -155,7 +203,8 @@ never as the normal stop condition.
 | --- | --- |
 | `gotthard/meet` | two trains, opposite directions — `FullRoute` serialises, `Incremental` should split them across two lines |
 | `gotthard/saturation` | 5 trains × 3 workings, batch — the headline makespan gap; five is the ceiling, per the axis note above |
-| `gotthard/obstacle` | an idle train parked on the one line a pending request can use — e.g. stock left on `line_blue_1` while a request departs `claro_3.B`, whose departure end and destination fix that line. Expected status `stalled`, with the obstacle named |
+| `gotthard/obstacle` | an idle train parked on the one line a pending request can use — stock left on `line_blue_1` while a request departs `claro_3.B`, which is served by blue 1 alone. The departure end fixes the line by itself, so the request stalls however many arrival ends it names. Expected status `stalled`, with the obstacle named |
+| `gotthard/flexibility` | the same working twice, once as `to: [claro_2.B]` and once as `to: [claro_1, claro_2, claro_3]` — the `\|dest\|` contrast as a story rather than a sweep row |
 | `crossover-yard/meet` | small and fast; the only layout with a `concurrent` pair |
 
 ## Output
@@ -163,7 +212,9 @@ never as the normal stop condition.
 - **`tc49 bench <scenario>`** runs one scenario under both strategies at the
   default `k = 2`, prints the comparison, and asserts against a committed
   `benchmarks/expected/<name>.json` in pytest. `k` is overridable, but the
-  golden numbers are recorded at the default.
+  golden numbers are recorded at the default. There is no `|dest|` flag: a
+  named scenario writes its arrival ends out request by request, so `|dest|` is
+  a property of the file rather than a knob on the run.
 - **`tc49 sweep`** writes one JSONL row per run — every axis plus every metric
   — to a gitignored `out/`. No aggregation is baked in.
 

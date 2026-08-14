@@ -59,7 +59,7 @@ connections:
   [ADR-0006](adr/0006-conflicts-declared-by-inversion.md) for why the
   declaration points this way.
 - **Lengths** are load-bearing only for the admission fit check — does the train
-  fit its destination block. Transit length is not modelled at all: every
+  fit the blocks it may arrive in. Transit length is not modelled at all: every
   transit costs one tick ([DISPATCH.md](DISPATCH.md#time-model)).
 - **There are no turnouts in the format.** A connection is abstract, "realized
   by zero or more turnouts" is a physical note, and turnout switching time is
@@ -78,8 +78,8 @@ trains:
   freight_1: { length: 1100, at: yard_w }
 
 requests:
-  - { train: freight_1, from: yard_w.B, to: yard_e, at: 0 }
-  - { train: freight_1, from: yard_e.A, to: yard_w, at: 12 }
+  - { train: freight_1, from: yard_w.B, to: [dn_e, up_e], at: 0 }
+  - { train: freight_1, from: A,        to: [yard_w.B],   at: 12 }
 ```
 
 - **`layout:` names the layout id**, not a path — the same string the layout
@@ -90,16 +90,30 @@ requests:
   asks whether a train fits a block, so total length is the whole of what
   milestone 1 reads; [GOALS.md](GOALS.md)'s composed loco-and-car model arrives
   when something consumes it.
+- **`to` is a list of arrival ends**, any one of which satisfies the request
+  ([ADR-0007](adr/0007-requests-name-a-set-of-arrival-ends.md)). An element is
+  either `<block>.<end>`, naming the end the train enters through, or a bare
+  `<block>`, which expands at load time to both of its ends and is how a
+  scenario says "either way round". So `to: [dn_e, up_e]` is four arrival ends
+  and `to: [yard_w.B]` is one. The list is **unordered**: the entries are
+  equally acceptable and route selection decides between them, so writing a
+  preferred track first has no effect.
 - **No facing is stored.** Routes are strict pass-throughs
-  ([ADR-0001](adr/0001-no-reversal-within-a-route.md)) and the request names its
-  departure end, so orientation never needs recording.
-- **`from` repeats the departure block** redundantly with the train's position,
-  so a scenario states the working it describes instead of requiring the reader
-  to replay it mentally. Only a train's **first** request can be checked against
-  its placement at load time — later requests depart from wherever the previous
-  one parked it, so they are asserted at admission instead. Either way an
-  authoring slip is a loud error at a known tick, not a silently different
-  experiment.
+  ([ADR-0001](adr/0001-no-reversal-within-a-route.md)) and both `from` and `to`
+  name an end the train crosses, so orientation is a consequence of the route
+  rather than a fact needing to be recorded. The one place this shows is the
+  degenerate request — a train already standing in an arrival block completes
+  at latency 0 whichever end that arrival names, because there is no final
+  transit to constrain and nothing to check the end against
+  ([DISPATCH.md](DISPATCH.md#requests)).
+- **`from` requires the end and takes the block optionally.** `from: yard_w.B`
+  states the working the way a reader wants to see it, and is checked — at load
+  time for a train's first request, at admission for any later one. But a
+  chained working can no longer state it: where the previous request parked the
+  train is a dispatcher choice among that request's arrival ends, unknown when
+  the file is written. Those write `from: A`, and the block is whatever the
+  train is standing in. Where the block *is* written, an authoring slip stays a
+  loud error at a known tick rather than a silently different experiment.
 
 ## Reading a layout
 

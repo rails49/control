@@ -84,7 +84,8 @@ standing block lock, and is reconsidered on the next releasing event.
 ## Route selection
 
 Launching a request is safety-checked against candidate routes rather than a
-single one, so a request can route *around* a blockage instead of waiting for
+single one, so a request can route *around* a blockage — or, since a request
+names a set of arrival ends, *finish somewhere else* — instead of waiting for
 it:
 
 ```
@@ -96,18 +97,25 @@ launch(req, k):
 ```
 
 `candidates(req, k)` yields at most `k` simple routes in the order fixed by the
-dispatch policy — fewest transits, lexicographic tie-break, only routes whose
-every block fits the train, and **deduped by resource set** so that `k` is spent
-on genuine alternatives rather than on one option spelled two ways
-([DISPATCH.md](DISPATCH.md#route-selection)). The route is fixed once chosen, so
-[ADR-0002](adr/0002-fixed-route-per-request.md) is untouched.
+dispatch policy — routes to **every** surviving arrival end merged into one
+list, fewest transits, lexicographic tie-break, and only routes whose every
+block fits the train ([DISPATCH.md](DISPATCH.md#route-selection)). `k` is one
+budget over that merged list, not a budget per arrival end.
+
+The route is fixed once chosen, so
+[ADR-0002](adr/0002-fixed-route-per-request.md) is untouched — and so is
+everything above. Committing the route commits one arrival end with it, which
+is why `dest(t)` in `feasible` is single-valued for every *active* train
+however many ends its request named. The set exists only in the pending queue;
+the safety check never sees it.
 
 `k` is configurable and is a benchmark axis, not merely a cap: `k = 1` is a
-pure single-route gate, larger `k` is route-around, and the interesting
-question — what permissiveness actually buys in makespan — is measured, not
-assumed. How far the sweep usefully runs is a property of the railroad, not of
-the algorithm; on Gotthard it is `k ∈ {1, 2}`
-([BENCHMARKS.md](BENCHMARKS.md#the-k-axis)).
+pure single-route gate, larger `k` is route-around and finish-somewhere-else,
+and the interesting question — what permissiveness actually buys in makespan —
+is measured, not assumed. How far the sweep usefully runs is a property of the
+railroad *and of the request*: Gotthard offers exactly one minimal route per
+arrival end, so `k` past `|dest|` buys nothing and `k` at `|dest| = 1` is
+inert ([BENCHMARKS.md](BENCHMARKS.md#the-k-axis)).
 
 ## Why it is deadlock-free
 
@@ -158,12 +166,18 @@ and each is worth a test.
   advance a train into a position where the two later wedge each other — the
   cycle is manufactured by the optimism. Pessimism means the blocked train
   never launches, so it never gets into that position.
-- **A destination held by an idle train is unroutable-to** until that train
+- **An arrival block held by an idle train is unroutable-to** until that train
   leaves. Two trains cannot park in one block, so this is correct rather than
-  merely conservative.
-- **Shared destinations.** Two active trains with the same destination can
+  merely conservative. What arrival-end sets change is only how often it
+  matters: the request is held back when *every* one of its arrival blocks is
+  obstructed, not when one is.
+- **Shared destinations.** Two active trains committed to the same block can
   never both appear in a witness ordering — the second finds the block parked
-  on — so `safe()` refuses to launch the second while the first is active.
+  on — so `safe()` refuses to launch the second while the first is active. Two
+  *requests* whose arrival sets overlap are not shared destinations: each
+  commits to one end at launch, and the second is free to commit to a different
+  block. This is the throughput the sets were added for, and it is bought
+  entirely in route selection — the check above is unchanged.
 - **Completion is a non-event for the proof.** A train leaving the active set
   changes nothing, because `dest(u)` already modeled its block as permanently
   held; it simply becomes an idle obstacle under a different name.

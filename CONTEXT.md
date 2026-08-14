@@ -46,9 +46,20 @@ _Avoid_: consist
 ### Dispatch
 
 **Request**:
-An order to deliver a train from one end of a block to another block. Rejected
-only if topologically unroutable; otherwise accepted and queued.
+An order to deliver a train out through one end of its block and in through one
+of a set of **arrival ends**. Rejected only if no arrival end survives — none
+fits the train, or none is reachable; otherwise accepted and queued.
 _Avoid_: order, job
+
+**Arrival end**:
+One acceptable ending for a request: a block together with the end the train
+**enters through**, written `<block>.A` / `<block>.B` exactly as a departure end
+is. A request names a *set* of them, unordered and equally acceptable, and the
+dispatcher commits to one when it chooses the route
+([ADR-0007](docs/adr/0007-requests-name-a-set-of-arrival-ends.md)). Naming both
+ends of one block says "either way round"; naming several blocks says "any of
+these tracks".
+_Avoid_: destination (the request has no single one), arrival side, platform
 
 **Route**:
 A train's full path for a request: an alternating sequence of blocks and

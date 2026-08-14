@@ -7,9 +7,9 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../CONTEXT.md).
 
 ## Semantics
 
-- **Admission** — a request is rejected only if it is topologically
-  unroutable: no route exists on an empty layout, or the train does not fit
-  the destination block. All other requests are accepted and queued.
+- **Admission** — a request is rejected only if no arrival end survives: none
+  is a block the train fits, or none is reachable on an empty layout from the
+  departure end. All other requests are accepted and queued.
 - **Fixed routes** — a route is chosen when the train starts moving and never
   changed; only its locks are incremental
   ([ADR-0002](adr/0002-fixed-route-per-request.md)).
@@ -21,15 +21,51 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../CONTEXT.md).
 
 ### Requests
 
-A request is `(train, departure end, destination block, arrival tick)`. The
-train is named explicitly — its origin block follows from where it stands — and
-the departure end fixes the first transit. The *arrival* end is unconstrained:
-which way round a train finishes is the scheduler's concern, resolved by
-reversal at rest between requests.
+A request is `(train, departure end, arrival ends, arrival tick)`. The train is
+named explicitly — its origin block follows from where it stands — and the
+departure end fixes the first transit. The **arrival ends** are a set, and any
+one of them satisfies the request; the dispatcher commits to one when it
+chooses the route ([ADR-0007](adr/0007-requests-name-a-set-of-arrival-ends.md)).
 
-A request whose destination is the train's current block is accepted with an
-empty route and completes immediately, at latency 0. Treating it as degenerate
-rather than as an error keeps the admission rule free of special cases.
+Both ends name the end the train **crosses**: `claro_1.B` as a departure means
+it leaves through `B`, and `airolo_2.A` as an arrival means it enters through
+`A` and comes to rest with its leading end toward `B`. The arrival end is
+therefore the end of the route's final transit, and constraining it is how a
+scheduler says which way round the train must finish — a fact the reversing
+loop makes real, since turning a train costs a second request rather than
+being free.
+
+Naming both ends of one block says "either way round" and is exactly the
+looser request this model had before. Naming ends on several blocks says the
+thing a station actually offers: more than one track will take this train.
+
+**Admission is decided in two stages**, because the two halves of the old rule
+need different information:
+
+- At `submit`, arrival ends are pruned if the block cannot fit the train, or if
+  the end appears in no connection — a terminal block's dead end, which no
+  route can ever enter through. Both are facts about the layout and the train,
+  so both are decidable the moment the request arrives.
+- At the first launch attempt, arrival ends not reachable from the origin are
+  pruned. This needs the origin block, which for a chained working is not known
+  until its predecessor completes — so `advance` can emit `request_rejected`
+  too, and rejection is no longer purely a `submit`-time answer.
+
+Either stage rejects the request if it empties the set. The `submit` stage
+records what it dropped, with reasons, on `request_admitted`
+([ARCHITECTURE.md](ARCHITECTURE.md#event-trace)) — that is where an authoring
+slip shows up, so a mistyped end is visible at a known tick instead of silently
+narrowing the experiment. The launch stage records nothing unless it rejects,
+because a prune that leaves candidates standing changes nothing observable: the
+chooser simply has fewer routes to order, and `route_chosen`'s `k_tried`
+already says how many it examined.
+
+A request naming the train's current block is accepted with an empty route and
+completes immediately, at latency 0, whichever end that arrival names. An empty
+route has no final transit for the end to constrain and no stored facing to
+check it against ([LAYOUT.md](LAYOUT.md#scenario-schema)) — this is the one
+case where the arrival end is vacuous. Treating it as degenerate rather than as
+an error keeps the admission rule free of special cases.
 
 A request may be pending for a train that is already active on an earlier
 request; chained workings make this routine. It needs no mechanism — an active
@@ -40,19 +76,34 @@ train is not idle, so its next request simply cannot launch yet.
 The route chooser is a **pluggable strategy**, so congestion-aware costing can
 drop in later behind the same interface. Milestone 1's chooser:
 
-1. Consider only routes whose every block fits the train.
-2. Order by transit count — which is tick count, since every transit costs one
+1. Consider routes to **every** surviving arrival end, merged into one list.
+   The arrival ends are unordered and equally acceptable, so the ordering below
+   decides between them; the request states no preference among them.
+2. Consider only routes whose every block fits the train.
+3. Order by transit count — which is tick count, since every transit costs one
    tick regardless of length.
-3. Break ties on the lexicographically smallest block-id sequence, so repeated
+4. Break ties on the lexicographically smallest block-id sequence, so repeated
    runs are bit-identical.
-4. **Dedupe by resource set.** Two candidates that lock the same blocks and the
-   same transits are one option spelled two ways, and emitting both burns the
-   `k` budget of [SAFETY.md](SAFETY.md)'s route selection while offering the
-   dispatcher no genuine alternative. On Gotthard this is not hypothetical:
-   a route entering the destination track at `A` and one entering at `B` differ
-   only in the final transit, and while the junction is fully exclusive either
-   transit excludes the same movements. See
-   [BENCHMARKS.md](BENCHMARKS.md#the-k-axis).
+
+`k` is a single budget over that merged list, not a budget per arrival end, so
+it keeps its plain meaning: how many alternatives a launch may try before
+staying pending.
+
+Step 4 does more work than it used to. On Gotthard every station-to-station
+candidate is two transits, so transit count separates nothing and the
+lexicographic rule alone decides which `k` get tried — every train tries the
+same lowest-numbered tracks first, concentrating contention rather than
+spreading it. That is kept deliberately. Determinism is a tested property and
+byte-identical traces are what make golden numbers viable, so the effect is
+[measured](BENCHMARKS.md#the-k-axis) rather than pre-empted; congestion-aware
+costing is the drop-in if the sweep says it is needed.
+
+There is no dedupe rule. An earlier draft deduped candidates by resource set,
+on the grounds that a route entering the destination at `A` and one entering at
+`B` were one option spelled twice. Under arrival-end sets they are two
+different answers the caller explicitly asked for — and the rule could never
+have fired as written anyway, since a simple route is determined by its
+resource set.
 
 ### Queue discipline
 
@@ -75,13 +126,15 @@ not "taking a lock on the train's own block"; it is the safety layer granting
 the request's first increment: the first transit plus the second block under
 incremental locking, or the whole route under the full-route baseline.
 
-**The queue does not filter on destination occupancy.** A request whose
-destination is occupied is scanned like any other; whether it launches is the
+**The queue does not filter on arrival occupancy.** A request whose arrival
+blocks are occupied is scanned like any other; whether it launches is the
 safety check's answer, not the queue's. The two cases differ: an *idle*
 occupant is a permanent obstacle and the launch is refused until it leaves, an
 *active* occupant that has begun moving no longer counts as holding the block
 ([SAFETY.md](SAFETY.md#state)). Keeping that distinction out of the queue is
 what keeps the avoidance layer the single place deadlock is reasoned about.
+With a set of arrival ends the refusal is rarer but unchanged in kind: the
+launch waits only when *every* candidate is refused, not merely the first.
 
 A request completes on the tick its final transit finishes: the trailing
 transit and origin block release, and the train parks holding only its standing
