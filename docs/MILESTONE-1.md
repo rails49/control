@@ -29,9 +29,9 @@ Python throughout, with `uv` for versions and environments — run things with
 
 ## Scope
 
-The core is **hardware-independent**, and milestone 1 builds only that core.
-Of [GOALS.md](GOALS.md)'s three operations, dispatching is the whole subject;
-the other two are stubbed to the minimum that exercises it:
+The core is **independent of the layout's hardware**, and milestone 1 builds
+only that core. Of [GOALS.md](GOALS.md)'s three operations, dispatching is the
+whole subject; the other two are stubbed to the minimum that exercises it:
 
 - **Scheduling** is a fixed request list read from a scenario file. There is no
   arrival process and no continual-arrivals scheduler.
@@ -50,7 +50,7 @@ Each of these was ruled out deliberately, not overlooked:
 
 | Not in milestone 1 | Why |
 | --- | --- |
-| DCC-EX / physical hardware backend | a later effort ([GOALS.md](GOALS.md)); the `Move`-as-data interface is the hook |
+| A physical layout behind the layout interface | a later effort ([GOALS.md](GOALS.md)); the `Move`-as-data interface is the hook |
 | A real scheduler with continual arrivals | requests are a fixed batch here |
 | Human driving | the simulator drives |
 | UI / visualization | the event trace is the hook for a future one |

@@ -60,6 +60,8 @@ Railroad operations divide into three distinct functions:
 
 ## Approach
 
-The core is hardware-independent. A simulator is the first backend, behind an
-interface a physical layout (eventually [DCC-EX](https://dcc-ex.com)) will
-implement later; capabilities of DCC-EX-class hardware may be assumed.
+The app does not talk to hardware. It talks to the **layout interface**: sensor
+readings come in, turnout and throttle commands go out. A simulator implements
+that interface first; a physical layout implements it later. Which hardware
+sits behind it is irrelevant to this app — the interface assumes only that
+individual turnouts can be aligned and individual trains throttled.

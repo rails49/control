@@ -3,11 +3,11 @@
 The dispatcher has no collaborators. `advance()` takes a tick's sensor events
 and *returns* the granted moves; whoever called it applies them. The obvious
 alternative was ports-and-adapters — hand the dispatcher a `Backend` and let it
-call `backend.move(...)` as it grants — and we rejected it because hardware
-independence is better served by the move being **data** than by a protocol:
-there is nothing for a DCC-EX driver to implement and, more to the point,
-nothing for a test to fake. The interface is the test surface, and it takes no
-arguments a test has to invent.
+call `backend.move(...)` as it grants — and we rejected it because independence
+from the layout's hardware is better served by the move being **data** than by a
+protocol: there is nothing for a physical-layout driver to implement and, more
+to the point, nothing for a test to fake. The interface is the test surface,
+and it takes no arguments a test has to invent.
 
 Sensor events arrive as a batch rather than one at a time. Grant order is fixed
 ([#4](https://github.com/iot49/tc49/issues/4)) as active trains by request

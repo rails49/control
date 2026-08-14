@@ -16,7 +16,7 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../CONTEXT.md).
 - **No reversal** — routes are strict pass-throughs; terminal blocks occur
   only as endpoints ([ADR-0001](adr/0001-no-reversal-within-a-route.md)).
 - **Event-driven** — the dispatcher reacts to events such as *train arrived
-  at block* and never reads a clock, so the simulator and real hardware drive
+  at block* and never reads a clock, so a simulator and a physical layout drive
   it the same way.
 
 ### Requests
@@ -184,11 +184,12 @@ therefore starts with a one-tick stagger and then flows at one block per train
 per tick — the backward-propagating start wave real trains have. Minimum
 latency is one tick per transit.
 
-**Sensors are anonymous.** The backend reports only `block_occupied(block)` and
-`block_vacated(block)`, with no train identity — exactly what a DCC-EX current
-detector can produce. The dispatcher recovers identity from its own lock table,
-which already records the grantee of every block. This is what lets the
-simulator and real hardware drive the dispatcher the same way.
+**Sensors are anonymous.** The layout interface reports only
+`block_occupied(block)` and `block_vacated(block)`, with no train identity —
+the least a block-occupancy sensor can be asked to produce. The dispatcher
+recovers identity from its own lock table, which already records the grantee of
+every block. This is what lets a simulator and a physical layout drive the
+dispatcher the same way.
 
 ## Locking
 

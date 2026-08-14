@@ -48,10 +48,11 @@ class Step:
     events: list[TraceEvent]
 ```
 
-`Move` is **data, not a call**. This is what makes the core hardware
-independent: there is no backend protocol to implement, so the simulator and a
-future DCC-EX driver consume the same values by different means, and a test
-needs neither. The dispatcher never reads a clock and never calls out.
+`Move` is **data, not a call**. This is what keeps the core independent of the
+layout's hardware: there is no backend protocol to implement, so the simulator
+and a future physical-layout driver consume the same values by different means,
+and a test needs neither. The dispatcher never reads a clock and never calls
+out.
 
 `dest` is a **tuple of arrival ends**, any one of which satisfies the request
 ([ADR-0007](adr/0007-requests-name-a-set-of-arrival-ends.md)); the loader has
@@ -85,8 +86,9 @@ for tick in count():
     pending = step.moves                        # take effect at tick+1
 ```
 
-A DCC-EX driver replaces `world.apply` with throttle and turnout commands and
-`sensors` with current-detector readings. Nothing else changes.
+A driver for a physical layout replaces `world.apply` with throttle and turnout
+commands and `sensors` with the layout's own occupancy readings. Nothing else
+changes.
 
 ## The locking seam
 

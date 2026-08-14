@@ -1,8 +1,10 @@
 # Train Control
 
 Dispatching trains on a model railroad: deadlock-free, high-throughput
-allocation of track to scheduling requests. The core is hardware-independent;
-DCC-EX is the eventual physical backend, a simulator the first one.
+allocation of track to scheduling requests. The app never touches hardware:
+whatever drives the track implements the **layout interface** — reporting
+sensor readings, executing turnout and throttle commands. A simulator
+implements it first, a physical layout later.
 
 ## Language
 

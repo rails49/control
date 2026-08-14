@@ -63,7 +63,7 @@ connections:
   transit costs one tick ([DISPATCH.md](DISPATCH.md#time-model)).
 - **There are no turnouts in the format.** A connection is abstract, "realized
   by zero or more turnouts" is a physical note, and turnout switching time is
-  therefore not merely ignored but inexpressible until the hardware effort gives
+  therefore not merely ignored but inexpressible until a later effort gives
   turnouts identity. Connection *length* is likewise absent — a connection can
   be metres of track, as the Gotthard return loop is, but a train transits it
   and can never stop in it.
@@ -132,7 +132,7 @@ Two structural facts fall out of the format and surprise people:
   revisit `line_yellow` — so turning a train is two requests. That is consistent
   with ADR-0001 but for a subtler reason than the ADR contemplates: here it is
   the simple-path rule doing the work, not the no-reversal rule. Autoreverse
-  wiring is DCC polarity and leaves no trace in the YAML.
+  wiring is an electrical concern of the layout and leaves no trace in the YAML.
 
 ## The encoded railroads
 
