@@ -1,9 +1,16 @@
 # Gotthard — the railroad this project dispatches. Ticket #10, map #1.
 #
-# Transcribed from Gotthard.pdf (WinTrack) to the owner's description. Format
-# per #5: named transits over `<block>.A|B` end-pairs, conflicts declared by
-# INVERSION (every pair of transits at a connection conflicts unless listed
-# `concurrent`), terminal blocks derived rather than declared.
+# Checked against the owner's Rocrail netlist, `gotthard-rocrail.xml` (rendered
+# as `gotthard-rocrail.png`), which is authoritative for topology; Gotthard.pdf
+# (WinTrack) remains the source for block lengths. Format per #5: named transits
+# over `<block>.A|B` end-pairs, conflicts declared by INVERSION (every pair of
+# transits at a connection conflicts unless listed `concurrent`), terminal
+# blocks derived rather than declared.
+#
+# Block ids map 1:1 onto Rocrail's, which uses shorter names:
+#   claro_1..3 = c1..c3      claro_4, claro_5 = c6, c5   claro_6, claro_7 = c7, c8
+#   airolo_1..4 = a1..a4     line_blue_1, line_blue_2 = b1, b2
+#   line_yellow = bk1        (Rocrail's stale route ids still call bk1 `rw`)
 #
 # Three line sections join the two stations: two "blue" (one is drawn pink on
 # the plan) and one "yellow". Because of the WX310 crossing, ALL THREE reach
@@ -26,10 +33,10 @@ blocks:
   claro_1: { length: 1500 }
   claro_2: { length: 1500 }
   claro_3: { length: 1500 }
-  # Claro sidings, north-east: off the blue line, not off a station track
+  # Claro sidings, north-east: off track 1's east lead (Rocrail c6, c5)
   claro_4: { length: 900 }
   claro_5: { length: 900 }
-  # Claro sidings, south: off track 3
+  # Claro sidings, south-west: off track 3's west lead (Rocrail c7, c8)
   claro_6: { length: 900 }
   claro_7: { length: 900 }
 
@@ -69,7 +76,7 @@ connections:
       yellow_b1: [line_yellow.A, airolo_1.B]
       yellow_b2: [line_yellow.A, airolo_2.B]
       yellow_b3: [line_yellow.A, airolo_3.B]
-      siding_4: [airolo_1.B, airolo_4.A] # ASSUMED: airolo_4 trails off the B end
+      siding_4: [airolo_3.B, airolo_4.A] # a4 trails off a3, per the Rocrail netlist
     # Nothing declared `concurrent`, so under inversion this junction is fully
     # exclusive: one movement at a time through the whole of Airolo. That is
     # certainly too strict for a station this size — the crossing and the two
@@ -87,16 +94,17 @@ connections:
       siding_7: [claro_3.A, claro_7.A]
 
   # Claro east: the two blue lines DIVIDE the station rather than both serving
-  # all of it. Blue 1 reaches track 1 and the two north-east sidings; blue 2
-  # reaches tracks 2 and 3. The sidings hang off the LINE, not off a track.
+  # all of it. Per the Rocrail netlist, blue 1 reaches track 3 alone and blue 2
+  # reaches tracks 1 and 2. The two north-east sidings hang off TRACK 1's east
+  # lead, not off the line: the netlist gives them no route to a blue.
   #
-  # This is what makes the yellow loop matter: track 1 is reachable from the
-  # east only over blue 1, so a train for track 1 that finds blue 1 occupied
+  # This is what makes the yellow loop matter: track 3 is reachable from the
+  # east only over blue 1, so a train for track 3 that finds blue 1 occupied
   # has no second eastern option — its alternative is the west end entirely.
   claro_east:
     transits:
-      blue_1_1: [line_blue_1.A, claro_1.B]
-      siding_4: [line_blue_1.A, claro_4.A]
-      siding_5: [line_blue_1.A, claro_5.A]
+      blue_1_3: [line_blue_1.A, claro_3.B]
+      blue_2_1: [line_blue_2.A, claro_1.B]
       blue_2_2: [line_blue_2.A, claro_2.B]
-      blue_2_3: [line_blue_2.A, claro_3.B]
+      siding_4: [claro_1.B, claro_4.A]
+      siding_5: [claro_1.B, claro_5.A]
