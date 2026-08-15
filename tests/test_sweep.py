@@ -3,10 +3,9 @@
 import json
 from pathlib import Path
 
-from tc49.metrics import metrics
-from tc49.runner import STRATEGIES, run_scenario
-from tc49.store import Scenario
-from tc49.sweep import (
+from tc49.bench.metrics import metrics
+from tc49.bench.runner import STRATEGIES, run_scenario
+from tc49.bench.sweep import (
     DEST_SIZES,
     K_VALUES,
     LAYOUT,
@@ -20,6 +19,7 @@ from tc49.sweep import (
     generate,
     sweep,
 )
+from tc49.lib.scenario import Scenario
 from tests.harness import ROOT, load
 
 SIDINGS = {"claro_4", "claro_5", "claro_6", "claro_7", "airolo_4"}
@@ -198,7 +198,7 @@ def test_sweep_writes_one_jsonl_row_per_run(tmp_path: Path) -> None:
 
 def _sweep_subset(tmp_path: Path, trains: int = 2) -> int:
     """Run the grid for one train count by narrowing the axis in place."""
-    import tc49.sweep as module
+    import tc49.bench.sweep as module
 
     original = module.TRAIN_COUNTS
     module.TRAIN_COUNTS = (trains,)

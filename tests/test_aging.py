@@ -5,7 +5,7 @@ which safe launches are tried first, so everything here is queue order —
 the safety argument is untouched and stays covered by the properties.
 """
 
-from tc49.dispatch import Request, aging_order
+from tc49.dispatcher.dispatch import Request, aging_order
 
 
 def req(rid: str, seq: int, refusals: int) -> Request:

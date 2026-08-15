@@ -6,7 +6,7 @@ reads no assets, and does not subscribe to the tick (SYSTEM.md, driver
 footprint).
 """
 
-from tc49.bus import Bus, Payload
+from tc49.lib.bus import Bus, Payload
 
 
 class Driver:

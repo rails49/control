@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from tc49.layout import Layout
+from tc49.lib.layout import Layout
 from tc49.store import AssetStore
 
 ROOT = Path(__file__).parent.parent

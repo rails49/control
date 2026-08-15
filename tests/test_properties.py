@@ -11,11 +11,12 @@ from typing import Any
 import yaml
 from hypothesis import given, note, settings
 
-from tc49.bus import Payload
-from tc49.dispatch import Request, State
-from tc49.locking import FullRoute, Incremental, congested, resolve_depart, safety_view
-from tc49.routing import candidates
-from tc49.safety import safe
+from tc49.dispatcher import FullRoute, Incremental
+from tc49.dispatcher.dispatch import Request, State
+from tc49.dispatcher.locking import congested, resolve_depart, safety_view
+from tc49.dispatcher.routing import candidates
+from tc49.dispatcher.safety import safe
+from tc49.lib.bus import Payload
 from tc49.store import AssetStore
 from tests.generate import fixture_yaml, scenarios
 from tests.harness import ROOT, Assembly, build, events, run

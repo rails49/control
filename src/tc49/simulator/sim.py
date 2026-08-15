@@ -8,8 +8,8 @@ tick and that tick's cascade produced no commands (BENCHMARKS.md,
 termination); the tick budget is a backstop against live-lock bugs only.
 """
 
-from tc49.bus import Bus, Payload
-from tc49.store import Scenario
+from tc49.lib.bus import Bus, Payload
+from tc49.lib.scenario import Scenario
 
 
 class Simulator:

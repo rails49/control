@@ -17,8 +17,9 @@ from typing import Any
 import yaml
 from hypothesis import strategies as st
 
-from tc49.layout import Layout
-from tc49.store import AssetStore, Scenario
+from tc49.lib.layout import Layout
+from tc49.lib.scenario import Scenario
+from tc49.store import AssetStore
 from tests.harness import ROOT
 
 LIBRARY = ("facing-pair", "single-track-meet", "crossover-yard")

@@ -20,10 +20,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from tc49.layout import Layout
-from tc49.metrics import metrics
-from tc49.runner import STRATEGIES, find_root, run_scenario
-from tc49.store import AssetStore, RequestSpec, Scenario, TrainSpec
+from tc49.bench.metrics import metrics
+from tc49.bench.runner import STRATEGIES, find_root, run_scenario
+from tc49.lib.layout import Layout
+from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
+from tc49.store import AssetStore
 
 LAYOUT = "gotthard"
 

@@ -20,7 +20,7 @@ from collections import Counter
 from dataclasses import dataclass
 from statistics import mean
 
-from tc49.bus import Payload
+from tc49.lib.bus import Payload
 
 
 @dataclass(frozen=True)

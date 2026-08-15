@@ -2,7 +2,7 @@
 
 import pytest
 
-from tc49.bus import Bus, Handler, Payload
+from tc49.lib.bus import Bus, Handler, Payload
 
 
 def test_publish_queues_without_delivering() -> None:

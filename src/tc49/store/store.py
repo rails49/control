@@ -10,35 +10,13 @@ derivation (conflict matrix, terminals, arrival-end expansion, fit
 pruning) stays consumer-side.
 """
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
 import yaml
 
-from tc49.layout import Layout, as_mapping, check_end, check_keys, check_name
-
-
-@dataclass(frozen=True)
-class TrainSpec:
-    length: int
-    at: str  # starting block
-
-
-@dataclass(frozen=True)
-class RequestSpec:
-    train: str
-    depart: str  # '<block>.<end>', or a bare end letter for chained requests
-    arrivals: tuple[str, ...]  # arrival ends: '<block>.<end>' or bare '<block>'
-    at: int
-
-
-@dataclass(frozen=True)
-class Scenario:
-    name: str
-    layout: str
-    trains: dict[str, TrainSpec]
-    requests: tuple[RequestSpec, ...]
+from tc49.lib.layout import Layout, as_mapping, check_end, check_keys, check_name
+from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 
 
 class AssetStore:

@@ -12,7 +12,7 @@ Every one of these runs under `Incremental`: `FullRoute` never consults
 
 from typing import Any
 
-from tc49.locking import Incremental
+from tc49.dispatcher import Incremental
 from tests.harness import events, load, run
 
 

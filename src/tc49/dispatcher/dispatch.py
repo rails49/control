@@ -11,11 +11,11 @@ startup. The locking discipline is the pluggable strategy of locking.py.
 
 from dataclasses import dataclass
 
-from tc49.bus import Bus, Payload
-from tc49.layout import Layout
-from tc49.locking import Launched, LockingStrategy, Move, Refused
-from tc49.routing import Route
-from tc49.store import Scenario
+from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
+from tc49.dispatcher.routing import Route
+from tc49.lib.bus import Bus, Payload
+from tc49.lib.layout import Layout
+from tc49.lib.scenario import Scenario
 
 
 @dataclass

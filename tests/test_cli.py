@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from tc49.cli import main
-from tc49.metrics import metrics
-from tc49.runner import find_root
+from tc49.bench.cli import main
+from tc49.bench.metrics import metrics
+from tc49.bench.runner import find_root
 from tests.harness import ROOT
 
 

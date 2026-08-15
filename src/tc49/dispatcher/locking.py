@@ -13,12 +13,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from tc49.layout import Layout
-from tc49.routing import Route, candidates
-from tc49.safety import safe
+from tc49.dispatcher.routing import Route, candidates
+from tc49.dispatcher.safety import safe
+from tc49.lib.layout import Layout
 
 if TYPE_CHECKING:
-    from tc49.dispatch import Request, State
+    from tc49.dispatcher.dispatch import Request, State
 
 
 @dataclass(frozen=True)

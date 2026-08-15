@@ -10,11 +10,12 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-from tc49.layout import Layout
-from tc49.metrics import Metrics, Stall, metrics
-from tc49.runner import DEFAULT_K, STRATEGIES, find_root, run_scenario
-from tc49.store import AssetStore, Scenario
-from tc49.sweep import sweep
+from tc49.bench.metrics import Metrics, Stall, metrics
+from tc49.bench.runner import DEFAULT_K, STRATEGIES, find_root, run_scenario
+from tc49.bench.sweep import sweep
+from tc49.lib.layout import Layout
+from tc49.lib.scenario import Scenario
+from tc49.store import AssetStore
 
 ROOT = find_root()
 

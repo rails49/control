@@ -1,8 +1,8 @@
 """Tests at the scheduler seam: releases, ids, expansion, exhaustion."""
 
-from tc49.bus import Bus, Payload
+from tc49.lib.bus import Bus, Payload
+from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tc49.scheduler import Scheduler
-from tc49.store import RequestSpec, Scenario, TrainSpec
 
 
 def two_train_scenario() -> Scenario:

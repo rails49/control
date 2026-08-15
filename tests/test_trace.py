@@ -4,9 +4,9 @@ import io
 
 import pytest
 
-from tc49.bus import Bus
-from tc49.inventory import TOPICS, leaf
-from tc49.trace import TraceTap
+from tc49.lib.bus import Bus
+from tc49.lib.inventory import TOPICS, leaf
+from tc49.lib.trace import TraceTap
 
 
 def test_line_is_flat_with_canonical_key_order() -> None:

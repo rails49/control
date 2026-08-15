@@ -8,7 +8,7 @@ dependencies = [
 ]
 
 [project.scripts]
-tc49 = "tc49.cli:main"
+tc49 = "tc49.bench.cli:main"
 
 [dependency-groups]
 dev = [

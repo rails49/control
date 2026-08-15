@@ -2,11 +2,10 @@
 
 import json
 
-from tc49.bus import Bus, Payload
-from tc49.dispatch import Dispatcher
-from tc49.layout import Layout
-from tc49.locking import FullRoute
-from tc49.store import RequestSpec, Scenario, TrainSpec
+from tc49.dispatcher import Dispatcher, FullRoute
+from tc49.lib.bus import Bus, Payload
+from tc49.lib.layout import Layout
+from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tests.harness import events, load, run
 
 

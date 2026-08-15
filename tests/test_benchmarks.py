@@ -25,11 +25,11 @@ from pathlib import Path
 
 import pytest
 
-from tc49.cli import bench
-from tc49.metrics import Metrics, metrics
-from tc49.runner import DEFAULT_K, STRATEGIES, run_scenario
-from tc49.store import RequestSpec, Scenario
-from tc49.sweep import STATIONS, station_of
+from tc49.bench.cli import bench
+from tc49.bench.metrics import Metrics, metrics
+from tc49.bench.runner import DEFAULT_K, STRATEGIES, run_scenario
+from tc49.bench.sweep import STATIONS, station_of
+from tc49.lib.scenario import RequestSpec, Scenario
 from tests.harness import ROOT, load
 
 EXPECTED = ROOT / "benchmarks" / "expected"

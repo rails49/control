@@ -1,8 +1,9 @@
 """Incremental locking gated by safe(): issue #27's acceptance criteria."""
 
-from tc49.layout import Layout
-from tc49.locking import Incremental
-from tc49.store import AssetStore, RequestSpec, Scenario, TrainSpec
+from tc49.dispatcher import Incremental
+from tc49.lib.layout import Layout
+from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
+from tc49.store import AssetStore
 from tests.harness import ROOT, events, load, run
 
 

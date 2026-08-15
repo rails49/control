@@ -1,6 +1,6 @@
 """Direct unit tests for safe() on hand-built states (SAFETY.md)."""
 
-from tc49.safety import safe
+from tc49.dispatcher.safety import safe
 
 
 def test_empty_dispatch_is_trivially_safe() -> None:

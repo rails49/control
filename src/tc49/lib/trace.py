@@ -11,8 +11,8 @@ load-bearing, and a stray field must break a test, not rot quietly.
 import json
 from typing import TextIO
 
-from tc49.bus import Bus, Payload
-from tc49.inventory import LEAF_FIELDS, leaf
+from tc49.lib.bus import Bus, Payload
+from tc49.lib.inventory import LEAF_FIELDS, leaf
 
 
 class TraceTap:

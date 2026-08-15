@@ -9,8 +9,8 @@ set — the milestone-1 termination signal.
 
 from collections import Counter
 
-from tc49.bus import Bus, Payload
-from tc49.store import Scenario
+from tc49.lib.bus import Bus, Payload
+from tc49.lib.scenario import Scenario
 
 
 class Scheduler:

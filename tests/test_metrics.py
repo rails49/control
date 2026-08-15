@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from tc49.locking import Incremental
-from tc49.metrics import Stall, metrics, parse
+from tc49.bench.metrics import Stall, metrics, parse
+from tc49.dispatcher import Incremental
 from tests.harness import events, load, run
 
 

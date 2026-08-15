@@ -11,7 +11,7 @@ the ordering is a function of `(layout, state)` and stays deterministic.
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 
-from tc49.layout import Layout
+from tc49.lib.layout import Layout
 
 
 @dataclass(frozen=True)

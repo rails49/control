@@ -1,6 +1,6 @@
 """The real assembly over the in-process bus, shared by the suite.
 
-The wiring itself lives in `tc49.runner`, so the suite and the benchmark CLI
+The wiring itself lives in `tc49.bench.runner`, so the suite and the benchmark CLI
 drive an identical assembly; what is here is the loading and trace-reading
 convenience the tests want.
 """
@@ -8,9 +8,16 @@ convenience the tests want.
 import json
 from typing import Any
 
-from tc49.layout import Layout
-from tc49.runner import Assembly, StrategyFactory, assemble, find_root, run_scenario
-from tc49.store import AssetStore, Scenario
+from tc49.bench.runner import (
+    Assembly,
+    StrategyFactory,
+    assemble,
+    find_root,
+    run_scenario,
+)
+from tc49.lib.layout import Layout
+from tc49.lib.scenario import Scenario
+from tc49.store import AssetStore
 
 __all__ = ["ROOT", "Assembly", "StrategyFactory", "build", "events", "load", "run"]
 
