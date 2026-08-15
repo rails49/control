@@ -93,8 +93,11 @@ stops at 5 for that reason**: at six, every station track holds an idle train,
 every arrival block is therefore a permanent obstacle at every `|dest|`,
 `safe()` refuses every launch, and the run quiesces `stalled` at tick 0 on
 every seed. That point measures the stall detector, not throughput, so it is
-excluded rather than swept. At five there is always a free track for the first
-launch, and each completion frees another.
+excluded rather than swept. At five a free station track always exists, and it
+helps because the generator redraws until every train's first request can
+eventually reach one (step 4 below); a free track no pending request can name
+would be unreachable to the workload
+([ADR-0011](adr/0011-the-sweep-generator-redraws-unsatisfiable-draws.md)).
 
 ### The generator
 
@@ -111,17 +114,32 @@ Everything below is drawn from a single seeded RNG, in this order, so a
    *other* station; at 2, one track uniform over the three; at 1, one track
    uniform and then one of its two ends uniform.
 3. **Arrival** — every request at tick 0.
+4. **Redraw** — while any train's first request is one no dispatcher could
+   launch, redraw each such request: end first, then arrival ends. A train
+   can launch once one of its arrival blocks is free, and a block frees once
+   its occupant launches; the fixed point of that rule must cover every
+   train, or the draw contains a head-on swap: trains whose arrival blocks
+   are each other's standing locks, stalling the run at tick 0 with track to
+   spare ([ADR-0011](adr/0011-the-sweep-generator-redraws-unsatisfiable-draws.md)).
 
-**No redraw is needed on Gotthard**, and the rule that replaces it is weaker
-than the old one. Reachability now depends on the origin block, which for a
-chained working is not known when the file is written, so the generator cannot
-check it — it is settled at the first launch attempt
-([DISPATCH.md](DISPATCH.md#requests)). What makes this safe here is a property
-of the railroad, verified against the encoding: every one of the six
+Only first requests are checked. Where a later working departs from is the
+dispatcher's choice, so a stall after trains have moved — typically a finished
+train parked across a route — is a finding the sweep reports, not a draw it
+rejects. Redraws consume the same seeded RNG after the main draw, so the
+determinism property holds and a draw that needs no redraw is byte-identical
+to one made without the rule.
+
+**Routability needs no redraw on Gotthard.** Reachability depends on the
+origin block, which for a chained working is not known when the file is
+written, so the generator cannot check it — it is settled at the first launch
+attempt ([DISPATCH.md](DISPATCH.md#requests)). What makes this safe here is a
+property of the railroad, verified against the encoding: every one of the six
 station-to-station arrival ends is reachable from every origin track by either
 departure end, so no draw can be unroutable at any `|dest|`. A layout without
-that property needs the request redrawn — end first, then arrival ends — since
-the workings-per-train count is a sweep axis and must hold.
+that property extends step 4's redraw to unroutable requests too, since the
+workings-per-train count is a sweep axis and must hold. Occupancy is the case
+reachability cannot cover — it is per-origin and silent about an arrival block
+held by another idle train — and is why step 4 exists.
 
 ## The `k` axis
 

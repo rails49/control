@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+from tc49.metrics import metrics
+from tc49.runner import STRATEGIES, run_scenario
 from tc49.store import Scenario
 from tc49.sweep import (
     DEST_SIZES,
@@ -99,6 +101,25 @@ def test_arrival_sets_are_the_swept_dest_size_at_the_other_station() -> None:
             assert all(a.startswith(station) for a in request.arrivals)
             if workload.dest == 6:
                 assert set(request.arrivals) == set(STATIONS[station])
+
+
+def test_no_drawn_workload_is_dead_at_tick_zero() -> None:
+    # #36: a draw where every train's arrival blocks are held by trains that
+    # are themselves stuck (a head-on swap at its smallest) is unsatisfiable
+    # by any dispatcher, so the generator must redraw it. Run at k = |dest|,
+    # the full candidate budget, so the workload is what is measured rather
+    # than the lexicographic bias of a truncated k. A run that moves and
+    # *then* stalls is still allowed: a finished train parked across a route
+    # is a legitimate finding, not a generator defect.
+    layout, _ = load(f"{LAYOUT}/meet")
+    for workload in every_workload():
+        scenario = generate(workload)
+        for locking in STRATEGIES:
+            trace = run_scenario(layout, scenario, STRATEGIES[locking], workload.dest)
+            m = metrics(trace)
+            assert (
+                m.completed or not m.stalled
+            ), f"{scenario.name} under {locking} is dead at tick 0"
 
 
 def test_every_request_arrives_at_tick_zero() -> None:

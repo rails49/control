@@ -102,7 +102,52 @@ def generate(workload: Workload) -> Scenario:
             )
             here = STATIONS[target][0]  # only the station matters from here on
 
+    # 4. Redraw — until every train's first request can eventually launch.
+    # A head-on swap makes each train's arrival blocks the other's standing
+    # lock and the run dead at tick 0 (#36); redraw each stuck request, end
+    # first then arrival ends, keeping the workings count (BENCHMARKS.md).
+    placement_of = dict(zip(trains, placements))
+    first = {requests[i].train: i for i in range(0, len(requests), workload.workings)}
+    while stuck := _stuck_trains(
+        placement_of, {t: requests[i].arrivals for t, i in first.items()}
+    ):
+        for train in stuck:
+            placement = placement_of[train]
+            end = rng.choice(["A", "B"])
+            arrivals = _arrivals(rng, other_station(placement), workload.dest)
+            requests[first[train]] = RequestSpec(
+                train, f"{placement}.{end}", arrivals, 0
+            )
+
     return Scenario(_name(workload), workload.layout, trains, tuple(requests))
+
+
+def _stuck_trains(
+    placements: dict[str, str], arrivals: dict[str, tuple[str, ...]]
+) -> list[str]:
+    """Trains whose first request no dispatcher could ever launch, in id order.
+
+    A train can launch once some arrival block is free, and a block frees
+    once its occupant launches; anything outside that fixed point is stuck.
+    Any placement that leaves a station track free admits a draw with
+    nothing stuck, so the redraw loop terminates — and could not at six
+    trains, which is one reason the trains axis ends at five."""
+    occupant = {block: train for train, block in placements.items()}
+    launchable: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for train, ends in arrivals.items():
+            if train in launchable:
+                continue
+            blocks = {end.partition(".")[0] for end in ends}
+            if any(
+                occupant.get(block) is None or occupant[block] in launchable
+                for block in blocks
+            ):
+                launchable.add(train)
+                changed = True
+    return [train for train in arrivals if train not in launchable]
 
 
 def _arrivals(rng: random.Random, station: str, dest: int) -> tuple[str, ...]:
