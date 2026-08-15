@@ -151,7 +151,7 @@ class Incremental:
                 # The launch grants the first increment, and the first move
                 # follows in the same phase — so the state to check is the
                 # post-grant one: mid-transit, cur at the far block.
-                cur, rem, idle = _safety_view(state, skip=req.train)
+                cur, rem, idle = safety_view(state, skip=req.train)
                 cur[req.train] = route.blocks[1]
                 rem[req.train] = list(route.blocks[2:])
                 if safe(cur, rem, idle):
@@ -179,7 +179,7 @@ class Incremental:
             None,
         )
         if blocking is None:
-            cur, rem, idle = _safety_view(state, skip=train)
+            cur, rem, idle = safety_view(state, skip=train)
             cur[train] = into  # mid-transit: the far block (Lemma 1)
             rem[train] = list(active.route.blocks[i + 2 :])
             if safe(cur, rem, idle):
@@ -196,11 +196,11 @@ class Incremental:
         return Refused(blocking[0], [{"resource": blocking[1], "holder": blocking[2]}])
 
 
-def _safety_view(
-    state: State, skip: str
+def safety_view(
+    state: State, skip: str | None = None
 ) -> tuple[dict[str, str], dict[str, list[str]], list[str]]:
     """The safe() inputs for the current state, excluding `skip` (the train
-    whose tentative position the caller supplies)."""
+    whose tentative position the caller supplies), if any."""
     cur: dict[str, str] = {}
     rem: dict[str, list[str]] = {}
     for train, active in state.active.items():

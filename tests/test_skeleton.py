@@ -92,6 +92,28 @@ def test_degenerate_request_completes_without_moving_whichever_end() -> None:
         assert chosen["route"] == ["yard_w"] and chosen["k_tried"] == 0
 
 
+def test_a_refused_working_is_not_overtaken_by_the_trains_next_one() -> None:
+    # Found by the Hypothesis differential (#28): a train's chained workings
+    # must run in order. freight's first working is refused — express is
+    # parked in dn_w and an idle train's block is permanently unavailable —
+    # and its second working, to a free block, must not launch past it and
+    # move the train out from under the request still waiting.
+    layout, _ = load("crossover-yard/meet")
+    scenario = Scenario(
+        "queued",
+        "crossover-yard",
+        {"freight": TrainSpec(600, "yard_w"), "express": TrainSpec(600, "dn_w")},
+        (
+            RequestSpec("freight", "yard_w.B", ("dn_w.A",), 0),
+            RequestSpec("freight", "B", ("up_e.A",), 0),
+        ),
+    )
+    trace = run(layout, scenario)
+    assert events(trace, "grant_refused", rid="freight-1")
+    assert events(trace, "route_chosen", rid="freight-2") == []
+    assert events(trace, "request_completed") == []
+
+
 def test_grants_are_a_pure_function_of_the_buffered_sensor_set() -> None:
     layout, scenario = load("crossover-yard/meet")
 

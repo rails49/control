@@ -39,7 +39,8 @@ def meet_document() -> dict[str, Any]:
 
 def test_list_layouts_and_scenarios(store: AssetStore) -> None:
     assert {"crossover-yard", "gotthard"} <= set(store.list())
-    assert store.list("crossover-yard") == ["crossover-yard/meet"]
+    assert "crossover-yard/meet" in store.list("crossover-yard")
+    assert all(s.startswith("crossover-yard/") for s in store.list("crossover-yard"))
 
 
 def test_meet_scenario_loads_clean(store: AssetStore) -> None:

@@ -89,6 +89,16 @@ class Dispatcher:
         bus.subscribe("tc49/layout/+", self._on_layout)
         bus.subscribe("tc49/schedule/request_submitted", self._on_request)
 
+    # -- live state, for the property tests' oracles ------------------------
+
+    @property
+    def state(self) -> State:
+        return self._state
+
+    @property
+    def pending(self) -> tuple[Request, ...]:
+        return tuple(self._pending)
+
     # -- admission ---------------------------------------------------------
 
     def _on_request(self, topic: str, payload: Payload) -> None:
@@ -182,8 +192,13 @@ class Dispatcher:
             if active.outstanding is not None:
                 continue
             self._apply_move(active, self._strategy.grant(train, state))
+        # A train's chained workings run in order: once one of them is left
+        # pending — refused, or launched and now active — the rest of that
+        # train's queue waits. Letting a later working overtake a refused one
+        # would run the scenario out of order and from the wrong origin.
+        waiting: set[str] = set(state.active)
         for req in list(self._pending):
-            if req.train in state.active:
+            if req.train in waiting:
                 continue
             origin = state.block_of[req.train]
             if any(end.rpartition(".")[0] == origin for end in req.arrivals):
@@ -202,6 +217,7 @@ class Dispatcher:
                     "request_rejected", {"id": req.id, "reason": "unreachable"}
                 )
             elif isinstance(result, Refused):
+                waiting.add(req.train)
                 self._publish(
                     "grant_refused",
                     {
@@ -211,6 +227,7 @@ class Dispatcher:
                     },
                 )
             else:
+                waiting.add(req.train)
                 self._launch(req, result)
 
     def _apply_sensors(self) -> None:

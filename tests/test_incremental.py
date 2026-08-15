@@ -147,6 +147,32 @@ def test_shared_destination_refusal_names_the_committed_train() -> None:
     assert refused[0]["obstacles"][0] == {"resource": "airolo_1", "holder": "t_blue"}
 
 
+def test_route_blindness_makes_full_route_the_faster_strategy() -> None:
+    # The differential's committed counterexample (#28, property 3), shrunk by
+    # Hypothesis: `Incremental` is a tick SLOWER here, on two trains with no
+    # idle obstacle and no starvation. Locking a route up front is not merely
+    # conservative — it is informative, and route selection is what consumes
+    # the information. See the scenario file for the full write-up.
+    layout, scenario = load("crossover-yard/route-blindness")
+    full = run(layout, scenario)
+    incremental = run(layout, scenario, Incremental)
+    assert {line["id"] for line in events(full, "request_completed")} == {
+        "t1-1",
+        "t2-1",
+    }
+    assert {line["id"] for line in events(incremental, "request_completed")} == {
+        "t1-1",
+        "t2-1",
+    }
+    # t2 is refused its first candidate under FullRoute and takes the up line;
+    # under Incremental that candidate still looks free, so it takes the down
+    # line and t1 has to wait a tick for dn_e.
+    assert [line["k_tried"] for line in events(full, "route_chosen")] == [1, 2]
+    assert [line["k_tried"] for line in events(incremental, "route_chosen")] == [1, 1]
+    assert final_tick(full) == 3
+    assert final_tick(incremental) == 4
+
+
 def test_transits_are_never_held_across_a_wait() -> None:
     # Lemma 1 made observable: under Incremental every lock grant beyond the
     # startup standing locks is one transit with its far block, atomically,

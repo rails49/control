@@ -61,7 +61,7 @@ class AssetStore:
 
     def put(self, doc: dict[str, Any]) -> None:
         if "scenario" in doc:
-            scenario = self._validate_scenario(doc)
+            scenario = self.validate_scenario(doc)
             path = self._scenario_path(f"{scenario.layout}/{scenario.name}")
         else:
             layout = Layout.from_document(doc)
@@ -84,7 +84,7 @@ class AssetStore:
         return yaml.safe_load(path.read_text())
 
     def _load_scenario(self, name: str) -> Scenario:
-        scenario = self._validate_scenario(self._read(self._scenario_path(name)))
+        scenario = self.validate_scenario(self._read(self._scenario_path(name)))
         if f"{scenario.layout}/{scenario.name}" != name:
             raise ValueError(
                 f"scenario '{name}': file names itself"
@@ -92,7 +92,10 @@ class AssetStore:
             )
         return scenario
 
-    def _validate_scenario(self, doc: Any) -> Scenario:
+    def validate_scenario(self, doc: Any) -> Scenario:
+        """Validate a scenario document without storing it — the path a
+        generated fixture takes, so it is checked exactly as a committed
+        file is."""
         check_keys(
             doc, "scenario document", {"scenario", "layout", "trains", "requests"}
         )

@@ -1,0 +1,41 @@
+# crossover-yard/route-blindness — the differential's committed counterexample
+# (#28, property 3). Shrunk by Hypothesis from a generated case.
+#
+# ARCHITECTURE.md states the differential as "`Incremental` completes every
+# request set `FullRoute` completes, in no more ticks". This scenario
+# falsifies the tick half, on two trains and two requests, with no idle
+# obstacle and no starvation anywhere: both strategies complete both
+# requests, and `FullRoute` is a tick FASTER.
+#
+# The mechanism is that incremental locking hides contention from route
+# selection. `FullRoute` locks t1's whole route up front, so when t2 launches
+# its first candidate — over the crossover into dn_e, which is `Incremental`'s
+# choice too, both being lexicographically first — that candidate is visibly
+# blocked, and t2 falls to `k_tried: 2` and takes the up line instead. The two
+# trains then run on separate lines and both finish at tick 3.
+#
+# `Incremental` locks only t1's first increment, so dn_e still looks free when
+# t2 launches. t2 commits to dn_e at `k_tried: 1`, t1 is refused `held` on
+# dn_e at tick 2, waits, and finishes at tick 4.
+#
+# So locking a whole route up front is not merely conservative: it is
+# INFORMATIVE, and it is the information the next launch's route choice runs
+# on. This is the same lexicographic bias BENCHMARKS.md predicts for the k
+# sweep, arriving a level lower down. Congestion-aware costing is the remedy
+# there too; nothing here is a safety defect, and both strategies stay
+# deadlock-free.
+
+scenario: route-blindness
+layout: crossover-yard
+
+trains:
+  t1: { length: 1400, at: yard_w }
+  t2: { length: 1400, at: up_w }
+
+requests:
+  # t1 heads for the down main; its only 2-transit route runs through dn_e.
+  - { train: t1, from: yard_w.B, to: [dn_e.A], at: 0 }
+  # t2 heads for the east yard, reachable over either main. Its candidates tie
+  # at two transits, so the lexicographic tie-break puts dn_e first — straight
+  # across t1's path — and up_e second.
+  - { train: t2, from: up_w.B, to: [yard_e.A], at: 0 }

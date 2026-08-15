@@ -3,6 +3,7 @@
 import io
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -30,21 +31,49 @@ def load(scenario_id: str) -> tuple[Layout, Scenario]:
     return layout, scenario
 
 
+@dataclass
+class Assembly:
+    """Everything wired on one bus, held so a test can peek at live state."""
+
+    bus: Bus
+    dispatcher: Dispatcher
+    simulator: Simulator
+    layout: Layout
+    scenario: Scenario
+    k: int
+    _out: io.StringIO
+
+    @property
+    def trace(self) -> str:
+        return self._out.getvalue()
+
+
+def build(
+    layout: Layout,
+    scenario: Scenario,
+    make_strategy: StrategyFactory = FullRoute,
+    k: int = 2,
+) -> Assembly:
+    bus = Bus()
+    out = io.StringIO()
+    TraceTap(bus, out)
+    Scheduler(bus, scenario)
+    dispatcher = Dispatcher(bus, layout, scenario, make_strategy(layout, k))
+    Driver(bus)
+    return Assembly(bus, dispatcher, Simulator(bus, scenario), layout, scenario, k, out)
+
+
 def run(
     layout: Layout,
     scenario: Scenario,
     make_strategy: StrategyFactory = FullRoute,
     k: int = 2,
+    tick_limit: int = 10_000,
 ) -> str:
     """Wire everything on one bus, run to quiescence, return the trace."""
-    bus = Bus()
-    out = io.StringIO()
-    TraceTap(bus, out)
-    Scheduler(bus, scenario)
-    Dispatcher(bus, layout, scenario, make_strategy(layout, k))
-    Driver(bus)
-    Simulator(bus, scenario).run()
-    return out.getvalue()
+    assembly = build(layout, scenario, make_strategy, k)
+    assembly.simulator.run(tick_limit)
+    return assembly.trace
 
 
 def events(

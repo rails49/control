@@ -141,7 +141,8 @@ deadlocks. The library is chosen to be adversarial:
 
 - `facing-pair` — two facing blocks with no other connection, DISPATCH.md's
   minimal deadlock.
-- `single-track-meet` — a passing loop that forces meet-pass decisions.
+- `single-track-meet` — a passing loop that forces meet-pass decisions, at
+  [`layouts/single-track-meet.layout.yaml`](../layouts/single-track-meet.layout.yaml).
 - `crossover-yard` — the double crossover of `image.png`, exercising partial
   transit concurrency; already written, at
   [`layouts/crossover-yard.layout.yaml`](../layouts/crossover-yard.layout.yaml).
@@ -158,9 +159,34 @@ Four properties:
 2. **Quiescence oracle** — a quiesced run with pending requests is always
    attributable to a permanent obstacle, never to a circular wait
    ([SAFETY.md](SAFETY.md)). Anything else is a policy bug.
-3. **Differential against the baseline** — `Incremental` completes every request
-   set `FullRoute` completes, in no more ticks. The same harness run twice
-   with the locking strategy swapped.
+3. **Differential against the baseline** — the same harness run twice with the
+   locking strategy swapped, so the baseline gets the same oracle the research
+   core does: both quiesce, and whatever either leaves behind is a permanent
+   obstacle rather than a wedge.
+
+   This property was first stated as "`Incremental` completes every request set
+   `FullRoute` completes, in no more ticks", and **that is false** — the suite
+   found it out, which is what the suite is for. Every form of the dominance
+   claim falls to adversarial search: the completed sets can be incomparable,
+   the counts can favour either side, and even when both strategies complete
+   exactly the same set `Incremental` can be slower. The shrunk counterexample
+   is committed as
+   [`crossover-yard/route-blindness`](../scenarios/crossover-yard/route-blindness.scenario.yaml)
+   and asserted exactly in `tests/test_incremental.py`: two trains, no idle
+   obstacle, no starvation, and `FullRoute` a tick faster.
+
+   The mechanism is that locking a whole route up front is not merely
+   conservative but **informative**, and route selection is what consumes the
+   information. `FullRoute` locks the first train's whole route, so the second
+   train's launch finds its lexicographically-first candidate blocked and falls
+   through to a candidate on the other line. `Incremental` locks only the first
+   increment, so that candidate still looks clear, both trains commit to the
+   same line, and one waits. It is the lexicographic bias
+   [BENCHMARKS.md](BENCHMARKS.md#the-k-axis) predicts for the `k` sweep,
+   arriving one level further down, and congestion-aware costing is the remedy
+   there too. Nothing here is a safety defect — both strategies stay
+   deadlock-free — so until route selection is congestion-aware the throughput
+   claim belongs to the measured benchmark workloads, not to arbitrary ones.
 4. **Determinism** — each scenario runs twice in one test and the two trace
    byte streams are asserted identical in memory, guarding the tie-break,
    grant-order, and canonical-serialization promises. No trace files are
