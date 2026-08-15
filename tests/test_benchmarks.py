@@ -26,9 +26,11 @@ from pathlib import Path
 import pytest
 
 from tc49.cli import bench
-from tc49.metrics import Metrics
-from tc49.runner import DEFAULT_K
-from tests.harness import ROOT
+from tc49.metrics import Metrics, metrics
+from tc49.runner import DEFAULT_K, STRATEGIES, run_scenario
+from tc49.store import RequestSpec, Scenario
+from tc49.sweep import STATIONS, station_of
+from tests.harness import ROOT, load
 
 EXPECTED = ROOT / "benchmarks" / "expected"
 
@@ -124,6 +126,42 @@ def test_incremental_drains_gotthard_saturation_faster() -> None:
     assert incremental.makespan < baseline.makespan
     assert incremental.max_latency is not None and baseline.max_latency is not None
     assert incremental.max_latency < baseline.max_latency
+
+
+def test_saturation_widened_to_six_arrival_ends_starts_its_rotation() -> None:
+    """#33: before congestion-aware costing, authoring `gotthard/saturation`
+    at `|dest| = 6` stalled outright at the default `k = 2` — every train
+    tried `claro_1` then `claro_2`, both occupied, and the rotation never
+    started (0 of 15 workings, dead at tick 1). Costing starts the rotation
+    and carries it to 11 of 15 under both strategies.
+
+    The residue is not a costing defect: the last airolo slots go to older
+    trains parking there for good (`t1-3`, `t2-3`, `t3-3` outrank `t4-2`,
+    `t5-2` in the oldest-first scan), and no candidate *ordering* can stop
+    an older request from taking a free slot. That is queue order — #34's
+    aging rule — and this test tightens to a full drain when it lands. The
+    committed scenario stays at `|dest| = 2`, the column the sweep reads
+    every other against."""
+    layout, scenario = load("gotthard/saturation")
+    widened = Scenario(
+        scenario.name,
+        scenario.layout,
+        scenario.trains,
+        tuple(
+            RequestSpec(
+                req.train,
+                req.depart,
+                STATIONS[station_of(req.arrivals[0].partition(".")[0])],
+                req.at,
+            )
+            for req in scenario.requests
+        ),
+    )
+    for strategy in STRATEGIES.values():
+        trace = run_scenario(layout, widened, strategy, DEFAULT_K)
+        m = metrics(trace)
+        assert len(m.completed) == 11
+        assert {s.id for s in m.stalls} == {"t4-2", "t4-3", "t5-2", "t5-3"}
 
 
 def test_the_obstacle_scenario_stalls_and_names_the_obstacle() -> None:

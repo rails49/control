@@ -16,13 +16,15 @@
 # states a departure block and the rest state only an end.
 #
 # `|dest| = 2` throughout — one track, either way round, BENCHMARKS.md's
-# continuity point and the column every other is read against. It is also what
-# keeps the run honest at the default `k = 2`: every station-to-station route is
-# two transits, so a request's candidate count is `|dest|` itself, and `k = 2`
-# reaches every candidate a request has. At `|dest| = 6` it would not — six
-# trains would try claro_1 then claro_2 and nothing else, which is the
-# lexicographic bias BENCHMARKS.md predicts for the sweep, and on this workload
-# it stalls the run outright rather than merely costing throughput.
+# continuity point and the column every other is read against. Before
+# congestion-aware costing (#33) it was also what kept the run alive at the
+# default `k = 2`: at `|dest| = 6` every train tried claro_1 then claro_2 and
+# nothing else — the lexicographic bias BENCHMARKS.md predicted — and the run
+# stalled outright at tick 1. Costing removed that bias: at `|dest| = 6`
+# the rotation now starts and completes 11 of 15 workings
+# (test_benchmarks.py); the residue is queue order — older trains park on the
+# last free airolo tracks for good — which is #34's aging rule. The committed
+# scenario stays at `|dest| = 2` for the continuity column.
 #
 # Departure ends alternate deliberately rather than uniformly. At Claro the east
 # end of a track is served by a blue line and the west end by the yellow, so a

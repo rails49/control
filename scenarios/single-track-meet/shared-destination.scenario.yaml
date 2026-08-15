@@ -8,9 +8,10 @@
 #
 # Both trains name the same two arrival ends, in the same order, so nothing but
 # route selection separates them. The first launch takes east_1 — the
-# lexicographic tie-break, both candidates being four transits — and the second
-# is then refused east_1 and commits to east_2 instead. Both complete, on
-# different tracks, and at no point are two committed routes aimed at one block.
+# lexicographic tie-break, both candidates being four transits and neither
+# congested — and the first's commitment then congests east_1, so the second
+# commits to east_2 at its first candidate (#33). Both complete, on different
+# tracks, and at no point are two committed routes aimed at one block.
 #
 # The refusal half of the condition — two active trains committed to one block
 # never coexisting — is asserted over the whole trace rather than at one event:

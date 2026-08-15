@@ -1,11 +1,14 @@
-"""candidates(): the milestone-1 route chooser (DISPATCH.md, route selection).
+"""candidates(): the route chooser (DISPATCH.md, route selection).
 
 Routes to every surviving arrival end are merged into one list, filtered to
-those whose every block fits the train, ordered by transit count and then by
-lexicographically smallest block-id sequence, and capped by the single `k`
-budget. Routes are simple paths: no block or transit twice.
+those whose every block fits the train, ordered by transit count, then by how
+many route blocks are congested (#33), then by lexicographically smallest
+block-id sequence, and capped by the single `k` budget. Routes are simple
+paths: no block or transit twice. The caller names the congested blocks, so
+the ordering is a function of `(layout, state)` and stays deterministic.
 """
 
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 
 from tc49.layout import Layout
@@ -44,6 +47,7 @@ def candidates(
     arrivals: tuple[str, ...],
     train_length: int,
     k: int,
+    congested: AbstractSet[str] = frozenset(),
 ) -> list[Route]:
     routes: list[Route] = []
 
@@ -62,5 +66,11 @@ def candidates(
             extend(other_end(far_end), *path)
 
     extend(depart_end, (origin,), ())
-    routes.sort(key=lambda r: (len(r.transits), r.blocks))
+    routes.sort(
+        key=lambda r: (
+            len(r.transits),
+            sum(block in congested for block in r.blocks[1:]),
+            r.blocks,
+        )
+    )
     return routes[:k]

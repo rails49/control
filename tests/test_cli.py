@@ -38,13 +38,15 @@ def test_bench_reports_the_stall_diagnosis_instead_of_a_makespan() -> None:
 
 
 def test_k_is_overridable_and_changes_what_a_launch_may_try() -> None:
-    # At k = 1 the flexible request cannot reach its second arrival end, so the
-    # run stalls where k = 2 drains it down to the one genuinely blocked request.
-    at_two = run_cli("bench", "single-track-meet/arrival-obstruction")
-    at_one = run_cli("bench", "-k", "1", "single-track-meet/arrival-obstruction")
+    # Congestion-aware costing (#33) sorts the obstructed candidate last, so
+    # k = 1 no longer stalls the flexible request here — what k still caps is
+    # how many candidates a refused launch tries, visible in the stall
+    # diagnosis of the genuinely blocked one.
+    at_two = run_cli("bench", "gotthard/flexibility")
+    at_one = run_cli("bench", "-k", "1", "gotthard/flexibility")
     assert "(k = 1)" in at_one
-    assert "flexible-1 stalled" in at_one
-    assert "flexible-1 stalled" not in at_two
+    assert "fixed-1 stalled — 'claro_2' held by 'resident' (held, 1" in at_one
+    assert "fixed-1 stalled — 'claro_2' held by 'resident' (held, 2" in at_two
 
 
 def test_the_trace_flag_dumps_the_jsonl_events() -> None:

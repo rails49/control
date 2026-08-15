@@ -60,6 +60,44 @@ def test_departure_end_fixes_the_first_transit(crossover: Layout) -> None:
     assert routes == []
 
 
+def test_congested_blocks_demote_tied_candidates(crossover: Layout) -> None:
+    # The same four tied routes as above, with the down main congested: the
+    # penalty counts congested blocks beyond the origin, so the clear route
+    # leads, single-block routes follow in block-id order, and the fully
+    # congested route comes last.
+    routes = candidates(
+        crossover,
+        "yard_w",
+        "yard_w.B",
+        ("yard_e.A",),
+        600,
+        k=4,
+        congested=frozenset({"dn_w", "dn_e"}),
+    )
+    assert [r.blocks for r in routes] == [
+        ("yard_w", "up_w", "up_e", "yard_e"),
+        ("yard_w", "dn_w", "up_e", "yard_e"),
+        ("yard_w", "up_w", "dn_e", "yard_e"),
+        ("yard_w", "dn_w", "dn_e", "yard_e"),
+    ]
+
+
+def test_transit_count_still_dominates_congestion(crossover: Layout) -> None:
+    # Congestion is a tie-break, not an additive cost: the one-transit route
+    # stays first even with its arrival block congested and the two-transit
+    # routes clear.
+    routes = candidates(
+        crossover,
+        "up_w",
+        "up_w.B",
+        ("up_e.A", "yard_e.A"),
+        600,
+        k=4,
+        congested=frozenset({"up_e"}),
+    )
+    assert routes[0].blocks == ("up_w", "up_e")
+
+
 def test_routes_are_simple_paths(crossover: Layout) -> None:
     # All routes from up_w.B to up_e entering through A; none may revisit a block.
     routes = candidates(crossover, "up_w", "up_w.B", ("up_e.A",), 600, k=10)

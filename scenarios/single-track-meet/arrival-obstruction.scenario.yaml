@@ -17,8 +17,10 @@
 #
 # The pair is the whole boundary condition in one run: the obstruction is real
 # and the set is what routes around it. Route selection does all the work —
-# flexible's candidates tie at four transits, so the lexicographic tie-break
-# offers east_1 first, it is refused, and `k = 2` reaches east_2.
+# flexible's candidates tie at four transits, and congestion-aware costing
+# (#33) sorts the obstructed east_1 last, so east_2 is taken at the first
+# candidate. (Before #33 the lexicographic tie-break offered east_1 first and
+# the `k = 2` budget was what reached east_2.)
 
 scenario: arrival-obstruction
 layout: single-track-meet

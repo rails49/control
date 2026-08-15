@@ -184,26 +184,27 @@ and arrival end together fix the line. Departing Airolo, all three lines meet
 at the single WX310 junction and every one of them reaches every Claro track,
 so at `|dest| = 6` a train has all three to choose between.
 
-**Expect a lexicographic bias at `k < |dest|`.** Every candidate ties at two
-transits, so the tie-break alone orders them
-([DISPATCH.md](DISPATCH.md#route-selection)) and every train tries `claro_1`,
-then `claro_2`, first. At `|dest| = 6, k = 2` that is six trains contending for
-the same two tracks while four sit unused — so `k = 2` may well come in *worse*
-than `k = 6`, and possibly worse than `|dest| = 2`. That is a prediction the
-grid is shaped to confirm or refute, not a defect to fix in advance;
-congestion-aware costing is the remedy if it holds.
-
-**It holds, and harder than the paragraph above expects.** Authoring
+**The lexicographic bias at `k < |dest|`, and its fix.** Every candidate ties
+at two transits, so before congestion-aware costing (#33) the lexicographic
+tie-break alone ordered them and every train tried `claro_1`, then `claro_2`,
+first. The predicted cost was real and worse than predicted: authoring
 `gotthard/saturation` (#31) at `|dest| = 6` and running it at the default
-`k = 2` does not merely cost throughput: the run **stalls outright**, under both
-locking strategies. Five trains all try `claro_1`, then `claro_2`, both of which
-are occupied, and the rotation that the workload depends on never starts. The
-committed scenario is therefore written at `|dest| = 2`, where a request's
-candidate count is exactly two and `k = 2` reaches every candidate it has. Read
-that as a bound on what the `k` axis measures: below `|dest|`, `k` is not a
-weaker version of route-around but a systematically biased one, and the sweep's
-`k = 2, |dest| = 6` column should be read as measuring the bias rather than the
-budget.
+`k = 2` did not merely cost throughput. The run **stalled outright**, under
+both locking strategies, because both tracks every train tried first were
+occupied and the rotation never started.
+
+Costing removes the bias: tied candidates are ordered by how many of their
+blocks other trains hold or are committed to
+([DISPATCH.md](DISPATCH.md#route-selection)), so equidistant arrival tracks
+spread rather than concentrate. Measured on the sweep, the `|dest| = 6` drain
+rate went 0 → 71 of 80 at `k = 1`, 11 → 72 at `k = 2`, 49 → 75 at `k = 4` and
+75 → 75 at `k = 6`; runs that drained before drained slightly faster on net.
+Below `|dest|`, `k` now measures the budget rather than the bias. The widened
+saturation workload starts its rotation and completes 11 of 15 workings; the
+residue is queue order rather than route choice (the oldest-first scan lets
+older trains park on the last free arrival tracks for good), which is #34's
+aging rule, not a costing defect. The committed scenario stays at `|dest| = 2`,
+the continuity column the sweep reads every other against.
 
 `k ≥ 7` reaches only 6-transit detours that consume all three line sections
 where the direct route needs one — verified: between the two tiers there is

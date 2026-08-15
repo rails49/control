@@ -1,29 +1,31 @@
 # crossover-yard/route-blindness — the differential's committed counterexample
-# (#28, property 3). Shrunk by Hypothesis from a generated case.
+# (#28, property 3), shrunk by Hypothesis; now the regression fixture for
+# congestion-aware costing (#33), which fixed it.
 #
-# ARCHITECTURE.md states the differential as "`Incremental` completes every
-# request set `FullRoute` completes, in no more ticks". This scenario
-# falsifies the tick half, on two trains and two requests, with no idle
-# obstacle and no starvation anywhere: both strategies complete both
-# requests, and `FullRoute` is a tick FASTER.
+# ARCHITECTURE.md first stated the differential as "`Incremental` completes
+# every request set `FullRoute` completes, in no more ticks". This scenario
+# falsified the tick half, on two trains and two requests, with no idle
+# obstacle and no starvation anywhere: both strategies completed both
+# requests, and `FullRoute` was a tick FASTER.
 #
-# The mechanism is that incremental locking hides contention from route
-# selection. `FullRoute` locks t1's whole route up front, so when t2 launches
-# its first candidate — over the crossover into dn_e, which is `Incremental`'s
-# choice too, both being lexicographically first — that candidate is visibly
-# blocked, and t2 falls to `k_tried: 2` and takes the up line instead. The two
-# trains then run on separate lines and both finish at tick 3.
+# The mechanism was that incremental locking hid contention from route
+# selection. `FullRoute` locked t1's whole route up front, so when t2
+# launched its first candidate — over the crossover into dn_e, both
+# candidates tying at two transits and dn_e lexicographically first — that
+# candidate was visibly blocked, and t2 fell through to the up line. The two
+# trains then ran on separate lines and both finished at tick 3. `Incremental`
+# locked only t1's first increment, so dn_e still looked free when t2
+# launched; t2 committed to dn_e, t1 was refused `held` on dn_e, waited, and
+# finished at tick 4. Locking a whole route up front is not merely
+# conservative: it is INFORMATIVE, and it was the information the next
+# launch's route choice ran on.
 #
-# `Incremental` locks only t1's first increment, so dn_e still looks free when
-# t2 launches. t2 commits to dn_e at `k_tried: 1`, t1 is refused `held` on
-# dn_e at tick 2, waits, and finishes at tick 4.
-#
-# So locking a whole route up front is not merely conservative: it is
-# INFORMATIVE, and it is the information the next launch's route choice runs
-# on. This is the same lexicographic bias BENCHMARKS.md predicts for the k
-# sweep, arriving a level lower down. Congestion-aware costing is the remedy
-# there too; nothing here is a safety defect, and both strategies stay
-# deadlock-free.
+# Congestion-aware costing (#33) feeds committed routes into the route
+# ordering directly (DISPATCH.md, route selection), so t1 across dn_e demotes
+# t2's crossover candidate under both strategies: t2 takes the up line at its
+# first candidate, and both strategies finish at tick 3. Asserted exactly in
+# test_incremental.py. Nothing here was ever a safety defect; both strategies
+# stay deadlock-free throughout.
 
 scenario: route-blindness
 layout: crossover-yard
@@ -36,6 +38,7 @@ requests:
   # t1 heads for the down main; its only 2-transit route runs through dn_e.
   - { train: t1, from: yard_w.B, to: [dn_e.A], at: 0 }
   # t2 heads for the east yard, reachable over either main. Its candidates tie
-  # at two transits, so the lexicographic tie-break puts dn_e first — straight
-  # across t1's path — and up_e second.
+  # at two transits; t1's committed route congests dn_e, so costing puts the
+  # up line first — before #33, the lexicographic tie-break put dn_e first,
+  # straight across t1's path.
   - { train: t2, from: up_w.B, to: [yard_e.A], at: 0 }

@@ -147,12 +147,13 @@ def test_shared_destination_refusal_names_the_committed_train() -> None:
     assert refused[0]["obstacles"][0] == {"resource": "airolo_1", "holder": "t_blue"}
 
 
-def test_route_blindness_makes_full_route_the_faster_strategy() -> None:
+def test_route_blindness_is_fixed_by_congestion_aware_costing() -> None:
     # The differential's committed counterexample (#28, property 3), shrunk by
-    # Hypothesis: `Incremental` is a tick SLOWER here, on two trains with no
-    # idle obstacle and no starvation. Locking a route up front is not merely
-    # conservative — it is informative, and route selection is what consumes
-    # the information. See the scenario file for the full write-up.
+    # Hypothesis: before congestion-aware costing (#33), `Incremental` was a
+    # tick SLOWER here, because only `FullRoute`'s up-front locks let t2's
+    # launch see t1 across its first candidate. Costing restores that signal
+    # from committed routes, so both strategies now steer t2 to the up line
+    # at the first candidate and finish together. See the scenario file.
     layout, scenario = load("crossover-yard/route-blindness")
     full = run(layout, scenario)
     incremental = run(layout, scenario, Incremental)
@@ -164,13 +165,12 @@ def test_route_blindness_makes_full_route_the_faster_strategy() -> None:
         "t1-1",
         "t2-1",
     }
-    # t2 is refused its first candidate under FullRoute and takes the up line;
-    # under Incremental that candidate still looks free, so it takes the down
-    # line and t1 has to wait a tick for dn_e.
-    assert [line["k_tried"] for line in events(full, "route_chosen")] == [1, 2]
+    # t1's route congests dn_e — locked under FullRoute, committed under
+    # Incremental — so t2's candidate over the up line sorts first for both.
+    assert [line["k_tried"] for line in events(full, "route_chosen")] == [1, 1]
     assert [line["k_tried"] for line in events(incremental, "route_chosen")] == [1, 1]
     assert final_tick(full) == 3
-    assert final_tick(incremental) == 4
+    assert final_tick(incremental) == 3
 
 
 def test_transits_are_never_held_across_a_wait() -> None:

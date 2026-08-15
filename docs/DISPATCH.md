@@ -85,8 +85,8 @@ train is not idle, so its next request simply cannot launch yet.
 
 ### Route selection
 
-The route chooser is a **pluggable strategy**, so congestion-aware costing can
-drop in later behind the same interface. Milestone 1's chooser:
+The route chooser is a **pluggable strategy**. Milestone 1 shipped a pure
+topology ordering; #33 made it congestion-aware. The chooser:
 
 1. Consider routes to **every** surviving arrival end, merged into one list.
    The arrival ends are unordered and equally acceptable, so the ordering below
@@ -94,26 +94,34 @@ drop in later behind the same interface. Milestone 1's chooser:
 2. Consider only routes whose every block fits the train.
 3. Order by transit count — which is tick count, since every transit costs one
    tick regardless of length.
-4. Break ties on the lexicographically smallest block-id sequence, so repeated
-   runs are bit-identical.
+4. Break ties on congestion: the number of route blocks beyond the origin that
+   are locked by another train — idle holders included — or lie on the
+   committed remaining route of another active train.
+5. Break remaining ties on the lexicographically smallest block-id sequence,
+   so repeated runs are bit-identical.
 
 `k` is a single budget over that merged list, not a budget per arrival end, so
 it keeps its plain meaning: how many alternatives a launch may try before
 staying pending.
 
-Step 4 does more work than it used to. Arrival ends on parallel tracks of one
-station tend to be **equidistant** — a station is reached by the same line
-whichever of its tracks the train ends on — so where the old form's candidates
-differed in length and were separated by step 3, a set's candidates frequently
-tie and step 4 alone decides which `k` get tried. Every train then tries the
-same lexicographically smallest tracks first, concentrating contention rather
-than spreading it. How much this bites is a property of the layout: it is worst
-where a station's tracks are symmetric, and absent where they are not.
+Step 4 is what keeps equidistant candidates from concentrating. Arrival ends
+on parallel tracks of one station tend to tie at step 3 — a station is reached
+by the same line whichever of its tracks the train ends on — and before #33
+the lexicographic tie-break alone decided which `k` got tried, so every train
+tried the same smallest-id tracks first. That bias was measured twice: as the
+`route-blindness` counterexample (ARCHITECTURE.md, property 3) and as an
+outright stall of `gotthard/saturation` authored at `|dest| = 6`
+([BENCHMARKS.md](BENCHMARKS.md#the-k-axis)).
 
-That is kept deliberately. Determinism is a tested property and byte-identical
-traces are what make golden numbers viable, so the effect is
-[measured](BENCHMARKS.md#the-k-axis) rather than pre-empted; congestion-aware
-costing is the drop-in if the sweep says it is needed.
+The congestion count is a function of the dispatcher's live state, so the
+ordering is `(layout, state)` and stays deterministic: the tested
+byte-identical-traces property is untouched. The committed-route part of the
+count is what restores to `Incremental` the signal `FullRoute`'s up-front
+locks gave the next launch for free: under `FullRoute` a committed route is
+locked and already counted, under `Incremental` only the first increment is.
+Congestion is a tie-break, never an additive cost, so a congested shorter
+route still outranks a clear longer one; steering around congestion onto
+longer routes stays `k`'s job.
 
 There is no dedupe rule. An earlier draft deduped candidates by resource set,
 on the grounds that a route entering the destination at `A` and one entering at

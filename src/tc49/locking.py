@@ -59,6 +59,24 @@ def resolve_depart(depart: str, origin: str) -> str:
     return depart if "." in depart else f"{origin}.{depart}"
 
 
+def congested(state: State, train: str) -> frozenset[str]:
+    """The congested blocks route selection steers around (#33): blocks
+    locked by another train — idle holders included — and blocks on the
+    committed remaining route of another active train. The committed part is
+    what restores to `Incremental` the signal `FullRoute`'s up-front locks
+    carry for free; a deterministic function of state, so ordering stays
+    reproducible."""
+    blocks = {
+        resource
+        for resource, holder in state.locks.items()
+        if holder != train and "." not in resource
+    }
+    for other, active in state.active.items():
+        if other != train:
+            blocks.update(active.route.blocks[active.cur_index :])
+    return frozenset(blocks)
+
+
 class FullRoute:
     """The baseline: launch locks the entire route or refuses; grant walks
     the already-locked route with no further check."""
@@ -77,6 +95,7 @@ class FullRoute:
             req.arrivals,
             state.train_lengths[req.train],
             self._k,
+            congested(state, req.train),
         )
         if not routes:
             return None
@@ -132,6 +151,7 @@ class Incremental:
             req.arrivals,
             state.train_lengths[req.train],
             self._k,
+            congested(state, req.train),
         )
         if not routes:
             return None

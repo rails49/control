@@ -98,9 +98,12 @@ launch(req, k):
 
 `candidates(req, k)` yields at most `k` simple routes in the order fixed by the
 dispatch policy — routes to **every** surviving arrival end merged into one
-list, fewest transits, lexicographic tie-break, and only routes whose every
-block fits the train ([DISPATCH.md](DISPATCH.md#route-selection)). `k` is one
-budget over that merged list, not a budget per arrival end.
+list, fewest transits, then fewest congested blocks, then a lexicographic
+tie-break, and only routes whose every block fits the train
+([DISPATCH.md](DISPATCH.md#route-selection)). `k` is one budget over that
+merged list, not a budget per arrival end. The congestion count is a function
+of the dispatcher's state and only reorders candidates; nothing in the safety
+argument depends on the order routes are tried.
 
 The route is fixed once chosen, so
 [ADR-0002](adr/0002-fixed-route-per-request.md) is untouched — and so is

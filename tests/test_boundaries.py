@@ -86,11 +86,12 @@ def test_an_obstructed_arrival_block_holds_back_only_the_request_that_needs_it()
     assert refusals[-1]["reason"] == "unsafe"
     assert {"resource": "east_1", "holder": "squatter"} in refusals[-1]["obstacles"]
 
-    # The set names the obstructed block first and still finishes, at the other
-    # one — the second candidate, so the routing budget is what paid for it.
+    # The set names the obstructed block first and still finishes, at the
+    # other one — sorted first by congestion-aware costing (#33), so the
+    # obstructed candidate is never tried at all.
     [chosen] = events(trace, "route_chosen", rid="flexible-1")
     assert arrival_block(chosen) == "east_2"
-    assert chosen["k_tried"] == 2
+    assert chosen["k_tried"] == 1
 
 
 def test_overlapping_arrival_sets_commit_to_different_blocks() -> None:

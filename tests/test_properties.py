@@ -13,7 +13,7 @@ from hypothesis import given, note, settings
 
 from tc49.bus import Payload
 from tc49.dispatch import Request, State
-from tc49.locking import FullRoute, Incremental, resolve_depart, safety_view
+from tc49.locking import FullRoute, Incremental, congested, resolve_depart, safety_view
 from tc49.routing import candidates
 from tc49.safety import safe
 from tc49.store import AssetStore
@@ -97,6 +97,7 @@ def assert_quiescence_is_a_permanent_obstacle(assembly: Assembly) -> None:
             req.arrivals,
             state.train_lengths[req.train],
             assembly.k,
+            congested(state, req.train),
         )
         for route in routes:
             assert obstructed_blocks(
@@ -134,10 +135,11 @@ def test_differential_against_the_baseline(
     sets can be incomparable, the counts can favour either side, and even
     when both strategies complete exactly the same set `Incremental` can be
     slower. `scenarios/crossover-yard/route-blindness.scenario.yaml` is the
-    shrunk counterexample, committed as a fixture and asserted exactly in
-    `test_incremental.py`; the mechanism is written up there. Until route
-    selection is congestion-aware, the throughput claim belongs to the
-    measured benchmark workloads (BENCHMARKS.md), not to arbitrary ones.
+    shrunk counterexample, kept as the regression fixture for the
+    congestion-aware costing (#33) that removed its mechanism; the write-up
+    is in the scenario file. The dominance claim stays withdrawn: the
+    throughput claim belongs to the measured benchmark workloads
+    (BENCHMARKS.md), not to arbitrary ones.
     """
     doc, layout, scenario = case
     note(fixture_yaml(doc))
