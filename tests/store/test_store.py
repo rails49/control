@@ -8,8 +8,7 @@ import pytest
 
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
-
-ROOT = Path(__file__).parent.parent
+from tests.harness import ROOT
 
 
 @pytest.fixture

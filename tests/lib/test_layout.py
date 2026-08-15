@@ -1,14 +1,12 @@
 """Tests at the Layout seam: model queries and load-time validation."""
 
-from pathlib import Path
 from typing import Any
 
 import pytest
 
 from tc49.lib.layout import Layout
 from tc49.store import AssetStore
-
-ROOT = Path(__file__).parent.parent
+from tests.harness import ROOT
 
 
 @pytest.fixture

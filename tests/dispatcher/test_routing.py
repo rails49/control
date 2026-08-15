@@ -1,14 +1,11 @@
 """Direct unit tests for candidates(): DISPATCH.md's route ordering."""
 
-from pathlib import Path
-
 import pytest
 
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.layout import Layout
 from tc49.store import AssetStore
-
-ROOT = Path(__file__).parent.parent
+from tests.harness import ROOT
 
 
 @pytest.fixture
