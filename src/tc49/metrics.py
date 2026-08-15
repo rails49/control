@@ -40,6 +40,7 @@ class Stall:
 class Metrics:
     ticks: int  # the trace's final tick; the run spans ticks 0..ticks
     completed: tuple[str, ...]
+    rejected: tuple[str, ...]  # work the run never even attempted to do
     makespan: int | None  # None when the run stalled — never aggregated
     mean_latency: float | None
     max_latency: int | None
@@ -53,7 +54,17 @@ class Metrics:
 
     @property
     def status(self) -> str:
-        return "stalled" if self.stalled else "ok"
+        """`ok` only when the run both drained and dropped nothing.
+
+        A rejected request is work the run never attempted, and dropping it
+        makes the makespan *shorter* — so a run that quietly rejected half
+        its workload would otherwise outscore one that did all of it. A
+        rejection is an authoring or reachability fault rather than a
+        dispatch outcome, hence its own status rather than a stall.
+        """
+        if self.stalled:
+            return "stalled"
+        return "rejected" if self.rejected else "ok"
 
     @property
     def mean_utilization(self) -> float:
@@ -93,12 +104,15 @@ def metrics(trace: str) -> Metrics:
     return Metrics(
         ticks=ticks,
         completed=tuple(completed),
+        rejected=tuple(rejected),
         makespan=(
             None
             if stalls or not completed or not admitted
             else max(completed.values()) - min(admitted.values())
         ),
-        mean_latency=mean(latencies.values()) if latencies else None,
+        # `statistics.mean` hands back an int when the mean is exact, which
+        # would make this field's type depend on the data.
+        mean_latency=float(mean(latencies.values())) if latencies else None,
         max_latency=max(latencies.values()) if latencies else None,
         utilization=_utilization(lines, duration),
         crosses_per_tick=Counter(

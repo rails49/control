@@ -11,17 +11,12 @@ from pathlib import Path
 from typing import TextIO
 
 from tc49.layout import Layout
-from tc49.locking import FullRoute, Incremental
-from tc49.metrics import Metrics, metrics
-from tc49.runner import DEFAULT_K, StrategyFactory, run_scenario
+from tc49.metrics import Metrics, Stall, metrics
+from tc49.runner import DEFAULT_K, STRATEGIES, find_root, run_scenario
 from tc49.store import AssetStore, Scenario
+from tc49.sweep import sweep
 
-STRATEGIES: dict[str, StrategyFactory] = {
-    "FullRoute": FullRoute,
-    "Incremental": Incremental,
-}
-
-ROOT = Path(__file__).parent.parent.parent
+ROOT = find_root()
 
 
 def load(store: AssetStore, scenario_id: str) -> tuple[Layout, Scenario]:
@@ -51,12 +46,13 @@ def format_comparison(
     names = list(results)
     rows: list[tuple[str, list[str]]] = [
         ("status", [results[n][1].status for n in names]),
-        ("makespan", [_num(results[n][1].makespan) for n in names]),
-        ("latency mean", [_num(results[n][1].mean_latency) for n in names]),
-        ("latency max", [_num(results[n][1].max_latency) for n in names]),
-        ("utilization", [_num(results[n][1].mean_utilization) for n in names]),
-        ("crosses/tick", [_num(results[n][1].mean_parallelism) for n in names]),
+        ("makespan", [_whole(results[n][1].makespan) for n in names]),
+        ("latency mean", [_ratio(results[n][1].mean_latency) for n in names]),
+        ("latency max", [_whole(results[n][1].max_latency) for n in names]),
+        ("utilization", [_ratio(results[n][1].mean_utilization) for n in names]),
+        ("crosses/tick", [_ratio(results[n][1].mean_parallelism) for n in names]),
         ("completed", [str(len(results[n][1].completed)) for n in names]),
+        ("rejected", [str(len(results[n][1].rejected)) for n in names]),
         ("ticks", [str(results[n][1].ticks) for n in names]),
     ]
     width = max(len(label) for label, _ in rows) + 2
@@ -69,18 +65,29 @@ def format_comparison(
 
     for name in names:
         for stall in results[name][1].stalls:
-            lines.append(
-                f"\n{name}: {stall.id} stalled — {stall.reason}"
-                f" on '{stall.resource}' held by '{stall.holder}'"
-                f" ({stall.candidates_blocked} candidate(s) blocked)"
-            )
+            lines.append(f"\n{name}: {_diagnosis(stall)}")
+        for rid in results[name][1].rejected:
+            lines.append(f"\n{name}: {rid} rejected — the run never attempted it")
     return "\n".join(lines) + "\n"
 
 
-def _num(value: float | None) -> str:
-    if value is None:
-        return "—"
-    return str(value) if isinstance(value, int) else f"{value:.3f}"
+def _diagnosis(stall: Stall) -> str:
+    if stall.reason == "queued":
+        # Never attempted: an earlier working of the same train is itself
+        # still pending, so there is no resource and no holder to name.
+        return f"{stall.id} stalled — queued behind an earlier working"
+    return (
+        f"{stall.id} stalled — '{stall.resource}' held by '{stall.holder}'"
+        f" ({stall.reason}, {stall.candidates_blocked} candidate(s) blocked)"
+    )
+
+
+def _whole(value: int | None) -> str:
+    return "—" if value is None else str(value)
+
+
+def _ratio(value: float | None) -> str:
+    return "—" if value is None else f"{value:.3f}"
 
 
 def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
@@ -111,8 +118,6 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         if args.trace:
             out.write(results[args.trace][0])
         return 0
-
-    from tc49.sweep import sweep
 
     out.write(f"wrote {sweep()} rows\n")
     return 0

@@ -6,16 +6,15 @@ convenience the tests want.
 """
 
 import json
-from pathlib import Path
 from typing import Any
 
 from tc49.layout import Layout
-from tc49.runner import Assembly, StrategyFactory, assemble, run_scenario
+from tc49.runner import Assembly, StrategyFactory, assemble, find_root, run_scenario
 from tc49.store import AssetStore, Scenario
 
 __all__ = ["ROOT", "Assembly", "StrategyFactory", "build", "events", "load", "run"]
 
-ROOT = Path(__file__).parent.parent
+ROOT = find_root()  # one definition of where the railroads live
 
 build = assemble
 run = run_scenario

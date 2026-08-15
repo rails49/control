@@ -20,10 +20,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from tc49.cli import ROOT, STRATEGIES
 from tc49.layout import Layout
 from tc49.metrics import metrics
-from tc49.runner import run_scenario
+from tc49.runner import STRATEGIES, find_root, run_scenario
 from tc49.store import AssetStore, RequestSpec, Scenario, TrainSpec
 
 LAYOUT = "gotthard"
@@ -154,6 +153,7 @@ def row(workload: Workload, k: int, locking: str, trace: str) -> dict[str, Any]:
         "makespan": m.makespan,
         "ticks": m.ticks,
         "completed": len(m.completed),
+        "rejected": len(m.rejected),
         "mean_latency": m.mean_latency,
         "max_latency": m.max_latency,
         "mean_utilization": m.mean_utilization,
@@ -162,8 +162,9 @@ def row(workload: Workload, k: int, locking: str, trace: str) -> dict[str, Any]:
     }
 
 
-def sweep(out_dir: Path | None = None, root: Path = ROOT) -> int:
+def sweep(out_dir: Path | None = None, root: Path | None = None) -> int:
     """Run the grid, writing one row per run. Returns the row count."""
+    root = root or find_root()
     layout = AssetStore(root).get(LAYOUT)
     assert isinstance(layout, Layout)
     destination = out_dir or root / "out"
@@ -173,8 +174,15 @@ def sweep(out_dir: Path | None = None, root: Path = ROOT) -> int:
     rows = 0
     with (destination / "sweep.jsonl").open("w") as out:
         for workload, k, locking in cells():
-            scenario = generated.setdefault(workload, generate(workload))
-            trace = run_scenario(layout, scenario, STRATEGIES[locking], k)
+            if workload not in generated:  # dict.setdefault is not lazy
+                generated[workload] = generate(workload)
+            scenario = generated[workload]
+            try:
+                trace = run_scenario(layout, scenario, STRATEGIES[locking], k)
+            except RuntimeError as exhausted:  # the live-lock backstop tripped
+                raise RuntimeError(
+                    f"{scenario.name} under {locking} at k={k}: {exhausted}"
+                ) from exhausted
             out.write(json.dumps(row(workload, k, locking, trace)) + "\n")
             rows += 1
     return rows

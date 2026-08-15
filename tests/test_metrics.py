@@ -161,6 +161,44 @@ def test_a_rejected_request_is_not_a_stall() -> None:
     assert m.makespan is None  # nothing completed, so there is no span
 
 
+def test_a_rejected_request_is_visible_in_the_status() -> None:
+    # A rejection is work the run never attempted, and dropping it makes the
+    # makespan SHORTER — so a run that quietly rejected half its workload
+    # would outscore one that did all of it. The status has to say so.
+    dropped = metrics(
+        trace(
+            submitted("a-1", 0),
+            admitted("a-1", 0),
+            submitted("b-1", 0),
+            admitted("b-1", 0),
+            {"tick": 1, "event": "request_rejected", "id": "b-1", "reason": "no_entry"},
+            completed("a-1", 3),
+        )
+    )
+    assert dropped.rejected == ("b-1",)
+    assert dropped.status == "rejected"
+    assert dropped.stalls == ()  # a rejection is not a stall
+    assert dropped.makespan == 3  # and it flatters the makespan, hence the status
+
+
+def test_mean_latency_is_a_float_even_when_the_mean_is_exact() -> None:
+    # statistics.mean hands back an int when the mean divides exactly, which
+    # would make the field's type depend on the data and the sweep's JSONL
+    # column mixed int/float across rows.
+    m = metrics(
+        trace(
+            submitted("a-1", 0),
+            admitted("a-1", 0),
+            submitted("b-1", 0),
+            admitted("b-1", 0),
+            completed("a-1", 1),
+            completed("b-1", 3),
+        )
+    )
+    assert m.mean_latency == 2.0
+    assert isinstance(m.mean_latency, float)
+
+
 # The events every metric derives from (ARCHITECTURE.md, metrics). `tick` is
 # deliberately absent: the tap stamps its number onto every other line, so the
 # tick event is what makes the trace timed rather than a line any metric reads.

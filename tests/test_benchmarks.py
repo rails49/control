@@ -52,6 +52,7 @@ def summary(m: Metrics) -> dict[str, object]:
         "makespan": m.makespan,
         "ticks": m.ticks,
         "completed": len(m.completed),
+        "rejected": len(m.rejected),
         "mean_latency": None if m.mean_latency is None else round(m.mean_latency, 4),
         "max_latency": m.max_latency,
         "mean_utilization": round(m.mean_utilization, 4),

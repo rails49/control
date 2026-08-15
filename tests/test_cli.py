@@ -2,11 +2,14 @@
 
 import io
 import json
+from pathlib import Path
 
 import pytest
 
 from tc49.cli import main
 from tc49.metrics import metrics
+from tc49.runner import find_root
+from tests.harness import ROOT
 
 
 def run_cli(*argv: str) -> str:
@@ -65,3 +68,21 @@ def test_the_trace_flag_dumps_the_jsonl_events() -> None:
 def test_an_unknown_scenario_fails_loudly() -> None:
     with pytest.raises(FileNotFoundError):
         run_cli("bench", "crossover-yard/nope")
+
+
+def test_a_rejected_request_is_reported_rather_than_flattering_the_makespan() -> None:
+    # A rejection is work the run never attempted, and dropping it shortens the
+    # makespan — so it must not read as `ok`.
+    printed = run_cli("bench", "crossover-yard/rejection")
+    assert "rejected" in printed
+    assert "never attempted it" in printed
+
+
+def test_find_root_locates_the_railroads_from_anywhere_and_says_so_if_not() -> None:
+    # `layouts/` and `scenarios/` are repo data, not package data — the wheel
+    # ships src/tc49 alone — so the benchmark commands only work inside a
+    # checkout, and must say that rather than raising on an invented path.
+    assert (find_root(ROOT / "src" / "tc49" / "cli.py") / "layouts").is_dir()
+    assert find_root(ROOT / "scenarios" / "gotthard") == ROOT
+    with pytest.raises(FileNotFoundError, match="not usable from an installed wheel"):
+        find_root(Path("/"))

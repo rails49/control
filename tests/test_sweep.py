@@ -122,7 +122,7 @@ def test_generated_workloads_load_as_real_scenarios() -> None:
 
 def test_the_grid_matches_benchmarks_md_with_dead_cells_skipped() -> None:
     grid = list(cells())
-    axes = {(w.trains, w.dest, w.seed, k, locking) for w, k, locking, in grid}
+    axes = {(w.trains, w.dest, w.seed, k, locking) for w, k, locking in grid}
     assert len(grid) == len(axes), "the grid must not repeat a cell"
 
     for trains, dest, seed, k, _ in axes:
@@ -158,13 +158,14 @@ def test_sweep_writes_one_jsonl_row_per_run(tmp_path: Path) -> None:
             "makespan",
             "ticks",
             "completed",
+            "rejected",
             "mean_latency",
             "max_latency",
             "mean_utilization",
             "mean_parallelism",
             "stalls",
         }
-        assert row["status"] in ("ok", "stalled")
+        assert row["status"] in ("ok", "stalled", "rejected")
         # A stalled row carries its status and its diagnosis, and no makespan.
         if row["status"] == "stalled":
             assert row["makespan"] is None

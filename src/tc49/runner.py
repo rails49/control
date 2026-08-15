@@ -10,12 +10,13 @@ processed before it decides whether to advance (SYSTEM.md, the bus).
 import io
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from tc49.bus import Bus
 from tc49.dispatch import Dispatcher
 from tc49.driver import Driver
 from tc49.layout import Layout
-from tc49.locking import FullRoute, LockingStrategy
+from tc49.locking import FullRoute, Incremental, LockingStrategy
 from tc49.scheduler import Scheduler
 from tc49.sim import Simulator
 from tc49.store import Scenario
@@ -24,6 +25,30 @@ from tc49.trace import TraceTap
 StrategyFactory = Callable[[Layout, int], LockingStrategy]
 
 DEFAULT_K = 2  # BENCHMARKS.md records its golden numbers at this budget
+
+STRATEGIES: dict[str, StrategyFactory] = {
+    "FullRoute": FullRoute,
+    "Incremental": Incremental,
+}
+
+
+def find_root(start: Path | None = None) -> Path:
+    """The repo root: the nearest ancestor holding `layouts/`.
+
+    The railroads and the scenarios are repo data, not package data — the
+    wheel ships `src/tc49` alone — so the benchmark commands only mean
+    anything inside a checkout. Searching for the data rather than counting
+    `..` from `__file__` makes that work from any subdirectory and fail with
+    a sentence instead of a `FileNotFoundError` on a path nobody wrote.
+    """
+    for candidate in (start or Path(__file__)).resolve().parents:
+        if (candidate / "layouts").is_dir():
+            return candidate
+    raise FileNotFoundError(
+        "no 'layouts/' directory in any parent — `tc49 bench` and `tc49 sweep`"
+        " read the railroads and scenarios from a checkout of the repository,"
+        " and are not usable from an installed wheel"
+    )
 
 
 @dataclass

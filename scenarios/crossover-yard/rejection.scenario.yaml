@@ -1,0 +1,27 @@
+# crossover-yard/rejection — work the run never attempts (#30, review follow-up).
+#
+# A rejected request is not a stall and not a completion. It is the run being
+# told to do something impossible, saying so, and moving on. That matters to
+# the numbers in a way worth pinning: dropping a request makes the makespan
+# SHORTER, so a run that quietly rejected half its workload would outscore one
+# that did all of it. `metrics()` therefore reports `status: rejected`, and the
+# comparison table names every dropped request.
+#
+# `shunter` asks to leave through yard_w.A — the outer end of a terminal block,
+# which appears in no connection, so no route out of it can exist. The request
+# is admitted (the arrival end is fine) and then rejected `unreachable` at the
+# first launch attempt, which is where reachability is settled.
+#
+# `hauler` runs normally alongside it, so the trace carries a completion as
+# well as a rejection and the two are visibly different outcomes.
+
+scenario: rejection
+layout: crossover-yard
+
+trains:
+  shunter: { length: 600, at: yard_w }
+  hauler: { length: 600, at: up_e }
+
+requests:
+  - { train: shunter, from: yard_w.A, to: [dn_e.A], at: 0 }
+  - { train: hauler, from: up_e.B, to: [yard_e.A], at: 0 }
