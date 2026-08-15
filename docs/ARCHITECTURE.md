@@ -104,10 +104,17 @@ tests/
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks
   system/      test_skeleton  test_properties  test_boundaries
+               test_app_boundaries
 ```
 
 `driver` and `simulator` have no test package: neither has a test of its own,
 and both are covered only through the assembly tests.
+
+`test_app_boundaries` checks the import rule above by parsing each app's
+modules and reading off what they import. The rule is the kind that decays
+silently — one convenient import and two containers are welded together with
+nothing failing — so it is checked rather than reviewed. `bench` is exempt,
+being the code that assembles the apps.
 
 pytest, with Hypothesis for the deadlock hunt. **All four properties drive
 the real assembly over the in-process bus**: each generated case wires
