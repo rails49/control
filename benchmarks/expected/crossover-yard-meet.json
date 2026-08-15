@@ -1,0 +1,28 @@
+{
+  "scenario": "crossover-yard/meet",
+  "k": 2,
+  "strategies": {
+    "FullRoute": {
+      "status": "ok",
+      "makespan": 15,
+      "ticks": 15,
+      "completed": 3,
+      "mean_latency": 3.6667,
+      "max_latency": 4,
+      "mean_utilization": 0.3182,
+      "mean_parallelism": 0.4375,
+      "stalls": []
+    },
+    "Incremental": {
+      "status": "ok",
+      "makespan": 15,
+      "ticks": 15,
+      "completed": 3,
+      "mean_latency": 3.3333,
+      "max_latency": 4,
+      "mean_utilization": 0.2614,
+      "mean_parallelism": 0.4375,
+      "stalls": []
+    }
+  }
+}

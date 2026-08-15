@@ -1,0 +1,31 @@
+# crossover-yard/completion — SAFETY.md boundary condition 4 (#29).
+#
+# "Completion is a non-event for the proof. A train leaving the active set
+# changes nothing, because `dest(u)` already modeled its block as permanently
+# held; it simply becomes an idle obstacle under a different name."
+#
+# `arriver` runs to dn_e and finishes there. `latecomer` then asks for dn_e,
+# its request timed to arrive well after that completion, and is refused
+# exactly as it would have been had `arriver` been parked in dn_e from the
+# start — same reason, same holder, same block.
+#
+# What makes completion a non-event is visible in the lock ledger: completing
+# releases the block behind the train and the transit it crossed, and nothing
+# else. The standing lock on dn_e is never released, because occupancy is a
+# standing lock and the train is still standing there. "Active" and "idle" are
+# labels on the dispatcher's bookkeeping; the lock table does not notice when
+# one is swapped for the other.
+
+scenario: completion
+layout: crossover-yard
+
+trains:
+  arriver: { length: 600, at: yard_w }
+  latecomer: { length: 600, at: yard_e }
+
+requests:
+  - { train: arriver, from: yard_w.B, to: [dn_e.A], at: 0 }
+  # Late enough that arriver has finished: the obstacle latecomer meets is a
+  # completed train, not an active one. It enters dn_e through .B, the only
+  # end reachable from the east yard.
+  - { train: latecomer, from: yard_e.A, to: [dn_e.B], at: 8 }

@@ -1,0 +1,35 @@
+# single-track-meet/starvation — SAFETY.md boundary condition 6 (#29).
+#
+# "Starvation is not deadlock. The argument guarantees that some train always
+# advances and that all active trains finish; it does not bound how long a
+# particular train waits. That is measured by max per-request latency, and an
+# aging rule on the grant queue is the standard remedy."
+#
+# This is also SAFETY.md's conditional-liveness proviso being discharged in
+# front of the reader: "every accepted request completes, PROVIDED every train
+# blocking a pending request eventually receives a request of its own".
+#
+# `waiter` asks at tick 0 for east_1, which `squatter` is sitting in. While
+# squatter is idle its block is a permanent obstacle, so waiter is refused at
+# every grant phase — not deadlocked, not wedged, just not served. At tick 6
+# squatter finally gets a request of its own and runs west; the moment it
+# clears east_1, waiter launches and completes.
+#
+# The two latencies are the point. Both requests complete — the run drains —
+# but waiter's is several times squatter's, and the gap is entirely the wait,
+# not the journey. Nothing but max per-request latency would show it: makespan
+# sees a run that finished, and the safety check sees a state that was safe
+# throughout.
+
+scenario: starvation
+layout: single-track-meet
+
+trains:
+  waiter: { length: 1000, at: west_1 }
+  squatter: { length: 1000, at: east_1 }
+
+requests:
+  - { train: waiter, from: west_1.B, to: [east_1.A], at: 0 }
+  # squatter's own working, arriving late: until it does, nothing in the
+  # dispatcher will move squatter, and east_1 is unroutable-to.
+  - { train: squatter, from: east_1.A, to: [west_2.B], at: 6 }

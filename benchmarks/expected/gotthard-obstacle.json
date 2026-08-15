@@ -1,0 +1,44 @@
+{
+  "scenario": "gotthard/obstacle",
+  "k": 2,
+  "strategies": {
+    "FullRoute": {
+      "status": "stalled",
+      "makespan": null,
+      "ticks": 1,
+      "completed": 0,
+      "mean_latency": null,
+      "max_latency": null,
+      "mean_utilization": 1.0,
+      "mean_parallelism": 0.0,
+      "stalls": [
+        {
+          "id": "stranded-1",
+          "reason": "held",
+          "resource": "line_blue_1",
+          "holder": "stock",
+          "candidates_blocked": 2
+        }
+      ]
+    },
+    "Incremental": {
+      "status": "stalled",
+      "makespan": null,
+      "ticks": 1,
+      "completed": 0,
+      "mean_latency": null,
+      "max_latency": null,
+      "mean_utilization": 1.0,
+      "mean_parallelism": 0.0,
+      "stalls": [
+        {
+          "id": "stranded-1",
+          "reason": "held",
+          "resource": "line_blue_1",
+          "holder": "stock",
+          "candidates_blocked": 2
+        }
+      ]
+    }
+  }
+}

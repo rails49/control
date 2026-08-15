@@ -1,0 +1,28 @@
+# single-track-meet/pessimism — SAFETY.md boundary condition 1 (#29).
+#
+# "Optimism about idle trains is unsound." If `safe()` treated an idle train's
+# block as free on the grounds that it will move eventually, it could advance a
+# train into a position where the two later wedge each other. Pessimism means
+# the blocked train never launches, so it never gets into that position.
+#
+# `blocker` is parked in e_main and has no request of its own, so its block is
+# permanently unavailable. `runner` wants east_1, and every route there ends
+# ... -> e_main -> east_1. The point of the scenario is WHERE the refusal comes
+# from: the first increment runner needs is w_main, which is free, so the lock
+# table alone would let it go. It is the safety check that refuses, on a block
+# three steps down the route — reason `unsafe`, obstacle e_main.
+#
+# The observable consequence is that runner never moves at all. Optimism would
+# have let it into w_main and then loop_dn, where it would sit holding the
+# single-track section forever, having converted a refusable launch into a
+# permanent obstacle of its own.
+
+scenario: pessimism
+layout: single-track-meet
+
+trains:
+  runner: { length: 1000, at: west_1 }
+  blocker: { length: 1000, at: e_main } # idle: no request names it
+
+requests:
+  - { train: runner, from: west_1.B, to: [east_1.A], at: 0 }

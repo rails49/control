@@ -1,0 +1,33 @@
+# single-track-meet/arrival-obstruction — SAFETY.md boundary condition 2 (#29).
+#
+# "An arrival block held by an idle train is unroutable-to until that train
+# leaves. Two trains cannot park in one block, so this is correct rather than
+# merely conservative. What arrival-end sets change is only how often it
+# matters: the request is held back when EVERY one of its arrival blocks is
+# obstructed, not when one is."
+#
+# `squatter` sits in east_1 with no request, so east_1 is permanently
+# unavailable. Two trains then ask for the east end of the railroad, and the
+# only difference between them is how many arrival blocks they name:
+#
+#   fixed    to: [east_1.A]              — one arrival block, and it is the
+#                                          obstructed one. Held back forever.
+#   flexible to: [east_1.A, east_2.A]    — the same obstructed block plus one
+#                                          more. Completes, at east_2.
+#
+# The pair is the whole boundary condition in one run: the obstruction is real
+# and the set is what routes around it. Route selection does all the work —
+# flexible's candidates tie at four transits, so the lexicographic tie-break
+# offers east_1 first, it is refused, and `k = 2` reaches east_2.
+
+scenario: arrival-obstruction
+layout: single-track-meet
+
+trains:
+  fixed: { length: 1000, at: west_1 }
+  flexible: { length: 1000, at: west_2 }
+  squatter: { length: 1000, at: east_1 } # idle: no request names it
+
+requests:
+  - { train: fixed, from: west_1.B, to: [east_1.A], at: 0 }
+  - { train: flexible, from: west_2.B, to: [east_1.A, east_2.A], at: 0 }

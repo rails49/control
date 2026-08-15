@@ -175,6 +175,18 @@ than `k = 6`, and possibly worse than `|dest| = 2`. That is a prediction the
 grid is shaped to confirm or refute, not a defect to fix in advance;
 congestion-aware costing is the remedy if it holds.
 
+**It holds, and harder than the paragraph above expects.** Authoring
+`gotthard/saturation` (#31) at `|dest| = 6` and running it at the default
+`k = 2` does not merely cost throughput: the run **stalls outright**, under both
+locking strategies. Five trains all try `claro_1`, then `claro_2`, both of which
+are occupied, and the rotation that the workload depends on never starts. The
+committed scenario is therefore written at `|dest| = 2`, where a request's
+candidate count is exactly two and `k = 2` reaches every candidate it has. Read
+that as a bound on what the `k` axis measures: below `|dest|`, `k` is not a
+weaker version of route-around but a systematically biased one, and the sweep's
+`k = 2, |dest| = 6` column should be read as measuring the bias rather than the
+budget.
+
 `k ≥ 7` reaches only 6-transit detours that consume all three line sections
 where the direct route needs one — verified: between the two tiers there is
 nothing. They are worse under contention, not better, and less likely to pass

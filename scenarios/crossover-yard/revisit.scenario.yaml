@@ -1,0 +1,33 @@
+# crossover-yard/revisit — SAFETY.md boundary condition 5 (#29).
+#
+# "Self-intersecting routes. A route may revisit a block it released earlier.
+# `feasible` handles this already: blocks are checked against OTHER trains
+# only."
+#
+# One train, out and back over the down main. The return working's route is
+# entirely blocks the outward working released — dn_e, dn_w, and yard_w, the
+# block the train started in — so `feasible` is asked about a train's own
+# recent footprint at every step, and must answer that its own past is not an
+# obstacle.
+#
+# Note where the self-intersection actually lives. A route is a simple path
+# (CONTEXT.md), so no single route can revisit a block; what revisits is the
+# TRAIN, across two requests. That is the only form the rule can take on this
+# model, and it is the form the return working takes here. `safe()` is
+# exercised on the hand-built version of the same shape in
+# `tests/test_safety.py::test_self_intersecting_routes_pass`.
+
+scenario: revisit
+layout: crossover-yard
+
+trains:
+  shuttle: { length: 600, at: yard_w }
+
+requests:
+  # Out. Both arrival ends of yard_e survive admission — yard_e is terminal,
+  # so .B is pruned `no_entry` — and the route runs over the down main, which
+  # the lexicographic tie-break prefers to the up.
+  - { train: shuttle, from: yard_w.B, to: [yard_e], at: 0 }
+  # Back, over the same three blocks in reverse. It departs by the end it
+  # arrived through: reversal at rest between requests (ADR-0001).
+  - { train: shuttle, from: yard_e.A, to: [yard_w.B], at: 0 }

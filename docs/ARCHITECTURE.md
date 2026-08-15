@@ -106,7 +106,10 @@ src/tc49/
                 commands, emits sensors, publishes the tick, owns pacing
                 and termination
   trace.py      the trace tap — canonical JSONL serialization, read/write
+  runner.py     assemble the components on one bus and run a scenario to
+                quiescence — the one wiring, shared by the CLI and the tests
   metrics.py    metrics(trace) -> Metrics
+  sweep.py      the seeded workload generator and the fixed grid
   cli.py        `tc49 bench <scenario>`; `tc49 sweep` takes no arguments —
                 the grid of BENCHMARKS.md is the fixed research design
 

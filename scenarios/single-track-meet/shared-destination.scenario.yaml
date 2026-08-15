@@ -1,0 +1,29 @@
+# single-track-meet/shared-destination — SAFETY.md boundary condition 3 (#29).
+#
+# "Two active trains committed to the same block can never both appear in a
+# witness ordering — the second finds the block parked on — so `safe()` refuses
+# to launch the second while the first is active. Two REQUESTS whose arrival
+# sets overlap are not shared destinations: each commits to one end at launch,
+# and the second is free to commit to a different block."
+#
+# Both trains name the same two arrival ends, in the same order, so nothing but
+# route selection separates them. The first launch takes east_1 — the
+# lexicographic tie-break, both candidates being four transits — and the second
+# is then refused east_1 and commits to east_2 instead. Both complete, on
+# different tracks, and at no point are two committed routes aimed at one block.
+#
+# The refusal half of the condition — two active trains committed to one block
+# never coexisting — is asserted over the whole trace rather than at one event:
+# route_chosen opens a commitment and request_completed closes it, and no block
+# is ever the destination of two open commitments at once.
+
+scenario: shared-destination
+layout: single-track-meet
+
+trains:
+  first: { length: 1000, at: west_1 }
+  second: { length: 1000, at: west_2 }
+
+requests:
+  - { train: first, from: west_1.B, to: [east_1.A, east_2.A], at: 0 }
+  - { train: second, from: west_2.B, to: [east_1.A, east_2.A], at: 0 }

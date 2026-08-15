@@ -1,0 +1,28 @@
+{
+  "scenario": "gotthard/meet",
+  "k": 2,
+  "strategies": {
+    "FullRoute": {
+      "status": "ok",
+      "makespan": 5,
+      "ticks": 5,
+      "completed": 2,
+      "mean_latency": 4,
+      "max_latency": 5,
+      "mean_utilization": 0.4444,
+      "mean_parallelism": 0.6667,
+      "stalls": []
+    },
+    "Incremental": {
+      "status": "ok",
+      "makespan": 3,
+      "ticks": 3,
+      "completed": 2,
+      "mean_latency": 3,
+      "max_latency": 3,
+      "mean_utilization": 0.4,
+      "mean_parallelism": 1.0,
+      "stalls": []
+    }
+  }
+}

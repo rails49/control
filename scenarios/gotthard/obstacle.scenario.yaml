@@ -1,0 +1,31 @@
+# gotthard/obstacle — a permanent obstacle, named (docs/BENCHMARKS.md, #31).
+#
+# Stock left standing on `line_blue_1` and a request departing `claro_3.B`.
+# Per the Rocrail netlist, blue 1 reaches Claro track 3 alone, so the departure
+# end fixes the line by itself: every route out of claro_3.B crosses
+# line_blue_1, whatever the request names as its destination.
+#
+# The request therefore stalls however many arrival ends it names, which is
+# what makes this the stall detector's scenario rather than the flexibility
+# axis's. `stranded` names all three Airolo tracks — the widest set the layout
+# offers — and it changes nothing.
+#
+# Expected status `stalled`, with the obstacle named: `line_blue_1`, held by
+# `stock`. This is SAFETY.md's conditional-liveness proviso failing in the open
+# — nothing in the dispatcher will move `stock`, so its block is permanently
+# unavailable — turned from a paragraph into a visible, tested output.
+
+scenario: obstacle
+layout: gotthard
+
+trains:
+  stranded: { length: 900, at: claro_3 }
+  stock: { length: 900, at: line_blue_1 } # idle: no request names it
+
+requests:
+  - {
+      train: stranded,
+      from: claro_3.B,
+      to: [airolo_1, airolo_2, airolo_3],
+      at: 0,
+    }
