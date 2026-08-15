@@ -1,10 +1,10 @@
 # Dispatch
 
 The dispatcher accepts requests from the scheduler — as events on the bus
-([SYSTEM.md](SYSTEM.md#dispatcher)) — and tries to satisfy them in
+([SYSTEM.md](../SYSTEM.md#dispatcher)) — and tries to satisfy them in
 the shortest time possible. It is **online** — it commits to decisions without
 knowing future requests — and is the research core of this project: deadlock
-avoidance at high throughput. Terminology follows [CONTEXT.md](../CONTEXT.md).
+avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md).
 
 ## Semantics
 
@@ -14,12 +14,12 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../CONTEXT.md).
   All other requests are accepted and queued.
 - **Fixed routes** — a route is chosen when the train starts moving and never
   changed; only its locks are incremental
-  ([ADR-0002](adr/0002-fixed-route-per-request.md)).
+  ([ADR-0002](../adr/0002-fixed-route-per-request.md)).
 - **No reversal** — routes are strict pass-throughs; terminal blocks occur
-  only as endpoints ([ADR-0001](adr/0001-no-reversal-within-a-route.md)).
+  only as endpoints ([ADR-0001](../adr/0001-no-reversal-within-a-route.md)).
 - **Event-driven** — the dispatcher reacts to bus events and never reads a
   clock — it never even learns the tick number
-  ([SYSTEM.md](SYSTEM.md#time)) — so a simulator and a physical layout drive
+  ([SYSTEM.md](../SYSTEM.md#time)) — so a simulator and a physical layout drive
   it the same way.
 
 ### Requests
@@ -28,7 +28,7 @@ A request is `(train, departure end, arrival ends, arrival tick)`. The train is
 named explicitly — its origin block follows from where it stands — and the
 departure end fixes the first transit. The **arrival ends** are a set, and any
 one of them satisfies the request; the dispatcher commits to one when it
-chooses the route ([ADR-0007](adr/0007-requests-name-a-set-of-arrival-ends.md)).
+chooses the route ([ADR-0007](../adr/0007-requests-name-a-set-of-arrival-ends.md)).
 
 Both ends name the end the train **crosses**: `claro_1.B` as a departure means
 it leaves through `B`, and `airolo_2.A` as an arrival means it enters through
@@ -51,7 +51,7 @@ need different information:
   facts about the layout and the train, so both are decidable the moment the
   request arrives. A stated departure block is checked here too, against where
   the train actually stands: the scheduler is layout-blind, so every
-  feasibility check is the dispatcher's ([SYSTEM.md](SYSTEM.md#scheduler)).
+  feasibility check is the dispatcher's ([SYSTEM.md](../SYSTEM.md#scheduler)).
 - At the first launch attempt, arrival ends not reachable from the origin are
   pruned. This needs the origin block, which for a chained working is not known
   until its predecessor completes — so `request_rejected` can also be
@@ -60,7 +60,7 @@ need different information:
 
 Either stage rejects the request if it empties the set. The admission stage
 records what it dropped, with reasons, on `request_admitted`
-([SYSTEM.md](SYSTEM.md#event-inventory)) — that is where an authoring
+([SYSTEM.md](../SYSTEM.md#event-inventory)) — that is where an authoring
 slip shows up, so a mistyped end is visible at a known tick instead of silently
 narrowing the experiment. The launch stage records nothing unless it rejects,
 because a prune that leaves candidates standing changes nothing observable: the
@@ -75,7 +75,7 @@ completes. The launch commits an empty route and completes in the same grant
 phase, moving nothing and locking nothing, so the request's latency is the
 one-tick admission-to-scan skew every request pays. An empty route has no
 final transit for the end to constrain and no stored facing to check it
-against ([LAYOUT.md](LAYOUT.md#scenario-schema)) — this is the one case where
+against ([LAYOUT.md](../store/LAYOUT.md#scenario-schema)) — this is the one case where
 the arrival end is vacuous. Treating it as degenerate rather than as an error
 keeps the admission rule free of special cases.
 
@@ -111,7 +111,7 @@ the lexicographic tie-break alone decided which `k` got tried, so every train
 tried the same smallest-id tracks first. That bias was measured twice: as the
 `route-blindness` counterexample (ARCHITECTURE.md, property 3) and as an
 outright stall of `gotthard/saturation` authored at `|dest| = 6`
-([BENCHMARKS.md](BENCHMARKS.md#the-k-axis)).
+([BENCHMARKS.md](../bench/BENCHMARKS.md#the-k-axis)).
 
 The congestion count is a function of the dispatcher's live state, so the
 ordering is `(layout, state)` and stays deterministic: the tested
@@ -141,7 +141,7 @@ admitted since the previous phase is a valid optimization, not a semantic
 rule.
 
 The scan order is most-refused first, admission order among equals (#34;
-[ADR-0012](adr/0012-the-pending-scan-ages-by-refusal-count.md) records why
+[ADR-0012](../adr/0012-the-pending-scan-ages-by-refusal-count.md) records why
 plain arrival order starved through-traffic). Aging gives a starved request
 first claim on whatever just freed. The refusal count is dispatcher state,
 never wall-clock, so the order stays deterministic; a train's chained
@@ -182,7 +182,7 @@ Time is synchronous discrete **ticks**: each tick, every moving train
 completes one transit into its next block. Travel time within blocks is
 ignored, and so is transit length — the long return loop and a station ladder
 both cost one tick. The tick's ownership and mechanics belong to
-[SYSTEM.md](SYSTEM.md#time): the layout interface publishes the tick event,
+[SYSTEM.md](../SYSTEM.md#time): the layout interface publishes the tick event,
 and the dispatcher — which never learns the tick number — treats each tick
 event as its **grant boundary**. What follows is the dispatcher's semantics
 at that boundary. An event-driven clock with real traversal times can replace
@@ -247,7 +247,7 @@ dispatcher the same way.
    [SAFETY.md](SAFETY.md).
 3. **Transit concurrency** — a connection declares which pairs of its transits
    are `concurrent`; every other pair conflicts
-   ([ADR-0006](adr/0006-conflicts-declared-by-inversion.md)). A crossing that
+   ([ADR-0006](../adr/0006-conflicts-declared-by-inversion.md)). A crossing that
    declares its two straight transits concurrent therefore accepts two trains
    at once on them, but only one on either crossing transit. Transits are also
    self-exclusive, so head-on use is excluded without declaring anything. A
@@ -255,24 +255,24 @@ dispatcher the same way.
    at that connection conflicts with it — an instantaneous admissibility test
    at the grant, not part of the deadlock check.
 
-   ![Crossing connector](image.png)
+   ![Crossing connector](../image.png)
 
 ## Research
 
-The [survey](research/deadlock-avoidance-survey.md) assessed known theory
+The [survey](../research/deadlock-avoidance-survey.md) assessed known theory
 against this model — banker's-style safety checks (applicable because routes
 are fixed), resource-allocation graphs and cycle detection, deadlock avoidance
 in AGV systems, Petri-net approaches, and railway zone control. The resulting
 choice is a route-aware banker's safety check
-([ADR-0003](adr/0003-route-aware-bankers-safety-check.md)); the check itself
+([ADR-0003](../adr/0003-route-aware-bankers-safety-check.md)); the check itself
 and its deadlock-freedom argument are in [SAFETY.md](SAFETY.md).
 
 ## Metrics
 
 Benchmarks feed the dispatcher a fixed list of requests and report the four
-metrics below; the suite that produces them is [BENCHMARKS.md](BENCHMARKS.md),
+metrics below; the suite that produces them is [BENCHMARKS.md](../bench/BENCHMARKS.md),
 and each metric is computed as a pure function of the event trace
-([ARCHITECTURE.md](ARCHITECTURE.md#metrics)).
+([bench/METRICS.md](../bench/METRICS.md)).
 
 - **Makespan** (headline) — ticks from first arrival until the last request
   completes.

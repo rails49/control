@@ -23,4 +23,4 @@ states that make one inevitable; detection-and-recovery needs a preemption we
 do not have. Siphon-based Petri-net prevention wants an offline synthesis that
 does not fit routes created per request. The
 [survey](../research/deadlock-avoidance-survey.md) has the full comparison and
-[SAFETY.md](../SAFETY.md) the resulting check and its freedom argument.
+[SAFETY.md](../dispatcher/SAFETY.md) the resulting check and its freedom argument.

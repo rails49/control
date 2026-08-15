@@ -53,7 +53,7 @@ Railroad operations divide into three distinct functions:
    block to another block, corresponding to shipping goods or passengers to
    their destinations. Requests arrive continually; a schedule may also be set
    up in advance.
-2. **[Dispatching](DISPATCH.md)** — accepts requests by finding and allocating
+2. **[Dispatching](dispatcher/DISPATCH.md)** — accepts requests by finding and allocating
    routes, deadlock-free and with high throughput.
 3. **Driving** — takes the role of a locomotive engineer, performed by a human
    or automatically.

@@ -20,5 +20,5 @@ arrives as a runtime writer or a checkpoint document type in a future
 effort, not as a softening of this rule.
 
 The milestone-1 binding is a Python library over the YAML files of
-[LAYOUT.md](../LAYOUT.md); a REST binding later slots under the same names
+[LAYOUT.md](../store/LAYOUT.md); a REST binding later slots under the same names
 and verbs. See [SYSTEM.md](../SYSTEM.md#asset-store).

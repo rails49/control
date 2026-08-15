@@ -15,4 +15,4 @@ parameter, which is a smaller change than the abstraction would have been.
 
 Keeping the baseline behind the same protocol also keeps its trivial logic out
 of the same body as the research core's subtle logic — the one place where
-entanglement would be most expensive. See [ARCHITECTURE.md](../ARCHITECTURE.md).
+entanglement would be most expensive. See [dispatcher/INTERNALS.md](../dispatcher/INTERNALS.md).

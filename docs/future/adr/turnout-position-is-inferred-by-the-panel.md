@@ -13,7 +13,7 @@ commands are "transit-level, never turnout-level" and that the
 transit-to-turnout-positions table is private hardware configuration. The panel
 is not the app: it may hold that table because its drawing already contains the
 turnout geometry the table is made of. Nothing changes in the layout format, the
-bus inventory, or [LAYOUT.md](../../LAYOUT.md)'s position that turnouts are
+bus inventory, or [LAYOUT.md](../../store/LAYOUT.md)'s position that turnouts are
 "inexpressible until a later effort gives turnouts identity".
 
 The alternative was to give turnouts identity, publish

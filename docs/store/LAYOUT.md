@@ -1,12 +1,12 @@
 # Layout and scenario files
 
 The two document types of the asset store
-([SYSTEM.md](SYSTEM.md#asset-store)), which validates both — schema and
+([SYSTEM.md](../SYSTEM.md#asset-store)), which validates both — schema and
 cross-references, at `put` and, in the milestone-1 YAML binding, again at
 `get`, since these files are hand-authored — so components read them
 unchecked. Terminology follows
-[CONTEXT.md](../CONTEXT.md); the semantics of what these files describe are in
-[GOALS.md](GOALS.md) and [DISPATCH.md](DISPATCH.md).
+[CONTEXT.md](../../CONTEXT.md); the semantics of what these files describe are in
+[GOALS.md](../GOALS.md) and [DISPATCH.md](../dispatcher/DISPATCH.md).
 
 A **layout** file is the durable railroad. A **scenario** file names a layout
 and adds the stock standing on it and the fixed request list. The split is what
@@ -60,11 +60,11 @@ connections:
   end-pair the reader must decode.
 - **`concurrent` declares the exceptions.** Every pair of transits at a
   connection conflicts unless listed; see
-  [ADR-0006](adr/0006-conflicts-declared-by-inversion.md) for why the
+  [ADR-0006](../adr/0006-conflicts-declared-by-inversion.md) for why the
   declaration points this way.
 - **Lengths** are load-bearing only for the admission fit check — does the train
   fit the blocks it may arrive in. Transit length is not modelled at all: every
-  transit costs one tick ([DISPATCH.md](DISPATCH.md#time-model)).
+  transit costs one tick ([DISPATCH.md](../dispatcher/DISPATCH.md#time-model)).
 - **There are no turnouts in the format.** A connection is abstract, "realized
   by zero or more turnouts" is a physical note, and turnout switching time is
   therefore not merely ignored but inexpressible until a later effort gives
@@ -92,10 +92,10 @@ requests:
   without rewriting.
 - **Trains are flat** — id, length, starting block. The dispatcher only ever
   asks whether a train fits a block, so total length is the whole of what
-  milestone 1 reads; [GOALS.md](GOALS.md)'s composed loco-and-car model arrives
+  milestone 1 reads; [GOALS.md](../GOALS.md)'s composed loco-and-car model arrives
   when something consumes it.
 - **`to` is a list of arrival ends**, any one of which satisfies the request
-  ([ADR-0007](adr/0007-requests-name-a-set-of-arrival-ends.md)). An element is
+  ([ADR-0007](../adr/0007-requests-name-a-set-of-arrival-ends.md)). An element is
   either `<block>.<end>`, naming the end the train enters through, or a bare
   `<block>`, which expands at load time to both of its ends and is how a
   scenario says "either way round". So `to: [dn_e, up_e]` is four arrival ends
@@ -103,18 +103,18 @@ requests:
   equally acceptable and route selection decides between them, so writing a
   preferred track first has no effect.
 - **No facing is stored.** Routes are strict pass-throughs
-  ([ADR-0001](adr/0001-no-reversal-within-a-route.md)) and both `from` and `to`
+  ([ADR-0001](../adr/0001-no-reversal-within-a-route.md)) and both `from` and `to`
   name an end the train crosses, so orientation is a consequence of the route
   rather than a fact needing to be recorded. The one place this shows is the
   degenerate request — a train already standing in an arrival block completes
   at its first launch attempt without moving, whichever end that arrival
   names, because there is no final transit to constrain and nothing to check
-  the end against ([DISPATCH.md](DISPATCH.md#requests)).
+  the end against ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)).
 - **`from` requires the end and takes the block optionally.** `from: yard_w.B`
   states the working the way a reader wants to see it, and is checked by the
   dispatcher at admission against where the train actually stands — the
   scheduler is layout-blind, so every feasibility check is the dispatcher's
-  ([SYSTEM.md](SYSTEM.md#scheduler)). But a
+  ([SYSTEM.md](../SYSTEM.md#scheduler)). But a
   chained working can no longer state it: where the previous request parked the
   train is a dispatcher choice among that request's arrival ends, unknown when
   the file is written. Those write `from: A`, and the block is whatever the
@@ -144,15 +144,15 @@ Two structural facts fall out of the format and surprise people:
 
 | File | Shape | Role |
 | --- | --- | --- |
-| [`layouts/gotthard.layout.yaml`](../layouts/gotthard.layout.yaml) | 14 blocks, 3 connections, 29 transits, 5 terminal blocks | the real railroad, headline benchmark |
-| [`layouts/crossover-yard.layout.yaml`](../layouts/crossover-yard.layout.yaml) | 6 blocks, 3 connections, 8 transits | small, fast, the only one with a `concurrent` pair |
+| [`layouts/gotthard.layout.yaml`](../../layouts/gotthard.layout.yaml) | 14 blocks, 3 connections, 29 transits, 5 terminal blocks | the real railroad, headline benchmark |
+| [`layouts/crossover-yard.layout.yaml`](../../layouts/crossover-yard.layout.yaml) | 6 blocks, 3 connections, 8 transits | small, fast, the only one with a `concurrent` pair |
 
 `facing-pair` and `single-track-meet` are property-test layouts and are
-described in [ARCHITECTURE.md](ARCHITECTURE.md#tests); they are small enough to
+described in [ARCHITECTURE.md](../ARCHITECTURE.md#tests); they are small enough to
 write from those descriptions.
 
 Gotthard's topology is checked against the owner's Rocrail netlist,
-[`layouts/gotthard-rocrail.xml`](../layouts/gotthard-rocrail.xml) (rendered as
+[`layouts/gotthard-rocrail.xml`](../../layouts/gotthard-rocrail.xml) (rendered as
 `gotthard-rocrail.png`), which is authoritative for what connects to what;
 `Gotthard.pdf` remains the source for block lengths. Two cautions when reading
 the netlist directly: its `<stlist>` routes are **stale** — they still name the

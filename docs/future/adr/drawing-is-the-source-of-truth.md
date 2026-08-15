@@ -41,7 +41,7 @@ mechanical and lossless, because derivation passes it through unchanged. And the
 reasoning comments that
 [layouts/gotthard.layout.yaml](../../../layouts/gotthard.layout.yaml) carries
 have to move into the drawing, along with the parts of
-[LAYOUT.md](../../LAYOUT.md) that document the layout schema as the authored
+[LAYOUT.md](../../store/LAYOUT.md) that document the layout schema as the authored
 format.
 
 [ADR-0010](../../adr/0010-asset-store-serves-coarse-read-only-documents.md) is

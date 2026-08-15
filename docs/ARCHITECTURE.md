@@ -1,117 +1,70 @@
 # Architecture
 
-Implementation architecture one level beneath [SYSTEM.md](SYSTEM.md): the
-dispatcher's internals, the metrics derivations, the package layout, and the
-test strategy. The contracts *between* components — bus, event inventory,
-time, asset store, footprints — are SYSTEM.md's and are not repeated here.
-Terminology follows [CONTEXT.md](../CONTEXT.md); the dispatch model is
-[DISPATCH.md](DISPATCH.md), the avoidance layer [SAFETY.md](SAFETY.md), the
-file formats [LAYOUT.md](LAYOUT.md), and the suite that exercises it all
-[BENCHMARKS.md](BENCHMARKS.md). The two seam decisions are recorded in
-[ADR-0004](adr/0004-dispatcher-returns-commands.md) and
-[ADR-0005](adr/0005-seam-at-locking-strategy.md).
+How the repository is organized and how it is tested. The contracts *between*
+apps — bus, event inventory, time, asset store, footprints — are
+[SYSTEM.md](SYSTEM.md)'s and are not repeated here. Each app's internals are
+its own page: the dispatcher's are
+[dispatcher/INTERNALS.md](dispatcher/INTERNALS.md), the metrics derivations
+[bench/METRICS.md](bench/METRICS.md). Terminology follows
+[CONTEXT.md](../CONTEXT.md).
 
-## The dispatcher's internals
+## Apps
 
-The dispatcher is the deep module of this codebase: routing, queueing,
-locking and the safety check all sit behind the bus footprint of
-[SYSTEM.md](SYSTEM.md#dispatcher), and it holds no collaborators — it reads
-its layout and stock snapshot at startup ([SYSTEM.md](SYSTEM.md#dispatcher))
-and thereafter only consumes and publishes events. Its state is the pending-request queue, the lock table, the set of
-active routes, and the sensor events buffered since the last tick.
+An **app** is a unit that will run as its own container
+([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are five:
+store, scheduler, dispatcher, driver, simulator. A UI is expected later.
 
-`Request`, `Route`, `Move` and friends survive as internal dataclasses — the
-in-memory forms of what travels the bus as JSON. The wire vocabulary is the
-event inventory; these types are private to the implementation and the
-tests, which is why field-level schemas could be deferred.
+Apps import `tc49.lib` and themselves, **never each other**. They meet only
+over the event bus and the asset store's CRUD contract, so each one can be
+read, tested and eventually deployed without the others.
 
-## The locking seam
+[SYSTEM.md](SYSTEM.md) is the normative definition of those contracts;
+`lib/` is its Python binding. A TypeScript UI would get a sibling binding of
+the same spec, so nothing an app depends on is defined only in Python.
 
-```python
-class LockingStrategy(Protocol):
-    def launch(self, req: Request, origin: str, state: State) -> Launched | Refused | None: ...
-    def grant(self, train: str, state: State) -> Move | Refused: ...
-```
-
-`Launched` carries the committed route, `k_tried`, and the resources newly
-locked; `Refused` carries the reason and one `{resource, holder}` obstacle
-per blocked candidate — the payload of `grant_refused`. `None` from
-`launch` means no candidate route exists (the request is rejected
-`unreachable`). Strategies mutate `state.locks` and report what they
-locked, so the dispatcher can publish the lock ledger.
-
-Two adapters, both real from day one:
-
-- **`FullRoute`** — the baseline. `launch` locks every block and transit of the
-  route or returns `None`; `grant` walks the already-locked route with no check.
-  Trivially deadlock-free, low throughput, and the yardstick the research core
-  must beat on makespan.
-- **`Incremental`** — the research core. `launch` tries up to `k` candidate
-  routes and takes the first whose post-launch state is safe; `grant` gates the
-  next transit-plus-block on the same check.
-
-`safe()` is a plain function in `safety.py`, not a protocol. The polynomial
-fallback of [SAFETY.md](SAFETY.md) would be a second function and a parameter
-if anyone ever wants it — see [ADR-0005](adr/0005-seam-at-locking-strategy.md)
-for why the seam is here and not there.
-
-## Metrics
-
-`metrics(trace) -> Metrics` is a pure function of the trace — nothing is
-accumulated live, and no component computes a metric at runtime. Everything
-derives from the tapped events of [SYSTEM.md](SYSTEM.md#the-trace):
-
-- **Makespan** — first `request_admitted` stamp to last `request_completed`
-  stamp.
-- **Per-request latency** — `request_completed` stamp minus the request's
-  `at` tick, correlated by id; mean and max.
-- **Utilization** — `lock_granted`/`lock_released` spans per resource, as a
-  fraction of the whole run: tick 0 through the trace's final tick. Standing
-  locks are in the trace from the dispatcher's startup emission
-  ([SYSTEM.md](SYSTEM.md#dispatcher)), so idle trains count.
-- **Parallelism** — `cross` commands per tick.
-- **Stall report** — for each request admitted but never completed when the
-  trace ends, the last `grant_refused` for its id names the obstacles: which
-  train (`holder`), which block (`resource`), how many candidates were
-  blocked (the list's length).
-
-This is deliberate. It keeps the trace **load-bearing**: an event that stops
-being emitted breaks a metric and fails a test, rather than leaving the trace
-to rot quietly until a future UI discovers it is missing what it needs. It
-also makes every metric testable against a hand-written trace, with no run
-required.
+`bench/` is not an app. It is the research harness, and the only code that
+wires apps together.
 
 ## Package layout
 
 ```
 src/tc49/
-  bus.py        the in-process bus — queued FIFO, run-to-completion,
-                prefix-filter subscriptions (SYSTEM.md#the-bus)
-  store.py      asset store — CRUD contract, YAML binding, validate at put
-  layout.py     Layout — blocks, connections, transits, conflict matrix
-                (expanded from `concurrent` by inversion), derived terminal
-                blocks
-  routing.py    candidates(layout, origin, depart_end, arrivals,
-                train_length, k) — k-shortest over every arrival end
-                merged, DISPATCH.md's ordering
-  scheduler.py  Scheduler — releases scenario requests at their `at` ticks,
+  lib/          the Python binding of SYSTEM.md's contracts
+    bus.py        the in-process bus — queued FIFO, run-to-completion,
+                  prefix-filter subscriptions (SYSTEM.md#the-bus)
+    layout.py     Layout — blocks, connections, transits, conflict matrix
+                  (expanded from `concurrent` by inversion), derived
+                  terminal blocks
+    scenario.py   Scenario, TrainSpec, RequestSpec — the other coarse
+                  document type of ADR-0010
+    inventory.py  the event inventory's leaf fields
+    trace.py      the trace tap — canonical JSONL serialization, read/write
+
+  store/        AssetStore — CRUD contract, YAML binding, validate at get
+  scheduler/    Scheduler — releases scenario requests at their `at` ticks,
                 mechanical arrival-end expansion, deterministic ids,
                 exhausted state topic
-  dispatch.py   Dispatcher — admission, queue, lock table, buffered
-                sensors, grant phase
-  locking.py    LockingStrategy, FullRoute, Incremental
-  safety.py     safe()
-  driver.py     Driver — move_granted → align + cross
-  sim.py        Simulator — the milestone-1 layout interface: applies
+  dispatcher/   dispatch.py   Dispatcher — admission, queue, lock table,
+                              buffered sensors, grant phase
+                locking.py    LockingStrategy, FullRoute, Incremental
+                routing.py    candidates(layout, origin, depart_end,
+                              arrivals, train_length, k) — k-shortest over
+                              every arrival end merged, DISPATCH.md's
+                              ordering
+                safety.py     safe()
+  driver/       Driver — move_granted → align + cross
+  simulator/    Simulator — the milestone-1 layout interface: applies
                 commands, emits sensors, publishes the tick, owns pacing
                 and termination
-  trace.py      the trace tap — canonical JSONL serialization, read/write
-  runner.py     assemble the components on one bus and run a scenario to
-                quiescence — the one wiring, shared by the CLI and the tests
-  metrics.py    metrics(trace) -> Metrics
-  sweep.py      the seeded workload generator and the fixed grid
-  cli.py        `tc49 bench <scenario>`; `tc49 sweep` takes no arguments —
-                the grid of BENCHMARKS.md is the fixed research design
+
+  bench/        runner.py   assemble the apps on one bus and run a scenario
+                            to quiescence — the one wiring, shared by the
+                            CLI and the tests
+                cli.py      `tc49 bench <scenario>`; `tc49 sweep` takes no
+                            arguments — the grid of BENCHMARKS.md is the
+                            fixed research design
+                sweep.py    the seeded workload generator and the fixed grid
+                metrics.py  metrics(trace) -> Metrics
 
 layouts/                    <layout>.layout.yaml — the durable railroads
 scenarios/<layout>/         <scenario>.scenario.yaml — stock and requests
@@ -119,19 +72,47 @@ benchmarks/expected/        <name>.json — golden numbers, asserted in pytest
 out/                        sweep JSONL, gitignored
 ```
 
+Each app package's `__init__.py` names its public entry point, so `runner.py`
+imports from the app rather than from a module inside it. Tests that exercise
+an app's internals import those by module, which is what makes the difference
+visible.
+
+The document types live in `lib/`, not in the store, because the scheduler,
+dispatcher and simulator all read them. The store owns the binding and the
+validator that produce them, not the types themselves.
+
 Routing sits outside `Layout` so that `Layout` stays a data structure rather
 than growing a policy. The [layout-format
 prototype](https://github.com/iot49/tc49/tree/prototype/layout-format/prototype/layout-format)
-had `route()` as a method, which was right for a throwaway and wrong here —
-route choice is a
-pluggable policy per #3, and the layout should not know about it.
+had `route()` as a method, which was right for a throwaway and wrong here:
+route choice is a pluggable policy per #3, and the layout should not know
+about it. That is also why `routing.py` belongs to the dispatcher while
+`layout.py` is shared.
 
 ## Tests
+
+`tests/` mirrors `src/tc49/`: one package per app, plus `system/` for the
+tests that drive the real assembly over the bus, with `harness.py` and
+`generate.py` shared at the top.
+
+```
+tests/
+  harness.py  generate.py
+  lib/         test_layout  test_bus  test_trace
+  store/       test_store
+  scheduler/   test_scheduler
+  dispatcher/  test_routing  test_safety  test_incremental  test_aging
+  bench/       test_metrics  test_sweep  test_cli  test_benchmarks
+  system/      test_skeleton  test_properties  test_boundaries
+```
+
+`driver` and `simulator` have no test package: neither has a test of its own,
+and both are covered only through the assembly tests.
 
 pytest, with Hypothesis for the deadlock hunt. **All four properties drive
 the real assembly over the in-process bus**: each generated case wires
 scheduler, dispatcher, driver, and simulator together and interacts only by
-publishing and observing events — so the bus contract itself gets thousands
+publishing and observing events, so the bus contract itself gets thousands
 of adversarial runs for free. The single-threaded, no-I/O bus keeps
 Hypothesis throughput acceptable.
 
@@ -161,7 +142,7 @@ Four properties:
    wire requirement on the event inventory.
 2. **Quiescence oracle** — a quiesced run with pending requests is always
    attributable to a permanent obstacle, never to a circular wait
-   ([SAFETY.md](SAFETY.md)). Anything else is a policy bug.
+   ([SAFETY.md](dispatcher/SAFETY.md)). Anything else is a policy bug.
 3. **Differential against the baseline** — the same harness run twice with the
    locking strategy swapped, so the baseline gets the same oracle the research
    core does: both quiesce, and whatever either leaves behind is a permanent
@@ -175,8 +156,8 @@ Four properties:
    exactly the same set `Incremental` can be slower. The shrunk counterexample
    is committed as
    [`crossover-yard/route-blindness`](../scenarios/crossover-yard/route-blindness.scenario.yaml)
-   and asserted exactly in `tests/test_incremental.py`: two trains, no idle
-   obstacle, no starvation, and `FullRoute` a tick faster.
+   and asserted exactly in `tests/dispatcher/test_incremental.py`: two trains,
+   no idle obstacle, no starvation, and `FullRoute` a tick faster.
 
    The mechanism was that locking a whole route up front is not merely
    conservative but **informative**, and route selection is what consumes the
@@ -186,12 +167,12 @@ Four properties:
    first increment, so that candidate still looked clear, both trains committed
    to the same line, and one waited. Congestion-aware costing (#33) closed the
    gap: committed routes now enter the route ordering directly
-   ([DISPATCH.md](DISPATCH.md#route-selection)), so both strategies steer the
-   second train to the other line and finish the scenario together — asserted
-   in `test_incremental.py`, with the scenario kept as the regression fixture.
-   The dominance claim itself stays withdrawn: nothing here was a safety
-   defect — both strategies stay deadlock-free — and the throughput claim
-   belongs to the measured benchmark workloads, not to arbitrary ones.
+   ([DISPATCH.md](dispatcher/DISPATCH.md#route-selection)), so both strategies
+   steer the second train to the other line and finish the scenario together,
+   asserted in `test_incremental.py`, with the scenario kept as the regression
+   fixture. The dominance claim itself stays withdrawn: nothing here was a
+   safety defect — both strategies stay deadlock-free — and the throughput
+   claim belongs to the measured benchmark workloads, not to arbitrary ones.
 4. **Determinism** — each scenario runs twice in one test and the two trace
    byte streams are asserted identical in memory, guarding the tie-break,
    grant-order, and canonical-serialization promises. No trace files are
@@ -202,8 +183,8 @@ Four properties:
 **The library-core seam is pure functions only.** Direct unit tests cover
 `safe()` on hand-built states, layout graph queries, route policies, and the
 scheduler's arrival-end expansion. The six boundary conditions closing
-[SAFETY.md](SAFETY.md) are scenario-shaped, so they run over the bus as
-committed scenario YAML — the same harness and fixture format as shrunk
+[SAFETY.md](dispatcher/SAFETY.md) are scenario-shaped, so they run over the bus
+as committed scenario YAML — the same harness and fixture format as shrunk
 Hypothesis counterexamples, which is the practical payoff of generating
 requests rather than layouts: a failure is a readable scenario file, not an
 unpicturable random graph.

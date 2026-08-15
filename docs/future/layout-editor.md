@@ -228,7 +228,7 @@ and derivation is the risk worth retiring first.
   longer occupy that directory.
 - Group select, move, duplicate and delete, and undo. Ordinary editor work with
   no architectural fork, so it was left undesigned.
-- [LAYOUT.md](../LAYOUT.md) documents the layout schema as the authored format,
+- [LAYOUT.md](../store/LAYOUT.md) documents the layout schema as the authored format,
   and both committed layouts carry reasoning comments that would have to move
   into drawings. That is a real rewrite.
 - Editing and running the same railroad are exclusive, because the store

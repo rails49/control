@@ -1,7 +1,7 @@
 """metrics(trace) -> Metrics: the four metrics, as a pure function.
 
 Nothing is accumulated live and no component computes a metric at runtime
-(ARCHITECTURE.md, metrics). Everything below derives from the tapped events
+(bench/METRICS.md). Everything below derives from the tapped events
 of SYSTEM.md, which is what keeps the trace **load-bearing**: an event that
 stops being emitted breaks a metric and fails a test, rather than leaving
 the trace to rot until a future UI discovers it is missing what it needs.

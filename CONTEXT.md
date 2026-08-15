@@ -86,7 +86,7 @@ A train is **active** while it has a committed route — launched, not yet
 completed — and **idle** otherwise, whether or not a request for it is pending.
 An idle train's standing lock makes its block *permanently* unavailable, since
 nothing in the dispatcher will move it; this is what
-[SAFETY.md](docs/SAFETY.md) means by a permanent obstacle.
+[SAFETY.md](docs/dispatcher/SAFETY.md) means by a permanent obstacle.
 _Avoid_: running/stopped, busy/free
 
 **Tick**:

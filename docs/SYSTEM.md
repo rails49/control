@@ -4,7 +4,7 @@ How the app is organized: four components — asset store, scheduler, dispatcher
 driver — plus the external **layout interface**, communicating over an event
 bus and an asset CRUD contract. This page fixes those contracts. An implementer
 of any one component should need this page and at most one internals doc
-([ARCHITECTURE.md](ARCHITECTURE.md) for the dispatcher); nothing here requires
+([dispatcher/INTERNALS.md](dispatcher/INTERNALS.md) for the dispatcher); nothing here requires
 reading another component's internals. Terminology follows
 [CONTEXT.md](../CONTEXT.md); the contract decisions are recorded in
 [ADR-0008](adr/0008-bus-contract-is-the-mqtt-safe-intersection.md),
@@ -28,8 +28,8 @@ reading another component's internals. Terminology follows
 - **Scheduler** — turns the scenario's request list into request events,
   released at their `at` ticks.
 - **Dispatcher** — admits requests, chooses routes, grants moves
-  deadlock-free; the research core ([DISPATCH.md](DISPATCH.md),
-  [SAFETY.md](SAFETY.md)).
+  deadlock-free; the research core ([DISPATCH.md](dispatcher/DISPATCH.md),
+  [SAFETY.md](dispatcher/SAFETY.md)).
 - **Driver** — translates each granted move into layout commands.
 - **Layout interface** — the boundary to whatever runs the track: sensor
   readings and the tick come out, turnout and throttle commands go in. A
@@ -161,7 +161,7 @@ latency — the dispatcher has no clock to compute one with; metrics derives
 it from the trace's tick stamps. `grant_refused` carries one
 `{resource, holder}` entry per candidate route blocked — one entry when
 advancing a fixed route, up to `k` at a launch — which is what lets the
-stall report of [BENCHMARKS.md](BENCHMARKS.md#termination) be derived rather
+stall report of [BENCHMARKS.md](bench/BENCHMARKS.md#termination) be derived rather
 than stored.
 
 Payloads are gists, not field schemas. Field-level schemas are deferred
@@ -185,7 +185,7 @@ publisher swaps, the contract doesn't.
 **The tick event is the grant boundary.** There is no separate boundary
 event. On each tick the scheduler releases requests that have come due, the
 dispatcher runs its grant phase over the sensor events buffered since the
-previous tick ([DISPATCH.md](DISPATCH.md#time-model)), and the driver takes
+previous tick ([DISPATCH.md](dispatcher/DISPATCH.md#time-model)), and the driver takes
 granted moves forward. Under queued-FIFO delivery, everything published in
 reaction to tick `N` lands after the dispatcher has already handled tick `N`,
 so it is granted at tick `N+1` — the one-tick skew the dispatch model's
@@ -206,7 +206,7 @@ their `at` tick); counting a bus event is not reading a clock.
 The store holds the documents the run is built from, behind an abstract CRUD
 contract ([ADR-0010](adr/0010-asset-store-serves-coarse-read-only-documents.md)).
 The milestone-1 binding is a Python library over the YAML files of
-[LAYOUT.md](LAYOUT.md); a future REST binding slots under the same names and
+[LAYOUT.md](store/LAYOUT.md); a future REST binding slots under the same names and
 verbs without appearing in the contract.
 
 - **Two coarse document types** — `layout` and `scenario`, fetched and
@@ -274,8 +274,8 @@ event, and `request_submitted` carries no length. *Subscribes*
 events.
 
 The dispatcher is the deep module and the research core; its semantics are
-[DISPATCH.md](DISPATCH.md) and [SAFETY.md](SAFETY.md), its internals
-[ARCHITECTURE.md](ARCHITECTURE.md). At this boundary it is **fully
+[DISPATCH.md](dispatcher/DISPATCH.md) and [SAFETY.md](dispatcher/SAFETY.md), its internals
+[dispatcher/INTERNALS.md](dispatcher/INTERNALS.md). At this boundary it is **fully
 asynchronous**: requests arrive as events and every fate is announced as an
 event — `request_admitted`, `request_rejected` (at admission or at first
 launch attempt), `request_completed` — with the request id as correlation
@@ -323,7 +323,7 @@ stop) are private hardware configuration, exactly where "hardware is out of
 the app" wants them. The milestone-1 **simulator** applies `align` and
 `cross` directly at the next tick, and owns pacing and termination: it stops
 advancing ticks when the scheduler is `exhausted` and a tick's cascade
-produced no commands ([BENCHMARKS.md](BENCHMARKS.md#termination)). That stop
+produced no commands ([BENCHMARKS.md](bench/BENCHMARKS.md#termination)). That stop
 rule is milestone-1 pacing, not bus contract — a hardware adapter never
 terminates. Sensor events report moves only: initial occupancy is never
 published — the dispatcher seeds its standing locks from the scenario, and
@@ -360,4 +360,4 @@ utilization from `lock_granted`/`lock_released` spans, parallelism from
 `cross` commands per tick, and the stall report from the last
 `grant_refused` per never-completed request — so an event that stops being
 emitted breaks a metric and fails a test rather than rotting quietly. The
-derivations live in [ARCHITECTURE.md](ARCHITECTURE.md#metrics).
+derivations live in [bench/METRICS.md](bench/METRICS.md).

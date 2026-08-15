@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         help="also dump that strategy's JSONL event trace",
     )
 
-    commands.add_parser("sweep", help="run the fixed grid of docs/BENCHMARKS.md")
+    commands.add_parser("sweep", help="run the fixed grid of docs/bench/BENCHMARKS.md")
 
     args = parser.parse_args(argv)
     if args.command == "bench":

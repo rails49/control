@@ -199,7 +199,7 @@ def test_mean_latency_is_a_float_even_when_the_mean_is_exact() -> None:
     assert isinstance(m.mean_latency, float)
 
 
-# The events every metric derives from (ARCHITECTURE.md, metrics). `tick` is
+# The events every metric derives from (bench/METRICS.md). `tick` is
 # deliberately absent: the tap stamps its number onto every other line, so the
 # tick event is what makes the trace timed rather than a line any metric reads.
 METRIC_FEEDING_EVENTS = [

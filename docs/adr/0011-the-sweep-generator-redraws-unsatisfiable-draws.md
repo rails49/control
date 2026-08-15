@@ -1,6 +1,6 @@
 # The sweep generator redraws unsatisfiable draws
 
-The workload generator of [BENCHMARKS.md](../BENCHMARKS.md#the-generator) could
+The workload generator of [BENCHMARKS.md](../bench/BENCHMARKS.md#the-generator) could
 draw a first wave no dispatcher can start: a head-on swap, where each train's
 arrival blocks are held by trains that are themselves stuck. Every such block
 is a permanent obstacle, `safe()` correctly refuses every launch, and the run

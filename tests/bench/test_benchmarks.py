@@ -1,4 +1,4 @@
-"""Golden numbers for the named scenarios (#31, docs/BENCHMARKS.md).
+"""Golden numbers for the named scenarios (#31, docs/bench/BENCHMARKS.md).
 
 Golden numbers are viable here, which they usually are not, for a specific
 reason: every metric is in **ticks**, not wall-clock, and the determinism

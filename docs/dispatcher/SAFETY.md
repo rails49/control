@@ -1,10 +1,10 @@
 # Safety
 
 How incremental locking stays deadlock-free. The algorithm choice is recorded
-in [ADR-0003](adr/0003-route-aware-bankers-safety-check.md) and justified
+in [ADR-0003](../adr/0003-route-aware-bankers-safety-check.md) and justified
 against the literature in the
-[deadlock-avoidance survey](research/deadlock-avoidance-survey.md);
-terminology follows [CONTEXT.md](../CONTEXT.md) and the dispatch model
+[deadlock-avoidance survey](../research/deadlock-avoidance-survey.md);
+terminology follows [CONTEXT.md](../../CONTEXT.md) and the dispatch model
 [DISPATCH.md](DISPATCH.md).
 
 ## Two independent guarantees
@@ -106,7 +106,7 @@ of the dispatcher's state and only reorders candidates; nothing in the safety
 argument depends on the order routes are tried.
 
 The route is fixed once chosen, so
-[ADR-0002](adr/0002-fixed-route-per-request.md) is untouched — and so is
+[ADR-0002](../adr/0002-fixed-route-per-request.md) is untouched — and so is
 everything above. Committing the route commits one arrival end with it, which
 is why `dest(t)` in `feasible` is single-valued for every *active* train
 however many ends its request named. The set exists only in the pending queue;
@@ -124,7 +124,7 @@ one candidate; and `k` past the number of candidates a request actually has
 buys nothing. Where that ceiling falls is what varies — a layout with several
 paths between two points raises it, one with a single path leaves `k` inert
 however many arrival ends a request names.
-[BENCHMARKS.md](BENCHMARKS.md#the-k-axis) works the ceiling out for the encoded
+[BENCHMARKS.md](../bench/BENCHMARKS.md#the-k-axis) works the ceiling out for the encoded
 railroads and sweeps `k` only where it can bite.
 
 ## Why it is deadlock-free
@@ -198,6 +198,6 @@ and each is worth a test.
   always advances and that all active trains finish; it does not bound how
   long a particular train waits. That is measured by max per-request latency
   ([DISPATCH.md](DISPATCH.md)), and the aging rule on the pending scan (#34,
-  [ADR-0012](adr/0012-the-pending-scan-ages-by-refusal-count.md)) is the
+  [ADR-0012](../adr/0012-the-pending-scan-ages-by-refusal-count.md)) is the
   remedy — orthogonal to safety, since it only reorders which *safe* grants
   get issued and can never make an unsafe grant reachable.

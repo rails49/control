@@ -11,25 +11,35 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 
 ## File structure
 
+Top level is repo-wide; each app's implementation details sit in its own subfolder, named for the app package in `src/tc49/`.
+
 ```
 /
 ├── CONTEXT.md                              ← the glossary
 ├── docs/
 │   ├── GOALS.md                            ← assets and operations
 │   ├── MILESTONE-1.md                      ← scope: what is built first, what is not
-│   ├── DISPATCH.md                         ← dispatch semantics, locking, metrics
-│   ├── SAFETY.md                           ← the deadlock-freedom argument
-│   ├── ARCHITECTURE.md                     ← modules, interfaces, trace, tests
-│   ├── LAYOUT.md                           ← layout and scenario file formats
-│   ├── BENCHMARKS.md                       ← layouts, workloads, sweep axes
-│   └── adr/
-│       ├── 0001-no-reversal-within-a-route.md
-│       └── ...
+│   ├── SYSTEM.md                           ← the apps and the contracts between them
+│   ├── ARCHITECTURE.md                     ← repo organization, app boundaries, tests
+│   ├── adr/
+│   │   ├── 0001-no-reversal-within-a-route.md
+│   │   └── ...
+│   ├── dispatcher/
+│   │   ├── DISPATCH.md                     ← dispatch semantics, locking
+│   │   ├── SAFETY.md                       ← the deadlock-freedom argument
+│   │   └── INTERNALS.md                    ← state, the locking seam
+│   ├── store/
+│   │   └── LAYOUT.md                       ← layout and scenario file formats
+│   └── bench/
+│       ├── BENCHMARKS.md                   ← layouts, workloads, sweep axes
+│       └── METRICS.md                      ← how each number is derived
 ├── layouts/                                ← the encoded railroads
 └── scenarios/                              ← stock and request lists
 ```
 
 Everything under `docs/` except `adr/` is spec prose, not glossary or decisions — read it for what the system does; read `CONTEXT.md` for what the words mean.
+
+ADRs are **not** split by app: they are one numbered sequence in `docs/adr/`, and several of them decide contracts between apps rather than anything inside one.
 
 ## Use the glossary's vocabulary
 

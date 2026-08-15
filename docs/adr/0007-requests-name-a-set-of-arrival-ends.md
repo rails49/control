@@ -14,7 +14,7 @@ which way the coaches face — and the previous rule, that this is "the
 scheduler's concern, resolved by reversal at rest between requests", quietly
 assumed a flip is free. On this railroad it is not: turning a train needs the
 yellow reversing loop and a second request
-([LAYOUT.md](../LAYOUT.md#reading-a-layout)). The request was the only place
+([LAYOUT.md](../store/LAYOUT.md#reading-a-layout)). The request was the only place
 that fact could be expressed and it had no way to express it.
 
 But constraining it alone removes route choice, and on some layouts removes it
@@ -28,7 +28,7 @@ Gotthard is the instance that made this concrete rather than the reason for it.
 At Claro each end of each through track is served by exactly one line — blue 1
 reaches track 3, blue 2 reaches tracks 1 and 2, the yellow reaches all three
 from the west — so every request would have collapsed to a single candidate and
-[BENCHMARKS.md](../BENCHMARKS.md#the-k-axis)'s headline measurement would have
+[BENCHMARKS.md](../bench/BENCHMARKS.md#the-k-axis)'s headline measurement would have
 had nothing left to measure. A layout with several paths to one arrival end
 would suffer less; none would suffer nothing.
 
@@ -46,11 +46,11 @@ track plan happens to supply alternatives.
   previous request parks a train is now a dispatcher decision, so a scenario
   cannot write the next request's departure block ahead of time. `from` keeps
   the end and makes the block optional, asserted when present
-  ([LAYOUT.md](../LAYOUT.md#scenario-schema)).
+  ([LAYOUT.md](../store/LAYOUT.md#scenario-schema)).
 - **Admission splits in two.** The fit check needs only lengths and stays at
   admission; routability needs the origin block and moves to the first launch
   attempt, which can now publish `request_rejected` too
-  ([DISPATCH.md](../DISPATCH.md#requests)).
+  ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)).
 - **Dedupe-by-resource-set is retired.** Its motivating case — one route
   entering the destination at `A`, another at `B` — is now a genuine choice the
   caller asked for rather than one option spelled twice.

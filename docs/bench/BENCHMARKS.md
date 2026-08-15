@@ -1,9 +1,9 @@
 # Benchmarks
 
 What the benchmark harness runs and what it reports. The four metrics are
-defined in [DISPATCH.md](DISPATCH.md#metrics), the trace they are computed from
-in [SYSTEM.md](SYSTEM.md#the-trace), and the file formats in
-[LAYOUT.md](LAYOUT.md).
+defined in [DISPATCH.md](../dispatcher/DISPATCH.md#metrics), the trace they are computed from
+in [SYSTEM.md](../SYSTEM.md#the-trace), and the file formats in
+[LAYOUT.md](../store/LAYOUT.md).
 
 The suite has **two roles over one layout library**. Hand-authored named
 scenarios are the *story* — committed, quotable, with golden numbers in CI. A
@@ -32,7 +32,7 @@ and its three line sections are what give the `k` sweep anything to measure.
 density collapses to trains × workings with no arrival rate to tune, and
 contention is maximal, which is exactly where `FullRoute` and `Incremental`
 separate. Latency degenerates to completion time, but max latency still does
-the starvation job [SAFETY.md](SAFETY.md) assigns it. Named scenarios stay free
+the starvation job [SAFETY.md](../dispatcher/SAFETY.md) assigns it. Named scenarios stay free
 to stagger `at:` for storytelling.
 
 **Line workings** — generated requests run station to station,
@@ -43,7 +43,7 @@ end is a free choice, since ADR-0001 permits reversal at rest between requests.
 Chained requests therefore name **no departure block** — which track the
 dispatcher parked the train on is its choice among the previous request's
 arrival ends, so the generator emits `from: A` or `from: B` and only a train's
-first working states a block ([LAYOUT.md](LAYOUT.md#scenario-schema)).
+first working states a block ([LAYOUT.md](../store/LAYOUT.md#scenario-schema)).
 
 **The departure end is picked uniformly**, not "the end facing the chosen
 route". A request departing Claro *west* has one line available and one
@@ -59,7 +59,7 @@ diluting the one signal the sweep exists to find. A `--profile uniform`
 robustness check remains available later at the cost of a second sweep.
 
 Note what this does *not* mean. Gotthard's sidings are trailing dead ends
-([LAYOUT.md](LAYOUT.md#the-encoded-railroads)), so a train parked in one blocks
+([LAYOUT.md](../store/LAYOUT.md#the-encoded-railroads)), so a train parked in one blocks
 nothing but a request destined to it — and no generated request is. Siding
 stock is inert scenery for the sweep. The permanent obstacles that actually
 bite are **idle trains on station tracks**: a working train before it launches,
@@ -70,7 +70,7 @@ headed.
 `k ∈ {1, 2, 4, 6}`, locking ∈ {`FullRoute`, `Incremental`}.
 
 **`|dest|` is the flexibility axis** — how many arrival ends a request names
-([ADR-0007](adr/0007-requests-name-a-set-of-arrival-ends.md)). It exists
+([ADR-0007](../adr/0007-requests-name-a-set-of-arrival-ends.md)). It exists
 because the claim that arrival-end sets buy throughput is a claim, and this
 suite measures rather than assumes:
 
@@ -97,7 +97,7 @@ excluded rather than swept. At five a free station track always exists, and it
 helps because the generator redraws until every train's first request can
 eventually reach one (step 4 below); a free track no pending request can name
 would be unreachable to the workload
-([ADR-0011](adr/0011-the-sweep-generator-redraws-unsatisfiable-draws.md)).
+([ADR-0011](../adr/0011-the-sweep-generator-redraws-unsatisfiable-draws.md)).
 
 ### The generator
 
@@ -120,7 +120,7 @@ Everything below is drawn from a single seeded RNG, in this order, so a
    its occupant launches; the fixed point of that rule must cover every
    train, or the draw contains a head-on swap: trains whose arrival blocks
    are each other's standing locks, stalling the run at tick 0 with track to
-   spare ([ADR-0011](adr/0011-the-sweep-generator-redraws-unsatisfiable-draws.md)).
+   spare ([ADR-0011](../adr/0011-the-sweep-generator-redraws-unsatisfiable-draws.md)).
 
 Only first requests are checked. Where a later working departs from is the
 dispatcher's choice, so a stall after trains have moved — typically a finished
@@ -132,7 +132,7 @@ to one made without the rule.
 **Routability needs no redraw on Gotthard.** Reachability depends on the
 origin block, which for a chained working is not known when the file is
 written, so the generator cannot check it — it is settled at the first launch
-attempt ([DISPATCH.md](DISPATCH.md#requests)). What makes this safe here is a
+attempt ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)). What makes this safe here is a
 property of the railroad, verified against the encoding: every one of the six
 station-to-station arrival ends is reachable from every origin track by either
 departure end, so no draw can be unroutable at any `|dest|`. A layout without
@@ -144,7 +144,7 @@ held by another idle train — and is why step 4 exists.
 ## The `k` axis
 
 `k` caps the candidate routes a launch may try before giving up
-([SAFETY.md](SAFETY.md#route-selection)). `k = 1` is a pure gate — wait for the
+([SAFETY.md](../dispatcher/SAFETY.md#route-selection)). `k = 1` is a pure gate — wait for the
 one route; `k > 1` is route-around, and with arrival-end sets it is also
 finish-somewhere-else. That contrast is the headline measurement.
 
@@ -168,7 +168,7 @@ Three things to read off it:
   to `|dest|` and no further.
 - **`k` is wholly inert at `|dest| = 1`.** One arrival end is one route, in
   both directions. This is the cost of constraining the arrival end, and it is
-  why [ADR-0007](adr/0007-requests-name-a-set-of-arrival-ends.md) does not
+  why [ADR-0007](../adr/0007-requests-name-a-set-of-arrival-ends.md) does not
   constrain it without also allowing a set.
 - **The old asymmetry is gone at `|dest| ≥ 2`.** `k` used to bite on half the
   workload — Claro departures had one line and nothing to choose. They still
@@ -195,7 +195,7 @@ occupied and the rotation never started.
 
 Costing removes the bias: tied candidates are ordered by how many of their
 blocks other trains hold or are committed to
-([DISPATCH.md](DISPATCH.md#route-selection)), so equidistant arrival tracks
+([DISPATCH.md](../dispatcher/DISPATCH.md#route-selection)), so equidistant arrival tracks
 spread rather than concentrate. Measured on the sweep, the `|dest| = 6` drain
 rate went 0 → 71 of 80 at `k = 1`, 11 → 72 at `k = 2`, 49 → 75 at `k = 4` and
 75 → 75 at `k = 6`; runs that drained before drained slightly faster on net.
@@ -217,26 +217,26 @@ fourth path between the stations; this railroad has none.
 
 **Quiescence, exactly detected — not a timeout.** The simulator stops
 advancing ticks when the scheduler's `exhausted` state is set and a tick's
-cascade produced no commands ([SYSTEM.md](SYSTEM.md#layout-interface)). That
+cascade produced no commands ([SYSTEM.md](../SYSTEM.md#layout-interface)). That
 is exact, not heuristic: under batch arrivals no request arrives after tick 0,
 so a commandless tick leaves the state byte-identical next tick — the
 dispatcher is deterministic and event-driven; no events means no change,
 forever. The stop rule is milestone-1 pacing, not bus contract; a hardware
 adapter never terminates.
 
-If requests remain pending when the trace ends, [SAFETY.md](SAFETY.md) leaves
+If requests remain pending when the trace ends, [SAFETY.md](../dispatcher/SAFETY.md) leaves
 exactly one possible cause: a permanent obstacle — an idle train parked across
 every candidate route. The run's `stalled` status and its diagnosis are
 **derived from the trace**, not stored: a stalled request is one
 `request_admitted` but never `request_completed`, and the last
 `grant_refused` for its id names the obstacles — which train (`holder`),
 which block (`resource`), how many candidates it blocked (the list's length)
-([SYSTEM.md](SYSTEM.md#event-inventory)). Stalled runs are excluded from
+([SYSTEM.md](../SYSTEM.md#event-inventory)). Stalled runs are excluded from
 makespan aggregates.
 
 This turns the conditional-liveness proviso of SAFETY.md from a paragraph into
 a visible, tested output. The same detector powers property 2 in
-[ARCHITECTURE.md](ARCHITECTURE.md#tests): any *other* cause of quiescence is a
+[ARCHITECTURE.md](../ARCHITECTURE.md#tests): any *other* cause of quiescence is a
 policy bug. A tick budget survives only as a backstop against a live-lock bug,
 never as the normal stop condition.
 
@@ -265,7 +265,7 @@ never as the normal stop condition.
   gitignored `out/`. No aggregation is baked in.
 
 **How a number becomes golden.** The gotthard scenarios above and the two
-property-test layouts of [ARCHITECTURE.md](ARCHITECTURE.md#tests) are
+property-test layouts of [ARCHITECTURE.md](../ARCHITECTURE.md#tests) are
 implementation work, authored from these descriptions. Golden numbers are
 recorded from the first run made *after* the four Hypothesis properties and
 the boundary-condition tests pass — never before, or "golden" means

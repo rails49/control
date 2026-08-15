@@ -1,4 +1,4 @@
-"""The seeded generator and the fixed grid (#32, docs/BENCHMARKS.md)."""
+"""The seeded generator and the fixed grid (#32, docs/bench/BENCHMARKS.md)."""
 
 import json
 from pathlib import Path

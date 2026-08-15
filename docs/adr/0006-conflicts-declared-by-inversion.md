@@ -11,7 +11,7 @@ costs throughput and stays safe. Under the direct form a forgotten line means
 two conflicting transits are believed compatible, and the dispatcher grants
 both — a collision the safety check cannot catch, because conflicts are
 enforced as instantaneous admissibility at the grant rather than by `safe()`
-(see [SAFETY.md](../SAFETY.md)).
+(see [SAFETY.md](../dispatcher/SAFETY.md)).
 
 It also matches the shape of real track. Ladders and plain turnouts are fully
 exclusive and now declare nothing; only genuine crossings say anything at all.
