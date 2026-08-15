@@ -29,6 +29,7 @@ class Layout:
     blocks: dict[str, int]  # block name -> length
     connections: dict[str, Connection]
     terminal_blocks: frozenset[str]
+    end_connection: dict[str, str]  # block end -> the one connection holding it
 
     @classmethod
     def from_document(cls, doc: Any) -> "Layout":
@@ -123,7 +124,18 @@ class Layout:
             for block in blocks
             if (f"{block}.A" in end_owner) != (f"{block}.B" in end_owner)
         )
-        return cls(name, blocks, connections, terminals)
+        return cls(name, blocks, connections, terminals, end_owner)
+
+    def transits_at(self, end: str) -> list[tuple[str, str]]:
+        """The transits crossing `end`, as (qualified transit id, far end)."""
+        conn = self.end_connection.get(end)
+        if conn is None:
+            return []
+        result: list[tuple[str, str]] = []
+        for transit, (a, b) in self.connections[conn].transits.items():
+            if end in (a, b):
+                result.append((f"{conn}.{transit}", b if end == a else a))
+        return result
 
     def conflicts(self, a: str, b: str) -> bool:
         """Whether transits `a` and `b` (as 'connection.transit') exclude

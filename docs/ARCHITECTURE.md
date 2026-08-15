@@ -29,9 +29,16 @@ tests, which is why field-level schemas could be deferred.
 
 ```python
 class LockingStrategy(Protocol):
-    def launch(self, req: Request, state: State) -> Route | None: ...
-    def grant(self, train: str, state: State) -> Grant | None: ...
+    def launch(self, req: Request, origin: str, state: State) -> Launched | Refused | None: ...
+    def grant(self, train: str, state: State) -> Move | Refused: ...
 ```
+
+`Launched` carries the committed route, `k_tried`, and the resources newly
+locked; `Refused` carries the reason and one `{resource, holder}` obstacle
+per blocked candidate — the payload of `grant_refused`. `None` from
+`launch` means no candidate route exists (the request is rejected
+`unreachable`). Strategies mutate `state.locks` and report what they
+locked, so the dispatcher can publish the lock ledger.
 
 Two adapters, both real from day one:
 
@@ -84,8 +91,9 @@ src/tc49/
   layout.py     Layout — blocks, connections, transits, conflict matrix
                 (expanded from `concurrent` by inversion), derived terminal
                 blocks
-  routing.py    candidates(layout, req, origin, k) — k-shortest over every
-                arrival end merged, DISPATCH.md's ordering
+  routing.py    candidates(layout, origin, depart_end, arrivals,
+                train_length, k) — k-shortest over every arrival end
+                merged, DISPATCH.md's ordering
   scheduler.py  Scheduler — releases scenario requests at their `at` ticks,
                 mechanical arrival-end expansion, deterministic ids,
                 exhausted state topic

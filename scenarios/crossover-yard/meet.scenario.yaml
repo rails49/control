@@ -33,7 +33,11 @@ trains:
 # it parks; a working that named several could not. It departs by the end it
 # arrived through, which is reversal at rest between requests (ADR-0001) and is
 # the only way out of a terminal block.
+#
+# The return heads for the down main, not yard_w: express_2 parks in yard_w
+# when its request completes, and an idle train's block is permanently
+# unavailable (SAFETY.md) — a return to yard_w could never complete.
 requests:
   - { train: freight_1, from: yard_w.B, to: [yard_e], at: 0 }
   - { train: express_2, from: up_e.A, to: [yard_w], at: 0 }
-  - { train: freight_1, from: yard_e.A, to: [yard_w], at: 12 } # return working
+  - { train: freight_1, from: yard_e.A, to: [dn_w], at: 12 } # return working
