@@ -125,3 +125,24 @@ The scheduler-minted identity of a request, deterministic in scenario order
 (duplicate events are dropped) and correlation key threading a request's
 lifecycle and move events.
 _Avoid_: event id (there is no universal envelope id)
+
+### Contracts
+
+**Binding**:
+One implementation of a contract that [SYSTEM.md](docs/SYSTEM.md) defines
+normatively. The contract is the authority; a binding is not, and replacing
+one changes no app. Bindings differ in whether they supersede or coexist.
+_Avoid_: implementation, adapter, backend. Not *driver*, which names an app.
+
+**Milestone binding**:
+A binding that supersedes: exactly one exists at a time, and the next
+milestone deletes it. The in-process bus gives way to MQTT, the YAML store to
+REST. Nothing to drift from.
+_Avoid_: provisional binding, stub
+
+**Language binding**:
+A binding that coexists: one per language, all live indefinitely. Python
+today, TypeScript alongside it once there is a UI. Siblings can drift, so they
+answer to a checkable schema of the contract rather than to prose or to each
+other ([ADR-0014](docs/adr/0014-python-apps-typescript-ui.md)).
+_Avoid_: port, sibling library, SDK
