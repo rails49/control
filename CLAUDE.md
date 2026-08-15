@@ -12,17 +12,18 @@ An **app** is a unit that will run as its own container: `store`, `scheduler`,
 meet over the event bus and the store's CRUD contract.
 
 `docs/SYSTEM.md` is the normative definition of those contracts and `lib/` is
-its Python binding, so a TypeScript UI gets a sibling binding rather than
-chasing Python. `bench/` is the research harness, not an app, and is the only
-code that wires apps together. `tests/` mirrors the same structure;
+its Python binding, so a TypeScript UI gets a sibling language binding rather
+than chasing Python. `bench/` is the research harness, not an app, and is the
+only code that wires apps together. `tests/` mirrors the same structure;
 `tests/system/test_app_boundaries.py` enforces the import rule.
 
 `docs/` splits the same way: repo-wide pages at the top level, an app's
 implementation details in a subfolder named for its package. ADRs are the
 exception — one numbered sequence in `docs/adr/`, never split by app.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
-[ADR-0013](docs/adr/0013-apps-are-deployment-units.md).
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+[ADR-0013](docs/adr/0013-apps-are-deployment-units.md), and
+[ADR-0014](docs/adr/0014-python-apps-typescript-ui.md).
 
 ## Landing work
 

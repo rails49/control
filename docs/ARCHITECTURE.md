@@ -19,8 +19,9 @@ over the event bus and the asset store's CRUD contract, so each one can be
 read, tested and eventually deployed without the others.
 
 [SYSTEM.md](SYSTEM.md) is the normative definition of those contracts;
-`lib/` is its Python binding. A TypeScript UI would get a sibling binding of
-the same spec, so nothing an app depends on is defined only in Python.
+`lib/` is its Python binding. A TypeScript UI gets a sibling language binding
+of the same spec ([ADR-0014](adr/0014-python-apps-typescript-ui.md)), so
+nothing an app depends on is defined only in Python.
 
 `bench/` is not an app. It is the research harness, and the only code that
 wires apps together.
