@@ -1,0 +1,22 @@
+# Facing Pair — the minimal deadlock (docs/DISPATCH.md, docs/ARCHITECTURE.md).
+# Two facing blocks joined by one connection, no other connection. Two trains
+# swapping ends each need the block the other stands in: naive incremental
+# locking deadlocks here; the safety check must refuse the launches instead,
+# quiescing the run. Property-test layout only — excluded from benchmarks
+# (docs/BENCHMARKS.md), since both locking strategies serialise on it.
+#
+#     west ]===========[ east
+#
+# west.A and east.B appear in no connection, so both blocks are terminal.
+
+layout: facing-pair
+units: mm
+
+blocks:
+  west: { length: 1000 }
+  east: { length: 1000 }
+
+connections:
+  gap:
+    transits:
+      span: [west.B, east.A]
