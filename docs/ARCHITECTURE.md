@@ -89,6 +89,37 @@ route choice is a pluggable policy per #3, and the layout should not know
 about it. That is also why `routing.py` belongs to the dispatcher while
 `layout.py` is shared.
 
+## Documentation layout
+
+`docs/` follows the same split. The top level is what is true of the repo or
+of the system as a whole; an app's implementation details go in a subfolder
+named for its package in `src/tc49/`.
+
+```
+docs/
+  GOALS.md         assets and the operations on them
+  MILESTONE-1.md   scope: what is built first, what is not
+  SYSTEM.md        the apps and the contracts between them
+  ARCHITECTURE.md  this page: repo organization and tests
+  adr/             every decision, one numbered sequence
+  dispatcher/      DISPATCH.md  SAFETY.md  INTERNALS.md
+  store/           LAYOUT.md
+  bench/           BENCHMARKS.md  METRICS.md
+  agents/          how agent skills should consume this repo
+  research/        background reading
+  future/          designs deliberately outside milestone 1
+```
+
+An app gets a folder when it has internals worth writing down. `scheduler`,
+`driver` and `simulator` have none: their whole behaviour is their footprint
+in [SYSTEM.md](SYSTEM.md#component-footprints), and an empty folder would
+suggest otherwise.
+
+**ADRs are not split by app.** They stay one numbered sequence in `adr/`,
+because the numbering is a chronological record rather than a filing system,
+and several ADRs decide contracts *between* apps and so have no single app to
+live in. Each spec page links the ADRs that bind it.
+
 ## Tests
 
 `tests/` mirrors `src/tc49/`: one package per app, plus `system/` for the

@@ -6,13 +6,29 @@ high-throughput dispatch ([docs/dispatcher/DISPATCH.md](docs/dispatcher/DISPATCH
 
 ## Apps
 
-`src/tc49/` has one package per app, where an app is a unit that will run as
-its own container: `store`, `scheduler`, `dispatcher`, `driver`, `simulator`.
-Apps import `tc49.lib` and themselves, never each other; they meet over the
-event bus and the store's CRUD contract. `bench/` is the research harness, not
-an app, and is the only code that wires apps together. `tests/` mirrors the
-same structure. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
+An **app** is a unit that will run as its own container: `store`, `scheduler`,
+`dispatcher`, `driver`, `simulator`, and a `ui` later. Each gets one package in
+`src/tc49/`. Apps import `tc49.lib` and themselves, **never each other**; they
+meet over the event bus and the store's CRUD contract.
+
+`docs/SYSTEM.md` is the normative definition of those contracts and `lib/` is
+its Python binding, so a TypeScript UI gets a sibling binding rather than
+chasing Python. `bench/` is the research harness, not an app, and is the only
+code that wires apps together. `tests/` mirrors the same structure;
+`tests/system/test_app_boundaries.py` enforces the import rule.
+
+`docs/` splits the same way: repo-wide pages at the top level, an app's
+implementation details in a subfolder named for its package. ADRs are the
+exception — one numbered sequence in `docs/adr/`, never split by app.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
 [ADR-0013](docs/adr/0013-apps-are-deployment-units.md).
+
+## Landing work
+
+History is linear: no merge commits, no PRs. Open an issue, commit to `main`
+in reviewable steps referencing it, push, close the issue. Keep mechanical
+moves in their own commit so renames stay legible in the diff.
 
 ## Agent skills
 
