@@ -197,6 +197,7 @@ and each is worth a test.
 - **Starvation is not deadlock.** The argument guarantees that some train
   always advances and that all active trains finish; it does not bound how
   long a particular train waits. That is measured by max per-request latency
-  ([DISPATCH.md](DISPATCH.md)), and an aging rule on the grant queue is the
-  standard remedy — orthogonal to safety, since it only reorders which *safe*
-  grants get issued.
+  ([DISPATCH.md](DISPATCH.md)), and the aging rule on the pending scan (#34,
+  [ADR-0012](adr/0012-the-pending-scan-ages-by-refusal-count.md)) is the
+  remedy — orthogonal to safety, since it only reorders which *safe* grants
+  get issued and can never make an unsafe grant reachable.

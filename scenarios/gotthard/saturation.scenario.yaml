@@ -20,10 +20,10 @@
 # congestion-aware costing (#33) it was also what kept the run alive at the
 # default `k = 2`: at `|dest| = 6` every train tried claro_1 then claro_2 and
 # nothing else — the lexicographic bias BENCHMARKS.md predicted — and the run
-# stalled outright at tick 1. Costing removed that bias: at `|dest| = 6`
-# the rotation now starts and completes 11 of 15 workings
-# (test_benchmarks.py); the residue is queue order — older trains park on the
-# last free airolo tracks for good — which is #34's aging rule. The committed
+# stalled outright at tick 1. Costing removed that bias and carried the
+# rotation to 11 of 15 workings; the aging rule (#34) removed the residue
+# (older trains parking on the last free airolo tracks for good), and the
+# widened workload now drains fully (test_benchmarks.py). The committed
 # scenario stays at `|dest| = 2` for the continuity column.
 #
 # Departure ends alternate deliberately rather than uniformly. At Claro the east

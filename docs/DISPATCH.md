@@ -132,19 +132,26 @@ resource set.
 
 ### Queue discipline
 
-Greedy, in arrival order. At **every** grant phase the dispatcher scans
-pending requests oldest-first and launches each whose conditions hold,
-skipping the rest that round. Unconditionally: the first launch of a run
-follows an admission, not a release, so a scan gated on released resources
-would never start the batch workload. Skipping a scan when nothing was
-released *and* nothing was admitted since the previous phase is a valid
-optimization, not a semantic rule. The ordering key is an explicit policy point —
-priority classes could replace arrival order without touching the safety core —
-but milestone 1 ships arrival order only.
+Greedy, with aging. At **every** grant phase the dispatcher scans pending
+requests and launches each whose conditions hold, skipping the rest that
+round. Unconditionally: the first launch of a run follows an admission, not a
+release, so a scan gated on released resources would never start the batch
+workload. Skipping a scan when nothing was released *and* nothing was
+admitted since the previous phase is a valid optimization, not a semantic
+rule.
 
-Starvation is possible and is **measured**, not prevented: max per-request
-latency is the detector, and an aging rule is the standard remedy if the
-benchmarks call for one. Starvation is not deadlock; see
+The scan order is most-refused first, admission order among equals (#34;
+[ADR-0012](adr/0012-the-pending-scan-ages-by-refusal-count.md) records why
+plain arrival order starved through-traffic). Aging gives a starved request
+first claim on whatever just freed. The refusal count is dispatcher state,
+never wall-clock, so the order stays deterministic; a train's chained
+workings keep their order for free, since an untried later working has no
+refusals and a later seq. The ordering key remains an explicit policy point:
+it only chooses which *safe* launch is tried first, and could change again
+without touching the safety core.
+
+Starvation is thereby bounded in practice, not prevented in principle: max
+per-request latency remains the detector. Starvation is not deadlock; see
 [SAFETY.md](SAFETY.md).
 
 ### Launch and completion
@@ -203,7 +210,8 @@ and `Y` are granted together, which is what makes a transit never held across a
 wait — the premise the whole deadlock argument rests on.
 
 **Grant order** — within the grant phase, active trains first (by request
-arrival tick, tie-break train id), then pending launches oldest-first.
+arrival tick, tie-break train id), then pending launches in the aging order
+of the queue discipline above.
 Draining work in progress before admitting new holders favours makespan and
 mirrors the progress argument of [SAFETY.md](SAFETY.md): advancing the head of
 the witness ordering is always safe, while launching adds a resource holder.

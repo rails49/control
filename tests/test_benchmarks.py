@@ -128,20 +128,20 @@ def test_incremental_drains_gotthard_saturation_faster() -> None:
     assert incremental.max_latency < baseline.max_latency
 
 
-def test_saturation_widened_to_six_arrival_ends_starts_its_rotation() -> None:
-    """#33: before congestion-aware costing, authoring `gotthard/saturation`
-    at `|dest| = 6` stalled outright at the default `k = 2` — every train
-    tried `claro_1` then `claro_2`, both occupied, and the rotation never
-    started (0 of 15 workings, dead at tick 1). Costing starts the rotation
-    and carries it to 11 of 15 under both strategies.
+def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
+    """The `|dest| = 6, k = 2` criterion of #33 and #34, met in two steps.
 
-    The residue is not a costing defect: the last airolo slots go to older
-    trains parking there for good (`t1-3`, `t2-3`, `t3-3` outrank `t4-2`,
-    `t5-2` in the oldest-first scan), and no candidate *ordering* can stop
-    an older request from taking a free slot. That is queue order — #34's
-    aging rule — and this test tightens to a full drain when it lands. The
-    committed scenario stays at `|dest| = 2`, the column the sweep reads
-    every other against."""
+    Before congestion-aware costing (#33) the widened workload stalled
+    outright — every train tried `claro_1` then `claro_2`, both occupied,
+    and the rotation never started (0 of 15 workings, dead at tick 1).
+    Costing started the rotation but left it at 11 of 15: the last airolo
+    slots went to older trains parking there for good, because no candidate
+    ordering can stop an older pending request from taking a free slot.
+    That is queue order, and the aging rule (#34) finishes the job — the
+    starved through-traffic outranks the fresher final parks once its
+    refusals accumulate, and the workload drains under both strategies.
+    The committed scenario stays at `|dest| = 2`, the column the sweep
+    reads every other against."""
     layout, scenario = load("gotthard/saturation")
     widened = Scenario(
         scenario.name,
@@ -160,8 +160,8 @@ def test_saturation_widened_to_six_arrival_ends_starts_its_rotation() -> None:
     for strategy in STRATEGIES.values():
         trace = run_scenario(layout, widened, strategy, DEFAULT_K)
         m = metrics(trace)
-        assert len(m.completed) == 11
-        assert {s.id for s in m.stalls} == {"t4-2", "t4-3", "t5-2", "t5-3"}
+        assert m.status == "ok"
+        assert len(m.completed) == 15
 
 
 def test_the_obstacle_scenario_stalls_and_names_the_obstacle() -> None:

@@ -199,12 +199,13 @@ blocks other trains hold or are committed to
 spread rather than concentrate. Measured on the sweep, the `|dest| = 6` drain
 rate went 0 → 71 of 80 at `k = 1`, 11 → 72 at `k = 2`, 49 → 75 at `k = 4` and
 75 → 75 at `k = 6`; runs that drained before drained slightly faster on net.
-Below `|dest|`, `k` now measures the budget rather than the bias. The widened
-saturation workload starts its rotation and completes 11 of 15 workings; the
-residue is queue order rather than route choice (the oldest-first scan lets
-older trains park on the last free arrival tracks for good), which is #34's
-aging rule, not a costing defect. The committed scenario stays at `|dest| = 2`,
-the continuity column the sweep reads every other against.
+Below `|dest|`, `k` now measures the budget rather than the bias. Costing
+alone left the widened saturation workload at 11 of 15 workings; the residue
+was queue order rather than route choice (the oldest-first scan let older
+trains park on the last free arrival tracks for good), and the aging rule
+(#34) removed it — the widened workload now drains fully at `k = 2` under
+both strategies. The committed scenario stays at `|dest| = 2`, the continuity
+column the sweep reads every other against.
 
 `k ≥ 7` reaches only 6-transit detours that consume all three line sections
 where the direct route needs one — verified: between the two tiers there is

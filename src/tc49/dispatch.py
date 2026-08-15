@@ -24,8 +24,16 @@ class Request:
     train: str
     depart: str  # end, or bare letter for a chained request
     arrivals: tuple[str, ...]  # surviving arrival ends
-    seq: int  # admission order; the pending queue's oldest-first key
+    seq: int  # admission order; the pending queue's tie-break key
     phase: int  # grant phases run when admitted; the arrival-order key
+    refusals: int = 0  # launch refusals so far; the aging key (#34)
+
+
+def aging_order(req: Request) -> tuple[int, int]:
+    """The pending scan's key: most-refused first, admission order among
+    equals. Refusal count is dispatcher state, never wall-clock, so the
+    order stays a deterministic function of the run."""
+    return (-req.refusals, req.seq)
 
 
 @dataclass
@@ -196,8 +204,12 @@ class Dispatcher:
         # pending — refused, or launched and now active — the rest of that
         # train's queue waits. Letting a later working overtake a refused one
         # would run the scenario out of order and from the wrong origin.
+        # Across trains the scan ages (#34): a request refused N times is
+        # tried before fresher ones, so a starved request gets first claim on
+        # whatever just freed. A train's own chain order is preserved for
+        # free — an untried later working has no refusals and a later seq.
         waiting: set[str] = set(state.active)
-        for req in list(self._pending):
+        for req in sorted(self._pending, key=aging_order):
             if req.train in waiting:
                 continue
             origin = state.block_of[req.train]
@@ -218,6 +230,7 @@ class Dispatcher:
                 )
             elif isinstance(result, Refused):
                 waiting.add(req.train)
+                req.refusals += 1
                 self._publish(
                     "grant_refused",
                     {
