@@ -27,8 +27,8 @@ picture but the netlist derived from it, and the interesting part of that
 netlist is which movements may run at the same time.
 
 Airolo makes the point. Its WX310 is drawn the standard way, four turnouts and
-a crossing, and derivation composes 19 transits and 51 concurrent pairs out of
-them. Nobody can confirm 51 pairs by reading them. So the editor shows the
+a crossing, and derivation composes 19 transits and 33 concurrent pairs out of
+them. Nobody can confirm 33 pairs by reading them. So the editor shows the
 derived netlist beside the drawing and, for any transit, the way it takes and
 the reason it excludes each other transit. That is the feature the rest of the
 editor exists to serve.
