@@ -705,6 +705,15 @@ _SCHEMA_ERRORS: list[tuple[Mutate, str]] = [
         lambda d: d["symbols"]["west"].update(sensors={"C": "s1"}),
         "sensors names unknown end",
     ),
+    (lambda d: d["symbols"]["west"].update(at=[1, 2, 3]), "at must be two integers"),
+    (lambda d: d["symbols"]["west"].update(at=["a", "b"]), "at must be two integers"),
+    (lambda d: d["symbols"]["west"].update(rot=45), "rot must be one of"),
+    (lambda d: d["symbols"]["west"].update(flip="yes"), "flip must be true or false"),
+    # Only the kinds drawn several ways take an angle.
+    (
+        lambda d: d["symbols"].update(points={"kind": "turnout", "angle": "shallow"}),
+        "unknown key",
+    ),
 ]
 
 
@@ -712,6 +721,33 @@ def test_hardware_ids_load_and_are_dropped_by_derivation() -> None:
     doc = spanned()
     doc["symbols"]["west"]["sensors"] = {"A": "s1", "B": "s2"}
     assert derive(doc)["blocks"]["west"] == {"length": 1000}
+
+
+def test_placement_loads_and_derives_to_the_same_layout() -> None:
+    """Geometry is the drawing's alone (ADR-0018): placing every symbol, and
+    placing them somewhere else, derives the same layout as placing none."""
+    bare = spanned()
+    placed = spanned()
+    for i, symbol in enumerate(placed["symbols"].values()):
+        symbol.update(at=[i * 2, 3], rot=90, flip=True)
+    assert derive(placed) == derive(bare)
+
+
+def test_an_angle_loads_on_the_kinds_drawn_several_ways() -> None:
+    """Wires meet a symbol at whatever angle their pins give them, so a
+    crossing has an appearance per pair of leg angles. All share one pin set,
+    so the choice reaches nothing but the picture."""
+    doc = two_blocks(points={"kind": "crossing", "angle": "shallow"})
+    assert Drawing.from_document(doc).symbols["points"].pins == ("a1", "a2", "b1", "b2")
+
+
+def test_a_block_label_loads_and_is_dropped_by_derivation() -> None:
+    """The key is the id that prefixes every transit id; the label is the
+    platform's real name and reaches nothing downstream."""
+    doc = spanned()
+    doc["symbols"]["west"]["label"] = "Zürich HB Gleis 1"
+    assert derive(doc)["blocks"]["west"] == {"length": 1000}
+    assert "west" in derive(doc)["blocks"]
 
 
 @pytest.mark.parametrize("mutate, message", _SCHEMA_ERRORS)

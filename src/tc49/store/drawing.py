@@ -67,6 +67,15 @@ _PINS: dict[str, tuple[str, ...]] = {
 }
 _JOINERS = frozenset({"pin", "portal"})
 
+# Where a symbol sits on the canvas (ADR-0018). Derivation reads none of it, so
+# the schema check is all there is: a placement that loads is well-formed, and
+# nothing downstream can be changed by moving anything. `angle` picks which
+# appearance of a kind the editor draws, and only the kinds with several have
+# one.
+_PLACEMENT = frozenset({"at", "rot", "flip"})
+_ANGLED = frozenset({"crossing", "single_slip", "double_slip"})
+_ROTATIONS = (0, 90, 180, 270)
+
 Use = tuple[str, str]  # a symbol and the local transit a walk took through it
 Walk = tuple[tuple[str, str], tuple[Use, ...]]  # the block ends, and the way
 
@@ -399,8 +408,10 @@ class Drawing:
 def _symbol(where: str, name: str, spec: Any) -> Symbol:
     as_mapping(spec, where)
     kind = spec.get("kind")
+    placement = _geometry(str(kind))
+    _check_geometry(spec, where)
     if kind == "block":
-        check_keys(spec, where, {"kind", "length"}, {"sensors"})
+        check_keys(spec, where, {"kind", "length"}, {"sensors", "label"} | placement)
         for end, sensor in as_mapping(
             spec.get("sensors") or {}, f"{where}: sensors"
         ).items():
@@ -408,15 +419,23 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
                 raise ValueError(f"{where}: sensors names unknown end '{end}'")
             check_name(sensor, f"{where}: sensor")
         # Hardware ids are the drawing's alone: derivation drops them, so the
-        # layout and SYSTEM.md's contracts never see them.
+        # layout and SYSTEM.md's contracts never see them. A block's `label` is
+        # its real name, `Zürich HB Gleis 1`; its key stays the short id that
+        # prefixes every transit id, so a label change touches nothing.
+        if "label" in spec:
+            check_name(spec["label"], f"{where}: label")
         return Symbol(
-            name, kind, _PINS[kind], length=check_length(spec["length"], where)
+            name,
+            kind,
+            _PINS[kind],
+            length=check_length(spec["length"], where),
+            label=str(spec.get("label", "")),
         )
     if kind in ("terminal", "pin"):
-        check_keys(spec, where, {"kind"})
+        check_keys(spec, where, {"kind"}, placement)
         return Symbol(name, kind, _PINS[kind])
     if kind == "portal":
-        check_keys(spec, where, {"kind", "label"})
+        check_keys(spec, where, {"kind", "label"}, placement)
         check_name(spec["label"], f"{where}: portal label")
         return Symbol(name, kind, _PINS[kind], label=str(spec["label"]))
     if kind in _LIBRARY:
@@ -429,7 +448,7 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
 def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
     """A symbol of fixed geometry: its pins, its transits and its concurrency
     come from the library, so the drawing writes only the names it wants."""
-    check_keys(spec, where, {"kind"}, {"names", "connection"})
+    check_keys(spec, where, {"kind"}, {"names", "connection"} | _geometry(kind))
     transits = _LIBRARY[kind]
 
     names: dict[str, str] = {}
@@ -460,7 +479,12 @@ def _connection_of(where: str, spec: Any) -> str:
 
 
 def _connection_symbol(where: str, name: str, spec: Any) -> Symbol:
-    check_keys(spec, where, {"kind", "pins", "transits"}, {"concurrent", "connection"})
+    check_keys(
+        spec,
+        where,
+        {"kind", "pins", "transits"},
+        {"concurrent", "connection"} | _geometry("connection"),
+    )
 
     pins: list[str] = []
     raw_pins = spec["pins"]
@@ -511,6 +535,28 @@ def _connection_symbol(where: str, name: str, spec: Any) -> Symbol:
         names={transit: transit for transit in transits} if names_transits else {},
         connection=_connection_of(where, spec),
     )
+
+
+def _geometry(kind: str) -> set[str]:
+    """The placement keys a kind accepts, which every kind may write."""
+    return set(_PLACEMENT) | ({"angle"} if kind in _ANGLED else set())
+
+
+def _check_geometry(spec: Any, where: str) -> None:
+    if "at" in spec:
+        at = spec["at"]
+        if not isinstance(at, list) or [
+            n for n in cast(list[Any], at) if not isinstance(n, int)
+        ]:
+            raise ValueError(f"{where}: at must be two integers, got {at!r}")
+        if len(cast(list[Any], at)) != 2:
+            raise ValueError(f"{where}: at must be two integers, got {at!r}")
+    if "rot" in spec and spec["rot"] not in _ROTATIONS:
+        raise ValueError(f"{where}: rot must be one of {list(_ROTATIONS)}")
+    if "flip" in spec and not isinstance(spec["flip"], bool):
+        raise ValueError(f"{where}: flip must be true or false")
+    if "angle" in spec:
+        check_name(spec["angle"], f"{where}: angle")
 
 
 def _pin_pair(raw: Any, where: str) -> tuple[str, str]:
