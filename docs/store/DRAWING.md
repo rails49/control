@@ -1,10 +1,14 @@
 # Drawing format and derivation
 
-Design for the drawing document type and the derivation of layouts from it,
-decided in #41. Not yet implemented: until derivation lands, layouts are
-authored by hand and [LAYOUT.md](LAYOUT.md) remains authoritative. Order of
-work: derivation (Python, no UI), then the [editor](../ui/EDITOR.md), then the
-[panel](../ui/PANEL.md). Terminology follows [CONTEXT.md](../../CONTEXT.md).
+The drawing document type and the derivation of layouts from it, decided in
+#41. Derivation is implemented in `src/tc49/store/drawing.py` for blocks,
+terminals, portals, free-standing pins and the generic connection symbol
+(#42); the symbols with fixed geometry arrive with the symbol library (#44).
+A railroad that has not been drawn is still read from its `.layout.yaml`, so
+[LAYOUT.md](LAYOUT.md) stays authoritative until the converter (#43) has
+drawn them all. Order of work: derivation (Python, no UI), then the
+[editor](../ui/EDITOR.md), then the [panel](../ui/PANEL.md). Terminology
+follows [CONTEXT.md](../../CONTEXT.md).
 
 ## What a drawing is
 
@@ -86,6 +90,52 @@ nothing for the portal itself. A label must appear on exactly two portals,
 each with its pin wired; anything else is an error, save allowed, derive
 refused.
 
+## Drawing schema
+
+Drawings are YAML, at `layouts/<name>.drawing.yaml`. The whole of
+`facing-pair`:
+
+```yaml
+drawing: facing-pair
+units: mm
+
+symbols:
+  west: { kind: block, length: 1000 }
+  east: { kind: block, length: 1000 }
+  gap:
+    kind: connection
+    pins: [A, B]
+    transits:
+      span: [A, B]
+  west_stop: { kind: terminal }
+  east_stop: { kind: terminal }
+
+wires:
+  - [west.A, west_stop.P]
+  - [west.B, gap.A]
+  - [gap.B, east.A]
+  - [east.B, east_stop.P]
+```
+
+- **Symbols are a mapping from name to `kind` and its properties.** A block
+  takes a `length` and optional `sensors` per end, a portal a `label`, a
+  terminal and a free-standing pin (`kind: pin`) nothing. The generic
+  connection symbol declares its `pins`, its `transits`, and optionally which
+  pairs of them are `concurrent`.
+- **Pins are written `<symbol>.<pin>`.** A block's are its ends `A` and `B`;
+  a one-pin symbol's is `P`; a generic connection symbol names its own.
+- **A wire is a pair of pins**, and `wires:` is the whole of the topology.
+  Where the wire runs on the canvas is the editor's business, not the file's.
+- **Symbol transits may be named or not.** Written as a mapping, the key is
+  the derived transit's name, which is how the generic connection symbol
+  passes hand-picked names such as `span` through unchanged. Written as a
+  list of pin pairs, each takes the derived default. `concurrent` needs the
+  mapping form, having nothing else to name.
+
+The schema is checked when the document loads, so a drawing that loads is
+well-formed. The pin rules are checked at derivation instead, which is what
+lets an incomplete drawing be saved.
+
 ## Hardware ids
 
 The drawing holds hardware identities as optional symbol properties: sensor
@@ -121,13 +171,33 @@ derived layout needs canonical key order. Otherwise moving a symbol renames a
 transit, changes the trace bytes, and churns every golden file for no
 semantic reason.
 
+The default transit name is the two block ends, sorted and with the dot
+replaced: `west.B` and `east.A` give `east_A__west_B`. Sorting is what makes
+it a function of the pair rather than of the direction the walk happened to
+take. Two transits at one connection deriving the same name is refused, since
+a layout keys transits by name; naming one of them in the drawing settles it.
+An end pair also has to be two *distinct* ends, so a way that leaves a block
+end and arrives back through it is refused as well.
+
+A connection's name is authored rather than derived: it is the name of the
+one symbol in its component that declares transits, which is how
+`crossover-yard`'s hand-picked `crossover` survives being drawn. That is not
+an exception to the rule above — a symbol's name is a thing someone wrote in
+the drawing, not an artefact of drawing order — but it does mean renaming
+that symbol renames the connection. A component holding several
+transit-declaring symbols is refused for now; the naming rule for junctions
+drawn from many symbols lands with the symbol library (#44).
+
 ## Asset store
 
 The store keeps two document types, `drawing` and `scenario`; `get()` derives
 the Layout on read. This keeps
 [ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)'s two
 coarse document types intact and leaves no second copy of the topology to
-fall out of date. Drawings live at `layouts/<name>.drawing.yaml`.
+fall out of date. Drawings live at `layouts/<name>.drawing.yaml`. Until the
+converter (#43) has drawn every railroad, `get()` falls back to reading
+`layouts/<name>.layout.yaml` for those that have not been drawn; that third
+document type goes away with the last hand-written file.
 
 What is given up is the readable topology diff in review: one moved wire can
 flip concurrency across many transit pairs while the drawing diff shows one

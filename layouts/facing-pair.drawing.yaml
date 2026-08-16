@@ -1,0 +1,41 @@
+# Facing Pair — the minimal deadlock (docs/dispatcher/DISPATCH.md,
+# docs/ARCHITECTURE.md). Two facing blocks joined by one connection, no other
+# connection. Two trains swapping ends each need the block the other stands in:
+# naive incremental locking deadlocks here; the safety check must refuse the
+# launches instead, quiescing the run. Property-test layout only — excluded
+# from benchmarks (docs/bench/BENCHMARKS.md), since both locking strategies
+# serialise on it.
+#
+#     west_stop |]=== west ===[ gap ]=== east ===[| east_stop
+#
+# The two outer ends are capped by terminal symbols, so west.A and east.B
+# appear in no connection and both blocks derive as terminal
+# (docs/store/DRAWING.md). `gap` is a generic connection symbol: a plain butt
+# joint has no drawn geometry to refine, and its one transit carries the
+# hand-picked name `span`.
+
+drawing: facing-pair
+units: mm
+
+symbols:
+  west:
+    kind: block
+    length: 1000
+  east:
+    kind: block
+    length: 1000
+
+  gap:
+    kind: connection
+    pins: [A, B]
+    transits:
+      span: [A, B]
+
+  west_stop: { kind: terminal }
+  east_stop: { kind: terminal }
+
+wires:
+  - [west.A, west_stop.P]
+  - [west.B, gap.A]
+  - [gap.B, east.A]
+  - [east.B, east_stop.P]

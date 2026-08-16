@@ -12,6 +12,7 @@ The ``check_*`` helpers are shared with the scenario validation in
 ``store.py``.
 """
 
+from collections.abc import Container
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -45,13 +46,9 @@ class Layout:
         ).items():
             check_name(block, f"layout '{name}': block")
             check_keys(spec, f"block '{block}'", {"length"})
-            length = spec["length"]
-            if not isinstance(length, int) or length <= 0:
-                raise ValueError(
-                    f"layout '{name}': block '{block}': length must be a"
-                    f" positive integer, got {length!r}"
-                )
-            blocks[block] = length
+            blocks[block] = check_length(
+                spec["length"], f"layout '{name}': block '{block}'"
+            )
 
         connections: dict[str, Connection] = {}
         end_owner: dict[str, str] = {}  # block end -> owning connection
@@ -94,30 +91,11 @@ class Layout:
                         )
                 transits[transit] = (ends[0], ends[1])
 
-            concurrent: set[frozenset[str]] = set()
-            for raw_pair in spec.get("concurrent", []):
-                if (
-                    not isinstance(raw_pair, list)
-                    or len(cast(list[Any], raw_pair)) != 2
-                ):
-                    raise ValueError(
-                        f"{where}: concurrent entry must pair two distinct"
-                        f" transits, got {raw_pair!r}"
-                    )
-                pair = [str(t) for t in cast(list[Any], raw_pair)]
-                if pair[0] == pair[1]:
-                    raise ValueError(
-                        f"{where}: concurrent entry must pair two distinct"
-                        f" transits, got {raw_pair!r}"
-                    )
-                for transit in pair:
-                    if transit not in transits:
-                        raise ValueError(
-                            f"{where}: concurrent names unknown transit '{transit}'"
-                        )
-                concurrent.add(frozenset(pair))
-
-            connections[conn] = Connection(conn, transits, frozenset(concurrent))
+            connections[conn] = Connection(
+                conn,
+                transits,
+                check_concurrent(spec.get("concurrent"), transits, where),
+            )
 
         terminals = frozenset(
             block
@@ -178,6 +156,39 @@ def check_keys(
 def check_name(name: Any, what: str) -> None:
     if not isinstance(name, str) or not name or "." in name or "/" in name:
         raise ValueError(f"{what} name {name!r} must be a string without '.' or '/'")
+
+
+def check_length(length: Any, where: str) -> int:
+    if not isinstance(length, int) or length <= 0:
+        raise ValueError(f"{where}: length must be a positive integer, got {length!r}")
+    return length
+
+
+def check_concurrent(
+    spec: Any, transits: Container[str], where: str
+) -> frozenset[frozenset[str]]:
+    """Validate a `concurrent` declaration against the transits it may name.
+    A layout's connections and a drawing's symbols declare concurrency in the
+    same shape, one level apart, so they share the check."""
+    concurrent: set[frozenset[str]] = set()
+    for raw_pair in cast(list[Any], spec or []):
+        pair = (
+            [str(t) for t in cast(list[Any], raw_pair)]
+            if isinstance(raw_pair, list)
+            else []
+        )
+        if len(pair) != 2 or pair[0] == pair[1]:
+            raise ValueError(
+                f"{where}: concurrent entry must pair two distinct transits,"
+                f" got {raw_pair!r}"
+            )
+        for transit in pair:
+            if transit not in transits:
+                raise ValueError(
+                    f"{where}: concurrent names unknown transit '{transit}'"
+                )
+        concurrent.add(frozenset(pair))
+    return frozenset(concurrent)
 
 
 def check_end(end: Any, blocks: dict[str, int], where: str) -> str:

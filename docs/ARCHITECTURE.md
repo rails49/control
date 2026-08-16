@@ -41,7 +41,10 @@ src/tc49/
     inventory.py  the event inventory's leaf fields
     trace.py      the trace tap — canonical JSONL serialization, read/write
 
-  store/        AssetStore — CRUD contract, YAML binding, validate at get
+  store/        store.py    AssetStore — CRUD contract, YAML binding,
+                            validate at get
+                drawing.py  Drawing — the authored schematic and the
+                            derivation of a layout from it (store/DRAWING.md)
   scheduler/    Scheduler — releases scenario requests at their `at` ticks,
                 mechanical arrival-end expansion, deterministic ids,
                 exhausted state topic
@@ -67,7 +70,9 @@ src/tc49/
                 sweep.py    the seeded workload generator and the fixed grid
                 metrics.py  metrics(trace) -> Metrics
 
-layouts/                    <layout>.layout.yaml — the durable railroads
+layouts/                    <layout>.drawing.yaml — the drawn railroads,
+                            which the store derives layouts from, and
+                            <layout>.layout.yaml for those not yet drawn
 scenarios/<layout>/         <scenario>.scenario.yaml — stock and requests
 benchmarks/expected/        <name>.json — golden numbers, asserted in pytest
 out/                        sweep JSONL, gitignored
@@ -131,7 +136,7 @@ tests that drive the real assembly over the bus, with `harness.py` and
 tests/
   harness.py  generate.py
   lib/         test_layout  test_bus  test_trace
-  store/       test_store
+  store/       test_store  test_drawing
   scheduler/   test_scheduler
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks

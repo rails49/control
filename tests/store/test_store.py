@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from tc49.lib.layout import Layout
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 from tests.harness import ROOT
@@ -38,9 +39,16 @@ def meet_document() -> dict[str, Any]:
 
 
 def test_list_layouts_and_scenarios(store: AssetStore) -> None:
-    assert {"crossover-yard", "gotthard"} <= set(store.list())
+    # `facing-pair` is drawn rather than written, and lists the same way.
+    assert {"crossover-yard", "gotthard", "facing-pair"} <= set(store.list())
     assert "crossover-yard/meet" in store.list("crossover-yard")
     assert all(s.startswith("crossover-yard/") for s in store.list("crossover-yard"))
+
+
+def test_a_drawn_layout_is_derived_at_get(store: AssetStore) -> None:
+    layout = store.get("facing-pair")
+    assert isinstance(layout, Layout)
+    assert layout.connections["gap"].transits["span"] == ("east.A", "west.B")
 
 
 def test_meet_scenario_loads_clean(store: AssetStore) -> None:

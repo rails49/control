@@ -15,8 +15,16 @@ from typing import Any, cast
 
 import yaml
 
-from tc49.lib.layout import Layout, as_mapping, check_end, check_keys, check_name
+from tc49.lib.layout import (
+    Layout,
+    as_mapping,
+    check_end,
+    check_keys,
+    check_length,
+    check_name,
+)
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
+from tc49.store.drawing import Drawing
 
 
 class AssetStore:
@@ -26,12 +34,16 @@ class AssetStore:
     def get(self, name: str) -> Layout | Scenario:
         if "/" in name:
             return self._load_scenario(name)
-        return Layout.from_document(self._read(self._layout_path(name)))
+        return Layout.from_document(self._layout_document(name))
 
     def list(self, layout: str | None = None) -> list[str]:
         if layout is None:
-            paths = (self._root / "layouts").glob("*.layout.yaml")
-            return sorted(p.name.removesuffix(".layout.yaml") for p in paths)
+            layouts = (self._root / "layouts").glob("*.layout.yaml")
+            drawings = (self._root / "layouts").glob("*.drawing.yaml")
+            return sorted(
+                {p.name.removesuffix(".layout.yaml") for p in layouts}
+                | {p.name.removesuffix(".drawing.yaml") for p in drawings}
+            )
         paths = (self._root / "scenarios" / layout).glob("*.scenario.yaml")
         return sorted(
             f"{layout}/{p.name.removesuffix('.scenario.yaml')}" for p in paths
@@ -41,6 +53,10 @@ class AssetStore:
         if "scenario" in doc:
             scenario = self.validate_scenario(doc)
             path = self._scenario_path(f"{scenario.layout}/{scenario.name}")
+        elif "drawing" in doc:
+            # Schema only: a drawing with a dangling pin is work in progress
+            # and is saved, though it will not derive (DRAWING.md).
+            path = self._drawing_path(Drawing.from_document(doc).name)
         else:
             layout = Layout.from_document(doc)
             path = self._layout_path(layout.name)
@@ -48,11 +64,28 @@ class AssetStore:
         path.write_text(yaml.safe_dump(doc, sort_keys=False))
 
     def delete(self, name: str) -> None:
-        path = self._scenario_path(name) if "/" in name else self._layout_path(name)
-        path.unlink()
+        if "/" in name:
+            self._scenario_path(name).unlink()
+            return
+        drawing = self._drawing_path(name)
+        if drawing.exists():
+            drawing.unlink()
+        else:
+            self._layout_path(name).unlink()
+
+    def _layout_document(self, name: str) -> Any:
+        """The layout, derived from the drawing where one exists. Layouts
+        that have not been drawn yet are still read as written."""
+        drawing = self._drawing_path(name)
+        if drawing.exists():
+            return Drawing.from_document(self._read(drawing)).derive()
+        return self._read(self._layout_path(name))
 
     def _layout_path(self, name: str) -> Path:
         return self._root / "layouts" / f"{name}.layout.yaml"
+
+    def _drawing_path(self, name: str) -> Path:
+        return self._root / "layouts" / f"{name}.drawing.yaml"
 
     def _scenario_path(self, name: str) -> Path:
         layout, _, scenario = name.partition("/")
@@ -90,12 +123,8 @@ class AssetStore:
         trains: dict[str, TrainSpec] = {}
         for train, spec in as_mapping(doc["trains"], f"{where}: trains").items():
             check_keys(spec, f"{where}: train '{train}'", {"length", "at"})
-            length, at = spec["length"], spec["at"]
-            if not isinstance(length, int) or length <= 0:
-                raise ValueError(
-                    f"{where}: train '{train}': length must be a positive"
-                    f" integer, got {length!r}"
-                )
+            length = check_length(spec["length"], f"{where}: train '{train}'")
+            at = spec["at"]
             if at not in layout.blocks:
                 raise ValueError(
                     f"{where}: train '{train}' starts at unknown block '{at}'"
