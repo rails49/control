@@ -48,6 +48,9 @@ src/tc49/
                 convert.py  to_drawing — the conversion of a layout
                             document into the drawing that derives it,
                             which is how the railroads were migrated
+                server.py   the store's HTTP face: list, read a drawing
+                            document, write one, derive, explain — what the
+                            editor talks to (ui/EDITOR.md)
   scheduler/    Scheduler — releases scenario requests at their `at` ticks,
                 mechanical arrival-end expansion, deterministic ids,
                 exhausted state topic
@@ -72,6 +75,11 @@ src/tc49/
                             fixed research design
                 sweep.py    the seeded workload generator and the fixed grid
                 metrics.py  metrics(trace) -> Metrics
+
+ui/                         the layout editor: TypeScript, pnpm, Lit
+                            (ADR-0014). Outside src/tc49/, which is Python.
+                            src/symbols.generated.ts is generated from
+                            store/drawing.py's symbol library
 
 layouts/                    <layout>.drawing.yaml — the drawn railroads,
                             the only committed topology; the store derives

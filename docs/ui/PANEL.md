@@ -30,11 +30,13 @@ measured position, so a point that failed to throw would look fine. Reported
 position becomes worth adding if hardware with point feedback ever exists
 ([ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md)).
 
-**Signals attach to a block pin.** A signal governs departures through one
-block end, and routes are strict pass-throughs with no reversal within a
-route, so a signal at `claro_2.B` can only mean "may the train in `claro_2`
-leave via B". Placing one is a toggle on a pin, and it cannot be attached to
-something meaningless.
+**Signals are part of the block symbol.** A block carries a signal at each
+end, always, so there is nothing to place and nothing in the drawing to
+record. A signal governs departures through one block end, and routes are
+strict pass-throughs with no reversal within a route, so a signal at
+`claro_2.B` can only mean "may the train in `claro_2` leave via B". A signal
+at an end that leads only to a terminal governs a departure no train can make
+and is worth hiding, once the rest is settled.
 
 The aspect rule is **locked-ahead**: green if the resource beyond that end is
 currently locked to the train standing there. That is what a real signal
@@ -67,11 +69,12 @@ what is safe would sit alongside the dispatcher.
 
 ## Implementation
 
-One Python server exposes the asset store over REST and bridges `tc49/#` to
-the browser over a WebSocket. Validation stays in the existing Python
-validator. The MQTT transport switch later changes only what the bridge
-subscribes to. The front end shares the editor's stack and symbol library
-([EDITOR.md](EDITOR.md#implementation)).
+The asset store already has an HTTP face, built for the editor and belonging
+to the store ([EDITOR.md](EDITOR.md#implementation)). The panel adds the other
+half: a bridge from `tc49/#` to the browser over a WebSocket. That is not a
+store operation and does not live with one. Validation stays in the existing
+Python validator. The MQTT transport switch later changes only what the bridge
+subscribes to. The front end shares the editor's stack and symbol library.
 
 A first panel can render a recorded trace file with no server at all, which
 is immediately useful for reviewing past benchmark runs.

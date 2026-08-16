@@ -23,8 +23,10 @@ derived layout.
 The drawing is the source of truth
 ([ADR-0015](../adr/0015-drawing-is-the-source-of-truth.md)). The layout is
 derived from it on `get` and is never authored. The drawing is strictly
-richer: turnout geometry, signals, labels, and hardware ids live only there
-and cannot be recovered from a layout.
+richer: turnout geometry, signals, labels, hardware ids and the placement of
+everything on the canvas
+([ADR-0018](../adr/0018-the-drawing-carries-its-own-geometry.md)) live only
+there and cannot be recovered from a layout.
 
 ## Pins and wires
 
@@ -41,6 +43,30 @@ likely drawing mistake, a wire left unattached, into a visible error instead
 of a silently terminal block. In the derived layout terminal blocks remain
 derived from connectivity, exactly as today.
 
+### A wire between two blocks
+
+Every movement between blocks is a named transit inside a named connection, so
+two blocks joined by plain track still need a connection to hold that transit.
+A bare wire cannot be one: it declares no transit and has no name.
+
+Such a wire therefore carries the name itself, written as a mapping instead of
+a pair:
+
+```yaml
+wires:
+  - {pins: [west.B, east.A], connection: gap}
+```
+
+Derivation emits a connection of that name with one transit spanning the two
+ends. Only a wire whose way reaches from one block end to another without
+passing through a connection symbol may take the key; anywhere else it is
+refused. Where the joint is routed through bend pins the name goes on any one
+segment of the chain, and two different names on one chain are refused, the
+same rule transit-name overrides follow.
+
+The editor mints these names and never shows them, so a person draws a wire
+between two blocks and is asked nothing.
+
 ## Symbols
 
 A symbol declares pins, transits between them, and which transit pairs are
@@ -50,7 +76,7 @@ transits.
 
 | Symbol | Kind | Pins | Transits | Concurrent | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length and optional sensor id per end as properties |
+| Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length, optional display label, optional sensor id per end |
 | Terminal | `terminal` | 1 (`P`) | none | n/a | marks a deliberate track end |
 | Turnout | `turnout` | 3 (`toe`, `straight`, `diverging`) | `straight`, `diverging` | none | |
 | Crossing | `crossing` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | a grade crossing: one train at a time |
@@ -66,6 +92,13 @@ side to the other over the other track, `a1`-`b2` for the single slip and both
 `a1`-`b2` and `b1`-`a2` for the double slip. That is the same thing as the
 double slip being two turnouts joined toe to toe.
 
+A block carries a signal and a sensor at each end, always. Neither is placed
+and neither is optional, so neither is a field: they are part of what a block
+symbol is, and the block artwork draws them. What the drawing may record is a
+sensor's hardware id, which is a property of a sensor that already exists.
+(A signal at an end that leads only to a terminal governs a departure no train
+can make, and is worth hiding once the rest is settled.)
+
 Everything about these symbols is fixed, so a drawing writes only `kind` and
 the names it wants (below). In particular none of them declares anything
 concurrent, and none can: every route through a crossing or a slip takes the
@@ -79,9 +112,14 @@ crossing, so composition yields exactly the one concurrent pair the layout
 declared by hand, `[up_straight, dn_straight]`, while a concurrent crossing
 would also emit the colliding crossover pair.
 
-The drawn angle of a crossing or slip (15 or 30 degrees) is a decorative
-property, not a distinct symbol: flip and rotation cover sign and
-orientation, and changing the angle cannot change the derived layout.
+The drawn angle of a crossing or slip is a decorative property, not a distinct
+symbol. Pins sit at grid face centres, so a symbol rotates only in 90 degree
+steps, and a crossing whose legs meet at 15 or 30 degrees is not a rotation of
+one whose legs meet at 0 and 15. Each such pair of leg angles is its own
+appearance in the editor's library, and the property picks one, which keeps
+the palette at one tile per kind. Every appearance of a kind shares one
+footprint and one pin set, so picking one can never move a pin, resize a
+symbol or change the derived layout.
 
 ### The generic connection symbol
 
@@ -91,10 +129,16 @@ a drawing mechanically and losslessly, and a junction whose real geometry is
 not yet drawn can be modelled anyway, then refined one junction at a time.
 Gotthard's Claro east is the standing example, and the last one: the netlist
 and the hand-written layout disagree about its geometry, so it keeps the
-opaque symbol until #35 settles which is right. The symbol appears only in
-machine-written drawings: it is not offered in the editor palette, though the
-editor renders it when a loaded drawing contains one. A junction drawn this
-way shows no turnout detail on the panel.
+opaque symbol until #35 settles which is right. A junction drawn this way
+shows no turnout detail on the panel.
+
+Migration is over, so the symbol is legacy. It loads, it derives, and the
+[editor](../ui/EDITOR.md) gives it no support at all: it is neither placed nor
+drawn, because it has no fixed pin set to place and its only remaining user is
+a junction we intend to delete. The other five uses were never generic —
+`single-track-meet`'s four are turnouts and are redrawn as such, and
+`facing-pair`'s is a plain joint, which is now a named wire. When Claro east
+is drawn from real symbols the kind has no users left.
 
 ### Portals
 
@@ -115,20 +159,14 @@ drawing: facing-pair
 units: mm
 
 symbols:
-  west: { kind: block, length: 1000 }
-  east: { kind: block, length: 1000 }
-  gap:
-    kind: connection
-    pins: [A, B]
-    transits:
-      span: [A, B]
-  west_stop: { kind: terminal }
-  east_stop: { kind: terminal }
+  west: { kind: block, length: 1000, at: [2, 4] }
+  east: { kind: block, length: 1000, at: [8, 4] }
+  west_stop: { kind: terminal, at: [0, 4] }
+  east_stop: { kind: terminal, at: [11, 4] }
 
 wires:
   - [west.A, west_stop.P]
-  - [west.B, gap.A]
-  - [gap.B, east.A]
+  - { pins: [west.B, east.A], connection: gap }
   - [east.B, east_stop.P]
 ```
 
@@ -145,16 +183,24 @@ symbols:
 ```
 
 - **Symbols are a mapping from name to `kind` and its properties.** A block
-  takes a `length` and optional `sensors` per end, a portal a `label`, a
-  terminal and a free-standing pin (`kind: pin`) nothing. A symbol of fixed
-  geometry takes only the names below. The generic connection symbol declares
-  its `pins`, its `transits`, and optionally which pairs of them are
-  `concurrent`.
+  takes a `length`, an optional display `label` and optional `sensors` per end;
+  a portal a `label`; a terminal and a free-standing pin (`kind: pin`) nothing.
+  A symbol of fixed geometry takes only the names below. The generic connection
+  symbol declares its `pins`, its `transits`, and optionally which pairs of
+  them are `concurrent`. Every kind also takes the placement keys of
+  [Geometry](#geometry).
+- **A block's key is its id, its `label` is for people.** The id is short and
+  stable because it prefixes every transit id on the bus and in traces; the
+  label is the platform's real name, `Zürich HB Gleis 1`, and changing it
+  touches nothing downstream. The editor shows the label where there is one and
+  the id otherwise.
 - **Pins are written `<symbol>.<pin>`.** A block's are its ends `A` and `B`;
   a one-pin symbol's is `P`; the symbol table above gives the rest, and a
   generic connection symbol names its own.
-- **A wire is a pair of pins**, and `wires:` is the whole of the topology.
-  Where the wire runs on the canvas is the editor's business, not the file's.
+- **A wire is a pair of pins**, and `wires:` is the whole of the topology. A
+  wire joining two blocks directly is written as a mapping instead, carrying
+  the `connection` name for the transit it becomes. Where the wire runs on the
+  canvas is the editor's business, not the file's.
 - **`connection` names the junction a symbol belongs to.** Every symbol of one
   junction that writes it must agree; a junction drawn from several symbols has
   no other way to be named.
@@ -168,6 +214,32 @@ symbols:
 The schema is checked when the document loads, so a drawing that loads is
 well-formed. The pin rules are checked at derivation instead, which is what
 lets an incomplete drawing be saved.
+
+### Geometry
+
+Where a symbol sits is part of the document
+([ADR-0018](../adr/0018-the-drawing-carries-its-own-geometry.md)), written on
+the symbol beside its properties. Every key is optional and derivation reads
+none of them.
+
+| Key | Applies to | Meaning |
+| --- | --- | --- |
+| `at` | every kind | the grid cell of the symbol's top-left square |
+| `rot` | symbols with more than one pin | 0, 90, 180 or 270 |
+| `flip` | symbols with more than one pin | mirrored or not |
+| `angle` | crossings and slips | which appearance of the kind to draw |
+
+The canvas is a grid of squares. A symbol occupies whole squares and pins sit
+at the centres of square sides, which is why rotation is a multiple of 90
+degrees. A free-standing pin sits at a face centre like any other pin, and
+being on a boundary rather than in a square it occupies none.
+
+Wires carry no geometry. A wire is drawn straight between its two pins, and a
+bend is a free-standing pin, which is a symbol with a placement of its own.
+
+A drawing without placement still loads and still derives. It has no picture,
+so the editor cannot show it until someone places it, there being no
+auto-layout.
 
 ## Hardware ids
 
@@ -194,6 +266,13 @@ is immutable for the run:
 Cost is negligible: Gotthard's largest component is Airolo, a few hundred
 traversal steps and 171 pairwise checks. The derived layout is run through
 the existing validator as a safety net against derivation bugs.
+
+Pass 2 already computes the way each transit takes, as the symbols and local
+transits it crosses, and pass 3 already decides exclusivity by comparing two
+such ways. Both are discarded once the layout is built. `explain()` returns
+them instead: for each transit its way, and for each pair the symbol they
+share. That is what lets the [editor](../ui/EDITOR.md) say not only that two
+transits exclude each other but which frog makes them.
 
 ### Names and determinism
 
@@ -229,6 +308,14 @@ connection. A junction drawn from several symbols that writes no `connection`
 is refused, as is one written with two different names, or two junctions
 written with the same one.
 
+Because it is authored, a connection name has to come from somewhere when
+nobody has typed one. The editor mints `j1`, `j2` and so on as junctions form
+and writes them into the drawing, so they are authored by the time derivation
+sees them and stable thereafter, even though the number came from drawing
+order. A name is worth overriding for the same reason it exists: it heads the
+connection in `tc49 layout show` and prefixes every transit id in a trace.
+Names already in the committed drawings are kept as they are.
+
 ## Asset store
 
 The store keeps two document types, `drawing` and `scenario`; `get()` derives
@@ -242,6 +329,20 @@ layout, there being nowhere to store one.
 What is given up is the readable topology diff in review: one moved wire can
 flip concurrency across many transit pairs while the drawing diff shows one
 changed line. A `tc49 layout show <name>` command covers that on demand.
+
+The editor needs the document `get` throws away, so the store also reads a
+drawing back unchanged. `get` is left alone: every other caller wants the
+layout.
+
+`put` merges rather than dumps. Comments are most of what a hand-written
+drawing says: 107 of Gotthard's 237 lines, including the Rocrail id mapping
+and which lengths are assumed. Writing placement onto every symbol with
+`yaml.safe_dump` would delete all of it, so `put` applies the incoming
+document into the existing one with `ruamel.yaml`, key by key, and a comment
+attached to a symbol survives that symbol being moved. A symbol that is
+deleted takes the comment above it with it, which is the right outcome for a
+comment describing it. Comments inside `wires:` do not survive, the list being
+replaced whole.
 
 ## Converting a layout into a drawing
 
