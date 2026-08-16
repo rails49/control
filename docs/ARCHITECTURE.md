@@ -104,11 +104,11 @@ docs/
   ARCHITECTURE.md  this page: repo organization and tests
   adr/             every decision, one numbered sequence
   dispatcher/      DISPATCH.md  SAFETY.md  INTERNALS.md
-  store/           LAYOUT.md
+  store/           LAYOUT.md  DRAWING.md
   bench/           BENCHMARKS.md  METRICS.md
+  ui/              EDITOR.md  PANEL.md — design pages for the app to come
   agents/          how agent skills should consume this repo
   research/        background reading
-  future/          designs deliberately outside milestone 1
 ```
 
 An app gets a folder when it has internals worth writing down. `scheduler`,

@@ -36,8 +36,47 @@ One traversable (end, end) pair through a connection, always named.
 **Undirected** — one transit covers both directions of travel — and
 **self-exclusive**, so head-on use is excluded structurally. Two transits at the
 same connection may be in use simultaneously only if the connection declares
-them `concurrent`.
+them `concurrent`. The same concept one level down: a symbol declares transits
+between its pins, usually unnamed, and derivation composes symbol transits
+into connection transits.
 _Avoid_: route (reserved for the request-level path), path, crossing
+
+### Drawing
+
+**Drawing**:
+The authored schematic of a railroad: symbols joined by wires through their
+pins. Shows connectivity, never scale. The source of truth — the layout is
+derived from it and never authored
+([ADR-0015](docs/adr/0015-drawing-is-the-source-of-truth.md)).
+_Avoid_: diagram, plan, track plan
+
+**Symbol**:
+A drawing element declaring pins, transits between them, and which transit
+pairs are `concurrent` — the shape of a connection, one level down. Blocks,
+terminals, turnouts, crossings, slips, and portals are symbols.
+_Avoid_: element, tile, stencil
+
+**Pin**:
+A connection point holding exactly two connections. A symbol pin accepts one
+wire, the symbol being its other connection; a free-standing pin joins two
+wires as a bend. A pin with one connection is an error. A block symbol's pins
+are its ends `A` and `B`.
+_Avoid_: port
+
+**Wire**:
+The edge joining two pins. Its shape carries no meaning: derivation reads
+only which pin connects to which.
+_Avoid_: track, line, edge
+
+**Terminal symbol**:
+A one-pin symbol marking a deliberate track end, so a dangling pin always
+means a mistake. Terminal *blocks* stay derived from connectivity.
+
+**Portal**:
+A one-pin symbol paired by label with exactly one other portal; the pair
+joins its wires as if directly connected and derives to nothing. A drawing
+device for joining distant parts of the canvas.
+_Avoid_: connector, link
 
 ### Stock
 
