@@ -283,6 +283,152 @@ def test_transits_sharing_a_bend_conflict() -> None:
     ]
 
 
+# --- the symbol library ---------------------------------------------------
+
+
+def four_ways(kind: str) -> dict[str, Any]:
+    """A crossing or a slip with a terminated block on each of its four
+    pins — the smallest drawing that shows what routes the symbol has."""
+    doc: dict[str, Any] = {
+        "drawing": "d",
+        "symbols": {"x": {"kind": kind}},
+        "wires": [],
+    }
+    for name in ("a1", "a2", "b1", "b2"):
+        doc["symbols"][name] = block()
+        doc["symbols"][f"{name}_stop"] = {"kind": "terminal"}
+        doc["wires"] += [[f"{name}.A", f"x.{name}"], [f"{name}.B", f"{name}_stop.P"]]
+    return doc
+
+
+def test_a_turnout_has_two_routes_and_declares_nothing_concurrent() -> None:
+    doc = two_blocks(
+        north=block(),
+        north_stop={"kind": "terminal"},
+        points={"kind": "turnout"},
+    )
+    doc["wires"] += [
+        ["west.B", "points.toe"],
+        ["points.straight", "east.A"],
+        ["points.diverging", "north.A"],
+        ["north.B", "north_stop.P"],
+    ]
+    # Both routes take the toe, so composition leaves them exclusive.
+    assert derive(doc)["connections"]["points"] == {
+        "transits": {
+            "east_A__west_B": ["east.A", "west.B"],
+            "north_A__west_B": ["north.A", "west.B"],
+        }
+    }
+
+
+@pytest.mark.parametrize(
+    "kind, transits",
+    [
+        ("crossing", [["a1.A", "a2.A"], ["b1.A", "b2.A"]]),
+        ("single_slip", [["a1.A", "a2.A"], ["a1.A", "b2.A"], ["b1.A", "b2.A"]]),
+        (
+            "double_slip",
+            [
+                ["a1.A", "a2.A"],
+                ["a1.A", "b2.A"],
+                ["a2.A", "b1.A"],
+                ["b1.A", "b2.A"],
+            ],
+        ),
+    ],
+)
+def test_a_crossing_and_the_slips_are_exclusive(
+    kind: str, transits: list[list[str]]
+) -> None:
+    """Every route through one of these takes the shared frog, so none of the
+    pairs composes to concurrent — the derived connection has no `concurrent`
+    at all."""
+    derived = derive(four_ways(kind))["connections"]["x"]
+    assert sorted(derived["transits"].values()) == transits
+    assert "concurrent" not in derived
+
+
+def test_the_scissors_crossover_composes_the_hand_declared_concurrency() -> None:
+    """The proof of composition: crossover-yard drawn from four turnouts and
+    one crossing derives the four transits the layout declared, and exactly
+    the one concurrent pair — the only two ways that share no symbol."""
+    crossover = derive(read("crossover-yard.drawing.yaml"))["connections"]["crossover"]
+    assert crossover == {
+        "transits": {
+            "dn_straight": ["dn_e.A", "dn_w.B"],
+            "dn_to_up": ["dn_w.B", "up_e.A"],
+            "up_straight": ["up_e.A", "up_w.B"],
+            "up_to_dn": ["dn_e.A", "up_w.B"],
+        },
+        "concurrent": [["dn_straight", "up_straight"]],
+    }
+
+
+def test_a_junction_of_several_symbols_takes_the_name_they_declare() -> None:
+    doc = two_blocks(
+        north=block(),
+        north_stop={"kind": "terminal"},
+        points={"kind": "turnout", "connection": "throat"},
+        bend={"kind": "turnout", "connection": "throat"},
+        bend_stop={"kind": "terminal"},
+    )
+    doc["wires"] += [
+        ["west.B", "points.toe"],
+        ["points.straight", "east.A"],
+        ["points.diverging", "bend.toe"],
+        ["bend.straight", "north.A"],
+        ["bend.diverging", "bend_stop.P"],
+        ["north.B", "north_stop.P"],
+    ]
+    assert list(derive(doc)["connections"]) == ["throat"]
+
+
+def test_an_unnamed_junction_of_several_symbols_is_refused() -> None:
+    doc = two_blocks(one={"kind": "turnout"}, two={"kind": "turnout"})
+    doc["symbols"]["one_stop"] = {"kind": "terminal"}
+    doc["symbols"]["two_stop"] = {"kind": "terminal"}
+    doc["wires"] += [
+        ["west.B", "one.toe"],
+        ["one.straight", "two.toe"],
+        ["one.diverging", "one_stop.P"],
+        ["two.straight", "east.A"],
+        ["two.diverging", "two_stop.P"],
+    ]
+    with pytest.raises(ValueError, match="is unnamed"):
+        derive(doc)
+
+
+def test_symbols_of_one_junction_disagreeing_on_its_name_are_refused() -> None:
+    doc = spanned(bend={"kind": "pin"})
+    doc["symbols"]["gap"]["connection"] = "west_end"
+    doc["symbols"]["other"] = {**gap_symbol(), "connection": "east_end"}
+    doc["wires"] = [w for w in doc["wires"] if w != ["gap.B", "east.A"]]
+    doc["wires"] += [
+        ["gap.B", "bend.P"],
+        ["bend.P", "other.A"],
+        ["other.B", "east.A"],
+    ]
+    with pytest.raises(ValueError, match="name it"):
+        derive(doc)
+
+
+def test_two_junctions_taking_the_same_name_are_refused() -> None:
+    doc = two_blocks(
+        middle=block(),
+        west_gap={**gap_symbol(named=False), "connection": "join"},
+        east_gap={**gap_symbol(named=False), "connection": "join"},
+    )
+    doc["wires"] += [
+        ["west.B", "west_gap.A"],
+        ["west_gap.B", "middle.A"],
+        ["middle.B", "east_gap.A"],
+        ["east_gap.B", "east.A"],
+    ]
+    with pytest.raises(ValueError, match="two junctions are named 'join'"):
+        derive(doc)
+
+
 # --- names and determinism ------------------------------------------------
 
 
@@ -310,6 +456,20 @@ def test_derived_names_do_not_depend_on_drawing_order_or_pin_ids() -> None:
 
     assert yaml.safe_dump(derive(doc), sort_keys=False) == yaml.safe_dump(
         derive(shuffled), sort_keys=False
+    )
+
+
+def test_the_derived_layout_survives_a_drawing_file_reorder() -> None:
+    """Symbol and wire order is drawing-file bookkeeping, and a symbol carries
+    no position at all, so neither can move a byte of the derived layout."""
+    doc = read("crossover-yard.drawing.yaml")
+    shuffled = {
+        **doc,
+        "symbols": dict(reversed(list(doc["symbols"].items()))),
+        "wires": [list(reversed(wire)) for wire in reversed(doc["wires"])],
+    }
+    assert yaml.safe_dump(derive(shuffled), sort_keys=False) == yaml.safe_dump(
+        derive(doc), sort_keys=False
     )
 
 
@@ -439,6 +599,16 @@ _SCHEMA_ERRORS: list[tuple[Mutate, str]] = [
     (
         lambda d: d["symbols"]["gap"].update(transits=[["A", "B"]]),
         "concurrent needs named transits",
+    ),
+    (
+        lambda d: d["symbols"].update(points={"kind": "turnout", "concurrent": []}),
+        "unknown key",
+    ),
+    (
+        lambda d: d["symbols"].update(
+            points={"kind": "turnout", "names": {"through": "to_up"}}
+        ),
+        "names unknown transit",
     ),
     (lambda d: d["symbols"]["west"].update(length=0), "positive integer"),
     (lambda d: d["symbols"].update(here={"kind": "portal"}), "missing key"),

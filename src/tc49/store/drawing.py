@@ -37,14 +37,33 @@ from tc49.lib.layout import (
     check_name,
 )
 
-# The fixed symbol kinds. `pin` (a free-standing bend) and `portal` are
-# joiners: they pass a wire through and derive to nothing. The turnout,
-# crossing and slips of DRAWING.md's table arrive with the symbol library.
+# The symbol library: the kinds whose geometry is fixed, and the transits each
+# one has. A crossing and the slips share four pins, two per route, named for
+# the route and the side: `a1` and `b1` on one side, `a2` and `b2` on the
+# other. A slip is then a route from one side to the other over the other
+# track, which is also why the double slip is two turnouts joined toe to toe.
+# None of them declares anything concurrent — every route through a crossing
+# or a slip takes the shared frog, and a turnout's two routes share its toe.
+_CROSS = ("a1", "a2", "b1", "b2")
+_THROUGH = {"a": ("a1", "a2"), "b": ("b1", "b2")}
+_LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
+    "turnout": {"straight": ("toe", "straight"), "diverging": ("toe", "diverging")},
+    "crossing": dict(_THROUGH),
+    "single_slip": {**_THROUGH, "slip": ("a1", "b2")},
+    "double_slip": {**_THROUGH, "slip_1": ("a1", "b2"), "slip_2": ("b1", "a2")},
+}
+
+# `pin` (a free-standing bend) and `portal` are joiners: they pass a wire
+# through and derive to nothing.
 _PINS: dict[str, tuple[str, ...]] = {
     "block": ("A", "B"),
     "terminal": ("P",),
     "portal": ("P",),
     "pin": ("P",),
+    "turnout": ("toe", "straight", "diverging"),
+    "crossing": _CROSS,
+    "single_slip": _CROSS,
+    "double_slip": _CROSS,
 }
 _JOINERS = frozenset({"pin", "portal"})
 
@@ -62,7 +81,8 @@ class Symbol:
     pins: tuple[str, ...]
     transits: dict[str, tuple[str, str]] = field(default_factory=dict[str, Any])
     concurrent: frozenset[frozenset[str]] = frozenset()
-    names_transits: bool = False  # its transit ids are authored names
+    names: dict[str, str] = field(default_factory=dict[str, Any])  # transit -> name
+    connection: str = ""  # the junction this symbol belongs to, where authored
     length: int = 0
     label: str = ""
 
@@ -210,17 +230,41 @@ class Drawing:
             members[root(symbol)].append(symbol)
 
         named: dict[str, str | None] = {}
+        taken: dict[str, list[str]] = {}
         for group in members.values():
-            declaring = [s for s in group if self.symbols[s].transits]
-            if len(declaring) > 1:
-                raise ValueError(
-                    f"drawing '{self.name}': connection symbols"
-                    f" {declaring} share one component — a junction takes one"
-                    f" connection symbol"
-                )
+            name = self._connection_name(group)
+            if name is not None:
+                if name in taken:
+                    raise ValueError(
+                        f"drawing '{self.name}': two junctions are named"
+                        f" '{name}' — {taken[name]} and {group}"
+                    )
+                taken[name] = group
             for symbol in group:
-                named[symbol] = declaring[0] if declaring else None
+                named[symbol] = name
         return named
+
+    def _connection_name(self, group: list[str]) -> str | None:
+        """A junction's name is authored, never derived: it is what its
+        symbols write as `connection`, or, where a junction is one symbol, that
+        symbol's own name. `None` where the component declares no transits and
+        so has nothing to name."""
+        declared = sorted({self.symbols[s].connection for s in group} - {""})
+        if len(declared) > 1:
+            raise ValueError(
+                f"drawing '{self.name}': the symbols {group} of one junction"
+                f" name it {declared} — one junction takes one name"
+            )
+        if declared:
+            return declared[0]
+
+        declaring = [s for s in group if self.symbols[s].transits]
+        if len(declaring) > 1:
+            raise ValueError(
+                f"drawing '{self.name}': the junction drawn from {declaring}"
+                f" is unnamed — write `connection` on its symbols"
+            )
+        return declaring[0] if declaring else None
 
     # --- pass 2: walking symbol transits gives the connection transits -----
 
@@ -319,10 +363,16 @@ class Drawing:
     ) -> str:
         """A derived name is a pure function of the two block ends, so moving
         a symbol never renames a transit. A symbol transit written with a name
-        overrides it, which is how the generic connection symbol passes its
-        hand-picked names through unchanged."""
+        overrides it: that is how the generic connection symbol passes its
+        hand-picked names through unchanged, and how a junction drawn from real
+        symbols keeps them — the name goes on the symbol transit the way
+        through takes, so one symbol names every way that crosses it."""
         overrides = sorted(
-            {local for name, local in used if self.symbols[name].names_transits}
+            {
+                self.symbols[name].names[local]
+                for name, local in used
+                if local in self.symbols[name].names
+            }
         )
         if len(overrides) > 1:
             raise ValueError(
@@ -364,13 +414,48 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
         check_keys(spec, where, {"kind", "label"})
         check_name(spec["label"], f"{where}: portal label")
         return Symbol(name, kind, _PINS[kind], label=str(spec["label"]))
+    if kind in _LIBRARY:
+        return _library_symbol(where, name, spec, kind)
     if kind == "connection":
         return _connection_symbol(where, name, spec)
     raise ValueError(f"{where}: unknown kind {kind!r}")
 
 
+def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
+    """A symbol of fixed geometry: its pins, its transits and its concurrency
+    come from the library, so the drawing writes only the names it wants."""
+    check_keys(spec, where, {"kind"}, {"names", "connection"})
+    transits = _LIBRARY[kind]
+
+    names: dict[str, str] = {}
+    for transit, authored in as_mapping(
+        spec.get("names") or {}, f"{where}: names"
+    ).items():
+        if transit not in transits:
+            raise ValueError(f"{where}: names unknown transit '{transit}'")
+        check_name(authored, f"{where}: transit")
+        names[transit] = str(authored)
+
+    return Symbol(
+        name,
+        kind,
+        _PINS[kind],
+        dict(transits),
+        names=names,
+        connection=_connection_of(where, spec),
+    )
+
+
+def _connection_of(where: str, spec: Any) -> str:
+    """The junction a symbol says it belongs to, where it says so."""
+    if "connection" not in spec:
+        return ""
+    check_name(spec["connection"], f"{where}: connection")
+    return str(spec["connection"])
+
+
 def _connection_symbol(where: str, name: str, spec: Any) -> Symbol:
-    check_keys(spec, where, {"kind", "pins", "transits"}, {"concurrent"})
+    check_keys(spec, where, {"kind", "pins", "transits"}, {"concurrent", "connection"})
 
     pins: list[str] = []
     raw_pins = spec["pins"]
@@ -412,7 +497,15 @@ def _connection_symbol(where: str, name: str, spec: Any) -> Symbol:
         raise ValueError(f"{where}: concurrent needs named transits")
     concurrent = check_concurrent(spec.get("concurrent"), transits, where)
 
-    return Symbol(name, "connection", tuple(pins), transits, concurrent, names_transits)
+    return Symbol(
+        name,
+        "connection",
+        tuple(pins),
+        transits,
+        concurrent,
+        names={transit: transit for transit in transits} if names_transits else {},
+        connection=_connection_of(where, spec),
+    )
 
 
 def _pin_pair(raw: Any, where: str) -> tuple[str, str]:

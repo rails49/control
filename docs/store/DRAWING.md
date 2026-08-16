@@ -1,13 +1,13 @@
 # Drawing format and derivation
 
 The drawing document type and the derivation of layouts from it, decided in
-#41. Derivation is implemented in `src/tc49/store/drawing.py` for blocks,
-terminals, portals, free-standing pins and the generic connection symbol
-(#42); the symbols with fixed geometry arrive with the symbol library (#44).
+#41 and implemented in `src/tc49/store/drawing.py`: the generic connection
+symbol and the derivation passes in #42, the symbols of fixed geometry in #44.
 Every committed railroad is drawn (#43), each converted mechanically from its
-hand-written layout; those `.layout.yaml` files stay committed as the
-round-trip reference, and [LAYOUT.md](LAYOUT.md) with them, until the store
-serves drawings alone (#45). Order of work: derivation (Python, no UI), then the
+hand-written layout, and `crossover-yard` redrawn from real symbols on top of
+that; those `.layout.yaml` files stay committed as the round-trip reference,
+and [LAYOUT.md](LAYOUT.md) with them, until the store serves drawings alone
+(#45). Order of work: derivation (Python, no UI), then the
 [editor](../ui/EDITOR.md), then the [panel](../ui/PANEL.md). Terminology
 follows [CONTEXT.md](../../CONTEXT.md).
 
@@ -47,25 +47,36 @@ A symbol declares pins, transits between them, and which transit pairs are
 is why derivation is composition: connection transits are built from symbol
 transits.
 
-| Symbol | Pins | Transits | Concurrent | Notes |
-| --- | --- | --- | --- | --- |
-| Block | 2 (`A`, `B`) | the block itself | n/a | length and optional sensor id per end as properties |
-| Terminal | 1 | none | n/a | marks a deliberate track end |
-| Turnout | 3 | toe-straight, toe-diverging | none | |
-| Crossing | 4 | the two crossing routes | none | a grade crossing: one train at a time |
-| Single slip | 4 | 3 | none | |
-| Double slip | 4 | 4 | none | topologically two turnouts joined toe to toe |
-| Portal | 1 | none | n/a | paired by label; the pair is a wire |
-| Connection (generic) | N | declared | declared | format only, not in the editor palette |
+| Symbol | Kind | Pins | Transits | Concurrent | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length and optional sensor id per end as properties |
+| Terminal | `terminal` | 1 (`P`) | none | n/a | marks a deliberate track end |
+| Turnout | `turnout` | 3 (`toe`, `straight`, `diverging`) | `straight`, `diverging` | none | |
+| Crossing | `crossing` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | a grade crossing: one train at a time |
+| Single slip | `single_slip` | 4 | `a`, `b`, `slip` | none | |
+| Double slip | `double_slip` | 4 | `a`, `b`, `slip_1`, `slip_2` | none | topologically two turnouts joined toe to toe |
+| Portal | `portal` | 1 (`P`) | none | n/a | paired by label; the pair is a wire |
+| Connection (generic) | `connection` | N | declared | declared | format only, not in the editor palette |
 
-The crossing and both slips are exclusive because every route through them
-traverses the shared frog. An earlier draft declared the crossing's two
-routes concurrent; re-deriving `crossover-yard` shows that is wrong. Its
-scissors crossover refines into four turnouts and a crossing on the
-diagonals: the two crossover transits share the crossing, so with an
-exclusive crossing composition yields exactly the one concurrent pair the
-file declares by hand, `[up_straight, dn_straight]`, while a concurrent
-crossing would also emit the colliding crossover pair.
+A crossing and the slips share four pins, two per route, named for the route
+and the side: `a1` and `b1` on one side, `a2` and `b2` on the other. The two
+through routes are `a` (`a1`-`a2`) and `b` (`b1`-`b2`); a slip route joins one
+side to the other over the other track, `a1`-`b2` for the single slip and both
+`a1`-`b2` and `b1`-`a2` for the double slip. That is the same thing as the
+double slip being two turnouts joined toe to toe.
+
+Everything about these symbols is fixed, so a drawing writes only `kind` and
+the names it wants (below). In particular none of them declares anything
+concurrent, and none can: every route through a crossing or a slip takes the
+shared frog, and a turnout's two routes share its toe.
+
+The exclusive crossing is what makes composition come out right. An earlier
+draft declared the crossing's two routes concurrent; re-deriving
+`crossover-yard` shows that is wrong. Its scissors crossover is drawn as four
+turnouts and a crossing on the diagonals: the two crossover transits share the
+crossing, so composition yields exactly the one concurrent pair the layout
+declared by hand, `[up_straight, dn_straight]`, while a concurrent crossing
+would also emit the colliding crossover pair.
 
 The drawn angle of a crossing or slip (15 or 30 degrees) is a decorative
 property, not a distinct symbol: flip and rotation cover sign and
@@ -118,20 +129,38 @@ wires:
   - [east.B, east_stop.P]
 ```
 
+A junction of fixed geometry, `crossover-yard`'s scissors crossover:
+
+```yaml
+symbols:
+  up_w_points:
+    kind: turnout
+    connection: crossover
+    names: { straight: up_straight, diverging: up_to_dn }
+  up_e_points: { kind: turnout, connection: crossover }
+  diamond: { kind: crossing, connection: crossover }
+```
+
 - **Symbols are a mapping from name to `kind` and its properties.** A block
   takes a `length` and optional `sensors` per end, a portal a `label`, a
-  terminal and a free-standing pin (`kind: pin`) nothing. The generic
-  connection symbol declares its `pins`, its `transits`, and optionally which
-  pairs of them are `concurrent`.
+  terminal and a free-standing pin (`kind: pin`) nothing. A symbol of fixed
+  geometry takes only the names below. The generic connection symbol declares
+  its `pins`, its `transits`, and optionally which pairs of them are
+  `concurrent`.
 - **Pins are written `<symbol>.<pin>`.** A block's are its ends `A` and `B`;
-  a one-pin symbol's is `P`; a generic connection symbol names its own.
+  a one-pin symbol's is `P`; the symbol table above gives the rest, and a
+  generic connection symbol names its own.
 - **A wire is a pair of pins**, and `wires:` is the whole of the topology.
   Where the wire runs on the canvas is the editor's business, not the file's.
-- **Symbol transits may be named or not.** Written as a mapping, the key is
-  the derived transit's name, which is how the generic connection symbol
-  passes hand-picked names such as `span` through unchanged. Written as a
-  list of pin pairs, each takes the derived default. `concurrent` needs the
-  mapping form, having nothing else to name.
+- **`connection` names the junction a symbol belongs to.** Every symbol of one
+  junction that writes it must agree; a junction drawn from several symbols has
+  no other way to be named.
+- **`names` gives a symbol's transits the names the derived transits take.**
+  It is keyed by the symbol transit, `{ straight: up_straight }`, so the name
+  goes where the way through goes. The generic connection symbol writes the
+  same thing by writing its `transits` as a mapping, the key being the derived
+  name; written instead as a list of pin pairs, each takes the derived default.
+  `concurrent` needs the mapping form, having nothing else to name.
 
 The schema is checked when the document loads, so a drawing that loads is
 well-formed. The pin rules are checked at derivation instead, which is what
@@ -180,14 +209,22 @@ a layout keys transits by name; naming one of them in the drawing settles it.
 An end pair also has to be two *distinct* ends, so a way that leaves a block
 end and arrives back through it is refused as well.
 
-A connection's name is authored rather than derived: it is the name of the
-one symbol in its component that declares transits, which is how
-`crossover-yard`'s hand-picked `crossover` survives being drawn. That is not
-an exception to the rule above — a symbol's name is a thing someone wrote in
-the drawing, not an artefact of drawing order — but it does mean renaming
-that symbol renames the connection. A component holding several
-transit-declaring symbols is refused for now; the naming rule for junctions
-drawn from many symbols lands with the symbol library (#44).
+A transit name is overridden on the symbol transit the way through takes, so
+one symbol names every way that crosses it. `crossover-yard`'s four crossover
+transits are named on the two west turnouts, since every way through the
+crossover takes the straight or the diverging side of one of them. Overriding
+the same way twice with different names is refused rather than resolved by
+order.
+
+A connection's name is authored rather than derived: it is what the symbols of
+its component write as `connection`, and where they write nothing, the name of
+the one symbol that declares transits — a junction that is one turnout, or one
+generic connection symbol, names itself. Both are things someone wrote in the
+drawing rather than artefacts of drawing order, so neither breaks the rule
+above, but renaming the symbol of a one-symbol junction does rename its
+connection. A junction drawn from several symbols that writes no `connection`
+is refused, as is one written with two different names, or two junctions
+written with the same one.
 
 ## Asset store
 
@@ -224,6 +261,7 @@ converted drawing reproduces the layout it came from, for every committed
 railroad. The reasoning comments those layouts carry are moved into the
 drawings, so no topology is re-typed and no rationale is lost. What conversion
 cannot supply is geometry — a junction arrives as one opaque symbol, and
-refining it into turnouts and crossings is a separate, reviewable step (#44).
+refining it into turnouts and crossings is a separate, reviewable step, done
+for `crossover-yard` in #44 and still to do for the rest.
 The parts of [LAYOUT.md](LAYOUT.md) that document the layout as the authored
 format are rewritten when the hand-written files go (#45).

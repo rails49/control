@@ -2,18 +2,28 @@
 # drawn railroad with a `concurrent` transit pair. Format per
 # docs/store/DRAWING.md.
 #
-# Two parallel main lines joined by a double crossover (docs/image.png),
-# with a terminal yard block at each end.
+# Two parallel main lines joined by a double crossover (docs/image.png), with a
+# terminal yard block at each end.
 #
 #     yard_w ]---+===  up_w  ===\ /===  up_e  ===+---[ yard_e
 #                |               X               |
 #                +===  dn_w  ===/ \===  dn_e  ===+
 #
-# Converted mechanically from the hand-written layout (#43), so every junction
-# is one generic connection symbol: its pins are the block ends it holds and
-# its transits carry the hand-picked names through. The scissors crossover is
-# redrawn from four turnouts and a crossing in #44, which is the proof that
-# composing symbol concurrency reproduces the pair declared here by hand.
+# Drawn from real symbols (#44): the scissors crossover is four turnouts and
+# the crossing where its two diagonals meet, and each yard throat is one
+# turnout. Nothing here declares concurrency — a turnout's two routes share its
+# toe and a crossing's two share its frog, so every conflict below is composed
+# rather than authored. What derives is the one pair that shares no symbol,
+# `[up_straight, dn_straight]`, which is exactly what the hand-written layout
+# declared. A concurrent crossing would also make the two diagonals concurrent,
+# which is why the crossing is exclusive.
+#
+# Transit names are authored on the symbol transit each way takes, so the names
+# the layout picked survive being drawn: the two west turnouts of the crossover
+# name all four of its transits, since every way through it crosses one of
+# them. The five symbols of the crossover say so with `connection`, which is
+# what keeps the junction one connection named `crossover`; a throat is one
+# symbol and takes its name from it.
 #
 # The outer yard ends are capped by terminal symbols, so yard_w.A and yard_e.B
 # appear in no connection and both yard blocks derive as terminal.
@@ -29,48 +39,50 @@ symbols:
   dn_e: {kind: block, length: 3200}
   yard_e: {kind: block, length: 1400}
 
-  west_ladder: # turnout: yard throat, west end
-    kind: connection
-    pins: [dn_w_A, up_w_A, yard_w_B]
-    transits:
-      to_up: [yard_w_B, up_w_A]
-      to_dn: [yard_w_B, dn_w_A]
+  west_ladder: # yard throat, west end
+    kind: turnout
+    names: {straight: to_up, diverging: to_dn}
 
-  # Double crossover — four blocks, partial concurrency. Conflicts are
-  # declared by inversion (ADR-0006): every pair of transits at a connection
-  # conflicts unless listed, so the one pair below is the only one that can be
-  # used at once.
-  crossover:
-    kind: connection
-    pins: [dn_e_A, dn_w_B, up_e_A, up_w_B]
-    transits:
-      up_straight: [up_w_B, up_e_A]
-      dn_straight: [dn_w_B, dn_e_A]
-      up_to_dn: [up_w_B, dn_e_A]
-      dn_to_up: [dn_w_B, up_e_A]
-    concurrent:
-      - [dn_straight, up_straight]
+  east_ladder: # yard throat, east end
+    kind: turnout
+    names: {straight: from_up, diverging: from_dn}
 
-  east_ladder: # turnout: yard throat, east end
-    kind: connection
-    pins: [dn_e_B, up_e_B, yard_e_A]
-    transits:
-      from_up: [up_e_B, yard_e_A]
-      from_dn: [dn_e_B, yard_e_A]
+  # The scissors crossover: a turnout on each main line at each end, and the
+  # crossing where the two diagonals meet.
+  up_w_points:
+    kind: turnout
+    connection: crossover
+    names: {straight: up_straight, diverging: up_to_dn}
+  dn_w_points:
+    kind: turnout
+    connection: crossover
+    names: {straight: dn_straight, diverging: dn_to_up}
+  up_e_points: {kind: turnout, connection: crossover}
+  dn_e_points: {kind: turnout, connection: crossover}
+  diamond: {kind: crossing, connection: crossover}
 
   yard_w_A_stop: {kind: terminal}
   yard_e_B_stop: {kind: terminal}
 
 wires:
-  - [dn_w.A, west_ladder.dn_w_A]
-  - [up_w.A, west_ladder.up_w_A]
-  - [yard_w.B, west_ladder.yard_w_B]
-  - [dn_e.A, crossover.dn_e_A]
-  - [dn_w.B, crossover.dn_w_B]
-  - [up_e.A, crossover.up_e_A]
-  - [up_w.B, crossover.up_w_B]
-  - [dn_e.B, east_ladder.dn_e_B]
-  - [up_e.B, east_ladder.up_e_B]
-  - [yard_e.A, east_ladder.yard_e_A]
+  - [yard_w.B, west_ladder.toe]
+  - [west_ladder.straight, up_w.A]
+  - [west_ladder.diverging, dn_w.A]
+
+  - [up_w.B, up_w_points.toe]
+  - [dn_w.B, dn_w_points.toe]
+  - [up_w_points.straight, up_e_points.straight]
+  - [dn_w_points.straight, dn_e_points.straight]
+  - [up_w_points.diverging, diamond.a1]
+  - [diamond.a2, dn_e_points.diverging]
+  - [dn_w_points.diverging, diamond.b1]
+  - [diamond.b2, up_e_points.diverging]
+  - [up_e_points.toe, up_e.A]
+  - [dn_e_points.toe, dn_e.A]
+
+  - [up_e.B, east_ladder.straight]
+  - [dn_e.B, east_ladder.diverging]
+  - [east_ladder.toe, yard_e.A]
+
   - [yard_w.A, yard_w_A_stop.P]
   - [yard_e.B, yard_e_B_stop.P]
