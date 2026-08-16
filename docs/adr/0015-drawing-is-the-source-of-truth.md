@@ -1,11 +1,8 @@
 # The drawing is the source of truth
 
-Proposed, for the layout editor project ([../layout-editor.md](../layout-editor.md)).
-Unnumbered while it sits outside the main sequence; it takes a number when the
-project starts.
-
-The asset store keeps two document types, `drawing` and `scenario`. A drawing is
-a port graph of symbols joined by wires. The layout is derived from it on `get`
+The asset store keeps two document types, `drawing` and `scenario`. A drawing
+is symbols joined by wires through their pins
+([DRAWING.md](../store/DRAWING.md)). The layout is derived from it on `get`
 and is never authored. No `.layout.yaml` files exist.
 
 The relationship can only point this way. A dispatch panel shows more than the
@@ -24,7 +21,7 @@ disagreeing files is right, with no principle for answering.
 the same duplication argument, once the supposed benefit turned out to be thin.
 The case for it was that a committed layout makes a mis-dragged wire visible in
 review as a topology diff. But the drawing is YAML with stable ids, so a
-mis-dragged wire already appears as a changed port-to-port edge, which is the
+mis-dragged wire already appears as a changed pin-to-pin edge, which is the
 cause rather than the effect and reads at least as well. There is no cost
 argument either: derivation is three passes over a graph of tens of nodes, well
 under a millisecond for Gotthard, run once per `get` against a snapshot that is
@@ -36,15 +33,15 @@ diff would show all of it. A `tc49 layout show <name>` command covers that on
 demand, as a tool rather than a committed file.
 
 Two consequences follow. Migration becomes compulsory, since a railroad that has
-not been drawn cannot be loaded; the generic N-port connection symbol makes that
+not been drawn cannot be loaded; the generic N-pin connection symbol makes that
 mechanical and lossless, because derivation passes it through unchanged. And the
 reasoning comments that
-[layouts/gotthard.layout.yaml](../../../layouts/gotthard.layout.yaml) carries
+[layouts/gotthard.layout.yaml](../../layouts/gotthard.layout.yaml) carries
 have to move into the drawing, along with the parts of
-[LAYOUT.md](../../store/LAYOUT.md) that document the layout schema as the authored
+[LAYOUT.md](../store/LAYOUT.md) that document the layout schema as the authored
 format.
 
-[ADR-0010](../../adr/0010-asset-store-serves-coarse-read-only-documents.md) is
+[ADR-0010](0010-asset-store-serves-coarse-read-only-documents.md) is
 unaffected in shape: still two coarse document types, still whole-document
 verbs, still read-only for components, still validated so a `get` never returns
 an invalid document. The derived layout is run through the existing validator,

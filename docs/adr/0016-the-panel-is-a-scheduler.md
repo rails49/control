@@ -1,14 +1,11 @@
 # The panel is a scheduler
 
-Proposed, for the layout editor project ([../layout-editor.md](../layout-editor.md)).
-Unnumbered while it sits outside the main sequence.
-
-Clicking a train and then one or more arrival ends publishes
+Clicking a train on the [panel](../ui/PANEL.md) and then one or more arrival ends publishes
 `tc49/schedule/request_submitted`: the existing topic, in the existing
 `schedule` role. The panel is therefore a scheduler, and a run uses the file
 scheduler or the panel, never both.
 
-This is what [SYSTEM.md](../../SYSTEM.md#scheduler) already anticipates in
+This is what [SYSTEM.md](../SYSTEM.md#scheduler) already anticipates in
 calling the milestone-1 scheduler "the honest template for a future scheduling
 UI or freight generator: publish intents, let the dispatcher judge". The panel
 needs no new authority. It submits, and the dispatcher answers with

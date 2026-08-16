@@ -1,0 +1,141 @@
+# Drawing format and derivation
+
+Design for the drawing document type and the derivation of layouts from it,
+decided in #41. Not yet implemented: until derivation lands, layouts are
+authored by hand and [LAYOUT.md](LAYOUT.md) remains authoritative. Order of
+work: derivation (Python, no UI), then the [editor](../ui/EDITOR.md), then the
+[panel](../ui/PANEL.md). Terminology follows [CONTEXT.md](../../CONTEXT.md).
+
+## What a drawing is
+
+A drawing is a schematic, like a prototype signal box display: it shows
+connectivity, not scale. Symbols are placed on a grid and joined by wires
+through their pins. Wire shape carries no meaning; derivation reads only which
+pin connects to which, so moving symbols or rerouting wires never changes the
+derived layout.
+
+The drawing is the source of truth
+([ADR-0015](../adr/0015-drawing-is-the-source-of-truth.md)). The layout is
+derived from it on `get` and is never authored. The drawing is strictly
+richer: turnout geometry, signals, labels, and hardware ids live only there
+and cannot be recovered from a layout.
+
+## Pins and wires
+
+A wire joins two pins. A symbol pin accepts exactly one wire, the symbol
+being its other connection; a free-standing pin joins exactly two wire
+segments and serves as a bend point. Either way every pin has two
+connections.
+
+A pin with one connection is an error, rendered red in the editor. A drawing
+with red pins can be saved, so work in progress can be parked, but derivation
+refuses it: a `get` never returns a layout from an incomplete drawing. A
+deliberate track end takes an explicit terminal symbol, which turns the most
+likely drawing mistake, a wire left unattached, into a visible error instead
+of a silently terminal block. In the derived layout terminal blocks remain
+derived from connectivity, exactly as today.
+
+## Symbols
+
+A symbol declares pins, transits between them, and which transit pairs are
+`concurrent`. That is the same shape as a connection, one level down, and it
+is why derivation is composition: connection transits are built from symbol
+transits.
+
+| Symbol | Pins | Transits | Concurrent | Notes |
+| --- | --- | --- | --- | --- |
+| Block | 2 (`A`, `B`) | the block itself | n/a | length and optional sensor id per end as properties |
+| Terminal | 1 | none | n/a | marks a deliberate track end |
+| Turnout | 3 | toe-straight, toe-diverging | none | |
+| Crossing | 4 | the two crossing routes | none | a grade crossing: one train at a time |
+| Single slip | 4 | 3 | none | |
+| Double slip | 4 | 4 | none | topologically two turnouts joined toe to toe |
+| Portal | 1 | none | n/a | paired by label; the pair is a wire |
+| Connection (generic) | N | declared | declared | format only, not in the editor palette |
+
+The crossing and both slips are exclusive because every route through them
+traverses the shared frog. An earlier draft declared the crossing's two
+routes concurrent; re-deriving `crossover-yard` shows that is wrong. Its
+scissors crossover refines into four turnouts and a crossing on the
+diagonals: the two crossover transits share the crossing, so with an
+exclusive crossing composition yields exactly the one concurrent pair the
+file declares by hand, `[up_straight, dn_straight]`, while a concurrent
+crossing would also emit the colliding crossover pair.
+
+The drawn angle of a crossing or slip (15 or 30 degrees) is a decorative
+property, not a distinct symbol: flip and rotation cover sign and
+orientation, and changing the angle cannot change the derived layout.
+
+### The generic connection symbol
+
+An N-pin symbol that declares its transits and concurrency verbatim.
+Derivation passes it through unchanged, so every existing layout converts to
+a drawing mechanically and losslessly, and a junction whose real geometry is
+not yet drawn can be modelled anyway, then refined one junction at a time.
+Gotthard's Airolo is the standing example. The symbol appears only in
+machine-written drawings: it is not offered in the editor palette, though the
+editor renders it when a loaded drawing contains one. A junction drawn this
+way shows no turnout detail on the panel.
+
+### Portals
+
+A portal joins distant parts of a drawing without a wire across the whole
+canvas (return loops, hidden staging). Two portals with the same label are
+one joint; derivation treats the joined wires as directly connected and emits
+nothing for the portal itself. A label must appear on exactly two portals,
+each with its pin wired; anything else is an error, save allowed, derive
+refused.
+
+## Hardware ids
+
+The drawing holds hardware identities as optional symbol properties: sensor
+ids on block ends, decoder addresses on turnouts later. Derivation drops
+them, so the layout and the contracts in [SYSTEM.md](../SYSTEM.md) are
+unchanged, and SYSTEM.md's position that the transit-to-turnout table is
+private hardware configuration stands. A physical layout interface reads the
+drawing to build its maps, the same way the panel reads it to infer turnout
+positions ([ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md)).
+A drawing with no hardware ids is valid; the simulator needs none.
+
+## Derivation
+
+Three passes over a small graph, run once per `get` against a snapshot that
+is immutable for the run:
+
+1. Connected components of non-block symbols give the connections.
+2. Walking symbol transits between a component's boundary pins gives the
+   connection transits.
+3. Composing symbol concurrency pairwise over those transits gives
+   `concurrent`.
+
+Cost is negligible: Gotthard's largest component is Airolo, a few hundred
+traversal steps and 171 pairwise checks. The derived layout is run through
+the existing validator as a safety net against derivation bugs.
+
+### Names and determinism
+
+Transit names default to a function of the two block ends and can be
+overridden, with the override stored in the drawing. Derived names must be a
+pure function of topology, never of drawing order or symbol ids, and the
+derived layout needs canonical key order. Otherwise moving a symbol renames a
+transit, changes the trace bytes, and churns every golden file for no
+semantic reason.
+
+## Asset store
+
+The store keeps two document types, `drawing` and `scenario`; `get()` derives
+the Layout on read. This keeps
+[ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)'s two
+coarse document types intact and leaves no second copy of the topology to
+fall out of date. Drawings live at `layouts/<name>.drawing.yaml`.
+
+What is given up is the readable topology diff in review: one moved wire can
+flip concurrency across many transit pairs while the drawing diff shows one
+changed line. A `tc49 layout show <name>` command covers that on demand.
+
+Migration is compulsory, since a railroad that has not been drawn cannot be
+loaded. The generic connection symbol makes it mechanical: every committed
+layout converts losslessly and must round-trip exactly. The reasoning
+comments the committed layouts carry move into the drawings, and the parts of
+[LAYOUT.md](LAYOUT.md) that document the layout as the authored format are
+rewritten then.

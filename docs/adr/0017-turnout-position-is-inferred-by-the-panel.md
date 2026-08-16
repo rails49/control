@@ -1,19 +1,16 @@
 # Turnout position is inferred by the panel
 
-Proposed, for the layout editor project ([../layout-editor.md](../layout-editor.md)).
-Unnumbered while it sits outside the main sequence.
-
-The panel shows turnout positions, although the app has no turnouts. It
+The [panel](../ui/PANEL.md) shows turnout positions, although the app has no turnouts. It
 subscribes to the existing `tc49/drive/align` command, which names a connection
 and a transit, and works out from its own drawing which turnouts that transit
 traverses and how each must lie.
 
-This keeps [SYSTEM.md](../../SYSTEM.md#layout-interface) intact where it says
+This keeps [SYSTEM.md](../SYSTEM.md#layout-interface) intact where it says
 commands are "transit-level, never turnout-level" and that the
 transit-to-turnout-positions table is private hardware configuration. The panel
 is not the app: it may hold that table because its drawing already contains the
 turnout geometry the table is made of. Nothing changes in the layout format, the
-bus inventory, or [LAYOUT.md](../../store/LAYOUT.md)'s position that turnouts are
+bus inventory, or [LAYOUT.md](../store/LAYOUT.md)'s position that turnouts are
 "inexpressible until a later effort gives turnouts identity".
 
 The alternative was to give turnouts identity, publish
