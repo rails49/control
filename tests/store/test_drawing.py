@@ -136,6 +136,31 @@ def test_a_bend_belongs_to_the_connection_it_joins() -> None:
     }
 
 
+def test_a_junction_of_four_symbols_in_a_chain_stays_one_connection() -> None:
+    """Airolo's throats are long chains of turnouts, and the union-find that
+    groups them has to hold a chain of any length together: a four-turnout
+    ladder is the shortest one deep enough to catch a path-compression slip."""
+    symbols: dict[str, Any] = {"trunk": block(), "trunk_stop": {"kind": "terminal"}}
+    wires = [["trunk.A", "trunk_stop.P"]]
+    lead = "trunk.B"
+    for track in range(1, 5):
+        symbols[f"sw{track}"] = {"kind": "turnout", "connection": "ladder"}
+        symbols[f"track{track}"] = block()
+        symbols[f"track{track}_stop"] = {"kind": "terminal"}
+        wires += [
+            [lead, f"sw{track}.toe"],
+            [f"sw{track}.straight", f"track{track}.A"],
+            [f"track{track}.B", f"track{track}_stop.P"],
+        ]
+        lead = f"sw{track}.diverging"
+    symbols |= {"track5": block(), "track5_stop": {"kind": "terminal"}}
+    wires += [[lead, "track5.A"], ["track5.B", "track5_stop.P"]]
+
+    derived = derive({"drawing": "d", "symbols": symbols, "wires": wires})
+    assert list(derived["connections"]) == ["ladder"]
+    assert len(derived["connections"]["ladder"]["transits"]) == 5
+
+
 def test_blocks_wired_directly_are_refused() -> None:
     doc = two_blocks()
     doc["wires"].append(["west.B", "east.A"])
@@ -470,10 +495,13 @@ def test_derived_names_do_not_depend_on_drawing_order_or_pin_ids() -> None:
     )
 
 
-def test_the_derived_layout_survives_a_drawing_file_reorder() -> None:
+@pytest.mark.parametrize("name", RAILROADS)
+def test_the_derived_layout_survives_a_drawing_file_reorder(name: str) -> None:
     """Symbol and wire order is drawing-file bookkeeping, and a symbol carries
-    no position at all, so neither can move a byte of the derived layout."""
-    doc = read("crossover-yard.drawing.yaml")
+    no position at all, so neither can move a byte of the derived layout. Every
+    railroad, since order-sensitivity shows up first in the biggest component:
+    Gotthard's Airolo is a chain a dozen symbols long."""
+    doc = read(f"{name}.drawing.yaml")
     shuffled = {
         **doc,
         "symbols": dict(reversed(list(doc["symbols"].items()))),

@@ -212,8 +212,13 @@ class Drawing:
         }
 
         def root(symbol: str) -> str:
+            # Halve the path as we climb. The two assignments have to stay
+            # apart: written `symbol = component[symbol] = ...`, the rebound
+            # `symbol` is what the second target indexes, which makes the
+            # grandparent its own root and cuts the chain in two.
             while component[symbol] != symbol:
-                symbol = component[symbol] = component[component[symbol]]
+                component[symbol] = component[component[symbol]]
+                symbol = component[symbol]
             return symbol
 
         for node, joined in sorted(joins.items()):
