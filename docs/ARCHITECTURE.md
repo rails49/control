@@ -45,6 +45,9 @@ src/tc49/
                             validate at get
                 drawing.py  Drawing — the authored schematic and the
                             derivation of a layout from it (store/DRAWING.md)
+                convert.py  to_drawing — the mechanical conversion of a
+                            hand-written layout into the drawing that
+                            derives it
   scheduler/    Scheduler — releases scenario requests at their `at` ticks,
                 mechanical arrival-end expansion, deterministic ids,
                 exhausted state topic
@@ -72,7 +75,8 @@ src/tc49/
 
 layouts/                    <layout>.drawing.yaml — the drawn railroads,
                             which the store derives layouts from, and
-                            <layout>.layout.yaml for those not yet drawn
+                            <layout>.layout.yaml, the hand-written source
+                            each was converted from
 scenarios/<layout>/         <scenario>.scenario.yaml — stock and requests
 benchmarks/expected/        <name>.json — golden numbers, asserted in pytest
 out/                        sweep JSONL, gitignored
@@ -136,7 +140,7 @@ tests that drive the real assembly over the bus, with `harness.py` and
 tests/
   harness.py  generate.py
   lib/         test_layout  test_bus  test_trace
-  store/       test_store  test_drawing
+  store/       test_store  test_drawing  test_convert
   scheduler/   test_scheduler
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks

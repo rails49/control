@@ -1,0 +1,76 @@
+# Crossover Yard — the small railroad. Fast smoke benchmark (#8) and the only
+# drawn railroad with a `concurrent` transit pair. Format per
+# docs/store/DRAWING.md.
+#
+# Two parallel main lines joined by a double crossover (docs/image.png),
+# with a terminal yard block at each end.
+#
+#     yard_w ]---+===  up_w  ===\ /===  up_e  ===+---[ yard_e
+#                |               X               |
+#                +===  dn_w  ===/ \===  dn_e  ===+
+#
+# Converted mechanically from the hand-written layout (#43), so every junction
+# is one generic connection symbol: its pins are the block ends it holds and
+# its transits carry the hand-picked names through. The scissors crossover is
+# redrawn from four turnouts and a crossing in #44, which is the proof that
+# composing symbol concurrency reproduces the pair declared here by hand.
+#
+# The outer yard ends are capped by terminal symbols, so yard_w.A and yard_e.B
+# appear in no connection and both yard blocks derive as terminal.
+
+drawing: crossover-yard
+units: mm
+
+symbols:
+  yard_w: {kind: block, length: 1400}
+  up_w: {kind: block, length: 3200}
+  up_e: {kind: block, length: 3200}
+  dn_w: {kind: block, length: 3200}
+  dn_e: {kind: block, length: 3200}
+  yard_e: {kind: block, length: 1400}
+
+  west_ladder: # turnout: yard throat, west end
+    kind: connection
+    pins: [dn_w_A, up_w_A, yard_w_B]
+    transits:
+      to_up: [yard_w_B, up_w_A]
+      to_dn: [yard_w_B, dn_w_A]
+
+  # Double crossover — four blocks, partial concurrency. Conflicts are
+  # declared by inversion (ADR-0006): every pair of transits at a connection
+  # conflicts unless listed, so the one pair below is the only one that can be
+  # used at once.
+  crossover:
+    kind: connection
+    pins: [dn_e_A, dn_w_B, up_e_A, up_w_B]
+    transits:
+      up_straight: [up_w_B, up_e_A]
+      dn_straight: [dn_w_B, dn_e_A]
+      up_to_dn: [up_w_B, dn_e_A]
+      dn_to_up: [dn_w_B, up_e_A]
+    concurrent:
+      - [dn_straight, up_straight]
+
+  east_ladder: # turnout: yard throat, east end
+    kind: connection
+    pins: [dn_e_B, up_e_B, yard_e_A]
+    transits:
+      from_up: [up_e_B, yard_e_A]
+      from_dn: [dn_e_B, yard_e_A]
+
+  yard_w_A_stop: {kind: terminal}
+  yard_e_B_stop: {kind: terminal}
+
+wires:
+  - [dn_w.A, west_ladder.dn_w_A]
+  - [up_w.A, west_ladder.up_w_A]
+  - [yard_w.B, west_ladder.yard_w_B]
+  - [dn_e.A, crossover.dn_e_A]
+  - [dn_w.B, crossover.dn_w_B]
+  - [up_e.A, crossover.up_e_A]
+  - [up_w.B, crossover.up_w_B]
+  - [dn_e.B, east_ladder.dn_e_B]
+  - [up_e.B, east_ladder.up_e_B]
+  - [yard_e.A, east_ladder.yard_e_A]
+  - [yard_w.A, yard_w_A_stop.P]
+  - [yard_e.B, yard_e_B_stop.P]

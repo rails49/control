@@ -8,6 +8,12 @@ unchecked. Terminology follows
 [CONTEXT.md](../../CONTEXT.md); the semantics of what these files describe are in
 [GOALS.md](../GOALS.md) and [DISPATCH.md](../dispatcher/DISPATCH.md).
 
+Layouts are no longer authored: every committed railroad is drawn, and its
+layout is derived from the drawing on `get`
+([DRAWING.md](DRAWING.md)). The `.layout.yaml` files this page describes are
+the hand-written sources those drawings were converted from, kept as the
+round-trip reference until #45 retires them.
+
 A **layout** file is the durable railroad. A **scenario** file names a layout
 and adds the stock standing on it and the fixed request list. The split is what
 lets one railroad carry many benchmark runs, and it makes the benchmark CLI's

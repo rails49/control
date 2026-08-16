@@ -1,9 +1,9 @@
 """Tests at the drawing seam: the schema, the three derivation passes, and
 the refusals (docs/store/DRAWING.md).
 
-The end-to-end proof is `facing-pair`: the committed drawing derives the
-committed hand-written layout exactly. The rest are hand-built documents,
-kept small enough to read as a statement about one pass each.
+The end-to-end proof is the committed railroads: each drawing derives the
+hand-written layout it was converted from, exactly. The rest are hand-built
+documents, kept small enough to read as a statement about one pass each.
 """
 
 from collections.abc import Callable
@@ -16,39 +16,7 @@ import yaml
 from tc49.lib.layout import Layout
 from tc49.store import AssetStore
 from tc49.store.drawing import Drawing
-from tests.harness import ROOT
-
-
-def derive(doc: dict[str, Any]) -> dict[str, Any]:
-    return Drawing.from_document(doc).derive()
-
-
-def read(name: str) -> dict[str, Any]:
-    doc: dict[str, Any] = yaml.safe_load((ROOT / "layouts" / name).read_text())
-    return doc
-
-
-def canonical(layout: dict[str, Any]) -> dict[str, Any]:
-    """A hand-written layout in the derived layout's canonical order, so the
-    two compare as documents. Transits are undirected, so the end pair sorts
-    too."""
-    return {
-        **{k: v for k, v in layout.items() if k not in ("blocks", "connections")},
-        "blocks": dict(sorted(layout["blocks"].items())),
-        "connections": {
-            conn: {
-                "transits": {
-                    t: sorted(ends) for t, ends in sorted(spec["transits"].items())
-                },
-                **(
-                    {"concurrent": sorted(sorted(p) for p in spec["concurrent"])}
-                    if spec.get("concurrent")
-                    else {}
-                ),
-            }
-            for conn, spec in sorted(layout["connections"].items())
-        },
-    }
+from tests.store.railroads import RAILROADS, canonical, derive, read
 
 
 def block(length: int = 1000) -> dict[str, Any]:
@@ -85,12 +53,13 @@ def spanned(**symbols: Any) -> dict[str, Any]:
     return doc
 
 
-# --- the committed drawing -------------------------------------------------
+# --- the committed drawings ------------------------------------------------
 
 
-def test_facing_pair_derives_the_committed_layout() -> None:
-    derived = derive(read("facing-pair.drawing.yaml"))
-    assert derived == canonical(read("facing-pair.layout.yaml"))
+@pytest.mark.parametrize("name", RAILROADS)
+def test_a_committed_drawing_derives_its_committed_layout(name: str) -> None:
+    derived = derive(read(f"{name}.drawing.yaml"))
+    assert derived == canonical(read(f"{name}.layout.yaml"))
 
 
 def test_facing_pair_derives_the_committed_layout_object() -> None:
