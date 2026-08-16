@@ -97,8 +97,58 @@ def test_gotthard_derives_one_junction_at_airolo_and_two_at_claro() -> None:
     )
     # A reversing loop's signature: out through one end of a block and back in
     # through the same one (LAYOUT.md).
-    assert ("airolo.yellow_a2", "airolo_2.A") in layout.transits_at("line_yellow.A")
-    assert ("airolo.yellow_b2", "airolo_2.B") in layout.transits_at("line_yellow.A")
+    at_yellow = layout.transits_at("line_yellow.A")
+    assert ("airolo.airolo_2_A__line_yellow_A", "airolo_2.A") in at_yellow
+    assert ("airolo.airolo_2_B__line_yellow_A", "airolo_2.B") in at_yellow
+
+
+def test_airolo_composes_the_concurrency_the_wx310_allows() -> None:
+    """#46, from the owner's account on #35. Set straight the WX310 passes two
+    trains, one per leg: blue 2 to the A ends while the yellow or blue 1 works
+    the B ends. Set crossed it passes one. Nothing in the drawing declares
+    that — it is composed from four turnouts and a crossing."""
+    airolo = committed("gotthard").connections["airolo"]
+    # Say it in block ends, the thing the geometry is about, so the assertion
+    # holds whatever the transits end up called.
+    ends = {name: frozenset(pair) for name, pair in airolo.transits.items()}
+    composed = {frozenset((ends[one], ends[two])) for one, two in airolo.concurrent}
+
+    straight = {
+        frozenset(
+            (
+                frozenset((f"airolo_{track}.A", "line_blue_2.B")),
+                frozenset((f"airolo_{other}.B", line)),
+            )
+        )
+        for track in (1, 2, 3)
+        for other in (1, 2, 3)
+        for line in ("line_yellow.A", "line_blue_1.B")
+    }
+    # The siding is sw39's straight leg alone, so it clears everything that
+    # does not reach track 3's B end — including every crossed transit.
+    siding = {pair for pair in composed if ends["siding_4"] in pair}
+    assert len(siding) == 15
+    assert composed - siding == straight
+
+
+def test_claro_west_keeps_its_names_and_gains_the_pairs_its_ladder_allows() -> None:
+    """Every transit there is identified by one symbol transit, so the names
+    the hand-written layout picked survive being drawn. What is new is the
+    concurrency: shunting track 3's sidings shares no switch with the yellow
+    reaching track 1 or track 2."""
+    claro_west = committed("gotthard").connections["claro_west"]
+    assert sorted(claro_west.transits) == [
+        "siding_6",
+        "siding_7",
+        "yellow_1",
+        "yellow_2",
+        "yellow_3",
+    ]
+    assert claro_west.concurrent == frozenset(
+        frozenset((siding, yellow))
+        for siding in ("siding_6", "siding_7")
+        for yellow in ("yellow_1", "yellow_2")
+    )
 
 
 # --- pass 1: components give the connections -------------------------------

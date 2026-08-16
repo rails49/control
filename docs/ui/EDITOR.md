@@ -45,8 +45,8 @@ The placeable symbols, with their semantics defined in
 | Portal | ![portal](images/portal.png) | paired by label |
 
 The generic connection symbol is not in the palette. The editor renders one
-when a loaded drawing contains it (Airolo, until someone redraws it with real
-symbols), but a person never places one.
+when a loaded drawing contains it (Gotthard's Claro east, until #35 settles
+what its real geometry is), but a person never places one.
 
 ## Drawing wires
 

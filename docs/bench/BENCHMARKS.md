@@ -248,7 +248,7 @@ never as the normal stop condition.
 | `gotthard/saturation` | 5 trains × 3 workings, batch — the headline makespan gap; five is the ceiling, per the axis note above |
 | `gotthard/obstacle` | an idle train parked on the one line a pending request can use — stock left on `line_blue_1` while a request departs `claro_3.B`, which is served by blue 1 alone. The departure end fixes the line by itself, so the request stalls however many arrival ends it names. Expected status `stalled`, with the obstacle named |
 | `gotthard/flexibility` | the same working twice, once as `to: [claro_2.B]` and once as `to: [claro_1, claro_2, claro_3]` — the `\|dest\|` contrast as a story rather than a sweep row |
-| `crossover-yard/meet` | small and fast; the only layout with a `concurrent` pair |
+| `crossover-yard/meet` | small and fast; one `concurrent` pair, composed from a scissors crossover |
 
 ## Output
 

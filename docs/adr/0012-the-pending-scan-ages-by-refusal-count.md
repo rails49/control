@@ -41,7 +41,8 @@ Against the post-#33 sweep: drained runs rise 330 → 364 of 560, with
 and makespan fall on 153 and rise on 31; the max/mean latency ratio's median
 moves 1.73 → 1.68. On committed `gotthard/saturation`, `Incremental` improves
 from makespan 20, mean latency 11.2, max 20 to 18 / 10.0 / 18; `FullRoute` is
-unchanged. The widened `|dest| = 6` workload drains fully at `k = 2`.
+unchanged. Those are the figures as measured; the committed golden is lower
+since #46 drew Airolo and relaxed its exclusivity. The widened `|dest| = 6` workload drains fully at `k = 2`.
 
 ## Consequences
 

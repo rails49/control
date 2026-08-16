@@ -4,7 +4,8 @@ The drawing document type and the derivation of layouts from it, decided in
 #41 and implemented in `src/tc49/store/drawing.py`: the generic connection
 symbol and the derivation passes in #42, the symbols of fixed geometry in #44.
 Every railroad is drawn (#43), each converted mechanically from the layout it
-was written as, and `crossover-yard` redrawn from real symbols on top of that.
+was written as, then `crossover-yard` redrawn from real symbols on top of that
+and Gotthard's Airolo and Claro west in #46.
 The store serves drawings alone (#45): a layout is derived on `get` and is not
 a file, which is what [LAYOUT.md](LAYOUT.md) describes. Order of work:
 derivation (Python, no UI), then the
@@ -88,7 +89,9 @@ An N-pin symbol that declares its transits and concurrency verbatim.
 Derivation passes it through unchanged, so every existing layout converts to
 a drawing mechanically and losslessly, and a junction whose real geometry is
 not yet drawn can be modelled anyway, then refined one junction at a time.
-Gotthard's Airolo is the standing example. The symbol appears only in
+Gotthard's Claro east is the standing example, and the last one: the netlist
+and the hand-written layout disagree about its geometry, so it keeps the
+opaque symbol until #35 settles which is right. The symbol appears only in
 machine-written drawings: it is not offered in the editor palette, though the
 editor renders it when a loaded drawing contains one. A junction drawn this
 way shows no turnout detail on the panel.
@@ -262,5 +265,6 @@ asserted, now without a hand-written file in it: converting a derived layout
 and deriving the result gives the same layout back, for every committed
 railroad. What conversion cannot supply is geometry — a junction arrives as one
 opaque symbol, and refining it into turnouts and crossings is a separate,
-reviewable step, done for `crossover-yard` in #44 and still to do for the
-rest.
+reviewable step, done for `crossover-yard` in #44 and for Gotthard's Airolo
+and Claro west in #46. Refining is also where a drawing can start disagreeing
+with what was declared, which is what stopped Claro east.

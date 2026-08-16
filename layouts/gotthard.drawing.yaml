@@ -4,12 +4,15 @@
 # as `gotthard-rocrail.png`), which is authoritative for topology; Gotthard.pdf
 # (WinTrack) remains the source for block lengths.
 #
-# Converted mechanically from the hand-written layout (#43), so each junction
-# is one generic connection symbol: its pins are the block ends it holds, and
-# its transits and their names pass through unchanged. None of the real
-# geometry is drawn yet — the turnouts and both crossings arrive one junction
-# at a time with the symbol library (#44) — so the panel shows no turnout
-# detail here.
+# Converted mechanically from the hand-written layout (#43), then refined one
+# junction at a time. Airolo and Claro west are drawn from real symbols (#46),
+# named for the switches they are in the netlist, so their concurrency is
+# composed rather than declared. Claro east is still one generic connection
+# symbol: the netlist and the hand-written layout disagree about it (#35), and
+# the panel shows no turnout detail there until that is settled.
+#
+# Symbol names are Rocrail's switch ids, which is what ties a drawn turnout
+# back to the netlist and, later, to its decoder address.
 #
 # Block ids map 1:1 onto Rocrail's, which uses shorter names:
 #   claro_1..3 = c1..c3      claro_4, claro_5 = c6, c5   claro_6, claro_7 = c7, c8
@@ -21,11 +24,11 @@
 # Airolo tracks 1-3 from either end, so Airolo is a single junction rather than
 # two throats. At Claro the two blues meet the east end and the yellow the west.
 #
-# Everything not a block symbol below is connection: every turnout, the whole
-# right-hand return loop, and both crossings. A connection can be metres of
-# track — a train transits it but can never stop in it. Transit LENGTH is not
-# modelled: every transit costs one tick regardless (#8), so the long return
-# loop and a station ladder cost the same.
+# Everything not a block symbol below is connection: every turnout, the WX310,
+# and the whole right-hand return loop. A connection can be metres of track — a
+# train transits it but can never stop in it. Transit LENGTH is not modelled:
+# every transit costs one tick regardless (#8), so the long return loop and a
+# station ladder cost the same.
 
 drawing: gotthard
 units: mm
@@ -56,66 +59,107 @@ symbols:
   line_blue_2: {kind: block, length: 3000}
   line_yellow: {kind: block, length: 4000}
 
-  # Airolo — ONE junction. WX310 lets every line section reach every Airolo
-  # track from either end, so both ends of tracks 1-3 belong here. A block end
-  # lives in exactly one connection, which is why this cannot be split into a
-  # north and a south throat.
+  # Airolo — ONE junction, drawn from its real geometry (#46), which is the
+  # owner's account on #35 read back off the netlist's track tiles. The WX310
+  # lets every line section reach every Airolo track from either end, so both
+  # ends of tracks 1-3 belong here. A block end lives in exactly one
+  # connection, which is why this cannot be split into a north and a south
+  # throat.
   #
-  # Nothing declared `concurrent`, so under inversion (ADR-0006) this junction
-  # is fully exclusive: one movement at a time through the whole of Airolo.
-  # That is certainly too strict for a station this size — the crossing and the
-  # two throats are largely independent — but a missing declaration costs
-  # throughput and never safety (#5). Drawing the real geometry (#44) is what
-  # relaxes it: composition then reads the concurrency off the symbols instead
-  # of anyone declaring it here.
-  airolo:
-    kind: connection
-    pins:
-      [
-        airolo_1_A, airolo_1_B, airolo_2_A, airolo_2_B, airolo_3_A, airolo_3_B,
-        airolo_4_A, line_blue_1_B, line_blue_2_B, line_yellow_A,
-      ]
-    transits:
-      blue_1_a1: [line_blue_1_B, airolo_1_A]
-      blue_1_a2: [line_blue_1_B, airolo_2_A]
-      blue_1_a3: [line_blue_1_B, airolo_3_A]
-      blue_1_b1: [line_blue_1_B, airolo_1_B]
-      blue_1_b2: [line_blue_1_B, airolo_2_B]
-      blue_1_b3: [line_blue_1_B, airolo_3_B]
-      blue_2_a1: [line_blue_2_B, airolo_1_A]
-      blue_2_a2: [line_blue_2_B, airolo_2_A]
-      blue_2_a3: [line_blue_2_B, airolo_3_A]
-      blue_2_b1: [line_blue_2_B, airolo_1_B]
-      blue_2_b2: [line_blue_2_B, airolo_2_B]
-      blue_2_b3: [line_blue_2_B, airolo_3_B]
-      yellow_a1: [line_yellow_A, airolo_1_A]
-      yellow_a2: [line_yellow_A, airolo_2_A]
-      yellow_a3: [line_yellow_A, airolo_3_A]
-      yellow_b1: [line_yellow_A, airolo_1_B]
-      yellow_b2: [line_yellow_A, airolo_2_B]
-      yellow_b3: [line_yellow_A, airolo_3_B]
-      siding_4: [airolo_3_B, airolo_4_A] # a4 trails off a3, per the Rocrail netlist
+  # Two legs, with a scissors crossover between them:
+  #
+  #   line_blue_2 ==  sw17 ====\ /==== sw18  == sw41/sw42 ladder == tracks 1-3 A
+  #                             X  (WX310)
+  #   yellow/blue_1 = sw19 ====/ \==== sw20  == return loop ======= tracks 1-3 B
+  #                                                    == sw35/sw36/sw39 ladder
+  #
+  # Set straight the WX310 passes two trains at once, one per leg: blue 2 to
+  # the A ends while the yellow or blue 1 works the B ends. Set crossed it
+  # passes one, exclusively. Nothing below declares that. A turnout's two ways
+  # share its toe and the crossing's share its frog, so composition (DRAWING.md)
+  # yields 18 pairs, blue 2 to any A end against the yellow or blue 1 to any B
+  # end. Fifteen more come from the siding, which touches sw39 alone.
+  #
+  # `siding_4` keeps its hand-picked name, sw39's straight leg being the whole
+  # of it. The other 18 each take two symbols to identify, an origin turnout
+  # and a ladder leg, and one way through cannot carry two authored names, so
+  # they take the derived name: their two block ends.
 
-  # Claro west: the yellow line fans out to all three through tracks, and the
-  # two south sidings trail off track 3.
-  claro_west:
-    kind: connection
-    pins: [claro_1_A, claro_2_A, claro_3_A, claro_6_A, claro_7_A, line_yellow_B]
-    transits:
-      yellow_1: [line_yellow_B, claro_1_A]
-      yellow_2: [line_yellow_B, claro_2_A]
-      yellow_3: [line_yellow_B, claro_3_A]
-      siding_6: [claro_3_A, claro_6_A] # ASSUMED: south sidings at the west end
-      siding_7: [claro_3_A, claro_7_A]
+  # The WX310, west of the station: a turnout on each leg at each end, and the
+  # crossing where the two diagonals meet. Rocrail hops the yellow's lead over
+  # blue 2's on connector tiles rather than crossing it, and #35 has those two
+  # movements running together, so there is no second crossing here.
+  sw17: {kind: turnout, connection: airolo} # blue 2: on, or cross down
+  sw18: {kind: turnout, connection: airolo} # A ends: on, or cross down
+  sw19: {kind: turnout, connection: airolo} # yellow/blue 1: on, or cross up
+  sw20: {kind: turnout, connection: airolo} # B ends: on, or cross up
+  sw16: {kind: crossing, connection: airolo} # the WX310 itself
+
+  # Where the lower leg splits: the yellow runs on west, blue 1 turns south.
+  sw51: {kind: turnout, connection: airolo}
+
+  # The west ladder, fanning the upper leg into the A ends of tracks 1-3.
+  sw41: {kind: turnout, connection: airolo}
+  sw42: {kind: turnout, connection: airolo}
+
+  # The return loop off the east end: single track, so a bend rather than a
+  # junction, and what puts the B ends on the lower leg.
+  return_loop: {kind: pin}
+
+  # The east ladder. sw39 sits on track 3's own lead, so the siding is its
+  # straight leg and the ladder its diverging one.
+  sw35: {kind: turnout, connection: airolo}
+  sw36: {kind: turnout, connection: airolo}
+  sw39:
+    kind: turnout
+    connection: airolo
+    names: {straight: siding_4} # a4 trails off a3, per the Rocrail netlist
+
+  # Claro west, drawn from real symbols (#46): the yellow line fans out to all
+  # three through tracks down a ladder, and the two south sidings trail off
+  # track 3's west lead. One symbol transit identifies each way through, so all
+  # five keep the names the hand-written layout gave them.
+  #
+  # Composition adds the pairs the ladder always allowed: shunting between
+  # track 3 and a siding shares no switch with the yellow reaching track 1 or
+  # track 2.
+  sw24:
+    kind: turnout
+    connection: claro_west
+    names: {straight: yellow_1}
+  sw46:
+    kind: turnout
+    connection: claro_west
+    names: {straight: yellow_2}
+  # ASSUMED, and the one thing here the tiles do not settle: sw44's point faces
+  # track 3, so the sidings are reachable from it. Facing the other way they
+  # would hang off the yellow instead — which is the mirror of what #35 found
+  # at claro_east, so the hedge stays until someone checks the real switch.
+  sw44:
+    kind: turnout
+    connection: claro_west
+    names: {straight: yellow_3}
+  sw45:
+    kind: turnout
+    connection: claro_west
+    names: {straight: siding_6, diverging: siding_7}
 
   # Claro east: the two blue lines DIVIDE the station rather than both serving
-  # all of it. Per the Rocrail netlist, blue 1 reaches track 3 alone and blue 2
-  # reaches tracks 1 and 2. The two north-east sidings hang off TRACK 1's east
-  # lead, not off the line: the netlist gives them no route to a blue.
+  # all of it. Blue 1 reaches track 3 alone and blue 2 reaches tracks 1 and 2.
+  # The two north-east sidings hang off TRACK 1's east lead, not off the line.
   #
   # This is what makes the yellow loop matter: track 3 is reachable from the
   # east only over blue 1, so a train for track 3 that finds blue 1 occupied
   # has no second eastern option — its alternative is the west end entirely.
+  #
+  # THE LAST GENERIC CONNECTION SYMBOL, and the only junction here still fully
+  # exclusive. It stays opaque because the netlist's track tiles disagree with
+  # the transits above (#35): they run blue 1 to sw50, which ties to tracks 2
+  # AND 3; they land blue 2's lead on track 1's row alone; and they hang the
+  # sw48/sw49 sidings off blue 2's lead with the point facing the line, so the
+  # sidings would be reachable from line_blue_2 and not from track 1. Drawing
+  # that would change which lines serve which tracks, so it waits on the owner
+  # rather than on a trace of the tiles.
   claro_east:
     kind: connection
     pins:
@@ -139,22 +183,46 @@ symbols:
   airolo_4_B_stop: {kind: terminal}
 
 wires:
-  - [airolo_1.A, airolo.airolo_1_A]
-  - [airolo_1.B, airolo.airolo_1_B]
-  - [airolo_2.A, airolo.airolo_2_A]
-  - [airolo_2.B, airolo.airolo_2_B]
-  - [airolo_3.A, airolo.airolo_3_A]
-  - [airolo_3.B, airolo.airolo_3_B]
-  - [airolo_4.A, airolo.airolo_4_A]
-  - [line_blue_1.B, airolo.line_blue_1_B]
-  - [line_blue_2.B, airolo.line_blue_2_B]
-  - [line_yellow.A, airolo.line_yellow_A]
-  - [claro_1.A, claro_west.claro_1_A]
-  - [claro_2.A, claro_west.claro_2_A]
-  - [claro_3.A, claro_west.claro_3_A]
-  - [claro_6.A, claro_west.claro_6_A]
-  - [claro_7.A, claro_west.claro_7_A]
-  - [line_yellow.B, claro_west.line_yellow_B]
+  # Airolo, upper route: blue 2 in, over the WX310, out along the west ladder.
+  - [line_blue_2.B, sw17.toe]
+  - [sw17.straight, sw18.straight]
+  - [sw17.diverging, sw16.a1]
+  - [sw16.a2, sw20.diverging]
+  - [sw19.diverging, sw16.b1]
+  - [sw16.b2, sw18.diverging]
+  - [sw18.toe, sw41.toe]
+  - [sw41.straight, airolo_1.A]
+  - [sw41.diverging, sw42.toe]
+  - [sw42.straight, airolo_2.A]
+  - [sw42.diverging, airolo_3.A]
+
+  # Airolo, lower route: the yellow and blue 1 meet at sw51 and run east.
+  - [line_yellow.A, sw51.straight]
+  - [line_blue_1.B, sw51.diverging]
+  - [sw51.toe, sw19.toe]
+  - [sw19.straight, sw20.straight]
+
+  # Airolo, round the loop and back down the east ladder into the B ends.
+  - [sw20.toe, return_loop.P]
+  - [return_loop.P, sw35.toe]
+  - [sw35.straight, airolo_1.B]
+  - [sw35.diverging, sw36.toe]
+  - [sw36.straight, airolo_2.B]
+  - [sw36.diverging, sw39.diverging]
+  - [sw39.toe, airolo_3.B]
+  - [sw39.straight, airolo_4.A]
+
+  # Claro west: the ladder off the yellow, then the sidings off track 3.
+  - [line_yellow.B, sw24.toe]
+  - [sw24.straight, claro_1.A]
+  - [sw24.diverging, sw46.toe]
+  - [sw46.straight, claro_2.A]
+  - [sw46.diverging, sw44.straight]
+  - [sw44.toe, claro_3.A]
+  - [sw44.diverging, sw45.toe]
+  - [sw45.straight, claro_6.A]
+  - [sw45.diverging, claro_7.A]
+
   - [claro_1.B, claro_east.claro_1_B]
   - [claro_2.B, claro_east.claro_2_B]
   - [claro_3.B, claro_east.claro_3_B]
