@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-Issues and PRDs for this repo live as GitHub issues in [iot49/tc49](https://github.com/iot49/tc49). Use the `gh` CLI for all operations.
+Issues and PRDs for this repo live as GitHub issues in [rails49/control](https://github.com/rails49/control). Use the `gh` CLI for all operations.
 
 ## Conventions
 
@@ -40,8 +40,8 @@ Run `gh issue view <number> --comments`.
 Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.
 
 - **Map**: a single issue labelled `wayfinder:map`, holding the Notes / Decisions-so-far / Fog body. `gh issue create --label wayfinder:map`.
-- **Child ticket**: an issue linked to the map as a GitHub sub-issue (`gh api --method POST repos/iot49/tc49/issues/<map>/sub_issues -F sub_issue_id=<child-db-id>`). Labels: `wayfinder:<type>` (`research`/`prototype`/`grilling`/`task`). Once claimed, the ticket is assigned to the driving dev.
-- **Blocking**: GitHub's **native issue dependencies** — the canonical, UI-visible representation. Add an edge with `gh api --method POST repos/iot49/tc49/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, where `<blocker-db-id>` is the blocker's numeric **database id** (`gh api repos/iot49/tc49/issues/<n> --jq .id`, _not_ the `#number` or `node_id`). GitHub reports `issue_dependencies_summary.blocked_by` (open blockers only — the live gate).
+- **Child ticket**: an issue linked to the map as a GitHub sub-issue (`gh api --method POST repos/rails49/control/issues/<map>/sub_issues -F sub_issue_id=<child-db-id>`). Labels: `wayfinder:<type>` (`research`/`prototype`/`grilling`/`task`). Once claimed, the ticket is assigned to the driving dev.
+- **Blocking**: GitHub's **native issue dependencies** — the canonical, UI-visible representation. Add an edge with `gh api --method POST repos/rails49/control/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, where `<blocker-db-id>` is the blocker's numeric **database id** (`gh api repos/rails49/control/issues/<n> --jq .id`, _not_ the `#number` or `node_id`). GitHub reports `issue_dependencies_summary.blocked_by` (open blockers only — the live gate).
 - **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`) or an assignee; first in map order wins.
 - **Claim**: `gh issue edit <n> --add-assignee @me` — the session's first write.
 - **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
@@ -52,5 +52,5 @@ _None._
 
 ### Completed maps
 
-- [System organization map](https://github.com/iot49/tc49/issues/13) — the way to `docs/SYSTEM.md`: component decomposition (asset store, scheduler, dispatcher, driver, layout interface) and the bus/CRUD contracts between them. Reached; the spec is `docs/SYSTEM.md` with ADRs 0008–0010.
-- [Milestone 1 spec map](https://github.com/iot49/tc49/issues/1) — the way to a buildable spec for the simulator, dispatcher, and benchmark harness. Reached; the spec is `docs/`.
+- [System organization map](https://github.com/rails49/control/issues/13) — the way to `docs/SYSTEM.md`: component decomposition (asset store, scheduler, dispatcher, driver, layout interface) and the bus/CRUD contracts between them. Reached; the spec is `docs/SYSTEM.md` with ADRs 0008–0010.
+- [Milestone 1 spec map](https://github.com/rails49/control/issues/1) — the way to a buildable spec for the simulator, dispatcher, and benchmark harness. Reached; the spec is `docs/`.

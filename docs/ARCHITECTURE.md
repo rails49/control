@@ -84,7 +84,7 @@ validator that produce them, not the types themselves.
 
 Routing sits outside `Layout` so that `Layout` stays a data structure rather
 than growing a policy. The [layout-format
-prototype](https://github.com/iot49/tc49/tree/prototype/layout-format/prototype/layout-format)
+prototype](https://github.com/rails49/control/tree/prototype/layout-format/prototype/layout-format)
 had `route()` as a method, which was right for a throwaway and wrong here:
 route choice is a pluggable policy per #3, and the layout should not know
 about it. That is also why `routing.py` belongs to the dispatcher while

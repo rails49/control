@@ -16,7 +16,7 @@ arguments a test has to invent. Publishing is the new returning.
 
 Sensor events are processed as a batch — buffered until the tick event, then
 treated as a set. Grant order is fixed
-([#4](https://github.com/iot49/tc49/issues/4)) as active trains by request
+([#4](https://github.com/rails49/control/issues/4)) as active trains by request
 arrival tick and then pending launches oldest-first, and that must not
 degrade into depending on the order sensors happened to arrive.
 
