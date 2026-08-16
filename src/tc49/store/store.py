@@ -1,13 +1,17 @@
 """Asset store: the CRUD contract over the milestone-1 YAML binding.
 
 Two coarse document types (ADR-0010) keyed by name — `crossover-yard` for
-layouts, layout-qualified `crossover-yard/meet` for scenarios. Verbs:
+drawings, layout-qualified `crossover-yard/meet` for scenarios. Verbs:
 ``get``, ``put`` (whole-document create-or-replace), ``delete``, ``list``.
 Validation — schema and referential integrity — runs at ``put`` and again
 at ``get``, because the YAML files are hand-authored and never passed
 through ``put``. A ``get`` never returns an invalid document; all
 derivation (conflict matrix, terminals, arrival-end expansion, fit
 pruning) stays consumer-side.
+
+A layout is not a document type: ``get`` derives it from the drawing
+(ADR-0015, DRAWING.md) and hands it to the validator, so a railroad has
+exactly one committed description.
 """
 
 from pathlib import Path
@@ -34,16 +38,13 @@ class AssetStore:
     def get(self, name: str) -> Layout | Scenario:
         if "/" in name:
             return self._load_scenario(name)
-        return Layout.from_document(self._layout_document(name))
+        drawing = Drawing.from_document(self._read(self._drawing_path(name)))
+        return Layout.from_document(drawing.derive())
 
     def list(self, layout: str | None = None) -> list[str]:
         if layout is None:
-            layouts = (self._root / "layouts").glob("*.layout.yaml")
             drawings = (self._root / "layouts").glob("*.drawing.yaml")
-            return sorted(
-                {p.name.removesuffix(".layout.yaml") for p in layouts}
-                | {p.name.removesuffix(".drawing.yaml") for p in drawings}
-            )
+            return sorted(p.name.removesuffix(".drawing.yaml") for p in drawings)
         paths = (self._root / "scenarios" / layout).glob("*.scenario.yaml")
         return sorted(
             f"{layout}/{p.name.removesuffix('.scenario.yaml')}" for p in paths
@@ -58,8 +59,10 @@ class AssetStore:
             # and is saved, though it will not derive (DRAWING.md).
             path = self._drawing_path(Drawing.from_document(doc).name)
         else:
-            layout = Layout.from_document(doc)
-            path = self._layout_path(layout.name)
+            raise ValueError(
+                "document is neither a drawing nor a scenario — a layout is"
+                " derived from a drawing, never stored"
+            )
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(yaml.safe_dump(doc, sort_keys=False))
 
@@ -67,22 +70,7 @@ class AssetStore:
         if "/" in name:
             self._scenario_path(name).unlink()
             return
-        drawing = self._drawing_path(name)
-        if drawing.exists():
-            drawing.unlink()
-        else:
-            self._layout_path(name).unlink()
-
-    def _layout_document(self, name: str) -> Any:
-        """The layout, derived from the drawing where one exists. Layouts
-        that have not been drawn yet are still read as written."""
-        drawing = self._drawing_path(name)
-        if drawing.exists():
-            return Drawing.from_document(self._read(drawing)).derive()
-        return self._read(self._layout_path(name))
-
-    def _layout_path(self, name: str) -> Path:
-        return self._root / "layouts" / f"{name}.layout.yaml"
+        self._drawing_path(name).unlink()
 
     def _drawing_path(self, name: str) -> Path:
         return self._root / "layouts" / f"{name}.drawing.yaml"

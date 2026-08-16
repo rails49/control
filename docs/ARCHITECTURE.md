@@ -45,9 +45,9 @@ src/tc49/
                             validate at get
                 drawing.py  Drawing — the authored schematic and the
                             derivation of a layout from it (store/DRAWING.md)
-                convert.py  to_drawing — the mechanical conversion of a
-                            hand-written layout into the drawing that
-                            derives it
+                convert.py  to_drawing — the conversion of a layout
+                            document into the drawing that derives it,
+                            which is how the railroads were migrated
   scheduler/    Scheduler — releases scenario requests at their `at` ticks,
                 mechanical arrival-end expansion, deterministic ids,
                 exhausted state topic
@@ -74,9 +74,8 @@ src/tc49/
                 metrics.py  metrics(trace) -> Metrics
 
 layouts/                    <layout>.drawing.yaml — the drawn railroads,
-                            which the store derives layouts from, and
-                            <layout>.layout.yaml, the hand-written source
-                            each was converted from
+                            the only committed topology; the store derives
+                            each layout from its drawing
 scenarios/<layout>/         <scenario>.scenario.yaml — stock and requests
 benchmarks/expected/        <name>.json — golden numbers, asserted in pytest
 out/                        sweep JSONL, gitignored
@@ -165,7 +164,7 @@ of adversarial runs for free. The single-threaded, no-I/O bus keeps
 Hypothesis throughput acceptable.
 
 The generator produces **train placements and request sequences over a fixed
-library of hand-written layouts** — deadlock is a property of request
+library of drawn railroads** — deadlock is a property of request
 interleaving, not of exotic topology, so that is where the search pressure
 belongs. Arrival-end *sets* are part of what it draws, and they shrink toward
 singletons, so a counterexample reduces to the tightest request that still
@@ -174,10 +173,10 @@ deadlocks. The library is chosen to be adversarial:
 - `facing-pair` — two facing blocks with no other connection, DISPATCH.md's
   minimal deadlock.
 - `single-track-meet` — a passing loop that forces meet-pass decisions, at
-  [`layouts/single-track-meet.layout.yaml`](../layouts/single-track-meet.layout.yaml).
+  [`layouts/single-track-meet.drawing.yaml`](../layouts/single-track-meet.drawing.yaml).
 - `crossover-yard` — the double crossover of `image.png`, exercising partial
-  transit concurrency; already written, at
-  [`layouts/crossover-yard.layout.yaml`](../layouts/crossover-yard.layout.yaml).
+  transit concurrency; already drawn, at
+  [`layouts/crossover-yard.drawing.yaml`](../layouts/crossover-yard.drawing.yaml).
 
 Four properties:
 

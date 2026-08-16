@@ -20,11 +20,10 @@ Each app's implementation details live beside it:
   (finding, locking, and releasing routes),
   [safety](docs/dispatcher/SAFETY.md) (why it is deadlock-free), and
   [internals](docs/dispatcher/INTERNALS.md).
-- [Store](docs/store) — the [layout and scenario file
-  formats](docs/store/LAYOUT.md) and the [drawing format and
-  derivation](docs/store/DRAWING.md) that will replace hand-authored layouts;
-  the encoded railroads live in [layouts/](layouts) and
-  [scenarios/](scenarios).
+- [Store](docs/store) — the [drawing format and
+  derivation](docs/store/DRAWING.md), the only committed topology, and the
+  [derived layout and the scenario file](docs/store/LAYOUT.md) it feeds; the
+  drawn railroads live in [layouts/](layouts) and [scenarios/](scenarios).
 - [Bench](docs/bench) — the [benchmark suite](docs/bench/BENCHMARKS.md) and
   the [metrics derivations](docs/bench/METRICS.md).
 - [UI](docs/ui) — the [layout editor](docs/ui/EDITOR.md) and the [dispatch

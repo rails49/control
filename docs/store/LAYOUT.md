@@ -1,37 +1,43 @@
-# Layout and scenario files
+# The layout, and the scenario file
 
-The two document types of the asset store
-([SYSTEM.md](../SYSTEM.md#asset-store)), which validates both — schema and
-cross-references, at `put` and, in the milestone-1 YAML binding, again at
-`get`, since these files are hand-authored — so components read them
-unchecked. Terminology follows
-[CONTEXT.md](../../CONTEXT.md); the semantics of what these files describe are in
-[GOALS.md](../GOALS.md) and [DISPATCH.md](../dispatcher/DISPATCH.md).
+The layout is the durable railroad as the apps consume it: blocks, connections,
+transits, and which transits are `concurrent`. It is **derived**, never
+authored — the drawing is the source of truth
+([DRAWING.md](DRAWING.md), [ADR-0015](../adr/0015-drawing-is-the-source-of-truth.md)),
+and `get` derives the layout from it and runs the validator, so components read
+it unchecked. A **scenario** file names a layout and adds the stock standing on
+it and the fixed request list; it is the one authored document besides the
+drawing. The split is what lets one railroad carry many benchmark runs, and it
+makes the benchmark CLI's argument a single scenario path.
 
-Layouts are no longer authored: every committed railroad is drawn, and its
-layout is derived from the drawing on `get`
-([DRAWING.md](DRAWING.md)). The `.layout.yaml` files this page describes are
-the hand-written sources those drawings were converted from, kept as the
-round-trip reference until #45 retires them.
-
-A **layout** file is the durable railroad. A **scenario** file names a layout
-and adds the stock standing on it and the fixed request list. The split is what
-lets one railroad carry many benchmark runs, and it makes the benchmark CLI's
-argument a single scenario path.
+Terminology follows [CONTEXT.md](../../CONTEXT.md); the semantics of what these
+describe are in [GOALS.md](../GOALS.md) and
+[DISPATCH.md](../dispatcher/DISPATCH.md).
 
 ```
-layouts/<layout>.layout.yaml
+layouts/<layout>.drawing.yaml                   # the railroad, drawn
 scenarios/<layout>/<scenario>.scenario.yaml     # e.g. gotthard/meet
 ```
 
-Both are YAML. Layouts are hand-authored by someone drawing a railroad, so
-comments do real work — `layouts/gotthard.layout.yaml` carries the reasoning for
-each modelling call, and the crossover-yard file an ASCII track diagram of what
-it describes. Connections nest two levels deep, which TOML expresses far less
-readably. A Python DSL was rejected outright: it would stop layouts being data
-that can be generated, diffed, or read by a future UI.
+To read a railroad's topology, print it:
 
-## Layout schema
+```
+uv run tc49 layout show crossover-yard
+```
+
+That is the review a committed layout file used to give in a diff: blocks with
+their lengths, terminal blocks marked, and every connection's transits and
+concurrent pairs.
+
+Scenario files are YAML and hand-authored, so comments do real work there;
+requests nest two levels deep, which TOML expresses far less readably. A Python
+DSL was rejected outright: it would stop scenarios being data that can be
+generated, diffed, or read by a future UI.
+
+## The derived layout
+
+What derivation produces, and what the validator checks — the shape every app
+reads, shown as the document `Layout.from_document` takes:
 
 ```yaml
 layout: crossover-yard
@@ -64,19 +70,20 @@ connections:
   readable identity — `crossover.up_straight` in the event trace, in
   lock-granted logs, in test assertions and error messages — rather than an
   end-pair the reader must decode.
-- **`concurrent` declares the exceptions.** Every pair of transits at a
-  connection conflicts unless listed; see
-  [ADR-0006](../adr/0006-conflicts-declared-by-inversion.md) for why the
-  declaration points this way.
+- **`concurrent` names the exceptions.** Every pair of transits at a connection
+  conflicts unless listed; see
+  [ADR-0006](../adr/0006-conflicts-declared-by-inversion.md) for why it points
+  this way. In a drawn railroad nothing declares it: a pair is concurrent only
+  where the two ways share no symbol, which is composition, not authoring.
 - **Lengths** are load-bearing only for the admission fit check — does the train
   fit the blocks it may arrive in. Transit length is not modelled at all: every
   transit costs one tick ([DISPATCH.md](../dispatcher/DISPATCH.md#time-model)).
-- **There are no turnouts in the format.** A connection is abstract, "realized
-  by zero or more turnouts" is a physical note, and turnout switching time is
-  therefore not merely ignored but inexpressible until a later effort gives
-  turnouts identity. Connection *length* is likewise absent — a connection can
-  be metres of track, as the Gotthard return loop is, but a train transits it
-  and can never stop in it.
+- **There are no turnouts in the layout.** A connection is abstract; the
+  turnouts it is realized by live in the drawing and are dropped by derivation,
+  so turnout switching time is not merely ignored but inexpressible here.
+  Connection *length* is likewise absent — a connection can be metres of track,
+  as the Gotthard return loop is, but a train transits it and can never stop in
+  it.
 
 ## Scenario schema
 
@@ -92,9 +99,9 @@ requests:
   - { train: freight_1, from: A,        to: [yard_w.B],   at: 12 }
 ```
 
-- **`layout:` names the layout id**, not a path — the same string the layout
-  file's own `layout:` key carries. The loader resolves it to
-  `layouts/<id>.layout.yaml`, so a scenario can move between directories
+- **`layout:` names the railroad id**, not a path — the same string the
+  drawing's own `drawing:` key carries. The loader resolves it to
+  `layouts/<id>.drawing.yaml`, so a scenario can move between directories
   without rewriting.
 - **Trains are flat** — id, length, starting block. The dispatcher only ever
   asks whether a train fits a block, so total length is the whole of what
@@ -129,7 +136,7 @@ requests:
 
 ## Reading a layout
 
-Two structural facts fall out of the format and surprise people:
+Two structural facts fall out of the model and surprise people:
 
 - **A throat ladder has no track-to-track transit.** Moving from station track 2
   to track 1 is a reversing shunt, not a pass-through, so it is correctly absent.
@@ -144,18 +151,19 @@ Two structural facts fall out of the format and surprise people:
   revisit `line_yellow` — so turning a train is two requests. That is consistent
   with ADR-0001 but for a subtler reason than the ADR contemplates: here it is
   the simple-path rule doing the work, not the no-reversal rule. Autoreverse
-  wiring is an electrical concern of the layout and leaves no trace in the YAML.
+  wiring is an electrical concern of the railroad and leaves no trace in either
+  document.
 
-## The encoded railroads
+## The drawn railroads
 
 | File | Shape | Role |
 | --- | --- | --- |
-| [`layouts/gotthard.layout.yaml`](../../layouts/gotthard.layout.yaml) | 14 blocks, 3 connections, 29 transits, 5 terminal blocks | the real railroad, headline benchmark |
-| [`layouts/crossover-yard.layout.yaml`](../../layouts/crossover-yard.layout.yaml) | 6 blocks, 3 connections, 8 transits | small, fast, the only one with a `concurrent` pair |
+| [`layouts/gotthard.drawing.yaml`](../../layouts/gotthard.drawing.yaml) | 14 blocks, 3 connections, 29 transits, 5 terminal blocks | the real railroad, headline benchmark |
+| [`layouts/crossover-yard.drawing.yaml`](../../layouts/crossover-yard.drawing.yaml) | 6 blocks, 3 connections, 8 transits | small, fast, the only one with a `concurrent` pair, and the only one drawn from real symbols |
 
-`facing-pair` and `single-track-meet` are property-test layouts and are
+`facing-pair` and `single-track-meet` are property-test railroads and are
 described in [ARCHITECTURE.md](../ARCHITECTURE.md#tests); they are small enough to
-write from those descriptions.
+read from those descriptions.
 
 Gotthard's topology is checked against the owner's Rocrail netlist,
 [`layouts/gotthard-rocrail.xml`](../../layouts/gotthard-rocrail.xml) (rendered as
@@ -164,7 +172,7 @@ Gotthard's topology is checked against the owner's Rocrail netlist,
 the netlist directly: its `<stlist>` routes are **stale** — they still name the
 deleted block `c4` and call `bk1` by its old id `rw` — and the block list, not
 the route list, is the current record. Block ids map 1:1 onto ours, and the
-mapping is recorded at the top of `gotthard.layout.yaml`.
+mapping is recorded at the top of `gotthard.drawing.yaml`.
 
-The remaining assumptions marked inline in that file are the block lengths,
+The remaining assumptions marked inline in that drawing are the block lengths,
 which the netlist does not settle. Each is correctable in place.

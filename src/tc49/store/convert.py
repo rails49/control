@@ -1,16 +1,17 @@
-"""Convert a hand-written layout into the drawing that derives it.
+"""Convert a layout document into the drawing that derives it.
 
-Migration is mechanical, so no topology is ever re-typed by hand: each block
-becomes a block symbol, each connection a generic connection symbol carrying
-its transits and `concurrent` verbatim, and every block end a wire. A block
-end that no connection holds gets a terminal symbol, which is how the derived
-layout keeps the same terminal blocks.
+This is how the four hand-written railroads were migrated (#43) before the
+drawing became the only committed topology (#45), with no topology re-typed:
+each block becomes a block symbol, each connection a generic connection symbol
+carrying its transits and `concurrent` verbatim, and every block end a wire. A
+block end that no connection holds gets a terminal symbol, which is how the
+derived layout keeps the same terminal blocks.
 
 The conversion is lossless by construction — deriving the drawing reproduces
-the layout it came from, which is what `tests/store/test_convert.py` asserts
-for every committed railroad. What the drawing does not gain is the real
-geometry: a junction arrives as one opaque symbol until someone redraws it
-from turnouts (#44).
+the layout it came from, which `tests/store/test_convert.py` asserts by
+round-tripping every committed railroad's derived layout. What the drawing
+does not gain is the real geometry: a junction arrives as one opaque symbol
+until someone redraws it from turnouts and crossings (#44).
 """
 
 from typing import Any

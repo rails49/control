@@ -21,8 +21,8 @@ def store() -> AssetStore:
 def scratch_store(tmp_path: Path) -> AssetStore:
     (tmp_path / "layouts").mkdir()
     shutil.copy(
-        ROOT / "layouts" / "crossover-yard.layout.yaml",
-        tmp_path / "layouts" / "crossover-yard.layout.yaml",
+        ROOT / "layouts" / "crossover-yard.drawing.yaml",
+        tmp_path / "layouts" / "crossover-yard.drawing.yaml",
     )
     return AssetStore(tmp_path)
 
@@ -39,13 +39,12 @@ def meet_document() -> dict[str, Any]:
 
 
 def test_list_layouts_and_scenarios(store: AssetStore) -> None:
-    # `facing-pair` is drawn rather than written, and lists the same way.
     assert {"crossover-yard", "gotthard", "facing-pair"} <= set(store.list())
     assert "crossover-yard/meet" in store.list("crossover-yard")
     assert all(s.startswith("crossover-yard/") for s in store.list("crossover-yard"))
 
 
-def test_a_drawn_layout_is_derived_at_get(store: AssetStore) -> None:
+def test_a_layout_is_derived_from_its_drawing_at_get(store: AssetStore) -> None:
     layout = store.get("facing-pair")
     assert isinstance(layout, Layout)
     assert layout.connections["gap"].transits["span"] == ("east.A", "west.B")
@@ -124,6 +123,14 @@ def test_put_rejects_invalid_documents_and_writes_nothing(
     with pytest.raises(ValueError):
         scratch_store.put(doc)
     assert scratch_store.list("crossover-yard") == []
+
+
+def test_put_refuses_a_layout_document(scratch_store: AssetStore) -> None:
+    """A layout is derived, never stored, so there is nothing to put it into
+    (ADR-0015)."""
+    doc: dict[str, Any] = {"layout": "crossover-yard", "blocks": {}, "connections": {}}
+    with pytest.raises(ValueError, match="neither a drawing nor a scenario"):
+        scratch_store.put(doc)
 
 
 def test_delete_removes_the_document(scratch_store: AssetStore) -> None:

@@ -3,11 +3,11 @@
 The drawing document type and the derivation of layouts from it, decided in
 #41 and implemented in `src/tc49/store/drawing.py`: the generic connection
 symbol and the derivation passes in #42, the symbols of fixed geometry in #44.
-Every committed railroad is drawn (#43), each converted mechanically from its
-hand-written layout, and `crossover-yard` redrawn from real symbols on top of
-that; those `.layout.yaml` files stay committed as the round-trip reference,
-and [LAYOUT.md](LAYOUT.md) with them, until the store serves drawings alone
-(#45). Order of work: derivation (Python, no UI), then the
+Every railroad is drawn (#43), each converted mechanically from the layout it
+was written as, and `crossover-yard` redrawn from real symbols on top of that.
+The store serves drawings alone (#45): a layout is derived on `get` and is not
+a file, which is what [LAYOUT.md](LAYOUT.md) describes. Order of work:
+derivation (Python, no UI), then the
 [editor](../ui/EDITOR.md), then the [panel](../ui/PANEL.md). Terminology
 follows [CONTEXT.md](../../CONTEXT.md).
 
@@ -232,19 +232,18 @@ The store keeps two document types, `drawing` and `scenario`; `get()` derives
 the Layout on read. This keeps
 [ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)'s two
 coarse document types intact and leaves no second copy of the topology to
-fall out of date. Drawings live at `layouts/<name>.drawing.yaml`. `get()` still
-falls back to reading `layouts/<name>.layout.yaml`, but nothing takes that path
-any more now that every railroad is drawn; the fallback and that third document
-type go away in #45.
+fall out of date. Drawings live at `layouts/<name>.drawing.yaml` and are the
+only committed topology; `put` takes a drawing or a scenario and refuses a
+layout, there being nowhere to store one.
 
 What is given up is the readable topology diff in review: one moved wire can
 flip concurrency across many transit pairs while the drawing diff shows one
 changed line. A `tc49 layout show <name>` command covers that on demand.
 
-## Converting a hand-written layout
+## Converting a layout into a drawing
 
-Migration is compulsory, since a railroad that has not been drawn cannot be
-loaded, and the generic connection symbol makes it mechanical. `to_drawing` in
+Migration was compulsory, since a railroad that has not been drawn cannot be
+loaded, and the generic connection symbol made it mechanical. `to_drawing` in
 `src/tc49/store/convert.py` reads a layout document and writes the drawing that
 derives it:
 
@@ -256,12 +255,12 @@ derives it:
 - a block end no connection holds gets a terminal symbol, which keeps the
   derived terminal blocks the same.
 
-Conversion is lossless by construction, and is asserted that way: deriving the
-converted drawing reproduces the layout it came from, for every committed
-railroad. The reasoning comments those layouts carry are moved into the
-drawings, so no topology is re-typed and no rationale is lost. What conversion
-cannot supply is geometry — a junction arrives as one opaque symbol, and
-refining it into turnouts and crossings is a separate, reviewable step, done
-for `crossover-yard` in #44 and still to do for the rest.
-The parts of [LAYOUT.md](LAYOUT.md) that document the layout as the authored
-format are rewritten when the hand-written files go (#45).
+Conversion is lossless by construction, which is what let the four railroads
+migrate with no topology re-typed; their reasoning comments moved into the
+drawings by hand, so no rationale was lost either. The round trip is still
+asserted, now without a hand-written file in it: converting a derived layout
+and deriving the result gives the same layout back, for every committed
+railroad. What conversion cannot supply is geometry — a junction arrives as one
+opaque symbol, and refining it into turnouts and crossings is a separate,
+reviewable step, done for `crossover-yard` in #44 and still to do for the
+rest.

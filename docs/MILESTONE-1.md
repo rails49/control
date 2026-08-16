@@ -18,7 +18,8 @@ in-process bus — plus a benchmark harness:
 - The **simulator**, implementing the layout interface: executes commands,
   reports occupancy, publishes the tick, and owns pacing and termination.
 - The **asset store** in its milestone-1 binding — the Python library over
-  the YAML files of [LAYOUT.md](store/LAYOUT.md).
+  the YAML files of [DRAWING.md](store/DRAWING.md) and
+  [LAYOUT.md](store/LAYOUT.md).
 - A **pytest suite** — the four Hypothesis properties over the real assembly
   on the bus, the boundary-condition examples, and golden-number assertions
   on the named scenarios.

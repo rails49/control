@@ -1,4 +1,5 @@
-"""`tc49 bench`: the comparison table, the k flag, the trace dump (#30)."""
+"""`tc49 bench`: the comparison table, the k flag, the trace dump (#30), and
+`tc49 layout show` (#45)."""
 
 import io
 import json
@@ -78,6 +79,21 @@ def test_a_rejected_request_is_reported_rather_than_flattering_the_makespan() ->
     printed = run_cli("bench", "crossover-yard/rejection")
     assert "rejected" in printed
     assert "never attempted it" in printed
+
+
+def test_layout_show_prints_the_derived_topology() -> None:
+    # The review the committed layout file used to give in a diff (ADR-0015):
+    # blocks with their lengths, every transit, and the concurrent pairs.
+    lines = run_cli("layout", "show", "crossover-yard").splitlines()
+    assert lines[0] == "crossover-yard  (6 blocks, 3 connections)"
+    assert "blocks" in lines
+    assert ["up_w", "3200"] in [line.split() for line in lines]
+    assert ["yard_w", "1400", "terminal"] in [line.split() for line in lines]
+    assert "crossover" in lines and "west_ladder" in lines
+    assert ["up_straight", "up_e.A", "up_w.B"] in [line.split() for line in lines]
+    assert ["concurrent", "dn_straight", "+", "up_straight"] in [
+        line.split() for line in lines
+    ]
 
 
 def test_find_root_locates_the_railroads_from_anywhere_and_says_so_if_not() -> None:

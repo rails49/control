@@ -1,37 +1,24 @@
-"""The mechanical migration (#43): a hand-written layout converts to a
-drawing that derives it back, unchanged.
+"""The mechanical conversion of a layout into a drawing (#43).
 
-The round trip over every committed railroad is the whole claim — blocks,
-transits, hand-picked names and `concurrent` all survive, and the derived
-layout passes the validator. The committed drawings are that conversion with
-the reasoning comments moved across, and `test_drawing.py` checks those files
-themselves; a drawing refined by hand from real symbols (#44) is no longer
-the converter's output, so the two are asserted separately.
+It converted the four hand-written railroads when drawings took over (#45),
+and the round trip it has to satisfy outlives them: converting a derived
+layout and deriving the result gives the same layout back, for every committed
+railroad. That covers Gotthard's 19-transit junction and crossover-yard's
+composed concurrency, neither of which is a layout anyone typed.
 """
 
 from typing import Any
 
 import pytest
 
-from tc49.lib.layout import Layout
 from tc49.store.convert import to_drawing
-from tests.store.railroads import RAILROADS, canonical, derive, read
+from tests.store.railroads import RAILROADS, derive, read
 
 
 @pytest.mark.parametrize("name", RAILROADS)
-def test_converting_a_committed_layout_round_trips(name: str) -> None:
-    layout = read(f"{name}.layout.yaml")
-    assert derive(to_drawing(layout)) == canonical(layout)
-
-
-@pytest.mark.parametrize("name", RAILROADS)
-def test_the_converted_drawing_derives_a_validator_clean_layout(name: str) -> None:
-    written = Layout.from_document(read(f"{name}.layout.yaml"))
-    derived = Layout.from_document(derive(to_drawing(read(f"{name}.layout.yaml"))))
-
-    assert derived.blocks == written.blocks
-    assert derived.terminal_blocks == written.terminal_blocks
-    assert derived.end_connection == written.end_connection
+def test_converting_a_derived_layout_round_trips(name: str) -> None:
+    layout = derive(read(f"{name}.drawing.yaml"))
+    assert derive(to_drawing(layout)) == layout
 
 
 def test_the_conversion_of_a_layout_is_symbols_and_wires() -> None:
@@ -67,5 +54,10 @@ def test_the_conversion_of_a_layout_is_symbols_and_wires() -> None:
 
 
 def test_concurrency_is_carried_verbatim() -> None:
-    symbol = to_drawing(read("crossover-yard.layout.yaml"))["symbols"]["crossover"]
-    assert symbol["concurrent"] == [["dn_straight", "up_straight"]]
+    """What the drawn crossover composes, the converted one declares — the
+    generic symbol is where composed concurrency ends up when geometry is
+    dropped."""
+    layout = derive(read("crossover-yard.drawing.yaml"))
+    assert to_drawing(layout)["symbols"]["crossover"]["concurrent"] == [
+        ["dn_straight", "up_straight"]
+    ]

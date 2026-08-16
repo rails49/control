@@ -35,11 +35,9 @@ demand, as a tool rather than a committed file.
 Two consequences follow. Migration becomes compulsory, since a railroad that has
 not been drawn cannot be loaded; the generic N-pin connection symbol makes that
 mechanical and lossless, because derivation passes it through unchanged. And the
-reasoning comments that
-[layouts/gotthard.layout.yaml](../../layouts/gotthard.layout.yaml) carries
-have to move into the drawing, along with the parts of
-[LAYOUT.md](../store/LAYOUT.md) that document the layout schema as the authored
-format.
+reasoning comments that `layouts/gotthard.layout.yaml` carried have to move into
+the drawing, along with the parts of [LAYOUT.md](../store/LAYOUT.md) that
+document the layout schema as the authored format.
 
 [ADR-0010](0010-asset-store-serves-coarse-read-only-documents.md) is
 unaffected in shape: still two coarse document types, still whole-document

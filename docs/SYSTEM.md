@@ -206,13 +206,16 @@ their `at` tick); counting a bus event is not reading a clock.
 The store holds the documents the run is built from, behind an abstract CRUD
 contract ([ADR-0010](adr/0010-asset-store-serves-coarse-read-only-documents.md)).
 The milestone-1 binding is a Python library over the YAML files of
-[LAYOUT.md](store/LAYOUT.md); a future REST binding slots under the same names and
-verbs without appearing in the contract.
+[DRAWING.md](store/DRAWING.md) and [LAYOUT.md](store/LAYOUT.md); a future REST
+binding slots under the same names and verbs without appearing in the contract.
 
-- **Two coarse document types** — `layout` and `scenario`, fetched and
-  stored whole. Blocks, connections, trains, and requests live inside
-  documents and are not independently addressable.
-- **Names as ids** — `crossover-yard` for layouts, layout-qualified
+- **Two coarse document types** — `drawing` and `scenario`, fetched and
+  stored whole. Symbols, wires, trains, and requests live inside documents
+  and are not independently addressable. A layout is **derived** from a
+  drawing at `get` and is not a document type of its own
+  ([ADR-0015](adr/0015-drawing-is-the-source-of-truth.md)), so a railroad has
+  one committed description.
+- **Names as ids** — `crossover-yard` for railroads, layout-qualified
   `crossover-yard/meet` for scenarios. Verbs: `get`, `put` (whole-document
   create-or-replace), `delete`, `list` (all layouts; scenarios of a layout).
   No partial update.
@@ -231,7 +234,8 @@ verbs without appearing in the contract.
   real block ends) are enforced at whichever verb a document enters through:
   `put` rejects invalid documents, and the milestone-1 YAML binding runs the
   same validator at `get`, because its documents are hand-authored files
-  that never passed through `put`. A mistyped end fails loudly at load, not
+  that never passed through `put`. The layout derived from a drawing goes
+  through that validator too, as a safety net against derivation bugs. A mistyped end fails loudly at load, not
   as a `KeyError` mid-run.
   All derivation stays consumer-side: the conflict matrix by inversion
   ([ADR-0006](adr/0006-conflicts-declared-by-inversion.md)), terminal-block

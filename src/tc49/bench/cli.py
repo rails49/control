@@ -1,8 +1,10 @@
-"""`tc49 bench <scenario>` and `tc49 sweep`.
+"""`tc49 bench <scenario>`, `tc49 sweep`, and `tc49 layout show <layout>`.
 
 `bench` runs one named scenario under both locking strategies and prints the
 comparison. `sweep` takes no arguments: the grid of BENCHMARKS.md is the
 research design, not a knob, and that page is its single source of truth.
+`layout show` prints the layout derived from a drawing, which is the topology
+review that a committed layout file used to give in a diff (ADR-0015).
 """
 
 import argparse
@@ -72,6 +74,29 @@ def format_comparison(
     return "\n".join(lines) + "\n"
 
 
+def format_layout(layout: Layout) -> str:
+    """The whole derived topology: blocks with their lengths, and each
+    connection's transits and concurrent pairs. Terminal blocks are marked
+    because they are derived too, and nothing else shows them."""
+    counted = f"{len(layout.blocks)} blocks, {len(layout.connections)} connections"
+    lines = [f"{layout.name}  ({counted})", "", "blocks"]
+    width = max(len(block) for block in layout.blocks) + 2
+    for block in sorted(layout.blocks):
+        terminal = "  terminal" if block in layout.terminal_blocks else ""
+        lines.append(f"  {block.ljust(width)}{layout.blocks[block]:>6}{terminal}")
+
+    for name in sorted(layout.connections):
+        connection = layout.connections[name]
+        lines += ["", name]
+        width = max(len(transit) for transit in connection.transits) + 2
+        for transit in sorted(connection.transits):
+            ends = "  ".join(sorted(connection.transits[transit]))
+            lines.append(f"  {transit.ljust(width)}{ends}")
+        for pair in sorted(sorted(p) for p in connection.concurrent):
+            lines.append(f"  concurrent  {pair[0]} + {pair[1]}")
+    return "\n".join(lines) + "\n"
+
+
 def _diagnosis(stall: Stall) -> str:
     if stall.reason == "queued":
         # Never attempted: an earlier working of the same train is itself
@@ -112,12 +137,25 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
 
     commands.add_parser("sweep", help="run the fixed grid of docs/bench/BENCHMARKS.md")
 
+    layout_parser = commands.add_parser("layout", help="inspect a drawn railroad")
+    layout_commands = layout_parser.add_subparsers(dest="layout_command", required=True)
+    show_parser = layout_commands.add_parser(
+        "show", help="print the layout derived from a drawing"
+    )
+    show_parser.add_argument("layout", help="e.g. crossover-yard")
+
     args = parser.parse_args(argv)
     if args.command == "bench":
         results = bench(args.scenario, args.k)
         out.write(format_comparison(args.scenario, args.k, results))
         if args.trace:
             out.write(results[args.trace][0])
+        return 0
+
+    if args.command == "layout":
+        layout = AssetStore(ROOT).get(args.layout)
+        assert isinstance(layout, Layout)
+        out.write(format_layout(layout))
         return 0
 
     out.write(f"wrote {sweep()} rows\n")

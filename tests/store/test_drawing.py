@@ -1,9 +1,10 @@
 """Tests at the drawing seam: the schema, the three derivation passes, and
 the refusals (docs/store/DRAWING.md).
 
-The end-to-end proof is the committed railroads: each drawing derives the
-hand-written layout it was converted from, exactly. The rest are hand-built
-documents, kept small enough to read as a statement about one pass each.
+The end-to-end proof is the committed railroads: each derives a layout the
+validator accepts, with the shape its drawing describes. The rest are
+hand-built documents, kept small enough to read as a statement about one pass
+each.
 """
 
 from collections.abc import Callable
@@ -16,7 +17,7 @@ import yaml
 from tc49.lib.layout import Layout
 from tc49.store import AssetStore
 from tc49.store.drawing import Drawing
-from tests.store.railroads import RAILROADS, canonical, derive, read
+from tests.store.railroads import RAILROADS, derive, read
 
 
 def block(length: int = 1000) -> dict[str, Any]:
@@ -56,38 +57,48 @@ def spanned(**symbols: Any) -> dict[str, Any]:
 # --- the committed drawings ------------------------------------------------
 
 
+def committed(name: str) -> Layout:
+    """A committed drawing, as the apps read it: derived and validated."""
+    return Layout.from_document(derive(read(f"{name}.drawing.yaml")))
+
+
 @pytest.mark.parametrize("name", RAILROADS)
-def test_a_committed_drawing_derives_its_committed_layout(name: str) -> None:
-    derived = derive(read(f"{name}.drawing.yaml"))
-    assert derived == canonical(read(f"{name}.layout.yaml"))
+def test_a_committed_drawing_derives_a_validator_clean_layout(name: str) -> None:
+    assert committed(name).name == name
 
 
-def test_facing_pair_derives_the_committed_layout_object() -> None:
-    """The same comparison one level up, at the type the apps consume. A
-    transit's end pair is undirected, so it compares as a set: derivation
-    writes it sorted where the hand-written file wrote it as drawn."""
-    derived = Layout.from_document(derive(read("facing-pair.drawing.yaml")))
-    written = Layout.from_document(read("facing-pair.layout.yaml"))
-
-    assert derived.name == written.name
-    assert derived.blocks == written.blocks
-    assert derived.terminal_blocks == written.terminal_blocks
-    assert derived.end_connection == written.end_connection
-    assert set(derived.connections) == set(written.connections)
-    for name, connection in derived.connections.items():
-        other = written.connections[name]
-        assert connection.concurrent == other.concurrent
-        assert {t: frozenset(ends) for t, ends in connection.transits.items()} == {
-            t: frozenset(ends) for t, ends in other.transits.items()
-        }
-
-
-def test_facing_pair_derives_a_validator_clean_layout() -> None:
-    layout = Layout.from_document(derive(read("facing-pair.drawing.yaml")))
-    assert layout.name == "facing-pair"
+def test_facing_pair_derives_two_blocks_and_the_gap_between_them() -> None:
+    layout = committed("facing-pair")
     assert layout.blocks == {"east": 1000, "west": 1000}
     assert layout.connections["gap"].transits == {"span": ("east.A", "west.B")}
     assert layout.terminal_blocks == frozenset({"west", "east"})
+
+
+def test_single_track_meet_derives_a_throat_and_a_switch_at_each_end() -> None:
+    layout = committed("single-track-meet")
+    assert sorted(layout.connections) == [
+        "east_switch",
+        "east_throat",
+        "west_switch",
+        "west_throat",
+    ]
+    assert layout.terminal_blocks == frozenset({"west_1", "west_2", "east_1", "east_2"})
+    # Every throat funnels into one block, so nothing here is concurrent.
+    assert all(not c.concurrent for c in layout.connections.values())
+
+
+def test_gotthard_derives_one_junction_at_airolo_and_two_at_claro() -> None:
+    layout = committed("gotthard")
+    assert len(layout.blocks) == 14
+    assert sorted(layout.connections) == ["airolo", "claro_east", "claro_west"]
+    assert sum(len(c.transits) for c in layout.connections.values()) == 29
+    assert layout.terminal_blocks == frozenset(
+        {"airolo_4", "claro_4", "claro_5", "claro_6", "claro_7"}
+    )
+    # A reversing loop's signature: out through one end of a block and back in
+    # through the same one (LAYOUT.md).
+    assert ("airolo.yellow_a2", "airolo_2.A") in layout.transits_at("line_yellow.A")
+    assert ("airolo.yellow_b2", "airolo_2.B") in layout.transits_at("line_yellow.A")
 
 
 # --- pass 1: components give the connections -------------------------------
