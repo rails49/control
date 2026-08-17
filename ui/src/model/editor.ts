@@ -29,6 +29,7 @@ import {
   flipped,
   movedBy,
   overlaps,
+  placed,
   turned,
 } from "./geometry.js";
 import { nameJoint, nameJunction, settle } from "./naming.js";
@@ -50,11 +51,26 @@ const PREFIXES: Record<Kind, string> = {
 
 const DEPTH = 200; // snapshots kept; the document is small and edits are rare
 
+/** How a symbol is turned, which is all a placement carries besides its kind. */
+export type Facing = Pick<SymbolSpec, "rot" | "flip">;
+
+/** A symbol on its way from the palette: an ordinary spec without a placement
+ *  yet, of a kind the palette can offer. */
+type Placing = SymbolSpec & { kind: Kind };
+
+/** Where a pending placement would land, and whether anything is in the way. */
+export interface Landing {
+  at: [number, number];
+  clear: boolean;
+}
+
 export class Editor {
   private past: Drawing[] = [];
   private future: Drawing[] = [];
   private chosen = new Set<string>();
   private drawingFrom: PinRef | null = null;
+  private placing: Placing | null = null;
+  private facing: Facing = {};
   private changes = 0;
 
   constructor(private current: Drawing) {}
@@ -70,6 +86,12 @@ export class Editor {
   /** The pin a wire is being drawn from, if one is. */
   get pendingFrom(): PinRef | null {
     return this.drawingFrom;
+  }
+
+  /** The symbol on its way from the palette, if one is: what it is and how it
+   *  is turned, which is everything about it that is not the pointer. */
+  get pending(): Placing | null {
+    return this.placing;
   }
 
   get canUndo(): boolean {
@@ -118,15 +140,74 @@ export class Editor {
    * has: a square holds at most one symbol (EDITOR.md#canvas), and a block is
    * six of them, so a placement can overlap without its own cell being taken.
    */
-  place(kind: Kind, at: [number, number]): string | null {
+  place(kind: Kind, at: [number, number], facing: Facing = {}): string | null {
     const name = mint(this.current, kind);
-    const spec: SymbolSpec = { kind, at, ...defaults(kind, name) };
+    const spec: SymbolSpec = { kind, at, ...facing, ...defaults(kind, name) };
     if (!clear(spec, this.current.symbols)) return null;
     this.push();
     this.current.symbols[name] = spec;
     this.abut([name]);
     this.chosen = new Set([name]);
     return name;
+  }
+
+  // --- dragging a symbol out of the palette -------------------------------
+
+  /** Take a symbol off the palette. It starts turned the way the last one was
+   *  left: a rotated run of turnouts costs one keypress for the run rather
+   *  than one for each of them (EDITOR.md#palette). */
+  beginPlace(kind: Kind): void {
+    this.placing = { kind, ...this.facing };
+  }
+
+  /** A quarter turn of the symbol being dragged, by the same rule that turns a
+   *  selected one, and remembered for the next drag. */
+  turnPending(): void {
+    this.reorient(turned);
+  }
+
+  flipPending(): void {
+    this.reorient(flipped);
+  }
+
+  cancelPending(): void {
+    this.placing = null;
+  }
+
+  /**
+   * Where the dragged symbol would land with the pointer here, and whether the
+   * squares are free.
+   *
+   * The footprint centres on the pointer, against the orientation it is being
+   * dragged in rather than the kind's own, so a turn that transposes 6×1 into
+   * 1×6 re-centres with it. `at` is a whole cell, so an even-width footprint
+   * lands half a square off; that is as close as the grid allows.
+   */
+  placementAt(x: number, y: number): Landing | null {
+    if (this.placing === null) return null;
+    const { w, h } = placed(this.placing).footprint;
+    const at: [number, number] = [
+      Math.round(x - w / 2),
+      Math.round(y - h / 2),
+    ];
+    return { at, clear: clear({ ...this.placing, at }, this.current.symbols) };
+  }
+
+  /** Drop it. Refused where the squares are taken, so a drop the ghost showed
+   *  as blocked is a drop that does nothing. */
+  dropPending(x: number, y: number): string | null {
+    const landing = this.placementAt(x, y);
+    if (this.placing === null || landing === null || !landing.clear) return null;
+    const { kind } = this.placing;
+    const facing = facingOf(this.placing);
+    this.placing = null;
+    return this.place(kind, landing.at, facing);
+  }
+
+  private reorient(change: (spec: Placing) => Placing): void {
+    if (this.placing === null) return;
+    this.placing = change(this.placing);
+    this.facing = facingOf(this.placing);
   }
 
   /**
@@ -179,6 +260,29 @@ export class Editor {
       this.current.symbols[name] = movedBy(this.at(name), dx, dy);
     }
     this.abut([...this.chosen]);
+  }
+
+  /**
+   * Put a bend on the face nearest a point, `rot` and all, and say whether that
+   * moved it.
+   *
+   * A bend's `rot` is which face of its cell it sits on rather than a turn of
+   * artwork, so translating it by whole cells the way `move` shifts everything
+   * else leaves it forever on faces of the orientation it was drawn with — west
+   * faces only, or north faces only (EDITOR.md#canvas). Dragged on its own it
+   * snaps to whichever face is nearest instead. In a selection of several it
+   * still translates rigidly, that being the rule the others obey.
+   */
+  reface(name: string, x: number, y: number): boolean {
+    const spec = this.current.symbols[name];
+    if (spec === undefined || spec.kind !== "pin") return false;
+    const { at, rot } = faceAt(x, y);
+    const [c, r] = spec.at ?? [0, 0];
+    if (at[0] === c && at[1] === r && rot === (spec.rot ?? 0)) return false;
+    this.push();
+    this.current.symbols[name] = { ...spec, at, rot };
+    this.abut([name]);
+    return true;
   }
 
   /**
@@ -391,6 +495,7 @@ export class Editor {
     this.future = [];
     this.chosen = new Set();
     this.drawingFrom = null;
+    this.placing = null;
   }
 
   private step(from: Drawing[], to: Drawing[]): void {
@@ -419,6 +524,15 @@ export class Editor {
     if (spec === undefined) throw new Error(`no symbol '${name}'`);
     return spec;
   }
+}
+
+/** How a spec is turned and nothing else, leaving out whichever of the two it
+ *  does not write: a placement should stay as plain as the tile it came from. */
+function facingOf(spec: SymbolSpec): Facing {
+  return {
+    ...(spec.rot === undefined ? {} : { rot: spec.rot }),
+    ...(spec.flip === undefined ? {} : { flip: spec.flip }),
+  };
 }
 
 /** A free-standing bend joins two wires; every other pin joins one, the

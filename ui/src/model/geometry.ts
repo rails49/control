@@ -273,12 +273,12 @@ function key([c, r]: [number, number]): string {
 }
 
 /** A quarter turn clockwise, keeping `at` where it is. */
-export function turned(spec: SymbolSpec): SymbolSpec {
+export function turned<T extends SymbolSpec>(spec: T): T {
   return { ...spec, rot: (((spec.rot ?? 0) + 90) % 360) as Rotation };
 }
 
 /** Mirrored across the symbol's own vertical axis. */
-export function flipped(spec: SymbolSpec): SymbolSpec {
+export function flipped<T extends SymbolSpec>(spec: T): T {
   return { ...spec, flip: !spec.flip };
 }
 

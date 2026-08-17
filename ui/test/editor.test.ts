@@ -524,3 +524,124 @@ describe("reading the document", () => {
     expect(found.get("b1.B")).toBe("7,1.5");
   });
 });
+
+describe("dragging a symbol out of the palette", () => {
+  it("centres the footprint on the pointer", () => {
+    editor.beginPlace("turnout");
+    // 1×1, so the pointer sits in the cell it lands on.
+    expect(editor.placementAt(4.4, 2.6)!.at).toEqual([4, 2]);
+  });
+
+  it("centres a long footprint too, half a square off where it must be", () => {
+    editor.beginPlace("block");
+    // 6×1: the centre of cells 8..13 is 11, half a square from the pointer,
+    // which is as close as a whole `at` allows.
+    expect(editor.placementAt(10.5, 2.5)!.at).toEqual([8, 2]);
+  });
+
+  it("re-centres on the footprint a turn transposes", () => {
+    editor.beginPlace("block");
+    editor.turnPending();
+    // 6×1 turned is 1×6: the pointer keeps the middle, so the span moves from
+    // across to down.
+    expect(editor.placementAt(10.5, 10.5)!.at).toEqual([10, 8]);
+  });
+
+  it("says whether the squares are free before the drop", () => {
+    place("terminal", [4, 2]);
+    editor.beginPlace("turnout");
+    expect(editor.placementAt(4.5, 2.5)!.clear).toBe(false);
+    expect(editor.placementAt(6.5, 2.5)!.clear).toBe(true);
+  });
+
+  it("drops nothing where the ghost said it was blocked", () => {
+    place("terminal", [4, 2]);
+    editor.beginPlace("turnout");
+    expect(editor.dropPending(4.5, 2.5)).toBeNull();
+    expect(Object.keys(editor.drawing.symbols)).toEqual(["end1"]);
+  });
+
+  it("writes the orientation it was dragged in", () => {
+    editor.beginPlace("turnout");
+    editor.turnPending();
+    editor.flipPending();
+    const name = editor.dropPending(4.5, 2.5)!;
+    expect(editor.drawing.symbols[name]).toMatchObject({ rot: 90, flip: true });
+  });
+
+  it("keeps that orientation for the next drag, whatever the kind", () => {
+    editor.beginPlace("turnout");
+    editor.turnPending();
+    editor.dropPending(4.5, 2.5);
+    editor.beginPlace("terminal");
+    expect(editor.pending).toMatchObject({ kind: "terminal", rot: 90 });
+  });
+
+  it("leaves a plain drop plain, writing no rot or flip at all", () => {
+    editor.beginPlace("turnout");
+    const name = editor.dropPending(4.5, 2.5)!;
+    expect(editor.drawing.symbols[name]).toEqual({ kind: "turnout", at: [4, 2] });
+  });
+
+  it("wires what it lands against, like any other placement", () => {
+    place("terminal", [0, 0]);
+    editor.beginPlace("terminal");
+    editor.flipPending(); // its pin swings from the west face to the east one
+    editor.dropPending(-0.5, 0.5);
+    expect(wires()).toEqual(["end1.P end2.P"]);
+  });
+
+  it("forgets the drag when it is abandoned", () => {
+    editor.beginPlace("turnout");
+    editor.cancelPending();
+    expect(editor.pending).toBeNull();
+    expect(editor.placementAt(4.5, 2.5)).toBeNull();
+  });
+});
+
+/**
+ * A bend's `rot` is which face of its cell it sits on, so translating it by
+ * whole cells keeps it on faces of that one orientation for ever
+ * (EDITOR.md#canvas).
+ */
+describe("dragging a bend", () => {
+  beforeEach(() => {
+    place("block", [0, 0]);
+    editor.startWire("b1.B");
+    editor.bend(8, 0.5); // the west face of (8, 0)
+  });
+
+  it("starts on the face it was drawn on", () => {
+    expect(editor.drawing.symbols.n1).toMatchObject({ at: [8, 0], rot: 0 });
+  });
+
+  it("reaches a face of the other orientation, which a move cannot", () => {
+    editor.select(["n1"]);
+    editor.move(0, 2);
+    expect(editor.drawing.symbols.n1!.rot).toBe(0); // still a west face
+
+    expect(editor.reface("n1", 8.5, 2)).toBe(true);
+    expect(editor.drawing.symbols.n1).toMatchObject({ at: [8, 2], rot: 90 });
+  });
+
+  it("and back again", () => {
+    editor.reface("n1", 8.5, 2);
+    expect(editor.reface("n1", 6, 3.5)).toBe(true);
+    expect(editor.drawing.symbols.n1).toMatchObject({ at: [6, 3], rot: 0 });
+  });
+
+  it("spends no undo step on a drag that did not move it", () => {
+    const before = editor.revision;
+    expect(editor.reface("n1", 8, 0.5)).toBe(false);
+    expect(editor.revision).toBe(before);
+  });
+
+  it("keeps the wires it holds, which rubber-band with it", () => {
+    editor.reface("n1", 8.5, 2);
+    expect(wires()).toEqual(["b1.B n1.P"]);
+  });
+
+  it("refuses anything that is not a bend", () => {
+    expect(editor.reface("b1", 3, 3)).toBe(false);
+  });
+});
