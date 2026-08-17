@@ -37,7 +37,11 @@ export class TcMenu extends LitElement {
 
   override render() {
     const at = this.at;
-    if (at === null) return nothing;
+    // Nothing under the pointer applies to nothing, and a menu of no items is
+    // an empty box that looks broken. A wire is the ordinary way to land here:
+    // it is not a symbol, and only the bare wire between two blocks is a joint
+    // with a name to offer.
+    if (at === null || !applies(at)) return nothing;
     return html`
       <div class="sheet" @pointerdown=${this.dismiss}></div>
       <menu style=${`left: ${at.x}px; top: ${at.y}px`}>
@@ -94,6 +98,11 @@ export class TcMenu extends LitElement {
       new CustomEvent("menu-dismissed", { bubbles: true, composed: true }),
     );
   }
+}
+
+/** Whether anything was clicked that the menu has something to say about. */
+export function applies(at: MenuAt): boolean {
+  return at.symbol !== null || at.junction !== null || at.joint !== null;
 }
 
 declare global {
