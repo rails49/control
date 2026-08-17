@@ -16,8 +16,10 @@ export const W = 0.15;
 /** Pins are circles of diameter W. */
 export const PIN = W / 2;
 
-/** A free-standing bend: a joint dot, drawn a little wider than the pin over
- *  it so that a way lit through it shows. */
+/** A free-standing bend when a transit lights it: a joint dot wider than the
+ *  pin over it, so the way shows past it. Unlit it is not drawn at all — the
+ *  pin is already there in edit mode, and a black ring around a green pin says
+ *  nothing about the drawing. */
 export const BEND = 0.75 * W;
 
 /**

@@ -202,9 +202,14 @@ function cutAt(y: number): number {
   return PORTAL.stub + PORTAL.lean * (y - 0.5);
 }
 
+/** Drawn only when a transit lights it. In edit mode the canvas already puts a
+ *  pin on the bend, and a dot under it would show as nothing but a ring around
+ *  it (#59); run mode, where pins are hidden, lights the whole drawing and gets
+ *  its dot back. */
 function bend(on: Lit): SVGTemplateResult {
+  if (on() === "") return svg``;
   const p = anchorIn("pin", "P");
-  return svg`<circle class=${`bend${on()}`} cx=${p.x} cy=${p.y} r=${BEND} />`;
+  return svg`<circle class="bend lit" cx=${p.x} cy=${p.y} r=${BEND} />`;
 }
 
 /** Each road drawn from the toe, so lighting the diverging leg lights the way

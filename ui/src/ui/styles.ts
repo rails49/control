@@ -168,10 +168,6 @@ const symbols = css`
   .tick {
     stroke-width: ${HAIRLINE};
   }
-
-  .bend {
-    fill: var(--track);
-  }
 `;
 
 export const paletteStyles = css`
