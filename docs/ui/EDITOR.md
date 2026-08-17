@@ -44,11 +44,11 @@ angles, not from rotating symbols.
 A free-standing pin sits at a face centre like any other pin. Being on a
 boundary it occupies no square, so a bend may sit against an occupied one.
 
-Placing and dragging keep that invariant. A click that would cover an occupied
-square places nothing, and a click on a symbol selects it instead of stacking a
-second one on top; the palette stays armed either way. A drag holds its last
-legal offset while the pointer is over an obstacle, and follows the pointer
-again once the offset is clear.
+Placing and dragging keep that invariant. A drop that would cover an occupied
+square places nothing, and the ghost says so before the drop by tinting the
+squares in the way. A drag of the selection holds its last legal offset while
+the pointer is over an obstacle, and follows the pointer again once the offset
+is clear.
 
 Rotate and flip are not constrained, since a turned symbol has a different
 footprint and can land on a neighbour. An overlap is reported instead: the
@@ -57,9 +57,18 @@ drawing rather than raised by the action, so it reads the same after an undo or
 after opening a file that already had one.
 
 Zoom and pan are the SVG `viewBox`: the wheel zooms about the pointer and the
-middle button pans. A bend is placed by the same two keys as any other symbol,
-`at` naming a cell and `rot` turning its one pin onto a face of it
-([DRAWING.md](../store/DRAWING.md#geometry)).
+middle button pans. Both directions of the wheel were there from the start and
+neither was findable, so the header carries a minus and a plus beside Fit and
+the keyboard has `+`, `-` and `0`.
+
+A bend is placed by the same two keys as any other symbol, `at` naming a cell
+and `rot` turning its one pin onto a face of it
+([DRAWING.md](../store/DRAWING.md#geometry)). That makes a bend's `rot` its
+orientation rather than a turn, so dragging one cannot translate by whole cells
+the way every other symbol does: it would only ever reach faces of the
+orientation it was born with. A bend dragged alone snaps to the nearest face
+instead, `rot` and all. In a selection of several it translates rigidly with
+the rest, where the whole-cell rule is the one that applies.
 
 No committed drawing has any placement, so opening one deals its symbols into
 rows to be dragged from. That is not auto-layout and says nothing about the
@@ -67,6 +76,28 @@ topology; it is an ordinary edit, undone like any other and saved only if the
 drawing is saved.
 
 ## Palette
+
+A symbol is dragged out of the palette onto the canvas. There is no armed tool
+and no mode: nothing about the editor's state changes what the next click on
+the canvas means, which was the trouble with arming a tile — the screen said
+the tile was pressed, and nothing said the next click would put a turnout
+where you were only trying to select.
+
+The symbol follows the pointer as a ghost drawn on the grid, at the cell it
+would land on, in the artwork it will be placed in. Its footprint centres on
+the pointer; `at` names a whole cell, so an even-width footprint lands half a
+square off, which is as close as the grid allows. Nothing is drawn while the
+pointer is off the canvas, there being nowhere to place it there.
+
+`r` turns the ghost and `f` flips it, the same two keys that turn and flip a
+selection. The orientation is sticky: it carries into the next drag, whatever
+the kind, because a rotated run of turnouts should cost one keypress for the
+run and not one for each of them. The tiles keep showing the symbol at 0
+degrees; the ghost shows the truth the moment it is grabbed. Escape, Delete and
+the right button abandon the drag.
+
+Tiles carry no names. Each kind is drawn one way, so the drawing is the name,
+and the title attribute has the word for anyone who wants it.
 
 The placeable symbols, with their semantics defined in
 [DRAWING.md](../store/DRAWING.md#symbols). The images are illustrative
@@ -233,6 +264,17 @@ move cannot change the derived layout. Rotate, flip, and delete apply to the
 selection, from a right-click menu with key bindings; each selected symbol
 turns about its own cell rather than the selection turning as a block.
 
+`r`, `f` and Delete are the whole verb set, so the header carries none of them:
+a button that duplicates a key it does not teach is a button doing nothing. The
+right-click menu names the key beside each item, which is where a shortcut is
+conventionally learnt, and a line under the palette heading covers the drag,
+which has no menu to hang one on.
+
+Click and drag mean different things on a pin, and which one it is is settled
+by whether the pointer moves. A click starts or ends a wire; a drag past a few
+pixels takes hold of the bend instead. Drawing a wire is click-then-click
+rather than a drag, so the threshold cannot steal one.
+
 Deleting a symbol deletes its wires, and the pins at their far ends go red.
 
 Undo and redo are snapshot-based: the drawing is a small document, so every
@@ -327,6 +369,24 @@ TypeScript, pnpm, Lit and Shoelace, at `ui/` in the repo root. The drawing
 surface is SVG in the DOM: hit-testing, hover and selection come from pointer
 events, live state is a CSS class toggle. Gotthard is a few hundred elements,
 far below where SVG struggles.
+
+Dragging a symbol out of the palette is pointer events too, not the HTML drag
+and drop API, which cannot do it: during a native drag the browser owns the
+keyboard, so `r` and `f` never arrive and Escape is spoken for, and the drag
+image is one static bitmap, so a ghost cannot turn. The palette and the canvas
+are sibling shadow roots and see none of each other's pointer stream, so the
+editor shell listens on the window and routes.
+
+The pending placement — the kind and its orientation — lives on the editor
+document beside the half-drawn wire, which is the same sort of thing: a gesture
+that has said something about the document and not yet written it. Where the
+pointer is stays with the canvas and dies with the gesture. That split is what
+puts the centring, the footprint a turn transposes, and the refusal over an
+occupied square in the tested layer rather than in a component.
+
+Toolbar icons are inline SVG. Shoelace's `sl-icon` fetches from a CDN at
+runtime unless a base path is registered, and the editor has to work on the
+railroad's own network.
 
 Diagram libraries (JointJS, GoJS, React Flow) were considered and rejected:
 their value is auto-routing and free-form graph models, the first deliberately
