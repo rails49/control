@@ -185,9 +185,13 @@ export const paletteStyles = css`
     background: #e8f0fe;
   }
 
+  /* A tile keeps its symbol's own shape: the height is fixed and the width
+     follows the footprint, so a block reads as the long thing it is instead of
+     being letterboxed into a square. */
   svg {
-    width: 4rem;
-    height: 1.6rem;
+    height: 1.5rem;
+    width: auto;
+    max-width: 5rem;
     flex: none;
   }
 
