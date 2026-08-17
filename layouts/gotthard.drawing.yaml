@@ -42,6 +42,11 @@
 # the three line sections in the open country between them. Geometry is
 # decorative and cannot change what derives (docs/adr/0018): `tc49 layout show`
 # is identical to what the same file derived unplaced.
+#
+# No wire is drawn across a symbol, and exactly one wire crosses another: the
+# yellow's lead over blue 2's, west of Airolo. That is the crossing the plan
+# itself has — Rocrail hops one over the other on connector tiles rather than
+# joining them — so it is drawn rather than routed around.
 
 drawing: gotthard
 units: mm
@@ -55,8 +60,8 @@ symbols:
   claro_2: {kind: block, length: 1500, at: [8, 12]}
   claro_3: {kind: block, length: 1500, at: [9, 13]}
   # Claro sidings, north-east: off track 1's east lead (Rocrail c6, c5)
-  claro_4: {kind: block, length: 900, at: [14, 9]}
-  claro_5: {kind: block, length: 900, at: [14, 10]}
+  claro_4: {kind: block, length: 900, at: [5, 9], rot: 180}
+  claro_5: {kind: block, length: 900, at: [5, 10], rot: 180}
   # Claro sidings, south-west: off track 3's west lead (Rocrail c7, c8)
   claro_6: {kind: block, length: 900, at: [3, 14], rot: 180}
   claro_7: {kind: block, length: 900, at: [3, 15], rot: 180}
@@ -68,9 +73,9 @@ symbols:
   airolo_4: {kind: block, length: 700, at: [21, 3]}
 
   # The three line sections between the stations
-  line_blue_1: {kind: block, length: 3000, at: [18, 7], rot: 270}
-  line_blue_2: {kind: block, length: 3000, at: [2, 6], rot: 270}
-  line_yellow: {kind: block, length: 4000, at: [1, 7], rot: 90}
+  line_blue_1: {kind: block, length: 3000, at: [21, 7], rot: 270}
+  line_blue_2: {kind: block, length: 3000, at: [2, 5], rot: 270}
+  line_yellow: {kind: block, length: 4000, at: [1, 4], rot: 90}
 
   # Airolo — ONE junction, drawn from its real geometry (#46), which is the
   # owner's account on #35 read back off the netlist's track tiles. The WX310
@@ -222,22 +227,24 @@ symbols:
     kind: turnout
     connection: claro_east_b2
     names: {straight: siding_5, diverging: siding_4}
-    at: [12, 10]
+    at: [7, 10]
+    flip: true
 
   # The far end of every siding is a deliberate track end, so it takes a
   # terminal symbol; those five blocks are what derives as terminal.
-  claro_4_B_stop: {kind: terminal, at: [16, 9]}
-  claro_5_B_stop: {kind: terminal, at: [16, 10]}
+  claro_4_B_stop: {kind: terminal, at: [4, 9], rot: 180}
+  claro_5_B_stop: {kind: terminal, at: [4, 10], rot: 180}
   claro_6_B_stop: {kind: terminal, at: [2, 14], rot: 180}
   claro_7_B_stop: {kind: terminal, at: [2, 15], rot: 180}
   airolo_4_B_stop: {kind: terminal, at: [23, 3]}
 
   # A free-standing bend, and the only symbol here that is not the railroad:
-  # sw49's toe faces east and blue 2 arrives from the north-west, so the wire
-  # turns rather than being drawn across Claro's east throat. A bend is a
-  # joiner, so it declares no transit and composes no conflict — every way
-  # through it already shares sw49.
-  blue_2_bend: {kind: pin, at: [15, 11]}
+  # sw49's toe faces east, so blue 2 comes down over the station, turns here,
+  # and runs back west into it, which is how the line reaches the toe without
+  # being drawn across the throat. A bend is a joiner, so it declares no
+  # transit and composes no conflict — every way through it already shares
+  # sw49, which the derived layout confirms.
+  blue_2_bend: {kind: pin, at: [16, 11]}
 
 wires:
   - [line_blue_2.B, sw17.toe]

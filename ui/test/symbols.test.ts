@@ -88,6 +88,18 @@ describe("the artwork of a symbol whose legs the library fixes", () => {
   });
 });
 
+describe("the artwork of the generic connection symbol", () => {
+  it("lights the box whenever a way takes any of its legs", () => {
+    // It declares real transits, so a way through it names one — and the box
+    // draws no leg to light. Keyed on the joiner marker it would never light
+    // at all, and a lit run would read as broken where it crosses one.
+    const spec = { kind: "connection", pins: ["a", "b"] } as SymbolSpec;
+    expect(litStrokes(artwork(spec))).toEqual([]);
+    expect(litStrokes(artwork(spec, new Set(["blue_2_1"])))).toHaveLength(1);
+    expect(litStrokes(artwork(spec, new Set([WHOLE])))).toHaveLength(1);
+  });
+});
+
 /** The class of every stroke a template lights. A template's values hold the
  *  classes; nested ones hold the rest, and there is no DOM here to render into
  *  (EDITOR.md's tests). */

@@ -59,7 +59,7 @@ export function artwork(
   const on = (leg: string) => (lit.has(WHOLE) || lit.has(leg) ? " lit" : "");
   switch (spec.kind) {
     case "connection":
-      return opaque(spec, on);
+      return opaque(spec, lit);
     case "block":
       return block(on);
     case "terminal":
@@ -93,10 +93,13 @@ export function appearanceOf(spec: SymbolSpec): string {
  *  turnout detail, which is exactly what it knows about itself. It is legacy
  *  and not on the palette; drawings that still have one have to open
  *  (store/DRAWING.md). */
-function opaque(spec: SymbolSpec, on: Lit): SVGTemplateResult {
+/** The box lights whenever any of its legs does. It declares real transits,
+ *  so a way through it names one — but the box draws no leg to light, having
+ *  no fixed pin set and no turnout detail to show. */
+function opaque(spec: SymbolSpec, lit: ReadonlySet<string>): SVGTemplateResult {
   const { w, h } = footprintOf(spec);
   return svg`
-    <rect class=${`opaque${on(WHOLE)}`} x="0.15" y="0.15"
+    <rect class=${`opaque${lit.size > 0 ? " lit" : ""}`} x="0.15" y="0.15"
           width=${w - 0.3} height=${h - 0.3} rx="0.12" />
   `;
 }

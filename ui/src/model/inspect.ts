@@ -13,6 +13,7 @@
  * gave, which is what keeps a second union-find out of the front end.
  */
 
+import { minted } from "./naming.js";
 import type { Review } from "./store.js";
 
 /** A symbol lit whole, having no leg of its own the artwork draws: a joiner,
@@ -77,7 +78,9 @@ export function against(
     }));
 }
 
-/** One transit through a symbol, and the legs of that symbol it takes. */
+/** One transit through a symbol, and the legs of that symbol it takes.
+ *  `WHOLE` where the symbol has no legs to take — a joiner is passed through,
+ *  and the store says so with an empty leg name. */
 export interface Through {
   connection: string;
   transit: string;
@@ -94,7 +97,7 @@ export function through(review: Review, symbol: string): Through[] {
     for (const [transit, { way }] of Object.entries(explained.transits)) {
       const legs = way
         .filter(([crossed]) => crossed === symbol)
-        .map(([, leg]) => leg);
+        .map(([, leg]) => (leg === "" ? WHOLE : leg));
       if (legs.length > 0) found.push({ connection, transit, legs });
     }
   }
@@ -155,9 +158,13 @@ export interface Clash {
  *
  * Derivation reports the first thing wrong and stops, and a duplicate name is
  * worse than that: two junctions both called `airolo` derive as one
- * connection, which is a wrong netlist rather than a refused one. The editor
- * mints round its own `j7`s (naming.ts) and leaves a name someone typed alone,
- * so what is left here is exactly the collisions a person has to settle.
+ * connection, which is a wrong netlist rather than a refused one.
+ *
+ * A duplicate the editor minted is not one of these. `settle` re-mints it on
+ * both halves of the split that made it (naming.ts), so it is gone by the next
+ * review, and reporting it in between would show the user a finding the editor
+ * is in the middle of fixing itself. What is left is exactly the collisions a
+ * person typed and has to settle.
  */
 export function clashes(review: Review): Clash[] {
   const connections = [
@@ -173,7 +180,7 @@ export function clashes(review: Review): Clash[] {
     }));
   const byName = new Map<string, string[][]>();
   for (const one of connections) {
-    if (one.name === null) continue;
+    if (one.name === null || minted(one.name)) continue;
     byName.set(one.name, [...(byName.get(one.name) ?? []), one.where]);
   }
   for (const [name, where] of byName) {

@@ -23,6 +23,7 @@ import { LitElement, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
 import {
+  WHOLE,
   against,
   amongst,
   through,
@@ -148,7 +149,7 @@ export class TcNetlist extends LitElement {
                   @click=${() => this.choose(connection, transit)}
                 >
                   <span class="transit">${transit}</span>
-                  <span class="ends">${legs.join(", ")}</span>
+                  <span class="ends">${took(legs)}</span>
                 </button>
               </li>
             `,
@@ -161,15 +162,20 @@ export class TcNetlist extends LitElement {
     `;
   }
 
+  /** A pair through the selected symbol. The legs it names are the symbol's
+   *  own, which is what makes the verdict checkable by looking — so they are
+   *  left off where the symbol has none, a joiner being passed through. */
   private pair(pair: Pair) {
-    const legs = pair.legs.map((taken) => taken.join(", ")).join(" / ");
+    const legs = pair.legs.every((taken) => taken.every((leg) => leg === WHOLE))
+      ? ""
+      : `, on ${pair.legs.map(took).join(" / ")}`;
     return html`
       <li class=${pair.concurrent ? "with" : "without"}>
         <span>${pair.one} + ${pair.two}</span>
         <span class="why">
           ${pair.concurrent
-            ? `runs together, on ${legs}`
-            : `shares ${pair.shared.join(", ") || "the way"}, on ${legs}`}
+            ? `runs together${legs}`
+            : `shares ${pair.shared.join(", ") || "the way"}${legs}`}
         </span>
       </li>
     `;
@@ -197,6 +203,12 @@ export class TcNetlist extends LitElement {
 
 function count(many: number, what: string): string {
   return `${many} ${what}${many === 1 ? "" : "s"}`;
+}
+
+/** The legs a transit takes through a symbol, as words. A joiner has none of
+ *  its own; the way goes straight through it. */
+function took(legs: string[]): string {
+  return legs.map((leg) => (leg === WHOLE ? "through" : leg)).join(", ");
 }
 
 declare global {

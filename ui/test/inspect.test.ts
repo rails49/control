@@ -155,6 +155,18 @@ describe("the transits through a symbol", () => {
   it("is empty for a symbol no transit crosses", () => {
     expect(through(scissors(), "yard_stop")).toEqual([]);
   });
+
+  it("reports a joiner as taken whole, having no leg of its own", () => {
+    // The store writes an empty leg for a bend or a portal. Left as it comes,
+    // the pane prints a blank where a leg goes.
+    const found = scissors();
+    found.explain!.connections.crossover!.transits.dn_straight!.way = [
+      ["bend_3", ""],
+    ];
+    expect(through(found, "bend_3")).toEqual([
+      { connection: "crossover", transit: "dn_straight", legs: [WHOLE] },
+    ]);
+  });
 });
 
 describe("the pairs among the transits through a symbol", () => {
@@ -239,6 +251,18 @@ describe("names two connections cannot both wear", () => {
         where: [["sw1", "sw2"]],
       },
     ]);
+  });
+
+  it("says nothing about a duplicate the editor minted and is re-minting", () => {
+    // `settle` re-mints a minted name a split left on both halves, so it is
+    // gone by the next review. Reporting it in between shows a finding the
+    // editor is in the middle of fixing itself.
+    const found = scissors();
+    found.junctions = [
+      { name: "j7", names: ["j7"], symbols: ["sw1", "sw2"] },
+      { name: "j7", names: ["j7"], symbols: ["sw3"] },
+    ];
+    expect(clashes(found)).toEqual([]);
   });
 
   it("reports a joint by its block ends, having no symbols to name", () => {
