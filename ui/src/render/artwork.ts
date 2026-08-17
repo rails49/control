@@ -18,7 +18,7 @@ import { TRANSITS, type Kind, type LibraryKind } from "../symbols.generated.js";
 import type { SymbolSpec } from "../model/drawing.js";
 import { anchorIn, footprintOf, type Point } from "../model/geometry.js";
 import { WHOLE } from "../model/inspect.js";
-import { BEND, BLOCK, PORTAL, SLIP, TERMINAL } from "./units.js";
+import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W } from "./units.js";
 
 const NONE: ReadonlySet<string> = new Set();
 
@@ -93,60 +93,113 @@ function opaque(spec: SymbolSpec, lit: ReadonlySet<string>): SVGTemplateResult {
 function block(on: Lit): SVGTemplateResult {
   const [a, b] = [anchorIn("block", "A"), anchorIn("block", "B")];
   const { x, y, w, h } = BLOCK.body;
-  const { at, mast, head } = BLOCK.signal;
+  const { at } = BLOCK.signal;
   const { arm } = BLOCK.plus;
   return svg`
     <path class=${`track${on()}`} d=${path(a, { x, y: a.y })} />
     <path class=${`track${on()}`} d=${path({ x: x + w, y: b.y }, b)} />
     <rect class=${`block-body${on()}`}
           x=${x} y=${y} width=${w} height=${h} />
-    ${signal(a.x + at, a.y, -1, mast, head)}
-    ${signal(b.x - at, b.y, 1, mast, head)}
+    ${signal(a.x + at, a.y, -1)}
+    ${signal(b.x - at, b.y, 1)}
     <path class="mark" d=${`M${n(BLOCK.plus.x - arm)} ${n(BLOCK.plus.y)}
       h${n(2 * arm)} M${n(BLOCK.plus.x)} ${n(BLOCK.plus.y - arm)}
       v${n(2 * arm)}`} />
   `;
 }
 
-/** A short mast with a round head, standing away from the track: `away` is -1
- *  above it and +1 below. */
-function signal(
-  x: number,
-  y: number,
-  away: number,
-  mast: number,
-  head: number,
-): SVGTemplateResult {
-  const top = y + away * mast;
+/**
+ * A signal standing clear of the track: the sample's plaque, a green lamp and a
+ * red one, no mast.
+ *
+ * `away` is -1 above the track and +1 below, and it turns the whole signal, so
+ * the lamp order reverses with it. The two signals of a block are one point
+ * symmetric pair (EDITOR.md#symbol-geometry), which is what a rotation or a
+ * flip of the block maps onto itself.
+ */
+function signal(x: number, y: number, away: -1 | 1): SVGTemplateResult {
+  const { w, h, chamfer: c, gap, lamp, apart } = BLOCK.signal;
+  const middle = y + away * (W / 2 + gap + h / 2);
+  const [x0, x1] = [x - w / 2, x + w / 2];
+  const [y0, y1] = [middle - h / 2, middle + h / 2];
   return svg`
-    <path class="mast" d=${`M${n(x)} ${n(y)} V${n(top)}`} />
-    <circle class="signal" cx=${n(x)} cy=${n(top + away * head)} r=${head} />
+    <path class="plaque" d=${`M${n(x0)} ${n(y0 + c)} L${n(x0 + c)} ${n(y0)}
+      H${n(x1 - c)} L${n(x1)} ${n(y0 + c)} V${n(y1 - c)} L${n(x1 - c)} ${n(y1)}
+      H${n(x0 + c)} L${n(x0)} ${n(y1 - c)} Z`} />
+    <circle class="lamp clear"
+            cx=${n(x + away * apart)} cy=${n(middle)} r=${lamp} />
+    <circle class="lamp danger"
+            cx=${n(x - away * apart)} cy=${n(middle)} r=${lamp} />
   `;
 }
 
-/** A deliberate track end: the buffer stop that makes a missing wire a
- *  visible error rather than a silently terminal block. */
+/**
+ * A deliberate track end: the buffer stop that makes a missing wire a visible
+ * error rather than a silently terminal block.
+ *
+ * The stub is cut square rather than round-capped, so it stays inside the bar
+ * instead of bulging past it. The cut at the pin end shows nothing: the pin
+ * covers it in edit mode, and in run mode the incoming wire's round cap does.
+ */
 function terminal(on: Lit): SVGTemplateResult {
   const p = anchorIn("terminal", "P");
   const bar = { x: TERMINAL.stub, y: p.y };
   return svg`
-    <path class=${`track${on()}`} d=${path(p, bar)} />
+    <path class=${`track cut${on()}`} d=${path(p, bar)} />
     <path class="stop" d=${`M${n(bar.x)} ${n(bar.y - TERMINAL.bar.h / 2)}
       V${n(bar.y + TERMINAL.bar.h / 2)}`} />
   `;
 }
 
-/** Paired by label with another portal somewhere else on the drawing. The
- *  label is the symbol's meaning, so the canvas draws it beside the mouth in
- *  both modes: matching a pair by eye is how a typo in one is found. */
+/**
+ * Paired by label with another portal somewhere else on the drawing.
+ *
+ * The mouth is the sample's: the stub cut off at an angle, and two strokes
+ * carrying on past it at that same lean. The cut is a clip rather than a filled
+ * shape, so the stub is ordinary track that lights and widens like the rest of
+ * it, and nothing is painted over the junction tint behind the symbol. The
+ * stroke runs a track width past the cut, which is what the clip needs to have
+ * something to cut at every height across the track.
+ */
 function portal(on: Lit): SVGTemplateResult {
   const p = anchorIn("portal", "P");
-  const { tip, half } = PORTAL.mouth;
+  const { first, apart } = PORTAL.mouth;
   return svg`
-    <path class=${`track${on()}`} d=${path(p, { x: PORTAL.stub, y: p.y })} />
-    <path class="portal-mouth" d=${`M${n(PORTAL.stub)} ${n(p.y - half)}
-      L${n(tip)} ${n(p.y)} L${n(PORTAL.stub)} ${n(p.y + half)} Z`} />
+    <path class=${`track${on()}`} clip-path=${`url(#${MOUTH})`}
+          d=${path(p, { x: PORTAL.stub + W, y: p.y })} />
+    ${[first, first + apart].map(
+      (across) => svg`<path class="portal-mouth" d=${leaning(across, p.y)} />`,
+    )}
   `;
+}
+
+/** A stroke at the mouth's lean, crossing the track's centreline at `across`
+ *  and running `reach` either side of it. */
+function leaning(across: number, y: number): string {
+  const { reach } = PORTAL.mouth;
+  const dx = PORTAL.lean * reach;
+  return `M${n(across - dx)} ${n(y - reach)} L${n(across + dx)} ${n(y + reach)}`;
+}
+
+/** The id of the clip that cuts a portal's stub off at the mouth. */
+const MOUTH = "portal-cut";
+
+/**
+ * What the artwork needs defined once per SVG root, which is the portal's cut.
+ * A drawing may hold several portals and the palette draws another, so the
+ * definition cannot live inside the symbol: the canvas puts this in its `defs`
+ * and the palette in one hidden `svg` of its own.
+ */
+export const DEFS: SVGTemplateResult = svg`
+  <clipPath id=${MOUTH} clipPathUnits="userSpaceOnUse">
+    <path d=${`M-1 -1 L${n(cutAt(-1))} -1 L${n(cutAt(2))} 2 L-1 2 Z`} />
+  </clipPath>
+`;
+
+/** Where the mouth's cut crosses a height, on the lean it shares with the two
+ *  strokes beyond it. A portal's pin is always at `(0, 0.5)`. */
+function cutAt(y: number): number {
+  return PORTAL.stub + PORTAL.lean * (y - 0.5);
 }
 
 function bend(on: Lit): SVGTemplateResult {
@@ -192,12 +245,52 @@ function crossed(
     })),
     ...slips.map((leg) => {
       const [from, to] = legs[leg]!;
-      return {
-        legs: [leg],
-        d: path(toward(frog, p(from), SLIP), toward(frog, p(to), SLIP)),
-      };
+      return { legs: [leg], as: "tick", d: tick(frog, p(from), p(to)) };
     }),
   ])}`;
+}
+
+/**
+ * A slip's tick: two strokes, one parallel to each of the two legs the road
+ * joins, meeting where their offset lines cross.
+ *
+ * It falls in the obtuse sector between the two legs, which is the only pair a
+ * slip road can join, so where the tick is says which road the symbol has. One
+ * path rather than two, so the corner mitres itself and a lit slip is three
+ * strokes: its entry half, its tick, its exit half.
+ */
+function tick(frog: Point, from: Point, to: Point): string {
+  const u = unit(frog, from);
+  const v = unit(frog, to);
+  const into = unit(frog, { x: frog.x + u.x + v.x, y: frog.y + u.y + v.y });
+  const corner = crossing(off(frog, u, into), u, off(frog, v, into), v);
+  return `M${n(corner.x + u.x * SLIP.arm)} ${n(corner.y + u.y * SLIP.arm)}
+    L${n(corner.x)} ${n(corner.y)}
+    L${n(corner.x + v.x * SLIP.arm)} ${n(corner.y + v.y * SLIP.arm)}`;
+}
+
+/** A unit vector from one point toward another. */
+function unit(from: Point, to: Point): Point {
+  const span = Math.hypot(to.x - from.x, to.y - from.y);
+  return { x: (to.x - from.x) / span, y: (to.y - from.y) / span };
+}
+
+/** The frog shifted `SLIP.off` off a leg, on the side `into` points: a point of
+ *  the line the tick's stroke along that leg runs down. */
+function off(frog: Point, along: Point, into: Point): Point {
+  const dot = into.x * along.x + into.y * along.y;
+  const away = unit(
+    { x: 0, y: 0 },
+    { x: into.x - dot * along.x, y: into.y - dot * along.y },
+  );
+  return { x: frog.x + away.x * SLIP.off, y: frog.y + away.y * SLIP.off };
+}
+
+/** Where two lines cross, each given as a point and a direction. */
+function crossing(p: Point, u: Point, q: Point, v: Point): Point {
+  const span =
+    ((q.x - p.x) * v.y - (q.y - p.y) * v.x) / (u.x * v.y - u.y * v.x);
+  return { x: p.x + u.x * span, y: p.y + u.y * span };
 }
 
 /** The roads of a symbol, lit ones last: legs share track where they meet,
@@ -205,13 +298,16 @@ function crossed(
  *  stable, so unlit roads keep the order they are written in. */
 function roads(
   on: Lit,
-  drawn: { legs: string[]; d: string }[],
+  drawn: { legs: string[]; d: string; as?: string }[],
 ): SVGTemplateResult[] {
   return [...drawn]
     .sort(
       (a, b) => (on(...a.legs) === "" ? 0 : 1) - (on(...b.legs) === "" ? 0 : 1),
     )
-    .map(({ legs, d }) => svg`<path class=${`track${on(...legs)}`} d=${d} />`);
+    .map(
+      ({ legs, d, as }) =>
+        svg`<path class=${`${as ?? "track"}${on(...legs)}`} d=${d} />`,
+    );
 }
 
 /** A stroke from one point to another, in the symbol's own coordinates. */
@@ -221,15 +317,6 @@ function path(from: Point, to: Point): string {
 
 function middle(a: Point, b: Point): Point {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-}
-
-/** The point `away` from `from` along the line to `to`. */
-function toward(from: Point, to: Point, away: number): Point {
-  const span = Math.hypot(to.x - from.x, to.y - from.y);
-  return {
-    x: from.x + ((to.x - from.x) / span) * away,
-    y: from.y + ((to.y - from.y) / span) * away,
-  };
 }
 
 /** Path data reads better without a float's tail, and nothing here is drawn

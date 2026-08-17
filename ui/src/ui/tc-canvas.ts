@@ -31,7 +31,7 @@ import {
 } from "../model/geometry.js";
 import { clashes, lit, type Chosen } from "../model/inspect.js";
 import type { Joint, Review } from "../model/store.js";
-import { artwork } from "../render/artwork.js";
+import { artwork, DEFS } from "../render/artwork.js";
 import { LABEL, PIN, PORTAL } from "../render/units.js";
 import { canvasStyles } from "./styles.js";
 
@@ -110,6 +110,7 @@ export class TcCanvas extends LitElement {
           <pattern id="grid" width="1" height="1" patternUnits="userSpaceOnUse">
             <path class="grid" d="M1 0 V1 H0" />
           </pattern>
+          ${DEFS}
         </defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
         <rect
@@ -241,7 +242,7 @@ export class TcCanvas extends LitElement {
     }
     if (spec.kind === "portal") {
       const beside = gridPointOf(spec, {
-        x: PORTAL.mouth.tip + PORTAL.label,
+        x: PORTAL.mouth.first + PORTAL.mouth.apart + PORTAL.label,
         y: 0.5,
       });
       return svg`<text class="name inside"

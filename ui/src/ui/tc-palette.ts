@@ -12,7 +12,7 @@ import { customElement, property } from "lit/decorators.js";
 
 import type { Kind } from "../symbols.generated.js";
 import { FOOTPRINTS, transformOf } from "../model/geometry.js";
-import { artwork, PALETTE, TILE } from "../render/artwork.js";
+import { artwork, DEFS, PALETTE, TILE } from "../render/artwork.js";
 import { paletteStyles } from "./styles.js";
 
 const TITLES: Record<Kind, string> = {
@@ -38,6 +38,9 @@ export class TcPalette extends LitElement {
   override render() {
     return html`
       <h2>Symbols</h2>
+      <!-- One definition for all the tiles: an id is looked up across the whole
+           tree, not per svg, so repeating it in each tile would repeat the id. -->
+      <svg class="defs" aria-hidden="true"><defs>${DEFS}</defs></svg>
       ${PALETTE.map((kind) => this.tile(kind))}
     `;
   }

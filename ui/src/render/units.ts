@@ -20,6 +20,13 @@ export const PIN = W / 2;
  *  it so that a way lit through it shows. */
 export const BEND = 0.75 * W;
 
+/**
+ * The weight of a mark the sample tiles draw as a one-unit line: a slip's tick
+ * and the strokes at a portal's mouth. Thinner than any track, which is what
+ * keeps a mark a mark.
+ */
+export const HAIRLINE = 0.03;
+
 const BODY = { w: 4, h: 0.8 }; // the block's rectangle
 const SPAN = 6; // the block's footprint, and its two pins
 
@@ -27,8 +34,11 @@ const SPAN = 6; // the block's footprint, and its two pins
  * Block, 6×1: a centred rectangle with a 1G track stub each side, a signal on
  * each stub, and a plus at the rectangle's lower corner on side A.
  *
- * The signals are point symmetric about the centre — above the track at the A
- * end, below at the B end — so a rotation or a flip reads naturally.
+ * The signal is the sample's plaque: no mast, an octagonal outline with its
+ * corners chamfered at 45 degrees, and a green lamp beside a red one. The pair
+ * is point symmetric about the block's centre, above the track at the A end and
+ * below at the B end, so a rotation or a flip reads naturally and the lamp
+ * order turns with the plaque.
  */
 export const BLOCK = {
   body: {
@@ -38,7 +48,15 @@ export const BLOCK = {
     h: BODY.h,
     border: 0.3 * W,
   },
-  signal: { at: 0.5, mast: 1.6 * W, head: 0.6 * W },
+  signal: {
+    at: 0.5, // along the stub, from the pin
+    w: 0.53,
+    h: 0.22,
+    chamfer: 0.09,
+    gap: 0.09, // between the plaque and the edge of the track
+    lamp: 0.055, // radius
+    apart: 0.11, // each lamp's centre, either side of the plaque's
+  },
   plus: {
     x: (SPAN - BODY.w) / 2 + 0.2,
     y: (1 + BODY.h) / 2 - 0.18,
@@ -46,24 +64,32 @@ export const BLOCK = {
   },
 };
 
-/** Terminal, 1×1: a stub from the pin to the buffer stop's bar. */
-export const TERMINAL = { stub: 0.6, bar: { h: 0.6, w: 0.7 * W } };
+/** Terminal, 1×1: a stub from the pin to the buffer stop's bar, which is wider
+ *  than the track so that the stub's square end stays inside it. */
+export const TERMINAL = { stub: 0.6, bar: { h: 0.6, w: 1.2 * W } };
 
-/** Portal, 1×1: a stub and the mouth the label is drawn beside. */
+/**
+ * Portal, 1×1: the stub, cut off at the mouth, and the two strokes carrying on
+ * past it.
+ *
+ * The cut and both strokes share one lean, written as dx per dy. `stub` and
+ * `first` are where the cut and the nearer stroke cross the track's centreline,
+ * and `reach` is how far a stroke runs either side of it.
+ */
 export const PORTAL = {
-  stub: 0.4,
-  mouth: { tip: 0.9, half: 0.26 },
+  stub: 0.69,
+  lean: -0.41,
+  mouth: { first: 0.7, apart: 0.09, reach: 0.27 },
   label: 0.16,
 };
 
 /**
- * Where a slip's tick leaves each of its two legs, as a distance from the
- * frog. Provisional geometry, finalised by eye (EDITOR.md): the tick is the
- * road a slip has and a plain crossing has not, so it is drawn as track, bent
- * round the frog, and far enough out to leave daylight between it and the
- * crossing — nearer in, the corner fills and a slip reads as a fat crossing.
+ * A slip's tick: the road it has and a plain crossing has not, drawn as two
+ * strokes, one parallel to each of the two legs the road joins. `off` is how
+ * far a stroke sits from its leg's centreline, and `arm` how far it runs from
+ * the corner where the two offset lines cross.
  */
-export const SLIP = 0.5;
+export const SLIP = { off: 0.22, arm: 0.14 };
 
 /** The label under a symbol, and the one inside a block. */
 export const LABEL = { size: 0.22, below: 0.32 };
@@ -83,6 +109,8 @@ export const COLOURS: Record<string, string> = {
   "--good": "#1a7f37",
   "--wrong": "#cc2936",
   "--hint": "#7c8087",
+  "--clear": "#17a24a",
+  "--danger": "#e0332a",
   "--lit": "#a55b12",
   "--lit-body": "#f4e3cd",
   "--tint-0": "#1f6feb",

@@ -110,6 +110,62 @@ describe("the artwork of the generic connection symbol", () => {
   });
 });
 
+/**
+ * What the sample tiles fix about a symbol (EDITOR.md#symbol-geometry), asserted
+ * as what is drawn rather than where: the geometry itself is tuned by eye, so
+ * pinning coordinates would make every nudge a test edit.
+ */
+describe("the artwork the samples fix", () => {
+  it("gives a block two signals, each a plaque with a green lamp and a red", () => {
+    const block = written({ kind: "block" } as SymbolSpec);
+    expect(times(block, `class="plaque"`)).toBe(2);
+    expect(times(block, `class="lamp clear"`)).toBe(2);
+    expect(times(block, `class="lamp danger"`)).toBe(2);
+    expect(block).not.toContain("mast");
+  });
+
+  it("cuts a terminal's stub square, so it stays inside the bar", () => {
+    expect(written({ kind: "terminal" } as SymbolSpec)).toContain("track cut");
+  });
+
+  it("clips a portal's stub, keeping it a stroke, and marks the mouth twice", () => {
+    const portal = written({ kind: "portal" } as SymbolSpec);
+    expect(portal).toContain("url(#portal-cut)");
+    expect(times(portal, `class="portal-mouth"`)).toBe(2);
+  });
+
+  it("draws a slip's tick as a mark rather than as track", () => {
+    const slip = written({ kind: "single_slip" } as SymbolSpec);
+    expect(times(slip, "tick")).toBe(1);
+  });
+});
+
+/** Everything a symbol's template writes, interpolated values and the template
+ *  around them alike: enough to say what is drawn, with no DOM to render into
+ *  (EDITOR.md's tests). */
+function written(spec: SymbolSpec): string {
+  return flatten(artwork(spec));
+}
+
+function flatten(drawn: unknown): string {
+  if (Array.isArray(drawn)) return drawn.map(flatten).join(" ");
+  if (typeof drawn === "string" || typeof drawn === "number") {
+    return String(drawn);
+  }
+  if (typeof drawn === "object" && drawn !== null && "values" in drawn) {
+    const { strings, values } = drawn as {
+      strings: readonly string[];
+      values: unknown[];
+    };
+    return `${strings.join(" ")} ${values.map(flatten).join(" ")}`;
+  }
+  return "";
+}
+
+function times(text: string, what: string): number {
+  return text.split(what).length - 1;
+}
+
 /** The class of every stroke a template lights. A template's values hold the
  *  classes; nested ones hold the rest, and there is no DOM here to render into
  *  (EDITOR.md's tests). */

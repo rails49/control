@@ -10,7 +10,14 @@
 
 import { css, unsafeCSS } from "lit";
 
-import { BLOCK, COLOURS, LABEL, TERMINAL, W } from "../render/units.js";
+import {
+  BLOCK,
+  COLOURS,
+  HAIRLINE,
+  LABEL,
+  TERMINAL,
+  W,
+} from "../render/units.js";
 
 /** The palette, as the custom properties every rule reads. */
 const palette = unsafeCSS(
@@ -114,22 +121,39 @@ const symbols = css`
     stroke-width: ${BLOCK.body.border};
   }
 
-  .signal {
+  /* A stroke ending inside another shape is cut square, so that a round cap
+     cannot bulge past a buffer bar. */
+  .track.cut {
+    stroke-linecap: butt;
+  }
+
+  .plaque {
     fill: var(--track);
   }
 
-  .mast,
+  /* Both aspects are drawn, and edit mode shows both lit. Run mode, out of
+     scope for now, dims the one the signal is not showing. */
+  .lamp.clear {
+    fill: var(--clear);
+  }
+
+  .lamp.danger {
+    fill: var(--danger);
+  }
+
   .stop,
   .mark,
-  .portal-mouth {
+  .portal-mouth,
+  .tick {
     fill: none;
     stroke: var(--track);
     stroke-linecap: butt;
   }
 
-  .mast,
+  /* The plus marking a block's A side, at the weight of the rectangle it sits
+     on the corner of. */
   .mark {
-    stroke-width: ${0.5 * W};
+    stroke-width: ${BLOCK.body.border};
   }
 
   .stop {
@@ -137,8 +161,12 @@ const symbols = css`
   }
 
   .portal-mouth {
-    stroke-width: ${0.5 * W};
-    stroke-linejoin: round;
+    stroke: var(--hint);
+    stroke-width: ${HAIRLINE};
+  }
+
+  .tick {
+    stroke-width: ${HAIRLINE};
   }
 
   .bend {
@@ -193,6 +221,14 @@ export const paletteStyles = css`
     width: auto;
     max-width: 5rem;
     flex: none;
+  }
+
+  /* Definitions only, shared by every tile: sized to nothing so it takes no
+     room, rather than hidden, which would take its contents out of reach. */
+  svg.defs {
+    position: absolute;
+    width: 0;
+    height: 0;
   }
 
   ${symbols}
@@ -328,6 +364,14 @@ export const canvasStyles = css`
 
   .symbol .bend.lit {
     fill: var(--lit);
+  }
+
+  /* A slip's tick is the only thing telling its road from the through route, so
+     it lights with the transit. It stays a mark: twice the hairline is enough to
+     read beside track four times as thick. */
+  .symbol .tick.lit {
+    stroke: var(--lit);
+    stroke-width: ${2 * HAIRLINE};
   }
 
   /* A block's body covers all but the stubs of its track, so the end of a lit
