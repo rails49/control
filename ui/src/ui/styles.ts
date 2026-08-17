@@ -308,21 +308,11 @@ export const canvasStyles = css`
     opacity: 0.1;
   }
 
-  .junction text {
-    font: 0.26px system-ui, sans-serif;
-    font-weight: 600;
-    fill: currentColor;
-  }
-
   /* A junction wearing a name another connection also wears, or two its own
      symbols disagree about: shown where it is rather than only in the panel. */
   .junction.clashing rect {
     fill: var(--wrong);
     opacity: 0.14;
-  }
-
-  .junction.clashing text {
-    fill: var(--wrong);
   }
 
   .tint-0 {

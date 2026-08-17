@@ -184,9 +184,17 @@ export class TcCanvas extends LitElement {
 
   // --- what is drawn ------------------------------------------------------
 
-  /** A junction is a connected group of non-block symbols, which `/review`
-   *  computes. Tinting it as one region is what makes a stray wire that
-   *  merged two throats visible long before it is a wrong concurrency pair. */
+  /**
+   * A junction is a connected group of non-block symbols, which `/review`
+   * computes. Tinting it as one region is what makes a stray wire that merged
+   * two throats visible long before it is a wrong concurrency pair.
+   *
+   * The region carries no name. A junction of one symbol is named after that
+   * symbol, so writing the name here put a symbol's own name beside it and
+   * read as a label the symbol carried rather than as an overlay
+   * (EDITOR.md#junctions). The name is read in the netlist pane, where it
+   * heads its section, and in the right-click menu that renames it.
+   */
   private junctions(): unknown {
     // A name collision is shown at the edit that caused it (EDITOR.md), and
     // where it is is the region wearing the name, not a sentence in a panel.
@@ -199,17 +207,12 @@ export class TcCanvas extends LitElement {
         return spec === undefined ? [] : cellsOf(spec);
       });
       if (cells.length === 0) return nothing;
-      const left = Math.min(...cells.map(([c]) => c));
-      const top = Math.min(...cells.map(([, r]) => r));
       const wrong = junction.symbols.some((name) => troubled.has(name));
       return svg`
         <g class=${`junction tint-${index % 6} ${wrong ? "clashing" : ""}`}>
           ${cells.map(
             ([c, r]) => svg`<rect x=${c} y=${r} width="1" height="1" />`,
           )}
-          <text x=${left + 0.1} y=${top - 0.15}>${
-            junction.name ?? (junction.names.join(" / ") || "unnamed")
-          }</text>
         </g>
       `;
     });

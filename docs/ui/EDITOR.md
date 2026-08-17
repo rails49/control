@@ -224,10 +224,9 @@ degrees from vertical, and two grey hairlines at that same angle beyond it,
 each about 0.53G long: the first crosses the track's centreline at the cut, the
 second 0.09G further out.
 
-A block's label is the only text on a symbol. Nothing else is named on the
-canvas, a portal included; a name is read in the properties dialog and in the
-netlist pane. The names written over the tinted junction regions are
-`/review`'s overlay rather than text on a symbol.
+A block's label is the only text on the canvas. Nothing else is named there, a
+portal and a junction region included; a name is read in the properties dialog
+and in the netlist pane.
 
 Each kind has exactly one appearance; diagonal legs are always 45 degrees.
 The former `angle` property that picked between appearances is removed
@@ -300,10 +299,16 @@ that crosses two named legs is refused, and the finding says which two.
 
 A junction is a connected group of non-block symbols, which is exactly what
 derivation computes, so the editor computes it too rather than asking. Wire a
-crossing to a turnout and they become one tinted region with one name. That
-region is worth looking at in its own right: a stray wire that merges two
-throats into one junction is visible as one region where you expected two,
-long before it shows up as a wrong concurrency pair.
+crossing to a turnout and they become one tinted region. That region is worth
+looking at in its own right: a stray wire that merges two throats into one
+junction is visible as one region where you expected two, long before it shows
+up as a wrong concurrency pair.
+
+The region is tinted and not named. A junction drawn from one symbol is named
+after that symbol, so a name written over the region sat beside the symbol and
+read as a label the symbol carried — which is what the canvas reserves for a
+block. The name is read where it means something: heading its section in the
+netlist pane, and in the right-click menu that renames it.
 
 Names are minted, `j1`, `j2`, and written into the drawing at once, so a
 junction always has a valid name and nothing interrupts a sketch. Minting
