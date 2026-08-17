@@ -143,6 +143,55 @@ class Drawing:
 
     def derive(self) -> dict[str, Any]:
         """The layout document this drawing describes, in canonical order."""
+        grouped = self._transits()
+        return {
+            "layout": self.name,
+            **({} if self.units is None else {"units": self.units}),
+            "blocks": {
+                symbol.name: {"length": symbol.length}
+                for symbol in self._of_kind("block")
+            },
+            "connections": {
+                connection: self._connection(grouped[connection])
+                for connection in sorted(grouped)
+            },
+        }
+
+    def explain(self) -> dict[str, Any]:
+        """Why the layout is what it is: the way each transit takes, and for
+        each pair that cannot run together, the symbols they share.
+
+        Derivation computes both and keeps neither, the layout having nowhere
+        to put them. A list of exclusive pairs states the outcome; naming the
+        frog behind one states the reason, which is the thing the editor is
+        built to show (EDITOR.md).
+        """
+        return {
+            "layout": self.name,
+            "connections": {
+                connection: {
+                    "transits": {
+                        name: {
+                            "ends": list(ends),
+                            "way": [list(use) for use in used],
+                        }
+                        for name, (ends, used) in sorted(named.items())
+                    },
+                    "exclusive": [
+                        {"transits": [one, two], "shared": shared}
+                        for i, one in enumerate(sorted(named))
+                        for two in sorted(named)[i + 1 :]
+                        if (shared := self._blocking(named[one][1], named[two][1]))
+                    ],
+                }
+                for connection, named in sorted(self._transits().items())
+            },
+        }
+
+    def _transits(self) -> dict[str, dict[str, Walk]]:
+        """Every transit, by connection and by derived name, with the way it
+        takes. The whole of passes 1 and 2, shared by `derive` and `explain`
+        so that neither can disagree with the other about what exists."""
         joins = self._joins()
         connection_of = self._connections(joins)
 
@@ -166,19 +215,23 @@ class Drawing:
                 f" join two blocks — only a wire that is itself the connection"
                 f" carries a name"
             )
-
         return {
-            "layout": self.name,
-            **({} if self.units is None else {"units": self.units}),
-            "blocks": {
-                symbol.name: {"length": symbol.length}
-                for symbol in self._of_kind("block")
-            },
-            "connections": {
-                connection: self._connection(connection, grouped[connection])
-                for connection in sorted(grouped)
-            },
+            connection: self._named(connection, walks)
+            for connection, walks in grouped.items()
         }
+
+    def _named(self, connection: str, walks: list[Walk]) -> dict[str, Walk]:
+        where = f"drawing '{self.name}': connection '{connection}'"
+        named: dict[str, Walk] = {}
+        for ends, used in walks:
+            name = self._transit_name(where, ends, used)
+            if name in named:
+                raise ValueError(
+                    f"{where}: two transits named '{name}' — name one of them"
+                    f" in the drawing"
+                )
+            named[name] = (ends, used)
+        return named
 
     def _joint_name(
         self, ends: tuple[str, str], used: tuple[Use, ...], spent: set[tuple[str, str]]
@@ -389,10 +442,13 @@ class Drawing:
 
     # --- pass 3: composing symbol concurrency ------------------------------
 
-    def _concurrent(self, one: tuple[Use, ...], two: tuple[Use, ...]) -> bool:
-        """Two transits run concurrently only where every symbol they share
-        declares the transits they take through it concurrent. A symbol
-        transit is self-exclusive, so sharing one is always a conflict."""
+    def _blocking(self, one: tuple[Use, ...], two: tuple[Use, ...]) -> list[str]:
+        """The symbols two ways share that stop them running together.
+
+        A symbol blocks unless it declares every pair of its transits the two
+        ways take through it concurrent. A symbol transit is self-exclusive,
+        so sharing one is always a conflict. Empty means they run together.
+        """
         taken: tuple[dict[str, set[str]], dict[str, set[str]]] = (
             defaultdict(set),
             defaultdict(set),
@@ -400,27 +456,20 @@ class Drawing:
         for side, used in zip(taken, (one, two)):
             for symbol, local in used:
                 side[symbol].add(local)
-        for symbol in taken[0].keys() & taken[1].keys():
-            concurrent = self.symbols[symbol].concurrent
-            for here in taken[0][symbol]:
-                for there in taken[1][symbol]:
-                    if frozenset((here, there)) not in concurrent:
-                        return False
-        return True
+        return sorted(
+            symbol
+            for symbol in taken[0].keys() & taken[1].keys()
+            if any(
+                frozenset((here, there)) not in self.symbols[symbol].concurrent
+                for here in taken[0][symbol]
+                for there in taken[1][symbol]
+            )
+        )
 
-    def _connection(self, connection: str, walks: list[Walk]) -> dict[str, Any]:
-        where = f"drawing '{self.name}': connection '{connection}'"
+    def _concurrent(self, one: tuple[Use, ...], two: tuple[Use, ...]) -> bool:
+        return not self._blocking(one, two)
 
-        named: dict[str, Walk] = {}
-        for ends, used in walks:
-            name = self._transit_name(where, ends, used)
-            if name in named:
-                raise ValueError(
-                    f"{where}: two transits named '{name}' — name one of them"
-                    f" in the drawing"
-                )
-            named[name] = (ends, used)
-
+    def _connection(self, named: dict[str, Walk]) -> dict[str, Any]:
         concurrent = [
             sorted((one, two))
             for i, one in enumerate(sorted(named))

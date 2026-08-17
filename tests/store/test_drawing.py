@@ -66,6 +66,10 @@ def spanned(**symbols: Any) -> dict[str, Any]:
 # --- the committed drawings ------------------------------------------------
 
 
+def committed_drawing(name: str) -> Drawing:
+    return Drawing.from_document(read(f"{name}.drawing.yaml"))
+
+
 def committed(name: str) -> Layout:
     """A committed drawing, as the apps read it: derived and validated."""
     return Layout.from_document(derive(read(f"{name}.drawing.yaml")))
@@ -570,6 +574,95 @@ def test_two_junctions_taking_the_same_name_are_refused() -> None:
     ]
     with pytest.raises(ValueError, match="two junctions are named 'join'"):
         derive(doc)
+
+
+# --- explain: the way a transit takes, and what excludes it ---------------
+
+
+def explain(doc: dict[str, Any]) -> dict[str, Any]:
+    return Drawing.from_document(doc).explain()
+
+
+def test_a_transit_reports_the_way_it_takes() -> None:
+    """Symbol by symbol and leg by leg, which is what lights a route on the
+    canvas."""
+    doc = two_blocks(
+        north=block(),
+        north_stop={"kind": "terminal"},
+        points={"kind": "turnout"},
+    )
+    doc["wires"] += [
+        ["west.B", "points.toe"],
+        ["points.straight", "east.A"],
+        ["points.diverging", "north.A"],
+        ["north.B", "north_stop.P"],
+    ]
+    transits = explain(doc)["connections"]["points"]["transits"]
+    assert transits["east_A__west_B"] == {
+        "ends": ["east.A", "west.B"],
+        "way": [["points", "straight"]],
+    }
+    assert transits["north_A__west_B"]["way"] == [["points", "diverging"]]
+
+
+def test_an_exclusion_names_the_symbol_that_causes_it() -> None:
+    """The claim DRAWING.md makes about composition, said out loud: a
+    turnout's two ways share its toe."""
+    doc = two_blocks(
+        north=block(),
+        north_stop={"kind": "terminal"},
+        points={"kind": "turnout"},
+    )
+    doc["wires"] += [
+        ["west.B", "points.toe"],
+        ["points.straight", "east.A"],
+        ["points.diverging", "north.A"],
+        ["north.B", "north_stop.P"],
+    ]
+    assert explain(doc)["connections"]["points"]["exclusive"] == [
+        {"transits": ["east_A__west_B", "north_A__west_B"], "shared": ["points"]}
+    ]
+
+
+def test_transits_that_run_together_are_not_listed_as_exclusive() -> None:
+    """Concurrency is the layout's to report; explain says only what stops a
+    pair, so a declared-concurrent pair says nothing."""
+    excluded = explain(crossover())["connections"]["crossover"]["exclusive"]
+    assert ["dn_straight", "up_straight"] not in [pair["transits"] for pair in excluded]
+    assert {
+        "transits": ["dn_straight", "dn_to_up"],
+        "shared": ["crossover"],
+    } in excluded
+
+
+def test_the_scissors_crossover_says_which_frog_excludes_a_pair() -> None:
+    """`crossover-yard` drawn from real symbols: the two crossing moves are
+    exclusive because both take the diamond, which is the composition
+    argument DRAWING.md rests on."""
+    crossing = committed_drawing("crossover-yard").explain()["connections"]["crossover"]
+    excluded = {
+        tuple(pair["transits"]): pair["shared"] for pair in crossing["exclusive"]
+    }
+    assert "diamond" in excluded[("dn_to_up", "up_to_dn")]
+    assert ("dn_straight", "up_straight") not in excluded
+
+
+def test_airolo_says_the_wx310_is_what_a_crossed_pair_shares() -> None:
+    airolo = committed_drawing("gotthard").explain()["connections"]["airolo"]
+    shared = {
+        symbol
+        for pair in airolo["exclusive"]
+        for symbol in pair["shared"]
+        if "line_blue_2" in str(pair["transits"])
+    }
+    assert "sw16" in shared
+
+
+def test_explain_refuses_what_derivation_refuses() -> None:
+    doc = two_blocks()
+    doc["wires"].append(["west.B", "east.A"])
+    with pytest.raises(ValueError, match="connection symbol"):
+        explain(doc)
 
 
 # --- names and determinism ------------------------------------------------
