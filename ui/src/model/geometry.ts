@@ -136,18 +136,23 @@ export function placed(spec: SymbolSpec): {
 }
 
 /**
- * What a placement does: the footprint it leaves, and how it moves a point of
- * the symbol's own coordinates into the cell at `at`.
+ * What a placement does: the footprint it leaves, how it moves a point of the
+ * symbol's own coordinates, and the SVG transform that does the same to the
+ * artwork. All three come out of one walk over the flip and the quarter turns,
+ * so the artwork and the pins cannot disagree about where a leg ends.
  *
  * Flip first, then turn. Either order draws every symbol the editor can make,
- * but only a fixed one makes `rot` and `flip` mean one thing.
+ * but only a fixed one makes `rot` and `flip` mean one thing. An SVG transform
+ * list is applied right to left, so the turns are written in reverse and the
+ * flip last of all.
  */
 function placement(
   spec: SymbolSpec,
   base: Footprint,
-): { footprint: Footprint; move: (point: Point) => Point } {
+): { footprint: Footprint; move: (point: Point) => Point; transform: string } {
   let { w, h } = base;
   const moves: ((point: Point) => Point)[] = [];
+  const turns: string[] = [];
   if (spec.flip) {
     const across = w;
     moves.push(({ x, y }) => ({ x: across - x, y }));
@@ -155,11 +160,15 @@ function placement(
   for (let turn = (spec.rot ?? 0) / 90; turn > 0; turn--) {
     const down = h;
     moves.push(({ x, y }) => ({ x: down - y, y: x }));
+    turns.unshift(`translate(${down} 0) rotate(90)`);
     [w, h] = [h, w];
   }
   return {
     footprint: { w, h },
     move: (point) => moves.reduce((moved, step) => step(moved), point),
+    transform:
+      turns.join(" ") +
+      (spec.flip ? ` translate(${base.w} 0) scale(-1 1)` : ""),
   };
 }
 
@@ -189,22 +198,12 @@ export function centreOf(spec: SymbolSpec): Point {
   return { x: c + w / 2, y: r + h / 2 };
 }
 
-/**
- * The SVG transform that takes a symbol's own coordinates onto the grid: the
- * same flip, quarter turns and offset `placed` and `anchorOf` work out, so the
- * artwork and the pins can never disagree about where a leg ends.
- */
+/** The SVG transform that takes a symbol's own coordinates onto the grid: the
+ *  placement `placed` and `anchorOf` work out, written for the artwork. */
 export function transformOf(spec: SymbolSpec): string {
-  const start = footprintOf(spec);
-  let { w, h } = start;
   const [c, r] = spec.at ?? [0, 0];
-  const turns: string[] = [];
-  for (let turn = (spec.rot ?? 0) / 90; turn > 0; turn--) {
-    turns.unshift(`translate(${h} 0) rotate(90)`);
-    [w, h] = [h, w];
-  }
-  const flip = spec.flip ? ` translate(${start.w} 0) scale(-1 1)` : "";
-  return `translate(${c} ${r}) ${turns.join(" ")}${flip}`.replace(/\s+/g, " ");
+  const { transform } = placement(spec, footprintOf(spec));
+  return `translate(${c} ${r}) ${transform}`.replace(/\s+/g, " ").trim();
 }
 
 /** A kind's footprint before it is turned. */

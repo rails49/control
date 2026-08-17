@@ -36,6 +36,8 @@ describe("the artwork transform", () => {
       "pin",
       "turnout",
       "crossing",
+      "crossing_90",
+      "crossing_90d",
       "single_slip",
       "double_slip",
     ] as const) {
