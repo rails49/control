@@ -4,9 +4,9 @@
  * A connection's name is authored, never derived (store/DRAWING.md), so one
  * has to come from somewhere when nobody has typed one. Names are minted `j1`,
  * `j2` and written at once, so a junction always has a valid name and nothing
- * interrupts a sketch. Naming a junction writes `connection:` onto every
- * member; naming a bare wire between two blocks writes it onto the wire, that
- * wire being the connection.
+ * interrupts a sketch. Naming a junction writes `connection:` onto the members
+ * that declare a transit; naming a bare wire between two blocks writes it onto
+ * the wire, that wire being the connection.
  *
  * Which junctions and joints exist is the store's answer (`/review`), not a
  * second union-find here. What this module decides is only what they are
@@ -20,6 +20,7 @@
  * which half is Airolo is not the editor's decision to make.
  */
 
+import { TRANSITS } from "../symbols.generated.js";
 import { wireKey, type Drawing, type SymbolSpec } from "./drawing.js";
 import type { Joint, Junction, Review } from "./store.js";
 
@@ -56,7 +57,18 @@ export function settle(drawing: Drawing, review: Review): boolean {
   return wrote;
 }
 
-/** Write a name onto a junction: every one of its symbols says it. */
+/**
+ * Write a name onto a junction: every one of its symbols that can wear it
+ * says it, and any that cannot gives one up.
+ *
+ * A junction is the connected group of non-block symbols, so a bend joining
+ * two wires is in it — but a joiner passes a wire through and declares no
+ * transit, and the drawing schema gives it no `connection` to write
+ * (store/DRAWING.md). Writing one refused the whole document, and since a
+ * refused drawing cannot be reviewed the editor could not say which key it
+ * was. Clearing the ones that cannot wear it repairs a drawing an older
+ * editor wrote.
+ */
 export function nameJunction(
   drawing: Drawing,
   symbols: string[],
@@ -64,8 +76,17 @@ export function nameJunction(
 ): void {
   for (const symbol of symbols) {
     const spec: SymbolSpec | undefined = drawing.symbols[symbol];
-    if (spec !== undefined) spec.connection = name;
+    if (spec === undefined) continue;
+    if (declares(spec)) spec.connection = name;
+    else delete spec.connection;
   }
+}
+
+/** Whether a symbol is one the junction is made of rather than one the wire
+ *  runs through. The same question the store asks to work out what a junction
+ *  is called: only a symbol declaring a transit is part of the answer. */
+function declares(spec: SymbolSpec): boolean {
+  return spec.kind === "connection" || spec.kind in TRANSITS;
 }
 
 /** Write a name onto a joint. The name goes on one segment of the chain and

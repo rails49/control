@@ -219,3 +219,47 @@ describe("naming a junction by hand", () => {
     ).toEqual(["airolo", "airolo", "airolo"]);
   });
 });
+
+/** A bend joining a wire to a turnout is in the junction's symbols, because a
+ *  junction is the connected group of non-block symbols. It declares no
+ *  transit, and the drawing schema gives a joiner no `connection`: writing one
+ *  refused the whole document. */
+describe("a junction with a joiner in it", () => {
+  function bent(): Drawing {
+    return {
+      drawing: "test",
+      symbols: {
+        sw1: { kind: "turnout", at: [0, 0] },
+        n1: { kind: "pin", at: [4, 0] },
+        end1: { kind: "terminal", at: [6, 0] },
+        portal1: { kind: "portal", at: [8, 0], label: "portal1" },
+      },
+      wires: [],
+    };
+  }
+
+  it("names the symbols that declare a transit and no others", () => {
+    const drawing = bent();
+    nameJunction(drawing, ["sw1", "n1", "end1", "portal1"], "airolo");
+    expect(drawing.symbols.sw1!.connection).toBe("airolo");
+    expect(drawing.symbols.n1).not.toHaveProperty("connection");
+    expect(drawing.symbols.end1).not.toHaveProperty("connection");
+    expect(drawing.symbols.portal1).not.toHaveProperty("connection");
+  });
+
+  it("mints the same way, leaving the joiner clean", () => {
+    const drawing = bent();
+    expect(
+      settle(drawing, review({ junctions: [junction(null, [], ["sw1", "n1"])] })),
+    ).toBe(true);
+    expect(drawing.symbols.sw1!.connection).toBe("j1");
+    expect(drawing.symbols.n1).not.toHaveProperty("connection");
+  });
+
+  it("takes back the one an older editor wrote", () => {
+    const drawing = bent();
+    drawing.symbols.n1!.connection = "airolo";
+    nameJunction(drawing, ["sw1", "n1"], "airolo");
+    expect(drawing.symbols.n1).not.toHaveProperty("connection");
+  });
+});
