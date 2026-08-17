@@ -103,10 +103,17 @@ def test_single_track_meet_derives_a_throat_and_a_switch_at_each_end() -> None:
     assert all(not c.concurrent for c in layout.connections.values())
 
 
-def test_gotthard_derives_one_junction_at_airolo_and_two_at_claro() -> None:
+def test_gotthard_derives_one_junction_at_airolo_and_three_at_claro() -> None:
     layout = committed("gotthard")
     assert len(layout.blocks) == 14
-    assert sorted(layout.connections) == ["airolo", "claro_east", "claro_west"]
+    # Claro's east end is two throats, not one: blue 1's lead and blue 2's
+    # share no track, which is what drawing it from turnouts showed (#58).
+    assert sorted(layout.connections) == [
+        "airolo",
+        "claro_east_b1",
+        "claro_east_b2",
+        "claro_west",
+    ]
     assert sum(len(c.transits) for c in layout.connections.values()) == 29
     assert layout.terminal_blocks == frozenset(
         {"airolo_4", "claro_4", "claro_5", "claro_6", "claro_7"}
@@ -145,6 +152,32 @@ def test_airolo_composes_the_concurrency_the_wx310_allows() -> None:
     siding = {pair for pair in composed if ends["siding_4"] in pair}
     assert len(siding) == 15
     assert composed - siding == straight
+
+
+def test_claro_east_is_two_throats_serving_one_line_each() -> None:
+    """#58, settling #35. The netlist's track tiles run blue 1 into sw50 and
+    blue 2 into sw49, and the two leads share no track, so the station's east
+    end is two connections rather than the one the hand-written layout
+    declared. The sidings hang off blue 2's lead, past sw49, not off track 1.
+
+    Said in block ends, which is what the tiles settle; the names are the
+    layout's and are asserted separately."""
+    layout = committed("gotthard")
+    b1, b2 = layout.connections["claro_east_b1"], layout.connections["claro_east_b2"]
+    assert {name: frozenset(pair) for name, pair in b1.transits.items()} == {
+        "blue_1_2": frozenset(("line_blue_1.A", "claro_2.B")),
+        "blue_1_3": frozenset(("line_blue_1.A", "claro_3.B")),
+    }
+    assert {name: frozenset(pair) for name, pair in b2.transits.items()} == {
+        "blue_2_1": frozenset(("line_blue_2.A", "claro_1.B")),
+        "siding_5": frozenset(("line_blue_2.A", "claro_5.A")),
+        "siding_4": frozenset(("line_blue_2.A", "claro_4.A")),
+    }
+    # Each throat is one turnout's toe, or two in a row, so nothing within
+    # either runs together. Across them nothing conflicts at all, which is the
+    # point of their being two connections rather than one.
+    assert b1.concurrent == frozenset()
+    assert b2.concurrent == frozenset()
 
 
 def test_claro_west_keeps_its_names_and_gains_the_pairs_its_ladder_allows() -> None:
@@ -726,7 +759,8 @@ def test_a_terminal_is_not_a_junction() -> None:
     assert not [symbol for symbol in tinted if symbol.endswith("_stop")]
     assert sorted(j["name"] for j in junctions) == [
         "airolo",
-        "claro_east",
+        "claro_east_b1",
+        "claro_east_b2",
         "claro_west",
     ]
 

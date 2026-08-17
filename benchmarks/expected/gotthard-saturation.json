@@ -4,14 +4,14 @@
   "strategies": {
     "FullRoute": {
       "status": "ok",
-      "makespan": 26,
-      "ticks": 26,
+      "makespan": 24,
+      "ticks": 24,
       "completed": 15,
       "rejected": 0,
-      "mean_latency": 14.6667,
-      "max_latency": 26,
-      "mean_utilization": 0.3333,
-      "mean_parallelism": 1.1111,
+      "mean_latency": 13.9333,
+      "max_latency": 24,
+      "mean_utilization": 0.344,
+      "mean_parallelism": 1.2,
       "stalls": []
     },
     "Incremental": {
@@ -20,7 +20,7 @@
       "ticks": 16,
       "completed": 15,
       "rejected": 0,
-      "mean_latency": 9.3333,
+      "mean_latency": 9.2667,
       "max_latency": 16,
       "mean_utilization": 0.3412,
       "mean_parallelism": 1.7647,

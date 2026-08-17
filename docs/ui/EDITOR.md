@@ -81,8 +81,8 @@ the right-click dialog rather than a row of palette tiles, and it can never
 resize a symbol or collide with a neighbour.
 
 The generic connection symbol is not placed and not drawn. It has no fixed pin
-set to place, migration is over, and its last user is Gotthard's Claro east,
-which is to be redrawn from real symbols.
+set to place, migration is over, and since Claro east was redrawn from real
+symbols (#58) it has no users left at all.
 
 ## Drawing wires
 
@@ -295,8 +295,9 @@ deriving it and comparing against the layout derived from the committed file.
 Structure should match exactly; transit names will differ wherever a `names:`
 override has not been re-entered.
 
-Gotthard is last because Claro east has to be drawn from real symbols to be
-drawn at all, and that is #35: the netlist and the hand-written layout
-disagree about its geometry. It is a topology change rather than a drawing
-one, and it lands on its own, with the trace churn reviewed. Settling it is
-the first real use of the editor.
+Gotthard was last because Claro east had to be drawn from real symbols to be
+drawn at all, and that was #35: the netlist and the hand-written layout
+disagreed about its geometry. It landed on its own as #58, a topology change
+rather than a drawing one, with the trace churn reviewed. The tiles won, and
+what they showed is that the station's east end is two throats rather than
+one.

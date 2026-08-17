@@ -5,11 +5,10 @@
 # (WinTrack) remains the source for block lengths.
 #
 # Converted mechanically from the hand-written layout (#43), then refined one
-# junction at a time. Airolo and Claro west are drawn from real symbols (#46),
-# named for the switches they are in the netlist, so their concurrency is
-# composed rather than declared. Claro east is still one generic connection
-# symbol: the netlist and the hand-written layout disagree about it (#35), and
-# the panel shows no turnout detail there until that is settled.
+# junction at a time until every junction was drawn: Airolo and Claro west
+# (#46), then Claro east (#58, settling #35). All three are named for the
+# switches they are in the netlist, so their concurrency is composed rather
+# than declared, and the panel can show turnout detail everywhere.
 #
 # Symbol names are Rocrail's switch ids, which is what ties a drawn turnout
 # back to the netlist and, later, to its decoder address.
@@ -37,6 +36,7 @@
 #   Airolo, lower route: the yellow and blue 1 meet at sw51 and run east.
 #   Airolo, round the loop and back down the east ladder into the B ends.
 #   Claro west: the ladder off the yellow, then the sidings off track 3.
+#   Claro east: blue 1 down to sw50, then blue 2 down to sw49 and the sidings.
 
 drawing: gotthard
 units: mm
@@ -152,31 +152,56 @@ symbols:
     connection: claro_west
     names: {straight: siding_6, diverging: siding_7}
 
-  # Claro east: the two blue lines DIVIDE the station rather than both serving
-  # all of it. Blue 1 reaches track 3 alone and blue 2 reaches tracks 1 and 2.
-  # The two north-east sidings hang off TRACK 1's east lead, not off the line.
+  # Claro east, drawn from real symbols (#58): the two blue lines DIVIDE the
+  # station rather than both serving all of it. Blue 1 reaches tracks 2 and 3;
+  # blue 2 reaches track 1 and, past it, the two north-east sidings.
   #
-  # This is what makes the yellow loop matter: track 3 is reachable from the
-  # east only over blue 1, so a train for track 3 that finds blue 1 occupied
-  # has no second eastern option — its alternative is the west end entirely.
+  # This is what makes the yellow loop matter: tracks 2 and 3 are reachable
+  # from the east only over blue 1, so a train for track 3 that finds blue 1
+  # occupied has no second eastern option — its alternative is the west end
+  # entirely.
   #
-  # THE LAST GENERIC CONNECTION SYMBOL, and the only junction here still fully
-  # exclusive. It stays opaque because the netlist's track tiles disagree with
-  # the transits above (#35): they run blue 1 to sw50, which ties to tracks 2
-  # AND 3; they land blue 2's lead on track 1's row alone; and they hang the
-  # sw48/sw49 sidings off blue 2's lead with the point facing the line, so the
-  # sidings would be reachable from line_blue_2 and not from track 1. Drawing
-  # that would change which lines serve which tracks, so it waits on the owner
-  # rather than on a trace of the tiles.
-  claro_east:
-    kind: connection
-    pins: [claro_1_B, claro_2_B, claro_3_B, claro_4_A, claro_5_A, line_blue_1_A, line_blue_2_A]
-    transits:
-      blue_1_3: [line_blue_1_A, claro_3_B]
-      blue_2_1: [line_blue_2_A, claro_1_B]
-      blue_2_2: [line_blue_2_A, claro_2_B]
-      siding_4: [claro_1_B, claro_4_A]
-      siding_5: [claro_1_B, claro_5_A]
+  # This settles #35, and it is a topology change rather than a drawing one.
+  # The hand-written layout ran blue 2 to tracks 1 and 2 and hung the sidings
+  # off track 1's east lead; the netlist's track tiles say otherwise, and the
+  # tiles are what this file is checked against (see the header). Traced:
+  #
+  #   b1 (19,7) east to (32,7), down the x=33 line to (33,15), then west and
+  #     down to (32,16) and into sw50 (31,16) from the east. sw50 is `left`,
+  #     so its roads run west to c2 and south to (31,17) and west to c3.
+  #   b2 (19,8) east to (30,8), down the x=31 line to (31,15), then west into
+  #     sw49 (27,15) from the east. sw49 is `right`, so its roads run west to
+  #     c1 and north to (27,14), then west into sw48 (23,14) from the east.
+  #     sw48 is `right`: west to c5, north to (23,13) and west to c6.
+  #
+  # Two consequences. `blue_2_2` does not exist and `blue_1_2` does; and the
+  # sidings hang off blue 2's lead, not off claro_1.B, so their transits run
+  # from line_blue_2.A. The names the layout picked survive on the legs that
+  # still carry them.
+  #
+  # And it is TWO connections, not one. The two leads share no track: sw50 sits
+  # on blue 1's, sw49 and sw48 on blue 2's, and the two run parallel from
+  # Airolo without meeting. A junction is what derivation finds, not what a
+  # generic symbol asserts, so the one opaque box splits into the two throats
+  # it always was — named for Rocrail's block ids for the two lines, `b1` and
+  # `b2`, which the header maps.
+  #
+  # That is also what ends this junction's blanket exclusivity, which it had
+  # only because a symbol declaring nothing is exclusive (ADR-0006). Blue 1
+  # working track 2 or 3 and blue 2 working track 1 or a siding are now
+  # different connections and never conflict at all.
+  sw50: # blue 1's lead: tracks 2 and 3
+    kind: turnout
+    connection: claro_east_b1
+    names: {straight: blue_1_2, diverging: blue_1_3}
+  sw49: # blue 2's lead: track 1, or on to the sidings
+    kind: turnout
+    connection: claro_east_b2
+    names: {straight: blue_2_1}
+  sw48: # the north-east siding pair, off sw49's diverging leg
+    kind: turnout
+    connection: claro_east_b2
+    names: {straight: siding_5, diverging: siding_4}
 
   # The far end of every siding is a deliberate track end, so it takes a
   # terminal symbol; those five blocks are what derives as terminal.
@@ -223,13 +248,16 @@ wires:
   - [sw45.straight, claro_6.A]
   - [sw45.diverging, claro_7.A]
 
-  - [claro_1.B, claro_east.claro_1_B]
-  - [claro_2.B, claro_east.claro_2_B]
-  - [claro_3.B, claro_east.claro_3_B]
-  - [claro_4.A, claro_east.claro_4_A]
-  - [claro_5.A, claro_east.claro_5_A]
-  - [line_blue_1.A, claro_east.line_blue_1_A]
-  - [line_blue_2.A, claro_east.line_blue_2_A]
+  - [line_blue_1.A, sw50.toe]
+  - [sw50.straight, claro_2.B]
+  - [sw50.diverging, claro_3.B]
+
+  - [line_blue_2.A, sw49.toe]
+  - [sw49.straight, claro_1.B]
+  - [sw49.diverging, sw48.toe]
+  - [sw48.straight, claro_5.A]
+  - [sw48.diverging, claro_4.A]
+
   - [claro_4.B, claro_4_B_stop.P]
   - [claro_5.B, claro_5_B_stop.P]
   - [claro_6.B, claro_6_B_stop.P]

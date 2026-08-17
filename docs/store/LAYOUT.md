@@ -158,7 +158,7 @@ Two structural facts fall out of the model and surprise people:
 
 | File | Shape | Role |
 | --- | --- | --- |
-| [`layouts/gotthard.drawing.yaml`](../../layouts/gotthard.drawing.yaml) | 14 blocks, 3 connections, 29 transits, 5 terminal blocks | the real railroad, headline benchmark; Airolo and Claro west are drawn from real symbols, Claro east is still one generic connection symbol (#35) |
+| [`layouts/gotthard.drawing.yaml`](../../layouts/gotthard.drawing.yaml) | 14 blocks, 4 connections, 29 transits, 5 terminal blocks | the real railroad, headline benchmark; drawn from real symbols throughout, Claro east last (#58), which is what found its east end to be two throats |
 | [`layouts/crossover-yard.drawing.yaml`](../../layouts/crossover-yard.drawing.yaml) | 6 blocks, 3 connections, 8 transits | small, fast, drawn from real symbols throughout |
 
 `facing-pair` and `single-track-meet` are property-test railroads and are

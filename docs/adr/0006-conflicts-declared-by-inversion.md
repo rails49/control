@@ -21,4 +21,6 @@ certainly too strict for a station that size — and is exactly the kind of thin
 that should cost measured throughput until the real turnout geometry is
 entered, rather than being assumed permissive. It did cost it, and #46 recovered
 it: drawing Airolo and Claro west composed 37 pairs and cut the
-`gotthard/saturation` makespan. Claro east, still undrawn, is still exclusive.
+`gotthard/saturation` makespan. Drawing Claro east (#58) then found it was two
+throats rather than one, so its five transits stopped conflicting across the
+two lines without a pair being declared anywhere.

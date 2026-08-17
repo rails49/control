@@ -126,19 +126,17 @@ symbol or change the derived layout.
 An N-pin symbol that declares its transits and concurrency verbatim.
 Derivation passes it through unchanged, so every existing layout converts to
 a drawing mechanically and losslessly, and a junction whose real geometry is
-not yet drawn can be modelled anyway, then refined one junction at a time.
-Gotthard's Claro east is the standing example, and the last one: the netlist
-and the hand-written layout disagree about its geometry, so it keeps the
-opaque symbol until #35 settles which is right. A junction drawn this way
-shows no turnout detail on the panel.
+not yet drawn can be modelled anyway, then refined one junction at a time. A
+junction drawn this way shows no turnout detail on the panel.
 
-Migration is over, so the symbol is legacy. It loads, it derives, and the
-[editor](../ui/EDITOR.md) gives it no support at all: it is neither placed nor
-drawn, because it has no fixed pin set to place and its only remaining user is
-a junction we intend to delete. The other five uses were never generic —
-`single-track-meet`'s four are turnouts and are redrawn as such, and
-`facing-pair`'s is a plain joint, which is now a named wire. When Claro east
-is drawn from real symbols the kind has no users left.
+Migration is over and the kind has no users left, so it is legacy. It loads,
+it derives, and the [editor](../ui/EDITOR.md) gives it no support at all: it
+is neither placed nor drawn, having no fixed pin set to place. `facing-pair`'s
+one use was a plain joint, which is now a named wire (#48);
+`single-track-meet`'s four were turnouts, redrawn as such (#56); and Gotthard's
+Claro east, the last, was drawn from turnouts in #58, which is where the
+declared transits and the netlist's tiles were finally compared — and the
+tiles won. Whether the kind leaves the format is a decision in its own right.
 
 ### Portals
 
@@ -379,6 +377,8 @@ asserted, now without a hand-written file in it: converting a derived layout
 and deriving the result gives the same layout back, for every committed
 railroad. What conversion cannot supply is geometry — a junction arrives as one
 opaque symbol, and refining it into turnouts and crossings is a separate,
-reviewable step, done for `crossover-yard` in #44 and for Gotthard's Airolo
-and Claro west in #46. Refining is also where a drawing can start disagreeing
-with what was declared, which is what stopped Claro east.
+reviewable step, done for `crossover-yard` in #44, for Gotthard's Airolo and
+Claro west in #46, and for Claro east in #58. Refining is also where a drawing
+can start disagreeing with what was declared, which is what had stopped Claro
+east: drawing it moved three of its five transits and split it into the two
+throats its two lines actually make.
