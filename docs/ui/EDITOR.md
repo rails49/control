@@ -44,6 +44,18 @@ angles, not from rotating symbols.
 A free-standing pin sits at a face centre like any other pin. Being on a
 boundary it occupies no square, so a bend may sit against an occupied one.
 
+Placing and dragging keep that invariant. A click that would cover an occupied
+square places nothing, and a click on a symbol selects it instead of stacking a
+second one on top; the palette stays armed either way. A drag holds its last
+legal offset while the pointer is over an obstacle, and follows the pointer
+again once the offset is clear.
+
+Rotate and flip are not constrained, since a turned symbol has a different
+footprint and can land on a neighbour. An overlap is reported instead: the
+squares are marked and the findings name the symbols. It is computed from the
+drawing rather than raised by the action, so it reads the same after an undo or
+after opening a file that already had one.
+
 Zoom and pan are the SVG `viewBox`: the wheel zooms about the pointer and the
 middle button pans. A bend is placed by the same two keys as any other symbol,
 `at` naming a cell and `rot` turning its one pin onto a face of it
@@ -71,7 +83,7 @@ dimensions below are normative.
 | Double slip | ![double slip](images/double-slip.png) | |
 | 90° crossing | | upright, two straight routes |
 | 90° crossing, diagonal | | the same at 45 degrees |
-| Portal | ![portal](images/portal.png) | paired by label; shows its label |
+| Portal | ![portal](images/portal.png) | paired by label |
 
 Signals and sensors are not palette entries. Every block has both at both
 ends, so there is nothing to place.
@@ -90,15 +102,26 @@ TypeScript module, the colours as CSS custom properties; configuring the
 look is editing that module, not a settings UI.
 
 Track is drawn solid, never patterned: wires run at any angle, so a pattern's
-spacing would vary with direction. Every track stroke ends in a round cap and
-pins are round, so track joins seamlessly at any wire angle; a wire meeting a
-fixed 45 degree leg at another angle reads as a rounded bend, not a kink.
+spacing would vary with direction. A track stroke ends in a round cap and pins
+are round, so track joins seamlessly at any wire angle; a wire meeting a fixed
+45 degree leg at another angle reads as a rounded bend, not a kink.
+
+Track that ends inside another shape is cut instead, because a round cap would
+bulge past a buffer bar or a portal's mouth. Where the end is square the cap is
+butt; where it is oblique the stroke is clipped, so the stub still lights and
+still widens like any other track, and nothing is painted over the junction tint
+behind it.
+
+The signal, the tick, the buffer bar and the portal's mouth take their
+proportions from the *Stellwerk* tiles the look is copied from. Those tiles are
+one grid square, so the proportions are fractions of G and are used as such
+rather than rescaled to W.
 
 Colours follow the editor's mode. In edit mode track is black and a block's
-rectangle is white. Run mode, out of scope for now, recolours by toggling
-classes: track by route reservation, a block's rectangle by occupancy, a
-block's signals green where a route is reserved at that end and red
-otherwise.
+rectangle is white, and a signal shows both its lamps lit. Run mode, out of
+scope for now, recolours by toggling classes: track by route reservation, a
+block's rectangle by occupancy, and a signal by dimming the aspect it is not
+showing, green where a route is reserved at that end and red otherwise.
 
 ### Pins
 
@@ -115,15 +138,22 @@ face centres as always. Rotations and flips give the other orientations.
 **Block**, 6×1, pins at `(0, 0.5)` and `(6, 0.5)`. A centred rectangle
 4G×0.8G, border 0.3W, filled white in edit mode, and a 1G track stub on each
 side. The label, the block's display name or the train parked in it, is
-centred in the rectangle; nothing else is written outside it — everything
-else lives in the right-click dialog, and sensors are not drawn. A small
-plus at the rectangle's lower corner on side A marks that side. Each stub
-carries a signal drawn as in the sample, a short mast with a round head:
-above the track at the A end, below at the B end, so the symbol is point
-symmetric and rotation and flip read naturally.
+centred in the rectangle; sensors are not drawn and everything else lives in
+the right-click dialog. A plus at the rectangle's lower corner on side A marks
+that side, drawn at the rectangle's own 0.3W.
+
+Each stub carries a signal centred on it: a chamfered plaque 0.53G by 0.22G
+floating 0.09G clear of the track, holding two lamps 0.12G across, green then
+red. There is no mast. The B signal is the A signal turned 180 degrees about
+the block's centre, so it hangs below the track with its lamps in the opposite
+order, which keeps the symbol point symmetric and makes rotation and flip read
+naturally.
 
 **Terminal**, 1×1, pin at `(0, 0.5)`. A track stub from the pin to a
-vertical bar 0.6G tall and 0.7W wide: the buffer stop.
+vertical bar 0.6G tall and 1.2W wide: the buffer stop. The stub is cut square
+at both ends. At the bar the cut keeps it from bulging past it; at the pin the
+pin covers the cut in edit mode and the incoming wire's round cap covers it in
+run mode.
 
 **Turnout**, 1×1. `toe` at `(0, 0.5)`, `straight` at `(1, 0.5)`,
 `diverging` at `(0.5, 0)`. Both roads leave the toe: the straight road runs
@@ -136,11 +166,15 @@ square, which is how turnouts stack between parallel station tracks.
 `(0, 0.5)` to `a2` at `(2, 0.5)`; route `b` is the 45 degree diagonal, `b1`
 at `(0.5, 1)` to `b2` at `(1.5, 0)`. They cross at `(1, 0.5)`, the face
 centre the two squares share, so the crossing is exactly two turnouts toe to
-toe, the second rotated. All three kinds share this artwork; a slip adds a
-small tick bridging its two legs near the crossing, one for the single slip
-(`a1`–`b2`), both for the double. Tick geometry is provisional — likely
-thinner than W, roughly 0.2G long and 0.25G from the crossing — and is
-finalised by eye.
+toe, the second rotated.
+
+All three kinds share this artwork. A slip adds a tick, the road it has and a
+plain crossing has not: two straight strokes, one parallel to each of the two
+legs the road joins, offset 0.22G from each leg's centreline and meeting where
+those two offset lines cross. Arms about 0.14G, hairline weight, square ends,
+no flare. The tick sits in the obtuse sector between the two legs, the only
+pair a slip road can join, so where it is says which road exists: one for the
+single slip (`a1`–`b2`), both for the double.
 
 A lit transit lights exactly the track it traverses: each route is drawn as
 two half-strokes meeting at the crossing, so a through route lights its two
@@ -154,9 +188,15 @@ two kinds, not two appearances of one, because their footprints and pin
 positions differ; a symmetric X through the centre of a square footprint
 would need corner pins, which is why the diagonal one is 2×1.
 
-**Portal**, 1×1, pin at `(0, 0.5)`. A track stub and a mouth, with its
-pairing label drawn beside it in small text, in both modes: the label is the
-symbol's meaning, and matching a pair by eye is how a typo in one is found.
+**Portal**, 1×1, pin at `(0, 0.5)`. A track stub whose end is cut at 22
+degrees from vertical, and two grey hairlines at that same angle beyond it,
+each about 0.53G long: the first crosses the track's centreline at the cut, the
+second 0.09G further out.
+
+A block's label is the only text on a symbol. Nothing else is named on the
+canvas, a portal included; a name is read in the properties dialog and in the
+netlist pane. The names written over the tinted junction regions are
+`/review`'s overlay rather than text on a symbol.
 
 Each kind has exactly one appearance; diagonal legs are always 45 degrees.
 The former `angle` property that picked between appearances is removed
