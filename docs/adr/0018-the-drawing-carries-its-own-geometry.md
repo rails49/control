@@ -4,6 +4,8 @@ A drawing is a picture someone arranged, so the arrangement is part of the
 document. Symbols take optional `at`, `rot`, `flip` and `angle` keys alongside
 `kind` and their properties, in the same file
 ([DRAWING.md](../store/DRAWING.md#geometry)). Derivation ignores them.
+(Amended: `angle` was removed with the appearance mechanism when the symbol
+geometry was fixed at one appearance per kind; see DRAWING.md#symbols.)
 
 This does not weaken
 [ADR-0015](0015-drawing-is-the-source-of-truth.md). The layout is still

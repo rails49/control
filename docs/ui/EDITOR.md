@@ -57,7 +57,9 @@ drawing is saved.
 ## Palette
 
 The placeable symbols, with their semantics defined in
-[DRAWING.md](../store/DRAWING.md#symbols):
+[DRAWING.md](../store/DRAWING.md#symbols). The images are illustrative
+targets, to be replaced by screenshots of the implemented artwork; the
+dimensions below are normative.
 
 | Symbol | | Notes |
 | --- | --- | --- |
@@ -67,22 +69,99 @@ The placeable symbols, with their semantics defined in
 | Crossing | ![crossing](images/crossing.png) | |
 | Single slip | ![single slip](images/single-slip.png) | |
 | Double slip | ![double slip](images/double-slip.png) | |
-| Portal | ![portal](images/portal.png) | paired by label |
+| 90° crossing | | upright, two straight routes |
+| 90° crossing, diagonal | | the same at 45 degrees |
+| Portal | ![portal](images/portal.png) | paired by label; shows its label |
 
 Signals and sensors are not palette entries. Every block has both at both
 ends, so there is nothing to place.
 
-Crossings and slips come in several appearances, because wires meet a symbol
-at whatever angle their pins give them and a crossing drawn for legs at 0 and
-15 degrees is not a rotation of one drawn for 15 and 30. An appearance changes
-the strokes between the pins and never the pins, so all appearances of a kind
-share one footprint and one pin set. Choosing one is therefore a property in
-the right-click dialog rather than a row of palette tiles, and it can never
-resize a symbol or collide with a neighbour.
-
 The generic connection symbol is not placed and not drawn. It has no fixed pin
 set to place, migration is over, and since Claro east was redrawn from real
 symbols (#58) it has no users left at all.
+
+### Units and colours
+
+One grid square is the unit G. Every dimension on the canvas is a fraction
+of G, so the drawing scales as one piece; the size of G on screen is the
+`viewBox` zoom and is not stored. Track and wire width is W = f·G with
+f = 0.15. The fractions and the colours are named constants in one
+TypeScript module, the colours as CSS custom properties; configuring the
+look is editing that module, not a settings UI.
+
+Track is drawn solid, never patterned: wires run at any angle, so a pattern's
+spacing would vary with direction. Every track stroke ends in a round cap and
+pins are round, so track joins seamlessly at any wire angle; a wire meeting a
+fixed 45 degree leg at another angle reads as a rounded bend, not a kink.
+
+Colours follow the editor's mode. In edit mode track is black and a block's
+rectangle is white. Run mode, out of scope for now, recolours by toggling
+classes: track by route reservation, a block's rectangle by occupancy, a
+block's signals green where a route is reserved at that end and red
+otherwise.
+
+### Pins
+
+Pins are circles of diameter W. In edit mode every pin is drawn: green when
+satisfied, red otherwise, straight from `/review`'s `red_pins` — the front
+end computes no topology. In run mode pins are not drawn and track reads as
+continuous.
+
+### Symbol geometry
+
+Coordinates in G, origin at the top left of the unturned footprint, pins on
+face centres as always. Rotations and flips give the other orientations.
+
+**Block**, 6×1, pins at `(0, 0.5)` and `(6, 0.5)`. A centred rectangle
+4G×0.8G, border 0.3W, filled white in edit mode, and a 1G track stub on each
+side. The label, the block's display name or the train parked in it, is
+centred in the rectangle; nothing else is written outside it — everything
+else lives in the right-click dialog, and sensors are not drawn. A small
+plus at the rectangle's lower corner on side A marks that side. Each stub
+carries a signal drawn as in the sample, a short mast with a round head:
+above the track at the A end, below at the B end, so the symbol is point
+symmetric and rotation and flip read naturally.
+
+**Terminal**, 1×1, pin at `(0, 0.5)`. A track stub from the pin to a
+vertical bar 0.6G tall and 0.7W wide: the buffer stop.
+
+**Turnout**, 1×1. `toe` at `(0, 0.5)`, `straight` at `(1, 0.5)`,
+`diverging` at `(0.5, 0)`. Both roads leave the toe: the straight road runs
+to the east pin, the diverging road is a 45 degree stub to the top pin. This
+is the only 1×1 geometry with a 45 degree leg ending on a face centre, and a
+wire continuing at 45 degrees reaches the next row's track line in half a
+square, which is how turnouts stack between parallel station tracks.
+
+**Crossing and slips**, 2×1. Route `a` is the horizontal, `a1` at
+`(0, 0.5)` to `a2` at `(2, 0.5)`; route `b` is the 45 degree diagonal, `b1`
+at `(0.5, 1)` to `b2` at `(1.5, 0)`. They cross at `(1, 0.5)`, the face
+centre the two squares share, so the crossing is exactly two turnouts toe to
+toe, the second rotated. All three kinds share this artwork; a slip adds a
+small tick bridging its two legs near the crossing, one for the single slip
+(`a1`–`b2`), both for the double. Tick geometry is provisional — likely
+thinner than W, roughly 0.2G long and 0.25G from the crossing — and is
+finalised by eye.
+
+A lit transit lights exactly the track it traverses: each route is drawn as
+two half-strokes meeting at the crossing, so a through route lights its two
+halves and a slip lights its entry half, its tick, and its exit half.
+
+**90° crossings.** `crossing_90`, 1×1: two straight routes through the four
+face centres, horizontal and vertical. `crossing_90d`, 2×1: the same
+crossing drawn diagonally, a symmetric X of two 45 degree routes, `(0.5, 1)`
+to `(1.5, 0)` and `(0.5, 0)` to `(1.5, 1)`, crossing at `(1, 0.5)`. They are
+two kinds, not two appearances of one, because their footprints and pin
+positions differ; a symmetric X through the centre of a square footprint
+would need corner pins, which is why the diagonal one is 2×1.
+
+**Portal**, 1×1, pin at `(0, 0.5)`. A track stub and a mouth, with its
+pairing label drawn beside it in small text, in both modes: the label is the
+symbol's meaning, and matching a pair by eye is how a typo in one is found.
+
+Each kind has exactly one appearance; diagonal legs are always 45 degrees.
+The former `angle` property that picked between appearances is removed
+(no committed drawing used it), and with it the appearance row in the
+properties dialog.
 
 ## Drawing wires
 
@@ -123,8 +202,7 @@ portal-label questions that rare layout editing does not justify.
 ### Properties
 
 The right-click dialog edits a symbol's name, and per kind: a block's length,
-display label and sensor ids; a crossing's or slip's appearance; a symbol
-leg's transit name.
+display label and sensor ids; a symbol leg's transit name.
 
 A block's key is a short stable id and its label is its real name, `Zürich HB
 Gleis 1`. The id prefixes every transit id in a trace, so it is worth keeping
@@ -263,9 +341,9 @@ The panel later adds a bus bridge alongside it
 Symbol pins and transits are generated into `ui/src/symbols.generated.ts` from
 the library in `drawing.py` by `tc49 symbols`, with a test asserting the
 committed file is current, so a renamed pin is a TypeScript compile error
-rather than a wrong drawing. Alongside them go the palette, the kinds with
-several appearances, and the rotations, which come from the same declarations.
-Artwork stays hand-written against those names.
+rather than a wrong drawing. Alongside them go the palette and the rotations,
+which come from the same declarations. Artwork stays hand-written against
+those names.
 
 ### Tests
 

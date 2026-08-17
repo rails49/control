@@ -82,6 +82,8 @@ transits.
 | Crossing | `crossing` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | a grade crossing: one train at a time |
 | Single slip | `single_slip` | 4 | `a`, `b`, `slip` | none | |
 | Double slip | `double_slip` | 4 | `a`, `b`, `slip_1`, `slip_2` | none | topologically two turnouts joined toe to toe |
+| 90° crossing | `crossing_90` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | drawn upright |
+| 90° crossing, diagonal | `crossing_90d` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | drawn at 45 degrees |
 | Portal | `portal` | 1 (`P`) | none | n/a | paired by label; the pair is a wire |
 | Connection (generic) | `connection` | N | declared | declared | format only, not in the editor palette |
 
@@ -90,7 +92,8 @@ and the side: `a1` and `b1` on one side, `a2` and `b2` on the other. The two
 through routes are `a` (`a1`-`a2`) and `b` (`b1`-`b2`); a slip route joins one
 side to the other over the other track, `a1`-`b2` for the single slip and both
 `a1`-`b2` and `b1`-`a2` for the double slip. That is the same thing as the
-double slip being two turnouts joined toe to toe.
+double slip being two turnouts joined toe to toe. The 90 degree crossings use
+the same four pin names and the two through routes, and offer no slips.
 
 A block carries a signal and a sensor at each end, always. Neither is placed
 and neither is optional, so neither is a field: they are part of what a block
@@ -112,14 +115,13 @@ crossing, so composition yields exactly the one concurrent pair the layout
 declared by hand, `[up_straight, dn_straight]`, while a concurrent crossing
 would also emit the colliding crossover pair.
 
-The drawn angle of a crossing or slip is a decorative property, not a distinct
-symbol. Pins sit at grid face centres, so a symbol rotates only in 90 degree
-steps, and a crossing whose legs meet at 15 or 30 degrees is not a rotation of
-one whose legs meet at 0 and 15. Each such pair of leg angles is its own
-appearance in the editor's library, and the property picks one, which keeps
-the palette at one tile per kind. Every appearance of a kind shares one
-footprint and one pin set, so picking one can never move a pin, resize a
-symbol or change the derived layout.
+Each kind has exactly one drawn appearance, specified in
+[ui/EDITOR.md](../ui/EDITOR.md#symbol-geometry); diagonal legs are always 45
+degrees, and a wire meeting a pin at another angle bends there. The two 90
+degree crossings are separate kinds rather than appearances of one because
+their footprints and pin positions differ. An earlier draft had an `angle`
+placement property picking between several appearances of a crossing; no
+committed drawing ever used it and it is removed.
 
 ### The generic connection symbol
 
@@ -225,7 +227,6 @@ none of them.
 | `at` | every kind | the grid cell of the symbol's top-left square |
 | `rot` | symbols with more than one pin | 0, 90, 180 or 270 |
 | `flip` | symbols with more than one pin | mirrored or not |
-| `angle` | crossings and slips | which appearance of the kind to draw |
 
 A placed block reads `west: { kind: block, length: 1000, at: [2, 4] }`.
 
