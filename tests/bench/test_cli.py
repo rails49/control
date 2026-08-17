@@ -1,5 +1,5 @@
-"""`tc49 bench`: the comparison table, the k flag, the trace dump (#30), and
-`tc49 layout show` (#45)."""
+"""`tc49 bench`: the comparison table, the k flag, the trace dump (#30),
+`tc49 layout show` (#45), and `tc49 symbols` (#52)."""
 
 import io
 import json
@@ -10,6 +10,7 @@ import pytest
 from tc49.bench.cli import main
 from tc49.bench.metrics import metrics
 from tc49.bench.runner import find_root
+from tc49.store.symbols import GENERATED
 from tests.harness import ROOT
 
 
@@ -94,6 +95,14 @@ def test_layout_show_prints_the_derived_topology() -> None:
     assert ["concurrent", "dn_straight", "+", "up_straight"] in [
         line.split() for line in lines
     ]
+
+
+def test_symbols_rewrites_the_generated_typescript() -> None:
+    # Idempotent by construction: what it writes is what is committed, which
+    # `tests/store/test_symbols.py` is the assertion of.
+    before = (ROOT / GENERATED).read_text()
+    assert run_cli("symbols") == f"wrote {GENERATED}\n"
+    assert (ROOT / GENERATED).read_text() == before
 
 
 def test_find_root_locates_the_railroads_from_anywhere_and_says_so_if_not() -> None:

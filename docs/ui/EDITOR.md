@@ -235,9 +235,11 @@ The panel later adds a bus bridge alongside it
 ([PANEL.md](PANEL.md#implementation)).
 
 Symbol pins and transits are generated into `ui/src/symbols.generated.ts` from
-the library in `drawing.py`, with a test asserting the generated file is
-current, so a renamed pin is a TypeScript compile error rather than a wrong
-drawing. Artwork stays hand-written against those names.
+the library in `drawing.py` by `tc49 symbols`, with a test asserting the
+committed file is current, so a renamed pin is a TypeScript compile error
+rather than a wrong drawing. Alongside them go the palette, the kinds with
+several appearances, and the rotations, which come from the same declarations.
+Artwork stays hand-written against those names.
 
 ### Tests
 

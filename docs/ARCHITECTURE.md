@@ -54,6 +54,8 @@ src/tc49/
                 server.py   the store's HTTP face: list, read a drawing
                             document, write one, derive, explain — what the
                             editor talks to (ui/EDITOR.md)
+                symbols.py  render() — the symbol library as the TypeScript
+                            the editor draws against
   scheduler/    Scheduler — releases scenario requests at their `at` ticks,
                 mechanical arrival-end expansion, deterministic ids,
                 exhausted state topic
@@ -76,14 +78,17 @@ src/tc49/
                 cli.py      `tc49 bench <scenario>`; `tc49 sweep` takes no
                             arguments — the grid of BENCHMARKS.md is the
                             fixed research design; `tc49 layout show`;
-                            `tc49 serve` runs the store's HTTP face
+                            `tc49 serve` runs the store's HTTP face;
+                            `tc49 symbols` regenerates the editor's
+                            TypeScript view of the symbol library
                 sweep.py    the seeded workload generator and the fixed grid
                 metrics.py  metrics(trace) -> Metrics
 
 ui/                         the layout editor: TypeScript, pnpm, Lit
                             (ADR-0014). Outside src/tc49/, which is Python.
-                            src/symbols.generated.ts is generated from
-                            store/drawing.py's symbol library
+                            src/symbols.generated.ts is written by
+                            `tc49 symbols` from store/drawing.py's symbol
+                            library, and a test asserts it is current
 
 layouts/                    <layout>.drawing.yaml — the drawn railroads,
                             the only committed topology; the store derives
@@ -151,7 +156,8 @@ tests that drive the real assembly over the bus, with `harness.py` and
 tests/
   harness.py  generate.py
   lib/         test_layout  test_bus  test_trace
-  store/       test_store  test_drawing  test_convert
+  store/       test_store  test_drawing  test_convert  test_server
+               test_symbols
   scheduler/   test_scheduler
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks

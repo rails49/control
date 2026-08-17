@@ -1,10 +1,12 @@
-"""`tc49 bench <scenario>`, `tc49 sweep`, `tc49 layout show <layout>`, `tc49 serve`.
+"""`tc49 bench <scenario>`, `tc49 sweep`, `tc49 layout show <layout>`, `tc49 serve`,
+`tc49 symbols`.
 
 `bench` runs one named scenario under both locking strategies and prints the
 comparison. `sweep` takes no arguments: the grid of BENCHMARKS.md is the
 research design, not a knob, and that page is its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
 review that a committed layout file used to give in a diff (ADR-0015).
+`symbols` regenerates the editor's TypeScript view of the symbol library.
 """
 
 import argparse
@@ -19,6 +21,7 @@ from tc49.lib.layout import Layout
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 from tc49.store.server import make_server
+from tc49.store.symbols import GENERATED, render
 
 ROOT = find_root()
 
@@ -143,6 +146,8 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
     )
     serve_parser.add_argument("--port", type=int, default=8765)
 
+    commands.add_parser("symbols", help=f"write {GENERATED} from the symbol library")
+
     layout_parser = commands.add_parser("layout", help="inspect a drawn railroad")
     layout_commands = layout_parser.add_subparsers(dest="layout_command", required=True)
     show_parser = layout_commands.add_parser(
@@ -163,6 +168,13 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         out.write(f"serving {ROOT} on http://127.0.0.1:{server.server_port}\n")
         out.flush()
         server.serve_forever()
+        return 0
+
+    if args.command == "symbols":
+        path = ROOT / GENERATED
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(render())
+        out.write(f"wrote {GENERATED}\n")
         return 0
 
     if args.command == "layout":

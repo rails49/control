@@ -44,9 +44,13 @@ from tc49.lib.layout import (
 # track, which is also why the double slip is two turnouts joined toe to toe.
 # None of them declares anything concurrent — every route through a crossing
 # or a slip takes the shared frog, and a turnout's two routes share its toe.
+#
+# `LIBRARY`, `PINS`, `ANGLED` and `ROTATIONS` are public because the editor's
+# TypeScript is generated from them (symbols.py); the rest of the module's
+# constants are its own.
 _CROSS = ("a1", "a2", "b1", "b2")
 _THROUGH = {"a": ("a1", "a2"), "b": ("b1", "b2")}
-_LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
+LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
     "turnout": {"straight": ("toe", "straight"), "diverging": ("toe", "diverging")},
     "crossing": dict(_THROUGH),
     "single_slip": {**_THROUGH, "slip": ("a1", "b2")},
@@ -55,7 +59,7 @@ _LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
 
 # `pin` (a free-standing bend) and `portal` are joiners: they pass a wire
 # through and derive to nothing.
-_PINS: dict[str, tuple[str, ...]] = {
+PINS: dict[str, tuple[str, ...]] = {
     "block": ("A", "B"),
     "terminal": ("P",),
     "portal": ("P",),
@@ -73,8 +77,8 @@ _JOINERS = frozenset({"pin", "portal"})
 # appearance of a kind the editor draws, and only the kinds with several have
 # one.
 _PLACEMENT = frozenset({"at", "rot", "flip"})
-_ANGLED = frozenset({"crossing", "single_slip", "double_slip"})
-_ROTATIONS = (0, 90, 180, 270)
+ANGLED = frozenset({"crossing", "single_slip", "double_slip"})
+ROTATIONS = (0, 90, 180, 270)
 
 Use = tuple[str, str]  # a symbol and the local transit a walk took through it
 Walk = tuple[tuple[str, str], tuple[Use, ...]]  # the block ends, and the way
@@ -610,7 +614,7 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
         for end, sensor in as_mapping(
             spec.get("sensors") or {}, f"{where}: sensors"
         ).items():
-            if end not in _PINS[kind]:
+            if end not in PINS[kind]:
                 raise ValueError(f"{where}: sensors names unknown end '{end}'")
             check_name(sensor, f"{where}: sensor")
         # Hardware ids are the drawing's alone: derivation drops them, so the
@@ -622,18 +626,18 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
         return Symbol(
             name,
             kind,
-            _PINS[kind],
+            PINS[kind],
             length=check_length(spec["length"], where),
             label=str(spec.get("label", "")),
         )
     if kind in ("terminal", "pin"):
         check_keys(spec, where, {"kind"}, placement)
-        return Symbol(name, kind, _PINS[kind])
+        return Symbol(name, kind, PINS[kind])
     if kind == "portal":
         check_keys(spec, where, {"kind", "label"}, placement)
         check_name(spec["label"], f"{where}: portal label")
-        return Symbol(name, kind, _PINS[kind], label=str(spec["label"]))
-    if kind in _LIBRARY:
+        return Symbol(name, kind, PINS[kind], label=str(spec["label"]))
+    if kind in LIBRARY:
         return _library_symbol(where, name, spec, kind)
     if kind == "connection":
         return _connection_symbol(where, name, spec)
@@ -644,7 +648,7 @@ def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
     """A symbol of fixed geometry: its pins, its transits and its concurrency
     come from the library, so the drawing writes only the names it wants."""
     check_keys(spec, where, {"kind"}, {"names", "connection"} | _geometry(kind))
-    transits = _LIBRARY[kind]
+    transits = LIBRARY[kind]
 
     names: dict[str, str] = {}
     for transit, authored in as_mapping(
@@ -658,7 +662,7 @@ def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
     return Symbol(
         name,
         kind,
-        _PINS[kind],
+        PINS[kind],
         dict(transits),
         names=names,
         connection=_connection_of(where, spec),
@@ -734,7 +738,7 @@ def _connection_symbol(where: str, name: str, spec: Any) -> Symbol:
 
 def _geometry(kind: str) -> set[str]:
     """The placement keys a kind accepts, which every kind may write."""
-    return set(_PLACEMENT) | ({"angle"} if kind in _ANGLED else set())
+    return set(_PLACEMENT) | ({"angle"} if kind in ANGLED else set())
 
 
 def _check_geometry(spec: Any, where: str) -> None:
@@ -746,8 +750,8 @@ def _check_geometry(spec: Any, where: str) -> None:
             raise ValueError(f"{where}: at must be two integers, got {at!r}")
         if len(cast(list[Any], at)) != 2:
             raise ValueError(f"{where}: at must be two integers, got {at!r}")
-    if "rot" in spec and spec["rot"] not in _ROTATIONS:
-        raise ValueError(f"{where}: rot must be one of {list(_ROTATIONS)}")
+    if "rot" in spec and spec["rot"] not in ROTATIONS:
+        raise ValueError(f"{where}: rot must be one of {list(ROTATIONS)}")
     if "flip" in spec and not isinstance(spec["flip"], bool):
         raise ValueError(f"{where}: flip must be true or false")
     if "angle" in spec:
