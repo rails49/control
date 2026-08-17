@@ -26,6 +26,7 @@ import {
   WHOLE,
   against,
   amongst,
+  routes,
   through,
   type Chosen,
   type Pair,
@@ -131,11 +132,16 @@ export class TcNetlist extends LitElement {
    * frog can never run, and two on different legs run exactly when the symbol
    * says so — while `shares` names whatever actually blocks them, which need
    * not be this symbol at all.
+   *
+   * Nothing is drawn for a joiner. A bend takes no leg and holds nothing
+   * apart, so the panel had only the ways passing through it to show — and,
+   * headed by the bend's own name above the connections, read as a connection
+   * of its own that the netlist did not list.
    */
   private inspected() {
     if (this.symbol === null) return nothing;
     const crossing = through(this.review!, this.symbol);
-    if (crossing.length === 0) return nothing;
+    if (crossing.length === 0 || !routes(crossing)) return nothing;
     const pairs = amongst(this.review!, this.symbol);
     return html`
       <section class="symbol">

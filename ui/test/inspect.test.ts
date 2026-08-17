@@ -6,6 +6,7 @@ import {
   amongst,
   clashes,
   lit,
+  routes,
   through,
 } from "../src/model/inspect.js";
 import type { Review } from "../src/model/store.js";
@@ -166,6 +167,30 @@ describe("the transits through a symbol", () => {
     expect(through(found, "bend_3")).toEqual([
       { connection: "crossover", transit: "dn_straight", legs: [WHOLE] },
     ]);
+  });
+});
+
+/** The inspector is the inverse of choosing a transit, and a joiner decides
+ *  nothing, so inverting one answers nothing and the pane draws no section. */
+describe("whether a symbol routes what crosses it", () => {
+  it("says a symbol taking legs of its own does", () => {
+    expect(routes(through(scissors(), "diamond"))).toBe(true);
+    expect(routes(through(scissors(), "dn_e_points"))).toBe(true);
+  });
+
+  it("says a joiner does not, being passed through", () => {
+    const found = scissors();
+    found.explain!.connections.crossover!.transits.dn_straight!.way = [
+      ["bend_3", ""],
+    ];
+    found.explain!.connections.crossover!.transits.up_straight!.way = [
+      ["bend_3", ""],
+    ];
+    expect(routes(through(found, "bend_3"))).toBe(false);
+  });
+
+  it("says nothing at all routes nothing", () => {
+    expect(routes(through(scissors(), "yard_stop"))).toBe(false);
   });
 });
 

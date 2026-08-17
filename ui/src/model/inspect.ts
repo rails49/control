@@ -104,6 +104,18 @@ export function through(review: Review, symbol: string): Through[] {
   return found;
 }
 
+/**
+ * Whether a symbol routes the ways that cross it, or is only passed through.
+ *
+ * A joiner — a bend or a portal — takes no leg of its own, so there is nothing
+ * about it to inspect: no leg to name, and no pair it could hold apart. The
+ * inspector is the inverse of choosing a transit, and inverting a symbol that
+ * decides nothing answers nothing.
+ */
+export function routes(crossing: Through[]): boolean {
+  return crossing.some(({ legs }) => legs.some((leg) => leg !== WHOLE));
+}
+
 /** Two transits through one symbol, and whether they run together. */
 export interface Pair {
   one: string;
