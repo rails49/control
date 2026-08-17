@@ -10,9 +10,9 @@
 #
 # The two outer ends are capped by terminal symbols, so west.A and east.B
 # appear in no connection and both blocks derive as terminal
-# (docs/store/DRAWING.md). `gap` is a generic connection symbol: a plain butt
-# joint has no drawn geometry to refine, and its one transit carries the
-# hand-picked name `span`.
+# (docs/store/DRAWING.md). `gap` is the wire between the two blocks: a plain
+# butt joint has no drawn geometry and no symbol, but it is still the
+# connection holding their one transit, so the wire carries its name.
 
 drawing: facing-pair
 units: mm
@@ -25,17 +25,10 @@ symbols:
     kind: block
     length: 1000
 
-  gap:
-    kind: connection
-    pins: [A, B]
-    transits:
-      span: [A, B]
-
   west_stop: { kind: terminal }
   east_stop: { kind: terminal }
 
 wires:
   - [west.A, west_stop.P]
-  - [west.B, gap.A]
-  - [gap.B, east.A]
+  - { pins: [west.B, east.A], connection: gap }
   - [east.B, east_stop.P]

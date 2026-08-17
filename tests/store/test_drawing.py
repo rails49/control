@@ -8,8 +8,9 @@ each.
 """
 
 from collections.abc import Callable
+from itertools import pairwise
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -48,6 +49,14 @@ def gap_symbol(*, named: bool = True) -> dict[str, Any]:
     }
 
 
+def flipped(wire: Any) -> Any:
+    """A wire with its two pins the other way round, in either written form."""
+    if isinstance(wire, dict):
+        spec = cast(dict[str, Any], wire)
+        return {**spec, "pins": list(reversed(cast(list[Any], spec["pins"])))}
+    return list(reversed(cast(list[Any], wire)))
+
+
 def spanned(**symbols: Any) -> dict[str, Any]:
     doc = two_blocks(gap=gap_symbol(), **symbols)
     doc["wires"] += [["west.B", "gap.A"], ["gap.B", "east.A"]]
@@ -70,7 +79,9 @@ def test_a_committed_drawing_derives_a_validator_clean_layout(name: str) -> None
 def test_facing_pair_derives_two_blocks_and_the_gap_between_them() -> None:
     layout = committed("facing-pair")
     assert layout.blocks == {"east": 1000, "west": 1000}
-    assert layout.connections["gap"].transits == {"span": ("east.A", "west.B")}
+    assert layout.connections["gap"].transits == {
+        "east_A__west_B": ("east.A", "west.B")
+    }
     assert layout.terminal_blocks == frozenset({"west", "east"})
 
 
@@ -211,10 +222,56 @@ def test_a_junction_of_four_symbols_in_a_chain_stays_one_connection() -> None:
     assert len(derived["connections"]["ladder"]["transits"]) == 5
 
 
-def test_blocks_wired_directly_are_refused() -> None:
+def test_blocks_wired_directly_by_a_nameless_wire_are_refused() -> None:
+    """Every movement between blocks is a named transit in a named connection,
+    and a bare wire declares neither."""
     doc = two_blocks()
     doc["wires"].append(["west.B", "east.A"])
     with pytest.raises(ValueError, match="connection symbol"):
+        derive(doc)
+
+
+# --- a wire between two blocks is itself the connection --------------------
+
+
+def joint(*bends: str, named: int = 0, connection: str = "gap") -> dict[str, Any]:
+    """`west` and `east` joined through `bends` bend pins, with the wire at
+    index `named` carrying the connection's name."""
+    doc = two_blocks(**{bend: {"kind": "pin"} for bend in bends})
+    pins = ["west.B", *(f"{bend}.P" for bend in bends), "east.A"]
+    chain: list[Any] = [list(pair) for pair in pairwise(pins)]
+    chain[named] = {"pins": chain[named], "connection": connection}
+    doc["wires"] += chain
+    return doc
+
+
+def test_a_named_wire_between_two_blocks_derives_the_connection_it_is() -> None:
+    derived = derive(joint())["connections"]
+    assert derived == {"gap": {"transits": {"east_A__west_B": ["east.A", "west.B"]}}}
+
+
+@pytest.mark.parametrize("named", (0, 1, 2))
+def test_a_joint_routed_through_bends_takes_its_name_from_any_segment(
+    named: int,
+) -> None:
+    """Routed around a corner the joint is several wires, and which one holds
+    the name is a drawing accident, so the whole chain is searched."""
+    assert list(derive(joint("b1", "b2", named=named))["connections"]) == ["gap"]
+
+
+def test_two_names_on_one_joint_are_refused() -> None:
+    doc = joint("bend", named=0)
+    doc["wires"][-1] = {"pins": doc["wires"][-1], "connection": "other"}
+    with pytest.raises(ValueError, match="is named .* one joint takes one name"):
+        derive(doc)
+
+
+def test_a_named_wire_that_joins_no_blocks_is_refused() -> None:
+    """The key says this wire is the connection. Inside a junction it is not,
+    and the junction's symbols name that."""
+    doc = spanned()
+    doc["wires"][-1] = {"pins": doc["wires"][-1], "connection": "nope"}
+    with pytest.raises(ValueError, match="does not join two blocks"):
         derive(doc)
 
 
@@ -555,7 +612,7 @@ def test_the_derived_layout_survives_a_drawing_file_reorder(name: str) -> None:
     shuffled = {
         **doc,
         "symbols": dict(reversed(list(doc["symbols"].items()))),
-        "wires": [list(reversed(wire)) for wire in reversed(doc["wires"])],
+        "wires": [flipped(wire) for wire in reversed(doc["wires"])],
     }
     assert yaml.safe_dump(derive(shuffled), sort_keys=False) == yaml.safe_dump(
         derive(doc), sort_keys=False

@@ -47,7 +47,7 @@ def test_list_layouts_and_scenarios(store: AssetStore) -> None:
 def test_a_layout_is_derived_from_its_drawing_at_get(store: AssetStore) -> None:
     layout = store.get("facing-pair")
     assert isinstance(layout, Layout)
-    assert layout.connections["gap"].transits["span"] == ("east.A", "west.B")
+    assert layout.connections["gap"].transits["east_A__west_B"] == ("east.A", "west.B")
 
 
 def test_meet_scenario_loads_clean(store: AssetStore) -> None:

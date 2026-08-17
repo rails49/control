@@ -159,10 +159,10 @@ drawing: facing-pair
 units: mm
 
 symbols:
-  west: { kind: block, length: 1000, at: [2, 4] }
-  east: { kind: block, length: 1000, at: [8, 4] }
-  west_stop: { kind: terminal, at: [0, 4] }
-  east_stop: { kind: terminal, at: [11, 4] }
+  west: { kind: block, length: 1000 }
+  east: { kind: block, length: 1000 }
+  west_stop: { kind: terminal }
+  east_stop: { kind: terminal }
 
 wires:
   - [west.A, west_stop.P]
@@ -228,6 +228,8 @@ none of them.
 | `rot` | symbols with more than one pin | 0, 90, 180 or 270 |
 | `flip` | symbols with more than one pin | mirrored or not |
 | `angle` | crossings and slips | which appearance of the kind to draw |
+
+A placed block reads `west: { kind: block, length: 1000, at: [2, 4] }`.
 
 The canvas is a grid of squares. A symbol occupies whole squares and pins sit
 at the centres of square sides, which is why rotation is a multiple of 90

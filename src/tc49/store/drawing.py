@@ -102,6 +102,11 @@ class Drawing:
     symbols: dict[str, Symbol]
     wires: tuple[tuple[str, str], ...]  # pins, written '<symbol>.<pin>'
     units: str | None = None
+    # A wire joining two blocks is itself the connection holding their one
+    # transit, so it carries the name. Keyed by the wire's pins, sorted.
+    wire_connections: dict[tuple[str, str], str] = field(
+        default_factory=dict[tuple[str, str], str]
+    )
 
     @classmethod
     def from_document(cls, doc: Any) -> "Drawing":
@@ -122,12 +127,19 @@ class Drawing:
         if not isinstance(raw_wires, list):
             raise TypeError(f"drawing '{name}': wires must be a list")
         wires: list[tuple[str, str]] = []
+        wire_connections: dict[tuple[str, str], str] = {}
         for raw in cast(list[Any], raw_wires):
             where = f"drawing '{name}': wire"
-            a, b = _pin_pair(raw, where)
-            wires.append((_check_pin(a, symbols, where), _check_pin(b, symbols, where)))
+            pins, connection = _wire(raw, where)
+            a, b = _pin_pair(pins, where)
+            wire = (_check_pin(a, symbols, where), _check_pin(b, symbols, where))
+            wires.append(wire)
+            if connection:
+                wire_connections[cast(tuple[str, str], tuple(sorted(wire)))] = (
+                    connection
+                )
 
-        return cls(name, symbols, tuple(wires), doc.get("units"))
+        return cls(name, symbols, tuple(wires), doc.get("units"), wire_connections)
 
     def derive(self) -> dict[str, Any]:
         """The layout document this drawing describes, in canonical order."""
@@ -135,6 +147,7 @@ class Drawing:
         connection_of = self._connections(joins)
 
         grouped: dict[str, list[Walk]] = defaultdict(list)
+        spent: set[tuple[str, str]] = set()
         for ends, used in self._walks(joins):
             if ends[0] == ends[1]:
                 raise ValueError(
@@ -143,12 +156,16 @@ class Drawing:
                 )
             connection = connection_of[used[0][0]] if used else None
             if connection is None:
-                raise ValueError(
-                    f"drawing '{self.name}': the way from '{ends[0]}' to"
-                    f" '{ends[1]}' runs through no connection symbol — blocks"
-                    f" are joined through one"
-                )
+                connection = self._joint_name(ends, used, spent)
             grouped[connection].append((ends, used))
+
+        for wire in sorted(set(self.wire_connections) - spent):
+            raise ValueError(
+                f"drawing '{self.name}': the wire {list(wire)} names a"
+                f" connection '{self.wire_connections[wire]}', but it does not"
+                f" join two blocks — only a wire that is itself the connection"
+                f" carries a name"
+            )
 
         return {
             "layout": self.name,
@@ -162,6 +179,49 @@ class Drawing:
                 for connection in sorted(grouped)
             },
         }
+
+    def _joint_name(
+        self, ends: tuple[str, str], used: tuple[Use, ...], spent: set[tuple[str, str]]
+    ) -> str:
+        """The name of the connection a bare wire between two blocks is.
+
+        Its way crosses no symbol that declares transits, so nothing along it
+        can name it and the wire carries the name instead. Routed around a
+        corner the joint is several wires through bend pins, and the name may
+        sit on any one of them, so the whole chain is searched. Two names on
+        one chain are refused rather than resolved by order, the same as two
+        symbol transits naming one way."""
+        held = {ends[0], ends[1]} | {
+            f"{symbol}.{pin}" for symbol, _ in used for pin in self.symbols[symbol].pins
+        }
+        chain = [wire for wire in self.wires if held.issuperset(wire)]
+        named = sorted(
+            {
+                self.wire_connections[key]
+                for wire in chain
+                if (key := cast(tuple[str, str], tuple(sorted(wire))))
+                in self.wire_connections
+            }
+        )
+        if len(named) > 1:
+            raise ValueError(
+                f"drawing '{self.name}': the joint from '{ends[0]}' to"
+                f" '{ends[1]}' is named {named} — one joint takes one name"
+            )
+        if not named:
+            raise ValueError(
+                f"drawing '{self.name}': the way from '{ends[0]}' to"
+                f" '{ends[1]}' runs through no connection symbol — blocks are"
+                f" joined through one, or by a wire that names the connection"
+                f" it is"
+            )
+        spent.update(
+            key
+            for wire in chain
+            if (key := cast(tuple[str, str], tuple(sorted(wire))))
+            in self.wire_connections
+        )
+        return named[0]
 
     # --- the pin rules, checked at derivation, never at save ---------------
 
@@ -557,6 +617,18 @@ def _check_geometry(spec: Any, where: str) -> None:
         raise ValueError(f"{where}: flip must be true or false")
     if "angle" in spec:
         check_name(spec["angle"], f"{where}: angle")
+
+
+def _wire(raw: Any, where: str) -> tuple[Any, str]:
+    """A wire's pins, and the connection name it carries where it has one. The
+    pair form is the usual one; the mapping form is for a wire that joins two
+    blocks, which is a connection and so needs a name."""
+    if not isinstance(raw, dict):
+        return raw, ""
+    spec = cast(dict[str, Any], raw)
+    check_keys(spec, where, {"pins", "connection"})
+    check_name(spec["connection"], f"{where}: connection")
+    return spec["pins"], str(spec["connection"])
 
 
 def _pin_pair(raw: Any, where: str) -> tuple[str, str]:
