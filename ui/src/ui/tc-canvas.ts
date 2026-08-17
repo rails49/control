@@ -23,8 +23,6 @@ import {
   anchorOf,
   cellsOf,
   centreOf,
-  gridPointOf,
-  placed,
   snapped,
   transformOf,
   type Point,
@@ -32,7 +30,7 @@ import {
 import { clashes, lit, type Chosen } from "../model/inspect.js";
 import type { Joint, Review } from "../model/store.js";
 import { artwork, DEFS } from "../render/artwork.js";
-import { LABEL, PIN, PORTAL } from "../render/units.js";
+import { PIN } from "../render/units.js";
 import { canvasStyles } from "./styles.js";
 
 const HIT = 0.22; // how near a pointer has to come to a pin, in squares
@@ -225,32 +223,18 @@ export class TcCanvas extends LitElement {
   }
 
   /**
-   * What a symbol has written on it, drawn upright outside the turned group
-   * where a quarter turn would stand it on its side.
+   * A block's label, centred in its rectangle and drawn upright outside the
+   * turned group, where a quarter turn would stand it on its side.
    *
-   * A block's is centred inside its rectangle and nothing is written outside
-   * it; a portal's pairing label goes beside the mouth, because matching a
-   * pair by eye is how a typo in one is found. Everything else takes its name
-   * below it, and a bend is not worth naming.
+   * It is the only text on a symbol (EDITOR.md#symbol-geometry). A name is read
+   * in the properties dialog and in the netlist pane instead, portals included,
+   * and the names over the tinted junction regions are `/review`'s overlay
+   * rather than anything a symbol carries.
    */
   private label(name: string, spec: SymbolSpec): unknown {
-    if (spec.kind === "pin") return nothing;
-    const written = spec.label || name;
-    if (spec.kind === "block") {
-      const { x, y } = centreOf(spec);
-      return svg`<text class="name inside" x=${x} y=${y}>${written}</text>`;
-    }
-    if (spec.kind === "portal") {
-      const beside = gridPointOf(spec, {
-        x: PORTAL.mouth.first + PORTAL.mouth.apart + PORTAL.label,
-        y: 0.5,
-      });
-      return svg`<text class="name inside"
-        x=${beside.x} y=${beside.y}>${written}</text>`;
-    }
-    const centre = centreOf(spec);
-    const below = centre.y + placed(spec).footprint.h / 2 + LABEL.below;
-    return svg`<text class="name" x=${centre.x} y=${below}>${written}</text>`;
+    if (spec.kind !== "block") return nothing;
+    const { x, y } = centreOf(spec);
+    return svg`<text class="name" x=${x} y=${y}>${spec.label || name}</text>`;
   }
 
   /** Every pin, green where `/review` is satisfied with it and red where it is

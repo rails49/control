@@ -80,7 +80,6 @@ export const PORTAL = {
   stub: 0.69,
   lean: -0.41,
   mouth: { first: 0.7, apart: 0.09, reach: 0.27 },
-  label: 0.16,
 };
 
 /**
@@ -91,8 +90,8 @@ export const PORTAL = {
  */
 export const SLIP = { off: 0.22, arm: 0.14 };
 
-/** The label under a symbol, and the one inside a block. */
-export const LABEL = { size: 0.22, below: 0.32 };
+/** The label inside a block, which is the only text a symbol carries. */
+export const LABEL = { size: 0.22 };
 
 /**
  * The palette, as the custom properties the stylesheets read. Track is black

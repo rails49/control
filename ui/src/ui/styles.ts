@@ -382,18 +382,14 @@ export const canvasStyles = css`
     stroke: var(--lit);
   }
 
+  /* A block's label, the only text on a symbol: centred in its rectangle rather
+     than sitting on a point. */
   .name {
     font: ${LABEL.size}px system-ui, sans-serif;
-    fill: var(--hint);
-    text-anchor: middle;
-    pointer-events: none;
-  }
-
-  /* A block's label is written inside its rectangle and a portal's beside its
-     mouth, so both are centred on their point rather than sitting on it. */
-  .name.inside {
     fill: var(--ink);
+    text-anchor: middle;
     dominant-baseline: middle;
+    pointer-events: none;
   }
 
   /* Every pin is drawn while editing, green where it has the wire it wants and
