@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { wireConnection, type Drawing } from "../src/model/drawing.js";
+import { Editor } from "../src/model/editor.js";
 import {
   minted,
   nameJoint,
@@ -27,9 +28,9 @@ function throat(): Drawing {
   return {
     drawing: "test",
     symbols: {
-      sw1: { kind: "turnout" },
-      sw2: { kind: "turnout" },
-      x1: { kind: "crossing" },
+      sw1: { kind: "turnout", at: [0, 0] },
+      sw2: { kind: "turnout", at: [4, 0] },
+      x1: { kind: "crossing", at: [8, 0] },
     },
     wires: [],
   };
@@ -179,6 +180,22 @@ describe("a wire between two blocks", () => {
     ];
     nameJoint(drawing, chain, "gap");
     expect(drawing.wires.map(wireConnection)).toEqual(["gap", undefined]);
+  });
+});
+
+describe("a review that arrived too late", () => {
+  it("is not written onto a drawing that has moved on", () => {
+    // A review is a round trip and an edit can land while it is in flight.
+    // Naming junctions that are no longer there would leave a `connection` on
+    // symbols that no longer form one, which derivation then refuses.
+    const editor = new Editor(throat());
+    const found = review({ junctions: [junction(null, [], ["sw1", "sw2"])] });
+    const stale = editor.revision;
+    editor.select(["x1"]);
+    editor.move(4, 0);
+    expect(editor.settle(found, stale)).toBe(false);
+    expect(editor.drawing.symbols.sw1!.connection).toBeUndefined();
+    expect(editor.settle(found, editor.revision)).toBe(true);
   });
 });
 

@@ -45,6 +45,7 @@ export class Editor {
   private future: Drawing[] = [];
   private chosen = new Set<string>();
   private drawingFrom: PinRef | null = null;
+  private changes = 0;
 
   constructor(private current: Drawing) {}
 
@@ -239,9 +240,19 @@ export class Editor {
    * edit that caused them. Naming is a consequence of the edit rather than an
    * edit of its own, so one action stays one undo step, and nothing interrupts
    * a sketch to ask what a junction is called.
+   *
+   * `at` is the revision the review was of. A review is a round trip, and an
+   * edit can land while it is in flight; writing its answer onto a drawing
+   * that has moved on would name junctions that are no longer there.
    */
-  settle(review: Review): boolean {
-    return settle(this.current, review);
+  settle(review: Review, at: number): boolean {
+    return at === this.revision && settle(this.current, review);
+  }
+
+  /** How many times the document has changed. Only useful for telling whether
+   *  it changed while something else was being worked out. */
+  get revision(): number {
+    return this.changes;
   }
 
   // --- drawing wires ------------------------------------------------------
@@ -330,6 +341,7 @@ export class Editor {
   /** Take a snapshot. Every mutation calls it first: the document is small,
    *  so a copy per edit is cheaper than working out what changed. */
   push(): void {
+    this.changes++;
     this.past.push(clone(this.current));
     if (this.past.length > DEPTH) this.past.shift();
     this.future = [];
@@ -338,6 +350,7 @@ export class Editor {
   /** Adopt a drawing, forgetting the edits that led to the last one — what
    *  loading a railroad does. */
   reset(drawing: Drawing): void {
+    this.changes++;
     this.current = drawing;
     this.past = [];
     this.future = [];
@@ -348,6 +361,7 @@ export class Editor {
   private step(from: Drawing[], to: Drawing[]): void {
     const restored = from.pop();
     if (restored === undefined) return;
+    this.changes++;
     to.push(clone(this.current));
     this.current = restored;
     this.drawingFrom = null;

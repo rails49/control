@@ -215,13 +215,14 @@ export class TcEditor extends LitElement {
    *  an error worth reporting as one. */
   private async reviewNow(): Promise<void> {
     try {
+      const at = this.editor.revision;
       this.reviewed = await review(this.editor.drawing);
       this.trouble = null;
       // A junction always has a valid name, so the names the drawing has not
       // settled are minted the moment the store says which junctions exist.
       // The write folds into the edit that caused it, and asking again with
       // the names in place is what makes the pane agree with the drawing.
-      if (this.editor.settle(this.reviewed)) {
+      if (this.editor.settle(this.reviewed, at)) {
         this.saved = false;
         this.reviewed = await review(this.editor.drawing);
       }
