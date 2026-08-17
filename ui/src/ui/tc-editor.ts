@@ -16,7 +16,7 @@ import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import type { Kind } from "../symbols.generated.js";
-import { emptyDrawing } from "../model/drawing.js";
+import { emptyDrawing, type SymbolSpec } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import {
   listDrawings,
@@ -27,8 +27,14 @@ import {
 } from "../model/store.js";
 import { appStyles } from "./styles.js";
 import "./tc-canvas.js";
+import "./tc-menu.js";
+import "./tc-netlist.js";
 import "./tc-palette.js";
+import "./tc-properties.js";
 import type { TcCanvas } from "./tc-canvas.js";
+import type { MenuAction, MenuAt } from "./tc-menu.js";
+import type { Chosen } from "./tc-netlist.js";
+import type { Properties } from "./tc-properties.js";
 
 @customElement("tc-editor")
 export class TcEditor extends LitElement {
@@ -42,6 +48,9 @@ export class TcEditor extends LitElement {
   @state() private reviewed: Review | null = null;
   @state() private trouble: string | null = null;
   @state() private saved = true;
+  @state() private menu: MenuAt | null = null;
+  @state() private editing: { name: string; spec: SymbolSpec } | null = null;
+  @state() private chosen: Chosen | null = null;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -101,10 +110,38 @@ export class TcEditor extends LitElement {
         .editor=${this.editor}
         .review=${this.reviewed}
         .placing=${this.armed}
+        .chosen=${this.chosen}
         @edit=${this.edited}
+        @canvas-menu=${(event: CustomEvent<MenuAt>) => {
+          this.menu = event.detail;
+        }}
       ></tc-canvas>
 
-      <div class="side">${this.findings()}</div>
+      <div class="side">
+        ${this.findings()}
+        <tc-netlist
+          .review=${this.reviewed}
+          .chosen=${this.chosen}
+          @transit-chosen=${(event: CustomEvent<Chosen | null>) => {
+            this.chosen = event.detail;
+            this.redraw();
+          }}
+        ></tc-netlist>
+      </div>
+
+      <tc-menu .at=${this.menu} @menu-action=${this.chose}
+        @menu-dismissed=${() => {
+          this.menu = null;
+        }}
+      ></tc-menu>
+
+      <tc-properties
+        .editing=${this.editing}
+        @properties=${this.applied}
+        @properties-closed=${() => {
+          this.editing = null;
+        }}
+      ></tc-properties>
     `;
   }
 
@@ -180,6 +217,15 @@ export class TcEditor extends LitElement {
     try {
       this.reviewed = await review(this.editor.drawing);
       this.trouble = null;
+      // A junction always has a valid name, so the names the drawing has not
+      // settled are minted the moment the store says which junctions exist.
+      // The write folds into the edit that caused it, and asking again with
+      // the names in place is what makes the pane agree with the drawing.
+      if (this.editor.settle(this.reviewed)) {
+        this.saved = false;
+        this.reviewed = await review(this.editor.drawing);
+      }
+      this.redraw();
     } catch (failure) {
       this.trouble = String(failure);
     }
@@ -203,6 +249,63 @@ export class TcEditor extends LitElement {
 
   private act(change: (editor: Editor) => void): void {
     change(this.editor);
+    this.edited();
+  }
+
+  // --- the right-click menu, and what it opens -----------------------------
+
+  private chose(event: CustomEvent<MenuAction>): void {
+    const at = this.menu;
+    this.menu = null;
+    if (at === null) return;
+    switch (event.detail) {
+      case "properties": {
+        const spec = at.symbol === null ? undefined : this.editor.drawing.symbols[at.symbol];
+        if (at.symbol !== null && spec !== undefined) {
+          this.editing = { name: at.symbol, spec };
+        }
+        return;
+      }
+      case "rename-junction":
+        if (at.junction !== null) {
+          const name = this.ask("Junction name", at.junction.name ?? "");
+          if (name !== null) {
+            this.act((editor) => editor.nameJunction(at.junction!.symbols, name));
+          }
+        }
+        return;
+      case "rename-joint":
+        if (at.joint !== null) {
+          const name = this.ask("Connection name", at.joint.name ?? "");
+          if (name !== null) this.act((editor) => editor.nameJoint(at.joint!, name));
+        }
+        return;
+      case "rotate":
+        this.act((editor) => editor.rotate());
+        return;
+      case "flip":
+        this.act((editor) => editor.flip());
+        return;
+      case "delete":
+        this.act((editor) => editor.remove());
+        return;
+    }
+  }
+
+  /** A one-field rename. A dialog for a single word would be more of the
+   *  editor than renaming a junction is worth (EDITOR.md's simplicity). */
+  private ask(what: string, was: string): string | null {
+    const said = window.prompt(what, was);
+    return said === null || said.trim() === "" ? null : said.trim();
+  }
+
+  private applied(event: CustomEvent<Properties>): void {
+    const { was, name, spec } = event.detail;
+    this.editing = null;
+    if (!this.editor.edit(was, name, spec)) {
+      this.trouble = `'${name}' is not a name this drawing can take`;
+      return;
+    }
     this.edited();
   }
 

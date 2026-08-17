@@ -202,9 +202,24 @@ export const canvasStyles = css`
   }
 
   .junction {
+    pointer-events: none;
+  }
+
+  .junction rect {
     fill: currentColor;
     opacity: 0.1;
-    pointer-events: none;
+  }
+
+  .junction text {
+    font: 0.26px system-ui, sans-serif;
+    font-weight: 600;
+    fill: currentColor;
+  }
+
+  /* The way a chosen transit takes, symbol by symbol. */
+  .symbol.lit .track {
+    stroke: var(--tint-2, #a55b12);
+    stroke-width: 4.5;
   }
 
   .tint-0 {
@@ -281,12 +296,23 @@ export const canvasStyles = css`
     fill: var(--track, #2b3038);
   }
 
+  /* The generic connection symbol shows no turnout detail, which is what it
+     says about itself. */
+  .opaque {
+    fill: #edeae4;
+    stroke: var(--track, #2b3038);
+    stroke-width: 1.4;
+    stroke-dasharray: 5 3;
+    vector-effect: non-scaling-stroke;
+  }
+
   .symbol.selected .track,
   .symbol.selected .wire {
     stroke: var(--chosen, #1f6feb);
   }
 
-  .symbol.selected .block-body {
+  .symbol.selected .block-body,
+  .symbol.selected .opaque {
     stroke: var(--chosen, #1f6feb);
   }
 
@@ -321,5 +347,147 @@ export const canvasStyles = css`
     stroke-width: 1;
     stroke-dasharray: 4 3;
     vector-effect: non-scaling-stroke;
+  }
+`;
+
+export const menuStyles = css`
+  .sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+  }
+
+  menu {
+    position: fixed;
+    z-index: 11;
+    margin: 0;
+    padding: 0.25rem;
+    list-style: none;
+    min-width: 12rem;
+    border: 1px solid var(--rule, #d9d6d0);
+    border-radius: 5px;
+    background: var(--paper, #fbfbfa);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.14);
+    font: 13px/1.4 system-ui, sans-serif;
+  }
+
+  button {
+    display: block;
+    width: 100%;
+    padding: 0.3rem 0.5rem;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    color: var(--ink, #1c1f24);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: var(--chosen, #1f6feb);
+    color: #fff;
+  }
+`;
+
+export const propertiesStyles = css`
+  sl-input,
+  sl-select {
+    display: block;
+    margin-bottom: 0.7rem;
+  }
+
+  h3 {
+    margin: 1rem 0 0.4rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--hint, #7c8087);
+  }
+
+  .hint {
+    margin: 0 0 0.5rem;
+    color: var(--hint, #7c8087);
+  }
+`;
+
+export const netlistStyles = css`
+  :host {
+    display: block;
+    font: 13px/1.45 system-ui, sans-serif;
+  }
+
+  h2 {
+    margin: 0.9rem 0 0.3rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--hint, #7c8087);
+  }
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .blocks li {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.1rem 0.3rem;
+  }
+
+  .transits button {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.2rem 0.3rem;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .transits button:hover {
+    background: #f0eeea;
+  }
+
+  .transits button.on {
+    background: #e8f0fe;
+    font-weight: 600;
+  }
+
+  .ends,
+  .why {
+    color: var(--hint, #7c8087);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .against {
+    margin: 0.2rem 0 0.5rem 0.8rem;
+    border-left: 2px solid var(--rule, #d9d6d0);
+  }
+
+  .against li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.1rem 0.4rem;
+  }
+
+  .against .with span:first-child {
+    color: var(--tint-1, #14866d);
+  }
+
+  .against .without span:first-child {
+    color: var(--wrong, #cc2936);
+  }
+
+  .hint {
+    color: var(--hint, #7c8087);
   }
 `;

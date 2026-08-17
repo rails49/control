@@ -208,6 +208,7 @@ class Drawing:
         return {
             "red_pins": self.red_pins(),
             "junctions": self.junctions(),
+            "joints": self.joints(),
             "layout": layout,
             "explain": explain,
             "refused": refused,
@@ -219,9 +220,14 @@ class Drawing:
 
         A component that declares no transit is not a junction: a terminal
         capping a block end is its own component and derives nothing, and
-        tinting it would say otherwise. The name is `None` where the drawing
-        has not settled one, which is the case worth showing a person, so it
-        is reported rather than raised.
+        tinting it would say otherwise.
+
+        `name` is `None` where the drawing has not settled one, reported rather
+        than raised because that is the normal state of a junction a moment
+        after it is drawn. `names` is what its symbols write as `connection`,
+        which is what tells the two unnamed cases apart: nothing written is a
+        junction to be minted, and several written is a disagreement someone
+        typed, which derivation refuses and the editor leaves alone.
         """
         found: list[dict[str, Any]] = []
         for group in self._groups(self._loose_joins()):
@@ -231,8 +237,43 @@ class Drawing:
                 name = self._connection_name(group)
             except ValueError:
                 name = None
-            found.append({"name": name, "symbols": group})
+            declared = sorted({self.symbols[s].connection for s in group} - {""})
+            found.append({"name": name, "names": declared, "symbols": group})
         return found
+
+    def joints(self) -> list[dict[str, Any]]:
+        """The ways from one block end to another that cross no symbol
+        declaring a transit. Each is a connection in itself and carries its
+        name on one of its own wires (DRAWING.md).
+
+        The editor mints those names, so it has to be told which wires want
+        one, and it cannot work that out itself without walking the drawing —
+        which is the one thing the front end does not do. Reported rather than
+        raised, since a joint drawn a moment ago has no name yet. `name` is the
+        one the chain carries; `names` is every name on it, which tells an
+        unnamed joint from one named twice the way `junctions` does.
+        """
+        found: list[dict[str, Any]] = []
+        for ends, used in self._walks(self._loose_joins()):
+            if any(self.symbols[symbol].transits for symbol, _ in used):
+                continue
+            chain = self._chain(ends, used)
+            named = sorted(
+                {
+                    self.wire_connections[key]
+                    for key in chain
+                    if key in self.wire_connections
+                }
+            )
+            found.append(
+                {
+                    "ends": list(ends),
+                    "wires": [list(wire) for wire in chain],
+                    "name": named[0] if len(named) == 1 else None,
+                    "names": named,
+                }
+            )
+        return sorted(found, key=lambda joint: joint["ends"])
 
     def red_pins(self) -> list[str]:
         """The pins that do not hold the wires they take: one for a symbol
@@ -302,16 +343,12 @@ class Drawing:
         sit on any one of them, so the whole chain is searched. Two names on
         one chain are refused rather than resolved by order, the same as two
         symbol transits naming one way."""
-        held = {ends[0], ends[1]} | {
-            f"{symbol}.{pin}" for symbol, _ in used for pin in self.symbols[symbol].pins
-        }
-        chain = [wire for wire in self.wires if held.issuperset(wire)]
+        chain = self._chain(ends, used)
         named = sorted(
             {
                 self.wire_connections[key]
-                for wire in chain
-                if (key := cast(tuple[str, str], tuple(sorted(wire))))
-                in self.wire_connections
+                for key in chain
+                if key in self.wire_connections
             }
         )
         if len(named) > 1:
@@ -326,13 +363,23 @@ class Drawing:
                 f" joined through one, or by a wire that names the connection"
                 f" it is"
             )
-        spent.update(
-            key
-            for wire in chain
-            if (key := cast(tuple[str, str], tuple(sorted(wire))))
-            in self.wire_connections
-        )
+        spent.update(key for key in chain if key in self.wire_connections)
         return named[0]
+
+    def _chain(
+        self, ends: tuple[str, str], used: tuple[Use, ...]
+    ) -> list[tuple[str, str]]:
+        """The wires one way is drawn from, as sorted pin pairs. Routed around
+        a corner a joint is several wires through bend pins, and it is the
+        chain rather than any one wire that is the connection."""
+        held = {ends[0], ends[1]} | {
+            f"{symbol}.{pin}" for symbol, _ in used for pin in self.symbols[symbol].pins
+        }
+        return [
+            cast(tuple[str, str], tuple(sorted(wire)))
+            for wire in self.wires
+            if held.issuperset(wire)
+        ]
 
     # --- the pin rules, checked at derivation, never at save ---------------
 

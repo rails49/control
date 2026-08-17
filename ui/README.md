@@ -28,6 +28,7 @@ src/
     drawing.ts   the document, exactly as the store serves and takes it back
     geometry.ts  footprints, pin anchors, quarter turns, the 15 degree snap
     editor.ts    the editing session: selection, wires, snapshots, undo
+    naming.ts    connection names, minted and written into the drawing
     store.ts     the four routes
   render/
     artwork.ts   what each symbol looks like, hand-written against the
@@ -36,6 +37,10 @@ src/
     tc-editor.ts   the shell: toolbar, findings, keys, talking to the store
     tc-palette.ts  one tile per placeable kind
     tc-canvas.ts   the surface: pointer events, viewBox zoom and pan
+    tc-netlist.ts  the derived netlist, and why each pair does or does not
+                   run together
+    tc-properties.ts  the properties dialog
+    tc-menu.ts     the right-click menu
     styles.ts      every component's styles
 test/            vitest, against model/ — no DOM
 ```
@@ -65,6 +70,15 @@ Drag to move, drag empty canvas to rubber-band, shift-click to add. `R`
 rotates, `F` flips, `Delete` deletes, `Escape` cancels, `Cmd/Ctrl+Z` undoes and
 `Cmd/Ctrl+Shift+Z` redoes, `Cmd/Ctrl+S` saves. The wheel zooms and the middle
 button pans.
+
+Right-click for properties, and for the name of the junction or the connection
+under the pointer. A junction is named `j1`, `j2` as it forms, so nothing
+interrupts a sketch; renaming one is worth doing when it earns a name, because
+the name heads its section in the netlist.
+
+Selecting a transit in the netlist lights its way on the canvas and says, for
+every other transit at that connection, whether it runs together with it or
+which symbol they share. That is the feature the rest of the editor serves.
 
 No committed drawing has any placement and there is no auto-layout, so opening
 one deals its symbols into rows to be dragged from. That is an ordinary edit:

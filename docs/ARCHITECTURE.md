@@ -52,8 +52,9 @@ src/tc49/
                             disturbing what is already in the file, which is
                             mostly comments (ADR-0018)
                 server.py   the store's HTTP face: list, read a drawing
-                            document, write one, derive, explain — what the
-                            editor talks to (ui/EDITOR.md)
+                            document, write one, and review one — red pins,
+                            junctions, joints, the layout and why it is that
+                            (ui/EDITOR.md)
                 symbols.py  render() — the symbol library as the TypeScript
                             the editor draws against
   scheduler/    Scheduler — releases scenario requests at their `at` ticks,
@@ -93,7 +94,8 @@ ui/                         the layout editor: TypeScript, pnpm, Lit
                             connection naming and the store client — no DOM,
                             and what the Vitest tests target
               src/render/   the artwork, hand-written per kind
-              src/ui/       the Lit components: shell, palette, canvas
+              src/ui/       the Lit components: shell, palette, canvas,
+                            netlist, properties, menu
               test/         the Vitest tests
 
 layouts/                    <layout>.drawing.yaml — the drawn railroads,

@@ -146,16 +146,20 @@ throats into one junction is visible as one region where you expected two,
 long before it shows up as a wrong concurrency pair.
 
 Names are minted, `j1`, `j2`, and written into the drawing at once, so a
-junction always has a valid name and nothing interrupts a sketch. Renaming is
-one click on the region, and worth doing when the junction earns a name,
-because the name heads its section in the netlist and prefixes every transit
-id through it.
+junction always has a valid name and nothing interrupts a sketch. Minting
+happens the moment `/review` says which junctions exist, and folds into the
+snapshot of the edit that caused it, so one action stays one undo step.
+Renaming is one click on the region, and worth doing when the junction earns a
+name, because the name heads its section in the netlist and prefixes every
+transit id through it.
 
 Deleting a symbol can split a junction in two, and wiring two together merges
 them. A minted name is re-minted silently on both sides; nobody is reading
 `j7`. A name someone typed stays on both halves, which derivation refuses as
 a duplicate, and the findings list says so. Choosing which half is Airolo is
-not the editor's decision to make.
+not the editor's decision to make. What tells the two apart is the shape of the
+name itself: `j` and digits is one the editor made, and anything else is one a
+person typed.
 
 A wire joining two blocks directly is a connection too
 ([DRAWING.md](../store/DRAWING.md#a-wire-between-two-blocks)). Its name is
@@ -233,14 +237,25 @@ a store operation, which keeps `tests/system/test_app_boundaries.py` intact:
 `review` takes a document rather than a name, because the interesting drawing
 is the one being edited: unsaved, and often not yet derivable. It answers with
 the red pins, the junctions as symbol groups each carrying the name its
-connection takes, the derived layout, its explanation, and the refusal where
-there is one. A drawing with a red pin is the normal state mid-edit, so that
-comes back as a refusal inside a 200; only a document that will not load at
-all is a bad request. Whatever is wrong with a drawing, the editor reads a
-status and a reason rather than losing the connection.
+connection takes, the joints — the ways from one block end to another crossing
+no connection symbol, with the wires that may carry a name — the derived
+layout, its explanation, and the refusal where there is one. A drawing with a
+red pin is the normal state mid-edit, so that comes back as a refusal inside a
+200; only a document that will not load at all is a bad request. Whatever is
+wrong with a drawing, the editor reads a status and a reason rather than losing
+the connection.
+
+A junction and a joint each report a `name`, `null` where the drawing has not
+settled one, and `names`, what the drawing actually writes. That is what tells
+the two unnamed cases apart: nothing written is a name to mint, and several
+written is a disagreement someone typed, which the editor leaves alone.
 
 A component that declares no transit is not a junction, so the terminal
 capping a block end is not tinted as one.
+
+A drawing that still has a generic connection symbol has to open, so the editor
+draws it as a box with the pins it declares and no turnout detail. It stays off
+the palette, having no fixed pin set to place.
 
 The panel later adds a bus bridge alongside it
 ([PANEL.md](PANEL.md#implementation)).

@@ -81,6 +81,22 @@ def test_a_review_returns_the_layout_and_why_it_is_that(store: AssetStore) -> No
     ]
 
 
+def test_a_review_names_the_wires_the_editor_has_to_name(store: AssetStore) -> None:
+    """A bare wire between two blocks is a connection and needs a name the
+    editor mints. Which wires those are is a walk of the drawing, so it comes
+    from here rather than a second walk in TypeScript."""
+    status, body = handle(store, "POST", "/review", store.drawing("facing-pair"))
+    assert status == 200
+    assert body["joints"] == [
+        {
+            "ends": ["east.A", "west.B"],
+            "wires": [["east.A", "west.B"]],
+            "name": "gap",
+            "names": ["gap"],
+        }
+    ]
+
+
 def test_a_review_of_work_in_progress_reports_rather_than_fails(
     store: AssetStore,
 ) -> None:

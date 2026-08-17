@@ -82,6 +82,31 @@ describe("footprints and pins", () => {
   });
 });
 
+describe("the generic connection symbol", () => {
+  const claro: SymbolSpec = {
+    kind: "connection",
+    at: [2, 2],
+    pins: ["a", "b", "c", "d", "e"],
+  };
+
+  it("takes a box tall enough for the pins it declares", () => {
+    // It is legacy and not on the palette, but a drawing that still has one
+    // has to open, so it needs a footprint the library cannot give it.
+    expect(placed(claro).footprint).toEqual({ w: 2, h: 3 });
+    expect(Object.keys(placed(claro).anchors)).toHaveLength(5);
+  });
+
+  it("puts every one of them on a face, half down each side", () => {
+    expect(anchorOf(claro, "a")).toEqual({ x: 2, y: 2.5 });
+    expect(anchorOf(claro, "c")).toEqual({ x: 2, y: 4.5 });
+    expect(anchorOf(claro, "d")).toEqual({ x: 4, y: 2.5 });
+  });
+
+  it("turns like anything else", () => {
+    expect(placed({ ...claro, rot: 90 }).footprint).toEqual({ w: 3, h: 2 });
+  });
+});
+
 describe("placing a bend", () => {
   it("snaps to the nearest face centre", () => {
     expect(faceAt(2.05, 3.5)).toEqual({ at: [2, 3], rot: 0 });

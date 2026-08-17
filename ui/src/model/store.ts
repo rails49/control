@@ -12,7 +12,19 @@ import type { Drawing } from "./drawing.js";
 export interface Junction {
   /** `null` where the drawing has not settled one. */
   name: string | null;
+  /** What its symbols write as `connection`: nothing is a junction to be
+   *  minted, several is a disagreement someone typed. */
+  names: string[];
   symbols: string[];
+}
+
+/** A way from one block end to another crossing no connection symbol. It is a
+ *  connection in itself, and one of its own wires carries the name. */
+export interface Joint {
+  ends: [string, string];
+  wires: [string, string][];
+  name: string | null;
+  names: string[];
 }
 
 export interface Transit {
@@ -48,6 +60,7 @@ export interface Layout {
 export interface Review {
   red_pins: string[];
   junctions: Junction[];
+  joints: Joint[];
   layout: Layout | null;
   explain: Explained | null;
   refused: string | null;

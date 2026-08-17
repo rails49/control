@@ -11,16 +11,20 @@
  * junctions, transits and what excludes what come from the store's `/review`.
  */
 
-import { PINS, type Kind } from "../symbols.generated.js";
+import type { Kind } from "../symbols.generated.js";
 import {
   clone,
+  pinsOf,
   symbolOf,
   wirePins,
   type Drawing,
   type PinRef,
   type SymbolSpec,
+  type Wire,
 } from "./drawing.js";
 import { anchorOf, faceAt, flipped, movedBy, turned } from "./geometry.js";
+import { nameJoint, nameJunction, settle } from "./naming.js";
+import type { Joint, Review } from "./store.js";
 
 /** What a new symbol of each kind is called: `sw1`, `sw2`, and so on. */
 const PREFIXES: Record<Kind, string> = {
@@ -82,15 +86,13 @@ export class Editor {
 
   pinsOf(name: string): PinRef[] {
     const spec = this.current.symbols[name];
-    return spec === undefined
-      ? []
-      : PINS[spec.kind].map((pin) => `${name}.${pin}`);
+    return spec === undefined ? [] : pinsOf(spec).map((pin) => `${name}.${pin}`);
   }
 
   /** Every pin on the drawing, with where it sits. */
   allPins(): { pin: PinRef; x: number; y: number }[] {
     return Object.entries(this.current.symbols).flatMap(([name, spec]) =>
-      PINS[spec.kind].map((pin) => ({
+      pinsOf(spec).map((pin) => ({
         pin: `${name}.${pin}`,
         ...anchorOf(spec, pin),
       })),
@@ -181,6 +183,65 @@ export class Editor {
       (wire) => !wirePins(wire).some((pin) => gone.has(symbolOf(pin))),
     );
     this.chosen = new Set();
+  }
+
+  /**
+   * Apply the properties dialog: the symbol's own properties, and a rename
+   * where the name changed. Answers whether it took.
+   *
+   * A wire is written `<symbol>.<pin>` and is the only thing that points at a
+   * symbol, so a rename rewrites the wires and nothing else. A one-symbol
+   * junction takes its symbol's name, so renaming a lone turnout renames its
+   * connection too — which is the drawing's rule, not this one's
+   * (store/DRAWING.md).
+   */
+  edit(was: string, name: string, spec: SymbolSpec): boolean {
+    if (!(was in this.current.symbols)) return false;
+    if (name !== was && (!isName(name) || name in this.current.symbols)) {
+      return false;
+    }
+    this.push();
+    // Rebuilt in order rather than deleted and re-added: the file keeps the
+    // order it was written in, and a renamed symbol should keep its place.
+    this.current.symbols = Object.fromEntries(
+      Object.entries(this.current.symbols).map(([key, value]) =>
+        key === was ? [name, spec] : [key, value],
+      ),
+    );
+    if (name !== was) {
+      this.current.wires = this.current.wires.map((wire) => renamed(wire, was, name));
+      this.chosen = new Set(
+        [...this.chosen].map((chosen) => (chosen === was ? name : chosen)),
+      );
+    }
+    return true;
+  }
+
+  /** Name a junction by hand: `connection` goes on every one of its symbols,
+   *  a junction drawn from several having no other way to be named. */
+  nameJunction(symbols: string[], name: string): boolean {
+    if (!isName(name)) return false;
+    this.push();
+    nameJunction(this.current, symbols, name);
+    return true;
+  }
+
+  /** Name the connection a bare wire between two blocks is. */
+  nameJoint(joint: Joint, name: string): boolean {
+    if (!isName(name)) return false;
+    this.push();
+    nameJoint(this.current, joint, name);
+    return true;
+  }
+
+  /**
+   * Mint the names the drawing has not settled, folding into the snapshot the
+   * edit that caused them. Naming is a consequence of the edit rather than an
+   * edit of its own, so one action stays one undo step, and nothing interrupts
+   * a sketch to ask what a junction is called.
+   */
+  settle(review: Review): boolean {
+    return settle(this.current, review);
   }
 
   // --- drawing wires ------------------------------------------------------
@@ -313,7 +374,7 @@ export class Editor {
 
 /** A free-standing bend joins two wires; every other pin joins one, the
  *  symbol itself being its second connection. */
-export function wiresWanted(kind: Kind): number {
+export function wiresWanted(kind: string): number {
   return kind === "pin" ? 2 : 1;
 }
 
@@ -325,6 +386,22 @@ function defaults(kind: Kind, name: string): Partial<SymbolSpec> {
   if (kind === "block") return { length: 1000 };
   if (kind === "portal") return { label: name };
   return {};
+}
+
+/** What the drawing schema takes as a name: not empty, and without the `.`
+ *  that separates a symbol from its pin or the `/` that separates a path. */
+export function isName(name: string): boolean {
+  return name !== "" && !name.includes(".") && !name.includes("/");
+}
+
+/** A wire with a renamed symbol's pins rewritten, keeping the form it was
+ *  written in — a wire that names a connection still names it. */
+function renamed(wire: Wire, was: string, name: string): Wire {
+  const swap = (pin: PinRef) =>
+    symbolOf(pin) === was ? `${name}${pin.slice(was.length)}` : pin;
+  const [a, b] = wirePins(wire);
+  const pins: [string, string] = [swap(a), swap(b)];
+  return Array.isArray(wire) ? pins : { ...wire, pins };
 }
 
 /** The lowest free `<prefix><n>` for a kind. */

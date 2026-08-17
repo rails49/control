@@ -701,6 +701,7 @@ def test_junctions_are_the_symbols_that_form_them_and_the_name_they_take() -> No
     junctions = committed_drawing("crossover-yard").review()["junctions"]
     assert {
         "name": "crossover",
+        "names": ["crossover"],
         "symbols": [
             "diamond",
             "dn_e_points",
@@ -728,6 +729,47 @@ def test_a_terminal_is_not_a_junction() -> None:
         "claro_east",
         "claro_west",
     ]
+
+
+def test_a_joint_is_reported_with_the_wires_that_may_carry_its_name() -> None:
+    """The editor mints the name a bare wire between two blocks needs, so it
+    has to be told which wires want one. Working that out means walking the
+    drawing, which is what the front end does not do."""
+    assert Drawing.from_document(joint("b1", "b2", named=1)).joints() == [
+        {
+            "ends": ["east.A", "west.B"],
+            "wires": [["b1.P", "west.B"], ["b1.P", "b2.P"], ["b2.P", "east.A"]],
+            "name": "gap",
+            "names": ["gap"],
+        }
+    ]
+
+
+def test_a_joint_nobody_has_named_is_reported_without_a_name() -> None:
+    """The normal state a moment after the wire is drawn, and the case the
+    editor answers by minting."""
+    doc = joint()
+    doc["wires"][-1] = doc["wires"][-1]["pins"]
+    joints = Drawing.from_document(doc).joints()
+    assert [(j["name"], j["names"]) for j in joints] == [(None, [])]
+    assert joints[0]["wires"] == [["east.A", "west.B"]]
+
+
+def test_a_joint_named_twice_is_told_apart_from_one_named_not_at_all() -> None:
+    """Deriving either is refused; reviewing is not, because the editor draws
+    the drawing that caused the refusal. The editor mints a name for the one
+    and leaves the other alone, so the two cases have to be distinguishable."""
+    doc = joint("bend", named=0)
+    doc["wires"][-1] = {"pins": doc["wires"][-1], "connection": "other"}
+    twice = Drawing.from_document(doc).joints()
+    assert [(j["name"], j["names"]) for j in twice] == [(None, ["gap", "other"])]
+
+
+def test_a_way_through_a_junction_is_not_a_joint() -> None:
+    """A junction's symbols name their connection, so those wires must not be
+    offered a name of their own."""
+    assert Drawing.from_document(spanned()).joints() == []
+    assert committed_drawing("crossover-yard").joints() == []
 
 
 @pytest.mark.parametrize("name", RAILROADS)
@@ -758,7 +800,9 @@ def test_junctions_are_reported_even_when_the_drawing_will_not_derive() -> None:
     doc = two_blocks(points={"kind": "turnout"})
     doc["wires"] += [["west.B", "points.toe"], ["points.straight", "east.A"]]
     review = Drawing.from_document(doc).review()
-    assert review["junctions"] == [{"name": "points", "symbols": ["points"]}]
+    assert review["junctions"] == [
+        {"name": "points", "names": [], "symbols": ["points"]}
+    ]
     assert review["refused"] is not None
 
 
@@ -784,8 +828,19 @@ def test_a_junction_the_drawing_has_not_named_reports_no_name() -> None:
         ["south.B", "south_stop.P"],
     ]
     review = Drawing.from_document(doc).review()
-    assert review["junctions"] == [{"name": None, "symbols": ["one", "two"]}]
+    assert review["junctions"] == [
+        {"name": None, "names": [], "symbols": ["one", "two"]}
+    ]
     assert "unnamed" in review["refused"]
+
+    # Named twice instead of not at all: the same null name, and the names
+    # someone typed, which is what stops the editor minting over them.
+    doc["symbols"]["one"]["connection"] = "airolo"
+    doc["symbols"]["two"]["connection"] = "claro"
+    review = Drawing.from_document(doc).review()
+    assert review["junctions"] == [
+        {"name": None, "names": ["airolo", "claro"], "symbols": ["one", "two"]}
+    ]
 
 
 # --- names and determinism ------------------------------------------------

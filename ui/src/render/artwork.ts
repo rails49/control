@@ -16,6 +16,7 @@ import { svg, type SVGTemplateResult } from "lit";
 
 import type { Kind } from "../symbols.generated.js";
 import type { SymbolSpec } from "../model/drawing.js";
+import { footprintOf } from "../model/geometry.js";
 
 /** The appearances each angled kind offers, the first being its default. */
 export const APPEARANCES: Record<string, string[]> = {
@@ -40,6 +41,8 @@ const SLIP_HIGH = "M0 0.5 Q1 0.9 2 0.5"; // b1 to a2, around the head of it
 
 export function artwork(spec: SymbolSpec): SVGTemplateResult {
   switch (spec.kind) {
+    case "connection":
+      return opaque(spec);
     case "block":
       return block();
     case "terminal":
@@ -64,6 +67,18 @@ export function appearanceOf(spec: SymbolSpec): string {
   const offered = APPEARANCES[spec.kind] ?? [];
   const chosen = spec.angle ?? "";
   return offered.includes(chosen) ? chosen : (offered[0] ?? "x");
+}
+
+/** The generic connection symbol: a box with the pins it declares and no
+ *  turnout detail, which is exactly what it knows about itself. It is legacy
+ *  and not on the palette; drawings that still have one have to open
+ *  (store/DRAWING.md). */
+function opaque(spec: SymbolSpec): SVGTemplateResult {
+  const { w, h } = footprintOf(spec);
+  return svg`
+    <rect class="opaque" x="0.15" y="0.15" width=${w - 0.3} height=${h - 0.3}
+          rx="0.12" />
+  `;
 }
 
 /** A block carries a signal and a sensor at each end, always, so both are

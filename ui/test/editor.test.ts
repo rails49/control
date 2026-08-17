@@ -347,6 +347,81 @@ describe("undo and redo", () => {
   });
 });
 
+describe("the properties dialog", () => {
+  it("takes a symbol's own properties", () => {
+    place("block", [0, 0]);
+    editor.edit("b1", "b1", {
+      kind: "block",
+      at: [0, 0],
+      length: 2400,
+      label: "Zürich HB Gleis 1",
+    });
+    expect(editor.drawing.symbols.b1!.length).toBe(2400);
+    expect(editor.drawing.symbols.b1!.label).toBe("Zürich HB Gleis 1");
+  });
+
+  it("rewrites every wire when a symbol is renamed", () => {
+    // A wire is written `<symbol>.<pin>` and is the only thing pointing at a
+    // symbol, so a rename that missed one would break the drawing silently.
+    place("block", [0, 0]);
+    place("terminal", [2, 0]);
+    editor.edit("b1", "up_w", { kind: "block", at: [0, 0], length: 1000 });
+    expect(wires()).toEqual(["end1.P up_w.B"]);
+    expect(editor.drawing.symbols.b1).toBeUndefined();
+  });
+
+  it("keeps a renamed symbol where the file wrote it", () => {
+    // `put` merges by key and adds a new symbol at the end, so a rename that
+    // deleted and re-added would move the symbol to the bottom of the file.
+    place("block", [0, 0]);
+    place("block", [4, 0]);
+    place("block", [8, 0]);
+    editor.edit("b2", "middle", { kind: "block", at: [4, 0], length: 1000 });
+    expect(Object.keys(editor.drawing.symbols)).toEqual(["b1", "middle", "b3"]);
+  });
+
+  it("refuses a name the drawing cannot take", () => {
+    place("block", [0, 0]);
+    place("block", [4, 0]);
+    const spec = { kind: "block" as const, at: [0, 0] as [number, number] };
+    expect(editor.edit("b1", "b2", spec)).toBe(false); // taken
+    expect(editor.edit("b1", "a.b", spec)).toBe(false); // a pin, not a symbol
+    expect(editor.edit("b1", "", spec)).toBe(false);
+    expect(Object.keys(editor.drawing.symbols)).toEqual(["b1", "b2"]);
+  });
+
+  it("brings the selection with the new name", () => {
+    place("block", [0, 0]);
+    editor.select(["b1"]);
+    editor.edit("b1", "up_w", { kind: "block", at: [0, 0], length: 1000 });
+    expect([...editor.selection]).toEqual(["up_w"]);
+  });
+
+  it("is one undo step, rename and properties together", () => {
+    place("block", [0, 0]);
+    editor.edit("b1", "up_w", { kind: "block", at: [0, 0], length: 2400 });
+    editor.undo();
+    expect(editor.drawing.symbols.b1!.length).toBe(1000);
+  });
+});
+
+describe("naming a junction by hand", () => {
+  it("writes the name onto every symbol of the region, undoably", () => {
+    place("turnout", [0, 0]);
+    place("turnout", [4, 0]);
+    expect(editor.nameJunction(["sw1", "sw2"], "airolo")).toBe(true);
+    expect(editor.drawing.symbols.sw2!.connection).toBe("airolo");
+    editor.undo();
+    expect(editor.drawing.symbols.sw2!.connection).toBeUndefined();
+  });
+
+  it("refuses what the drawing schema would refuse", () => {
+    place("turnout", [0, 0]);
+    expect(editor.nameJunction(["sw1"], "")).toBe(false);
+    expect(editor.nameJunction(["sw1"], "a.b")).toBe(false);
+  });
+});
+
 describe("reading the document", () => {
   it("reports every pin and where it sits", () => {
     place("block", [1, 1]);

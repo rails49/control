@@ -23,9 +23,10 @@ import {
   transformOf,
   type Point,
 } from "../model/geometry.js";
-import type { Review } from "../model/store.js";
+import type { Joint, Review } from "../model/store.js";
 import { artwork } from "../render/artwork.js";
 import { canvasStyles } from "./styles.js";
+import type { Chosen } from "./tc-netlist.js";
 
 const HIT = 0.22; // how near a pointer has to come to a pin, in squares
 
@@ -55,6 +56,8 @@ export class TcCanvas extends LitElement {
   @property({ attribute: false }) review: Review | null = null;
   /** The palette kind the next click places, if the palette is armed. */
   @property({ attribute: false }) placing: Kind | null = null;
+  /** The transit whose way is lit, chosen in the netlist pane. */
+  @property({ attribute: false }) chosen: Chosen | null = null;
 
   @state() private view: Box = { x: -1, y: -1, w: 16, h: 11 };
   @state() private pointer: Point | null = null;
@@ -84,6 +87,7 @@ export class TcCanvas extends LitElement {
         @pointerup=${this.up}
         @pointerleave=${this.left}
         @wheel=${this.wheel}
+        @contextmenu=${this.menu}
       >
         <defs>
           <pattern id="grid" width="1" height="1" patternUnits="userSpaceOnUse">
@@ -146,12 +150,28 @@ export class TcCanvas extends LitElement {
         const spec = this.editor.drawing.symbols[name];
         return spec === undefined ? [] : cellsOf(spec);
       });
-      return cells.map(
-        ([c, r]) =>
-          svg`<rect class=${`junction tint-${index % 6}`} x=${c} y=${r}
-                width="1" height="1" />`,
-      );
+      if (cells.length === 0) return nothing;
+      const left = Math.min(...cells.map(([c]) => c));
+      const top = Math.min(...cells.map(([, r]) => r));
+      return svg`
+        <g class=${`junction tint-${index % 6}`}>
+          ${cells.map(
+            ([c, r]) => svg`<rect x=${c} y=${r} width="1" height="1" />`,
+          )}
+          <text x=${left + 0.1} y=${top - 0.15}>${junction.name ?? "unnamed"}</text>
+        </g>
+      `;
     });
+  }
+
+  /** The way a chosen transit takes, symbol by symbol and leg by leg. Naming
+   *  the frog that makes two transits exclusive is a claim about the drawing,
+   *  and this is where it is checked by looking. */
+  private lit(): Set<string> {
+    if (this.chosen === null) return new Set();
+    const way = this.review?.explain?.connections[this.chosen.connection]
+      ?.transits[this.chosen.transit]?.way;
+    return new Set((way ?? []).map(([symbol]) => symbol));
   }
 
   private wires(): unknown {
@@ -166,6 +186,7 @@ export class TcCanvas extends LitElement {
   }
 
   private symbols(): unknown {
+    const lit = this.lit();
     return Object.entries(this.editor.drawing.symbols).map(([name, spec]) => {
       const chosen = this.editor.selection.has(name);
       const shifted = this.shift(name);
@@ -176,7 +197,7 @@ export class TcCanvas extends LitElement {
       const below = centre.y + placed(spec).footprint.h / 2 + 0.32;
       return svg`
         <g
-          class=${`symbol ${chosen ? "selected" : ""}`}
+          class=${`symbol ${chosen ? "selected" : ""} ${lit.has(name) ? "lit" : ""}`}
           data-symbol=${name}
           transform=${`translate(${shifted.x} ${shifted.y})`}
         >
@@ -341,6 +362,59 @@ export class TcCanvas extends LitElement {
     this.pan = null;
   }
 
+  /**
+   * The right-click menu, told what was clicked: the symbol, the junction it
+   * belongs to, and the joint a wire under the pointer is. All three come from
+   * `/review`, so nothing here works out what anything means.
+   */
+  private menu(event: MouseEvent): void {
+    event.preventDefault();
+    const point = this.gridAt(event);
+    const pin = this.pinNear(point);
+    const symbol = pin === null ? this.symbolAt(point) : symbolOf(pin);
+    if (symbol !== null && !this.editor.selection.has(symbol)) {
+      this.editor.select([symbol]);
+      this.requestUpdate();
+    }
+    const junction =
+      symbol === null
+        ? null
+        : (this.review?.junctions ?? []).find((one) =>
+            one.symbols.includes(symbol),
+          ) ?? null;
+    this.dispatchEvent(
+      new CustomEvent("canvas-menu", {
+        detail: {
+          x: event.clientX,
+          y: event.clientY,
+          symbol,
+          junction,
+          joint: this.jointNear(point),
+        },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  /** The joint whose drawn line passes nearest the pointer, where one does.
+   *  A joint has no symbol to click, only its wires. */
+  private jointNear(point: Point): Joint | null {
+    let best: { joint: Joint; away: number } | null = null;
+    for (const joint of this.review?.joints ?? []) {
+      for (const [a, b] of joint.wires) {
+        const from = this.pointOf(a);
+        const to = this.pointOf(b);
+        if (from === null || to === null) continue;
+        const away = awayFrom(point, from, to);
+        if (away <= HIT && (best === null || away < best.away)) {
+          best = { joint, away };
+        }
+      }
+    }
+    return best?.joint ?? null;
+  }
+
   private wheel(event: WheelEvent): void {
     event.preventDefault();
     const point = this.gridAt(event);
@@ -424,6 +498,23 @@ export class TcCanvas extends LitElement {
   }
 }
 
+
+/** How far a point lies from a line segment. */
+function awayFrom(point: Point, from: Point, to: Point): number {
+  const [dx, dy] = [to.x - from.x, to.y - from.y];
+  const span = dx * dx + dy * dy;
+  const along =
+    span === 0
+      ? 0
+      : Math.max(
+          0,
+          Math.min(
+            1,
+            ((point.x - from.x) * dx + (point.y - from.y) * dy) / span,
+          ),
+        );
+  return Math.hypot(from.x + along * dx - point.x, from.y + along * dy - point.y);
+}
 
 declare global {
   interface HTMLElementTagNameMap {
