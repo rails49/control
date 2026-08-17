@@ -110,10 +110,10 @@ shared frog, and a turnout's two routes share its toe.
 The exclusive crossing is what makes composition come out right. An earlier
 draft declared the crossing's two routes concurrent; re-deriving
 `crossover-yard` shows that is wrong. Its scissors crossover is drawn as four
-turnouts and a crossing on the diagonals: the two crossover transits share the
-crossing, so composition yields exactly the one concurrent pair the layout
-declared by hand, `[up_straight, dn_straight]`, while a concurrent crossing
-would also emit the colliding crossover pair.
+turnouts and, where the two diagonals meet, a `crossing_90d`: the two crossover
+transits share the crossing, so composition yields exactly the one concurrent
+pair the layout declared by hand, `[up_straight, dn_straight]`, while a
+concurrent crossing would also emit the colliding crossover pair.
 
 Each kind has exactly one drawn appearance, specified in
 [ui/EDITOR.md](../ui/EDITOR.md#symbol-geometry); diagonal legs are always 45
@@ -179,7 +179,7 @@ symbols:
     connection: crossover
     names: { straight: up_straight, diverging: up_to_dn }
   up_e_points: { kind: turnout, connection: crossover }
-  diamond: { kind: crossing, connection: crossover }
+  diamond: { kind: crossing_90d, connection: crossover }
 ```
 
 - **Symbols are a mapping from name to `kind` and its properties.** A block
