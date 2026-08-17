@@ -1,4 +1,4 @@
-"""`tc49 bench <scenario>`, `tc49 sweep`, and `tc49 layout show <layout>`.
+"""`tc49 bench <scenario>`, `tc49 sweep`, `tc49 layout show <layout>`, `tc49 serve`.
 
 `bench` runs one named scenario under both locking strategies and prints the
 comparison. `sweep` takes no arguments: the grid of BENCHMARKS.md is the
@@ -18,6 +18,7 @@ from tc49.bench.sweep import sweep
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
+from tc49.store.server import make_server
 
 ROOT = find_root()
 
@@ -137,6 +138,11 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
 
     commands.add_parser("sweep", help="run the fixed grid of docs/bench/BENCHMARKS.md")
 
+    serve_parser = commands.add_parser(
+        "serve", help="serve the asset store over HTTP, for the layout editor"
+    )
+    serve_parser.add_argument("--port", type=int, default=8765)
+
     layout_parser = commands.add_parser("layout", help="inspect a drawn railroad")
     layout_commands = layout_parser.add_subparsers(dest="layout_command", required=True)
     show_parser = layout_commands.add_parser(
@@ -150,6 +156,13 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         out.write(format_comparison(args.scenario, args.k, results))
         if args.trace:
             out.write(results[args.trace][0])
+        return 0
+
+    if args.command == "serve":
+        server = make_server(ROOT, args.port)
+        out.write(f"serving {ROOT} on http://127.0.0.1:{server.server_port}\n")
+        out.flush()
+        server.serve_forever()
         return 0
 
     if args.command == "layout":

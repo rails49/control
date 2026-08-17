@@ -75,7 +75,8 @@ src/tc49/
                             CLI and the tests
                 cli.py      `tc49 bench <scenario>`; `tc49 sweep` takes no
                             arguments — the grid of BENCHMARKS.md is the
-                            fixed research design
+                            fixed research design; `tc49 layout show`;
+                            `tc49 serve` runs the store's HTTP face
                 sweep.py    the seeded workload generator and the fixed grid
                 metrics.py  metrics(trace) -> Metrics
 

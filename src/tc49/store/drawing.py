@@ -188,6 +188,60 @@ class Drawing:
             },
         }
 
+    def review(self) -> dict[str, Any]:
+        """Everything the editor draws that the document does not hold.
+
+        Red pins and junction regions are wanted exactly when the drawing is
+        incomplete, which is when derivation refuses, so both are worked out
+        without raising and the refusal is reported rather than thrown. That
+        is what lets the front end own placement and rendering and no topology
+        at all (EDITOR.md).
+        """
+        try:
+            layout, explain, refused = self.derive(), self.explain(), None
+        except ValueError as refusal:
+            layout, explain, refused = None, None, str(refusal)
+        return {
+            "red_pins": self.red_pins(),
+            "junctions": self.junctions(),
+            "layout": layout,
+            "explain": explain,
+            "refused": refused,
+        }
+
+    def junctions(self) -> list[dict[str, Any]]:
+        """The symbol groups the editor tints as one region, each with the name
+        its connection takes.
+
+        A component that declares no transit is not a junction: a terminal
+        capping a block end is its own component and derives nothing, and
+        tinting it would say otherwise. The name is `None` where the drawing
+        has not settled one, which is the case worth showing a person, so it
+        is reported rather than raised.
+        """
+        found: list[dict[str, Any]] = []
+        for group in self._groups(self._loose_joins()):
+            if not any(self.symbols[symbol].transits for symbol in group):
+                continue
+            try:
+                name = self._connection_name(group)
+            except ValueError:
+                name = None
+            found.append({"name": name, "symbols": group})
+        return found
+
+    def red_pins(self) -> list[str]:
+        """The pins that do not hold the wires they take: one for a symbol
+        pin, two for a free-standing bend. Saving such a drawing is allowed
+        and deriving it is refused, so this never raises."""
+        joins = self._wire_joins()
+        return sorted(
+            node
+            for symbol in self.symbols.values()
+            for pin in symbol.pins
+            if len(joins[node := f"{symbol.name}.{pin}"]) != _wires_wanted(symbol)
+        )
+
     def _transits(self) -> dict[str, dict[str, Walk]]:
         """Every transit, by connection and by derived name, with the way it
         takes. The whole of passes 1 and 2, shared by `derive` and `explain`
@@ -282,9 +336,7 @@ class Drawing:
         """Every pin and what it joins: its wires, plus the pairing a portal
         wears. A joint is a joint however it is drawn, so portal pairs make
         the graph one connected whole before anything walks it."""
-        portals: dict[str, list[str]] = defaultdict(list)
-        for symbol in self._of_kind("portal"):
-            portals[symbol.label].append(symbol.name)
+        portals = self._portals()
         for label, worn_by in sorted(portals.items()):
             if len(worn_by) != 2:
                 raise ValueError(
@@ -292,13 +344,9 @@ class Drawing:
                     f" {len(worn_by)} portal(s) — a label pairs exactly two"
                 )
 
-        joins: dict[str, list[str]] = defaultdict(list)
-        for a, b in self.wires:
-            joins[a].append(b)
-            joins[b].append(a)
-
+        joins = self._wire_joins()
         for symbol in self.symbols.values():
-            wires = 2 if symbol.kind == "pin" else 1
+            wires = _wires_wanted(symbol)
             for pin in symbol.pins:
                 node = f"{symbol.name}.{pin}"
                 if len(joins[node]) == wires:
@@ -316,9 +364,31 @@ class Drawing:
                 )
 
         for worn_by in portals.values():
-            a, b = (f"{name}.P" for name in sorted(worn_by))
+            _pair(joins, worn_by)
+        return joins
+
+    def _portals(self) -> dict[str, list[str]]:
+        portals: dict[str, list[str]] = defaultdict(list)
+        for symbol in self._of_kind("portal"):
+            portals[symbol.label].append(symbol.name)
+        return portals
+
+    def _wire_joins(self) -> dict[str, list[str]]:
+        """Every pin and what a wire joins it to, with nothing checked, which
+        is what lets an incomplete drawing still be looked at."""
+        joins: dict[str, list[str]] = defaultdict(list)
+        for a, b in self.wires:
             joins[a].append(b)
             joins[b].append(a)
+        return joins
+
+    def _loose_joins(self) -> dict[str, list[str]]:
+        """`_joins` without the checks: portals pair where a label happens to
+        be worn twice, and a pin short of its wires is simply short."""
+        joins = self._wire_joins()
+        for worn_by in self._portals().values():
+            if len(worn_by) == 2:
+                _pair(joins, worn_by)
         return joins
 
     # --- pass 1: components of non-block symbols give the connections ------
@@ -327,6 +397,24 @@ class Drawing:
         """Each non-block symbol, mapped to the name of the connection its
         component derives — `None` where the component declares no transits
         and so has nothing to take a name from."""
+        named: dict[str, str | None] = {}
+        taken: dict[str, list[str]] = {}
+        for group in self._groups(joins):
+            name = self._connection_name(group)
+            if name is not None:
+                if name in taken:
+                    raise ValueError(
+                        f"drawing '{self.name}': two junctions are named"
+                        f" '{name}' — {taken[name]} and {group}"
+                    )
+                taken[name] = group
+            for symbol in group:
+                named[symbol] = name
+        return named
+
+    def _groups(self, joins: dict[str, list[str]]) -> list[list[str]]:
+        """The connected components of the non-block symbols: one junction
+        each, whether or not the drawing is complete enough to name them."""
         component: dict[str, str] = {
             symbol.name: symbol.name
             for symbol in self.symbols.values()
@@ -355,21 +443,7 @@ class Drawing:
         members: dict[str, list[str]] = defaultdict(list)
         for symbol in sorted(component):
             members[root(symbol)].append(symbol)
-
-        named: dict[str, str | None] = {}
-        taken: dict[str, list[str]] = {}
-        for group in members.values():
-            name = self._connection_name(group)
-            if name is not None:
-                if name in taken:
-                    raise ValueError(
-                        f"drawing '{self.name}': two junctions are named"
-                        f" '{name}' — {taken[name]} and {group}"
-                    )
-                taken[name] = group
-            for symbol in group:
-                named[symbol] = name
-        return named
+        return list(members.values())
 
     def _connection_name(self, group: list[str]) -> str | None:
         """A junction's name is authored, never derived: it is what its
@@ -512,6 +586,18 @@ class Drawing:
             for name in sorted(self.symbols)
             if self.symbols[name].kind == kind
         ]
+
+
+def _wires_wanted(symbol: Symbol) -> int:
+    """A free-standing bend joins two wires; every other pin joins one, the
+    symbol itself being its second connection."""
+    return 2 if symbol.kind == "pin" else 1
+
+
+def _pair(joins: dict[str, list[str]], worn_by: list[str]) -> None:
+    a, b = (f"{name}.P" for name in sorted(worn_by))
+    joins[a].append(b)
+    joins[b].append(a)
 
 
 def _symbol(where: str, name: str, spec: Any) -> Symbol:

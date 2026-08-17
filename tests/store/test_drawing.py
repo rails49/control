@@ -10,6 +10,7 @@ each.
 from collections.abc import Callable
 from itertools import pairwise
 from pathlib import Path
+from random import Random
 from typing import Any, cast
 
 import pytest
@@ -663,6 +664,128 @@ def test_explain_refuses_what_derivation_refuses() -> None:
     doc["wires"].append(["west.B", "east.A"])
     with pytest.raises(ValueError, match="connection symbol"):
         explain(doc)
+
+
+# --- review: everything the editor draws that is not in the document ------
+
+
+def test_a_complete_drawing_reviews_clean() -> None:
+    review = Drawing.from_document(spanned()).review()
+    assert review["red_pins"] == []
+    assert review["refused"] is None
+    assert review["layout"]["connections"]["gap"]["transits"]
+    assert review["explain"]["connections"]["gap"]["transits"]
+
+
+def test_a_dangling_pin_is_red_and_the_layout_is_refused() -> None:
+    """Work in progress: the editor still draws it, derivation still says no,
+    and the front end works neither out for itself."""
+    doc = two_blocks(points={"kind": "turnout"})
+    doc["wires"] += [["west.B", "points.toe"], ["points.straight", "east.A"]]
+    review = Drawing.from_document(doc).review()
+    assert review["red_pins"] == ["points.diverging"]
+    assert review["layout"] is None and review["explain"] is None
+    assert "points.diverging" in review["refused"]
+
+
+def test_a_bend_short_of_its_second_wire_is_red() -> None:
+    doc = two_blocks(bend={"kind": "pin"})
+    doc["wires"].append(["west.B", "bend.P"])
+    assert Drawing.from_document(doc).review()["red_pins"] == ["bend.P", "east.A"]
+
+
+def test_junctions_are_the_symbols_that_form_them_and_the_name_they_take() -> None:
+    """What the editor tints as one region, computed the way derivation
+    computes it rather than a second time in TypeScript, and named so the
+    region can be matched to its connection without deriving anything."""
+    junctions = committed_drawing("crossover-yard").review()["junctions"]
+    assert {
+        "name": "crossover",
+        "symbols": [
+            "diamond",
+            "dn_e_points",
+            "dn_w_points",
+            "up_e_points",
+            "up_w_points",
+        ],
+    } in junctions
+    assert sorted(j["name"] for j in junctions) == [
+        "crossover",
+        "east_ladder",
+        "west_ladder",
+    ]
+
+
+def test_a_terminal_is_not_a_junction() -> None:
+    """Every non-block symbol is a component of its own, but a terminal
+    declares no transit and derives no connection, so tinting it as a region
+    would say something untrue."""
+    junctions = committed_drawing("gotthard").review()["junctions"]
+    tinted = {symbol for junction in junctions for symbol in junction["symbols"]}
+    assert not [symbol for symbol in tinted if symbol.endswith("_stop")]
+    assert sorted(j["name"] for j in junctions) == [
+        "airolo",
+        "claro_east",
+        "claro_west",
+    ]
+
+
+@pytest.mark.parametrize("name", RAILROADS)
+def test_review_answers_however_damaged_the_drawing_is(name: str) -> None:
+    """The editor reviews on every edit, so a half-finished drawing has to come
+    back with an answer rather than an exception. Symbols and wires are removed
+    at random: a schema error is the loader's to raise, but anything that loads
+    must review."""
+    rng = Random(49)
+    base = read(f"{name}.drawing.yaml")
+    for _ in range(200):
+        doc = yaml.safe_load(yaml.safe_dump(base))
+        for _ in range(rng.randint(1, 4)):
+            if rng.random() < 0.5 and doc["symbols"]:
+                del doc["symbols"][rng.choice(list(doc["symbols"]))]
+            elif doc["wires"]:
+                doc["wires"].pop(rng.randrange(len(doc["wires"])))
+        try:
+            drawing = Drawing.from_document(doc)
+        except (ValueError, TypeError):
+            continue  # a schema error, which the server answers as a 400
+        review = drawing.review()
+        assert isinstance(review["red_pins"], list)
+        assert (review["layout"] is None) == (review["refused"] is not None)
+
+
+def test_junctions_are_reported_even_when_the_drawing_will_not_derive() -> None:
+    doc = two_blocks(points={"kind": "turnout"})
+    doc["wires"] += [["west.B", "points.toe"], ["points.straight", "east.A"]]
+    review = Drawing.from_document(doc).review()
+    assert review["junctions"] == [{"name": "points", "symbols": ["points"]}]
+    assert review["refused"] is not None
+
+
+def test_a_junction_the_drawing_has_not_named_reports_no_name() -> None:
+    """Two turnouts wired together and neither writing `connection` is a
+    refusal at derivation. The region is still there to be tinted and named,
+    so it comes back with a null name rather than an exception."""
+    doc = two_blocks(
+        north=block(),
+        north_stop={"kind": "terminal"},
+        south=block(),
+        south_stop={"kind": "terminal"},
+        one={"kind": "turnout"},
+        two={"kind": "turnout"},
+    )
+    doc["wires"] += [
+        ["west.B", "one.toe"],
+        ["one.straight", "two.toe"],
+        ["one.diverging", "north.A"],
+        ["north.B", "north_stop.P"],
+        ["two.straight", "east.A"],
+        ["two.diverging", "south.A"],
+        ["south.B", "south_stop.P"],
+    ]
+    review = Drawing.from_document(doc).review()
+    assert review["junctions"] == [{"name": None, "symbols": ["one", "two"]}]
+    assert "unnamed" in review["refused"]
 
 
 # --- names and determinism ------------------------------------------------

@@ -210,11 +210,29 @@ mutation and rendering, and nothing else. A second implementation of the
 union-find would eventually disagree with the first, and it would disagree
 inside the tool whose job is to be believed.
 
-The server is the store's own HTTP face, `src/tc49/store/server.py`: list
-drawings, read one, write one, derive, explain. It belongs to the store
-because every one of those is a store operation, which keeps
-`tests/system/test_app_boundaries.py` intact. The panel later adds a bus
-bridge alongside it ([PANEL.md](PANEL.md#implementation)).
+The server is the store's own HTTP face, `src/tc49/store/server.py`, started
+with `tc49 serve`. It belongs to the store because every one of its routes is
+a store operation, which keeps `tests/system/test_app_boundaries.py` intact:
+
+    GET  /drawings              the railroads there are
+    GET  /drawings/<name>       one drawing, as the document it is
+    PUT  /drawings/<name>       save it, keeping what the file says
+    POST /review                what a drawing means, derived and explained
+
+`review` takes a document rather than a name, because the interesting drawing
+is the one being edited: unsaved, and often not yet derivable. It answers with
+the red pins, the junctions as symbol groups each carrying the name its
+connection takes, the derived layout, its explanation, and the refusal where
+there is one. A drawing with a red pin is the normal state mid-edit, so that
+comes back as a refusal inside a 200; only a document that will not load at
+all is a bad request. Whatever is wrong with a drawing, the editor reads a
+status and a reason rather than losing the connection.
+
+A component that declares no transit is not a junction, so the terminal
+capping a block end is not tinted as one.
+
+The panel later adds a bus bridge alongside it
+([PANEL.md](PANEL.md#implementation)).
 
 Symbol pins and transits are generated into `ui/src/symbols.generated.ts` from
 the library in `drawing.py`, with a test asserting the generated file is
