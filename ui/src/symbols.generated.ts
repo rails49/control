@@ -46,9 +46,12 @@ export const TRANSITS = {
 /** A kind whose transits the library fixes. */
 export type LibraryKind = keyof typeof TRANSITS;
 
-/** A leg of such a kind: what a transit name is written on. */
-export type Leg<K extends LibraryKind = LibraryKind> =
-  keyof (typeof TRANSITS)[K];
+/** A leg of such a kind: what a transit name is written on. Written to
+ *  distribute over the kinds, because `keyof` over a union of the leg objects
+ *  would intersect their keys, and no leg is common to all of them. */
+export type Leg<K extends LibraryKind = LibraryKind> = {
+  [P in K]: keyof (typeof TRANSITS)[P];
+}[K];
 
 /** The palette. A free-standing bend is not on it: it is placed by clicking
  *  empty canvas while drawing a wire. */

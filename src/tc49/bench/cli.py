@@ -146,7 +146,15 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
     )
     serve_parser.add_argument("--port", type=int, default=8765)
 
-    commands.add_parser("symbols", help=f"write {GENERATED} from the symbol library")
+    symbols_parser = commands.add_parser(
+        "symbols", help=f"write {GENERATED} from the symbol library"
+    )
+    symbols_parser.add_argument(
+        "--out",
+        type=Path,
+        default=ROOT / GENERATED,
+        help=f"where to write it (default {GENERATED} in the checkout)",
+    )
 
     layout_parser = commands.add_parser("layout", help="inspect a drawn railroad")
     layout_commands = layout_parser.add_subparsers(dest="layout_command", required=True)
@@ -171,10 +179,10 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         return 0
 
     if args.command == "symbols":
-        path = ROOT / GENERATED
+        path: Path = args.out
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(render())
-        out.write(f"wrote {GENERATED}\n")
+        out.write(f"wrote {path}\n")
         return 0
 
     if args.command == "layout":

@@ -58,7 +58,10 @@ LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
 }
 
 # `pin` (a free-standing bend) and `portal` are joiners: they pass a wire
-# through and derive to nothing.
+# through and derive to nothing. The bend is named because the editor treats it
+# apart from every other kind — it is placed by clicking empty canvas rather
+# than from the palette — and one spelling of it beats two.
+BEND = "pin"
 PINS: dict[str, tuple[str, ...]] = {
     "block": ("A", "B"),
     "terminal": ("P",),
@@ -69,7 +72,7 @@ PINS: dict[str, tuple[str, ...]] = {
     "single_slip": _CROSS,
     "double_slip": _CROSS,
 }
-_JOINERS = frozenset({"pin", "portal"})
+_JOINERS = frozenset({BEND, "portal"})
 
 # Where a symbol sits on the canvas (ADR-0018). Derivation reads none of it, so
 # the schema check is all there is: a placement that loads is well-formed, and

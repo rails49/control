@@ -14,12 +14,14 @@ def test_the_committed_file_is_current() -> None:
     assert (ROOT / GENERATED).read_text() == render(), "run `tc49 symbols`"
 
 
-def test_every_kind_and_pin_is_named() -> None:
+def test_every_kind_is_rendered_with_its_own_pins() -> None:
+    """Asserted as the whole row. Looking for a pin name anywhere in the file
+    would pass on a `turnout` that had lost `diverging`, since the transits
+    below mention it too."""
     generated = render()
     for kind, pins in PINS.items():
-        assert f"  {kind}: [" in generated
-        for pin in pins:
-            assert f'"{pin}"' in generated
+        written = ", ".join(f'"{pin}"' for pin in pins)
+        assert f"  {kind}: [{written}],\n" in generated
 
 
 def test_every_library_transit_is_named() -> None:

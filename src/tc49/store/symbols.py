@@ -11,7 +11,7 @@ Artwork is not generated. Footprints, anchor offsets, and the appearances of
 crossings and slips are hand-written TypeScript against these names.
 """
 
-from tc49.store.drawing import ANGLED, LIBRARY, PINS, ROTATIONS
+from tc49.store.drawing import ANGLED, BEND, LIBRARY, PINS, ROTATIONS
 
 GENERATED = "ui/src/symbols.generated.ts"
 
@@ -58,14 +58,17 @@ export const TRANSITS = {{
 /** A kind whose transits the library fixes. */
 export type LibraryKind = keyof typeof TRANSITS;
 
-/** A leg of such a kind: what a transit name is written on. */
-export type Leg<K extends LibraryKind = LibraryKind> =
-  keyof (typeof TRANSITS)[K];
+/** A leg of such a kind: what a transit name is written on. Written to
+ *  distribute over the kinds, because `keyof` over a union of the leg objects
+ *  would intersect their keys, and no leg is common to all of them. */
+export type Leg<K extends LibraryKind = LibraryKind> = {{
+  [P in K]: keyof (typeof TRANSITS)[P];
+}}[K];
 """
 
 
 def _placeable() -> str:
-    rows = "".join(f'  "{kind}",\n' for kind in sorted(PINS) if kind != "pin")
+    rows = "".join(f'  "{kind}",\n' for kind in sorted(PINS) if kind != BEND)
     return f"""\
 /** The palette. A free-standing bend is not on it: it is placed by clicking
  *  empty canvas while drawing a wire. */

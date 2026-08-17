@@ -97,12 +97,13 @@ def test_layout_show_prints_the_derived_topology() -> None:
     ]
 
 
-def test_symbols_rewrites_the_generated_typescript() -> None:
-    # Idempotent by construction: what it writes is what is committed, which
-    # `tests/store/test_symbols.py` is the assertion of.
-    before = (ROOT / GENERATED).read_text()
-    assert run_cli("symbols") == f"wrote {GENERATED}\n"
-    assert (ROOT / GENERATED).read_text() == before
+def test_symbols_writes_the_generated_typescript(tmp_path: Path) -> None:
+    # Written somewhere else on purpose. Writing the committed file here would
+    # repair a stale one before `tests/store/test_symbols.py` — the test whose
+    # whole job is to notice — ever looked at it.
+    out = tmp_path / "nested" / "symbols.generated.ts"
+    assert run_cli("symbols", "--out", str(out)) == f"wrote {out}\n"
+    assert out.read_text() == (ROOT / GENERATED).read_text()
 
 
 def test_find_root_locates_the_railroads_from_anywhere_and_says_so_if_not() -> None:
