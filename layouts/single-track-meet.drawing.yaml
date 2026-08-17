@@ -14,14 +14,14 @@
 #               += w_main ========+              +======== e_main =+
 #   west_2 ]===/                  \== loop_dn ==/                  \===[ east_2
 #
-# Converted mechanically from the hand-written layout (#43): every junction is
-# one generic connection symbol, its pins the block ends it holds. All four are
-# plain turnouts and none is drawn from real symbols yet (#44).
+# Drawn from real symbols (#56): all four junctions are plain turnouts, so each
+# is one turnout symbol and takes its name from it. Transit names are authored
+# on the leg each way takes, which is what carries the names the hand-written
+# layout picked (#43) through being drawn.
 #
-# Nothing is `concurrent` here, because no two movements through any one of
-# these connections are — each throat funnels into a single block, and the loop
-# switches are plain turnouts. Conflicts are declared by inversion (ADR-0006),
-# so declaring nothing makes each junction exclusive.
+# Nothing derives as `concurrent` here, because no two movements through any one
+# of these connections are: a turnout's two roads share its toe, so every
+# conflict is composed rather than authored (ADR-0006).
 #
 # The four terminus tracks are capped by terminal symbols, so each has one end
 # in no connection and all four derive as terminal blocks.
@@ -39,33 +39,21 @@ symbols:
   east_1: {kind: block, length: 1200}
   east_2: {kind: block, length: 1200}
 
-  west_throat: # turnout: the two terminus tracks onto the single-track main
-    kind: connection
-    pins: [w_main_A, west_1_B, west_2_B]
-    transits:
-      from_1: [west_1_B, w_main_A]
-      from_2: [west_2_B, w_main_A]
+  west_throat: # the two terminus tracks onto the single-track main
+    kind: turnout
+    names: {straight: from_1, diverging: from_2}
 
-  west_switch: # turnout: the loop's west points
-    kind: connection
-    pins: [loop_dn_A, loop_up_A, w_main_B]
-    transits:
-      to_up: [w_main_B, loop_up_A]
-      to_dn: [w_main_B, loop_dn_A]
+  west_switch: # the loop's west points
+    kind: turnout
+    names: {straight: to_up, diverging: to_dn}
 
-  east_switch: # turnout: the loop's east points
-    kind: connection
-    pins: [e_main_A, loop_dn_B, loop_up_B]
-    transits:
-      from_up: [loop_up_B, e_main_A]
-      from_dn: [loop_dn_B, e_main_A]
+  east_switch: # the loop's east points
+    kind: turnout
+    names: {straight: from_up, diverging: from_dn}
 
-  east_throat: # turnout: the single-track main onto the two terminus tracks
-    kind: connection
-    pins: [e_main_B, east_1_A, east_2_A]
-    transits:
-      to_1: [e_main_B, east_1_A]
-      to_2: [e_main_B, east_2_A]
+  east_throat: # the single-track main onto the two terminus tracks
+    kind: turnout
+    names: {straight: to_1, diverging: to_2}
 
   west_1_A_stop: {kind: terminal}
   west_2_A_stop: {kind: terminal}
@@ -73,18 +61,18 @@ symbols:
   east_2_B_stop: {kind: terminal}
 
 wires:
-  - [w_main.A, west_throat.w_main_A]
-  - [west_1.B, west_throat.west_1_B]
-  - [west_2.B, west_throat.west_2_B]
-  - [loop_dn.A, west_switch.loop_dn_A]
-  - [loop_up.A, west_switch.loop_up_A]
-  - [w_main.B, west_switch.w_main_B]
-  - [e_main.A, east_switch.e_main_A]
-  - [loop_dn.B, east_switch.loop_dn_B]
-  - [loop_up.B, east_switch.loop_up_B]
-  - [e_main.B, east_throat.e_main_B]
-  - [east_1.A, east_throat.east_1_A]
-  - [east_2.A, east_throat.east_2_A]
+  - [w_main.A, west_throat.toe]
+  - [west_1.B, west_throat.straight]
+  - [west_2.B, west_throat.diverging]
+  - [w_main.B, west_switch.toe]
+  - [loop_up.A, west_switch.straight]
+  - [loop_dn.A, west_switch.diverging]
+  - [e_main.A, east_switch.toe]
+  - [loop_up.B, east_switch.straight]
+  - [loop_dn.B, east_switch.diverging]
+  - [e_main.B, east_throat.toe]
+  - [east_1.A, east_throat.straight]
+  - [east_2.A, east_throat.diverging]
   - [west_1.A, west_1_A_stop.P]
   - [west_2.A, west_2_A_stop.P]
   - [east_1.B, east_1_B_stop.P]
