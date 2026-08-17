@@ -60,6 +60,20 @@ export const appStyles = css`
     font-weight: 600;
   }
 
+  /* An icon button is square around its glyph, where a labelled one is as wide
+     as its word. */
+  header sl-button[aria-label]::part(base) {
+    padding: 0;
+    width: 2rem;
+  }
+
+  header sl-button[aria-label]::part(label) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
   tc-palette {
     grid-area: palette;
     border-right: 1px solid var(--rule);
@@ -185,39 +199,58 @@ export const paletteStyles = css`
     margin: 0.3rem 0.2rem;
   }
 
+  /* The tiles carry no names, so the symbol is centred in the tile rather than
+     sitting at the head of a row of text. */
   button {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    justify-content: center;
     width: 100%;
-    padding: 0.3rem;
-    margin-bottom: 0.2rem;
+    padding: 0.45rem 0.3rem;
+    margin-bottom: 0.15rem;
     border: 1px solid transparent;
     border-radius: 4px;
     background: none;
     color: inherit;
     font: inherit;
-    text-align: left;
-    cursor: pointer;
+    cursor: grab;
+    touch-action: none;
   }
 
   button:hover {
     background: #f0eeea;
   }
 
-  button[aria-pressed="true"] {
-    border-color: var(--chosen);
-    background: #e8f0fe;
+  button:active {
+    cursor: grabbing;
   }
 
   /* A tile keeps its symbol's own shape: the height is fixed and the width
      follows the footprint, so a block reads as the long thing it is instead of
      being letterboxed into a square. */
   svg {
-    height: 1.5rem;
+    height: 2.3rem;
     width: auto;
-    max-width: 5rem;
+    max-width: 100%;
     flex: none;
+  }
+
+  /* What the tiles cannot say: that they are dragged, and the keys that turn
+     one on the way over. */
+  .hint {
+    margin: 0.8rem 0.2rem 0;
+    font-size: 0.7rem;
+    line-height: 1.6;
+    color: var(--hint);
+  }
+
+  .hint + .hint {
+    margin-top: 0;
+  }
+
+  .hint kbd {
+    font: inherit;
+    color: var(--ink);
   }
 
   /* Definitions only, shared by every tile: sized to nothing so it takes no
@@ -403,6 +436,19 @@ export const canvasStyles = css`
     fill: var(--chosen);
   }
 
+  /* The symbol on its way out of the palette, drawn where a drop would put it.
+     Faint, so what is already on the sheet reads through it and the ghost is
+     plainly not placed yet; the squares it cannot have are marked as any other
+     overlap is. */
+  .ghost {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  .ghost.blocked {
+    opacity: 0.3;
+  }
+
   .band {
     fill: var(--chosen);
     fill-opacity: 0.08;
@@ -435,7 +481,9 @@ export const menuStyles = css`
   }
 
   button {
-    display: block;
+    display: flex;
+    align-items: baseline;
+    gap: 1.5rem;
     width: 100%;
     padding: 0.3rem 0.5rem;
     border: none;
@@ -447,9 +495,25 @@ export const menuStyles = css`
     cursor: pointer;
   }
 
+  button span {
+    flex: 1;
+  }
+
+  /* The key that does the same thing, set apart from the words rather than
+     competing with them. */
+  kbd {
+    color: var(--hint);
+    font: inherit;
+  }
+
   button:hover {
     background: var(--chosen);
     color: #fff;
+  }
+
+  button:hover kbd {
+    color: inherit;
+    opacity: 0.75;
   }
 `;
 

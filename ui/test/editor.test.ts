@@ -547,11 +547,11 @@ describe("dragging a symbol out of the palette", () => {
     expect(editor.placementAt(10.5, 10.5)!.at).toEqual([10, 8]);
   });
 
-  it("says whether the squares are free before the drop", () => {
+  it("names the squares in the way before the drop, not just that there are some", () => {
     place("terminal", [4, 2]);
     editor.beginPlace("turnout");
-    expect(editor.placementAt(4.5, 2.5)!.clear).toBe(false);
-    expect(editor.placementAt(6.5, 2.5)!.clear).toBe(true);
+    expect(editor.placementAt(4.5, 2.5)!.blocked).toEqual([[4, 2]]);
+    expect(editor.placementAt(6.5, 2.5)!.blocked).toEqual([]);
   });
 
   it("drops nothing where the ghost said it was blocked", () => {

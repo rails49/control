@@ -30,6 +30,7 @@ import {
   movedBy,
   overlaps,
   placed,
+  taken,
   turned,
 } from "./geometry.js";
 import { nameJoint, nameJunction, settle } from "./naming.js";
@@ -58,10 +59,11 @@ export type Facing = Pick<SymbolSpec, "rot" | "flip">;
  *  yet, of a kind the palette can offer. */
 type Placing = SymbolSpec & { kind: Kind };
 
-/** Where a pending placement would land, and whether anything is in the way. */
+/** Where a pending placement would land, and what is in the way. */
 export interface Landing {
   at: [number, number];
-  clear: boolean;
+  /** The squares another symbol already has. Empty is a drop that can land. */
+  blocked: [number, number][];
 }
 
 export class Editor {
@@ -175,8 +177,8 @@ export class Editor {
   }
 
   /**
-   * Where the dragged symbol would land with the pointer here, and whether the
-   * squares are free.
+   * Where the dragged symbol would land with the pointer here, and which of
+   * the squares it wants another symbol already has.
    *
    * The footprint centres on the pointer, against the orientation it is being
    * dragged in rather than the kind's own, so a turn that transposes 6×1 into
@@ -190,14 +192,15 @@ export class Editor {
       Math.round(x - w / 2),
       Math.round(y - h / 2),
     ];
-    return { at, clear: clear({ ...this.placing, at }, this.current.symbols) };
+    return { at, blocked: taken({ ...this.placing, at }, this.current.symbols) };
   }
 
   /** Drop it. Refused where the squares are taken, so a drop the ghost showed
    *  as blocked is a drop that does nothing. */
   dropPending(x: number, y: number): string | null {
     const landing = this.placementAt(x, y);
-    if (this.placing === null || landing === null || !landing.clear) return null;
+    if (this.placing === null || landing === null) return null;
+    if (landing.blocked.length > 0) return null;
     const { kind } = this.placing;
     const facing = facingOf(this.placing);
     this.placing = null;

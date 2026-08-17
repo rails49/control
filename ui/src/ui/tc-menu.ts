@@ -57,17 +57,24 @@ export class TcMenu extends LitElement {
           ? nothing
           : html`
               ${this.item("properties", "Properties…")}
-              ${this.item("rotate", "Rotate")} ${this.item("flip", "Flip")}
-              ${this.item("delete", "Delete")}
+              ${this.item("rotate", "Rotate", "R")}
+              ${this.item("flip", "Flip", "F")}
+              ${this.item("delete", "Delete", "⌫")}
             `}
       </menu>
     `;
   }
 
-  private item(action: MenuAction, label: string) {
+  /** The key goes beside the item that does the same thing. With the transforms
+   *  off the header this is where they are learnt, a menu being where a
+   *  shortcut is conventionally read (EDITOR.md#editing). */
+  private item(action: MenuAction, label: string, key?: string) {
     return html`
       <li>
-        <button @click=${() => this.choose(action)}>${label}</button>
+        <button @click=${() => this.choose(action)}>
+          <span>${label}</span>
+          ${key === undefined ? nothing : html`<kbd>${key}</kbd>`}
+        </button>
       </li>
     `;
   }

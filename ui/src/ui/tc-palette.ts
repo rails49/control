@@ -1,14 +1,21 @@
 /**
- * The palette: one tile per placeable kind (#52's `PLACEABLE`).
+ * The palette: one tile per placeable kind (#52's `PLACEABLE`), each of them a
+ * thing to drag onto the canvas.
  *
- * Signals and sensors are not here. Every block has both at both ends, so
- * there is nothing to place. Nor is the free-standing bend: it is placed by
- * clicking empty canvas while drawing a wire. Each kind is drawn one way, so a
- * tile shows exactly what a click will place.
+ * Pressing a tile begins the drag and nothing else — no tile is ever armed, so
+ * nothing about this component changes what a click on the canvas means
+ * (EDITOR.md#palette). Where the pointer goes after that is the canvas's, and
+ * whether the drag ends in a symbol is the editor's.
+ *
+ * Signals and sensors are not here. Every block has both at both ends, so there
+ * is nothing to place. Nor is the free-standing bend: it is placed by clicking
+ * empty canvas while drawing a wire. Each kind is drawn one way, so a tile shows
+ * exactly what a drop will place — which is why the tiles carry no names, only
+ * the word in their title for anyone who wants it.
  */
 
 import { LitElement, html } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement } from "lit/decorators.js";
 
 import type { Kind } from "../symbols.generated.js";
 import { FOOTPRINTS, transformOf } from "../model/geometry.js";
@@ -32,9 +39,6 @@ const TITLES: Record<Kind, string> = {
 export class TcPalette extends LitElement {
   static override styles = paletteStyles;
 
-  /** The kind the next click on the canvas places, if any. */
-  @property({ attribute: false }) armed: Kind | null = null;
-
   override render() {
     return html`
       <h2>Symbols</h2>
@@ -42,32 +46,45 @@ export class TcPalette extends LitElement {
            tree, not per svg, so repeating it in each tile would repeat the id. -->
       <svg class="defs" aria-hidden="true"><defs>${DEFS}</defs></svg>
       ${PALETTE.map((kind) => this.tile(kind))}
+      <p class="hint">drag a symbol onto the sheet</p>
+      <p class="hint">
+        <kbd>r</kbd> turn · <kbd>f</kbd> flip · <kbd>esc</kbd> cancel
+      </p>
     `;
   }
 
+  /**
+   * A tile is a button so that it is reachable and named without a mouse, but
+   * the gesture that places is the pointer press: a drag has to begin before
+   * the button would have decided it was a click.
+   */
   private tile(kind: Kind) {
     const { w, h } = FOOTPRINTS[kind];
     const spec = TILE[kind];
     return html`
       <button
-        aria-pressed=${this.armed === kind}
-        @click=${() => this.arm(kind)}
+        @pointerdown=${(event: PointerEvent) => this.take(kind, event)}
         title=${TITLES[kind]}
+        aria-label=${TITLES[kind]}
       >
         <svg viewBox=${`-0.2 -0.2 ${w + 0.4} ${h + 0.4}`}>
           <g transform=${transformOf(spec)}>${artwork(spec)}</g>
         </svg>
-        <span>${TITLES[kind]}</span>
       </button>
     `;
   }
 
-  /** Clicking the armed tile disarms it, so the palette is a toggle and the
-   *  canvas is never left waiting for a placement nobody wants. */
-  private arm(kind: Kind): void {
-    const armed = this.armed === kind ? null : kind;
+  /** Only the left button starts a drag; the right one belongs to whatever
+   *  menu the browser or the editor puts there. */
+  private take(kind: Kind, event: PointerEvent): void {
+    if (event.button !== 0) return;
+    event.preventDefault();
     this.dispatchEvent(
-      new CustomEvent("arm", { detail: armed, bubbles: true, composed: true }),
+      new CustomEvent<Kind>("take", {
+        detail: kind,
+        bubbles: true,
+        composed: true,
+      }),
     );
   }
 }

@@ -238,12 +238,23 @@ export function clear(
   symbols: Record<string, SymbolSpec>,
   ignoring: ReadonlySet<string> = new Set(),
 ): boolean {
-  const taken = new Set(
+  return taken(spec, symbols, ignoring).length === 0;
+}
+
+/** Which of `spec`'s squares another symbol already has — what `clear` answers
+ *  in the negative, and what a refused placement marks so that the square in
+ *  the way is the one the eye goes to (EDITOR.md#canvas). */
+export function taken(
+  spec: SymbolSpec,
+  symbols: Record<string, SymbolSpec>,
+  ignoring: ReadonlySet<string> = new Set(),
+): [number, number][] {
+  const held = new Set(
     Object.entries(symbols)
       .filter(([name]) => !ignoring.has(name))
       .flatMap(([, other]) => cellsOf(other).map(key)),
   );
-  return cellsOf(spec).every((cell) => !taken.has(key(cell)));
+  return cellsOf(spec).filter((cell) => held.has(key(cell)));
 }
 
 /**

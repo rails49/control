@@ -26,6 +26,7 @@ import {
   saveDrawing,
   type Review,
 } from "../model/store.js";
+import { FIT, REDO, UNDO, ZOOM_IN, ZOOM_OUT } from "./icons.js";
 import { appStyles } from "./styles.js";
 import "./tc-canvas.js";
 import "./tc-menu.js";
@@ -36,6 +37,10 @@ import type { TcCanvas } from "./tc-canvas.js";
 import type { MenuAction, MenuAt } from "./tc-menu.js";
 import type { Properties } from "./tc-properties.js";
 
+/** One press of the zoom-out button, and the reciprocal for zoom in. A quarter
+ *  again is about what the wheel gives for a comfortable turn of it. */
+const OUT = 1.25;
+
 @customElement("tc-editor")
 export class TcEditor extends LitElement {
   static override styles = appStyles;
@@ -44,7 +49,6 @@ export class TcEditor extends LitElement {
 
   @state() private drawings: string[] = [];
   @state() private opened = "";
-  @state() private armed: Kind | null = null;
   @state() private reviewed: Review | null = null;
   @state() private trouble: string | null = null;
   @state() private saved = true;
@@ -78,22 +82,11 @@ export class TcEditor extends LitElement {
           )}
         </sl-select>
         <span class="spacer"></span>
-        <sl-button size="small" @click=${() => this.act((e) => e.rotate())}>
-          Rotate
-        </sl-button>
-        <sl-button size="small" @click=${() => this.act((e) => e.flip())}>
-          Flip
-        </sl-button>
-        <sl-button size="small" @click=${() => this.act((e) => e.remove())}>
-          Delete
-        </sl-button>
-        <sl-button size="small" @click=${() => this.act((e) => e.undo())}>
-          Undo
-        </sl-button>
-        <sl-button size="small" @click=${() => this.act((e) => e.redo())}>
-          Redo
-        </sl-button>
-        <sl-button size="small" @click=${this.fit}>Fit</sl-button>
+        ${this.tool(ZOOM_OUT, "Zoom out  −", () => this.zoom(OUT))}
+        ${this.tool(ZOOM_IN, "Zoom in  +", () => this.zoom(1 / OUT))}
+        ${this.tool(FIT, "Fit  0", () => this.fit())}
+        ${this.tool(UNDO, "Undo  ⌘Z", () => this.act((e) => e.undo()))}
+        ${this.tool(REDO, "Redo  ⇧⌘Z", () => this.act((e) => e.redo()))}
         <sl-button
           size="small"
           variant="primary"
@@ -104,12 +97,11 @@ export class TcEditor extends LitElement {
         </sl-button>
       </header>
 
-      <tc-palette .armed=${this.armed} @arm=${this.arm}></tc-palette>
+      <tc-palette @take=${this.take}></tc-palette>
 
       <tc-canvas
         .editor=${this.editor}
         .review=${this.reviewed}
-        .placing=${this.armed}
         .chosen=${this.chosen}
         @edit=${this.edited}
         @picked=${() => this.requestUpdate()}
@@ -342,8 +334,40 @@ export class TcEditor extends LitElement {
     this.edited();
   }
 
-  private arm(event: CustomEvent<Kind | null>): void {
-    this.armed = event.detail;
+  // --- dragging a symbol off the palette -----------------------------------
+
+  /**
+   * A tile was pressed. The canvas draws the ghost and takes the drop, since
+   * both are its coordinates; all that is left over is the release that happens
+   * anywhere else, which abandons the symbol.
+   *
+   * The canvas's own handler runs first — a pointer event from inside its
+   * shadow root reaches the window afterwards — so by the time this sees a
+   * release over the canvas there is nothing pending left to cancel.
+   */
+  private take(event: CustomEvent<Kind>): void {
+    this.editor.beginPlace(event.detail);
+    this.redraw();
+    window.addEventListener("pointerup", this.dropped);
+  }
+
+  private dropped = (): void => {
+    window.removeEventListener("pointerup", this.dropped);
+    if (this.editor.pending === null) return;
+    this.editor.cancelPending();
+    this.redraw();
+  };
+
+  private tool(icon: unknown, label: string, act: () => void) {
+    return html`
+      <sl-button size="small" title=${label} aria-label=${label} @click=${act}>
+        ${icon}
+      </sl-button>
+    `;
+  }
+
+  private zoom(scale: number): void {
+    this.renderRoot.querySelector<TcCanvas>("tc-canvas")?.zoom(scale);
   }
 
   private fit(): void {
@@ -369,30 +393,72 @@ export class TcEditor extends LitElement {
       void this.save();
       return;
     }
+    // A symbol on its way out of the palette takes the same two keys the
+    // selection does, and any of the three ways out abandons it.
+    if (this.editor.pending !== null) {
+      switch (event.key) {
+        case "r":
+        case "R":
+          this.editor.turnPending();
+          break;
+        case "f":
+        case "F":
+          this.editor.flipPending();
+          break;
+        case "Escape":
+        case "Delete":
+        case "Backspace":
+          event.preventDefault();
+          this.editor.cancelPending();
+          break;
+        default:
+          return;
+      }
+      this.redraw();
+      return;
+    }
+
     switch (event.key) {
       case "Escape":
-        this.armed = null;
         this.editor.cancelWire();
         this.editor.clearSelection();
         this.redraw();
         return;
       case "r":
       case "R":
-        this.act((editor) => editor.rotate());
+        this.selected((editor) => editor.rotate());
         return;
       case "f":
       case "F":
-        this.act((editor) => editor.flip());
+        this.selected((editor) => editor.flip());
         return;
       case "Delete":
       case "Backspace":
         event.preventDefault();
-        this.act((editor) => editor.remove());
+        this.selected((editor) => editor.remove());
+        return;
+      case "+":
+      case "=":
+        this.zoom(1 / OUT);
+        return;
+      case "-":
+        this.zoom(OUT);
+        return;
+      case "0":
+        this.fit();
         return;
       default:
         return;
     }
   };
+
+  /** A verb that needs something to act on. With nothing selected it does
+   *  nothing at all — not even mark the drawing unsaved and ask `/review`
+   *  again, which is what routing it through `act` did. */
+  private selected(change: (editor: Editor) => void): void {
+    if (this.editor.selection.size === 0) return;
+    this.act(change);
+  }
 }
 
 /** A name collision as a sentence. Which half is Airolo is not the editor's
