@@ -225,6 +225,14 @@ export const canvasStyles = css`
     stroke-width: 0.02;
   }
 
+  /* A square two symbols both cover, marked over the artwork so the overlap a
+     rotate or a flip made is visible where it is. */
+  .stacked {
+    fill: var(--wrong);
+    opacity: 0.22;
+    pointer-events: none;
+  }
+
   .junction {
     pointer-events: none;
   }

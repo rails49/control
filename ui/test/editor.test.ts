@@ -39,13 +39,97 @@ describe("placing symbols", () => {
   });
 
   it("labels a fresh portal after itself rather than leaving it unnamed", () => {
-    const name = editor.place("portal", [0, 0]);
+    const name = editor.place("portal", [0, 0])!;
     expect(editor.drawing.symbols[name]!.label).toBe(name);
   });
 
   it("selects what it just placed", () => {
     const name = place("block", [0, 0]);
     expect([...editor.selection]).toEqual([name]);
+  });
+});
+
+/**
+ * A square holds at most one symbol (EDITOR.md#canvas). A block is six of them,
+ * so a placement can cover another symbol without its own cell being taken,
+ * which is the case worth testing: the canvas only hit-tests the cell clicked.
+ */
+describe("a placement that would cover another symbol", () => {
+  it("is refused, and writes nothing", () => {
+    place("terminal", [3, 0]);
+    expect(place("block", [0, 0])).toBeNull();
+    expect(Object.keys(editor.drawing.symbols)).toEqual(["end1"]);
+  });
+
+  it("is refused without spending an undo step", () => {
+    place("terminal", [3, 0]);
+    place("block", [0, 0]);
+    expect(editor.canUndo).toBe(true);
+    editor.undo();
+    expect(editor.drawing.symbols).toEqual({});
+  });
+
+  it("takes the same cell once the other symbol is gone", () => {
+    place("terminal", [3, 0]);
+    editor.remove();
+    expect(place("block", [0, 0])).toBe("b1");
+  });
+
+  it("lets a bend sit on an occupied square, covering none itself", () => {
+    place("block", [0, 0]);
+    editor.startWire("b1.B");
+    editor.bend(3, 0.5); // a face of a square the block covers
+    expect(editor.overlaps()).toEqual([]);
+  });
+});
+
+describe("moving a selection onto another symbol", () => {
+  beforeEach(() => {
+    place("terminal", [0, 0]);
+    place("terminal", [4, 0]);
+  });
+
+  it("refuses the offset that would land on it", () => {
+    editor.select(["end1"]);
+    expect(editor.canMove(4, 0)).toBe(false);
+    editor.move(4, 0);
+    expect(editor.drawing.symbols.end1!.at).toEqual([0, 0]);
+  });
+
+  it("allows the offsets either side of it", () => {
+    editor.select(["end1"]);
+    expect(editor.canMove(3, 0)).toBe(true);
+    expect(editor.canMove(5, 0)).toBe(true);
+  });
+
+  it("ignores the symbols moving with it", () => {
+    editor.select(["end1", "end2"]);
+    expect(editor.canMove(4, 0)).toBe(true);
+  });
+});
+
+describe("an overlap a rotate made", () => {
+  it("is reported, naming the symbols and the squares they share", () => {
+    place("block", [0, 0]);
+    place("terminal", [0, 3]);
+    expect(editor.overlaps()).toEqual([]);
+    // The block runs east over six squares; turned, it runs south over the
+    // terminal's.
+    editor.select(["b1"]);
+    editor.rotate();
+    expect(editor.overlaps()).toEqual([
+      { cell: [0, 3], symbols: ["b1", "end1"] },
+    ]);
+  });
+
+  it("stops being reported once the overlap is undone", () => {
+    place("block", [0, 0]);
+    place("terminal", [0, 3]);
+    editor.select(["b1"]);
+    editor.rotate();
+    expect(editor.overlaps()).toHaveLength(1);
+    editor.undo();
+    expect(editor.overlaps()).toEqual([]);
   });
 });
 
@@ -111,10 +195,17 @@ describe("abutting", () => {
   });
 
   it("joins a pin once, however many pins share the point", () => {
+    // A square holds one symbol, so the pins that can meet at a point are the
+    // two either side of the face plus any number of bends, which cover no
+    // square. Both of the first two fill up, leaving the bend nothing to join.
     place("block", [0, 0]);
     place("terminal", [6, 0]);
-    place("terminal", [6, 0]);
-    expect(wires()).toEqual(["b1.B end1.P"]);
+    editor.startWire("b1.A");
+    editor.bend(8, 0.5);
+    editor.cancelWire();
+    editor.select(["n1"]);
+    editor.move(-2, 0);
+    expect(wires()).toEqual(["b1.A n1.P", "b1.B end1.P"]);
   });
 
   it("does not join a pin that already holds its wire", () => {
@@ -142,23 +233,24 @@ describe("abutting", () => {
   });
 
   it("joins on a rotation that brings two pins together", () => {
-    place("block", [0, 0]); // A at (0, 0.5), B at (6, 0.5)
-    place("terminal", [7, 0]); // P at (7, 0.5): nothing to join
-    expect(wires()).toEqual([]);
-    editor.select(["end1"]);
-    editor.rotate(); // P swings to (7.5, 0)
-    editor.rotate(); // and on to (8, 0.5)
-    expect(wires()).toEqual([]);
-    editor.select(["b1"]);
-    editor.move(2, 0); // b1.B now at (8, 0.5)
-    expect(wires()).toEqual(["b1.B end1.P"]);
+    // The pin the rotation arrives at is a bend, which covers no square: two
+    // symbols that both cover one could not be here to meet.
+    place("terminal", [0, 0]);
+    editor.startWire("end1.P");
+    editor.bend(2.5, 0); // n1.P on the north face of (2, 0)
+    editor.cancelWire();
+    place("terminal", [2, 0]); // end2.P at (2, 0.5): nothing to join
+    expect(wires()).toEqual(["end1.P n1.P"]);
+    editor.select(["end2"]);
+    editor.rotate(); // end2.P swings to (2.5, 0), onto the bend
+    expect(wires()).toEqual(["end1.P n1.P", "end2.P n1.P"]);
   });
 });
 
 describe("drawing wires", () => {
   it("joins two pins", () => {
     place("block", [0, 0]);
-    place("block", [4, 0]);
+    place("block", [7, 0]);
     editor.startWire("b1.B");
     expect(editor.endWire("b2.A")).toBe(true);
     expect(wires()).toEqual(["b1.B b2.A"]);
@@ -275,7 +367,7 @@ describe("moving", () => {
     // Wires carry no geometry, so a move rubber-bands them by construction:
     // the wire list is the same list afterwards.
     place("block", [0, 0]);
-    place("terminal", [2, 0]);
+    place("terminal", [6, 0]);
     const before = wires();
     editor.select(["b1"]);
     editor.move(-3, 5);
@@ -286,7 +378,7 @@ describe("moving", () => {
 describe("undo and redo", () => {
   it("restores the document one edit at a time", () => {
     place("block", [0, 0]);
-    place("block", [4, 0]);
+    place("block", [7, 0]);
     editor.undo();
     expect(Object.keys(editor.drawing.symbols)).toEqual(["b1"]);
     editor.undo();
@@ -314,7 +406,7 @@ describe("undo and redo", () => {
 
   it("drops the redo stack once a new edit lands on it", () => {
     place("block", [0, 0]);
-    place("block", [4, 0]);
+    place("block", [7, 0]);
     editor.undo();
     place("turnout", [8, 0]);
     expect(editor.canRedo).toBe(false);
@@ -331,7 +423,7 @@ describe("undo and redo", () => {
 
   it("forgets a selection the undo removed", () => {
     place("block", [0, 0]);
-    place("block", [4, 0]);
+    place("block", [7, 0]);
     editor.select(["b1", "b2"]);
     editor.undo();
     expect([...editor.selection]).toEqual(["b1"]);
@@ -374,15 +466,15 @@ describe("the properties dialog", () => {
     // `put` merges by key and adds a new symbol at the end, so a rename that
     // deleted and re-added would move the symbol to the bottom of the file.
     place("block", [0, 0]);
-    place("block", [4, 0]);
-    place("block", [8, 0]);
-    editor.edit("b2", "middle", { kind: "block", at: [4, 0], length: 1000 });
+    place("block", [7, 0]);
+    place("block", [14, 0]);
+    editor.edit("b2", "middle", { kind: "block", at: [7, 0], length: 1000 });
     expect(Object.keys(editor.drawing.symbols)).toEqual(["b1", "middle", "b3"]);
   });
 
   it("refuses a name the drawing cannot take", () => {
     place("block", [0, 0]);
-    place("block", [4, 0]);
+    place("block", [7, 0]);
     const spec = { kind: "block" as const, at: [0, 0] as [number, number] };
     expect(editor.edit("b1", "b2", spec)).toBe(false); // taken
     expect(editor.edit("b1", "a.b", spec)).toBe(false); // a pin, not a symbol

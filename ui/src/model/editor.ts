@@ -22,7 +22,15 @@ import {
   type SymbolSpec,
   type Wire,
 } from "./drawing.js";
-import { anchorOf, faceAt, flipped, movedBy, turned } from "./geometry.js";
+import {
+  anchorOf,
+  clear,
+  faceAt,
+  flipped,
+  movedBy,
+  overlaps,
+  turned,
+} from "./geometry.js";
 import { nameJoint, nameJunction, settle } from "./naming.js";
 import type { Joint, Review } from "./store.js";
 
@@ -104,11 +112,18 @@ export class Editor {
 
   // --- placing and editing symbols ---------------------------------------
 
-  /** Place a symbol from the palette, joining any pin it lands on. */
-  place(kind: Kind, at: [number, number]): string {
-    this.push();
+  /**
+   * Place a symbol from the palette, joining any pin it lands on. Answers with
+   * its name, or `null` where it would cover a square another symbol already
+   * has: a square holds at most one symbol (EDITOR.md#canvas), and a block is
+   * six of them, so a placement can overlap without its own cell being taken.
+   */
+  place(kind: Kind, at: [number, number]): string | null {
     const name = mint(this.current, kind);
-    this.current.symbols[name] = { kind, at, ...defaults(kind, name) };
+    const spec: SymbolSpec = { kind, at, ...defaults(kind, name) };
+    if (!clear(spec, this.current.symbols)) return null;
+    this.push();
+    this.current.symbols[name] = spec;
     this.abut([name]);
     this.chosen = new Set([name]);
     return name;
@@ -158,11 +173,29 @@ export class Editor {
    */
   move(dx: number, dy: number): void {
     if (this.chosen.size === 0 || (dx === 0 && dy === 0)) return;
+    if (!this.canMove(dx, dy)) return;
     this.push();
     for (const name of this.chosen) {
       this.current.symbols[name] = movedBy(this.at(name), dx, dy);
     }
     this.abut([...this.chosen]);
+  }
+
+  /**
+   * Whether the selection can shift by this much without landing on anything
+   * outside it. The selection translates rigidly, so symbols inside it keep
+   * whatever spacing they had and only the rest of the drawing is in the way.
+   */
+  canMove(dx: number, dy: number): boolean {
+    return [...this.chosen].every((name) =>
+      clear(movedBy(this.at(name), dx, dy), this.current.symbols, this.chosen),
+    );
+  }
+
+  /** The squares more than one symbol covers. Rotate and flip may make one,
+   *  and the editor reports it rather than refusing (EDITOR.md#canvas). */
+  overlaps(): { cell: [number, number]; symbols: string[] }[] {
+    return overlaps(this.current.symbols);
   }
 
   /** A quarter turn clockwise, each selected symbol about its own cell. */

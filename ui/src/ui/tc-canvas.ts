@@ -121,7 +121,7 @@ export class TcCanvas extends LitElement {
           fill="url(#grid)"
         />
         ${this.junctions()} ${this.wires()} ${this.symbols()} ${this.pins()}
-        ${this.wireline()} ${this.rubberBand()}
+        ${this.stacked()} ${this.wireline()} ${this.rubberBand()}
       </svg>
     `;
   }
@@ -270,6 +270,16 @@ export class TcCanvas extends LitElement {
     });
   }
 
+  /** The squares more than one symbol covers, marked over the artwork.
+   *  Placing and dragging cannot make one; rotate and flip can, and this is
+   *  where they say so (EDITOR.md#canvas). */
+  private stacked(): unknown {
+    return this.editor.overlaps().map(
+      ({ cell: [c, r] }) =>
+        svg`<rect class="stacked" x=${c} y=${r} width="1" height="1" />`,
+    );
+  }
+
   /** The wire following the pointer, softly snapped to multiples of 15
    *  degrees. A click on a pin overrides the snap: the wire takes whatever
    *  angle its two pins give it. */
@@ -306,12 +316,15 @@ export class TcCanvas extends LitElement {
     }
     if (event.button !== 0) return;
 
-    if (this.placing !== null) {
-      this.editor.place(this.placing, [
+    // An armed palette does not place over a symbol that is already there: the
+    // click falls through to the ordinary gestures below and takes hold of it
+    // instead. The palette stays armed either way (EDITOR.md#canvas).
+    if (this.placing !== null && this.symbolAt(point) === null) {
+      const placed = this.editor.place(this.placing, [
         Math.floor(point.x),
         Math.floor(point.y),
       ]);
-      this.changed();
+      if (placed !== null) this.changed();
       return;
     }
 
@@ -370,12 +383,13 @@ export class TcCanvas extends LitElement {
       };
       return;
     }
+    // The drag holds its last legal offset while the pointer is over an
+    // obstacle, and catches up once the offset is clear again, so a drag across
+    // a crowded row is never wasted and never lands on anything.
     if (this.drag !== null) {
-      this.drag = {
-        ...this.drag,
-        dx: Math.round(point.x - this.drag.from.x),
-        dy: Math.round(point.y - this.drag.from.y),
-      };
+      const dx = Math.round(point.x - this.drag.from.x);
+      const dy = Math.round(point.y - this.drag.from.y);
+      if (this.editor.canMove(dx, dy)) this.drag = { ...this.drag, dx, dy };
       return;
     }
     if (this.band !== null) this.band = { ...this.band, to: point };

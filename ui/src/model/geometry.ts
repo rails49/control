@@ -225,6 +225,53 @@ export function cellsOf(spec: SymbolSpec): [number, number][] {
   return cells;
 }
 
+/**
+ * Whether every square `spec` covers is free of the other symbols, ignoring
+ * those named in `ignoring` — the ones moving with it.
+ *
+ * A square holds at most one symbol (EDITOR.md#canvas), and this is the test
+ * placing and dragging make before they write. A bend covers no square, so it
+ * is always clear.
+ */
+export function clear(
+  spec: SymbolSpec,
+  symbols: Record<string, SymbolSpec>,
+  ignoring: ReadonlySet<string> = new Set(),
+): boolean {
+  const taken = new Set(
+    Object.entries(symbols)
+      .filter(([name]) => !ignoring.has(name))
+      .flatMap(([, other]) => cellsOf(other).map(key)),
+  );
+  return cellsOf(spec).every((cell) => !taken.has(key(cell)));
+}
+
+/**
+ * The squares more than one symbol covers, with the symbols on each.
+ *
+ * Rotate and flip change a footprint and are not constrained, so an overlap is
+ * read off the drawing rather than raised by the edit that made it
+ * (EDITOR.md#canvas): it then reads the same after an undo, or after opening a
+ * file that already had one.
+ */
+export function overlaps(
+  symbols: Record<string, SymbolSpec>,
+): { cell: [number, number]; symbols: string[] }[] {
+  const on = new Map<string, { cell: [number, number]; symbols: string[] }>();
+  for (const [name, spec] of Object.entries(symbols)) {
+    for (const cell of cellsOf(spec)) {
+      const shared = on.get(key(cell)) ?? { cell, symbols: [] };
+      shared.symbols.push(name);
+      on.set(key(cell), shared);
+    }
+  }
+  return [...on.values()].filter((shared) => shared.symbols.length > 1);
+}
+
+function key([c, r]: [number, number]): string {
+  return `${c},${r}`;
+}
+
 /** A quarter turn clockwise, keeping `at` where it is. */
 export function turned(spec: SymbolSpec): SymbolSpec {
   return { ...spec, rot: (((spec.rot ?? 0) + 90) % 360) as Rotation };

@@ -159,7 +159,13 @@ export class TcEditor extends LitElement {
     const red = this.reviewed?.red_pins ?? [];
     const refused = this.reviewed?.refused ?? null;
     const clashing = this.reviewed === null ? [] : clashes(this.reviewed);
-    if (red.length === 0 && refused === null && clashing.length === 0) {
+    const stacked = this.stacked();
+    if (
+      red.length === 0 &&
+      refused === null &&
+      clashing.length === 0 &&
+      stacked.length === 0
+    ) {
       return html`
         <div class="findings clean">
           <p>Every pin holds its wires.</p>
@@ -168,6 +174,7 @@ export class TcEditor extends LitElement {
     }
     return html`
       <div class="findings">
+        ${stacked.map((where) => html`<p>${where} overlap</p>`)}
         ${red.length === 0
           ? nothing
           : html`<p>${red.length} pin(s) short of a wire: ${red.join(", ")}</p>`}
@@ -175,6 +182,14 @@ export class TcEditor extends LitElement {
         ${refused === null ? nothing : html`<p>${refused}</p>`}
       </div>
     `;
+  }
+
+  /** The symbols sharing a square, named once however many squares they share.
+   *  Read off the drawing rather than raised by the rotate or flip that made
+   *  the overlap, so it stays true through an undo (EDITOR.md#canvas). */
+  private stacked(): string[] {
+    const shared = this.editor.overlaps();
+    return [...new Set(shared.map(({ symbols }) => symbols.join(" and ")))];
   }
 
   /** The one symbol the netlist pane inspects, where exactly one is selected.
