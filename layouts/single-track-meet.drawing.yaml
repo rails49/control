@@ -29,36 +29,54 @@
 drawing: single-track-meet
 units: mm
 
-symbols:
-  west_1: {kind: block, length: 1200}
-  west_2: {kind: block, length: 1200}
-  w_main: {kind: block, length: 2400}
-  loop_up: {kind: block, length: 1600}
-  loop_dn: {kind: block, length: 1600}
-  e_main: {kind: block, length: 2400}
-  east_1: {kind: block, length: 1200}
-  east_2: {kind: block, length: 1200}
+# Drawn by hand (#57): the mains and the terminus tracks along row 1, the loop
+# opening to row 0 above them, and each turnout turned so that its straight
+# road stays on the line it belongs to. Geometry is decorative and cannot
+# change what derives (docs/adr/0018).
 
+symbols:
+  west_1: {kind: block, length: 1200, at: [1, 1]}
+  west_2: {kind: block, length: 1200, at: [1, 3]}
+  w_main: {kind: block, length: 2400, at: [6, 1]}
+  loop_up: {kind: block, length: 1600, at: [10, 0]}
+  loop_dn: {kind: block, length: 1600, at: [10, 2]}
+  e_main: {kind: block, length: 2400, at: [14, 1]}
+  east_1: {kind: block, length: 1200, at: [19, 1]}
+  east_2: {kind: block, length: 1200, at: [19, 3]}
+
+  # Each throat and switch faces its toe at the single-track side, so the two
+  # at the west ends of their blocks are turned round and the two at the east
+  # ends are mirrored as well.
   west_throat: # the two terminus tracks onto the single-track main
     kind: turnout
     names: {straight: from_1, diverging: from_2}
+    at: [4, 1]
+    rot: 180
 
   west_switch: # the loop's west points
     kind: turnout
     names: {straight: to_up, diverging: to_dn}
+    at: [8, 1]
+    flip: true
+    rot: 180
 
   east_switch: # the loop's east points
     kind: turnout
     names: {straight: from_up, diverging: from_dn}
+    at: [12, 1]
+    rot: 180
 
   east_throat: # the single-track main onto the two terminus tracks
     kind: turnout
     names: {straight: to_1, diverging: to_2}
+    at: [17, 1]
+    flip: true
+    rot: 180
 
-  west_1_A_stop: {kind: terminal}
-  west_2_A_stop: {kind: terminal}
-  east_1_B_stop: {kind: terminal}
-  east_2_B_stop: {kind: terminal}
+  west_1_A_stop: {kind: terminal, at: [0, 1], rot: 180}
+  west_2_A_stop: {kind: terminal, at: [0, 3], rot: 180}
+  east_1_B_stop: {kind: terminal, at: [21, 1]}
+  east_2_B_stop: {kind: terminal, at: [21, 3]}
 
 wires:
   - [w_main.A, west_throat.toe]

@@ -21,12 +21,16 @@ symbols:
   west:
     kind: block
     length: 1000
+    at: [1, 0]
   east:
     kind: block
     length: 1000
+    at: [4, 0]
 
-  west_stop: {kind: terminal}
-  east_stop: {kind: terminal}
+  # Each stop faces its block: the unturned terminal takes its track from the
+  # west, so the one capping the west end is turned round.
+  west_stop: {kind: terminal, at: [0, 0], rot: 180}
+  east_stop: {kind: terminal, at: [6, 0]}
 
 wires:
   - [west.A, west_stop.P]

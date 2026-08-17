@@ -31,38 +31,56 @@
 drawing: crossover-yard
 units: mm
 
+# Drawn by hand (#57): the up line along row 0, the down line along row 3, the
+# yard throats between them, and the diamond turned a quarter so that its two
+# routes run steeply enough to meet the four diverging legs exactly. Every wire
+# of the crossover is therefore of zero length; the ladders' are the diagonals
+# the schematic draws as `|`. Geometry is decorative and cannot change what
+# derives (docs/adr/0018), so this is the same railroad, drawn.
+
 symbols:
-  yard_w: {kind: block, length: 1400}
-  up_w: {kind: block, length: 3200}
-  up_e: {kind: block, length: 3200}
-  dn_w: {kind: block, length: 3200}
-  dn_e: {kind: block, length: 3200}
-  yard_e: {kind: block, length: 1400}
+  yard_w: {kind: block, length: 1400, at: [1, 1]}
+  up_w: {kind: block, length: 3200, at: [5, 0]}
+  up_e: {kind: block, length: 3200, at: [11, 0]}
+  dn_w: {kind: block, length: 3200, at: [5, 3]}
+  dn_e: {kind: block, length: 3200, at: [11, 3]}
+  yard_e: {kind: block, length: 1400, at: [15, 1]}
 
   west_ladder: # yard throat, west end
     kind: turnout
     names: {straight: to_up, diverging: to_dn}
+    at: [3, 1]
+    flip: true
+    rot: 180
 
   east_ladder: # yard throat, east end
     kind: turnout
     names: {straight: from_up, diverging: from_dn}
+    at: [13, 1]
+    rot: 180
 
   # The scissors crossover: a turnout on each main line at each end, and the
-  # crossing where the two diagonals meet.
+  # crossing where the two diagonals meet. Each turnout is turned so that its
+  # diverging leg points into the middle, which is the whole of the drawing:
+  # the four legs land on the diamond's four pins.
   up_w_points:
     kind: turnout
     connection: crossover
     names: {straight: up_straight, diverging: up_to_dn}
+    at: [7, 0]
+    flip: true
+    rot: 180
   dn_w_points:
     kind: turnout
     connection: crossover
     names: {straight: dn_straight, diverging: dn_to_up}
-  up_e_points: {kind: turnout, connection: crossover}
-  dn_e_points: {kind: turnout, connection: crossover}
-  diamond: {kind: crossing, connection: crossover}
+    at: [7, 3]
+  up_e_points: {kind: turnout, connection: crossover, at: [9, 0], rot: 180}
+  dn_e_points: {kind: turnout, connection: crossover, at: [9, 3], flip: true}
+  diamond: {kind: crossing, connection: crossover, at: [8, 1], rot: 90}
 
-  yard_w_A_stop: {kind: terminal}
-  yard_e_B_stop: {kind: terminal}
+  yard_w_A_stop: {kind: terminal, at: [0, 1], rot: 180}
+  yard_e_B_stop: {kind: terminal, at: [17, 1]}
 
 wires:
   - [yard_w.B, west_ladder.toe]
@@ -73,10 +91,13 @@ wires:
   - [dn_w.B, dn_w_points.toe]
   - [up_w_points.straight, up_e_points.straight]
   - [dn_w_points.straight, dn_e_points.straight]
+  # Which end of a diamond route a leg takes is a drawing choice, not a
+  # topological one: `b` joins the same two legs either way round. These are
+  # the ends the quarter turn puts under them.
   - [up_w_points.diverging, diamond.a1]
   - [diamond.a2, dn_e_points.diverging]
-  - [dn_w_points.diverging, diamond.b1]
-  - [diamond.b2, up_e_points.diverging]
+  - [dn_w_points.diverging, diamond.b2]
+  - [diamond.b1, up_e_points.diverging]
   - [up_e_points.toe, up_e.A]
   - [dn_e_points.toe, dn_e.A]
 
