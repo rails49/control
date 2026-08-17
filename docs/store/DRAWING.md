@@ -340,11 +340,18 @@ layout.
 drawing says: 107 of Gotthard's 237 lines, including the Rocrail id mapping
 and which lengths are assumed. Writing placement onto every symbol with
 `yaml.safe_dump` would delete all of it, so `put` applies the incoming
-document into the existing one with `ruamel.yaml`, key by key, and a comment
-attached to a symbol survives that symbol being moved. A symbol that is
-deleted takes the comment above it with it, which is the right outcome for a
-comment describing it. Comments inside `wires:` do not survive, the list being
-replaced whole.
+document into the existing one key by key, in `store/yamlfile.py`. Reading a
+drawing and saving it back unchanged returns the file byte for byte; a symbol
+that moves keeps the comment written against it, and a symbol that is deleted
+takes that comment with it.
+
+Three things do not survive. A comment inside `wires:` goes, the list having
+no keys to merge by and being replaced whole, so reasoning about wiring
+belongs in the header. A sequence wrapped by hand across several lines comes
+back on one. And the order of `symbols:` is the file's, not the editor's: a
+symbol keeps the place it was written in and a new one is added at the end,
+which keeps a moved symbol out of the diff at the cost of ignoring a reorder.
+None of the three can change a derived layout.
 
 ## Converting a layout into a drawing
 

@@ -28,12 +28,21 @@ from tc49.lib.layout import (
     check_name,
 )
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
+from tc49.store import yamlfile
 from tc49.store.drawing import Drawing
 
 
 class AssetStore:
     def __init__(self, root: Path) -> None:
         self._root = root
+
+    def drawing(self, name: str) -> dict[str, Any]:
+        """The drawing document itself, which ``get`` derives away. The editor
+        edits this, so it comes back as written, checked for schema but not
+        for the pin rules: work in progress is readable."""
+        doc = cast(dict[str, Any], self._read(self._drawing_path(name)))
+        Drawing.from_document(doc)
+        return doc
 
     def get(self, name: str) -> Layout | Scenario:
         if "/" in name:
@@ -54,17 +63,19 @@ class AssetStore:
         if "scenario" in doc:
             scenario = self.validate_scenario(doc)
             path = self._scenario_path(f"{scenario.layout}/{scenario.name}")
-        elif "drawing" in doc:
-            # Schema only: a drawing with a dangling pin is work in progress
-            # and is saved, though it will not derive (DRAWING.md).
-            path = self._drawing_path(Drawing.from_document(doc).name)
-        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(yaml.safe_dump(doc, sort_keys=False))
+            return
+        if "drawing" not in doc:
             raise ValueError(
                 "document is neither a drawing nor a scenario — a layout is"
                 " derived from a drawing, never stored"
             )
+        # Schema only: a drawing with a dangling pin is work in progress
+        # and is saved, though it will not derive (DRAWING.md).
+        path = self._drawing_path(Drawing.from_document(doc).name)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(yaml.safe_dump(doc, sort_keys=False))
+        yamlfile.save(path, doc)  # merge: the file keeps what it says
 
     def delete(self, name: str) -> None:
         if "/" in name:

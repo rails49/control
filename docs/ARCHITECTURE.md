@@ -48,6 +48,9 @@ src/tc49/
                 convert.py  to_drawing — the conversion of a layout
                             document into the drawing that derives it,
                             which is how the railroads were migrated
+                yamlfile.py save — writing a document back without
+                            disturbing what is already in the file, which is
+                            mostly comments (ADR-0018)
                 server.py   the store's HTTP face: list, read a drawing
                             document, write one, derive, explain — what the
                             editor talks to (ui/EDITOR.md)

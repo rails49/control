@@ -25,10 +25,10 @@ symbols:
     kind: block
     length: 1000
 
-  west_stop: { kind: terminal }
-  east_stop: { kind: terminal }
+  west_stop: {kind: terminal}
+  east_stop: {kind: terminal}
 
 wires:
   - [west.A, west_stop.P]
-  - { pins: [west.B, east.A], connection: gap }
+  - {pins: [west.B, east.A], connection: gap}
   - [east.B, east_stop.P]

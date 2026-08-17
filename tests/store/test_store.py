@@ -5,11 +5,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from ruamel.yaml.representer import RepresenterError
 
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import Scenario
-from tc49.store import AssetStore
+from tc49.store import AssetStore, yamlfile
 from tests.harness import ROOT
+from tests.store.railroads import RAILROADS
 
 
 @pytest.fixture
@@ -25,6 +27,23 @@ def scratch_store(tmp_path: Path) -> AssetStore:
         tmp_path / "layouts" / "crossover-yard.drawing.yaml",
     )
     return AssetStore(tmp_path)
+
+
+@pytest.fixture
+def drawings(tmp_path: Path) -> AssetStore:
+    """Every committed railroad, somewhere writable."""
+    (tmp_path / "layouts").mkdir()
+    for path in (ROOT / "layouts").glob("*.drawing.yaml"):
+        shutil.copy(path, tmp_path / "layouts" / path.name)
+    return AssetStore(tmp_path)
+
+
+def written(root: Path, name: str) -> str:
+    return (root / "layouts" / f"{name}.drawing.yaml").read_text()
+
+
+def prose(text: str) -> list[str]:
+    return [line.strip() for line in text.splitlines() if line.strip().startswith("#")]
 
 
 def meet_document() -> dict[str, Any]:
@@ -48,6 +67,150 @@ def test_a_layout_is_derived_from_its_drawing_at_get(store: AssetStore) -> None:
     layout = store.get("facing-pair")
     assert isinstance(layout, Layout)
     assert layout.connections["gap"].transits["east_A__west_B"] == ("east.A", "west.B")
+
+
+def test_a_drawing_is_read_back_as_the_document_it_is(store: AssetStore) -> None:
+    """`get` derives and throws the document away; the editor edits the
+    document, so the store hands it back unchanged."""
+    doc = store.drawing("facing-pair")
+    assert doc["drawing"] == "facing-pair"
+    assert set(doc["symbols"]) == {"west", "east", "west_stop", "east_stop"}
+    assert {"pins": ["west.B", "east.A"], "connection": "gap"} in doc["wires"]
+
+
+@pytest.mark.parametrize("name", RAILROADS)
+def test_saving_an_unchanged_drawing_changes_no_byte(
+    drawings: AssetStore, tmp_path: Path, name: str
+) -> None:
+    """Read and write with nothing in between, and the file is the file."""
+    before = written(tmp_path, name)
+    drawings.put(drawings.drawing(name))
+    assert written(tmp_path, name) == before
+
+
+@pytest.mark.parametrize("name", RAILROADS)
+def test_placing_every_symbol_keeps_the_prose(
+    drawings: AssetStore, tmp_path: Path, name: str
+) -> None:
+    """The first editor save writes `at:` onto every symbol line, which is
+    where a hand-written drawing does its explaining: 107 of Gotthard's 237
+    lines are comments. A fresh dump would delete every one."""
+    before = prose(written(tmp_path, name))
+    assert before  # else this would pass by saying nothing
+
+    doc = drawings.drawing(name)
+    for i, symbol in enumerate(doc["symbols"].values()):
+        symbol["at"] = [i * 2, 0]
+    drawings.put(doc)
+
+    assert prose(written(tmp_path, name)) == before
+    placed = drawings.drawing(name)
+    assert all("at" in symbol for symbol in placed["symbols"].values())
+
+
+@pytest.mark.parametrize("name", RAILROADS)
+def test_a_saved_drawing_derives_what_it_did(drawings: AssetStore, name: str) -> None:
+    drawings.put(drawings.drawing(name))
+    assert drawings.get(name) == AssetStore(ROOT).get(name)
+
+
+def test_a_placement_lands_above_the_next_symbol_s_comment(
+    drawings: AssetStore, tmp_path: Path
+) -> None:
+    """Where a paragraph introduces the *next* symbol, the new key has to go
+    above it. ruamel holds that paragraph against the last key of the symbol
+    before, so an unguarded append writes the placement underneath it: sw39's
+    `at:` below the eight lines introducing Claro west, which parses and reads
+    as nonsense."""
+    doc = drawings.drawing("gotthard")
+    doc["symbols"]["sw39"]["at"] = [4, 7]
+    drawings.put(doc)
+
+    lines = written(tmp_path, "gotthard").splitlines()
+    assert lines.index("    at: [4, 7]") < lines.index(
+        "  # Claro west, drawn from real symbols (#46): the yellow line fans out to all"
+    )
+    assert drawings.drawing("gotthard")["symbols"]["sw39"]["at"] == [4, 7]
+
+
+def test_deleting_a_symbol_takes_the_comment_above_it(
+    drawings: AssetStore, tmp_path: Path
+) -> None:
+    """A comment describes the thing under it, so it goes when that goes."""
+    doc = drawings.drawing("gotthard")
+    del doc["symbols"]["return_loop"]
+    doc["wires"] = [w for w in doc["wires"] if "return_loop" not in str(w)]
+    drawings.put(doc)
+
+    text = written(tmp_path, "gotthard")
+    assert "return_loop" not in text
+    assert "# The return loop off the east end" not in text
+    assert "# The east ladder." in text  # the next symbol's keeps its own
+
+
+def test_a_new_drawing_is_written_in_the_style_a_committed_one_is(
+    drawings: AssetStore, tmp_path: Path
+) -> None:
+    """There is nothing to merge into, and a plain dump would write `at:` over
+    three lines and every wire as `- - pin`. Style is per node once written, so
+    a file created sprawling stays sprawling."""
+    doc = drawings.drawing("facing-pair")
+    doc["drawing"] = "facing-pair-copy"
+    doc["symbols"]["west"]["at"] = [2, 4]
+    drawings.put(doc)
+
+    text = written(tmp_path, "facing-pair-copy")
+    assert "at: [2, 4]" in text
+    assert "- [west.A, west_stop.P]" in text
+    copied, original = drawings.get("facing-pair-copy"), drawings.get("facing-pair")
+    assert isinstance(copied, Layout) and isinstance(original, Layout)
+    assert copied.connections == original.connections
+
+
+def test_a_placement_lands_above_a_paragraph_held_by_a_block_list(
+    tmp_path: Path,
+) -> None:
+    """A symbol whose last value is a block list holds the next symbol's
+    paragraph one level down, against the list's last item rather than against
+    any key. Missing it puts the placement below the paragraph."""
+    path = tmp_path / "d.yaml"
+    path.write_text(
+        "symbols:\n"
+        "  gap:\n"
+        "    kind: connection\n"
+        "    pins:\n"
+        "      - A\n"
+        "      - B\n"
+        "\n"
+        "  # the paragraph introducing east\n"
+        "  east: {kind: terminal}\n"
+    )
+    doc: dict[str, Any] = {
+        "symbols": {
+            "gap": {"kind": "connection", "pins": ["A", "B"], "at": [1, 2]},
+            "east": {"kind": "terminal"},
+        }
+    }
+    yamlfile.save(path, doc)
+
+    lines = path.read_text().splitlines()
+    assert lines.index("    at: [1, 2]") < lines.index(
+        "  # the paragraph introducing east"
+    )
+
+
+def test_a_document_that_will_not_serialise_leaves_the_file_alone(
+    tmp_path: Path,
+) -> None:
+    """The file is the only copy of its own reasoning, so it is not truncated
+    until there is something to put in it."""
+    path = tmp_path / "d.yaml"
+    path.write_text("# reasoning\nsymbols:\n  west: {kind: terminal}\n")
+    before = path.read_text()
+
+    with pytest.raises(RepresenterError):
+        yamlfile.save(path, {"symbols": {"west": {"kind": object()}}})
+    assert path.read_text() == before
 
 
 def test_meet_scenario_loads_clean(store: AssetStore) -> None:

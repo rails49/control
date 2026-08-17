@@ -29,6 +29,14 @@
 # train transits it but can never stop in it. Transit LENGTH is not modelled:
 # every transit costs one tick regardless (#8), so the long return loop and a
 # station ladder cost the same.
+#
+# How the wires below run, since the editor rewrites that list whole and any
+# comment inside it would be lost on the first save (docs/store/DRAWING.md):
+#
+#   Airolo, upper route: blue 2 in, over the WX310, out along the west ladder.
+#   Airolo, lower route: the yellow and blue 1 meet at sw51 and run east.
+#   Airolo, round the loop and back down the east ladder into the B ends.
+#   Claro west: the ladder off the yellow, then the sidings off track 3.
 
 drawing: gotthard
 units: mm
@@ -162,11 +170,7 @@ symbols:
   # rather than on a trace of the tiles.
   claro_east:
     kind: connection
-    pins:
-      [
-        claro_1_B, claro_2_B, claro_3_B, claro_4_A, claro_5_A, line_blue_1_A,
-        line_blue_2_A,
-      ]
+    pins: [claro_1_B, claro_2_B, claro_3_B, claro_4_A, claro_5_A, line_blue_1_A, line_blue_2_A]
     transits:
       blue_1_3: [line_blue_1_A, claro_3_B]
       blue_2_1: [line_blue_2_A, claro_1_B]
@@ -183,7 +187,6 @@ symbols:
   airolo_4_B_stop: {kind: terminal}
 
 wires:
-  # Airolo, upper route: blue 2 in, over the WX310, out along the west ladder.
   - [line_blue_2.B, sw17.toe]
   - [sw17.straight, sw18.straight]
   - [sw17.diverging, sw16.a1]
@@ -196,13 +199,11 @@ wires:
   - [sw42.straight, airolo_2.A]
   - [sw42.diverging, airolo_3.A]
 
-  # Airolo, lower route: the yellow and blue 1 meet at sw51 and run east.
   - [line_yellow.A, sw51.straight]
   - [line_blue_1.B, sw51.diverging]
   - [sw51.toe, sw19.toe]
   - [sw19.straight, sw20.straight]
 
-  # Airolo, round the loop and back down the east ladder into the B ends.
   - [sw20.toe, return_loop.P]
   - [return_loop.P, sw35.toe]
   - [sw35.straight, airolo_1.B]
@@ -212,7 +213,6 @@ wires:
   - [sw39.toe, airolo_3.B]
   - [sw39.straight, airolo_4.A]
 
-  # Claro west: the ladder off the yellow, then the sidings off track 3.
   - [line_yellow.B, sw24.toe]
   - [sw24.straight, claro_1.A]
   - [sw24.diverging, sw46.toe]
