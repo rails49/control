@@ -4,12 +4,14 @@
  * A junction region offers its name, because renaming one is meant to be one
  * click on the region; a bare wire between two blocks offers the name of the
  * connection it is; a symbol offers its properties and the transforms the key
- * bindings also do.
+ * bindings also do; and a wire offers to be cut, this being the only way to
+ * delete one — a wire has no symbol to select and so no keystroke to take it.
  */
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
+import type { PinRef } from "../model/drawing.js";
 import type { Joint, Junction } from "../model/store.js";
 import { menuStyles } from "./styles.js";
 
@@ -19,7 +21,8 @@ export type MenuAction =
   | "rename-joint"
   | "rotate"
   | "flip"
-  | "delete";
+  | "delete"
+  | "delete-wire";
 
 export interface MenuAt {
   x: number;
@@ -27,6 +30,8 @@ export interface MenuAt {
   symbol: string | null;
   junction: Junction | null;
   joint: Joint | null;
+  /** The two pins of the wire under the pointer, where one is. */
+  wire: [PinRef, PinRef] | null;
 }
 
 @customElement("tc-menu")
@@ -57,6 +62,7 @@ export class TcMenu extends LitElement {
               "rename-joint",
               `Rename connection "${at.joint.name ?? "unnamed"}"`,
             )}
+        ${at.wire === null ? nothing : this.item("delete-wire", "Delete wire")}
         ${at.symbol === null
           ? nothing
           : html`
@@ -102,7 +108,12 @@ export class TcMenu extends LitElement {
 
 /** Whether anything was clicked that the menu has something to say about. */
 export function applies(at: MenuAt): boolean {
-  return at.symbol !== null || at.junction !== null || at.joint !== null;
+  return (
+    at.symbol !== null ||
+    at.junction !== null ||
+    at.joint !== null ||
+    at.wire !== null
+  );
 }
 
 declare global {

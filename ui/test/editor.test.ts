@@ -353,6 +353,58 @@ describe("deleting", () => {
   });
 });
 
+/** A wire has no symbol to select, so cutting it is the one verb that takes
+ *  what it acts on rather than reading the selection. */
+describe("cutting a wire", () => {
+  it("drops it, leaving both symbols and both pins short", () => {
+    place("block", [0, 0]);
+    place("terminal", [6, 0]);
+    expect(wires()).toEqual(["b1.B end1.P"]);
+
+    expect(editor.unwire(["b1.B", "end1.P"])).toBe(true);
+
+    expect(wires()).toEqual([]);
+    expect(editor.drawing.symbols.b1).toBeDefined();
+    expect(editor.drawing.symbols.end1).toBeDefined();
+    expect(editor.degree("b1.B")).toBe(0);
+    expect(editor.degree("end1.P")).toBe(0);
+  });
+
+  it("takes the pins in either order, a wire being undirected", () => {
+    place("block", [0, 0]);
+    place("terminal", [6, 0]);
+    expect(editor.unwire(["end1.P", "b1.B"])).toBe(true);
+    expect(wires()).toEqual([]);
+  });
+
+  it("cuts the one wire and no other", () => {
+    place("block", [0, 0]);
+    place("terminal", [6, 0]);
+    editor.place("terminal", [-1, 0], { rot: 180 });
+    expect(wires()).toEqual(["b1.A end2.P", "b1.B end1.P"]);
+    editor.unwire(["b1.B", "end1.P"]);
+    expect(wires()).toEqual(["b1.A end2.P"]);
+  });
+
+  it("says so where there is no such wire, and changes nothing", () => {
+    place("block", [0, 0]);
+    place("terminal", [6, 0]);
+    const was = editor.revision;
+    expect(editor.unwire(["b1.A", "end1.P"])).toBe(false);
+    expect(wires()).toEqual(["b1.B end1.P"]);
+    // No snapshot taken, so it is not an undo step of its own.
+    expect(editor.revision).toBe(was);
+  });
+
+  it("is one undo step", () => {
+    place("block", [0, 0]);
+    place("terminal", [6, 0]);
+    editor.unwire(["b1.B", "end1.P"]);
+    editor.undo();
+    expect(wires()).toEqual(["b1.B end1.P"]);
+  });
+});
+
 describe("moving", () => {
   it("moves every selected symbol together", () => {
     place("block", [0, 0]);

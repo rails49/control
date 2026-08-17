@@ -522,8 +522,13 @@ export class TcCanvas extends LitElement {
 
   /**
    * The right-click menu, told what was clicked: the symbol, the junction it
-   * belongs to, and the joint a wire under the pointer is. All three come from
-   * `/review`, so nothing here works out what anything means.
+   * belongs to, the joint a wire under the pointer is, and the wire itself.
+   * The first three come from `/review`, so nothing here works out what
+   * anything means.
+   *
+   * The wire is offered only where no symbol is, since a symbol's own wires
+   * pass within a hair of its pins — abutted ones have no length at all — and
+   * a click on a turnout is a question about the turnout.
    */
   private menu(event: MouseEvent): void {
     event.preventDefault();
@@ -556,11 +561,35 @@ export class TcCanvas extends LitElement {
           symbol,
           junction,
           joint: this.jointNear(point),
+          wire: symbol === null ? this.wireNear(point) : null,
         },
         bubbles: true,
         composed: true,
       }),
     );
+  }
+
+  /**
+   * The wire whose drawn line passes nearest the pointer, where one does.
+   *
+   * Every wire, not only the ones a joint is made of: a joint is a connection
+   * with a name, while this is the line itself, which is what a right-click on
+   * track is asking about. Read off the drawing rather than `/review`, a wire
+   * being the document's own and needing no derivation to find.
+   */
+  private wireNear(point: Point): [PinRef, PinRef] | null {
+    let best: { pins: [PinRef, PinRef]; away: number } | null = null;
+    for (const wire of this.editor.drawing.wires) {
+      const pins = wirePins(wire);
+      const from = this.pointOf(pins[0]);
+      const to = this.pointOf(pins[1]);
+      if (from === null || to === null) continue;
+      const away = awayFrom(point, from, to);
+      if (away <= HIT && (best === null || away < best.away)) {
+        best = { pins, away };
+      }
+    }
+    return best?.pins ?? null;
   }
 
   /** The joint whose drawn line passes nearest the pointer, where one does.

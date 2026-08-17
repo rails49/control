@@ -17,7 +17,15 @@ const JUNCTION: Junction = { name: "airolo", names: ["airolo"], symbols: ["sw1"]
 const JOINT: Joint = { ends: ["b1.A", "b2.B"], wires: [["b1.A", "b2.B"]], name: null, names: [] };
 
 function at(parts: Partial<MenuAt> = {}): MenuAt {
-  return { x: 10, y: 10, symbol: null, junction: null, joint: null, ...parts };
+  return {
+    x: 10,
+    y: 10,
+    symbol: null,
+    junction: null,
+    joint: null,
+    wire: null,
+    ...parts,
+  };
 }
 
 /** The items the menu draws for what was clicked. */
@@ -50,6 +58,21 @@ describe("what the menu offers", () => {
   it("offers a joint the name of the connection it is", async () => {
     expect(await items(at({ joint: JOINT }))).toEqual([
       'Rename connection "unnamed"',
+    ]);
+  });
+
+  /** A wire has no symbol to select and so no keystroke to take it: the menu
+   *  is the only way to cut one. */
+  it("offers a wire to be cut", async () => {
+    expect(await items(at({ wire: ["b1.B", "sw1.toe"] }))).toEqual([
+      "Delete wire",
+    ]);
+  });
+
+  it("offers a joint both its name and the cut", async () => {
+    expect(await items(at({ joint: JOINT, wire: ["b1.A", "b2.B"] }))).toEqual([
+      'Rename connection "unnamed"',
+      "Delete wire",
     ]);
   });
 });

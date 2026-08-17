@@ -16,6 +16,7 @@ import {
   clone,
   pinsOf,
   symbolOf,
+  wireKey,
   wirePins,
   type Drawing,
   type PinRef,
@@ -326,6 +327,23 @@ export class Editor {
       (wire) => !wirePins(wire).some((pin) => gone.has(symbolOf(pin))),
     );
     this.chosen = new Set();
+  }
+
+  /**
+   * Cut a wire, and say whether there was one to cut. Both pins it held are
+   * left short of one, which `/review` reports as red — the normal state of a
+   * drawing mid-edit, and what says where the track now stops.
+   *
+   * A wire has no symbol to select, so this is the one verb that takes what it
+   * acts on rather than reading the selection (EDITOR.md#editing).
+   */
+  unwire(pins: [PinRef, PinRef]): boolean {
+    const cut = [...pins].sort().join(" ");
+    const kept = this.current.wires.filter((wire) => wireKey(wire) !== cut);
+    if (kept.length === this.current.wires.length) return false;
+    this.push();
+    this.current.wires = kept;
+    return true;
   }
 
   /**

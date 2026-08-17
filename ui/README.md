@@ -72,8 +72,9 @@ rotates, `F` flips, `Delete` deletes, `Escape` cancels, `Cmd/Ctrl+Z` undoes and
 `Cmd/Ctrl+Shift+Z` redoes, `Cmd/Ctrl+S` saves. The wheel zooms and the middle
 button pans.
 
-Right-click for properties, and for the name of the junction or the connection
-under the pointer. A junction is named `j1`, `j2` as it forms, so nothing
+Right-click for properties, for the name of the junction or the connection
+under the pointer, and to cut the wire under it — a wire has no symbol to
+select, so the menu is the only way to delete one. A junction is named `j1`, `j2` as it forms, so nothing
 interrupts a sketch; renaming one is worth doing when it earns a name, because
 the name heads its section in the netlist.
 

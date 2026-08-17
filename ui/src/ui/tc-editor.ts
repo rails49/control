@@ -309,6 +309,9 @@ export class TcEditor extends LitElement {
           if (name !== null) this.act((editor) => editor.nameJoint(at.joint!, name));
         }
         return;
+      case "delete-wire":
+        if (at.wire !== null) this.act((editor) => editor.unwire(at.wire!));
+        return;
       case "rotate":
         this.act((editor) => editor.rotate());
         return;

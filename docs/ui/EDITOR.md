@@ -276,6 +276,14 @@ rather than a drag, so the threshold cannot steal one.
 
 Deleting a symbol deletes its wires, and the pins at their far ends go red.
 
+A wire is cut from its own right-click menu, which is the only way to delete
+one: a wire has no symbol to select, so no keystroke can take it, and the
+verbs above all read the selection. Cutting leaves both pins a wire short and
+so red, which is what says where the track now stops. The menu offers the cut
+only where no symbol is under the pointer, since a symbol's own wires pass
+within a hair of its pins — an abutted one has no length at all — and a click
+on a turnout is a question about the turnout.
+
 Undo and redo are snapshot-based: the drawing is a small document, so every
 mutation pushes a copy. Copy and paste is not supported; it opens id and
 portal-label questions that rare layout editing does not justify.
