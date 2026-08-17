@@ -134,6 +134,23 @@ function diamond(spec: SymbolSpec, slips: string[] = []): SVGTemplateResult {
   `;
 }
 
+/**
+ * The palette's order, the one EDITOR.md's table documents: grouped by what
+ * the symbols are rather than by their names, which is how `PLACEABLE` comes
+ * out of the generator. A test asserts the two hold the same kinds, so a new
+ * placeable kind has to be given a place here rather than appearing wherever
+ * the alphabet puts it.
+ */
+export const PALETTE: readonly Kind[] = [
+  "block",
+  "terminal",
+  "turnout",
+  "crossing",
+  "single_slip",
+  "double_slip",
+  "portal",
+];
+
 /** What a palette tile shows: the symbol at its default placement. */
 export const TILE: Record<Kind, SymbolSpec> = {
   block: { kind: "block" },

@@ -9,6 +9,7 @@ import {
   type LibraryKind,
   type Pin,
 } from "../src/symbols.generated.js";
+import { PALETTE } from "../src/render/artwork.js";
 
 /**
  * The generated file is a set of types as much as a set of values, and a type
@@ -45,6 +46,12 @@ describe("the generated symbol library", () => {
         .filter((kind) => kind !== "pin")
         .sort(),
     );
+  });
+
+  it("gives every placeable kind a place in the palette, and no other", () => {
+    // The palette is drawn in EDITOR.md's order, which is not the generator's,
+    // so a new placeable kind would otherwise be silently left off.
+    expect([...PALETTE].sort()).toEqual([...PLACEABLE].sort());
   });
 
   it("declares a transit between two pins the same kind has", () => {

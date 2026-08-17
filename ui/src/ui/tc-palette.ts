@@ -11,9 +11,9 @@
 import { LitElement, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
-import { PLACEABLE, type Kind } from "../symbols.generated.js";
+import type { Kind } from "../symbols.generated.js";
 import { FOOTPRINTS, transformOf } from "../model/geometry.js";
-import { artwork, TILE } from "../render/artwork.js";
+import { artwork, PALETTE, TILE } from "../render/artwork.js";
 import { paletteStyles } from "./styles.js";
 
 const TITLES: Record<Kind, string> = {
@@ -37,7 +37,7 @@ export class TcPalette extends LitElement {
   override render() {
     return html`
       <h2>Symbols</h2>
-      ${PLACEABLE.map((kind) => this.tile(kind))}
+      ${PALETTE.map((kind) => this.tile(kind))}
     `;
   }
 
