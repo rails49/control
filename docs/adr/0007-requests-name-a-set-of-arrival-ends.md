@@ -26,11 +26,13 @@ deadlock-avoidance layer nothing to route around.
 
 Gotthard is the instance that made this concrete rather than the reason for it.
 At Claro each end of each through track is served by exactly one line — blue 1
-reaches track 3, blue 2 reaches tracks 1 and 2, the yellow reaches all three
+reaches tracks 2 and 3, blue 2 reaches track 1, the yellow reaches all three
 from the west — so every request would have collapsed to a single candidate and
 [BENCHMARKS.md](../bench/BENCHMARKS.md#the-k-axis)'s headline measurement would have
 had nothing left to measure. A layout with several paths to one arrival end
-would suffer less; none would suffer nothing.
+would suffer less; none would suffer nothing. (Which blue line reaches which
+track was corrected in #58, when Claro east was drawn from real symbols; the
+asymmetry the decision rests on is unchanged.)
 
 **The set is what pays for it.** Naming both ends of one block reproduces the
 old semantics exactly, so nothing is lost; naming several tracks says the thing
