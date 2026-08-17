@@ -18,6 +18,7 @@ import "@shoelace-style/shoelace/dist/themes/light.css";
 import type { Kind } from "../symbols.generated.js";
 import { emptyDrawing, type SymbolSpec } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
+import { clashes, type Chosen, type Clash } from "../model/inspect.js";
 import {
   listDrawings,
   readDrawing,
@@ -33,7 +34,6 @@ import "./tc-palette.js";
 import "./tc-properties.js";
 import type { TcCanvas } from "./tc-canvas.js";
 import type { MenuAction, MenuAt } from "./tc-menu.js";
-import type { Chosen } from "./tc-netlist.js";
 import type { Properties } from "./tc-properties.js";
 
 @customElement("tc-editor")
@@ -112,6 +112,7 @@ export class TcEditor extends LitElement {
         .placing=${this.armed}
         .chosen=${this.chosen}
         @edit=${this.edited}
+        @picked=${() => this.requestUpdate()}
         @canvas-menu=${(event: CustomEvent<MenuAt>) => {
           this.menu = event.detail;
         }}
@@ -122,6 +123,7 @@ export class TcEditor extends LitElement {
         <tc-netlist
           .review=${this.reviewed}
           .chosen=${this.chosen}
+          .symbol=${this.inspecting}
           @transit-chosen=${(event: CustomEvent<Chosen | null>) => {
             this.chosen = event.detail;
             this.redraw();
@@ -145,13 +147,19 @@ export class TcEditor extends LitElement {
     `;
   }
 
+  /** Everything wrong with the drawing, in one panel: the pins short of a
+   *  wire, the names two connections cannot both wear, and the refusal
+   *  derivation came back with. A name collision is listed even where
+   *  derivation did not refuse, since two junctions wearing one name derive as
+   *  one connection — a wrong netlist rather than a refused one. */
   private findings() {
     if (this.trouble !== null) {
       return html`<div class="findings"><p>${this.trouble}</p></div>`;
     }
     const red = this.reviewed?.red_pins ?? [];
     const refused = this.reviewed?.refused ?? null;
-    if (red.length === 0 && refused === null) {
+    const clashing = this.reviewed === null ? [] : clashes(this.reviewed);
+    if (red.length === 0 && refused === null && clashing.length === 0) {
       return html`
         <div class="findings clean">
           <p>Every pin holds its wires.</p>
@@ -163,9 +171,18 @@ export class TcEditor extends LitElement {
         ${red.length === 0
           ? nothing
           : html`<p>${red.length} pin(s) short of a wire: ${red.join(", ")}</p>`}
+        ${clashing.map((clash) => html`<p>${said(clash)}</p>`)}
         ${refused === null ? nothing : html`<p>${refused}</p>`}
       </div>
     `;
+  }
+
+  /** The one symbol the netlist pane inspects, where exactly one is selected.
+   *  A group selection is a move about to happen, not a question about a
+   *  frog. */
+  private get inspecting(): string | null {
+    const selected = [...this.editor.selection];
+    return selected.length === 1 ? selected[0]! : null;
   }
 
   // --- talking to the store -----------------------------------------------
@@ -361,6 +378,18 @@ export class TcEditor extends LitElement {
         return;
     }
   };
+}
+
+/** A name collision as a sentence. Which half is Airolo is not the editor's
+ *  decision to make (naming.ts), so the finding says where both are and stops
+ *  there. */
+function said(clash: Clash): string {
+  const where = clash.where.map((one) => one.join(", ")).join(" and ");
+  return clash.kind === "duplicate"
+    ? `two connections are both named '${clash.names[0]}': ${where}`
+    : `one connection is named ${clash.names
+        .map((name) => `'${name}'`)
+        .join(" and ")}: ${where}`;
 }
 
 declare global {

@@ -216,10 +216,15 @@ export const canvasStyles = css`
     fill: currentColor;
   }
 
-  /* The way a chosen transit takes, symbol by symbol. */
-  .symbol.lit .track {
-    stroke: var(--tint-2, #a55b12);
-    stroke-width: 4.5;
+  /* A junction wearing a name another connection also wears, or two its own
+     symbols disagree about: shown where it is rather than only in the panel. */
+  .junction.clashing rect {
+    fill: var(--wrong, #cc2936);
+    opacity: 0.14;
+  }
+
+  .junction.clashing text {
+    fill: var(--wrong, #cc2936);
   }
 
   .tint-0 {
@@ -314,6 +319,27 @@ export const canvasStyles = css`
   .symbol.selected .block-body,
   .symbol.selected .opaque {
     stroke: var(--chosen, #1f6feb);
+  }
+
+  /* The way a chosen transit takes, leg by leg: the legs of the symbols on it,
+     and the two block ends it runs between. After the selection rules, so that
+     a symbol both selected and on the way shows the way — which is the answer
+     to the question selecting it asked. */
+  .symbol .track.lit {
+    stroke: var(--tint-2, #a55b12);
+    stroke-width: 4.5;
+  }
+
+  .symbol .bend.lit {
+    fill: var(--tint-2, #a55b12);
+  }
+
+  /* A block's body covers all but the stubs of its track, so the end of a lit
+     transit would otherwise be two orange flecks. */
+  .symbol .block-body.lit,
+  .symbol .opaque.lit {
+    fill: #f4e3cd;
+    stroke: var(--tint-2, #a55b12);
   }
 
   .name {
@@ -417,7 +443,11 @@ export const netlistStyles = css`
     font: 13px/1.45 system-ui, sans-serif;
   }
 
-  h2 {
+  h2,
+  h3 {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
     margin: 0.9rem 0 0.3rem;
     font-size: 0.75rem;
     letter-spacing: 0.06em;
@@ -425,10 +455,41 @@ export const netlistStyles = css`
     color: var(--hint, #7c8087);
   }
 
+  h2 {
+    color: var(--ink, #1c1f24);
+  }
+
+  .count {
+    font-weight: 400;
+    color: var(--hint, #7c8087);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
   ul {
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+
+  /* The symbol inspector sits above the netlist: it answers the question just
+     asked on the canvas, and scrolling to find it would be the wrong way
+     round. */
+  section.symbol {
+    margin-bottom: 0.9rem;
+    padding: 0.1rem 0.5rem 0.5rem;
+    border-left: 3px solid var(--tint-2, #a55b12);
+    background: #faf5ee;
+  }
+
+  .concurrent {
+    margin: 0.15rem 0 0.3rem 0.3rem;
+    color: var(--tint-1, #14866d);
+  }
+
+  .concurrent li::before {
+    content: "runs with  ";
+    color: var(--hint, #7c8087);
   }
 
   .blocks li {

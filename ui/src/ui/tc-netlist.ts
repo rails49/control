@@ -12,20 +12,27 @@
  * So selecting a transit lights its way on the canvas and lists every other
  * transit at that connection as concurrent or excluded, naming the symbol they
  * share. *Exclusive because both take `sw16`* is a claim about the drawing
- * that can be checked by looking at it.
+ * that can be checked by looking at it. Selecting a symbol gives the inverse:
+ * every transit through it, split into those that can run together and those
+ * that cannot.
+ *
+ * What each of those means is `inspect.ts`; this component only draws it.
  */
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
+import {
+  against,
+  amongst,
+  through,
+  type Chosen,
+  type Pair,
+} from "../model/inspect.js";
 import type { Review } from "../model/store.js";
 import { netlistStyles } from "./styles.js";
 
-/** Which transit is selected, as the connection and the name within it. */
-export interface Chosen {
-  connection: string;
-  transit: string;
-}
+export type { Chosen } from "../model/inspect.js";
 
 @customElement("tc-netlist")
 export class TcNetlist extends LitElement {
@@ -33,28 +40,41 @@ export class TcNetlist extends LitElement {
 
   @property({ attribute: false }) review: Review | null = null;
   @property({ attribute: false }) chosen: Chosen | null = null;
+  /** The one symbol selected on the canvas, where exactly one is. */
+  @property({ attribute: false }) symbol: string | null = null;
 
   override render() {
     const layout = this.review?.layout;
     if (layout === null || layout === undefined) {
       return html`<p class="hint">No netlist: the drawing does not derive.</p>`;
     }
+    const connections = Object.keys(layout.connections);
     return html`
-      <h2>Blocks</h2>
+      ${this.inspected()}
+      <h2>
+        ${layout.layout}
+        <span class="count">
+          ${count(Object.keys(layout.blocks).length, "block")},
+          ${count(connections.length, "connection")}
+        </span>
+      </h2>
       <ul class="blocks">
         ${Object.entries(layout.blocks).map(
           ([block, { length }]) =>
             html`<li><span>${block}</span><span>${length}</span></li>`,
         )}
       </ul>
-      ${Object.keys(layout.connections).map((name) => this.connection(name))}
+      ${connections.map((name) => this.connection(name))}
     `;
   }
 
+  /** One connection as `tc49 layout show` prints it: its transits with their
+   *  two block ends, and the pairs of them that run at the same time. */
   private connection(name: string) {
     const connection = this.review!.layout!.connections[name]!;
+    const concurrent = connection.concurrent ?? [];
     return html`
-      <h2>${name}</h2>
+      <h3>${name}</h3>
       <ul class="transits">
         ${Object.entries(connection.transits).map(
           ([transit, ends]) => html`
@@ -66,9 +86,16 @@ export class TcNetlist extends LitElement {
                 <span class="transit">${transit}</span>
                 <span class="ends">${ends.join("  ")}</span>
               </button>
-              ${this.isChosen(name, transit) ? this.against(name, transit) : nothing}
+              ${this.isChosen(name, transit)
+                ? this.against(name, transit)
+                : nothing}
             </li>
           `,
+        )}
+      </ul>
+      <ul class="concurrent">
+        ${concurrent.map(
+          ([one, two]) => html`<li>${one} + ${two}</li>`,
         )}
       </ul>
     `;
@@ -77,35 +104,74 @@ export class TcNetlist extends LitElement {
   /** Every other transit at this connection, split into those that can run
    *  with it and those that cannot, each with the reason. */
   private against(connection: string, transit: string) {
-    const derived = this.review!.layout!.connections[connection]!;
-    const explained = this.review?.explain?.connections[connection];
-    const concurrent = new Set(
-      (derived.concurrent ?? [])
-        .filter((pair) => pair.includes(transit))
-        .map((pair) => (pair[0] === transit ? pair[1] : pair[0])),
-    );
-    const others = Object.keys(derived.transits).filter(
-      (other) => other !== transit,
-    );
     return html`
       <ul class="against">
-        ${others.map((other) => {
-          const shared = (explained?.exclusive ?? []).find(
-            (pair) =>
-              pair.transits.includes(transit) && pair.transits.includes(other),
-          );
-          return html`
-            <li class=${concurrent.has(other) ? "with" : "without"}>
-              <span>${other}</span>
+        ${against(this.review!, connection, transit).map(
+          (other) => html`
+            <li class=${other.concurrent ? "with" : "without"}>
+              <span>${other.transit}</span>
               <span class="why">
-                ${concurrent.has(other)
+                ${other.concurrent
                   ? "runs together"
-                  : `shares ${shared?.shared.join(", ") ?? "the way"}`}
+                  : `shares ${other.shared.join(", ") || "the way"}`}
               </span>
             </li>
-          `;
-        })}
+          `,
+        )}
       </ul>
+    `;
+  }
+
+  /**
+   * The inverse of choosing a transit: one symbol, every transit through it,
+   * and the pairs among them that do and do not run together.
+   *
+   * The leg each takes is what makes the split readable — two ways over one
+   * frog can never run, and two on different legs run exactly when the symbol
+   * says so — while `shares` names whatever actually blocks them, which need
+   * not be this symbol at all.
+   */
+  private inspected() {
+    if (this.symbol === null) return nothing;
+    const crossing = through(this.review!, this.symbol);
+    if (crossing.length === 0) return nothing;
+    const pairs = amongst(this.review!, this.symbol);
+    return html`
+      <section class="symbol">
+        <h2>${this.symbol}<span class="count">${count(crossing.length, "transit")}</span></h2>
+        <ul class="transits">
+          ${crossing.map(
+            ({ connection, transit, legs }) => html`
+              <li>
+                <button
+                  class=${this.isChosen(connection, transit) ? "on" : ""}
+                  @click=${() => this.choose(connection, transit)}
+                >
+                  <span class="transit">${transit}</span>
+                  <span class="ends">${legs.join(", ")}</span>
+                </button>
+              </li>
+            `,
+          )}
+        </ul>
+        ${pairs.length === 0
+          ? nothing
+          : html`<ul class="against">${pairs.map((pair) => this.pair(pair))}</ul>`}
+      </section>
+    `;
+  }
+
+  private pair(pair: Pair) {
+    const legs = pair.legs.map((taken) => taken.join(", ")).join(" / ");
+    return html`
+      <li class=${pair.concurrent ? "with" : "without"}>
+        <span>${pair.one} + ${pair.two}</span>
+        <span class="why">
+          ${pair.concurrent
+            ? `runs together, on ${legs}`
+            : `shares ${pair.shared.join(", ") || "the way"}, on ${legs}`}
+        </span>
+      </li>
     `;
   }
 
@@ -127,6 +193,10 @@ export class TcNetlist extends LitElement {
       }),
     );
   }
+}
+
+function count(many: number, what: string): string {
+  return `${many} ${what}${many === 1 ? "" : "s"}`;
 }
 
 declare global {

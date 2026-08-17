@@ -9,7 +9,9 @@ import {
   type LibraryKind,
   type Pin,
 } from "../src/symbols.generated.js";
-import { PALETTE } from "../src/render/artwork.js";
+import type { SymbolSpec } from "../src/model/drawing.js";
+import { WHOLE } from "../src/model/inspect.js";
+import { PALETTE, artwork } from "../src/render/artwork.js";
 
 /**
  * The generated file is a set of types as much as a set of values, and a type
@@ -63,3 +65,37 @@ describe("the generated symbol library", () => {
     }
   });
 });
+
+/**
+ * A leg with no stroke of its own is the silent failure here: the way a
+ * chosen transit takes is lit leg by leg, so a leg the artwork draws as part
+ * of another one simply never lights, and the netlist claims a movement the
+ * picture does not show. That is invisible until somebody clicks the one
+ * transit that takes it, which is why it is asserted for every kind.
+ */
+describe("the artwork of a symbol whose legs the library fixes", () => {
+  it("draws each declared leg as a stroke of its own", () => {
+    for (const [kind, legs] of Object.entries(TRANSITS)) {
+      const spec = { kind } as SymbolSpec;
+      expect(litStrokes(artwork(spec))).toEqual([]);
+      expect(litStrokes(artwork(spec, new Set([WHOLE])))).toHaveLength(
+        Object.keys(legs).length,
+      );
+      for (const leg of Object.keys(legs)) {
+        expect(litStrokes(artwork(spec, new Set([leg])))).toHaveLength(1);
+      }
+    }
+  });
+});
+
+/** The class of every stroke a template lights. A template's values hold the
+ *  classes; nested ones hold the rest, and there is no DOM here to render into
+ *  (EDITOR.md's tests). */
+function litStrokes(drawn: unknown): string[] {
+  if (Array.isArray(drawn)) return drawn.flatMap(litStrokes);
+  if (typeof drawn === "string") return drawn.includes("lit") ? [drawn] : [];
+  if (typeof drawn === "object" && drawn !== null && "values" in drawn) {
+    return (drawn.values as unknown[]).flatMap(litStrokes);
+  }
+  return [];
+}

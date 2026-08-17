@@ -1,0 +1,265 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  WHOLE,
+  against,
+  amongst,
+  clashes,
+  lit,
+  through,
+} from "../src/model/inspect.js";
+import type { Review } from "../src/model/store.js";
+
+/**
+ * `crossover-yard`'s scissors, as `/review` answers it. Four transits over
+ * four turnouts and a diamond, with one concurrent pair: the two straights.
+ * It is the derivation DRAWING.md leans on hardest, and small enough to read.
+ */
+function scissors(): Review {
+  return {
+    red_pins: [],
+    junctions: [
+      {
+        name: "crossover",
+        names: ["crossover"],
+        symbols: [
+          "diamond",
+          "dn_e_points",
+          "dn_w_points",
+          "up_e_points",
+          "up_w_points",
+        ],
+      },
+    ],
+    joints: [],
+    layout: {
+      layout: "crossover-yard",
+      blocks: { dn_e: { length: 3200 } },
+      connections: {
+        crossover: {
+          transits: {
+            dn_straight: ["dn_e.A", "dn_w.B"],
+            dn_to_up: ["dn_w.B", "up_e.A"],
+            up_straight: ["up_e.A", "up_w.B"],
+            up_to_dn: ["dn_e.A", "up_w.B"],
+          },
+          concurrent: [["dn_straight", "up_straight"]],
+        },
+      },
+    },
+    explain: {
+      layout: "crossover-yard",
+      connections: {
+        crossover: {
+          transits: {
+            dn_straight: {
+              ends: ["dn_e.A", "dn_w.B"],
+              way: [
+                ["dn_e_points", "straight"],
+                ["dn_w_points", "straight"],
+              ],
+            },
+            dn_to_up: {
+              ends: ["dn_w.B", "up_e.A"],
+              way: [
+                ["dn_w_points", "diverging"],
+                ["diamond", "b"],
+                ["up_e_points", "diverging"],
+              ],
+            },
+            up_straight: {
+              ends: ["up_e.A", "up_w.B"],
+              way: [
+                ["up_e_points", "straight"],
+                ["up_w_points", "straight"],
+              ],
+            },
+            up_to_dn: {
+              ends: ["dn_e.A", "up_w.B"],
+              way: [
+                ["dn_e_points", "diverging"],
+                ["diamond", "a"],
+                ["up_w_points", "diverging"],
+              ],
+            },
+          },
+          exclusive: [
+            { transits: ["dn_straight", "dn_to_up"], shared: ["dn_w_points"] },
+            { transits: ["dn_straight", "up_to_dn"], shared: ["dn_e_points"] },
+            { transits: ["dn_to_up", "up_straight"], shared: ["up_e_points"] },
+            { transits: ["dn_to_up", "up_to_dn"], shared: ["diamond"] },
+            { transits: ["up_straight", "up_to_dn"], shared: ["up_w_points"] },
+          ],
+        },
+      },
+    },
+    refused: null,
+  };
+}
+
+describe("the way a chosen transit takes", () => {
+  it("lights each symbol on the way at the leg the way takes", () => {
+    const way = lit(scissors(), { connection: "crossover", transit: "up_to_dn" });
+    expect(way.get("dn_e_points")).toEqual(new Set(["diverging"]));
+    expect(way.get("diamond")).toEqual(new Set(["a"]));
+    expect(way.get("up_w_points")).toEqual(new Set(["diverging"]));
+  });
+
+  it("lights the two block ends the transit runs between, whole", () => {
+    const way = lit(scissors(), { connection: "crossover", transit: "up_to_dn" });
+    expect(way.get("dn_e")).toEqual(new Set([WHOLE]));
+    expect(way.get("up_w")).toEqual(new Set([WHOLE]));
+  });
+
+  it("lights a joiner whole, having no leg of its own to light", () => {
+    const found = scissors();
+    found.explain!.connections.crossover!.transits.dn_straight!.way = [
+      ["bend_3", ""],
+      ["dn_w_points", "straight"],
+    ];
+    const way = lit(found, { connection: "crossover", transit: "dn_straight" });
+    expect(way.get("bend_3")).toEqual(new Set([WHOLE]));
+  });
+
+  it("lights nothing when nothing is chosen, or when the choice is stale", () => {
+    expect(lit(scissors(), null).size).toBe(0);
+    expect(
+      lit(scissors(), { connection: "crossover", transit: "gone" }).size,
+    ).toBe(0);
+  });
+});
+
+describe("a chosen transit against the others at its connection", () => {
+  it("says which run with it and which cannot, naming the symbol shared", () => {
+    expect(against(scissors(), "crossover", "dn_straight")).toEqual([
+      { transit: "dn_to_up", concurrent: false, shared: ["dn_w_points"] },
+      { transit: "up_straight", concurrent: true, shared: [] },
+      { transit: "up_to_dn", concurrent: false, shared: ["dn_e_points"] },
+    ]);
+  });
+
+  it("is empty at a connection with one transit, and for one that is gone", () => {
+    expect(against(scissors(), "crossover", "gone")).toEqual([]);
+    expect(against(scissors(), "nowhere", "dn_straight")).toEqual([]);
+  });
+});
+
+describe("the transits through a symbol", () => {
+  it("names each with the leg of the symbol it takes", () => {
+    expect(through(scissors(), "diamond")).toEqual([
+      { connection: "crossover", transit: "dn_to_up", legs: ["b"] },
+      { connection: "crossover", transit: "up_to_dn", legs: ["a"] },
+    ]);
+  });
+
+  it("is empty for a symbol no transit crosses", () => {
+    expect(through(scissors(), "yard_stop")).toEqual([]);
+  });
+});
+
+describe("the pairs among the transits through a symbol", () => {
+  it("splits them into those that run together and those that cannot", () => {
+    expect(amongst(scissors(), "dn_e_points")).toEqual([
+      {
+        one: "dn_straight",
+        two: "up_to_dn",
+        concurrent: false,
+        shared: ["dn_e_points"],
+        legs: [["straight"], ["diverging"]],
+      },
+    ]);
+  });
+
+  it("names the symbol that blocks, which need not be the one selected", () => {
+    // Both ways over the diamond also cross a turnout each, but what stops
+    // them is the diamond itself: `shared` is the claim to check by looking.
+    expect(amongst(scissors(), "diamond")).toEqual([
+      {
+        one: "dn_to_up",
+        two: "up_to_dn",
+        concurrent: false,
+        shared: ["diamond"],
+        legs: [["b"], ["a"]],
+      },
+    ]);
+  });
+
+  it("reports a pair that runs together, sharing the symbol harmlessly", () => {
+    const found = scissors();
+    const crossover = found.explain!.connections.crossover!;
+    crossover.transits.dn_straight!.way = [["diamond", "a"]];
+    crossover.transits.up_straight!.way = [["diamond", "b"]];
+    const pairs = amongst(found, "diamond").filter(
+      (pair) => pair.one === "dn_straight" && pair.two === "up_straight",
+    );
+    expect(pairs).toEqual([
+      {
+        one: "dn_straight",
+        two: "up_straight",
+        concurrent: true,
+        shared: [],
+        legs: [["a"], ["b"]],
+      },
+    ]);
+  });
+});
+
+describe("names two connections cannot both wear", () => {
+  it("finds nothing to say about a drawing that agrees with itself", () => {
+    expect(clashes(scissors())).toEqual([]);
+  });
+
+  it("reports a name a split left on both halves, with each half's symbols", () => {
+    const found = scissors();
+    found.junctions = [
+      { name: "airolo", names: ["airolo"], symbols: ["sw1", "sw2"] },
+      { name: "airolo", names: ["airolo"], symbols: ["sw3"] },
+    ];
+    expect(clashes(found)).toEqual([
+      {
+        kind: "duplicate",
+        names: ["airolo"],
+        where: [
+          ["sw1", "sw2"],
+          ["sw3"],
+        ],
+      },
+    ]);
+  });
+
+  it("reports a junction whose own symbols disagree about its name", () => {
+    const found = scissors();
+    found.junctions = [
+      { name: null, names: ["airolo", "bodio"], symbols: ["sw1", "sw2"] },
+    ];
+    expect(clashes(found)).toEqual([
+      {
+        kind: "disagreement",
+        names: ["airolo", "bodio"],
+        where: [["sw1", "sw2"]],
+      },
+    ]);
+  });
+
+  it("reports a joint by its block ends, having no symbols to name", () => {
+    const found = scissors();
+    found.junctions = [
+      { name: "airolo", names: ["airolo"], symbols: ["sw1"] },
+    ];
+    found.joints = [
+      {
+        ends: ["dn_e.B", "yard_e.A"],
+        wires: [["dn_e.B", "yard_e.A"]],
+        name: "airolo",
+        names: ["airolo"],
+      },
+    ];
+    expect(clashes(found)).toEqual([
+      {
+        kind: "duplicate",
+        names: ["airolo"],
+        where: [["sw1"], ["dn_e.B", "yard_e.A"]],
+      },
+    ]);
+  });
+});

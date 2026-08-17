@@ -1,0 +1,203 @@
+/**
+ * Reading a `/review` back: what the netlist pane says and what the canvas
+ * lights.
+ *
+ * This is the feature the rest of the editor exists to serve (EDITOR.md).
+ * Airolo's WX310 composes 19 transits and 33 concurrent pairs out of four
+ * turnouts and a crossing, and nobody can confirm 33 pairs by reading them. A
+ * stated reason can be checked against the picture, so a transit names the
+ * symbol it shares with each rival and a symbol names the leg each transit
+ * through it takes.
+ *
+ * Nothing here derives anything. Every fact comes out of the answer the store
+ * gave, which is what keeps a second union-find out of the front end.
+ */
+
+import type { Review } from "./store.js";
+
+/** A symbol lit whole, having no leg of its own the artwork draws: a joiner,
+ *  a block end, the generic connection box. */
+export const WHOLE = "*";
+
+/** Which transit is selected, as the connection and the name within it. */
+export interface Chosen {
+  connection: string;
+  transit: string;
+}
+
+/**
+ * What the canvas lights for a chosen transit: each symbol on its way, at the
+ * legs the way takes, and the two block ends it runs between.
+ *
+ * The block ends are not on the way — derivation stops walking at a block —
+ * but they are what the transit joins, and lighting them is what makes the
+ * lit run read as one movement rather than as scattered frogs.
+ */
+export function lit(
+  review: Review,
+  chosen: Chosen | null,
+): Map<string, Set<string>> {
+  const found = new Map<string, Set<string>>();
+  if (chosen === null) return found;
+  const transit =
+    review.explain?.connections[chosen.connection]?.transits[chosen.transit];
+  if (transit === undefined) return found;
+  const light = (symbol: string, leg: string) => {
+    const legs = found.get(symbol) ?? new Set<string>();
+    legs.add(leg);
+    found.set(symbol, legs);
+  };
+  for (const [symbol, leg] of transit.way) light(symbol, leg === "" ? WHOLE : leg);
+  for (const end of transit.ends) light(end.split(".")[0]!, WHOLE);
+  return found;
+}
+
+/** One rival of a chosen transit: whether the two run together, and where a
+ *  refusal comes from. */
+export interface Against {
+  transit: string;
+  concurrent: boolean;
+  /** The symbols the two ways share that stop them, empty where they run. */
+  shared: string[];
+}
+
+/** Every other transit at a connection, against a chosen one. */
+export function against(
+  review: Review,
+  connection: string,
+  transit: string,
+): Against[] {
+  const derived = review.layout?.connections[connection];
+  if (derived === undefined || !(transit in derived.transits)) return [];
+  return Object.keys(derived.transits)
+    .filter((other) => other !== transit)
+    .map((other) => ({
+      transit: other,
+      ...verdict(review, connection, transit, other),
+    }));
+}
+
+/** One transit through a symbol, and the legs of that symbol it takes. */
+export interface Through {
+  connection: string;
+  transit: string;
+  legs: string[];
+}
+
+/** Every transit whose way crosses a symbol. The inverse of choosing a
+ *  transit: the drawing is read from the frog outwards. */
+export function through(review: Review, symbol: string): Through[] {
+  const found: Through[] = [];
+  for (const [connection, explained] of Object.entries(
+    review.explain?.connections ?? {},
+  )) {
+    for (const [transit, { way }] of Object.entries(explained.transits)) {
+      const legs = way
+        .filter(([crossed]) => crossed === symbol)
+        .map(([, leg]) => leg);
+      if (legs.length > 0) found.push({ connection, transit, legs });
+    }
+  }
+  return found;
+}
+
+/** Two transits through one symbol, and whether they run together. */
+export interface Pair {
+  one: string;
+  two: string;
+  concurrent: boolean;
+  shared: string[];
+  /** The legs of the selected symbol each of the two takes. */
+  legs: [string[], string[]];
+}
+
+/**
+ * Every pair among the transits through a symbol, split into those that can
+ * run together and those that cannot.
+ *
+ * What blocks a pair need not be the symbol selected — two ways over one
+ * diamond each cross a turnout as well — so `shared` names whatever does. The
+ * legs are what makes the claim checkable: a pair that shares a leg here can
+ * never run, and a pair on different legs is the symbol's own concurrency
+ * speaking.
+ */
+export function amongst(review: Review, symbol: string): Pair[] {
+  const crossing = through(review, symbol);
+  const pairs: Pair[] = [];
+  for (let i = 0; i < crossing.length; i++) {
+    for (let j = i + 1; j < crossing.length; j++) {
+      const [one, two] = [crossing[i]!, crossing[j]!];
+      if (one.connection !== two.connection) continue;
+      pairs.push({
+        one: one.transit,
+        two: two.transit,
+        legs: [one.legs, two.legs],
+        ...verdict(review, one.connection, one.transit, two.transit),
+      });
+    }
+  }
+  return pairs;
+}
+
+/** A name the drawing writes twice, or two names it writes on one connection.
+ *  Either way derivation refuses, and this says where to look. */
+export interface Clash {
+  kind: "duplicate" | "disagreement";
+  names: string[];
+  /** Where each connection involved is: a junction's symbols, or a joint's
+   *  two block ends, which is all a joint has to point at. */
+  where: string[][];
+}
+
+/**
+ * The name collisions and the split-junction duplicates, worked out from what
+ * the drawing writes rather than from the refusal.
+ *
+ * Derivation reports the first thing wrong and stops, and a duplicate name is
+ * worse than that: two junctions both called `airolo` derive as one
+ * connection, which is a wrong netlist rather than a refused one. The editor
+ * mints round its own `j7`s (naming.ts) and leaves a name someone typed alone,
+ * so what is left here is exactly the collisions a person has to settle.
+ */
+export function clashes(review: Review): Clash[] {
+  const connections = [
+    ...review.junctions.map((one) => ({ ...one, where: one.symbols })),
+    ...review.joints.map((one) => ({ ...one, where: [...one.ends] })),
+  ];
+  const found: Clash[] = connections
+    .filter((one) => one.names.length > 1)
+    .map((one) => ({
+      kind: "disagreement" as const,
+      names: one.names,
+      where: [one.where],
+    }));
+  const byName = new Map<string, string[][]>();
+  for (const one of connections) {
+    if (one.name === null) continue;
+    byName.set(one.name, [...(byName.get(one.name) ?? []), one.where]);
+  }
+  for (const [name, where] of byName) {
+    if (where.length > 1) found.push({ kind: "duplicate", names: [name], where });
+  }
+  return found;
+}
+
+/** Whether two transits at one connection run together, and where the refusal
+ *  comes from where they do not. The layout states the outcome and the
+ *  explanation states the reason, and neither is worked out here. */
+function verdict(
+  review: Review,
+  connection: string,
+  transit: string,
+  other: string,
+): { concurrent: boolean; shared: string[] } {
+  const concurrent = (
+    review.layout?.connections[connection]?.concurrent ?? []
+  ).some((pair) => pair.includes(transit) && pair.includes(other));
+  const shared =
+    (review.explain?.connections[connection]?.exclusive ?? []).find(
+      (pair) =>
+        pair.transits.includes(transit) && pair.transits.includes(other),
+    )?.shared ?? [];
+  return { concurrent, shared: concurrent ? [] : shared };
+}

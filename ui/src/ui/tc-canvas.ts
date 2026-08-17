@@ -23,12 +23,22 @@ import {
   transformOf,
   type Point,
 } from "../model/geometry.js";
+import { clashes, lit, type Chosen } from "../model/inspect.js";
 import type { Joint, Review } from "../model/store.js";
 import { artwork } from "../render/artwork.js";
 import { canvasStyles } from "./styles.js";
-import type { Chosen } from "./tc-netlist.js";
 
 const HIT = 0.22; // how near a pointer has to come to a pin, in squares
+
+/** What a canvas with no review yet reads as. */
+const EMPTY: Review = {
+  red_pins: [],
+  junctions: [],
+  joints: [],
+  layout: null,
+  explain: null,
+  refused: null,
+};
 
 interface Box {
   x: number;
@@ -145,6 +155,11 @@ export class TcCanvas extends LitElement {
    *  computes. Tinting it as one region is what makes a stray wire that
    *  merged two throats visible long before it is a wrong concurrency pair. */
   private junctions(): unknown {
+    // A name collision is shown at the edit that caused it (EDITOR.md), and
+    // where it is is the region wearing the name, not a sentence in a panel.
+    const troubled = new Set(
+      clashes(this.review ?? EMPTY).flatMap((clash) => clash.where.flat()),
+    );
     return (this.review?.junctions ?? []).map((junction, index) => {
       const cells = junction.symbols.flatMap((name) => {
         const spec = this.editor.drawing.symbols[name];
@@ -153,25 +168,18 @@ export class TcCanvas extends LitElement {
       if (cells.length === 0) return nothing;
       const left = Math.min(...cells.map(([c]) => c));
       const top = Math.min(...cells.map(([, r]) => r));
+      const wrong = junction.symbols.some((name) => troubled.has(name));
       return svg`
-        <g class=${`junction tint-${index % 6}`}>
+        <g class=${`junction tint-${index % 6} ${wrong ? "clashing" : ""}`}>
           ${cells.map(
             ([c, r]) => svg`<rect x=${c} y=${r} width="1" height="1" />`,
           )}
-          <text x=${left + 0.1} y=${top - 0.15}>${junction.name ?? "unnamed"}</text>
+          <text x=${left + 0.1} y=${top - 0.15}>${
+            junction.name ?? (junction.names.join(" / ") || "unnamed")
+          }</text>
         </g>
       `;
     });
-  }
-
-  /** The way a chosen transit takes, symbol by symbol and leg by leg. Naming
-   *  the frog that makes two transits exclusive is a claim about the drawing,
-   *  and this is where it is checked by looking. */
-  private lit(): Set<string> {
-    if (this.chosen === null) return new Set();
-    const way = this.review?.explain?.connections[this.chosen.connection]
-      ?.transits[this.chosen.transit]?.way;
-    return new Set((way ?? []).map(([symbol]) => symbol));
   }
 
   private wires(): unknown {
@@ -185,8 +193,11 @@ export class TcCanvas extends LitElement {
     });
   }
 
+  /** The way a chosen transit takes, symbol by symbol and leg by leg. Naming
+   *  the frog that makes two transits exclusive is a claim about the drawing,
+   *  and this is where it is checked by looking. */
   private symbols(): unknown {
-    const lit = this.lit();
+    const way = lit(this.review ?? EMPTY, this.chosen);
     return Object.entries(this.editor.drawing.symbols).map(([name, spec]) => {
       const chosen = this.editor.selection.has(name);
       const shifted = this.shift(name);
@@ -197,11 +208,13 @@ export class TcCanvas extends LitElement {
       const below = centre.y + placed(spec).footprint.h / 2 + 0.32;
       return svg`
         <g
-          class=${`symbol ${chosen ? "selected" : ""} ${lit.has(name) ? "lit" : ""}`}
+          class=${`symbol ${chosen ? "selected" : ""}`}
           data-symbol=${name}
           transform=${`translate(${shifted.x} ${shifted.y})`}
         >
-          <g transform=${transformOf(spec)}>${artwork(spec)}</g>
+          <g transform=${transformOf(spec)}>
+            ${artwork(spec, way.get(name))}
+          </g>
           ${
             spec.kind === "pin"
               ? nothing
@@ -299,7 +312,7 @@ export class TcCanvas extends LitElement {
     if (symbol === null) {
       this.editor.clearSelection();
       this.band = { from: point, to: point };
-      this.requestUpdate();
+      this.picked();
       return;
     }
     if (!this.editor.selection.has(symbol)) {
@@ -310,7 +323,7 @@ export class TcCanvas extends LitElement {
       );
     }
     this.drag = { from: point, dx: 0, dy: 0 };
-    this.requestUpdate();
+    this.picked();
   }
 
   private moved(event: PointerEvent): void {
@@ -353,7 +366,7 @@ export class TcCanvas extends LitElement {
       const { from, to } = this.band;
       this.band = null;
       this.editor.select(this.within(from, to));
-      this.requestUpdate();
+      this.picked();
     }
   }
 
@@ -374,7 +387,7 @@ export class TcCanvas extends LitElement {
     const symbol = pin === null ? this.symbolAt(point) : symbolOf(pin);
     if (symbol !== null && !this.editor.selection.has(symbol)) {
       this.editor.select([symbol]);
-      this.requestUpdate();
+      this.picked();
     }
     const junction =
       symbol === null
@@ -495,6 +508,16 @@ export class TcCanvas extends LitElement {
   private changed(): void {
     this.requestUpdate();
     this.dispatchEvent(new CustomEvent("edit", { bubbles: true, composed: true }));
+  }
+
+  /** The selection changed, the document not. The netlist pane inspects the
+   *  one selected symbol, so the editor has to hear about it: the canvas holds
+   *  the same `Editor` across the change, and Lit sees no changed property. */
+  private picked(): void {
+    this.requestUpdate();
+    this.dispatchEvent(
+      new CustomEvent("picked", { bubbles: true, composed: true }),
+    );
   }
 }
 
