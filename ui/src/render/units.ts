@@ -23,9 +23,8 @@ export const PIN = W / 2;
 export const BEND = 0.75 * W;
 
 /**
- * The weight of a mark the sample tiles draw as a one-unit line: a slip's tick
- * and the strokes at a portal's mouth. Thinner than any track, which is what
- * keeps a mark a mark.
+ * The weight of a mark the sample tiles draw as a one-unit line: the strokes at
+ * a portal's mouth. Thinner than any track, which is what keeps a mark a mark.
  */
 export const HAIRLINE = 0.03;
 
@@ -89,8 +88,16 @@ export const PORTAL = {
  * strokes, one parallel to each of the two legs the road joins. `off` is how
  * far a stroke sits from its leg's centreline, and `arm` how far it runs from
  * the corner where the two offset lines cross.
+ *
+ * The tick carries its own weight rather than the portal mouth's hairline. It
+ * is the one mark that has to read against 45 degree track beside it, and at a
+ * hairline it did not (#59), so it is half again as heavy and a third longer.
+ * `lit` is what it grows to when a transit takes the slip road, kept in
+ * proportion to the weight rather than pinned to a number of its own.
  */
-export const SLIP = { off: 0.22, arm: 0.14 };
+const TICK = 0.045;
+
+export const SLIP = { off: 0.22, arm: 0.182, weight: TICK, lit: 1.5 * TICK };
 
 /** The label inside a block, which is the only text a symbol carries. */
 export const LABEL = { size: 0.22 };

@@ -15,6 +15,7 @@ import {
   COLOURS,
   HAIRLINE,
   LABEL,
+  SLIP,
   TERMINAL,
   W,
 } from "../render/units.js";
@@ -166,7 +167,7 @@ const symbols = css`
   }
 
   .tick {
-    stroke-width: ${HAIRLINE};
+    stroke-width: ${SLIP.weight};
   }
 `;
 
@@ -363,11 +364,11 @@ export const canvasStyles = css`
   }
 
   /* A slip's tick is the only thing telling its road from the through route, so
-     it lights with the transit. It stays a mark: twice the hairline is enough to
-     read beside track four times as thick. */
+     it lights with the transit. It stays a mark: half again its own weight is
+     enough to read beside track three times as thick. */
   .symbol .tick.lit {
     stroke: var(--lit);
-    stroke-width: ${2 * HAIRLINE};
+    stroke-width: ${SLIP.lit};
   }
 
   /* A block's body covers all but the stubs of its track, so the end of a lit
