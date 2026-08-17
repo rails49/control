@@ -41,6 +41,10 @@ import type { Properties } from "./tc-properties.js";
  *  again is about what the wheel gives for a comfortable turn of it. */
 const OUT = 1.25;
 
+/** What a keystroke belongs to rather than to the canvas: the controls the
+ *  editor puts on screen, and the native ones they are built from. */
+const CONTROLS = "sl-input, sl-select, input, textarea";
+
 @customElement("tc-editor")
 export class TcEditor extends LitElement {
   static override styles = appStyles;
@@ -378,8 +382,15 @@ export class TcEditor extends LitElement {
     // The listener is on the window, so an event from inside a shadow root
     // arrives retargeted to this host. The composed path is what still says
     // where it started, and a key typed into a control is that control's.
-    const from = event.composedPath()[0];
-    if (from instanceof HTMLElement && from.closest("sl-input, sl-select")) {
+    //
+    // A Shoelace control keeps a native input in its own shadow root, so the
+    // path starts there and `closest` stops at the boundary without ever
+    // reaching the host. Walking the path is what crosses it.
+    if (
+      event
+        .composedPath()
+        .some((node) => node instanceof HTMLElement && node.matches(CONTROLS))
+    ) {
       return;
     }
     const meta = event.metaKey || event.ctrlKey;

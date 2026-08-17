@@ -42,7 +42,8 @@ src/
     tc-properties.ts  the properties dialog
     tc-menu.ts     the right-click menu
     styles.ts      every component's styles
-test/            vitest, against model/ — no DOM
+test/            vitest, against model/; keys.test.ts is the one that needs
+                 a DOM (happy-dom), the shortcuts being about shadow roots
 ```
 
 **The front end knows no topology.** Pin degrees, junction membership, the
