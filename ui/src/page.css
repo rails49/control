@@ -1,0 +1,11 @@
+/* The page itself. Everything else is in a component's own styles. */
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: #fbfbfa;
+}

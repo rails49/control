@@ -1,0 +1,337 @@
+/**
+ * The editing session: a drawing, what is selected, the wire being drawn, and
+ * the snapshots undo restores.
+ *
+ * No DOM, so this is where the tests are (EDITOR.md). It is the layer where a
+ * bug is invisible on screen and corrupt in the file — a move that detaches a
+ * wire, an undo that half-restores — and the layer a Lit component should have
+ * nothing to add to.
+ *
+ * It derives nothing. Counting the wires a pin holds is reading the document;
+ * junctions, transits and what excludes what come from the store's `/review`.
+ */
+
+import { PINS, type Kind } from "../symbols.generated.js";
+import {
+  clone,
+  symbolOf,
+  wirePins,
+  type Drawing,
+  type PinRef,
+  type SymbolSpec,
+} from "./drawing.js";
+import { anchorOf, faceAt, flipped, movedBy, turned } from "./geometry.js";
+
+/** What a new symbol of each kind is called: `sw1`, `sw2`, and so on. */
+const PREFIXES: Record<Kind, string> = {
+  block: "b",
+  terminal: "end",
+  portal: "portal",
+  pin: "n",
+  turnout: "sw",
+  crossing: "x",
+  single_slip: "ss",
+  double_slip: "ds",
+};
+
+const DEPTH = 200; // snapshots kept; the document is small and edits are rare
+
+export class Editor {
+  private past: Drawing[] = [];
+  private future: Drawing[] = [];
+  private chosen = new Set<string>();
+  private drawingFrom: PinRef | null = null;
+
+  constructor(private current: Drawing) {}
+
+  get drawing(): Drawing {
+    return this.current;
+  }
+
+  get selection(): ReadonlySet<string> {
+    return this.chosen;
+  }
+
+  /** The pin a wire is being drawn from, if one is. */
+  get pendingFrom(): PinRef | null {
+    return this.drawingFrom;
+  }
+
+  get canUndo(): boolean {
+    return this.past.length > 0;
+  }
+
+  get canRedo(): boolean {
+    return this.future.length > 0;
+  }
+
+  // --- reading the document ----------------------------------------------
+
+  /** The wires a pin holds. Two is what every pin wants; a bend wants both
+   *  of its own, being a bend rather than an end. */
+  degree(pin: PinRef): number {
+    return this.current.wires.filter((wire) => wirePins(wire).includes(pin))
+      .length;
+  }
+
+  /** Whether a pin can take another wire. */
+  free(pin: PinRef): boolean {
+    const spec = this.current.symbols[symbolOf(pin)];
+    return spec !== undefined && this.degree(pin) < wiresWanted(spec.kind);
+  }
+
+  pinsOf(name: string): PinRef[] {
+    const spec = this.current.symbols[name];
+    return spec === undefined
+      ? []
+      : PINS[spec.kind].map((pin) => `${name}.${pin}`);
+  }
+
+  /** Every pin on the drawing, with where it sits. */
+  allPins(): { pin: PinRef; x: number; y: number }[] {
+    return Object.entries(this.current.symbols).flatMap(([name, spec]) =>
+      PINS[spec.kind].map((pin) => ({
+        pin: `${name}.${pin}`,
+        ...anchorOf(spec, pin),
+      })),
+    );
+  }
+
+  // --- placing and editing symbols ---------------------------------------
+
+  /** Place a symbol from the palette, joining any pin it lands on. */
+  place(kind: Kind, at: [number, number]): string {
+    this.push();
+    const name = mint(this.current, kind);
+    this.current.symbols[name] = { kind, at, ...defaults(kind, name) };
+    this.abut([name]);
+    this.chosen = new Set([name]);
+    return name;
+  }
+
+  /**
+   * Give every unplaced symbol somewhere to be dragged from, and say whether
+   * there was anything to do.
+   *
+   * No committed drawing has any placement and there is no auto-layout, so
+   * each railroad is drawn once by hand (EDITOR.md). Opening one would
+   * otherwise pile every symbol on the origin, where the first drag cannot
+   * pick one out. Dealing them into rows says nothing about the topology, and
+   * it is an ordinary edit: undo takes it back and it reaches the file only if
+   * the drawing is saved.
+   */
+  stage(): boolean {
+    const loose = Object.entries(this.current.symbols).filter(
+      ([, spec]) => spec.at === undefined,
+    );
+    if (loose.length === 0) return false;
+    this.push();
+    const across = Math.ceil(Math.sqrt(loose.length));
+    loose.forEach(([name, spec], index) => {
+      const at: [number, number] = [
+        (index % across) * 3,
+        Math.floor(index / across) * 3,
+      ];
+      this.current.symbols[name] = { ...spec, at };
+    });
+    return true;
+  }
+
+  select(names: Iterable<string>, add = false): void {
+    const chosen = add ? new Set(this.chosen) : new Set<string>();
+    for (const name of names) chosen.add(name);
+    this.chosen = chosen;
+  }
+
+  clearSelection(): void {
+    this.chosen = new Set();
+  }
+
+  /**
+   * Move the selection. Wires carry no geometry, so every wire the move
+   * touches rubber-bands by itself and a move cannot change what derives.
+   */
+  move(dx: number, dy: number): void {
+    if (this.chosen.size === 0 || (dx === 0 && dy === 0)) return;
+    this.push();
+    for (const name of this.chosen) {
+      this.current.symbols[name] = movedBy(this.at(name), dx, dy);
+    }
+    this.abut([...this.chosen]);
+  }
+
+  /** A quarter turn clockwise, each selected symbol about its own cell. */
+  rotate(): void {
+    this.transform(turned);
+  }
+
+  flip(): void {
+    this.transform(flipped);
+  }
+
+  /** Delete the selection, and with it every wire it holds. Whatever was on
+   *  the far end of those wires is left a pin short, which `/review` reports
+   *  as red. */
+  remove(): void {
+    if (this.chosen.size === 0) return;
+    this.push();
+    const gone = new Set(this.chosen);
+    for (const name of gone) delete this.current.symbols[name];
+    this.current.wires = this.current.wires.filter(
+      (wire) => !wirePins(wire).some((pin) => gone.has(symbolOf(pin))),
+    );
+    this.chosen = new Set();
+  }
+
+  // --- drawing wires ------------------------------------------------------
+
+  /** Start a wire at a pin, or end the one in progress there. */
+  startWire(pin: PinRef): void {
+    this.drawingFrom = pin;
+  }
+
+  /** A click on empty canvas: a bend at the nearest face centre, and the wire
+   *  carries on from it. */
+  bend(x: number, y: number): PinRef {
+    if (this.drawingFrom === null) throw new Error("no wire is being drawn");
+    this.push();
+    const name = mint(this.current, "pin");
+    const { at, rot } = faceAt(x, y);
+    this.current.symbols[name] = { kind: "pin", at, rot };
+    this.current.wires.push([this.drawingFrom, `${name}.P`]);
+    this.drawingFrom = `${name}.P`;
+    return this.drawingFrom;
+  }
+
+  /** End the wire at a pin. Refused where the pin has no room, so a click
+   *  that cannot land is a click that does nothing. */
+  endWire(pin: PinRef): boolean {
+    if (this.drawingFrom === null || pin === this.drawingFrom) return false;
+    if (!this.free(pin) || this.joined(this.drawingFrom, pin)) return false;
+    this.push();
+    this.current.wires.push([this.drawingFrom, pin]);
+    this.drawingFrom = null;
+    return true;
+  }
+
+  /** Whether a wire already joins two pins. Two bends each want two wires, so
+   *  a second wire between the same pair would fill both and read as a
+   *  finished joint while being a parallel edge nobody drew. */
+  private joined(a: PinRef, b: PinRef): boolean {
+    return this.current.wires.some((wire) => {
+      const pins = wirePins(wire);
+      return pins.includes(a) && pins.includes(b);
+    });
+  }
+
+  /** Abandon the wire. What is already drawn stays, ending in a red pin,
+   *  which is the normal state of a drawing mid-edit. */
+  cancelWire(): void {
+    this.drawingFrom = null;
+  }
+
+  /**
+   * Join every free pin of these symbols to a free pin sitting on the same
+   * point. Dropping a symbol onto another is the fast way to wire them, and
+   * what it writes is a real wire of zero length: dragging apart later
+   * stretches it rather than breaking the joint.
+   */
+  abut(names: string[]): void {
+    const moved = new Set(names);
+    const pins = this.allPins();
+    for (const { pin, x, y } of pins) {
+      if (!moved.has(symbolOf(pin))) continue;
+      for (const other of pins) {
+        if (
+          symbolOf(other.pin) !== symbolOf(pin) &&
+          other.x === x &&
+          other.y === y &&
+          this.free(pin) &&
+          this.free(other.pin) &&
+          !this.joined(pin, other.pin)
+        ) {
+          this.current.wires.push([pin, other.pin]);
+        }
+      }
+    }
+  }
+
+  // --- undo ---------------------------------------------------------------
+
+  undo(): void {
+    this.step(this.past, this.future);
+  }
+
+  redo(): void {
+    this.step(this.future, this.past);
+  }
+
+  /** Take a snapshot. Every mutation calls it first: the document is small,
+   *  so a copy per edit is cheaper than working out what changed. */
+  push(): void {
+    this.past.push(clone(this.current));
+    if (this.past.length > DEPTH) this.past.shift();
+    this.future = [];
+  }
+
+  /** Adopt a drawing, forgetting the edits that led to the last one — what
+   *  loading a railroad does. */
+  reset(drawing: Drawing): void {
+    this.current = drawing;
+    this.past = [];
+    this.future = [];
+    this.chosen = new Set();
+    this.drawingFrom = null;
+  }
+
+  private step(from: Drawing[], to: Drawing[]): void {
+    const restored = from.pop();
+    if (restored === undefined) return;
+    to.push(clone(this.current));
+    this.current = restored;
+    this.drawingFrom = null;
+    this.chosen = new Set(
+      [...this.chosen].filter((name) => name in this.current.symbols),
+    );
+  }
+
+  private transform(change: (spec: SymbolSpec) => SymbolSpec): void {
+    if (this.chosen.size === 0) return;
+    this.push();
+    for (const name of this.chosen) {
+      this.current.symbols[name] = change(this.at(name));
+    }
+    this.abut([...this.chosen]);
+  }
+
+  private at(name: string): SymbolSpec {
+    const spec = this.current.symbols[name];
+    if (spec === undefined) throw new Error(`no symbol '${name}'`);
+    return spec;
+  }
+}
+
+/** A free-standing bend joins two wires; every other pin joins one, the
+ *  symbol itself being its second connection. */
+export function wiresWanted(kind: Kind): number {
+  return kind === "pin" ? 2 : 1;
+}
+
+/** The properties a kind cannot do without, so that a placed symbol is a
+ *  document the store will take. A portal's label is what pairs it, and an
+ *  empty one is not a name, so a fresh portal is labelled after itself and
+ *  stays unpaired until someone says what it pairs with. */
+function defaults(kind: Kind, name: string): Partial<SymbolSpec> {
+  if (kind === "block") return { length: 1000 };
+  if (kind === "portal") return { label: name };
+  return {};
+}
+
+/** The lowest free `<prefix><n>` for a kind. */
+export function mint(drawing: Drawing, kind: Kind): string {
+  const prefix = PREFIXES[kind];
+  for (let n = 1; ; n++) {
+    const name = `${prefix}${n}`;
+    if (!(name in drawing.symbols)) return name;
+  }
+}

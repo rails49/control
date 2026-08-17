@@ -89,6 +89,12 @@ ui/                         the layout editor: TypeScript, pnpm, Lit
                             src/symbols.generated.ts is written by
                             `tc49 symbols` from store/drawing.py's symbol
                             library, and a test asserts it is current
+              src/model/    the document, the geometry, the editing session,
+                            connection naming and the store client — no DOM,
+                            and what the Vitest tests target
+              src/render/   the artwork, hand-written per kind
+              src/ui/       the Lit components: shell, palette, canvas
+              test/         the Vitest tests
 
 layouts/                    <layout>.drawing.yaml — the drawn railroads,
                             the only committed topology; the store derives

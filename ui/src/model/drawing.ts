@@ -1,0 +1,82 @@
+/**
+ * The drawing document, exactly as the store serves and takes it back
+ * (store/DRAWING.md).
+ *
+ * The editor holds the document itself rather than a model of its own. A
+ * second model would have to be converted both ways on every load and save,
+ * and the conversion is where a symbol's comment, or a key the editor does
+ * not know about, would quietly go missing.
+ *
+ * Nothing here derives anything. Which pin joins which is the document's, but
+ * what that means — junctions, transits, what excludes what — comes from the
+ * store's `/review` (EDITOR.md).
+ */
+
+import type { Kind, Rotation } from "../symbols.generated.js";
+
+/** A pin, written `<symbol>.<pin>`. */
+export type PinRef = string;
+
+/**
+ * A wire is a pair of pins. The mapping form is for a wire that joins two
+ * blocks, which is itself the connection holding their transit and so needs a
+ * name.
+ */
+export type Wire =
+  | [PinRef, PinRef]
+  | { pins: [PinRef, PinRef]; connection: string };
+
+export interface SymbolSpec {
+  kind: Kind;
+  /** The grid cell of the symbol's top-left square. */
+  at?: [number, number];
+  rot?: Rotation;
+  flip?: boolean;
+  /** Which appearance of a crossing or slip to draw. */
+  angle?: string;
+  /** Blocks. */
+  length?: number;
+  sensors?: Record<string, string>;
+  /** Blocks and portals: a display name, and a portal's pairing label. */
+  label?: string;
+  /** The junction this symbol belongs to. */
+  connection?: string;
+  /** Transit names, keyed by the symbol leg the way through takes. */
+  names?: Record<string, string>;
+}
+
+export interface Drawing {
+  drawing: string;
+  units?: string;
+  symbols: Record<string, SymbolSpec>;
+  wires: Wire[];
+}
+
+export function emptyDrawing(name: string): Drawing {
+  return { drawing: name, symbols: {}, wires: [] };
+}
+
+export function clone(drawing: Drawing): Drawing {
+  return structuredClone(drawing);
+}
+
+export function wirePins(wire: Wire): [PinRef, PinRef] {
+  return Array.isArray(wire) ? wire : wire.pins;
+}
+
+export function wireConnection(wire: Wire): string | undefined {
+  return Array.isArray(wire) ? undefined : wire.connection;
+}
+
+/** The two pins a wire joins, sorted, which is how one is identified. */
+export function wireKey(wire: Wire): string {
+  return [...wirePins(wire)].sort().join(" ");
+}
+
+export function symbolOf(pin: PinRef): string {
+  return pin.slice(0, pin.indexOf("."));
+}
+
+export function pinName(pin: PinRef): string {
+  return pin.slice(pin.indexOf(".") + 1);
+}

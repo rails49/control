@@ -234,7 +234,11 @@ A placed block reads `west: { kind: block, length: 1000, at: [2, 4] }`.
 The canvas is a grid of squares. A symbol occupies whole squares and pins sit
 at the centres of square sides, which is why rotation is a multiple of 90
 degrees. A free-standing pin sits at a face centre like any other pin, and
-being on a boundary rather than in a square it occupies none.
+being on a boundary rather than in a square it occupies none. It is placed by
+the same two keys as everything else: `at` names a cell and `rot` turns its one
+pin onto that cell's west, north, east or south face. A face belongs to two
+cells, so the editor always writes the cell east or south of it and one face
+has one spelling.
 
 Wires carry no geometry. A wire is drawn straight between its two pins, and a
 bend is a free-standing pin, which is a symbol with a placement of its own.

@@ -44,7 +44,15 @@ angles, not from rotating symbols.
 A free-standing pin sits at a face centre like any other pin. Being on a
 boundary it occupies no square, so a bend may sit against an occupied one.
 
-Zoom and pan are the SVG `viewBox`.
+Zoom and pan are the SVG `viewBox`: the wheel zooms about the pointer and the
+middle button pans. A bend is placed by the same two keys as any other symbol,
+`at` naming a cell and `rot` turning its one pin onto a face of it
+([DRAWING.md](../store/DRAWING.md#geometry)).
+
+No committed drawing has any placement, so opening one deals its symbols into
+rows to be dragged from. That is not auto-layout and says nothing about the
+topology; it is an ordinary edit, undone like any other and saved only if the
+drawing is saved.
 
 ## Palette
 
@@ -66,10 +74,11 @@ ends, so there is nothing to place.
 
 Crossings and slips come in several appearances, because wires meet a symbol
 at whatever angle their pins give them and a crossing drawn for legs at 0 and
-15 degrees is not a rotation of one drawn for 15 and 30. All appearances of a
-kind share one footprint and one pin set, so choosing one is a property in the
-right-click dialog rather than a row of palette tiles, and choosing one can
-never resize a symbol or collide with a neighbour.
+15 degrees is not a rotation of one drawn for 15 and 30. An appearance changes
+the strokes between the pins and never the pins, so all appearances of a kind
+share one footprint and one pin set. Choosing one is therefore a property in
+the right-click dialog rather than a row of palette tiles, and it can never
+resize a symbol or collide with a neighbour.
 
 The generic connection symbol is not placed and not drawn. It has no fixed pin
 set to place, migration is over, and its last user is Gotthard's Claro east,
@@ -98,10 +107,12 @@ collision detection fighting every drag.
 ## Editing
 
 Left click selects; drag moves; mouse rubber-band or shift-click selects
-groups. Moves rubber-band the wires: an endpoint attached to a moved pin
-stays attached and stretches, and a wire whose both owners move translates
-rigidly, so a move can never change the derived layout. Rotate, flip, and
-delete apply to the selection, from a right-click menu with key bindings.
+groups. Moves rubber-band the wires: a wire carries no geometry and is drawn
+straight between its two pins, so an endpoint attached to a moved pin stays
+attached and stretches, a wire whose both owners move translates rigidly, and a
+move cannot change the derived layout. Rotate, flip, and delete apply to the
+selection, from a right-click menu with key bindings; each selected symbol
+turns about its own cell rather than the selection turning as a block.
 
 Deleting a symbol deletes its wires, and the pins at their far ends go red.
 
