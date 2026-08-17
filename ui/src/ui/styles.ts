@@ -1,26 +1,27 @@
 /**
  * The editor's styles, kept out of the components so that what a component
- * has is behaviour. Colours are custom properties on `tc-editor`, which is
- * where a theme would be set.
+ * has is behaviour.
+ *
+ * Every dimension and every colour comes from `render/units.ts`: the colours
+ * are declared here as the custom properties on `tc-editor` that the rules
+ * below read, and the widths are interpolated straight in, so a stroke is W
+ * wide because W says so and not because two files agree.
  */
 
-import { css } from "lit";
+import { css, unsafeCSS } from "lit";
+
+import { BLOCK, COLOURS, LABEL, TERMINAL, W } from "../render/units.js";
+
+/** The palette, as the custom properties every rule reads. */
+const palette = unsafeCSS(
+  Object.entries(COLOURS)
+    .map(([name, value]) => `${name}: ${value};`)
+    .join("\n    "),
+);
 
 export const appStyles = css`
   :host {
-    --ink: #1c1f24;
-    --paper: #fbfbfa;
-    --rule: #d9d6d0;
-    --track: #2b3038;
-    --chosen: #1f6feb;
-    --wrong: #cc2936;
-    --hint: #7c8087;
-    --tint-0: #1f6feb;
-    --tint-1: #14866d;
-    --tint-2: #a55b12;
-    --tint-3: #8250df;
-    --tint-4: #b3417a;
-    --tint-5: #56761c;
+    ${palette}
 
     display: grid;
     grid-template-rows: auto 1fr;
@@ -90,6 +91,61 @@ export const appStyles = css`
   }
 `;
 
+/**
+ * The symbols themselves, drawn the same on the canvas and on a palette tile:
+ * both are the symbol's own coordinates, one grid square to one user unit, so
+ * one set of rules serves both and a tile shows what will be placed. Track is
+ * solid and round-capped, never patterned — wires run at any angle, and a
+ * pattern's spacing would vary with direction.
+ */
+const symbols = css`
+  .track {
+    fill: none;
+    stroke: var(--track);
+    stroke-width: ${W};
+    stroke-linecap: round;
+  }
+
+  /* White in edit mode; run mode, out of scope for now, recolours it by
+     occupancy through the same class. */
+  .block-body {
+    fill: var(--body);
+    stroke: var(--track);
+    stroke-width: ${BLOCK.body.border};
+  }
+
+  .signal {
+    fill: var(--track);
+  }
+
+  .mast,
+  .stop,
+  .mark,
+  .portal-mouth {
+    fill: none;
+    stroke: var(--track);
+    stroke-linecap: butt;
+  }
+
+  .mast,
+  .mark {
+    stroke-width: ${0.5 * W};
+  }
+
+  .stop {
+    stroke-width: ${TERMINAL.bar.w};
+  }
+
+  .portal-mouth {
+    stroke-width: ${0.5 * W};
+    stroke-linejoin: round;
+  }
+
+  .bend {
+    fill: var(--track);
+  }
+`;
+
 export const paletteStyles = css`
   :host {
     display: block;
@@ -100,7 +156,7 @@ export const paletteStyles = css`
     font-size: 0.75rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--hint, #7c8087);
+    color: var(--hint);
     margin: 0.3rem 0.2rem;
   }
 
@@ -125,53 +181,17 @@ export const paletteStyles = css`
   }
 
   button[aria-pressed="true"] {
-    border-color: var(--chosen, #1f6feb);
+    border-color: var(--chosen);
     background: #e8f0fe;
   }
 
   svg {
-    width: 3rem;
+    width: 4rem;
     height: 1.6rem;
     flex: none;
   }
 
-  .track {
-    fill: none;
-    stroke: var(--track, #2b3038);
-    stroke-width: 0.09;
-    stroke-linecap: round;
-  }
-
-  .block-body {
-    fill: #dfe3e8;
-    stroke: var(--track, #2b3038);
-    stroke-width: 0.05;
-  }
-
-  .signal {
-    fill: var(--track, #2b3038);
-  }
-
-  .mast,
-  .stop {
-    fill: none;
-    stroke: var(--track, #2b3038);
-    stroke-width: 0.06;
-  }
-
-  .sensor {
-    fill: var(--hint, #7c8087);
-  }
-
-  .portal-mouth {
-    fill: none;
-    stroke: var(--track, #2b3038);
-    stroke-width: 0.06;
-  }
-
-  .bend {
-    fill: var(--track, #2b3038);
-  }
+  ${symbols}
 `;
 
 export const canvasStyles = css`
@@ -188,7 +208,7 @@ export const canvasStyles = css`
   }
 
   .sheet {
-    fill: var(--paper, #fbfbfa);
+    fill: var(--paper);
   }
 
   .squares {
@@ -197,7 +217,7 @@ export const canvasStyles = css`
 
   .grid {
     fill: none;
-    stroke: var(--rule, #d9d6d0);
+    stroke: var(--rule);
     stroke-width: 0.02;
   }
 
@@ -219,106 +239,70 @@ export const canvasStyles = css`
   /* A junction wearing a name another connection also wears, or two its own
      symbols disagree about: shown where it is rather than only in the panel. */
   .junction.clashing rect {
-    fill: var(--wrong, #cc2936);
+    fill: var(--wrong);
     opacity: 0.14;
   }
 
   .junction.clashing text {
-    fill: var(--wrong, #cc2936);
+    fill: var(--wrong);
   }
 
   .tint-0 {
-    color: var(--tint-0, #1f6feb);
+    color: var(--tint-0);
   }
   .tint-1 {
-    color: var(--tint-1, #14866d);
+    color: var(--tint-1);
   }
   .tint-2 {
-    color: var(--tint-2, #a55b12);
+    color: var(--tint-2);
   }
   .tint-3 {
-    color: var(--tint-3, #8250df);
+    color: var(--tint-3);
   }
   .tint-4 {
-    color: var(--tint-4, #b3417a);
+    color: var(--tint-4);
   }
   .tint-5 {
-    color: var(--tint-5, #56761c);
+    color: var(--tint-5);
   }
 
+  ${symbols}
+
+  /* A wire is track: same width, same round cap, so it joins a symbol's leg
+     seamlessly at whatever angle its two pins give it. */
   .wire {
-    stroke: var(--track, #2b3038);
-    stroke-width: 2.5;
+    stroke: var(--track);
+    stroke-width: ${W};
     stroke-linecap: round;
-    vector-effect: non-scaling-stroke;
   }
 
+  /* The wire following the pointer is an affordance rather than track, so it
+     keeps its width as the canvas is zoomed. */
   .wireline {
-    stroke: var(--chosen, #1f6feb);
+    stroke: var(--chosen);
     stroke-width: 2;
     stroke-dasharray: 6 4;
     vector-effect: non-scaling-stroke;
     pointer-events: none;
   }
 
-  .track {
-    fill: none;
-    stroke: var(--track, #2b3038);
-    stroke-width: 2.5;
-    stroke-linecap: round;
-    vector-effect: non-scaling-stroke;
-  }
-
-  .slip {
-    stroke-dasharray: 5 3;
-  }
-
-  .block-body {
-    fill: #dfe3e8;
-    stroke: var(--track, #2b3038);
-    stroke-width: 1.2;
-    vector-effect: non-scaling-stroke;
-  }
-
-  .signal {
-    fill: var(--track, #2b3038);
-  }
-
-  .mast,
-  .stop,
-  .portal-mouth {
-    fill: none;
-    stroke: var(--track, #2b3038);
-    stroke-width: 1.6;
-    vector-effect: non-scaling-stroke;
-  }
-
-  .sensor {
-    fill: var(--hint, #7c8087);
-  }
-
-  .bend {
-    fill: var(--track, #2b3038);
-  }
-
   /* The generic connection symbol shows no turnout detail, which is what it
      says about itself. */
   .opaque {
     fill: #edeae4;
-    stroke: var(--track, #2b3038);
-    stroke-width: 1.4;
-    stroke-dasharray: 5 3;
-    vector-effect: non-scaling-stroke;
+    stroke: var(--track);
+    stroke-width: ${0.5 * W};
+    stroke-dasharray: ${2 * W} ${W};
   }
 
   .symbol.selected .track,
   .symbol.selected .wire {
-    stroke: var(--chosen, #1f6feb);
+    stroke: var(--chosen);
   }
 
   .symbol.selected .block-body,
   .symbol.selected .opaque {
-    stroke: var(--chosen, #1f6feb);
+    stroke: var(--chosen);
   }
 
   /* The way a chosen transit takes, leg by leg: the legs of the symbols on it,
@@ -326,50 +310,54 @@ export const canvasStyles = css`
      a symbol both selected and on the way shows the way — which is the answer
      to the question selecting it asked. */
   .symbol .track.lit {
-    stroke: var(--tint-2, #a55b12);
-    stroke-width: 4.5;
+    stroke: var(--lit);
+    stroke-width: ${1.6 * W};
   }
 
   .symbol .bend.lit {
-    fill: var(--tint-2, #a55b12);
+    fill: var(--lit);
   }
 
   /* A block's body covers all but the stubs of its track, so the end of a lit
      transit would otherwise be two orange flecks. */
   .symbol .block-body.lit,
   .symbol .opaque.lit {
-    fill: #f4e3cd;
-    stroke: var(--tint-2, #a55b12);
+    fill: var(--lit-body);
+    stroke: var(--lit);
   }
 
   .name {
-    font: 0.22px system-ui, sans-serif;
-    fill: var(--hint, #7c8087);
+    font: ${LABEL.size}px system-ui, sans-serif;
+    fill: var(--hint);
     text-anchor: middle;
     pointer-events: none;
   }
 
+  /* A block's label is written inside its rectangle and a portal's beside its
+     mouth, so both are centred on their point rather than sitting on it. */
+  .name.inside {
+    fill: var(--ink);
+    dominant-baseline: middle;
+  }
+
+  /* Every pin is drawn while editing, green where it has the wire it wants and
+     red where it does not. The verdict is the store's, not the canvas's. */
   .pin {
-    fill: var(--paper, #fbfbfa);
-    stroke: var(--track, #2b3038);
-    stroke-width: 1.5;
-    vector-effect: non-scaling-stroke;
+    fill: var(--good);
   }
 
   .pin.red {
-    fill: var(--wrong, #cc2936);
-    stroke: var(--wrong, #cc2936);
+    fill: var(--wrong);
   }
 
   .pin.pending {
-    fill: var(--chosen, #1f6feb);
-    stroke: var(--chosen, #1f6feb);
+    fill: var(--chosen);
   }
 
   .band {
-    fill: var(--chosen, #1f6feb);
+    fill: var(--chosen);
     fill-opacity: 0.08;
-    stroke: var(--chosen, #1f6feb);
+    stroke: var(--chosen);
     stroke-width: 1;
     stroke-dasharray: 4 3;
     vector-effect: non-scaling-stroke;
@@ -390,9 +378,9 @@ export const menuStyles = css`
     padding: 0.25rem;
     list-style: none;
     min-width: 12rem;
-    border: 1px solid var(--rule, #d9d6d0);
+    border: 1px solid var(--rule);
     border-radius: 5px;
-    background: var(--paper, #fbfbfa);
+    background: var(--paper);
     box-shadow: 0 6px 18px rgb(0 0 0 / 0.14);
     font: 13px/1.4 system-ui, sans-serif;
   }
@@ -404,14 +392,14 @@ export const menuStyles = css`
     border: none;
     border-radius: 3px;
     background: none;
-    color: var(--ink, #1c1f24);
+    color: var(--ink);
     font: inherit;
     text-align: left;
     cursor: pointer;
   }
 
   button:hover {
-    background: var(--chosen, #1f6feb);
+    background: var(--chosen);
     color: #fff;
   }
 `;
@@ -428,12 +416,12 @@ export const propertiesStyles = css`
     font-size: 0.75rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--hint, #7c8087);
+    color: var(--hint);
   }
 
   .hint {
     margin: 0 0 0.5rem;
-    color: var(--hint, #7c8087);
+    color: var(--hint);
   }
 `;
 
@@ -452,16 +440,16 @@ export const netlistStyles = css`
     font-size: 0.75rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--hint, #7c8087);
+    color: var(--hint);
   }
 
   h2 {
-    color: var(--ink, #1c1f24);
+    color: var(--ink);
   }
 
   .count {
     font-weight: 400;
-    color: var(--hint, #7c8087);
+    color: var(--hint);
     text-transform: none;
     letter-spacing: 0;
   }
@@ -478,18 +466,18 @@ export const netlistStyles = css`
   section.symbol {
     margin-bottom: 0.9rem;
     padding: 0.1rem 0.5rem 0.5rem;
-    border-left: 3px solid var(--tint-2, #a55b12);
+    border-left: 3px solid var(--tint-2);
     background: #faf5ee;
   }
 
   .concurrent {
     margin: 0.15rem 0 0.3rem 0.3rem;
-    color: var(--tint-1, #14866d);
+    color: var(--tint-1);
   }
 
   .concurrent li::before {
     content: "runs with  ";
-    color: var(--hint, #7c8087);
+    color: var(--hint);
   }
 
   .blocks li {
@@ -524,13 +512,13 @@ export const netlistStyles = css`
 
   .ends,
   .why {
-    color: var(--hint, #7c8087);
+    color: var(--hint);
     font-variant-numeric: tabular-nums;
   }
 
   .against {
     margin: 0.2rem 0 0.5rem 0.8rem;
-    border-left: 2px solid var(--rule, #d9d6d0);
+    border-left: 2px solid var(--rule);
   }
 
   .against li {
@@ -541,14 +529,14 @@ export const netlistStyles = css`
   }
 
   .against .with span:first-child {
-    color: var(--tint-1, #14866d);
+    color: var(--tint-1);
   }
 
   .against .without span:first-child {
-    color: var(--wrong, #cc2936);
+    color: var(--wrong);
   }
 
   .hint {
-    color: var(--hint, #7c8087);
+    color: var(--hint);
   }
 `;

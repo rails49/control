@@ -24,7 +24,6 @@ import "@shoelace-style/shoelace/dist/components/select/select.js";
 
 import { PINS, TRANSITS, type LibraryKind } from "../symbols.generated.js";
 import type { SymbolSpec } from "../model/drawing.js";
-import { APPEARANCES, appearanceOf } from "../render/artwork.js";
 import { propertiesStyles } from "./styles.js";
 
 /** What the dialog hands back: a new name where it changed, and the spec. */
@@ -85,20 +84,8 @@ export class TcProperties extends LitElement {
         ></sl-input>
       `;
     }
-    const offered = APPEARANCES[this.draft.kind];
-    if (offered === undefined) return nothing;
-    return html`
-      <sl-select
-        label="Appearance"
-        help-text="How the legs are drawn. It moves no pin."
-        value=${appearanceOf(this.draft)}
-        @sl-change=${this.take("angle")}
-      >
-        ${offered.map(
-          (angle) => html`<sl-option value=${angle}>${angle}</sl-option>`,
-        )}
-      </sl-select>
-    `;
+    // Every other kind is drawn one way, so there is nothing per-kind to set.
+    return nothing;
   }
 
   private block() {
@@ -157,7 +144,7 @@ export class TcProperties extends LitElement {
     `;
   }
 
-  private take(key: "label" | "angle") {
+  private take(key: "label") {
     return (event: Event) => {
       this.draft = {
         ...this.draft,

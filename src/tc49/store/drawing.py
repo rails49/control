@@ -45,14 +45,20 @@ from tc49.lib.layout import (
 # None of them declares anything concurrent — every route through a crossing
 # or a slip takes the shared frog, and a turnout's two routes share its toe.
 #
-# `LIBRARY`, `PINS`, `ANGLED` and `ROTATIONS` are public because the editor's
-# TypeScript is generated from them (symbols.py); the rest of the module's
-# constants are its own.
+# The two 90 degree crossings offer the through routes and no slip, and are two
+# kinds rather than two appearances of one because their footprints and pin
+# positions differ (ui/EDITOR.md).
+#
+# `LIBRARY`, `PINS` and `ROTATIONS` are public because the editor's TypeScript
+# is generated from them (symbols.py); the rest of the module's constants are
+# its own.
 _CROSS = ("a1", "a2", "b1", "b2")
 _THROUGH = {"a": ("a1", "a2"), "b": ("b1", "b2")}
 LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
     "turnout": {"straight": ("toe", "straight"), "diverging": ("toe", "diverging")},
     "crossing": dict(_THROUGH),
+    "crossing_90": dict(_THROUGH),
+    "crossing_90d": dict(_THROUGH),
     "single_slip": {**_THROUGH, "slip": ("a1", "b2")},
     "double_slip": {**_THROUGH, "slip_1": ("a1", "b2"), "slip_2": ("b1", "a2")},
 }
@@ -69,6 +75,8 @@ PINS: dict[str, tuple[str, ...]] = {
     "pin": ("P",),
     "turnout": ("toe", "straight", "diverging"),
     "crossing": _CROSS,
+    "crossing_90": _CROSS,
+    "crossing_90d": _CROSS,
     "single_slip": _CROSS,
     "double_slip": _CROSS,
 }
@@ -76,11 +84,9 @@ _JOINERS = frozenset({BEND, "portal"})
 
 # Where a symbol sits on the canvas (ADR-0018). Derivation reads none of it, so
 # the schema check is all there is: a placement that loads is well-formed, and
-# nothing downstream can be changed by moving anything. `angle` picks which
-# appearance of a kind the editor draws, and only the kinds with several have
-# one.
+# nothing downstream can be changed by moving anything. Every kind is drawn one
+# way, so where it sits is the whole of its geometry.
 _PLACEMENT = frozenset({"at", "rot", "flip"})
-ANGLED = frozenset({"crossing", "single_slip", "double_slip"})
 ROTATIONS = (0, 90, 180, 270)
 
 Use = tuple[str, str]  # a symbol and the local transit a walk took through it
@@ -657,7 +663,7 @@ def _pair(joins: dict[str, list[str]], worn_by: list[str]) -> None:
 def _symbol(where: str, name: str, spec: Any) -> Symbol:
     as_mapping(spec, where)
     kind = spec.get("kind")
-    placement = _geometry(str(kind))
+    placement = set(_PLACEMENT)
     _check_geometry(spec, where)
     if kind == "block":
         check_keys(spec, where, {"kind", "length"}, {"sensors", "label"} | placement)
@@ -697,7 +703,7 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
 def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
     """A symbol of fixed geometry: its pins, its transits and its concurrency
     come from the library, so the drawing writes only the names it wants."""
-    check_keys(spec, where, {"kind"}, {"names", "connection"} | _geometry(kind))
+    check_keys(spec, where, {"kind"}, {"names", "connection"} | _PLACEMENT)
     transits = LIBRARY[kind]
 
     names: dict[str, str] = {}
@@ -732,7 +738,7 @@ def _connection_symbol(where: str, name: str, spec: Any) -> Symbol:
         spec,
         where,
         {"kind", "pins", "transits"},
-        {"concurrent", "connection"} | _geometry("connection"),
+        {"concurrent", "connection"} | _PLACEMENT,
     )
 
     pins: list[str] = []
@@ -786,11 +792,6 @@ def _connection_symbol(where: str, name: str, spec: Any) -> Symbol:
     )
 
 
-def _geometry(kind: str) -> set[str]:
-    """The placement keys a kind accepts, which every kind may write."""
-    return set(_PLACEMENT) | ({"angle"} if kind in ANGLED else set())
-
-
 def _check_geometry(spec: Any, where: str) -> None:
     if "at" in spec:
         at = spec["at"]
@@ -804,8 +805,6 @@ def _check_geometry(spec: Any, where: str) -> None:
         raise ValueError(f"{where}: rot must be one of {list(ROTATIONS)}")
     if "flip" in spec and not isinstance(spec["flip"], bool):
         raise ValueError(f"{where}: flip must be true or false")
-    if "angle" in spec:
-        check_name(spec["angle"], f"{where}: angle")
 
 
 def _wire(raw: Any, where: str) -> tuple[Any, str]:

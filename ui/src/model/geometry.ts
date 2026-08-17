@@ -32,47 +32,73 @@ export interface Footprint {
 
 /** The squares each kind covers, unturned. A bend covers none. */
 export const FOOTPRINTS: Record<Kind, Footprint> = {
-  block: { w: 2, h: 1 },
+  block: { w: 6, h: 1 },
   terminal: { w: 1, h: 1 },
   portal: { w: 1, h: 1 },
   pin: { w: 1, h: 1 },
-  turnout: { w: 2, h: 1 },
-  crossing: { w: 2, h: 2 },
-  single_slip: { w: 2, h: 2 },
-  double_slip: { w: 2, h: 2 },
+  turnout: { w: 1, h: 1 },
+  crossing: { w: 2, h: 1 },
+  crossing_90: { w: 1, h: 1 },
+  crossing_90d: { w: 2, h: 1 },
+  single_slip: { w: 2, h: 1 },
+  double_slip: { w: 2, h: 1 },
 };
 
 /**
- * Each pin at a face centre of its unturned footprint.
+ * Each pin at a face centre of its unturned footprint, per EDITOR.md's
+ * symbol geometry.
  *
- * A crossing and the slips are drawn as a diamond in a 2x2 square: route `a`
- * runs from the lower west corner to the upper east one and route `b` the
- * other way, which is what puts `a1` and `b1` on one side and `a2` and `b2`
- * on the other (store/DRAWING.md). A slip road then joins the two legs at the
- * bottom, `a1` to `b2`, and the double slip's second joins the two at the top.
+ * A crossing and the slips take two squares: route `a` is the horizontal and
+ * route `b` the 45 degree diagonal, and the two meet at the face centre the
+ * two squares share, which makes the crossing exactly two turnouts toe to toe.
+ * That is what puts `a1` and `b1` on one side and `a2` and `b2` on the other
+ * (store/DRAWING.md), and a slip is then a road from one side to the other.
  */
 const DIAMOND = {
-  b1: { x: 0, y: 0.5 },
-  a1: { x: 0, y: 1.5 },
+  a1: { x: 0, y: 0.5 },
   a2: { x: 2, y: 0.5 },
-  b2: { x: 2, y: 1.5 },
+  b1: { x: 0.5, y: 1 },
+  b2: { x: 1.5, y: 0 },
 };
 
 export const ANCHORS: { [K in Kind]: Record<(typeof PINS)[K][number], Point> } =
   {
-    block: { A: { x: 0, y: 0.5 }, B: { x: 2, y: 0.5 } },
+    block: { A: { x: 0, y: 0.5 }, B: { x: 6, y: 0.5 } },
     terminal: { P: { x: 0, y: 0.5 } },
     portal: { P: { x: 0, y: 0.5 } },
     pin: { P: { x: 0, y: 0.5 } },
     turnout: {
       toe: { x: 0, y: 0.5 },
-      straight: { x: 2, y: 0.5 },
-      diverging: { x: 1.5, y: 0 },
+      straight: { x: 1, y: 0.5 },
+      diverging: { x: 0.5, y: 0 },
     },
     crossing: DIAMOND,
     single_slip: DIAMOND,
     double_slip: DIAMOND,
+    // The upright one is the same crossing through the four faces of one
+    // square; the diagonal one is a symmetric X, which needs two squares
+    // because a symmetric X through one square would want corner pins.
+    crossing_90: {
+      a1: { x: 0, y: 0.5 },
+      a2: { x: 1, y: 0.5 },
+      b1: { x: 0.5, y: 1 },
+      b2: { x: 0.5, y: 0 },
+    },
+    crossing_90d: {
+      a1: { x: 0.5, y: 1 },
+      a2: { x: 1.5, y: 0 },
+      b1: { x: 0.5, y: 0 },
+      b2: { x: 1.5, y: 1 },
+    },
   };
+
+/** Where a kind's pin sits in the symbol's own coordinates, which is where the
+ *  artwork's legs have to end for the strokes and the wires to meet. */
+export function anchorIn(kind: Kind, pin: string): Point {
+  const point = (ANCHORS[kind] as Record<string, Point>)[pin];
+  if (point === undefined) throw new Error(`'${kind}' has no pin '${pin}'`);
+  return point;
+}
 
 /**
  * A generic connection symbol declares its own pins, so it has no footprint in
@@ -105,19 +131,45 @@ export function placed(spec: SymbolSpec): {
           footprint: FOOTPRINTS[spec.kind],
           anchors: ANCHORS[spec.kind] as Record<string, Point>,
         };
-  let { w, h } = base.footprint;
-  let anchors: Record<string, Point> = { ...base.anchors };
+  const { footprint, move } = placement(spec, base.footprint);
+  return { footprint, anchors: map(base.anchors, move) };
+}
 
-  // Flip first, then turn. Either order draws every symbol the editor can
-  // make, but only a fixed one makes `rot` and `flip` mean one thing.
+/**
+ * What a placement does: the footprint it leaves, and how it moves a point of
+ * the symbol's own coordinates into the cell at `at`.
+ *
+ * Flip first, then turn. Either order draws every symbol the editor can make,
+ * but only a fixed one makes `rot` and `flip` mean one thing.
+ */
+function placement(
+  spec: SymbolSpec,
+  base: Footprint,
+): { footprint: Footprint; move: (point: Point) => Point } {
+  let { w, h } = base;
+  const moves: ((point: Point) => Point)[] = [];
   if (spec.flip) {
-    anchors = map(anchors, ({ x, y }) => ({ x: w - x, y }));
+    const across = w;
+    moves.push(({ x, y }) => ({ x: across - x, y }));
   }
   for (let turn = (spec.rot ?? 0) / 90; turn > 0; turn--) {
-    anchors = map(anchors, ({ x, y }) => ({ x: h - y, y: x }));
+    const down = h;
+    moves.push(({ x, y }) => ({ x: down - y, y: x }));
     [w, h] = [h, w];
   }
-  return { footprint: { w, h }, anchors };
+  return {
+    footprint: { w, h },
+    move: (point) => moves.reduce((moved, step) => step(moved), point),
+  };
+}
+
+/** Where a point of a symbol's own coordinates lands on the grid: the same
+ *  flip, quarter turns and offset the pins take, which is what lets a label be
+ *  drawn upright beside a part of the artwork that turned. */
+export function gridPointOf(spec: SymbolSpec, local: Point): Point {
+  const [c, r] = spec.at ?? [0, 0];
+  const { x, y } = placement(spec, footprintOf(spec)).move(local);
+  return { x: c + x, y: r + y };
 }
 
 /** Where a pin of a placed symbol sits on the grid. */

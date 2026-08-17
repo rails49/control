@@ -95,8 +95,8 @@ describe("staging a drawing that has never been placed", () => {
 
 describe("abutting", () => {
   it("writes a real wire when a pin lands on another's", () => {
-    place("block", [0, 0]); // b1.B is at (2, 0.5)
-    place("terminal", [2, 0]); // end1.P is at (2, 0.5)
+    place("block", [0, 0]); // b1.B is at (6, 0.5)
+    place("terminal", [6, 0]); // end1.P is at (6, 0.5)
     expect(wires()).toEqual(["b1.B end1.P"]);
   });
 
@@ -104,7 +104,7 @@ describe("abutting", () => {
     // Position never determines topology: the joint is in the file, so
     // dragging stretches the wire instead of breaking it.
     place("block", [0, 0]);
-    place("terminal", [2, 0]);
+    place("terminal", [6, 0]);
     editor.select(["end1"]);
     editor.move(4, 3);
     expect(wires()).toEqual(["b1.B end1.P"]);
@@ -112,14 +112,14 @@ describe("abutting", () => {
 
   it("joins a pin once, however many pins share the point", () => {
     place("block", [0, 0]);
-    place("terminal", [2, 0]);
-    place("terminal", [2, 0]);
+    place("terminal", [6, 0]);
+    place("terminal", [6, 0]);
     expect(wires()).toEqual(["b1.B end1.P"]);
   });
 
   it("does not join a pin that already holds its wire", () => {
     place("block", [0, 0]);
-    place("terminal", [2, 0]);
+    place("terminal", [6, 0]);
     editor.select(["b1"]);
     editor.move(0, 0); // no move at all, and nothing to re-join
     expect(wires()).toEqual(["b1.B end1.P"]);
@@ -130,11 +130,11 @@ describe("abutting", () => {
     // both and reads as a finished joint while being an edge nobody drew.
     place("block", [0, 0]);
     editor.startWire("b1.B");
-    editor.bend(4, 0.5);
+    editor.bend(8, 0.5);
     editor.cancelWire();
     place("block", [0, 4]);
     editor.startWire("b2.B");
-    editor.bend(4, 0.5);
+    editor.bend(8, 0.5);
     editor.cancelWire();
     editor.select(["n1", "n2"]);
     editor.move(1, 0);
@@ -142,15 +142,15 @@ describe("abutting", () => {
   });
 
   it("joins on a rotation that brings two pins together", () => {
-    place("block", [0, 0]); // A at (0, 0.5), B at (2, 0.5)
-    place("terminal", [3, 0]); // P at (3, 0.5): nothing to join
+    place("block", [0, 0]); // A at (0, 0.5), B at (6, 0.5)
+    place("terminal", [7, 0]); // P at (7, 0.5): nothing to join
     expect(wires()).toEqual([]);
     editor.select(["end1"]);
-    editor.rotate(); // P swings to (3.5, 0)
-    editor.rotate(); // and on to (4, 0.5)
+    editor.rotate(); // P swings to (7.5, 0)
+    editor.rotate(); // and on to (8, 0.5)
     expect(wires()).toEqual([]);
     editor.select(["b1"]);
-    editor.move(2, 0); // b1.B now at (4, 0.5)
+    editor.move(2, 0); // b1.B now at (8, 0.5)
     expect(wires()).toEqual(["b1.B end1.P"]);
   });
 });
@@ -186,7 +186,7 @@ describe("drawing wires", () => {
 
   it("refuses a pin that already holds its wire", () => {
     place("block", [0, 0]);
-    place("terminal", [2, 0]); // abuts, filling end1.P
+    place("terminal", [6, 0]); // abuts, filling end1.P
     place("block", [8, 0]);
     editor.startWire("b2.A");
     expect(editor.endWire("end1.P")).toBe(false);
@@ -204,7 +204,7 @@ describe("drawing wires", () => {
     place("block", [8, 0]);
     place("block", [8, 4]);
     editor.startWire("b1.B");
-    editor.bend(4, 0.5);
+    editor.bend(8, 0.5);
     editor.endWire("b2.A");
     expect(editor.free("n1.P")).toBe(false);
   });
@@ -212,7 +212,7 @@ describe("drawing wires", () => {
   it("refuses a second wire between the same two pins", () => {
     place("block", [0, 0]);
     editor.startWire("b1.B");
-    editor.bend(4, 0.5);
+    editor.bend(8, 0.5);
     editor.cancelWire();
     place("block", [0, 4]);
     editor.startWire("b2.B");
@@ -227,7 +227,7 @@ describe("drawing wires", () => {
     // not an undo.
     place("block", [0, 0]);
     editor.startWire("b1.B");
-    editor.bend(4, 0.5);
+    editor.bend(8, 0.5);
     editor.cancelWire();
     expect(wires()).toEqual(["b1.B n1.P"]);
     expect(editor.pendingFrom).toBeNull();
@@ -237,7 +237,7 @@ describe("drawing wires", () => {
 describe("deleting", () => {
   it("takes the symbol's wires with it", () => {
     place("block", [0, 0]);
-    place("terminal", [2, 0]);
+    place("terminal", [6, 0]);
     editor.select(["end1"]);
     editor.remove();
     expect(editor.drawing.symbols.end1).toBeUndefined();
@@ -246,7 +246,7 @@ describe("deleting", () => {
 
   it("leaves the far pin a wire short, which is what makes it red", () => {
     place("block", [0, 0]);
-    place("terminal", [2, 0]);
+    place("terminal", [6, 0]);
     editor.select(["end1"]);
     editor.remove();
     expect(editor.degree("b1.B")).toBe(0);
@@ -296,7 +296,7 @@ describe("undo and redo", () => {
 
   it("restores wires as well as symbols", () => {
     place("block", [0, 0]);
-    place("terminal", [2, 0]);
+    place("terminal", [6, 0]);
     editor.select(["end1"]);
     editor.remove();
     editor.undo();
@@ -340,7 +340,7 @@ describe("undo and redo", () => {
   it("abandons a half-drawn wire", () => {
     place("block", [0, 0]);
     editor.startWire("b1.B");
-    editor.bend(4, 0.5);
+    editor.bend(8, 0.5);
     editor.undo();
     expect(editor.pendingFrom).toBeNull();
     expect(wires()).toEqual([]);
@@ -364,7 +364,7 @@ describe("the properties dialog", () => {
     // A wire is written `<symbol>.<pin>` and is the only thing pointing at a
     // symbol, so a rename that missed one would break the drawing silently.
     place("block", [0, 0]);
-    place("terminal", [2, 0]);
+    place("terminal", [6, 0]);
     editor.edit("b1", "up_w", { kind: "block", at: [0, 0], length: 1000 });
     expect(wires()).toEqual(["end1.P up_w.B"]);
     expect(editor.drawing.symbols.b1).toBeUndefined();
@@ -429,6 +429,6 @@ describe("reading the document", () => {
       editor.allPins().map(({ pin, x, y }) => [pin, `${x},${y}`]),
     );
     expect(found.get("b1.A")).toBe("1,1.5");
-    expect(found.get("b1.B")).toBe("3,1.5");
+    expect(found.get("b1.B")).toBe("7,1.5");
   });
 });

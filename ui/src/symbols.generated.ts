@@ -6,6 +6,8 @@
 export const PINS = {
   block: ["A", "B"],
   crossing: ["a1", "a2", "b1", "b2"],
+  crossing_90: ["a1", "a2", "b1", "b2"],
+  crossing_90d: ["a1", "a2", "b1", "b2"],
   double_slip: ["a1", "a2", "b1", "b2"],
   pin: ["P"],
   portal: ["P"],
@@ -23,6 +25,14 @@ export type Pin<K extends Kind = Kind> = (typeof PINS)[K][number];
 /** The transits a kind of fixed geometry declares, each between two pins. */
 export const TRANSITS = {
   crossing: {
+    a: ["a1", "a2"],
+    b: ["b1", "b2"],
+  },
+  crossing_90: {
+    a: ["a1", "a2"],
+    b: ["b1", "b2"],
+  },
+  crossing_90d: {
     a: ["a1", "a2"],
     b: ["b1", "b2"],
   },
@@ -58,18 +68,14 @@ export type Leg<K extends LibraryKind = LibraryKind> = {
 export const PLACEABLE = [
   "block",
   "crossing",
+  "crossing_90",
+  "crossing_90d",
   "double_slip",
   "portal",
   "single_slip",
   "terminal",
   "turnout",
 ] as const;
-
-/** The kinds drawn in several appearances, chosen in the properties dialog.
- *  All appearances of a kind share one footprint and one pin set. */
-export const ANGLED = ["crossing", "double_slip", "single_slip"] as const;
-
-export type AngledKind = (typeof ANGLED)[number];
 
 /** Symbols sit in whole squares with pins at face centres, so they turn in
  *  quarters. */

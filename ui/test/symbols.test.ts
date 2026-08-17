@@ -74,17 +74,27 @@ describe("the generated symbol library", () => {
  * transit that takes it, which is why it is asserted for every kind.
  */
 describe("the artwork of a symbol whose legs the library fixes", () => {
-  it("draws each declared leg as a stroke of its own", () => {
+  it("lights something for each declared leg, and nothing for none", () => {
     for (const [kind, legs] of Object.entries(TRANSITS)) {
       const spec = { kind } as SymbolSpec;
       expect(litStrokes(artwork(spec))).toEqual([]);
-      expect(litStrokes(artwork(spec, new Set([WHOLE])))).toHaveLength(
-        Object.keys(legs).length,
-      );
       for (const leg of Object.keys(legs)) {
-        expect(litStrokes(artwork(spec, new Set([leg])))).toHaveLength(1);
+        expect(litStrokes(artwork(spec, new Set([leg])))).not.toHaveLength(0);
       }
     }
+  });
+
+  it("lights a route as the two halves that meet at the frog", () => {
+    // A route is two half-strokes so that a slip can light its entry half, its
+    // tick and its exit half — the track a movement actually takes, and not
+    // the whole of both roads.
+    const crossing = { kind: "crossing" } as SymbolSpec;
+    expect(litStrokes(artwork(crossing, new Set(["a"])))).toHaveLength(2);
+    expect(litStrokes(artwork(crossing, new Set([WHOLE])))).toHaveLength(4);
+
+    const slip = { kind: "single_slip" } as SymbolSpec;
+    expect(litStrokes(artwork(slip, new Set(["slip"])))).toHaveLength(3);
+    expect(litStrokes(artwork(slip, new Set([WHOLE])))).toHaveLength(5);
   });
 });
 

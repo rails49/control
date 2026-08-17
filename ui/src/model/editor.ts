@@ -34,6 +34,8 @@ const PREFIXES: Record<Kind, string> = {
   pin: "n",
   turnout: "sw",
   crossing: "x",
+  crossing_90: "x90",
+  crossing_90d: "x90d",
   single_slip: "ss",
   double_slip: "ds",
 };

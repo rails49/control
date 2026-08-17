@@ -12,12 +12,18 @@ import { LitElement, html, svg, nothing, type SVGTemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import type { Kind } from "../symbols.generated.js";
-import { symbolOf, wirePins, type PinRef } from "../model/drawing.js";
+import {
+  symbolOf,
+  wirePins,
+  type PinRef,
+  type SymbolSpec,
+} from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import {
   anchorOf,
   cellsOf,
   centreOf,
+  gridPointOf,
   placed,
   snapped,
   transformOf,
@@ -26,6 +32,7 @@ import {
 import { clashes, lit, type Chosen } from "../model/inspect.js";
 import type { Joint, Review } from "../model/store.js";
 import { artwork } from "../render/artwork.js";
+import { LABEL, PIN, PORTAL } from "../render/units.js";
 import { canvasStyles } from "./styles.js";
 
 const HIT = 0.22; // how near a pointer has to come to a pin, in squares
@@ -201,11 +208,6 @@ export class TcCanvas extends LitElement {
     return Object.entries(this.editor.drawing.symbols).map(([name, spec]) => {
       const chosen = this.editor.selection.has(name);
       const shifted = this.shift(name);
-      // The label is drawn upright below the symbol rather than inside the
-      // turned group, where a quarter turn would stand it on its side.
-      const label = spec.label || name;
-      const centre = centreOf(spec);
-      const below = centre.y + placed(spec).footprint.h / 2 + 0.32;
       return svg`
         <g
           class=${`symbol ${chosen ? "selected" : ""}`}
@@ -215,16 +217,44 @@ export class TcCanvas extends LitElement {
           <g transform=${transformOf(spec)}>
             ${artwork(spec, way.get(name))}
           </g>
-          ${
-            spec.kind === "pin"
-              ? nothing
-              : svg`<text class="name" x=${centre.x} y=${below}>${label}</text>`
-          }
+          ${this.label(name, spec)}
         </g>
       `;
     });
   }
 
+  /**
+   * What a symbol has written on it, drawn upright outside the turned group
+   * where a quarter turn would stand it on its side.
+   *
+   * A block's is centred inside its rectangle and nothing is written outside
+   * it; a portal's pairing label goes beside the mouth, because matching a
+   * pair by eye is how a typo in one is found. Everything else takes its name
+   * below it, and a bend is not worth naming.
+   */
+  private label(name: string, spec: SymbolSpec): unknown {
+    if (spec.kind === "pin") return nothing;
+    const written = spec.label || name;
+    if (spec.kind === "block") {
+      const { x, y } = centreOf(spec);
+      return svg`<text class="name inside" x=${x} y=${y}>${written}</text>`;
+    }
+    if (spec.kind === "portal") {
+      const beside = gridPointOf(spec, {
+        x: PORTAL.mouth.tip + PORTAL.label,
+        y: 0.5,
+      });
+      return svg`<text class="name inside"
+        x=${beside.x} y=${beside.y}>${written}</text>`;
+    }
+    const centre = centreOf(spec);
+    const below = centre.y + placed(spec).footprint.h / 2 + LABEL.below;
+    return svg`<text class="name" x=${centre.x} y=${below}>${written}</text>`;
+  }
+
+  /** Every pin, green where `/review` is satisfied with it and red where it is
+   *  not. The front end computes no topology, so which are red is the store's
+   *  answer and not this component's. */
   private pins(): unknown {
     const red = new Set(this.review?.red_pins ?? []);
     return this.editor.allPins().map(({ pin, x, y }) => {
@@ -235,7 +265,7 @@ export class TcCanvas extends LitElement {
         data-pin=${pin}
         cx=${x + shifted.x}
         cy=${y + shifted.y}
-        r="0.09"
+        r=${PIN}
       />`;
     });
   }

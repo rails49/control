@@ -507,6 +507,8 @@ def test_a_turnout_has_two_routes_and_declares_nothing_concurrent() -> None:
     "kind, transits",
     [
         ("crossing", [["a1.A", "a2.A"], ["b1.A", "b2.A"]]),
+        ("crossing_90", [["a1.A", "a2.A"], ["b1.A", "b2.A"]]),
+        ("crossing_90d", [["a1.A", "a2.A"], ["b1.A", "b2.A"]]),
         ("single_slip", [["a1.A", "a2.A"], ["a1.A", "b2.A"], ["b1.A", "b2.A"]]),
         (
             "double_slip",
@@ -1071,9 +1073,9 @@ _SCHEMA_ERRORS: list[tuple[Mutate, str]] = [
     (lambda d: d["symbols"]["west"].update(at=["a", "b"]), "at must be two integers"),
     (lambda d: d["symbols"]["west"].update(rot=45), "rot must be one of"),
     (lambda d: d["symbols"]["west"].update(flip="yes"), "flip must be true or false"),
-    # Only the kinds drawn several ways take an angle.
+    # Each kind is drawn one way, so nothing picks between appearances.
     (
-        lambda d: d["symbols"].update(points={"kind": "turnout", "angle": "shallow"}),
+        lambda d: d["symbols"].update(points={"kind": "crossing", "angle": "shallow"}),
         "unknown key",
     ),
 ]
@@ -1095,12 +1097,16 @@ def test_placement_loads_and_derives_to_the_same_layout() -> None:
     assert derive(placed) == derive(bare)
 
 
-def test_an_angle_loads_on_the_kinds_drawn_several_ways() -> None:
-    """Wires meet a symbol at whatever angle their pins give them, so a
-    crossing has an appearance per pair of leg angles. All share one pin set,
-    so the choice reaches nothing but the picture."""
-    doc = two_blocks(points={"kind": "crossing", "angle": "shallow"})
-    assert Drawing.from_document(doc).symbols["points"].pins == ("a1", "a2", "b1", "b2")
+def test_the_90_degree_crossings_are_two_kinds_sharing_one_pin_set() -> None:
+    """Their footprints and pin positions differ, which is why they are two
+    kinds rather than two appearances of one (ui/EDITOR.md); what they declare
+    is the same two exclusive routes over the same four pins."""
+    for kind in ("crossing_90", "crossing_90d"):
+        doc = two_blocks(points={"kind": kind})
+        symbol = Drawing.from_document(doc).symbols["points"]
+        assert symbol.pins == ("a1", "a2", "b1", "b2")
+        assert symbol.transits == {"a": ("a1", "a2"), "b": ("b1", "b2")}
+        assert symbol.concurrent == frozenset()
 
 
 def test_a_block_label_loads_and_is_dropped_by_derivation() -> None:

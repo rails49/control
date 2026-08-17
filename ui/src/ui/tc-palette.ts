@@ -3,9 +3,8 @@
  *
  * Signals and sensors are not here. Every block has both at both ends, so
  * there is nothing to place. Nor is the free-standing bend: it is placed by
- * clicking empty canvas while drawing a wire. Crossings and slips have one
- * tile each and pick their appearance in the properties dialog, so choosing
- * one can never resize a symbol or collide with a neighbour.
+ * clicking empty canvas while drawing a wire. Each kind is drawn one way, so a
+ * tile shows exactly what a click will place.
  */
 
 import { LitElement, html } from "lit";
@@ -23,6 +22,8 @@ const TITLES: Record<Kind, string> = {
   pin: "Bend",
   turnout: "Turnout",
   crossing: "Crossing",
+  crossing_90: "90° crossing",
+  crossing_90d: "90° crossing, diagonal",
   single_slip: "Single slip",
   double_slip: "Double slip",
 };

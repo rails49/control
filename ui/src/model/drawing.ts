@@ -43,8 +43,6 @@ export interface SymbolSpec {
   at?: [number, number];
   rot?: Rotation;
   flip?: boolean;
-  /** Which appearance of a crossing or slip to draw. */
-  angle?: string;
   /** Blocks. */
   length?: number;
   sensors?: Record<string, string>;

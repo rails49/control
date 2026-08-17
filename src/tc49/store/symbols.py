@@ -7,11 +7,11 @@ TypeScript is generated: `tc49 symbols` writes it and a test asserts the
 committed file is current. The names become union types, so a renamed pin is a
 compile error rather than a wrong drawing.
 
-Artwork is not generated. Footprints, anchor offsets, and the appearances of
-crossings and slips are hand-written TypeScript against these names.
+Artwork is not generated. Footprints, anchor offsets and the strokes between
+them are hand-written TypeScript against these names (ui/EDITOR.md).
 """
 
-from tc49.store.drawing import ANGLED, BEND, LIBRARY, PINS, ROTATIONS
+from tc49.store.drawing import BEND, LIBRARY, PINS, ROTATIONS
 
 GENERATED = "ui/src/symbols.generated.ts"
 
@@ -25,7 +25,7 @@ _HEADER = """\
 
 def render() -> str:
     """The whole of `ui/src/symbols.generated.ts`."""
-    sections = (_HEADER, _pins(), _transits(), _placeable(), _angled(), _rotations())
+    sections = (_HEADER, _pins(), _transits(), _placeable(), _rotations())
     return "\n".join(sections)
 
 
@@ -74,16 +74,6 @@ def _placeable() -> str:
  *  empty canvas while drawing a wire. */
 export const PLACEABLE = [
 {rows}] as const;
-"""
-
-
-def _angled() -> str:
-    return f"""\
-/** The kinds drawn in several appearances, chosen in the properties dialog.
- *  All appearances of a kind share one footprint and one pin set. */
-export const ANGLED = {_list(sorted(ANGLED))} as const;
-
-export type AngledKind = (typeof ANGLED)[number];
 """
 
 
