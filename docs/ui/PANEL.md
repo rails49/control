@@ -14,6 +14,14 @@ state on top. Blocks show colour for state, a label for the train, an arrow
 for direction. Reserved-but-empty blocks get a distinct fill, so a committed
 route reads as a lit path.
 
+A request renders in three layers, each appearing when the bus first makes it
+true. **Requested** (from `request_submitted`): the train, its departure end,
+and the candidate arrival ends — endpoints only, since no route exists yet
+and drawing a predicted one would be a second pathfinder that lies whenever
+the dispatcher disagrees. **Committed** (from `route_chosen`): the chosen
+route as a lit path in a planned tint. **Held** (from `lock_granted` /
+`lock_released`): the reserved-block shading and signals described below.
+
 There are no sensor dots at block ends. `block_occupied` and `block_vacated`
 carry a block, and the layout interface publishes anonymous occupancy and
 never asserts train identity. RocRail's two dots depict per-end detection,
@@ -48,10 +56,24 @@ railway's.
 
 ## What it does
 
-The panel is read-only apart from submitting requests. Clicking a train and
-then one or more arrival ends publishes `request_submitted`, the existing
-topic in the existing `schedule` role, and the dispatcher answers with
-`request_admitted` or `request_rejected`.
+The panel is read-only apart from submitting requests. **Dragging** a train
+from its block to a destination block publishes `request_submitted`, the
+existing topic in the existing `schedule` role, and the dispatcher answers
+with `request_admitted` or `request_rejected`. The block's outer thirds name
+one arrival end — the end the train enters through, as
+[CONTEXT.md](../../CONTEXT.md) defines it — and the middle third names both,
+"either way round". Dropping on the train's own block cancels. The departure
+end is never part of the gesture: it is the train's **facing** end, scheduler
+state the dispatcher never sees
+([ADR-0019](../adr/0019-facing-is-scheduler-state.md)). One drag names one
+block, so multi-block arrival sets
+([ADR-0007](../adr/0007-requests-name-a-set-of-arrival-ends.md)) are deferred,
+not dropped; drag supersedes the click sequence this page first recorded.
+
+The drag is **filter-free**: the panel never grays out targets or pre-judges
+fit or reachability. Every drop submits, the dispatcher stays the sole
+feasibility authority, and a rejection renders at the request's endpoints
+with its reason spelled out (`no_fit`, `no_entry`, `unreachable`).
 
 The panel therefore **is** a scheduler, and modes are exclusive: a run uses
 the file scheduler or the panel, never both

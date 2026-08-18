@@ -85,6 +85,14 @@ A collection of locomotives and cars moving or parked as a unit; its length is
 the sum of its parts. A train occupies exactly one block at a time.
 _Avoid_: consist
 
+**Facing**:
+The end of its block through which a parked train would depart nose-first.
+Declared with initial placement, thereafter fully determined: routes are
+strict pass-throughs, so a train faces away from the end it entered through,
+and deliberate reversal at rest is the only other change. Not dispatcher
+state — a request's departure end carries everything the dispatcher needs.
+_Avoid_: direction (ambiguous with travel direction), heading, orientation
+
 ### Dispatch
 
 **Request**:
