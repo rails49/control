@@ -18,7 +18,7 @@
 
 import type { Drawing } from "./drawing.js";
 import { anchorOf, type Point } from "./geometry.js";
-import type { BlockView } from "./panel.js";
+import type { BlockView, EndRef } from "./panel.js";
 import type { Review } from "./store.js";
 import { under } from "./under.js";
 
@@ -27,7 +27,7 @@ import { under } from "./under.js";
 export interface Drop {
   train: string;
   block: string;
-  dest: string[];
+  dest: EndRef[];
 }
 
 interface Held {
@@ -102,7 +102,8 @@ export class Drag {
     return drop;
   }
 
-  /** The pointer left, or the gesture was abandoned. */
+  /** The gesture was abandoned: the pointer was cancelled, or the session it
+   *  would have submitted to has gone. */
   cancel(): void {
     this.held = null;
     this.proposal = null;
@@ -135,7 +136,7 @@ function blockAt(drawing: Drawing, review: Review, point: Point): string | null 
  * from the block's own A and B pins rather than from the page, so a block that
  * was turned or flipped splits the same way it is wired.
  */
-function endsOf(drawing: Drawing, block: string, point: Point): string[] {
+function endsOf(drawing: Drawing, block: string, point: Point): EndRef[] {
   const spec = drawing.symbols[block]!;
   const a = anchorOf(spec, "A");
   const b = anchorOf(spec, "B");

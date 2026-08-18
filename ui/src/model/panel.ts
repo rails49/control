@@ -15,7 +15,7 @@
 
 import { WHOLE } from "./inspect.js";
 import type { Explained, Layout } from "./store.js";
-import type { TraceEvent } from "./trace.js";
+import type { Submission, TraceEvent } from "./trace.js";
 
 /** A block end, written `<block>.<end>` as the bus writes it. */
 export type EndRef = string;
@@ -64,11 +64,12 @@ const PRUNED: Record<string, string> = {
   unreachable: "unreachable",
 };
 
-function blockOf(end: EndRef): string {
+/** The two halves of an end ref, `<block>.<end>`. */
+export function blockOf(end: EndRef): string {
   return end.slice(0, end.lastIndexOf("."));
 }
 
-function endOf(end: EndRef): string {
+export function endOf(end: EndRef): string {
   return end.slice(end.lastIndexOf(".") + 1);
 }
 
@@ -79,9 +80,16 @@ export class Panel {
   private standing = new Map<string, string>();
   /** train → the block it last entered and the end it now faces. */
   private heading = new Map<string, { block: string; toward: string }>();
+  /** train → the facing its granted move will give it, held until the train
+   *  is actually in that block. A grant names the next block a tick ahead of
+   *  the sensor, and until the sensor speaks the train is still standing
+   *  where it was, facing the end it is leaving through. */
+  private granted = new Map<string, { block: string; toward: string }>();
   private requests = new Map<string, Request>();
-  /** train → requests submitted for it, which is what numbers the next id the
-   *  way the file scheduler numbers its own (`<train>-1`, `<train>-2`, …). */
+  /** train → the highest id number it has been given, which is what numbers
+   *  the next one the way the file scheduler numbers its own (`<train>-1`,
+   *  `<train>-2`, …). Not cleared by `reset`: rejoining a session does not
+   *  make the ids it already handed out available again. */
   private minted = new Map<string, number>();
   /** Whether the first tick has passed: a lock on a block before it is the
    *  trace's opening placement, there being no occupancy event for a train
@@ -117,7 +125,7 @@ export class Panel {
     this.standing.clear();
     this.heading.clear();
     this.requests.clear();
-    this.minted.clear();
+    this.granted.clear();
     this.started = false;
   }
 
@@ -128,12 +136,19 @@ export class Panel {
    * A trace replay reads placement off the opening locks, but a browser joins
    * a session that was already assembled, so those locks are long gone. The
    * scenario is where facing is written down at all (ADR-0019), and it is the
-   * one thing no event carries — so a live panel starts here, and everything
-   * after it is derived from the bus exactly as a replay derives it.
+   * one thing no event carries. A live panel therefore starts here, and
+   * everything after it is derived from the bus exactly as a replay derives
+   * it.
+   *
+   * It seeds only the trains this model knows nothing about. The scenario
+   * says where a railroad *started*, and rejoining does not rewind it: a
+   * train the bus has already shown somewhere keeps that place. Putting it
+   * back would make the next drag state a departure block the dispatcher
+   * knows is wrong.
    */
   place(trains: Record<string, { at: string; facing: string }>): void {
-    this.reset();
     for (const [train, { at, facing }] of Object.entries(trains)) {
+      if (this.heading.has(train)) continue;
       this.standing.set(at, train);
       this.heading.set(train, { block: at, toward: facing });
     }
@@ -148,10 +163,7 @@ export class Panel {
    * the departure end from facing: the drag names the destination only, and
    * the dispatcher sees a request no different from a file scheduler's.
    */
-  request(
-    train: string,
-    dest: EndRef[],
-  ): { id: string; train: string; depart: EndRef; dest: EndRef[] } | null {
+  request(train: string, dest: EndRef[]): Submission | null {
     const facing = this.heading.get(train);
     if (facing === undefined || this.standing.get(facing.block) !== train) {
       return null;
@@ -164,12 +176,6 @@ export class Panel {
       depart: `${facing.block}.${facing.toward}`,
       dest,
     };
-  }
-
-  /** Where a train stands and the end it would leave through, for the drag to
-   *  draw from. */
-  facing(train: string): { block: string; toward: string } | undefined {
-    return this.heading.get(train);
   }
 
   apply(event: TraceEvent): void {
@@ -203,7 +209,13 @@ export class Panel {
       case "block_occupied": {
         const { block } = event as unknown as { block: string };
         const holder = this.locks.get(block);
-        if (holder !== undefined) this.standing.set(block, holder);
+        if (holder === undefined) return;
+        this.standing.set(block, holder);
+        const arriving = this.granted.get(holder);
+        if (arriving?.block === block) {
+          this.heading.set(holder, arriving);
+          this.granted.delete(holder);
+        }
         return;
       }
       case "block_vacated": {
@@ -220,19 +232,15 @@ export class Panel {
         const ends = this.joins.get(transit);
         const entry = ends?.find((end) => blockOf(end) === into);
         if (entry === undefined) return;
-        this.heading.set(train, {
+        this.granted.set(train, {
           block: into,
           toward: endOf(entry) === "A" ? "B" : "A",
         });
         return;
       }
       case "request_submitted": {
-        const { id, train, depart, dest } = event as unknown as {
-          id: string;
-          train: string;
-          depart: EndRef;
-          dest: EndRef[];
-        };
+        const { id, train, depart, dest } = event as unknown as Submission;
+        this.counted(id, train);
         for (const [old, request] of this.requests) {
           if (request.train === train && request.phase === "rejected") {
             this.requests.delete(old);
@@ -295,6 +303,15 @@ export class Panel {
       default:
         return; // ticks aside, the panel reads a subset of the bus
     }
+  }
+
+  /** Take an id's number into account, whoever minted it. The relay echoes
+   *  the panel's own requests back, so this covers a second panel and a
+   *  rejoined one alike. */
+  private counted(id: string, train: string): void {
+    const nth = Number(id.slice(id.lastIndexOf("-") + 1));
+    if (!Number.isInteger(nth)) return;
+    this.minted.set(train, Math.max(this.minted.get(train) ?? 0, nth));
   }
 
   /** Every block of the layout, at the strongest state that holds for it:

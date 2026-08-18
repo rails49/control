@@ -5,7 +5,8 @@
  */
 
 import { pinsOf, type Drawing, type SymbolSpec } from "./drawing.js";
-import { anchorOf, centreOf } from "./geometry.js";
+import { anchorOf, centreOf, type Point } from "./geometry.js";
+import { blockOf, endOf, type EndRef } from "./panel.js";
 
 export interface Box {
   x: number;
@@ -60,4 +61,13 @@ export function arrowPose(spec: SymbolSpec, toward: string): Pose {
     y: centre.y + dy * at,
     angle: (Math.atan2(dy, dx) * 180) / Math.PI,
   };
+}
+
+/** Where a block end sits on the sheet, or nothing where the drawing has no
+ *  such symbol or pin. Request markers and the drag's rings both ask this, so
+ *  an end ref is read apart in one place. */
+export function anchorAt(drawing: Drawing, end: EndRef): Point | null {
+  const spec = drawing.symbols[blockOf(end)];
+  if (spec === undefined || !pinsOf(spec).includes(endOf(end))) return null;
+  return anchorOf(spec, endOf(end));
 }

@@ -115,6 +115,16 @@ export class Live {
  *  (SYSTEM.md, the bridge). Anything else inbound the relay refuses. */
 export const INBOUND = "tc49/schedule/request_submitted";
 
-export function submission(payload: Record<string, unknown>): string {
-  return JSON.stringify({ topic: INBOUND, payload });
+/** A `request_submitted` payload: what the panel-scheduler composes, what the
+ *  relay carries, and what comes back as an event. Ends are written
+ *  `<block>.<end>` throughout. */
+export interface Submission {
+  id: string;
+  train: string;
+  depart: string;
+  dest: string[];
+}
+
+export function submission(request: Submission): string {
+  return JSON.stringify({ topic: INBOUND, payload: request });
 }

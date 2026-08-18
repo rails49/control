@@ -109,6 +109,22 @@ which is why one panel model serves both. Facing stays determined from there:
 a train faces away from the end it entered through, so the next drag departs
 nose-first with no bookkeeping.
 
+**A panel joins at the start of a session.** The bridge holds no backlog, so a
+browser that connects after a train has moved shows it in its scenario block,
+and a drag then states a departure block the dispatcher knows is wrong. The
+dispatcher raises on that rather than rejecting it, which stops the session:
+the check was written when the only writer was an authored file, where a
+disagreement is a slip worth failing loudly on. With a browser writing, it
+needs to be an answer instead. Tracked separately; nothing in the panel can
+fix it, because answering it means either the bridge describing the run —
+which [SYSTEM.md](../SYSTEM.md) rules out — or the dispatcher replying rather
+than raising.
+
+Within one page the panel does hold its ground: leaving and rejoining keeps
+what the bus has shown and re-seeds only trains it knows nothing about, and
+the request ids carry on rather than starting over. Relatedly, nothing tells
+the panel which scenario the session is running, so the operator picks it.
+
 The front end keeps the editor's model/component split. `model/panel.ts` turns
 bus payloads into render state and holds the scheduler's own state, meaning
 facing and the request ids it mints. `model/drag.ts` turns pointer positions

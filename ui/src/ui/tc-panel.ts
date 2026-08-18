@@ -22,10 +22,10 @@ import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import { Drag } from "../model/drag.js";
-import { pinsOf, wirePins, type Drawing } from "../model/drawing.js";
-import { anchorOf, centreOf, transformOf, type Point } from "../model/geometry.js";
+import { wirePins, type Drawing } from "../model/drawing.js";
+import { centreOf, transformOf, type Point } from "../model/geometry.js";
 import { Panel, type BlockView, type Marker } from "../model/panel.js";
-import { arrowPose, fitBox } from "../model/scene.js";
+import { anchorAt, arrowPose, fitBox } from "../model/scene.js";
 import {
   listDrawings,
   listScenarios,
@@ -93,9 +93,18 @@ export class TcPanel extends LitElement {
     }
   }
 
-  /** Load a drawing and what it means. The panel needs the derived layout,
-   *  so a drawing the store refuses to derive is trouble, not a canvas. */
+  /**
+   * Load a drawing and what it means. The panel needs the derived layout, so
+   * a drawing the store refuses to derive is trouble, not a canvas.
+   *
+   * The railroad already on screen is kept rather than rebuilt. A model built
+   * afresh would forget the request ids it has minted, and leaving and
+   * rejoining a session does not make the ids it already handed out available
+   * again. Callers say what should be forgotten: `reset` for a replay,
+   * `place` for a session.
+   */
   private async load(name: string): Promise<boolean> {
+    if (this.drawing?.drawing === name && this.panel !== null) return true;
     const drawing = await readDrawing(name);
     const reviewed = await review(drawing);
     if (reviewed.layout === null || reviewed.explain === null) {
@@ -116,6 +125,7 @@ export class TcPanel extends LitElement {
     this.leave();
     try {
       if (!(await this.load(name))) return;
+      this.panel!.reset();
       this.replay?.restart();
       this.beat++;
     } catch (error) {
@@ -186,6 +196,11 @@ export class TcPanel extends LitElement {
    * (ADR-0019).
    */
   private async join(id: string): Promise<void> {
+    // Rejoining the session already on screen keeps what the bus has shown;
+    // anything else starts from nothing, so a replay's state or another
+    // scenario's is not mistaken for this railroad's.
+    if (id === "") return; // the select clears itself on leaving
+    const rejoining = this.session === id && this.panel !== null;
     this.pause();
     this.leave();
     this.replay = null;
@@ -193,6 +208,7 @@ export class TcPanel extends LitElement {
     try {
       const scenario = await readScenario(id);
       if (!(await this.load(scenario.layout))) return;
+      if (!rejoining) this.panel!.reset();
       this.panel!.place(scenario.trains);
       this.session = id;
       this.listen();
@@ -218,8 +234,9 @@ export class TcPanel extends LitElement {
   }
 
   private heard(message: string): void {
-    const event = this.live?.read(message);
-    if (event === undefined || event === null || this.panel === null) return;
+    if (this.live === null || this.panel === null) return;
+    const event = this.live.read(message);
+    if (event === null) return;
     this.panel.apply(event);
     this.beat++;
   }
@@ -271,7 +288,17 @@ export class TcPanel extends LitElement {
     this.beat++;
     if (drop === null) return;
     const request = this.panel!.request(drop.train, drop.dest);
-    if (request !== null) this.socket?.send(submission(request));
+    if (request === null) {
+      this.trouble = `'${drop.train}' stands nowhere this session knows`;
+      return;
+    }
+    this.socket?.send(submission(request));
+  }
+
+  private abandon(): void {
+    if (this.drag.train === null) return;
+    this.drag.cancel();
+    this.beat++;
   }
 
   private gridAt(event: PointerEvent): Point {
@@ -399,6 +426,7 @@ export class TcPanel extends LitElement {
         @pointerdown=${this.down}
         @pointermove=${this.moved}
         @pointerup=${this.up}
+        @pointercancel=${this.abandon}
       >
         <defs>${DEFS}</defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
@@ -479,12 +507,9 @@ export class TcPanel extends LitElement {
   }
 
   private marked(marker: Marker) {
-    const dot = marker.at.lastIndexOf(".");
-    const spec = this.drawing!.symbols[marker.at.slice(0, dot)];
-    if (spec === undefined) return nothing;
-    const end = marker.at.slice(dot + 1);
-    if (!pinsOf(spec).includes(end)) return nothing;
-    const { x, y } = anchorOf(spec, end);
+    const at = anchorAt(this.drawing!, marker.at);
+    if (at === null) return nothing;
+    const { x, y } = at;
     return svg`
       <circle class=${`marker ${marker.role}`} cx=${x} cy=${y} r="0.3" />
       ${
@@ -508,10 +533,10 @@ export class TcPanel extends LitElement {
     return svg`
       <line class="reach" x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />
       ${(drop?.dest ?? []).map((end) => {
-        const dot = end.lastIndexOf(".");
-        const spec = this.drawing!.symbols[end.slice(0, dot)]!;
-        const { x, y } = anchorOf(spec, end.slice(dot + 1));
-        return svg`<circle class="marker hover" cx=${x} cy=${y} r="0.34" />`;
+        const at = anchorAt(this.drawing!, end);
+        return at === null
+          ? nothing
+          : svg`<circle class="marker hover" cx=${at.x} cy=${at.y} r="0.34" />`;
       })}
     `;
   }

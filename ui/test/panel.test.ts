@@ -351,6 +351,66 @@ describe("facing", () => {
     expect(panel().request("ghost", ["b.A"])).toBeNull();
   });
 
+  it("still departs from the block it stands in while a route runs", () => {
+    // A grant names the next block a tick before the train is in it. Facing
+    // has to keep naming the block the train actually stands in, or a drag
+    // mid-route composes nothing and the drop is silently swallowed — which
+    // is the panel judging a request, the one thing it must never do (#67).
+    const model = panel();
+    model.place(STOCK);
+    feed(
+      model,
+      { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
+      { event: "move_granted", id: "t1-1", train: "t1", transit: "sw.main", into: "b" },
+    );
+    expect(model.blocks().get("a")).toMatchObject({ train: "t1", toward: "B" });
+    expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "a.B" });
+  });
+
+  it("never overwrites what the bus has shown with what the scenario says", () => {
+    // Rejoining re-reads the scenario, but the railroad has moved on since it
+    // was written. Re-seeding would put the train back where it started, and
+    // a drag would then state a departure block the dispatcher knows is
+    // wrong — which stops the session dead rather than being rejected.
+    const model = panel();
+    model.place(STOCK);
+    feed(
+      model,
+      { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
+      { event: "move_granted", id: "t1-1", train: "t1", transit: "sw.main", into: "b" },
+      { event: "block_occupied", block: "b" },
+      { event: "block_vacated", block: "a" },
+    );
+    model.place(STOCK);
+    expect(model.blocks().get("b")).toMatchObject({ train: "t1", toward: "B" });
+    expect(model.blocks().get("a")).toMatchObject({ state: "free" });
+    expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
+  });
+
+  it("numbers a rejoined session's ids on from the ones it has seen", () => {
+    // Leaving and rejoining re-places the trains, but the session on the
+    // other side of the bridge is the same one and remembers the ids it was
+    // given. Minting `t1-1` twice would hand it a duplicate.
+    const model = panel();
+    model.place(STOCK);
+    expect(model.request("t1", ["b.A"])?.id).toBe("t1-1");
+    model.place(STOCK);
+    expect(model.request("t1", ["b.A"])?.id).toBe("t1-2");
+  });
+
+  it("counts an id it merely overheard, so a second panel does not clash", () => {
+    const model = panel();
+    model.place(STOCK);
+    feed(model, {
+      event: "request_submitted",
+      id: "t1-4",
+      train: "t1",
+      depart: "a.B",
+      dest: ["b.A"],
+    });
+    expect(model.request("t1", ["b.A"])?.id).toBe("t1-5");
+  });
+
   it("flips facing away from the entry end once a route has run", () => {
     const model = panel();
     model.place(STOCK);
