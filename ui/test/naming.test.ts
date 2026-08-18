@@ -286,8 +286,8 @@ describe("a junction with a joiner in it", () => {
       symbols: {
         sw1: { kind: "turnout", at: [0, 0] },
         n1: { kind: "pin", at: [4, 0] },
-        end1: { kind: "terminal", at: [6, 0] },
-        portal1: { kind: "portal", at: [8, 0], label: "portal1" },
+        e1: { kind: "terminal", at: [6, 0] },
+        p1: { kind: "portal", at: [8, 0], label: "p1" },
       },
       wires: [],
     };
@@ -295,11 +295,11 @@ describe("a junction with a joiner in it", () => {
 
   it("names the symbols that declare a transit and no others", () => {
     const drawing = bent();
-    nameJunction(drawing, ["sw1", "n1", "end1", "portal1"], "airolo");
+    nameJunction(drawing, ["sw1", "n1", "e1", "p1"], "airolo");
     expect(drawing.symbols.sw1!.connection).toBe("airolo");
     expect(drawing.symbols.n1).not.toHaveProperty("connection");
-    expect(drawing.symbols.end1).not.toHaveProperty("connection");
-    expect(drawing.symbols.portal1).not.toHaveProperty("connection");
+    expect(drawing.symbols.e1).not.toHaveProperty("connection");
+    expect(drawing.symbols.p1).not.toHaveProperty("connection");
   });
 
   it("mints the same way, leaving the joiner clean", () => {

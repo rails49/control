@@ -317,9 +317,18 @@ Because it is authored, a connection name has to come from somewhere when
 nobody has typed one. The editor mints `j1`, `j2` and so on as junctions form
 and writes them into the drawing, so they are authored by the time derivation
 sees them and stable thereafter, even though the number came from drawing
-order. A name is worth overriding for the same reason it exists: it heads the
-connection in `tc49 layout show` and prefixes every transit id in a trace.
-Names already in the committed drawings are kept as they are.
+order. Nobody types one: a connection is not a thing hardware answers to, so
+the editor offers no way to name one and keeps them settled itself
+([EDITOR.md](../ui/EDITOR.md#junctions)) — a split re-mints, a merge collapses
+to the lowest minted name the junction already wore, and a typed name among
+minted ones survives them. Names already in the committed drawings are kept as
+they are, minting only filling the gaps, so `airolo` still heads its connection
+in `tc49 layout show` and prefixes every transit id in a trace.
+
+Derivation itself settles nothing. Two names on one junction is refused there
+as it always was, the layout being a pure function of the document
+([ADR-0015](../adr/0015-drawing-is-the-source-of-truth.md)); the editor is
+where a drawing is repaired, and hand-edited YAML gets the refusal.
 
 ## Asset store
 

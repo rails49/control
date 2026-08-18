@@ -292,7 +292,16 @@ portal-label questions that rare layout editing does not justify.
 ### Properties
 
 The right-click dialog edits a symbol's name, and per kind: a block's length,
-display label and sensor ids; a symbol leg's transit name.
+display label and sensor ids; a portal's label; a symbol leg's transit name.
+
+**Only a name hardware answers to is shown.** A block is named, and so is a
+turnout or a slip, which has a motor the bus will address. A fixed crossing has
+nothing to command, a pin and a terminal are wiring, and a portal is known by
+its label, so those names are minted, hidden, and read in the netlist pane when
+they are wanted at all. A kind left with nothing to set opens no dialog: an
+empty modal is worse than none, so a pin and a terminal are offered only the
+transforms. New names are minted short — `b1`, `sw1`, `n1`, `e1`, `p1` — a key
+being read in the wire list far more than anywhere else.
 
 A block's key is a short stable id and its label is its real name, `Zürich HB
 Gleis 1`. The id prefixes every transit id in a trace, so it is worth keeping
@@ -317,28 +326,32 @@ The region is tinted and not named. A junction drawn from one symbol is named
 after that symbol, so a name written over the region sat beside the symbol and
 read as a label the symbol carried — which is what the canvas reserves for a
 block. The name is read where it means something: heading its section in the
-netlist pane, and in the right-click menu that renames it.
+netlist pane, above the symbols the junction is drawn from.
 
-Names are minted, `j1`, `j2`, and written into the drawing at once, so a
-junction always has a valid name and nothing interrupts a sketch. Minting
-happens the moment `/review` says which junctions exist, and folds into the
-snapshot of the edit that caused it, so one action stays one undo step.
-Renaming is one click on the region, and worth doing when the junction earns a
-name, because the name heads its section in the netlist and prefixes every
-transit id through it.
+**A connection's name is nobody's to type.** Names are minted, `j1`, `j2`, and
+written into the drawing at once, so a junction always has a valid name and
+nothing interrupts a sketch. Minting happens the moment `/review` says which
+junctions exist, and folds into the snapshot of the edit that caused it, so one
+action stays one undo step. There is no rename: a connection is not a thing
+hardware answers to, so its name is bookkeeping the editor keeps for itself,
+and the netlist pane is where it is read for debugging. A name already written
+in a drawing is honoured — minting only fills the gaps — which is what keeps
+Gotthard's `airolo` where it is.
 
 Deleting a symbol can split a junction in two, and wiring two together merges
-them. A minted name is re-minted silently on both sides; nobody is reading
-`j7`. A name someone typed stays on both halves, which derivation refuses as
-a duplicate, and the findings list says so. Choosing which half is Airolo is
-not the editor's decision to make. What tells the two apart is the shape of the
-name itself: `j` and digits is one the editor made, and anything else is one a
-person typed.
+them. Either way names end up where derivation refuses them, and either way
+the editor settles it when no typed name is involved. A split re-mints on both
+sides; a merge collapses to the lowest minted name already on the junction, so
+what the diff shows is the other names coming off. Where a merge leaves exactly
+one typed name among minted ones, the typed name wins outright: it is the only
+name anybody chose. Two typed names is the one case left, and it stays the
+refusal it was — choosing which half is Airolo is not the editor's decision to
+make. What tells the two apart is the shape of the name itself: `j` and digits
+is one the editor made, and anything else is one a person typed.
 
 A wire joining two blocks directly is a connection too
 ([DRAWING.md](../store/DRAWING.md#a-wire-between-two-blocks)). Its name is
-minted the same way, nothing is drawn for it, and it can be renamed from the
-wire's own menu.
+minted the same way and settled the same way, and nothing is drawn for it.
 
 ## Inspecting the netlist
 
@@ -374,8 +387,8 @@ Findings are listed in one panel:
 
 - pins with one connection, and unpaired portal labels: save allowed,
   derivation refused;
-- duplicate connection names after a split, and transits naming themselves
-  from two symbol legs: save allowed, derivation refused;
+- connection names two people typed, and transits naming themselves from two
+  symbol legs: save allowed, derivation refused;
 - overlaps of wires with symbols or wires: warning only.
 
 Editing and running the same railroad at once is not prevented. The store

@@ -37,11 +37,13 @@ import {
 import { settle } from "./naming.js";
 import type { Review } from "./store.js";
 
-/** What a new symbol of each kind is called: `sw1`, `sw2`, and so on. */
+/** What a new symbol of each kind is called: `sw1`, `sw2`, and so on. Short,
+ *  because a key is read in the wire list far more than anywhere else, and the
+ *  two that were not are the two whose names are now hidden anyway. */
 const PREFIXES: Record<Kind, string> = {
   block: "b",
-  terminal: "end",
-  portal: "portal",
+  terminal: "e",
+  portal: "p",
   pin: "n",
   turnout: "sw",
   crossing: "x",

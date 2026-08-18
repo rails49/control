@@ -58,7 +58,7 @@ describe("a placement that would cover another symbol", () => {
   it("is refused, and writes nothing", () => {
     place("terminal", [3, 0]);
     expect(place("block", [0, 0])).toBeNull();
-    expect(Object.keys(editor.drawing.symbols)).toEqual(["end1"]);
+    expect(Object.keys(editor.drawing.symbols)).toEqual(["e1"]);
   });
 
   it("is refused without spending an undo step", () => {
@@ -90,20 +90,20 @@ describe("moving a selection onto another symbol", () => {
   });
 
   it("refuses the offset that would land on it", () => {
-    editor.select(["end1"]);
+    editor.select(["e1"]);
     expect(editor.canMove(4, 0)).toBe(false);
     editor.move(4, 0);
-    expect(editor.drawing.symbols.end1!.at).toEqual([0, 0]);
+    expect(editor.drawing.symbols.e1!.at).toEqual([0, 0]);
   });
 
   it("allows the offsets either side of it", () => {
-    editor.select(["end1"]);
+    editor.select(["e1"]);
     expect(editor.canMove(3, 0)).toBe(true);
     expect(editor.canMove(5, 0)).toBe(true);
   });
 
   it("ignores the symbols moving with it", () => {
-    editor.select(["end1", "end2"]);
+    editor.select(["e1", "e2"]);
     expect(editor.canMove(4, 0)).toBe(true);
   });
 });
@@ -118,7 +118,7 @@ describe("an overlap a rotate made", () => {
     editor.select(["b1"]);
     editor.rotate();
     expect(editor.overlaps()).toEqual([
-      { cell: [0, 3], symbols: ["b1", "end1"] },
+      { cell: [0, 3], symbols: ["b1", "e1"] },
     ]);
   });
 
@@ -180,8 +180,8 @@ describe("staging a drawing that has never been placed", () => {
 describe("abutting", () => {
   it("writes a real wire when a pin lands on another's", () => {
     place("block", [0, 0]); // b1.B is at (6, 0.5)
-    place("terminal", [6, 0]); // end1.P is at (6, 0.5)
-    expect(wires()).toEqual(["b1.B end1.P"]);
+    place("terminal", [6, 0]); // e1.P is at (6, 0.5)
+    expect(wires()).toEqual(["b1.B e1.P"]);
   });
 
   it("leaves the wire behind when the symbol is dragged away", () => {
@@ -189,9 +189,9 @@ describe("abutting", () => {
     // dragging stretches the wire instead of breaking it.
     place("block", [0, 0]);
     place("terminal", [6, 0]);
-    editor.select(["end1"]);
+    editor.select(["e1"]);
     editor.move(4, 3);
-    expect(wires()).toEqual(["b1.B end1.P"]);
+    expect(wires()).toEqual(["b1.B e1.P"]);
   });
 
   it("joins a pin once, however many pins share the point", () => {
@@ -205,7 +205,7 @@ describe("abutting", () => {
     editor.cancelWire();
     editor.select(["n1"]);
     editor.move(-2, 0);
-    expect(wires()).toEqual(["b1.A n1.P", "b1.B end1.P"]);
+    expect(wires()).toEqual(["b1.A n1.P", "b1.B e1.P"]);
   });
 
   it("does not join a pin that already holds its wire", () => {
@@ -213,7 +213,7 @@ describe("abutting", () => {
     place("terminal", [6, 0]);
     editor.select(["b1"]);
     editor.move(0, 0); // no move at all, and nothing to re-join
-    expect(wires()).toEqual(["b1.B end1.P"]);
+    expect(wires()).toEqual(["b1.B e1.P"]);
   });
 
   it("does not join two bends twice over", () => {
@@ -236,14 +236,14 @@ describe("abutting", () => {
     // The pin the rotation arrives at is a bend, which covers no square: two
     // symbols that both cover one could not be here to meet.
     place("terminal", [0, 0]);
-    editor.startWire("end1.P");
+    editor.startWire("e1.P");
     editor.bend(2.5, 0); // n1.P on the north face of (2, 0)
     editor.cancelWire();
-    place("terminal", [2, 0]); // end2.P at (2, 0.5): nothing to join
-    expect(wires()).toEqual(["end1.P n1.P"]);
-    editor.select(["end2"]);
-    editor.rotate(); // end2.P swings to (2.5, 0), onto the bend
-    expect(wires()).toEqual(["end1.P n1.P", "end2.P n1.P"]);
+    place("terminal", [2, 0]); // e2.P at (2, 0.5): nothing to join
+    expect(wires()).toEqual(["e1.P n1.P"]);
+    editor.select(["e2"]);
+    editor.rotate(); // e2.P swings to (2.5, 0), onto the bend
+    expect(wires()).toEqual(["e1.P n1.P", "e2.P n1.P"]);
   });
 });
 
@@ -278,11 +278,11 @@ describe("drawing wires", () => {
 
   it("refuses a pin that already holds its wire", () => {
     place("block", [0, 0]);
-    place("terminal", [6, 0]); // abuts, filling end1.P
+    place("terminal", [6, 0]); // abuts, filling e1.P
     place("block", [8, 0]);
     editor.startWire("b2.A");
-    expect(editor.endWire("end1.P")).toBe(false);
-    expect(wires()).toEqual(["b1.B end1.P"]);
+    expect(editor.endWire("e1.P")).toBe(false);
+    expect(wires()).toEqual(["b1.B e1.P"]);
   });
 
   it("refuses to end a wire where it started", () => {
@@ -330,16 +330,16 @@ describe("deleting", () => {
   it("takes the symbol's wires with it", () => {
     place("block", [0, 0]);
     place("terminal", [6, 0]);
-    editor.select(["end1"]);
+    editor.select(["e1"]);
     editor.remove();
-    expect(editor.drawing.symbols.end1).toBeUndefined();
+    expect(editor.drawing.symbols.e1).toBeUndefined();
     expect(wires()).toEqual([]);
   });
 
   it("leaves the far pin a wire short, which is what makes it red", () => {
     place("block", [0, 0]);
     place("terminal", [6, 0]);
-    editor.select(["end1"]);
+    editor.select(["e1"]);
     editor.remove();
     expect(editor.degree("b1.B")).toBe(0);
     expect(editor.free("b1.B")).toBe(true);
@@ -359,21 +359,21 @@ describe("cutting a wire", () => {
   it("drops it, leaving both symbols and both pins short", () => {
     place("block", [0, 0]);
     place("terminal", [6, 0]);
-    expect(wires()).toEqual(["b1.B end1.P"]);
+    expect(wires()).toEqual(["b1.B e1.P"]);
 
-    expect(editor.unwire(["b1.B", "end1.P"])).toBe(true);
+    expect(editor.unwire(["b1.B", "e1.P"])).toBe(true);
 
     expect(wires()).toEqual([]);
     expect(editor.drawing.symbols.b1).toBeDefined();
-    expect(editor.drawing.symbols.end1).toBeDefined();
+    expect(editor.drawing.symbols.e1).toBeDefined();
     expect(editor.degree("b1.B")).toBe(0);
-    expect(editor.degree("end1.P")).toBe(0);
+    expect(editor.degree("e1.P")).toBe(0);
   });
 
   it("takes the pins in either order, a wire being undirected", () => {
     place("block", [0, 0]);
     place("terminal", [6, 0]);
-    expect(editor.unwire(["end1.P", "b1.B"])).toBe(true);
+    expect(editor.unwire(["e1.P", "b1.B"])).toBe(true);
     expect(wires()).toEqual([]);
   });
 
@@ -381,17 +381,17 @@ describe("cutting a wire", () => {
     place("block", [0, 0]);
     place("terminal", [6, 0]);
     editor.place("terminal", [-1, 0], { rot: 180 });
-    expect(wires()).toEqual(["b1.A end2.P", "b1.B end1.P"]);
-    editor.unwire(["b1.B", "end1.P"]);
-    expect(wires()).toEqual(["b1.A end2.P"]);
+    expect(wires()).toEqual(["b1.A e2.P", "b1.B e1.P"]);
+    editor.unwire(["b1.B", "e1.P"]);
+    expect(wires()).toEqual(["b1.A e2.P"]);
   });
 
   it("says so where there is no such wire, and changes nothing", () => {
     place("block", [0, 0]);
     place("terminal", [6, 0]);
     const was = editor.revision;
-    expect(editor.unwire(["b1.A", "end1.P"])).toBe(false);
-    expect(wires()).toEqual(["b1.B end1.P"]);
+    expect(editor.unwire(["b1.A", "e1.P"])).toBe(false);
+    expect(wires()).toEqual(["b1.B e1.P"]);
     // No snapshot taken, so it is not an undo step of its own.
     expect(editor.revision).toBe(was);
   });
@@ -399,9 +399,9 @@ describe("cutting a wire", () => {
   it("is one undo step", () => {
     place("block", [0, 0]);
     place("terminal", [6, 0]);
-    editor.unwire(["b1.B", "end1.P"]);
+    editor.unwire(["b1.B", "e1.P"]);
     editor.undo();
-    expect(wires()).toEqual(["b1.B end1.P"]);
+    expect(wires()).toEqual(["b1.B e1.P"]);
   });
 });
 
@@ -441,11 +441,11 @@ describe("undo and redo", () => {
   it("restores wires as well as symbols", () => {
     place("block", [0, 0]);
     place("terminal", [6, 0]);
-    editor.select(["end1"]);
+    editor.select(["e1"]);
     editor.remove();
     editor.undo();
-    expect(wires()).toEqual(["b1.B end1.P"]);
-    expect(editor.drawing.symbols.end1).toBeDefined();
+    expect(wires()).toEqual(["b1.B e1.P"]);
+    expect(editor.drawing.symbols.e1).toBeDefined();
   });
 
   it("redoes what it undid, and no more", () => {
@@ -526,7 +526,7 @@ describe("the properties dialog", () => {
     place("block", [0, 0]);
     place("terminal", [6, 0]);
     editor.edit("b1", "up_w", { kind: "block", at: [0, 0], length: 1000 });
-    expect(wires()).toEqual(["end1.P up_w.B"]);
+    expect(wires()).toEqual(["e1.P up_w.B"]);
     expect(editor.drawing.symbols.b1).toBeUndefined();
   });
 
@@ -609,7 +609,7 @@ describe("dragging a symbol out of the palette", () => {
     place("terminal", [4, 2]);
     editor.beginPlace("turnout");
     expect(editor.dropPending(4.5, 2.5)).toBeNull();
-    expect(Object.keys(editor.drawing.symbols)).toEqual(["end1"]);
+    expect(Object.keys(editor.drawing.symbols)).toEqual(["e1"]);
   });
 
   it("writes the orientation it was dragged in", () => {
@@ -639,7 +639,7 @@ describe("dragging a symbol out of the palette", () => {
     editor.beginPlace("terminal");
     editor.flipPending(); // its pin swings from the west face to the east one
     editor.dropPending(-0.5, 0.5);
-    expect(wires()).toEqual(["end1.P end2.P"]);
+    expect(wires()).toEqual(["e1.P e2.P"]);
   });
 
   it("forgets the drag when it is abandoned", () => {

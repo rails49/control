@@ -513,8 +513,9 @@ class Drawing:
         declared = sorted({self.symbols[s].connection for s in group} - {""})
         if len(declared) > 1:
             raise ValueError(
-                f"drawing '{self.name}': the symbols {group} of one junction"
-                f" name it {declared} — one junction takes one name"
+                f"drawing '{self.name}': {declared} are one connection, drawn"
+                f" from {group} with no block between them — keep one of the"
+                f" names and write it on every one of those symbols"
             )
         if declared:
             return declared[0]

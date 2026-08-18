@@ -592,7 +592,7 @@ def test_symbols_of_one_junction_disagreeing_on_its_name_are_refused() -> None:
         ["bend.P", "other.A"],
         ["other.B", "east.A"],
     ]
-    with pytest.raises(ValueError, match="name it"):
+    with pytest.raises(ValueError, match="are one connection"):
         derive(doc)
 
 
