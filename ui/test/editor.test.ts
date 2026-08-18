@@ -565,23 +565,6 @@ describe("the properties dialog", () => {
   });
 });
 
-describe("naming a junction by hand", () => {
-  it("writes the name onto every symbol of the region, undoably", () => {
-    place("turnout", [0, 0]);
-    place("turnout", [4, 0]);
-    expect(editor.nameJunction(["sw1", "sw2"], "airolo")).toBe(true);
-    expect(editor.drawing.symbols.sw2!.connection).toBe("airolo");
-    editor.undo();
-    expect(editor.drawing.symbols.sw2!.connection).toBeUndefined();
-  });
-
-  it("refuses what the drawing schema would refuse", () => {
-    place("turnout", [0, 0]);
-    expect(editor.nameJunction(["sw1"], "")).toBe(false);
-    expect(editor.nameJunction(["sw1"], "a.b")).toBe(false);
-  });
-});
-
 describe("reading the document", () => {
   it("reports every pin and where it sits", () => {
     place("block", [1, 1]);

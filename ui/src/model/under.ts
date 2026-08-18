@@ -17,6 +17,7 @@ import {
   pinsOf,
   symbolOf,
   wirePins,
+  type AnyKind,
   type Drawing,
   type PinRef,
 } from "./drawing.js";
@@ -41,6 +42,10 @@ const HERE: Shift = () => ({ x: 0, y: 0 });
 export interface Under {
   pin: PinRef | null;
   symbol: string | null;
+  /** The symbol's kind, which is what says whether it has properties to open
+   *  and whether its name is the user's. The menu asks rather than reaching
+   *  into the drawing itself. */
+  kind: AnyKind | null;
   junction: Junction | null;
   joint: Joint | null;
   wire: [PinRef, PinRef] | null;
@@ -60,6 +65,7 @@ export function under(
   return {
     pin,
     symbol,
+    kind: symbol === null ? null : (drawing.symbols[symbol]?.kind ?? null),
     junction: junctionOf(review, symbol),
     joint: jointNear(drawing, review, at, shift),
     // Only where no symbol is. A symbol's own wires pass within a hair of its

@@ -34,8 +34,8 @@ import {
   taken,
   turned,
 } from "./geometry.js";
-import { nameJoint, nameJunction, settle } from "./naming.js";
-import type { Joint, Review } from "./store.js";
+import { settle } from "./naming.js";
+import type { Review } from "./store.js";
 
 /** What a new symbol of each kind is called: `sw1`, `sw2`, and so on. */
 const PREFIXES: Record<Kind, string> = {
@@ -375,23 +375,6 @@ export class Editor {
         [...this.chosen].map((chosen) => (chosen === was ? name : chosen)),
       );
     }
-    return true;
-  }
-
-  /** Name a junction by hand: `connection` goes on every one of its symbols,
-   *  a junction drawn from several having no other way to be named. */
-  nameJunction(symbols: string[], name: string): boolean {
-    if (!isName(name)) return false;
-    this.push();
-    nameJunction(this.current, symbols, name);
-    return true;
-  }
-
-  /** Name the connection a bare wire between two blocks is. */
-  nameJoint(joint: Joint, name: string): boolean {
-    if (!isName(name)) return false;
-    this.push();
-    nameJoint(this.current, joint, name);
     return true;
   }
 

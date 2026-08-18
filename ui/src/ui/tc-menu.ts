@@ -1,23 +1,25 @@
 /**
  * The right-click menu: what applies to whatever was clicked.
  *
- * A junction region offers its name, because renaming one is meant to be one
- * click on the region; a bare wire between two blocks offers the name of the
- * connection it is; a symbol offers its properties and the transforms the key
+ * A symbol offers its properties, where it has any, and the transforms the key
  * bindings also do; and a wire offers to be cut, this being the only way to
  * delete one — a wire has no symbol to select and so no keystroke to take it.
+ *
+ * A junction and a joint offer nothing. Their names are the editor's own, so
+ * there is nothing to rename: the editor mints them, `settle` keeps them
+ * settled through splits and merges, and the netlist pane is where one is read
+ * (EDITOR.md#junctions).
  */
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
 import type { Under } from "../model/under.js";
+import { editable } from "./tc-properties.js";
 import { menuStyles } from "./styles.js";
 
 export type MenuAction =
   | "properties"
-  | "rename-junction"
-  | "rename-joint"
   | "rotate"
   | "flip"
   | "delete"
@@ -36,30 +38,19 @@ export class TcMenu extends LitElement {
   override render() {
     const at = this.at;
     // Nothing under the pointer applies to nothing, and a menu of no items is
-    // an empty box that looks broken. A wire is the ordinary way to land here:
-    // it is not a symbol, and only the bare wire between two blocks is a joint
-    // with a name to offer.
+    // an empty box that looks broken. A junction or a joint alone is the
+    // ordinary way to land here now that neither has a name to offer.
     if (at === null || !applies(at)) return nothing;
     return html`
       <div class="sheet" @pointerdown=${this.dismiss}></div>
       <menu style=${`left: ${at.x}px; top: ${at.y}px`}>
-        ${at.junction === null
-          ? nothing
-          : this.item(
-              "rename-junction",
-              `Rename junction "${at.junction.name ?? "unnamed"}"`,
-            )}
-        ${at.joint === null
-          ? nothing
-          : this.item(
-              "rename-joint",
-              `Rename connection "${at.joint.name ?? "unnamed"}"`,
-            )}
         ${at.wire === null ? nothing : this.item("delete-wire", "Delete wire")}
         ${at.symbol === null
           ? nothing
           : html`
-              ${this.item("properties", "Properties…")}
+              ${at.kind !== null && editable(at.kind)
+                ? this.item("properties", "Properties…")
+                : nothing}
               ${this.item("rotate", "Rotate", "R")}
               ${this.item("flip", "Flip", "F")}
               ${this.item("delete", "Delete", "⌫")}
@@ -99,14 +90,11 @@ export class TcMenu extends LitElement {
   }
 }
 
-/** Whether anything was clicked that the menu has something to say about. */
+/** Whether anything was clicked that the menu has something to say about. A
+ *  junction and a joint are not it: their names are minted and hidden, and a
+ *  symbol of one is offered on its own account. */
 export function applies(at: MenuAt): boolean {
-  return (
-    at.symbol !== null ||
-    at.junction !== null ||
-    at.joint !== null ||
-    at.wire !== null
-  );
+  return at.symbol !== null || at.wire !== null;
 }
 
 declare global {

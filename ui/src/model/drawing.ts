@@ -64,6 +64,28 @@ export function pinsOf(spec: SymbolSpec): readonly string[] {
   return spec.kind === "connection" ? (spec.pins ?? []) : PINS[spec.kind];
 }
 
+/**
+ * The kinds whose name is the user's to choose. A name is typed when hardware
+ * answers to it — a block, or a symbol with a motor the bus will address —
+ * and minted and hidden otherwise: a fixed crossing has nothing to command, a
+ * pin and a terminal are wiring, and a portal is known by its label. The
+ * hidden ones are still in the yaml and still read in the netlist pane.
+ *
+ * The generic connection symbol is here because its name is the only handle on
+ * it, the kind being legacy and on its way out (#35).
+ */
+const NAMED = new Set<AnyKind>([
+  "block",
+  "turnout",
+  "single_slip",
+  "double_slip",
+  "connection",
+]);
+
+export function named(kind: AnyKind): boolean {
+  return NAMED.has(kind);
+}
+
 export interface Drawing {
   drawing: string;
   units?: string;

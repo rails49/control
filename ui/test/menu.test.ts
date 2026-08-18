@@ -22,6 +22,7 @@ function at(parts: Partial<MenuAt> = {}): MenuAt {
     y: 10,
     pin: null,
     symbol: null,
+    kind: null,
     junction: null,
     joint: null,
     wire: null,
@@ -42,7 +43,7 @@ async function items(what: MenuAt | null): Promise<string[]> {
 
 describe("what the menu offers", () => {
   it("offers a symbol its properties and the transforms", async () => {
-    expect(await items(at({ symbol: "sw1" }))).toEqual([
+    expect(await items(at({ symbol: "sw1", kind: "turnout" }))).toEqual([
       "Properties…",
       "Rotate",
       "Flip",
@@ -50,16 +51,24 @@ describe("what the menu offers", () => {
     ]);
   });
 
-  it("offers a junction its name", async () => {
-    expect(await items(at({ junction: JUNCTION }))).toEqual([
-      'Rename junction "airolo"',
+  /** A pin's name is minted and hidden and it has nothing else to set, so an
+   *  empty dialog is all Properties could open. */
+  it("offers a symbol with nothing to set only the transforms", async () => {
+    expect(await items(at({ symbol: "n1", kind: "pin" }))).toEqual([
+      "Rotate",
+      "Flip",
+      "Delete",
     ]);
   });
 
-  it("offers a joint the name of the connection it is", async () => {
-    expect(await items(at({ joint: JOINT }))).toEqual([
-      'Rename connection "unnamed"',
-    ]);
+  /** A junction's name is the editor's own: it mints one, keeps it settled
+   *  through splits and merges, and shows it in the netlist pane. */
+  it("offers a junction nothing", async () => {
+    expect(await items(at({ junction: JUNCTION }))).toEqual([]);
+  });
+
+  it("offers a joint nothing", async () => {
+    expect(await items(at({ joint: JOINT }))).toEqual([]);
   });
 
   /** A wire has no symbol to select and so no keystroke to take it: the menu
@@ -70,17 +79,15 @@ describe("what the menu offers", () => {
     ]);
   });
 
-  it("offers a joint both its name and the cut", async () => {
+  it("offers the wire of a joint the cut and no more", async () => {
     expect(await items(at({ joint: JOINT, wire: ["b1.A", "b2.B"] }))).toEqual([
-      'Rename connection "unnamed"',
       "Delete wire",
     ]);
   });
 });
 
-/** A wire is not a symbol, and only the bare wire between two blocks is a
- *  joint, so right-clicking any other wire lands on nothing at all. Drawing
- *  the menu anyway put an empty rounded box on the canvas. */
+/** A wire is not a symbol, so right-clicking anywhere else lands on nothing at
+ *  all. Drawing the menu anyway put an empty rounded box on the canvas. */
 describe("nothing under the pointer", () => {
   it("draws no menu at all", async () => {
     expect(await items(at())).toEqual([]);
@@ -93,8 +100,9 @@ describe("nothing under the pointer", () => {
 
   it("says so of what was clicked", () => {
     expect(applies(at())).toBe(false);
-    expect(applies(at({ symbol: "sw1" }))).toBe(true);
-    expect(applies(at({ junction: JUNCTION }))).toBe(true);
-    expect(applies(at({ joint: JOINT }))).toBe(true);
+    expect(applies(at({ symbol: "sw1", kind: "turnout" }))).toBe(true);
+    expect(applies(at({ wire: ["b1.A", "b2.B"] }))).toBe(true);
+    expect(applies(at({ junction: JUNCTION }))).toBe(false);
+    expect(applies(at({ joint: JOINT }))).toBe(false);
   });
 });

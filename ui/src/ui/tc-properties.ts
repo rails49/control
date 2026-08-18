@@ -2,6 +2,13 @@
  * The properties dialog: a symbol's name, and per kind what only that kind
  * has (EDITOR.md).
  *
+ * **Only a name hardware answers to is shown.** A block is named, and so is
+ * anything with a motor the bus will address; a fixed crossing, a pin, a
+ * terminal and a portal are minted and hidden (`named` in model/drawing.ts).
+ * A kind left with nothing to edit does not open the dialog at all — an empty
+ * modal is worse than none, and the netlist pane is where a hidden name is
+ * read.
+ *
  * A block's key is a short stable id and its label is its real name, `Zürich
  * HB Gleis 1`. The id prefixes every transit id in a trace, so renaming one is
  * a real change and every wire that names its pins is rewritten with it; the
@@ -23,7 +30,7 @@ import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/components/select/select.js";
 
 import { PINS, TRANSITS, type LibraryKind } from "../symbols.generated.js";
-import type { SymbolSpec } from "../model/drawing.js";
+import { named, type AnyKind, type SymbolSpec } from "../model/drawing.js";
 import { propertiesStyles } from "./styles.js";
 
 /** What the dialog hands back: a new name where it changed, and the spec. */
@@ -55,14 +62,18 @@ export class TcProperties extends LitElement {
     if (this.editing === null) return nothing;
     return html`
       <sl-dialog open label="Properties" @sl-after-hide=${this.close}>
-        <sl-input
-          label="Name"
-          help-text="The id every transit through this symbol is prefixed with."
-          value=${this.name}
-          @sl-input=${(event: Event) => {
-            this.name = (event.target as HTMLInputElement).value;
-          }}
-        ></sl-input>
+        ${named(this.draft.kind)
+          ? html`
+              <sl-input
+                label="Name"
+                help-text="The id every transit through this symbol is prefixed with."
+                value=${this.name}
+                @sl-input=${(event: Event) => {
+                  this.name = (event.target as HTMLInputElement).value;
+                }}
+              ></sl-input>
+            `
+          : nothing}
         ${this.perKind()} ${this.legs()}
         <sl-button slot="footer" @click=${this.close}>Cancel</sl-button>
         <sl-button slot="footer" variant="primary" @click=${this.apply}>
@@ -182,6 +193,15 @@ export class TcProperties extends LitElement {
       new CustomEvent("properties-closed", { bubbles: true, composed: true }),
     );
   }
+}
+
+/** Whether a kind has anything to edit: a name of its own, the fields only a
+ *  block or a portal has, or transit names on its legs. A pin and a terminal
+ *  have none of the three, and the menu offers them no properties. */
+export function editable(kind: AnyKind): boolean {
+  return (
+    named(kind) || kind === "portal" || kind in TRANSITS
+  );
 }
 
 /** Drop what the drawing schema would refuse: an empty label is not a name,

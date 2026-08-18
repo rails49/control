@@ -557,6 +557,15 @@ export const netlistStyles = css`
     letter-spacing: 0;
   }
 
+  /* The symbols a connection is drawn from, under its heading: a name nobody
+     typed is read here, and so is a junction wider than it looks. */
+  .drawn-from {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
+    color: var(--hint);
+    word-spacing: 0.2em;
+  }
+
   ul {
     margin: 0;
     padding: 0;

@@ -67,6 +67,13 @@ describe("the symbol under a point", () => {
   it("finds nothing on an empty square", () => {
     expect(under(ONE_TURNOUT, NOTHING, { x: 7, y: 7 }).symbol).toBeNull();
   });
+
+  /** The kind comes with it, being what says whether the symbol has properties
+   *  to open and whether its name is the user's to choose. */
+  it("says what kind it is, and nothing where there is no symbol", () => {
+    expect(under(ONE_TURNOUT, NOTHING, { x: 2.5, y: 1.5 }).kind).toBe("turnout");
+    expect(under(ONE_TURNOUT, NOTHING, { x: 7, y: 7 }).kind).toBeNull();
+  });
 });
 
 /** A junction is the connected group of non-block symbols, which `/review`

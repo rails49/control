@@ -344,20 +344,6 @@ export class TcEditor extends LitElement {
         }
         return;
       }
-      case "rename-junction":
-        if (at.junction !== null) {
-          const name = this.ask("Junction name", at.junction.name ?? "");
-          if (name !== null) {
-            this.act((editor) => editor.nameJunction(at.junction!.symbols, name));
-          }
-        }
-        return;
-      case "rename-joint":
-        if (at.joint !== null) {
-          const name = this.ask("Connection name", at.joint.name ?? "");
-          if (name !== null) this.act((editor) => editor.nameJoint(at.joint!, name));
-        }
-        return;
       case "delete-wire":
         if (at.wire !== null) this.act((editor) => editor.unwire(at.wire!));
         return;
@@ -373,8 +359,8 @@ export class TcEditor extends LitElement {
     }
   }
 
-  /** A one-field rename. A dialog for a single word would be more of the
-   *  editor than renaming a junction is worth (EDITOR.md's simplicity). */
+  /** A one-field prompt. A dialog for a single word would be more of the
+   *  editor than naming a drawing is worth (EDITOR.md's simplicity). */
   private ask(what: string, was: string): string | null {
     const said = window.prompt(what, was);
     return said === null || said.trim() === "" ? null : said.trim();

@@ -71,12 +71,18 @@ export class TcNetlist extends LitElement {
   }
 
   /** One connection as `tc49 layout show` prints it: its transits with their
-   *  two block ends, and the pairs of them that run at the same time. */
+   *  two block ends, and the pairs of them that run at the same time.
+   *
+   *  Headed by the symbols it is drawn from, which is the one place a name
+   *  nobody typed can be read back. A junction of several throats wired
+   *  together with no block between them is one connection, and reading its
+   *  members is how that is seen rather than guessed at from a canvas tint. */
   private connection(name: string) {
     const connection = this.review!.layout!.connections[name]!;
     const concurrent = connection.concurrent ?? [];
     return html`
       <h3>${name}</h3>
+      ${this.drawnFrom(name)}
       <ul class="transits">
         ${Object.entries(connection.transits).map(
           ([transit, ends]) => html`
@@ -101,6 +107,16 @@ export class TcNetlist extends LitElement {
         )}
       </ul>
     `;
+  }
+
+  /** The symbols a connection is drawn from: a junction's members, or nothing
+   *  for a joint, which is a bare wire between two blocks and has none. */
+  private drawnFrom(name: string) {
+    const junction = (this.review?.junctions ?? []).find(
+      (one) => one.name === name,
+    );
+    if (junction === undefined) return nothing;
+    return html`<p class="drawn-from">${junction.symbols.join(" ")}</p>`;
   }
 
   /** Every other transit at this connection, split into those that can run
