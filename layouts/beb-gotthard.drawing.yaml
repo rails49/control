@@ -1,9 +1,5 @@
 drawing: beb-gotthard
 symbols:
-  Airolo 1: {kind: block, at: [17, 3], length: 1000}
-  Airolo 2: {kind: block, at: [17, 4], length: 1000}
-  Airolo 3: {kind: block, at: [17, 5], length: 1000}
-  Airolo 4: {kind: block, at: [8, 3], length: 1000}
   sw1: {kind: turnout, at: [15, 4], connection: butterfly}
   sw2: {kind: turnout, at: [15, 3], rot: 180, connection: butterfly}
   sw3: {kind: turnout, at: [14, 5], rot: 0, connection: butterfly}
@@ -27,9 +23,6 @@ symbols:
   n10: {kind: pin, at: [-2, 3], rot: 90}
   n11: {kind: pin, at: [-2, 7], rot: 90}
   n12: {kind: pin, at: [0, 7], rot: 90}
-  Claro east 1: {kind: block, at: [9, 8], rot: 180, length: 1000}
-  Claro east 2: {kind: block, at: [9, 9], rot: 180, length: 1000}
-  Claro west: {kind: block, at: [-4, 7], rot: 270, flip: true, length: 1000}
   sw11: {kind: turnout, at: [-4, 14], rot: 90, connection: j4}
   sw12: {kind: turnout, at: [-1, 16], rot: 180, flip: true, connection: j4}
   n14: {kind: pin, at: [-4, 15], rot: 90}
@@ -57,30 +50,37 @@ symbols:
   n32: {kind: pin, at: [26, 15], rot: 90}
   n33: {kind: pin, at: [26, 3], rot: 90}
   n34: {kind: pin, at: [26, 2], rot: 90}
-  Claro 4: {kind: block, at: [11, 12], rot: 180, length: 1000}
-  Claro 5: {kind: block, at: [11, 13], rot: 180, length: 1000}
-  Claro 1: {kind: block, at: [6, 15], rot: 180, length: 1000}
-  Claro 2: {kind: block, at: [6, 16], rot: 180, length: 1000}
-  Claro 3b: {kind: block, at: [13, 18], rot: 180, length: 1000}
-  Claro 3a: {kind: block, at: [3, 18], rot: 180, length: 1000}
-  Claro 6: {kind: block, at: [3, 20], rot: 180, length: 1000}
-  Claro 7: {kind: block, at: [3, 21], rot: 180, length: 1000}
   n35: {kind: pin, at: [-2, 15], rot: 0}
   n36: {kind: pin, at: [-3, 14], rot: 0}
   n37: {kind: pin, at: [-4, 6], rot: 90}
+  CE1: {kind: block, at: [9, 8], rot: 180, length: 1000}
+  CE2: {kind: block, at: [9, 9], rot: 180, length: 1000}
+  C4: {kind: block, at: [11, 12], rot: 180, length: 1000}
+  C5: {kind: block, at: [11, 13], rot: 180, length: 1000}
+  C1: {kind: block, at: [6, 15], rot: 180, length: 1000}
+  A1: {kind: block, at: [17, 3], length: 1000}
+  A2: {kind: block, at: [17, 4], length: 1000}
+  A3: {kind: block, at: [17, 5], length: 1000}
+  A4: {kind: block, at: [8, 3], length: 1000}
+  CW: {kind: block, at: [-4, 7], rot: 270, flip: true, length: 1000}
+  C2: {kind: block, at: [6, 16], rot: 180, length: 1000}
+  C3b: {kind: block, at: [13, 18], rot: 180, length: 1000}
+  C3a: {kind: block, at: [3, 18], rot: 180, length: 1000}
+  C6: {kind: block, at: [3, 20], rot: 180, length: 1000}
+  C7: {kind: block, at: [3, 21], rot: 180, length: 1000}
 wires:
   - [sw2.diverging, sw1.diverging]
-  - [Airolo 4.B, sw2.straight]
-  - [sw2.toe, Airolo 1.A]
-  - [sw1.straight, Airolo 2.A]
-  - [sw3.straight, Airolo 3.A]
+  - [A4.B, sw2.straight]
+  - [sw2.toe, A1.A]
+  - [sw1.straight, A2.A]
+  - [sw3.straight, A3.A]
   - [sw3.diverging, sw1.toe]
-  - [Airolo 1.B, sw5.straight]
-  - [Airolo 2.B, sw4.straight]
+  - [A1.B, sw5.straight]
+  - [A2.B, sw4.straight]
   - [sw4.diverging, n1.P]
-  - [n1.P, Airolo 3.B]
+  - [n1.P, A3.B]
   - [sw4.toe, sw5.diverging]
-  - [end1.P, Airolo 4.A]
+  - [end1.P, A4.A]
   - [sw6.diverging, x90d1.a1]
   - [sw7.diverging, x90d1.a2]
   - [sw8.straight, sw7.straight]
@@ -90,9 +90,9 @@ wires:
   - [sw8.toe, sw3.toe]
   - [sw6.toe, n2.P]
   - [sw7.toe, n4.P]
-  - [n5.P, Claro east 1.B]
+  - [n5.P, CE1.B]
   - [sw9.toe, n6.P]
-  - [n9.P, Claro east 2.B]
+  - [n9.P, CE2.B]
   - [sw10.toe, n4.P]
   - [n6.P, n10.P]
   - [n10.P, n11.P]
@@ -100,40 +100,40 @@ wires:
   - [sw10.diverging, n12.P]
   - [n12.P, n5.P]
   - [n11.P, n9.P]
-  - [sw11.toe, Claro west.B]
+  - [sw11.toe, CW.B]
   - [n14.P, n15.P]
   - [n15.P, sw12.toe]
-  - [sw12.straight, Claro 2.B]
+  - [sw12.straight, C2.B]
   - [sw12.diverging, n16.P]
-  - [n16.P, Claro 3a.B]
-  - [e1.P, Claro 6.B]
-  - [e2.P, Claro 7.B]
-  - [e3.P, Claro 4.B]
-  - [e4.P, Claro 5.B]
+  - [n16.P, C3a.B]
+  - [e1.P, C6.B]
+  - [e2.P, C7.B]
+  - [e3.P, C4.B]
+  - [e4.P, C5.B]
   - [sw15.toe, sw14.diverging]
-  - [sw15.straight, Claro 5.A]
+  - [sw15.straight, C5.A]
   - [sw15.diverging, n19.P]
-  - [n19.P, Claro 4.A]
+  - [n19.P, C4.A]
   - [sw14.toe, n20.P]
   - [n20.P, n21.P]
   - [n21.P, n22.P]
   - [n22.P, n23.P]
-  - [n23.P, Claro east 2.A]
+  - [n23.P, CE2.A]
   - [sw13.diverging, n29.P]
-  - [n29.P, Claro 3b.A]
-  - [sw16.toe, Claro 3b.B]
-  - [Claro 3a.A, sw16.straight]
+  - [n29.P, C3b.A]
+  - [sw16.toe, C3b.B]
+  - [C3a.A, sw16.straight]
   - [sw17.toe, sw16.diverging]
-  - [sw17.straight, Claro 6.A]
+  - [sw17.straight, C6.A]
   - [sw17.diverging, n30.P]
-  - [n30.P, Claro 7.A]
+  - [n30.P, C7.A]
   - [sw13.toe, n31.P]
   - [n31.P, n32.P]
-  - [Claro 1.A, sw14.straight]
-  - [sw13.straight, Claro 2.A]
+  - [C1.A, sw14.straight]
+  - [sw13.straight, C2.A]
   - [n32.P, n27.P]
   - [n27.P, n26.P]
-  - [n26.P, Claro east 1.A]
+  - [n26.P, CE1.A]
   - [sw5.toe, n33.P]
   - [n33.P, n34.P]
   - [n34.P, n2.P]
@@ -141,5 +141,5 @@ wires:
   - [sw11.straight, n14.P]
   - [sw11.diverging, n36.P]
   - [p2.P, n37.P]
-  - [n37.P, Claro west.A]
-  - [n35.P, Claro 1.B]
+  - [n37.P, CW.A]
+  - [n35.P, C1.B]
