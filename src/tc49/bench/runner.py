@@ -82,6 +82,24 @@ def assemble(
     return Assembly(bus, dispatcher, Simulator(bus, scenario), layout, scenario, k, out)
 
 
+def assemble_live(
+    layout: Layout,
+    scenario: Scenario,
+    make_strategy: StrategyFactory = FullRoute,
+    k: int = DEFAULT_K,
+) -> Assembly:
+    """The live-session wiring (#71): the batch assembly minus the file
+    scheduler. Modes are exclusive (ADR-0016) — the scenario contributes
+    stock, placement, and facing, its requests are never released, and the
+    bridge a caller attaches to the bus is the only inbound path."""
+    bus = Bus()
+    out = io.StringIO()
+    TraceTap(bus, out)
+    dispatcher = Dispatcher(bus, layout, scenario, make_strategy(layout, k))
+    Driver(bus)
+    return Assembly(bus, dispatcher, Simulator(bus, scenario), layout, scenario, k, out)
+
+
 def run_scenario(
     layout: Layout,
     scenario: Scenario,

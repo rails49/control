@@ -1,8 +1,10 @@
-"""`tc49 bench <scenario>`, `tc49 sweep`, `tc49 layout show <layout>`, `tc49 serve`,
-`tc49 symbols`.
+"""`tc49 bench <scenario>`, `tc49 sweep`, `tc49 live <scenario>`,
+`tc49 layout show <layout>`, `tc49 serve`, `tc49 symbols`.
 
 `bench` runs one named scenario under both locking strategies and prints the
-comparison. `sweep` takes no arguments: the grid of BENCHMARKS.md is the
+comparison. `live` runs a session an outside client can join: wall-clock
+ticks, the bridge relaying `tc49/#` out and `request_submitted` in, the
+store served over HTTP, and no file scheduler (ADR-0016 exclusivity). `sweep` takes no arguments: the grid of BENCHMARKS.md is the
 research design, not a knob, and that page is its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
 review that a committed layout file used to give in a diff (ADR-0015).
@@ -11,12 +13,20 @@ review that a committed layout file used to give in a diff (ADR-0015).
 
 import argparse
 import sys
+import threading
 from pathlib import Path
 from typing import TextIO
 
 from tc49.bench.metrics import Metrics, Stall, metrics
-from tc49.bench.runner import DEFAULT_K, STRATEGIES, find_root, run_scenario
+from tc49.bench.runner import (
+    DEFAULT_K,
+    STRATEGIES,
+    assemble_live,
+    find_root,
+    run_scenario,
+)
 from tc49.bench.sweep import sweep
+from tc49.lib.bridge import Bridge
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
@@ -141,6 +151,25 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
 
     commands.add_parser("sweep", help="run the fixed grid of docs/bench/BENCHMARKS.md")
 
+    live_parser = commands.add_parser(
+        "live", help="run a live session an outside client can join (ui/PANEL.md)"
+    )
+    live_parser.add_argument(
+        "scenario", help="stock, placement, and facing, e.g. gotthard/meet"
+    )
+    live_parser.add_argument(
+        "--period",
+        type=float,
+        default=1.0,
+        help="seconds per tick (default 1.0; the panel work tunes it by eye)",
+    )
+    live_parser.add_argument(
+        "--port", type=int, default=8766, help="the bridge's WebSocket port"
+    )
+    live_parser.add_argument(
+        "--store-port", type=int, default=8765, help="the store's HTTP port"
+    )
+
     serve_parser = commands.add_parser(
         "serve", help="serve the asset store over HTTP, for the layout editor"
     )
@@ -169,6 +198,28 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         out.write(format_comparison(args.scenario, args.k, results))
         if args.trace:
             out.write(results[args.trace][0])
+        return 0
+
+    if args.command == "live":
+        layout, scenario = load(AssetStore(ROOT), args.scenario)
+        assembly = assemble_live(layout, scenario)
+        bridge = Bridge(assembly.bus, args.port)
+        store_server = make_server(ROOT, args.store_port)
+        threading.Thread(
+            target=store_server.serve_forever, name="store", daemon=True
+        ).start()
+        out.write(
+            f"live: {args.scenario} at {args.period}s per tick\n"
+            f"  bridge  ws://127.0.0.1:{bridge.port}\n"
+            f"  store   http://127.0.0.1:{args.store_port}\n"
+            "no file scheduler runs; Ctrl-C ends the session, and a restart"
+            " comes up fresh from the scenario\n"
+        )
+        out.flush()
+        try:
+            assembly.simulator.run_live(args.period)
+        except KeyboardInterrupt:
+            pass
         return 0
 
     if args.command == "serve":
