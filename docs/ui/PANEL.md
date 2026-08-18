@@ -109,6 +109,9 @@ which is why one panel model serves both. Facing stays determined from there:
 a train faces away from the end it entered through, so the next drag departs
 nose-first with no bookkeeping.
 
+A session ticks on a wall clock, one knob: `tc49 live --period`. The default
+is 2 seconds, picked by watching the panel rather than by argument.
+
 **A panel joins at the start of a session.** The bridge holds no backlog, so a
 browser that connects after a train has moved shows it in its scenario block,
 and a drag then states a departure block the dispatcher knows is wrong. The

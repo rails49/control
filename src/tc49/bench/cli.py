@@ -160,8 +160,8 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
     live_parser.add_argument(
         "--period",
         type=float,
-        default=1.0,
-        help="seconds per tick (default 1.0; the panel work tunes it by eye)",
+        default=2.0,
+        help="seconds per tick (default 2.0, picked by watching the panel)",
     )
     live_parser.add_argument(
         "--port", type=int, default=8766, help="the bridge's WebSocket port"
