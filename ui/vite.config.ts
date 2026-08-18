@@ -22,6 +22,7 @@ export default defineConfig({
     proxy: {
       "/drawings": "http://127.0.0.1:8765",
       "/review": "http://127.0.0.1:8765",
+      "/scenarios": "http://127.0.0.1:8765",
     },
   },
   test: {

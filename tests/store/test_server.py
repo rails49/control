@@ -26,6 +26,7 @@ def store(tmp_path: Path) -> AssetStore:
     (tmp_path / "layouts").mkdir()
     for path in (ROOT / "layouts").glob("*.drawing.yaml"):
         shutil.copy(path, tmp_path / "layouts" / path.name)
+    shutil.copytree(ROOT / "scenarios", tmp_path / "scenarios")
     return AssetStore(tmp_path)
 
 
@@ -66,6 +67,37 @@ def test_a_put_naming_a_different_drawing_is_refused(store: AssetStore) -> None:
     status, body = handle(store, "PUT", "/drawings/gotthard", doc)
     assert status == 400
     assert "facing-pair" in body["error"]
+
+
+def test_the_scenarios_are_listed_across_every_railroad(store: AssetStore) -> None:
+    """The panel joins a live session by naming the scenario it runs, and one
+    list of them is what it picks from (ui/PANEL.md)."""
+    status, body = handle(store, "GET", "/scenarios", None)
+    assert status == 200
+    assert "gotthard/meet" in body["scenarios"]
+    assert body["scenarios"] == sorted(body["scenarios"])
+
+
+def test_a_scenario_is_served_validated(store: AssetStore) -> None:
+    """Stock, placement and facing: what the panel-scheduler needs to submit a
+    departure end, and the one place facing is written down (ADR-0019)."""
+    status, body = handle(store, "GET", "/scenarios/gotthard/meet", None)
+    assert status == 200
+    assert body["layout"] == "gotthard"
+    assert body["trains"]["south"] == {"length": 900, "at": "claro_2", "facing": "B"}
+
+
+def test_an_unknown_scenario_is_not_found(store: AssetStore) -> None:
+    status, body = handle(store, "GET", "/scenarios/gotthard/atlantis", None)
+    assert status == 404
+    assert "atlantis" in body["error"]
+
+
+def test_a_bare_name_is_not_a_scenario(store: AssetStore) -> None:
+    """`get` derives a layout from an unqualified name; the scenario route
+    must not hand one back as though it were a scenario."""
+    status, _ = handle(store, "GET", "/scenarios/gotthard", None)
+    assert status == 404
 
 
 def test_a_review_returns_the_layout_and_why_it_is_that(store: AssetStore) -> None:

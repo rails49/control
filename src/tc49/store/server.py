@@ -1,6 +1,6 @@
 """The store's HTTP face: what the layout editor talks to (ui/EDITOR.md).
 
-Four routes, every one of them a store operation, which is why this belongs to
+Six routes, every one of them a store operation, which is why this belongs to
 the store rather than to an app of its own — a `ui` package could not import
 `tc49.store` and stay inside ADR-0013.
 
@@ -8,6 +8,8 @@ the store rather than to an app of its own — a `ui` package could not import
     GET  /drawings/<name>       one drawing, as the document it is
     PUT  /drawings/<name>       save it, keeping what the file says
     POST /review                what a drawing means, derived and explained
+    GET  /scenarios             the scenarios there are, layout-qualified
+    GET  /scenarios/<id>        one scenario: stock, placement, facing
 
 `review` is the one that carries the editor's whole view of topology: red
 pins, junction membership, the derived layout, and why each pair of transits
@@ -15,7 +17,14 @@ does or does not run together. The front end reimplements none of it, so a
 second union-find cannot disagree with the first inside the tool whose job is
 to be believed.
 
-It takes a *document* rather than a name because the interesting drawing is
+The two scenario routes are the panel's: a live session's stock, placement,
+and facing come from the scenario document (ui/PANEL.md, ADR-0019), and the
+bridge relays the bus rather than describing the run. They are reads of the
+store like any other, so they answer with the *validated* scenario — a
+document that will not validate is refused here rather than mis-read by a
+scheduler.
+
+`review` takes a *document* rather than a name because the interesting drawing is
 the one being edited, which has not been saved and may not derive. Work in
 progress is answered with 200 and a refusal inside; only a document that will
 not load at all is a bad request.
@@ -25,6 +34,7 @@ The panel later adds a WebSocket bridge from `tc49/#` alongside this
 """
 
 import json
+from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, cast
@@ -64,6 +74,18 @@ def _route(store: AssetStore, method: str, path: str, body: Any) -> Response:
         if not isinstance(body, dict):
             return 400, {"error": "review takes a drawing document"}
         return 200, Drawing.from_document(body).review()
+
+    if method == "GET" and route == "/scenarios":
+        return 200, {"scenarios": store.scenarios()}
+
+    # Layout-qualified, always: `get` derives a layout from a bare name, and
+    # this route answers about scenarios only.
+    scenario = route.removeprefix("/scenarios/")
+    if method == "GET" and scenario != route and "/" in scenario:
+        try:
+            return 200, asdict(store.get(scenario))
+        except FileNotFoundError:
+            return 404, {"error": f"no scenario '{scenario}'"}
 
     name = route.removeprefix("/drawings/")
     if name != route and "/" not in name:

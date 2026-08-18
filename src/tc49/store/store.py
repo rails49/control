@@ -50,6 +50,15 @@ class AssetStore:
         drawing = Drawing.from_document(self._read(self._drawing_path(name)))
         return Layout.from_document(drawing.derive())
 
+    def scenarios(self) -> list[str]:
+        """Every scenario there is, layout-qualified. `list` takes one layout
+        because a scenario belongs to one; a panel joining a session picks
+        from all of them and does not know the layout yet (ui/PANEL.md)."""
+        paths = (self._root / "scenarios").glob("*/*.scenario.yaml")
+        return sorted(
+            f"{p.parent.name}/{p.name.removesuffix('.scenario.yaml')}" for p in paths
+        )
+
     def list(self, layout: str | None = None) -> list[str]:
         if layout is None:
             drawings = (self._root / "layouts").glob("*.drawing.yaml")

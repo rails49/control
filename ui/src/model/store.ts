@@ -1,5 +1,5 @@
 /**
- * The store's four routes (EDITOR.md), and nothing else.
+ * The store's routes (EDITOR.md, PANEL.md), and nothing else.
  *
  * `review` is the whole of the editor's view of topology: red pins, the
  * junctions as symbol groups, the derived layout, its explanation, and the
@@ -80,6 +80,24 @@ export async function saveDrawing(drawing: Drawing): Promise<void> {
 
 export async function review(drawing: Drawing): Promise<Review> {
   return await ask<Review>("POST", "/review", drawing);
+}
+
+/** A live session's stock, placement and facing: the scenario the session was
+ *  started from (PANEL.md, ADR-0019). The bridge relays the bus and says
+ *  nothing about the run, so the panel reads this to know where the trains
+ *  stand and which way they face before the first event arrives. */
+export interface ScenarioDoc {
+  name: string;
+  layout: string;
+  trains: Record<string, { length: number; at: string; facing: string }>;
+}
+
+export async function listScenarios(): Promise<string[]> {
+  return (await ask<{ scenarios: string[] }>("GET", "/scenarios")).scenarios;
+}
+
+export async function readScenario(id: string): Promise<ScenarioDoc> {
+  return await ask<ScenarioDoc>("GET", `/scenarios/${id}`);
 }
 
 async function ask<T>(method: string, path: string, body?: unknown): Promise<T> {
