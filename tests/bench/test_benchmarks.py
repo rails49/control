@@ -96,6 +96,19 @@ def test_named_scenario_matches_its_golden_numbers(scenario_id: str) -> None:
     assert json.loads(path.read_text()) == measured
 
 
+def test_batch_trace_is_pinned_byte_identical() -> None:
+    """The batch loop is the research harness's ground truth: live mode (#69)
+    and everything after must leave its traces byte-identical, so one full
+    trace is pinned alongside the golden numbers. Regenerate like the goldens,
+    with TC49_REGEN_GOLDENS=1, and read the diff before committing it."""
+    layout, scenario = load("crossover-yard/meet")
+    trace = run_scenario(layout, scenario)
+    path = EXPECTED / "crossover-yard-meet.trace.jsonl"
+    if os.environ.get("TC49_REGEN_GOLDENS"):
+        path.write_text(trace)
+    assert path.read_text() == trace
+
+
 def test_incremental_splits_the_gotthard_meet_across_two_lines() -> None:
     """The story `gotthard/meet` exists to tell, asserted rather than quoted.
 

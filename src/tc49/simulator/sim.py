@@ -3,10 +3,17 @@
 Commands in, observations out, plus ownership of time (SYSTEM.md, layout
 interface; ADR-0009). Each advance executes the buffered commands, publishes
 their sensor events, then the tick — a tick's sensors precede the tick
-itself. It stops when the scheduler was already exhausted at the start of a
-tick and that tick's cascade produced no commands (BENCHMARKS.md,
-termination); the tick budget is a backstop against live-lock bugs only.
+itself. Batch mode (``run``) stops when the scheduler was already exhausted
+at the start of a tick and that tick's cascade produced no commands
+(BENCHMARKS.md, termination); the tick budget is a backstop against
+live-lock bugs only. Live mode (``run_live``, #69) paces the same advance on
+a wall clock and never terminates on quiescence — an idle railroad keeps
+ticking until the session is stopped. The dispatcher cannot tell the modes
+apart: ADR-0009 stands, and the tick counter stays a deterministic integer.
 """
+
+import time
+from collections.abc import Callable
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.scenario import Scenario
@@ -47,3 +54,28 @@ class Simulator:
             if exhausted_at_start and not self._saw_command:
                 return
         raise RuntimeError(f"no quiescence within {tick_limit} ticks")
+
+    def run_live(
+        self,
+        period_s: float,
+        sleep: Callable[[float], None] = time.sleep,
+        stop: Callable[[], bool] = lambda: False,
+    ) -> None:
+        """The live loop: one sleep of the period before every tick, and no
+        quiescence termination. `sleep` is the injectable time source, so
+        tests pace the loop without waiting; `stop` is polled once per tick,
+        and the interactive session ignores it and stops on Ctrl-C instead."""
+        self._bus.drain()  # the startup cascade: standing locks reach the trace
+        now = 0
+        while not stop():
+            sleep(period_s)
+            crosses, self._crosses = self._crosses, []
+            for cross in crosses:
+                train, into = cross["train"], cross["into"]
+                origin = self._position[train]
+                self._position[train] = into
+                self._bus.publish("tc49/layout/block_vacated", {"block": origin})
+                self._bus.publish("tc49/layout/block_occupied", {"block": into})
+            self._bus.publish("tc49/layout/tick", {"tick": now})
+            self._bus.drain()
+            now += 1
