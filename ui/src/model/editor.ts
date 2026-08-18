@@ -329,6 +329,36 @@ export class Editor {
       (wire) => !wirePins(wire).some((pin) => gone.has(symbolOf(pin))),
     );
     this.chosen = new Set();
+    this.sweep();
+  }
+
+  /**
+   * Bends no wire touches at all, gone.
+   *
+   * A bend is wiring rather than track: it has no name anyone sees, covers no
+   * square, and says nothing but where a wire turns a corner. One left holding
+   * nothing is therefore debris — invisible on the canvas, hard to find in the
+   * file, and enough on its own to make derivation refuse the drawing. A
+   * symbol pin left short is the opposite: it is the mark that says where the
+   * track now stops, so a bend still holding one wire stays and stays red.
+   *
+   * Sweeping cannot cascade: a bend with no wires holds none to take away.
+   */
+  private sweep(): void {
+    for (const [name, spec] of Object.entries(this.current.symbols)) {
+      if (spec.kind === "pin" && this.degree(`${name}.P`) === 0) {
+        delete this.current.symbols[name];
+      }
+    }
+    this.chosen = new Set(
+      [...this.chosen].filter((name) => name in this.current.symbols),
+    );
+    if (
+      this.drawingFrom !== null &&
+      !(symbolOf(this.drawingFrom) in this.current.symbols)
+    ) {
+      this.drawingFrom = null;
+    }
   }
 
   /**
@@ -345,6 +375,7 @@ export class Editor {
     if (kept.length === this.current.wires.length) return false;
     this.push();
     this.current.wires = kept;
+    this.sweep();
     return true;
   }
 
@@ -376,6 +407,12 @@ export class Editor {
       this.chosen = new Set(
         [...this.chosen].map((chosen) => (chosen === was ? name : chosen)),
       );
+      // A wire in flight points at a pin by name too, and the dialog opens
+      // without ending one. Left behind it would write a wire naming a symbol
+      // that no longer exists, which the store refuses to load.
+      if (this.drawingFrom !== null && symbolOf(this.drawingFrom) === was) {
+        this.drawingFrom = `${name}${this.drawingFrom.slice(was.length)}`;
+      }
     }
     return true;
   }

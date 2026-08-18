@@ -314,6 +314,46 @@ describe("drawing wires", () => {
     expect(editor.endWire("n2.P")).toBe(false);
   });
 
+  it("abandons the wire when the pin it starts from is deleted", () => {
+    // Otherwise the next click writes a wire naming a symbol that is gone,
+    // which the store refuses to load: an unwired bend is debris, but this is
+    // a file that will not open.
+    place("block", [0, 0]);
+    place("block", [10, 0]);
+    editor.select(["b1"]);
+    editor.startWire("b1.B");
+    editor.remove();
+
+    expect(editor.pendingFrom).toBeNull();
+    expect(editor.endWire("b2.A")).toBe(false);
+    expect(wires()).toEqual([]);
+  });
+
+  it("abandons the wire when the bend it starts from is swept", () => {
+    place("block", [0, 0]);
+    place("block", [10, 0]);
+    editor.startWire("b1.B");
+    editor.bend(8, 0.5); // n1, holding the one wire, and the wire goes on
+
+    editor.unwire(["b1.B", "n1.P"]);
+
+    expect(editor.drawing.symbols.n1).toBeUndefined();
+    expect(editor.pendingFrom).toBeNull();
+    expect(editor.endWire("b2.A")).toBe(false);
+    expect(wires()).toEqual([]);
+  });
+
+  it("follows the pin it starts from through a rename", () => {
+    place("block", [0, 0]);
+    place("block", [10, 0]);
+    editor.startWire("b1.B");
+    editor.edit("b1", "west", { ...editor.drawing.symbols.b1!, kind: "block" });
+
+    expect(editor.pendingFrom).toBe("west.B");
+    expect(editor.endWire("b2.A")).toBe(true);
+    expect(wires()).toEqual(["b2.A west.B"]);
+  });
+
   it("leaves what is drawn behind when the wire is abandoned", () => {
     // A red pin is the normal state of a drawing mid-edit, so abandoning is
     // not an undo.
@@ -343,6 +383,20 @@ describe("deleting", () => {
     editor.remove();
     expect(editor.degree("b1.B")).toBe(0);
     expect(editor.free("b1.B")).toBe(true);
+  });
+
+  it("sweeps up a bend both its neighbours left behind", () => {
+    place("block", [0, 0]);
+    editor.startWire("b1.B");
+    editor.bend(8, 0.5);
+    place("block", [10, 0]);
+    editor.startWire("n1.P");
+    editor.endWire("b2.A");
+
+    editor.select(["b1", "b2"]);
+    editor.remove();
+
+    expect(editor.drawing.symbols.n1).toBeUndefined();
   });
 
   it("clears the selection it just deleted", () => {
@@ -394,6 +448,34 @@ describe("cutting a wire", () => {
     expect(wires()).toEqual(["b1.B e1.P"]);
     // No snapshot taken, so it is not an undo step of its own.
     expect(editor.revision).toBe(was);
+  });
+
+  it("sweeps up the bend whose last wire it was", () => {
+    place("block", [0, 0]);
+    editor.startWire("b1.B");
+    editor.bend(8, 0.5);
+    place("block", [10, 0]);
+    editor.startWire("n1.P");
+    editor.endWire("b2.A");
+
+    editor.unwire(["b1.B", "n1.P"]);
+    expect(editor.drawing.symbols.n1).toBeDefined(); // still holds one
+    editor.unwire(["n1.P", "b2.A"]);
+
+    expect(editor.drawing.symbols.n1).toBeUndefined();
+  });
+
+  it("puts a swept bend back on undo, the cut being one step", () => {
+    place("block", [0, 0]);
+    editor.startWire("b1.B");
+    editor.bend(8, 0.5);
+    editor.unwire(["b1.B", "n1.P"]);
+    expect(editor.drawing.symbols.n1).toBeUndefined();
+
+    editor.undo();
+
+    expect(editor.drawing.symbols.n1).toBeDefined();
+    expect(wires()).toEqual(["b1.B n1.P"]);
   });
 
   it("is one undo step", () => {
