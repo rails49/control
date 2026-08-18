@@ -15,6 +15,12 @@ pnpm install
 pnpm dev                   # the editor at /, the panel at /panel.html
 ```
 
+`../scripts/dev.sh` does both and starts only what is not already up, which is
+worth having because vite holds 5173 strictly: a second `pnpm dev` fails rather
+than moving to 5174, leaving an open tab talking to a server that has gone.
+Vite binds `[::1]`, so the pages are reached as `localhost` rather than
+`127.0.0.1`.
+
 The panel picks a railroad from the store and opens a trace file from disk —
 `tc49 bench crossover-yard/meet --trace Incremental` prints one — then plays
 or steps it tick by tick.
