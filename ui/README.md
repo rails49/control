@@ -1,17 +1,23 @@
-# Layout editor
+# Layout editor and dispatch panel
 
-The visual editor for drawings, designed in [EDITOR.md](../docs/ui/EDITOR.md).
-TypeScript, pnpm, Lit and Shoelace; the drawing surface is SVG in the DOM.
+The visual editor for drawings, designed in [EDITOR.md](../docs/ui/EDITOR.md),
+and the dispatch panel that replays a recorded trace over a drawing
+([PANEL.md](../docs/ui/PANEL.md), #70). TypeScript, pnpm, Lit and Shoelace;
+the drawing surface is SVG in the DOM.
 
 ## Running it
 
-The editor talks to the store's HTTP face, which runs separately:
+Both pages talk to the store's HTTP face, which runs separately:
 
 ```
 uv run tc49 serve          # the store, on 127.0.0.1:8765
 pnpm install
-pnpm dev                   # the editor, proxying /drawings and /review
+pnpm dev                   # the editor at /, the panel at /panel.html
 ```
+
+The panel picks a railroad from the store and opens a trace file from disk —
+`tc49 bench crossover-yard/meet --trace Incremental` prints one — then plays
+or steps it tick by tick.
 
 ```
 pnpm check                 # tsc --noEmit
@@ -31,6 +37,8 @@ src/
     gesture.ts   what a pointer gesture means: press, drag, band, pan
     naming.ts    connection names, minted and written into the drawing
     store.ts     the four routes
+    trace.ts     a recorded trace, parsed and stepped tick by tick
+    panel.ts     the panel model: bus payloads in, render state out
   render/
     artwork.ts   what each symbol looks like, hand-written against the
                  generated pin names
@@ -42,6 +50,7 @@ src/
                    run together
     tc-properties.ts  the properties dialog
     tc-menu.ts     the right-click menu
+    tc-panel.ts    the dispatch panel: trace replay painted over the drawing
     styles.ts      every component's styles
 test/            vitest; keys.test.ts and menu.test.ts need a DOM (happy-dom),
                  the rest run without one

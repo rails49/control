@@ -652,3 +652,192 @@ export const netlistStyles = css`
     color: var(--hint);
   }
 `;
+
+export const panelStyles = css`
+  :host {
+    ${palette}
+
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    background: var(--paper);
+    color: var(--ink);
+    font: 13px/1.4 system-ui, sans-serif;
+  }
+
+  header {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  header .spacer {
+    flex: 1;
+  }
+
+  header .tick {
+    font-variant-numeric: tabular-nums;
+    color: var(--hint);
+    min-width: 4.5rem;
+    text-align: right;
+  }
+
+  header label.rate {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    color: var(--hint);
+  }
+
+  .trouble {
+    color: var(--wrong);
+  }
+
+  main {
+    overflow: hidden;
+  }
+
+  svg {
+    width: 100%;
+    height: 100%;
+    user-select: none;
+  }
+
+  .sheet {
+    fill: var(--paper);
+  }
+
+  ${symbols}
+
+  /* A wire is track, as on the editor's canvas. */
+  .wire {
+    stroke: var(--track);
+    stroke-width: ${W};
+    stroke-linecap: round;
+  }
+
+  .opaque {
+    fill: #edeae4;
+    stroke: var(--track);
+    stroke-width: ${0.5 * W};
+    stroke-dasharray: ${2 * W} ${W};
+  }
+
+  /* A committed route is a lit path (ui/PANEL.md): the same tint the editor
+     lights a chosen transit with, because it is the same claim — this way,
+     leg by leg — made by the dispatcher instead of the pointer. */
+  .symbol .track.lit {
+    stroke: var(--lit);
+    stroke-width: ${1.6 * W};
+  }
+
+  .symbol .bend.lit {
+    fill: var(--lit);
+  }
+
+  .symbol .tick.lit {
+    stroke: var(--lit);
+    stroke-width: ${SLIP.lit};
+  }
+
+  .symbol .block-body.lit,
+  .symbol .opaque.lit {
+    fill: var(--lit-body);
+    stroke: var(--lit);
+  }
+
+  /* Block state, strongest first: a train standing there, a lock holding the
+     empty block ahead of it, a committed route not yet locked this far. The
+     reserved fill is the lit tint, so a committed route reads as one lit path
+     whether a stretch is locked yet or merely chosen. */
+  .symbol.occupied .block-body {
+    fill: #f6d3cb;
+    stroke: var(--wrong);
+  }
+
+  .symbol.reserved .block-body {
+    fill: var(--lit-body);
+    stroke: var(--lit);
+  }
+
+  .symbol.planned .block-body {
+    fill: var(--lit-body);
+    stroke: var(--lit);
+    stroke-dasharray: ${2 * W} ${W};
+  }
+
+  /* Signal aspects. The artwork draws both lamps; run mode shows one: red as
+     the resting aspect, green at an end whose resource beyond is locked to
+     the train standing there (locked-ahead, ui/PANEL.md). */
+  .signal .lamp {
+    opacity: 0.18;
+  }
+
+  .signal .lamp.danger {
+    opacity: 1;
+  }
+
+  .symbol.green-A .signal.end-A .lamp.danger,
+  .symbol.green-B .signal.end-B .lamp.danger {
+    opacity: 0.18;
+  }
+
+  .symbol.green-A .signal.end-A .lamp.clear,
+  .symbol.green-B .signal.end-B .lamp.clear {
+    opacity: 1;
+  }
+
+  /* A block's label: its train when one stands there, its own name dimly
+     otherwise. Drawn upright outside the turned group, as the editor does. */
+  .name {
+    font: ${LABEL.size}px system-ui, sans-serif;
+    fill: var(--hint);
+    text-anchor: middle;
+    dominant-baseline: middle;
+    pointer-events: none;
+  }
+
+  .name.train {
+    fill: var(--ink);
+    font-weight: 600;
+  }
+
+  /* The direction arrow: where the occupying train's nose points. */
+  .arrow {
+    fill: var(--ink);
+  }
+
+  /* Request endpoints (ui/PANEL.md): a pending request is endpoints only,
+     never a predicted path. Departure end filled, candidate arrival ends
+     open, pruned ends dimmed, a rejection in red with its reason in words. */
+  .marker {
+    fill: none;
+    stroke: var(--chosen);
+    stroke-width: ${0.6 * W};
+  }
+
+  .marker.depart {
+    fill: var(--chosen);
+  }
+
+  .marker.pruned {
+    stroke: var(--hint);
+    stroke-dasharray: ${W} ${0.6 * W};
+  }
+
+  .marker.rejected {
+    stroke: var(--wrong);
+  }
+
+  .note {
+    font: ${LABEL.size}px system-ui, sans-serif;
+    fill: var(--hint);
+    text-anchor: middle;
+  }
+
+  .note.rejected {
+    fill: var(--wrong);
+  }
+`;
