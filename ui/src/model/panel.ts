@@ -220,6 +220,16 @@ export class Panel {
         if (request === undefined) return;
         request.phase = "committed";
         request.route = route;
+        // Direction comes from the chosen route or the entry end of the last
+        // granted transit (ui/PANEL.md): the train will leave nose-first
+        // through the request's departure end, so it faces that end now.
+        const from = blockOf(request.depart);
+        if (this.standing.get(from) === request.train) {
+          this.heading.set(request.train, {
+            block: from,
+            toward: endOf(request.depart),
+          });
+        }
         return;
       }
       case "request_completed": {
@@ -270,12 +280,21 @@ export class Panel {
     return views;
   }
 
-  /** The block ends showing green: the resource beyond the end is locked to
-   *  the train standing there — the locked-ahead rule (ui/PANEL.md). */
+  /**
+   * The block ends showing green: the resource beyond the end is locked to
+   * the train standing there — the locked-ahead rule (ui/PANEL.md).
+   *
+   * A known facing gates the aspect. The transit a train came in through
+   * stays locked a tick behind it, and a signal can only mean "may the train
+   * leave via this end" (ui/PANEL.md) — green over the entry end would
+   * promise a departure no grant allows.
+   */
   greenEnds(): Set<EndRef> {
     const green = new Set<EndRef>();
     for (const [block, train] of this.standing) {
+      const facing = this.heading.get(train);
       for (const end of ["A", "B"]) {
+        if (facing?.block === block && facing.toward !== end) continue;
         const beyond = this.attached.get(`${block}.${end}`) ?? [];
         if (beyond.some((resource) => this.locks.get(resource) === train)) {
           green.add(`${block}.${end}`);

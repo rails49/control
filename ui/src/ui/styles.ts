@@ -264,6 +264,57 @@ export const paletteStyles = css`
   ${symbols}
 `;
 
+/**
+ * Track that is not a symbol, and the lit way: shared by the editor's canvas
+ * and the panel, which paint the same drawing.
+ */
+const way = css`
+  /* A wire is track: same width, same round cap, so it joins a symbol's leg
+     seamlessly at whatever angle its two pins give it. */
+  .wire {
+    stroke: var(--track);
+    stroke-width: ${W};
+    stroke-linecap: round;
+  }
+
+  /* The generic connection symbol shows no turnout detail, which is what it
+     says about itself. */
+  .opaque {
+    fill: #edeae4;
+    stroke: var(--track);
+    stroke-width: ${0.5 * W};
+    stroke-dasharray: ${2 * W} ${W};
+  }
+
+  /* A lit way, leg by leg: the legs of the symbols on it. On the canvas it is
+     the transit chosen in the netlist pane; on the panel it is a committed
+     route — the same claim, made by the dispatcher instead of the pointer. */
+  .symbol .track.lit {
+    stroke: var(--lit);
+    stroke-width: ${1.6 * W};
+  }
+
+  .symbol .bend.lit {
+    fill: var(--lit);
+  }
+
+  /* A slip's tick is the only thing telling its road from the through route, so
+     it lights with the transit. It stays a mark: half again its own weight is
+     enough to read beside track three times as thick. */
+  .symbol .tick.lit {
+    stroke: var(--lit);
+    stroke-width: ${SLIP.lit};
+  }
+
+  /* A block's body covers all but the stubs of its track, so the end of a lit
+     transit would otherwise be two orange flecks. */
+  .symbol .block-body.lit,
+  .symbol .opaque.lit {
+    fill: var(--lit-body);
+    stroke: var(--lit);
+  }
+`;
+
 export const canvasStyles = css`
   :host {
     display: block;
@@ -336,14 +387,6 @@ export const canvasStyles = css`
 
   ${symbols}
 
-  /* A wire is track: same width, same round cap, so it joins a symbol's leg
-     seamlessly at whatever angle its two pins give it. */
-  .wire {
-    stroke: var(--track);
-    stroke-width: ${W};
-    stroke-linecap: round;
-  }
-
   /* The wire following the pointer is an affordance rather than track, so it
      keeps its width as the canvas is zoomed. */
   .wireline {
@@ -352,15 +395,6 @@ export const canvasStyles = css`
     stroke-dasharray: 6 4;
     vector-effect: non-scaling-stroke;
     pointer-events: none;
-  }
-
-  /* The generic connection symbol shows no turnout detail, which is what it
-     says about itself. */
-  .opaque {
-    fill: #edeae4;
-    stroke: var(--track);
-    stroke-width: ${0.5 * W};
-    stroke-dasharray: ${2 * W} ${W};
   }
 
   .symbol.selected .track,
@@ -373,34 +407,10 @@ export const canvasStyles = css`
     stroke: var(--chosen);
   }
 
-  /* The way a chosen transit takes, leg by leg: the legs of the symbols on it,
-     and the two block ends it runs between. After the selection rules, so that
-     a symbol both selected and on the way shows the way — which is the answer
-     to the question selecting it asked. */
-  .symbol .track.lit {
-    stroke: var(--lit);
-    stroke-width: ${1.6 * W};
-  }
-
-  .symbol .bend.lit {
-    fill: var(--lit);
-  }
-
-  /* A slip's tick is the only thing telling its road from the through route, so
-     it lights with the transit. It stays a mark: half again its own weight is
-     enough to read beside track three times as thick. */
-  .symbol .tick.lit {
-    stroke: var(--lit);
-    stroke-width: ${SLIP.lit};
-  }
-
-  /* A block's body covers all but the stubs of its track, so the end of a lit
-     transit would otherwise be two orange flecks. */
-  .symbol .block-body.lit,
-  .symbol .opaque.lit {
-    fill: var(--lit-body);
-    stroke: var(--lit);
-  }
+  /* The wire, the lit way and the box, after the selection rules: a symbol
+     both selected and on the way shows the way — which is the answer to the
+     question selecting it asked. */
+  ${way}
 
   /* A block's label, the only text on a symbol: centred in its rectangle rather
      than sitting on a point. */
@@ -711,42 +721,7 @@ export const panelStyles = css`
 
   ${symbols}
 
-  /* A wire is track, as on the editor's canvas. */
-  .wire {
-    stroke: var(--track);
-    stroke-width: ${W};
-    stroke-linecap: round;
-  }
-
-  .opaque {
-    fill: #edeae4;
-    stroke: var(--track);
-    stroke-width: ${0.5 * W};
-    stroke-dasharray: ${2 * W} ${W};
-  }
-
-  /* A committed route is a lit path (ui/PANEL.md): the same tint the editor
-     lights a chosen transit with, because it is the same claim — this way,
-     leg by leg — made by the dispatcher instead of the pointer. */
-  .symbol .track.lit {
-    stroke: var(--lit);
-    stroke-width: ${1.6 * W};
-  }
-
-  .symbol .bend.lit {
-    fill: var(--lit);
-  }
-
-  .symbol .tick.lit {
-    stroke: var(--lit);
-    stroke-width: ${SLIP.lit};
-  }
-
-  .symbol .block-body.lit,
-  .symbol .opaque.lit {
-    fill: var(--lit-body);
-    stroke: var(--lit);
-  }
+  ${way}
 
   /* Block state, strongest first: a train standing there, a lock holding the
      empty block ahead of it, a committed route not yet locked this far. The

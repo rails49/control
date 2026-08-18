@@ -16,21 +16,15 @@ import "@shoelace-style/shoelace/dist/components/select/select.js";
 import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
-import {
-  pinsOf,
-  type Drawing,
-  type SymbolSpec,
-} from "../model/drawing.js";
-import { anchorOf, centreOf, type Point } from "../model/geometry.js";
-import { transformOf } from "../model/geometry.js";
+import { pinsOf, wirePins, type Drawing } from "../model/drawing.js";
+import { anchorOf, centreOf, transformOf } from "../model/geometry.js";
 import { Panel, type BlockView, type Marker } from "../model/panel.js";
+import { arrowPose, fitBox } from "../model/scene.js";
 import { listDrawings, readDrawing, review } from "../model/store.js";
 import { parseTrace, Replay } from "../model/trace.js";
+import { pointOf } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { panelStyles } from "./styles.js";
-
-/** How far along the track from a block's centre the direction arrow sits. */
-const AHEAD = 1.1;
 
 @customElement("tc-panel")
 export class TcPanel extends LitElement {
@@ -211,7 +205,7 @@ export class TcPanel extends LitElement {
 
   private canvas() {
     if (this.drawing === null || this.panel === null) return nothing;
-    const { x, y, w, h } = fit(this.drawing);
+    const { x, y, w, h } = fitBox(this.drawing);
     const blocks = this.panel.blocks();
     const lit = this.panel.litLegs();
     const green = this.panel.greenEnds();
@@ -228,22 +222,13 @@ export class TcPanel extends LitElement {
   private wires() {
     const drawing = this.drawing!;
     return drawing.wires.map((wire) => {
-      const pins = Array.isArray(wire) ? wire : wire.pins;
-      const ends = pins.map((pin) => this.pin(pin));
-      if (ends.some((point) => point === null)) return nothing;
-      const [from, to] = ends as [Point, Point];
+      const [a, b] = wirePins(wire);
+      const from = pointOf(drawing, a);
+      const to = pointOf(drawing, b);
+      if (from === null || to === null) return nothing;
       return svg`<line class="wire" x1=${from.x} y1=${from.y}
                        x2=${to.x} y2=${to.y} />`;
     });
-  }
-
-  private pin(ref: string): Point | null {
-    const dot = ref.indexOf(".");
-    const spec = this.drawing!.symbols[ref.slice(0, dot)];
-    if (spec === undefined || !pinsOf(spec).includes(ref.slice(dot + 1))) {
-      return null;
-    }
-    return anchorOf(spec, ref.slice(dot + 1));
   }
 
   private symbols(
@@ -286,13 +271,7 @@ export class TcPanel extends LitElement {
     return [...blocks].map(([name, view]) => {
       const spec = this.drawing!.symbols[name];
       if (spec === undefined || view.toward === undefined) return nothing;
-      const centre = centreOf(spec);
-      const nose = anchorOf(spec, view.toward);
-      const angle = (Math.atan2(nose.y - centre.y, nose.x - centre.x) * 180) / Math.PI;
-      const length = Math.hypot(nose.x - centre.x, nose.y - centre.y);
-      const at = Math.min(AHEAD, length) / length;
-      const x = centre.x + (nose.x - centre.x) * at;
-      const y = centre.y + (nose.y - centre.y) * at;
+      const { x, y, angle } = arrowPose(spec, view.toward);
       return svg`<path class="arrow" d="M0.28 0 L-0.14 0.17 L-0.14 -0.17 Z"
         transform=${`translate(${x} ${y}) rotate(${angle})`} />`;
     });
@@ -321,22 +300,4 @@ export class TcPanel extends LitElement {
       }
     `;
   }
-}
-
-/** The whole drawing with a margin, as the fixed viewBox: the panel is a
- *  watching surface, so there is no zoom or pan to hold. */
-function fit(drawing: Drawing): { x: number; y: number; w: number; h: number } {
-  const points = Object.values(drawing.symbols).flatMap((spec: SymbolSpec) =>
-    pinsOf(spec).map((pin) => anchorOf(spec, pin)),
-  );
-  if (points.length === 0) return { x: -1, y: -1, w: 16, h: 11 };
-  const xs = points.map((point) => point.x);
-  const ys = points.map((point) => point.y);
-  const [x, y] = [Math.min(...xs) - 1, Math.min(...ys) - 1.5];
-  return {
-    x,
-    y,
-    w: Math.max(...xs) - x + 1,
-    h: Math.max(...ys) - y + 1.5,
-  };
 }
