@@ -80,6 +80,9 @@ export class Panel {
   /** train → the block it last entered and the end it now faces. */
   private heading = new Map<string, { block: string; toward: string }>();
   private requests = new Map<string, Request>();
+  /** train → requests submitted for it, which is what numbers the next id the
+   *  way the file scheduler numbers its own (`<train>-1`, `<train>-2`, …). */
+  private minted = new Map<string, number>();
   /** Whether the first tick has passed: a lock on a block before it is the
    *  trace's opening placement, there being no occupancy event for a train
    *  that never moved. */
@@ -114,7 +117,59 @@ export class Panel {
     this.standing.clear();
     this.heading.clear();
     this.requests.clear();
+    this.minted.clear();
     this.started = false;
+  }
+
+  /**
+   * The scenario's stock, placement and facing (#72): where a live session's
+   * trains stand before the first event arrives, and which way they face.
+   *
+   * A trace replay reads placement off the opening locks, but a browser joins
+   * a session that was already assembled, so those locks are long gone. The
+   * scenario is where facing is written down at all (ADR-0019), and it is the
+   * one thing no event carries — so a live panel starts here, and everything
+   * after it is derived from the bus exactly as a replay derives it.
+   */
+  place(trains: Record<string, { at: string; facing: string }>): void {
+    this.reset();
+    for (const [train, { at, facing }] of Object.entries(trains)) {
+      this.standing.set(at, train);
+      this.heading.set(train, { block: at, toward: facing });
+    }
+    this.started = true;
+  }
+
+  /**
+   * The `request_submitted` payload a drag composes, or `null` where the train
+   * stands nowhere this model knows.
+   *
+   * The panel is the scheduler (ADR-0016), so it mints the ids and supplies
+   * the departure end from facing: the drag names the destination only, and
+   * the dispatcher sees a request no different from a file scheduler's.
+   */
+  request(
+    train: string,
+    dest: EndRef[],
+  ): { id: string; train: string; depart: EndRef; dest: EndRef[] } | null {
+    const facing = this.heading.get(train);
+    if (facing === undefined || this.standing.get(facing.block) !== train) {
+      return null;
+    }
+    const nth = (this.minted.get(train) ?? 0) + 1;
+    this.minted.set(train, nth);
+    return {
+      id: `${train}-${nth}`,
+      train,
+      depart: `${facing.block}.${facing.toward}`,
+      dest,
+    };
+  }
+
+  /** Where a train stands and the end it would leave through, for the drag to
+   *  draw from. */
+  facing(train: string): { block: string; toward: string } | undefined {
+    return this.heading.get(train);
   }
 
   apply(event: TraceEvent): void {

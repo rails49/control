@@ -303,3 +303,69 @@ describe("reset", () => {
     expect(model.blocks().get("a")).toMatchObject({ state: "occupied" });
   });
 });
+
+/**
+ * The scheduler half (#72): a live session's placement and facing come from
+ * the scenario, since the bridge relays the bus and the placement locks were
+ * published before any browser connected. Facing is then fully determined —
+ * a train faces away from the end it entered through (ADR-0019).
+ */
+describe("facing", () => {
+  const STOCK = {
+    t1: { length: 900, at: "a", facing: "B" },
+    t2: { length: 900, at: "c", facing: "B" },
+  };
+
+  it("stands the scenario's trains where it places them, facing as it says", () => {
+    const model = panel();
+    model.place(STOCK);
+    expect(model.blocks().get("a")).toMatchObject({
+      state: "occupied",
+      train: "t1",
+      toward: "B",
+    });
+    expect(model.blocks().get("c")).toMatchObject({ train: "t2", toward: "B" });
+  });
+
+  it("does not read a later lock as a second placement", () => {
+    const model = panel();
+    model.place(STOCK);
+    feed(model, { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] });
+    expect(model.blocks().get("b")).toMatchObject({ state: "reserved" });
+  });
+
+  it("composes a request departing through the train's facing end", () => {
+    const model = panel();
+    model.place(STOCK);
+    expect(model.request("t1", ["b.A", "b.B"])).toEqual({
+      id: "t1-1",
+      train: "t1",
+      depart: "a.B",
+      dest: ["b.A", "b.B"],
+    });
+    expect(model.request("t1", ["c.A"])?.id).toBe("t1-2");
+    expect(model.request("t2", ["b.A"])?.id).toBe("t2-1");
+  });
+
+  it("has nothing to submit for a train that stands nowhere it knows", () => {
+    expect(panel().request("ghost", ["b.A"])).toBeNull();
+  });
+
+  it("flips facing away from the entry end once a route has run", () => {
+    const model = panel();
+    model.place(STOCK);
+    feed(
+      model,
+      { event: "request_submitted", id: "t1-1", train: "t1", depart: "a.B", dest: ["b.B"] },
+      { event: "route_chosen", id: "t1-1", route: ["a", "sw.main", "b"] },
+      { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
+      { event: "move_granted", id: "t1-1", train: "t1", transit: "sw.main", into: "b" },
+      { event: "block_occupied", block: "b" },
+      { event: "block_vacated", block: "a" },
+      { event: "request_completed", id: "t1-1" },
+    );
+    // sw.main joins a.B to b.A: t1 entered b through A, so it now faces B and
+    // its next drag departs nose-first from there.
+    expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
+  });
+});
