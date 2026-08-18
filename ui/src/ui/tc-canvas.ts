@@ -1,11 +1,12 @@
 /**
  * The drawing surface: SVG in the DOM, one user unit to one grid square.
  *
- * Hit-testing, hover and selection come from pointer events; live state is a
- * class toggle. Everything that changes the document goes through `Editor`, so
- * this component holds only what is true of a gesture in progress — where the
- * pointer is, how far a drag has come, the rubber band — and none of it
- * survives the gesture.
+ * Hit-testing, hover and selection come from pointer events. Everything that
+ * changes the document goes through `Editor`, and what a gesture means is
+ * `Gesture`'s (model/gesture.ts): this component converts pixels to squares,
+ * feeds the machine one call per event, and maps each outcome onto rendering
+ * and events. It holds the machine and a pointer position for the wireline
+ * and the ghost, and none of it survives the gesture.
  */
 
 import { LitElement, html, svg, nothing, type SVGTemplateResult } from "lit";
@@ -19,26 +20,19 @@ import {
 } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import {
-  anchorOf,
   cellsOf,
   centreOf,
-  faceAt,
   snapped,
   transformOf,
   type Point,
 } from "../model/geometry.js";
+import { Gesture, type Outcome } from "../model/gesture.js";
 import { clashes, lit, type Chosen } from "../model/inspect.js";
 import type { Review } from "../model/store.js";
-import { pointOf, under, within, type Under } from "../model/under.js";
+import { pointOf, under, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { PIN } from "../render/units.js";
 import { canvasStyles } from "./styles.js";
-
-/** How far the pointer has to travel, in screen pixels, before a press on a pin
- *  is a drag of its bend rather than the start of a wire. Drawing a wire is
- *  click-then-click rather than a drag, so nothing but a shaky hand is at
- *  stake (EDITOR.md#editing). */
-const SLOP = 4;
 
 /** What a canvas with no review yet reads as. */
 const EMPTY: Review = {
@@ -57,27 +51,6 @@ interface Box {
   h: number;
 }
 
-interface Drag {
-  from: Point;
-  to: Point;
-  dx: number;
-  dy: number;
-}
-
-interface Band {
-  from: Point;
-  to: Point;
-}
-
-/** A press on a pin, before the pointer has said whether it meant a wire or a
- *  move. `screen` is in pixels, the only frame a slop threshold means anything
- *  in: a square is however many pixels the zoom makes it. */
-interface Press {
-  pin: PinRef;
-  from: Point;
-  screen: Point;
-}
-
 @customElement("tc-canvas")
 export class TcCanvas extends LitElement {
   static override styles = canvasStyles;
@@ -89,10 +62,7 @@ export class TcCanvas extends LitElement {
 
   @state() private view: Box = { x: -1, y: -1, w: 16, h: 11 };
   @state() private pointer: Point | null = null;
-  @state() private drag: Drag | null = null;
-  @state() private band: Band | null = null;
-  @state() private pan: Point | null = null;
-  private press: Press | null = null;
+  private gesture = new Gesture();
 
   private watch = new ResizeObserver(() => this.square());
 
@@ -340,8 +310,9 @@ export class TcCanvas extends LitElement {
   }
 
   private rubberBand(): SVGTemplateResult | typeof nothing {
-    if (this.band === null) return nothing;
-    const { from, to } = this.band;
+    const band = this.gesture.band;
+    if (band === null) return nothing;
+    const { from, to } = band;
     return svg`<rect class="band"
       x=${Math.min(from.x, to.x)} y=${Math.min(from.y, to.y)}
       width=${Math.abs(to.x - from.x)} height=${Math.abs(to.y - from.y)} />`;
@@ -349,52 +320,36 @@ export class TcCanvas extends LitElement {
 
   // --- gestures -----------------------------------------------------------
 
+  /** What the machine said back, mapped onto rendering and events. After any
+   *  outcome that drew something, a wire in progress wants the pointer: the
+   *  wireline starts at the press before the first move arrives. */
+  private apply(outcome: Outcome, point: Point): void {
+    if (outcome === "quiet") return;
+    if (typeof outcome === "object") {
+      this.view = {
+        ...this.view,
+        x: this.view.x + outcome.pan.x,
+        y: this.view.y + outcome.pan.y,
+      };
+      return;
+    }
+    if (this.editor.pendingFrom !== null) this.pointer = point;
+    if (outcome === "picked") this.picked();
+    else if (outcome === "changed") this.changed();
+    else this.requestUpdate();
+  }
+
   private down(event: PointerEvent): void {
     const point = this.gridAt(event);
     (event.target as Element).setPointerCapture?.(event.pointerId);
-
-    if (event.button === 1) {
-      this.pan = point;
-      return;
-    }
-    if (event.button !== 0) return;
-
-    if (this.editor.pendingFrom !== null) {
-      const pin = this.at(point).pin;
-      if (pin === null) {
-        this.editor.bend(point.x, point.y);
-        this.changed();
-      } else if (this.editor.endWire(pin)) {
-        this.changed();
-      }
-      return;
-    }
-
-    // A press on a pin has not said yet which of the two things it means: a
-    // click starts a wire, a drag takes hold of the bend. Held here until the
-    // pointer says which (EDITOR.md#editing). Shift-click is the selection
-    // gesture throughout, so it skips this and picks up the symbol.
-    const { pin, symbol } = this.at(point);
-    if (pin !== null && !event.shiftKey && this.editor.free(pin)) {
-      this.press = { pin, from: point, screen: { x: event.clientX, y: event.clientY } };
-      return;
-    }
-
-    if (symbol === null) {
-      this.editor.clearSelection();
-      this.band = { from: point, to: point };
-      this.picked();
-      return;
-    }
-    if (!this.editor.selection.has(symbol)) {
-      this.editor.select([symbol], event.shiftKey);
-    } else if (event.shiftKey) {
-      this.editor.select(
-        [...this.editor.selection].filter((name) => name !== symbol),
-      );
-    }
-    this.drag = { from: point, to: point, dx: 0, dy: 0 };
-    this.picked();
+    this.apply(
+      this.gesture.down(this.editor, this.review ?? EMPTY, point, {
+        button: event.button,
+        shift: event.shiftKey,
+        screen: { x: event.clientX, y: event.clientY },
+      }),
+      point,
+    );
   }
 
   private moved(event: PointerEvent): void {
@@ -405,144 +360,41 @@ export class TcCanvas extends LitElement {
     if (this.editor.pendingFrom !== null || this.editor.pending !== null) {
       this.pointer = point;
     }
-
-    if (this.press !== null) {
-      const away = Math.hypot(
-        event.clientX - this.press.screen.x,
-        event.clientY - this.press.screen.y,
-      );
-      if (away > SLOP) {
-        const { pin, from } = this.press;
-        this.press = null;
-        this.editor.select([symbolOf(pin)]);
-        this.drag = { from, to: point, dx: 0, dy: 0 };
-        this.picked();
-      }
-      return;
-    }
-
-    if (this.pan !== null) {
-      this.view = {
-        ...this.view,
-        x: this.view.x - (point.x - this.pan.x),
-        y: this.view.y - (point.y - this.pan.y),
-      };
-      return;
-    }
-    // The drag holds its last legal offset while the pointer is over an
-    // obstacle, and catches up once the offset is clear again, so a drag across
-    // a crowded row is never wasted and never lands on anything. A lone bend
-    // follows the faces instead, which are half a square apart.
-    if (this.drag !== null) {
-      const bend = this.loneBend();
-      if (bend !== null) {
-        this.drag = { ...this.drag, to: point, ...this.toFace(bend, point) };
-        return;
-      }
-      const dx = Math.round(point.x - this.drag.from.x);
-      const dy = Math.round(point.y - this.drag.from.y);
-      if (this.editor.canMove(dx, dy)) this.drag = { ...this.drag, to: point, dx, dy };
-      return;
-    }
-    if (this.band !== null) this.band = { ...this.band, to: point };
+    this.apply(
+      this.gesture.moved(this.editor, point, {
+        x: event.clientX,
+        y: event.clientY,
+      }),
+      point,
+    );
   }
 
   private up(event: PointerEvent): void {
-    // The press that started this one was on a palette tile, so the drop is
-    // the only part of the drag the canvas sees a button for. A drop the
-    // ghost showed as blocked writes nothing and ends the drag all the same:
-    // the refusal was on screen before the release (EDITOR.md#canvas).
-    if (this.editor.pending !== null) {
-      const point = this.gridAt(event);
-      if (this.editor.dropPending(point.x, point.y) !== null) this.changed();
-      else this.editor.cancelPending();
-      this.requestUpdate();
-      return;
-    }
-
-    this.pan = null;
-    // A press that never moved: the click it turns out to have been starts a
-    // wire at the pin it was on.
-    if (this.press !== null) {
-      const { pin, from } = this.press;
-      this.press = null;
-      this.editor.startWire(pin);
-      this.pointer = from;
-      this.requestUpdate();
-      return;
-    }
-    if (this.drag !== null) {
-      const { to, dx, dy } = this.drag;
-      const bend = this.loneBend();
-      this.drag = null;
-      if (bend !== null) {
-        if (this.editor.reface(bend, to.x, to.y)) this.changed();
-        return;
-      }
-      if (dx !== 0 || dy !== 0) {
-        this.editor.move(dx, dy);
-        this.changed();
-        return;
-      }
-    }
-    if (this.band !== null) {
-      const { from, to } = this.band;
-      this.band = null;
-      this.editor.select(within(this.editor.drawing, from, to));
-      this.picked();
-    }
+    const point = this.gridAt(event);
+    this.apply(this.gesture.up(this.editor, point), point);
   }
 
   private left(): void {
     this.pointer = null;
-    this.pan = null;
-    this.press = null;
-  }
-
-  /** The one bend being dragged, where the selection is exactly that. A bend
-   *  moves by face rather than by whole cells, but only on its own: among
-   *  others it translates rigidly with them (EDITOR.md#canvas). */
-  private loneBend(): string | null {
-    const [only, ...rest] = this.editor.selection;
-    if (only === undefined || rest.length > 0) return null;
-    return this.editor.drawing.symbols[only]?.kind === "pin" ? only : null;
-  }
-
-  /** How far a bend has to shift to sit on the face nearest a point, which is
-   *  what the drag draws until the drop writes it. */
-  private toFace(name: string, point: Point): { dx: number; dy: number } {
-    const spec = this.editor.drawing.symbols[name]!;
-    const { at, rot } = faceAt(point.x, point.y);
-    const was = anchorOf(spec, "P");
-    const now = anchorOf({ kind: "pin", at, rot }, "P");
-    return { dx: now.x - was.x, dy: now.y - was.y };
+    this.gesture.left();
   }
 
   /**
    * The right-click menu, told what was clicked: the symbol, the junction it
    * belongs to, the joint a wire under the pointer is, and the wire itself.
-   * The first three come from `/review`, so nothing here works out what
-   * anything means.
-   *
-   * The wire is offered only where no symbol is, since a symbol's own wires
-   * pass within a hair of its pins — abutted ones have no length at all — and
-   * a click on a turnout is a question about the turnout.
+   * What the click means is `Gesture`'s ruling; a null `found` is a right
+   * button that ended a palette drag instead, so no menu opens.
    */
   private menu(event: MouseEvent): void {
     event.preventDefault();
-    // The right button is one of the three ways out of a drag, so while one is
-    // in flight it abandons the symbol instead of asking about what is under
-    // it (EDITOR.md#palette).
-    if (this.editor.pending !== null) {
-      this.editor.cancelPending();
-      this.requestUpdate();
-      return;
-    }
-    const found = this.at(this.gridAt(event));
-    if (found.symbol !== null && !this.editor.selection.has(found.symbol)) {
-      this.editor.select([found.symbol]);
-      this.picked();
-    }
+    const point = this.gridAt(event);
+    const { outcome, found } = this.gesture.menu(
+      this.editor,
+      this.review ?? EMPTY,
+      point,
+    );
+    this.apply(outcome, point);
+    if (found === null) return;
     this.dispatchEvent(
       new CustomEvent("canvas-menu", {
         detail: { x: event.clientX, y: event.clientY, ...found },
@@ -596,13 +448,11 @@ export class TcCanvas extends LitElement {
     return pointOf(this.editor.drawing, pin, (name) => this.shift(name));
   }
 
-  /** How far a symbol is drawn from where the document puts it, which is
-   *  nothing except while a drag of the selection is in progress. */
+  /** How far a symbol is drawn from where the document puts it, which the
+   *  machine knows: nothing except while a drag of the selection is in
+   *  progress. */
   private shift(name: string): Point {
-    if (this.drag === null || !this.editor.selection.has(name)) {
-      return { x: 0, y: 0 };
-    }
-    return { x: this.drag.dx, y: this.drag.dy };
+    return this.gesture.shift(this.editor, name);
   }
 
   private changed(): void {
