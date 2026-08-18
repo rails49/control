@@ -101,8 +101,8 @@ function block(on: Lit): SVGTemplateResult {
     <path class=${`track${on()}`} d=${path({ x: x + w, y: b.y }, b)} />
     <rect class=${`block-body${on()}`}
           x=${x} y=${y} width=${w} height=${h} />
-    ${signal(a.x + at, a.y, 1)}
-    ${signal(b.x - at, b.y, -1)}
+    <g class="signal end-A">${signal(a.x + at, a.y, 1)}</g>
+    <g class="signal end-B">${signal(b.x - at, b.y, -1)}</g>
     <path class="mark" d=${`M${n(BLOCK.plus.x - arm)} ${n(BLOCK.plus.y)}
       h${n(2 * arm)} M${n(BLOCK.plus.x)} ${n(BLOCK.plus.y - arm)}
       v${n(2 * arm)}`} />
@@ -111,7 +111,9 @@ function block(on: Lit): SVGTemplateResult {
 
 /**
  * A signal standing clear of the track: the sample's plaque, a green lamp and a
- * red one, no mast.
+ * red one, no mast. The caller wraps it in a group naming the block end it
+ * governs (`end-A`, `end-B`), which is what lets run mode show one aspect per
+ * end while edit mode keeps both lamps lit.
  *
  * `away` is -1 above the track and +1 below, and it turns the whole signal, so
  * the lamp order reverses with it. The two signals of a block are one point
