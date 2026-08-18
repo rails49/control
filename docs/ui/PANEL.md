@@ -115,7 +115,7 @@ and a drag then states a departure block the dispatcher knows is wrong. The
 dispatcher raises on that rather than rejecting it, which stops the session:
 the check was written when the only writer was an authored file, where a
 disagreement is a slip worth failing loudly on. With a browser writing, it
-needs to be an answer instead. Tracked separately; nothing in the panel can
+needs to be an answer instead. Tracked in #73; nothing in the panel can
 fix it, because answering it means either the bridge describing the run —
 which [SYSTEM.md](../SYSTEM.md) rules out — or the dispatcher replying rather
 than raising.
