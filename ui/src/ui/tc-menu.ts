@@ -11,8 +11,7 @@
 import { LitElement, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
-import type { PinRef } from "../model/drawing.js";
-import type { Joint, Junction } from "../model/store.js";
+import type { Under } from "../model/under.js";
 import { menuStyles } from "./styles.js";
 
 export type MenuAction =
@@ -24,15 +23,9 @@ export type MenuAction =
   | "delete"
   | "delete-wire";
 
-export interface MenuAt {
-  x: number;
-  y: number;
-  symbol: string | null;
-  junction: Junction | null;
-  joint: Joint | null;
-  /** The two pins of the wire under the pointer, where one is. */
-  wire: [PinRef, PinRef] | null;
-}
+/** Where the pointer was, and what was under it. The canvas works out the
+ *  second half (model/under.ts) and the menu only asks what applies to it. */
+export type MenuAt = Under & { x: number; y: number };
 
 @customElement("tc-menu")
 export class TcMenu extends LitElement {

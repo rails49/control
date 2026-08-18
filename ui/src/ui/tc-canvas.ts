@@ -28,12 +28,11 @@ import {
   type Point,
 } from "../model/geometry.js";
 import { clashes, lit, type Chosen } from "../model/inspect.js";
-import type { Joint, Review } from "../model/store.js";
+import type { Review } from "../model/store.js";
+import { pointOf, under, within, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { PIN } from "../render/units.js";
 import { canvasStyles } from "./styles.js";
-
-const HIT = 0.22; // how near a pointer has to come to a pin, in squares
 
 /** How far the pointer has to travel, in screen pixels, before a press on a pin
  *  is a drag of its bend rather than the start of a wire. Drawing a wire is
@@ -221,8 +220,8 @@ export class TcCanvas extends LitElement {
   private wires(): unknown {
     return this.editor.drawing.wires.map((wire) => {
       const [a, b] = wirePins(wire);
-      const from = this.pointOf(a);
-      const to = this.pointOf(b);
+      const from = this.point(a);
+      const to = this.point(b);
       if (from === null || to === null) return nothing;
       return svg`<line class="wire" x1=${from.x} y1=${from.y}
                        x2=${to.x} y2=${to.y} />`;
@@ -301,11 +300,11 @@ export class TcCanvas extends LitElement {
   private wireline(): unknown {
     const from = this.editor.pendingFrom;
     if (from === null || this.pointer === null) return nothing;
-    const start = this.pointOf(from);
+    const start = this.point(from);
     if (start === null) return nothing;
-    const near = this.pinNear(this.pointer);
+    const near = this.at(this.pointer).pin;
     const end =
-      near === null ? snapped(start, this.pointer) : this.pointOf(near);
+      near === null ? snapped(start, this.pointer) : this.point(near);
     if (end === null) return nothing;
     return svg`<line class="wireline" x1=${start.x} y1=${start.y}
                      x2=${end.x} y2=${end.y} />`;
@@ -361,7 +360,7 @@ export class TcCanvas extends LitElement {
     if (event.button !== 0) return;
 
     if (this.editor.pendingFrom !== null) {
-      const pin = this.pinNear(point);
+      const pin = this.at(point).pin;
       if (pin === null) {
         this.editor.bend(point.x, point.y);
         this.changed();
@@ -375,13 +374,12 @@ export class TcCanvas extends LitElement {
     // click starts a wire, a drag takes hold of the bend. Held here until the
     // pointer says which (EDITOR.md#editing). Shift-click is the selection
     // gesture throughout, so it skips this and picks up the symbol.
-    const pin = this.pinNear(point);
+    const { pin, symbol } = this.at(point);
     if (pin !== null && !event.shiftKey && this.editor.free(pin)) {
       this.press = { pin, from: point, screen: { x: event.clientX, y: event.clientY } };
       return;
     }
 
-    const symbol = pin === null ? this.symbolAt(point) : symbolOf(pin);
     if (symbol === null) {
       this.editor.clearSelection();
       this.band = { from: point, to: point };
@@ -490,7 +488,7 @@ export class TcCanvas extends LitElement {
     if (this.band !== null) {
       const { from, to } = this.band;
       this.band = null;
-      this.editor.select(this.within(from, to));
+      this.editor.select(within(this.editor.drawing, from, to));
       this.picked();
     }
   }
@@ -540,74 +538,18 @@ export class TcCanvas extends LitElement {
       this.requestUpdate();
       return;
     }
-    const point = this.gridAt(event);
-    const pin = this.pinNear(point);
-    const symbol = pin === null ? this.symbolAt(point) : symbolOf(pin);
-    if (symbol !== null && !this.editor.selection.has(symbol)) {
-      this.editor.select([symbol]);
+    const found = this.at(this.gridAt(event));
+    if (found.symbol !== null && !this.editor.selection.has(found.symbol)) {
+      this.editor.select([found.symbol]);
       this.picked();
     }
-    const junction =
-      symbol === null
-        ? null
-        : (this.review?.junctions ?? []).find((one) =>
-            one.symbols.includes(symbol),
-          ) ?? null;
     this.dispatchEvent(
       new CustomEvent("canvas-menu", {
-        detail: {
-          x: event.clientX,
-          y: event.clientY,
-          symbol,
-          junction,
-          joint: this.jointNear(point),
-          wire: symbol === null ? this.wireNear(point) : null,
-        },
+        detail: { x: event.clientX, y: event.clientY, ...found },
         bubbles: true,
         composed: true,
       }),
     );
-  }
-
-  /**
-   * The wire whose drawn line passes nearest the pointer, where one does.
-   *
-   * Every wire, not only the ones a joint is made of: a joint is a connection
-   * with a name, while this is the line itself, which is what a right-click on
-   * track is asking about. Read off the drawing rather than `/review`, a wire
-   * being the document's own and needing no derivation to find.
-   */
-  private wireNear(point: Point): [PinRef, PinRef] | null {
-    let best: { pins: [PinRef, PinRef]; away: number } | null = null;
-    for (const wire of this.editor.drawing.wires) {
-      const pins = wirePins(wire);
-      const from = this.pointOf(pins[0]);
-      const to = this.pointOf(pins[1]);
-      if (from === null || to === null) continue;
-      const away = awayFrom(point, from, to);
-      if (away <= HIT && (best === null || away < best.away)) {
-        best = { pins, away };
-      }
-    }
-    return best?.pins ?? null;
-  }
-
-  /** The joint whose drawn line passes nearest the pointer, where one does.
-   *  A joint has no symbol to click, only its wires. */
-  private jointNear(point: Point): Joint | null {
-    let best: { joint: Joint; away: number } | null = null;
-    for (const joint of this.review?.joints ?? []) {
-      for (const [a, b] of joint.wires) {
-        const from = this.pointOf(a);
-        const to = this.pointOf(b);
-        if (from === null || to === null) continue;
-        const away = awayFrom(point, from, to);
-        if (away <= HIT && (best === null || away < best.away)) {
-          best = { joint, away };
-        }
-      }
-    }
-    return best?.joint ?? null;
   }
 
   private wheel(event: WheelEvent): void {
@@ -635,47 +577,23 @@ export class TcCanvas extends LitElement {
     return { x: grid.x, y: grid.y };
   }
 
-  private pinNear(point: Point): PinRef | null {
-    let best: { pin: PinRef; away: number } | null = null;
-    for (const { pin, x, y } of this.editor.allPins()) {
-      const shifted = this.shift(symbolOf(pin));
-      const away = Math.hypot(x + shifted.x - point.x, y + shifted.y - point.y);
-      if (away <= HIT && (best === null || away < best.away)) {
-        best = { pin, away };
-      }
-    }
-    return best?.pin ?? null;
+  /**
+   * What the drawing has under a grid point.
+   *
+   * The rules live in `under` (model/under.ts): a pin beats the symbol
+   * carrying it, a wire is offered only where no symbol is. The drag offset
+   * goes in as a function, so a click lands on what is drawn rather than on
+   * what the document says.
+   */
+  private at(point: Point): Under {
+    return under(this.editor.drawing, this.review ?? EMPTY, point, (name) =>
+      this.shift(name),
+    );
   }
 
-  private symbolAt(point: Point): string | null {
-    const [c, r] = [Math.floor(point.x), Math.floor(point.y)];
-    for (const [name, spec] of Object.entries(this.editor.drawing.symbols)) {
-      const shifted = this.shift(name);
-      const covers = cellsOf(spec).some(
-        ([cx, cy]) => cx + shifted.x === c && cy + shifted.y === r,
-      );
-      if (covers) return name;
-    }
-    return null;
-  }
-
-  private within(from: Point, to: Point): string[] {
-    const [x0, x1] = [Math.min(from.x, to.x), Math.max(from.x, to.x)];
-    const [y0, y1] = [Math.min(from.y, to.y), Math.max(from.y, to.y)];
-    return Object.entries(this.editor.drawing.symbols)
-      .filter(([, spec]) => {
-        const { x, y } = centreOf(spec);
-        return x >= x0 && x <= x1 && y >= y0 && y <= y1;
-      })
-      .map(([name]) => name);
-  }
-
-  private pointOf(pin: PinRef): Point | null {
-    const spec = this.editor.drawing.symbols[symbolOf(pin)];
-    if (spec === undefined) return null;
-    const { x, y } = anchorOf(spec, pin.slice(pin.indexOf(".") + 1));
-    const shifted = this.shift(symbolOf(pin));
-    return { x: x + shifted.x, y: y + shifted.y };
+  /** Where a pin is drawn, which is where a wire has to end. */
+  private point(pin: PinRef): Point | null {
+    return pointOf(this.editor.drawing, pin, (name) => this.shift(name));
   }
 
   /** How far a symbol is drawn from where the document puts it, which is
@@ -703,23 +621,6 @@ export class TcCanvas extends LitElement {
   }
 }
 
-
-/** How far a point lies from a line segment. */
-function awayFrom(point: Point, from: Point, to: Point): number {
-  const [dx, dy] = [to.x - from.x, to.y - from.y];
-  const span = dx * dx + dy * dy;
-  const along =
-    span === 0
-      ? 0
-      : Math.max(
-          0,
-          Math.min(
-            1,
-            ((point.x - from.x) * dx + (point.y - from.y) * dy) / span,
-          ),
-        );
-  return Math.hypot(from.x + along * dx - point.x, from.y + along * dy - point.y);
-}
 
 declare global {
   interface HTMLElementTagNameMap {

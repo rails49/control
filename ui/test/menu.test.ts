@@ -20,6 +20,7 @@ function at(parts: Partial<MenuAt> = {}): MenuAt {
   return {
     x: 10,
     y: 10,
+    pin: null,
     symbol: null,
     junction: null,
     joint: null,
