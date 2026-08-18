@@ -461,11 +461,31 @@ those names.
 ### Tests
 
 The editor's document, symbols and placements and wires and undo snapshots, is
-a plain TypeScript module with no DOM, and that is where the Vitest tests are.
-It is the layer where a bug is invisible on screen and corrupt in the file: a
-move that detaches a wire, an undo that half-restores. Lit components stay thin
-enough that there is little in them to test, and one grows a test when it grows
-logic. No browser automation for now.
+a plain TypeScript module with no DOM, and that is where most of the Vitest
+tests are. It is the layer where a bug is invisible on screen and corrupt in the
+file: a move that detaches a wire, an undo that half-restores. No browser
+automation for now.
+
+A component is not exempt. The model owns the document, a component owns the
+DOM, and anything that is neither is a module in `model/` with a test, whichever
+file calls it: a rule deciding what a gesture means, what a menu applies to,
+which keystroke belongs to the canvas.
+
+This section used to say that Lit components stay thin enough that there is
+little in them to test, and that one grows a test when it grows logic. Five of
+the six bugs fixed in `ddbefb2..feb1fae` were in `ui/src/ui/`: keys typed into a
+dialog field reaching the canvas, a junction overlay reading as a symbol's own
+label, a right-click menu drawn empty, no way to cut a wire at all, and a joiner
+headed as a connection in the netlist pane. Four of the five were fixable in a
+layer that had a seam or could be given one, which is where `keys.test.ts` and
+`menu.test.ts` come from. The fifth, the junction overlay, is the only bug of
+the six that landed without a regression test, and it is the one that lived
+entirely in `tc-canvas.ts`.
+
+Nothing in that component is reachable from a test as it stands. Every pointer
+handler begins by converting pixels to grid squares through `getScreenCTM`,
+which happy-dom does not implement, so the gap is structural rather than a
+matter of what anyone got around to writing.
 
 On the Python side: the endpoints, `explain()`, and a round trip asserting a
 loaded and saved drawing keeps its comments.

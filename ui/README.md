@@ -42,8 +42,8 @@ src/
     tc-properties.ts  the properties dialog
     tc-menu.ts     the right-click menu
     styles.ts      every component's styles
-test/            vitest, against model/; keys.test.ts is the one that needs
-                 a DOM (happy-dom), the shortcuts being about shadow roots
+test/            vitest; keys.test.ts and menu.test.ts need a DOM (happy-dom),
+                 the rest run without one
 ```
 
 **The front end knows no topology.** Pin degrees, junction membership, the
@@ -52,9 +52,14 @@ placement, geometry, mutation and rendering, and nothing else; a second
 implementation of the union-find would eventually disagree with the first,
 inside the tool whose job is to be believed.
 
-`model/` is where the tests are, because that is the layer where a bug is
-invisible on screen and corrupt in the file. The Lit components stay thin
-enough that there is little in them to test.
+`model/` is where most of the tests are, because that is the layer where a bug
+is invisible on screen and corrupt in the file.
+
+A component is not exempt. The model owns the document, a component owns the
+DOM, and anything that is neither is a module in `model/` with a test, whichever
+file calls it. A rule deciding what a gesture means, what a menu applies to, or
+which keystroke belongs to the canvas is that third kind, and belongs where it
+can be tested. See [EDITOR.md](../docs/ui/EDITOR.md#tests).
 
 ## Using it
 
