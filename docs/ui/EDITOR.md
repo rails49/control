@@ -482,10 +482,13 @@ layer that had a seam or could be given one, which is where `keys.test.ts` and
 the six that landed without a regression test, and it is the one that lived
 entirely in `tc-canvas.ts`.
 
-Nothing in that component is reachable from a test as it stands. Every pointer
-handler begins by converting pixels to grid squares through `getScreenCTM`,
-which happy-dom does not implement, so the gap is structural rather than a
-matter of what anyone got around to writing.
+Nothing in that component was reachable from a test: every pointer handler
+began by converting pixels to grid squares through `getScreenCTM`, which
+happy-dom does not implement. The pointer-gesture machine — press, drag, band,
+pan, and the right-click rules — is now `model/gesture.ts` (#63). It takes the
+editor per call and answers with an outcome the component maps onto rendering
+and events; the component keeps the pixel conversion and the viewBox, and
+`gesture.test.ts` drives the rules from grid points.
 
 On the Python side: the endpoints, `explain()`, and a round trip asserting a
 loaded and saved drawing keeps its comments.

@@ -28,6 +28,7 @@ src/
     drawing.ts   the document, exactly as the store serves and takes it back
     geometry.ts  footprints, pin anchors, quarter turns, the 15 degree snap
     editor.ts    the editing session: selection, wires, snapshots, undo
+    gesture.ts   what a pointer gesture means: press, drag, band, pan
     naming.ts    connection names, minted and written into the drawing
     store.ts     the four routes
   render/
