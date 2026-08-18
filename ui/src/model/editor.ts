@@ -530,7 +530,7 @@ export class Editor {
 
   /** Whether a wire already joins two pins. Two bends each want two wires, so
    *  a second wire between the same pair would fill both and read as a
-   *  finished joint while being a parallel edge nobody drew. */
+   *  finished join while being a parallel edge nobody drew. */
   private joined(a: PinRef, b: PinRef): boolean {
     return this.current.wires.some((wire) => {
       const pins = wirePins(wire);
@@ -548,7 +548,7 @@ export class Editor {
    * Join every free pin of these symbols to a free pin sitting on the same
    * point. Dropping a symbol onto another is the fast way to wire them, and
    * what it writes is a real wire of zero length: dragging apart later
-   * stretches it rather than breaking the joint.
+   * stretches it rather than breaking the join.
    */
   abut(names: string[]): void {
     const moved = new Set(names);

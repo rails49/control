@@ -185,7 +185,7 @@ describe("abutting", () => {
   });
 
   it("leaves the wire behind when the symbol is dragged away", () => {
-    // Position never determines topology: the joint is in the file, so
+    // Position never determines topology: the join is in the file, so
     // dragging stretches the wire instead of breaking it.
     place("block", [0, 0]);
     place("terminal", [6, 0]);
@@ -218,7 +218,7 @@ describe("abutting", () => {
 
   it("does not join two bends twice over", () => {
     // Both pins want two wires, so a second wire between the same pair fills
-    // both and reads as a finished joint while being an edge nobody drew.
+    // both and reads as a finished join while being an edge nobody drew.
     place("block", [0, 0]);
     editor.startWire("b1.B");
     editor.bend(8, 0.5);

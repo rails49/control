@@ -25,11 +25,12 @@ track, which is usually a terminal block — and stays available as such (Claro'
 say "terminal block" when the one connected end is what matters.
 
 **Connection**:
-The junction joining one end of each of one or more blocks, realized by zero or
-more turnouts. Declares its named transits and, **by inversion**, which pairs of
+What joins one end of each of one or more blocks, realized by zero or more
+turnouts. Declares its named transits and, **by inversion**, which pairs of
 them are `concurrent`; every pair not declared conflicts
 ([ADR-0006](docs/adr/0006-conflicts-declared-by-inversion.md)).
-_Avoid_: connector, junction, node
+_Avoid_: connector, node. *Junction* and *joint* are not synonyms to avoid but
+the drawing's two words for what derives to one connection — see below.
 
 **Transit**:
 One traversable (end, end) pair through a connection, always named.
@@ -79,6 +80,24 @@ device for joining distant parts of the canvas. Placed with its mate, since one
 alone is a label worn once and derivation refuses it
 ([ADR-0020](docs/adr/0020-a-portal-is-placed-as-a-pair.md)).
 _Avoid_: connector, link
+
+**Junction**:
+A connected group of non-block symbols declaring at least one transit: the
+drawing's way of holding a connection whose turnout detail is drawn. Derives to
+exactly one connection, whose name its members carry as `connection`, or, where
+the group is one symbol, which is the symbol's own name. A group declaring no
+transit is not one — a terminal capping a block end derives to nothing, and the
+editor tints only junctions.
+_Avoid_: throat, node, cluster
+
+**Joint**:
+A way from one block end to another crossing no symbol that declares a transit:
+one bare wire, or a chain of them through bend pins or a portal pair. Also
+derives to exactly one connection — one transit spanning the two ends — and
+carries that connection's name on one of its own wires. A **portal pair is not
+a joint**: it is one way a joint's chain crosses the canvas, and a joint
+through one is a joint however it is drawn.
+_Avoid_: gap, splice, bare wire (a joint may be several)
 
 ### Stock
 

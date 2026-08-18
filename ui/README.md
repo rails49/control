@@ -82,7 +82,7 @@ can be tested. See [EDITOR.md](../docs/ui/EDITOR.md#tests).
 Click a palette tile to arm it, then click the canvas to place; the tile stays
 armed so a row of blocks is a row of clicks, and Escape disarms it. Dropping a
 symbol so a pin lands on another's writes a real wire of zero length, so
-dragging apart later stretches the wire rather than breaking the joint.
+dragging apart later stretches the wire rather than breaking the join.
 
 Click a pin to start a wire, empty canvas to bend it through a free-standing
 pin, and a pin to end it. The wireline snaps softly to 15 degrees as an aid;
@@ -93,7 +93,7 @@ rotates, `F` flips, `Delete` deletes, `Escape` cancels, `Cmd/Ctrl+Z` undoes and
 `Cmd/Ctrl+Shift+Z` redoes, `Cmd/Ctrl+S` saves. The wheel zooms and the middle
 button pans.
 
-Right-click for properties, for the name of the junction or the connection
+Right-click for properties, for the name of the junction or the joint
 under the pointer, and to cut the wire under it — a wire has no symbol to
 select, so the menu is the only way to delete one. A junction is named `j1`, `j2` as it forms, so nothing
 interrupts a sketch; renaming one is worth doing when it earns a name, because

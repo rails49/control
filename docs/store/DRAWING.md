@@ -143,11 +143,10 @@ tiles won. Whether the kind leaves the format is a decision in its own right.
 ### Portals
 
 A portal joins distant parts of a drawing without a wire across the whole
-canvas (return loops, hidden staging). Two portals with the same label are
-one joint; derivation treats the joined wires as directly connected and emits
-nothing for the portal itself. A label must appear on exactly two portals,
-each with its pin wired; anything else is an error, save allowed, derive
-refused.
+canvas (return loops, hidden staging). Two portals with the same label join
+their wires as if directly connected, and derivation emits nothing for the
+portal itself. A label must appear on exactly two portals, each with its pin
+wired; anything else is an error, save allowed, derive refused.
 
 ## Drawing schema
 

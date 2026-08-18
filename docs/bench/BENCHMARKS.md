@@ -181,7 +181,7 @@ The line asymmetry itself is structural and unchanged. At Claro each track's
 east end is served by exactly one blue line (blue 1 reaches tracks 2 and 3;
 blue 2 reaches track 1) and its west end by the yellow, so the departure end
 and arrival end together fix the line. Departing Airolo, all three lines meet
-at the single WX310 junction and every one of them reaches every Claro track,
+at the single WX310 connection and every one of them reaches every Claro track,
 so at `|dest| = 6` a train has all three to choose between.
 
 **The lexicographic bias at `k < |dest|`, and its fix.** Every candidate ties

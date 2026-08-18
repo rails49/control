@@ -61,7 +61,7 @@ connections:
   ends, and each end belongs to **exactly one** connection. That is a real
   modelling constraint, not a notational one: it is why a siding cannot hang off
   the middle of a station track (its turnout is part of the connection at one
-  *end* of that track), and why Airolo is a single junction rather than two
+  *end* of that track), and why Airolo is a single connection rather than two
   throats.
 - **Terminal blocks are derived, never declared** — a block is terminal iff only
   one of its ends appears in any connection.

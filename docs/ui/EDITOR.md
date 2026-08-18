@@ -325,8 +325,9 @@ that crosses two named legs is refused, and the finding says which two.
 
 ### Junctions
 
-A junction is a connected group of non-block symbols, which is exactly what
-derivation computes, so the editor computes it too rather than asking. Wire a
+A junction is a connected group of non-block symbols declaring at least one
+transit, which is exactly what derivation computes, so the editor computes it
+too rather than asking. Wire a
 crossing to a turnout and they become one tinted region. That region is worth
 looking at in its own right: a stray wire that merges two throats into one
 junction is visible as one region where you expected two, long before it shows
