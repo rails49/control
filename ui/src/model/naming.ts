@@ -13,11 +13,12 @@
  * called.
  *
  * **Splits and merges resolve by provenance.** Deleting a symbol can split a
- * junction in two and wiring two together merges them, and either way a name
- * ends up on both halves, which derivation refuses as a duplicate. A minted
- * name is re-minted silently on both sides, because nobody is reading `j7`. A
- * name someone typed stays where it is, and the refusal is reported: choosing
- * which half is Airolo is not the editor's decision to make.
+ * junction in two, which leaves one name on both halves; wiring two together
+ * merges them, which leaves both names on one junction. Derivation refuses
+ * either way, and either way the editor settles it when only minted names are
+ * involved, because nobody is reading `j7`. A name someone typed stays where
+ * it is, and the refusal is reported: choosing which half is Airolo is not the
+ * editor's decision to make.
  */
 
 import { TRANSITS } from "../symbols.generated.js";
@@ -43,18 +44,60 @@ export function settle(drawing: Drawing, review: Review): boolean {
   );
   let wrote = false;
   for (const junction of review.junctions) {
-    if (wants(junction) || clashes(junction, review)) {
-      nameJunction(drawing, junction.symbols, mint(taken));
+    const name = settled(junction, review, taken);
+    if (name !== null) {
+      nameJunction(drawing, junction.symbols, name);
       wrote = true;
     }
   }
   for (const joint of review.joints) {
-    if (wants(joint) || clashes(joint, review)) {
-      nameJoint(drawing, joint, mint(taken));
+    const name = settled(joint, review, taken);
+    if (name !== null) {
+      nameJoint(drawing, joint, name);
       wrote = true;
     }
   }
   return wrote;
+}
+
+/** The name to write, or `null` to leave it as it is: a fresh one where there
+ *  is none and where a split duplicated one, the survivor where a merge left
+ *  several. */
+function settled(
+  one: Junction | Joint,
+  review: Review,
+  taken: Set<string>,
+): string | null {
+  if (wants(one)) return mint(taken);
+  if (one.names.length > 1) return survivor(one.names);
+  return clashes(one, review) ? mint(taken) : null;
+}
+
+/**
+ * Which of several names on one junction survives a merge.
+ *
+ * A merge leaves one name from each of the junctions it joined, and only a
+ * typed one is a decision. Where every name is minted the lowest of them wins,
+ * so the merged junction keeps a name it already wore and the rest of the diff
+ * is names coming off. Where exactly one was typed it wins outright: it is the
+ * only name anybody chose, and minting over it would throw away the only
+ * meaningful one. Two typed names is the case the editor cannot settle, and
+ * derivation refuses it.
+ *
+ * The names this drops are free again by the next review, which is where
+ * `taken` comes from; nothing tries to reuse them within one pass.
+ */
+function survivor(names: string[]): string | null {
+  const typed = names.filter((name) => !minted(name));
+  if (typed.length > 1) return null;
+  if (typed.length === 1) return typed[0]!;
+  return names.reduce((one, other) => (number(one) <= number(other) ? one : other));
+}
+
+/** The number a minted name carries, `j10` being above `j9` and not below it
+ *  the way sorting them as text says. */
+function number(name: string): number {
+  return Number(name.slice(1));
 }
 
 /**

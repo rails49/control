@@ -172,22 +172,22 @@ export interface Clash {
  * worse than that: two junctions both called `airolo` derive as one
  * connection, which is a wrong netlist rather than a refused one.
  *
- * A duplicate the editor minted is not one of these. `settle` re-mints it on
- * both halves of the split that made it (naming.ts), so it is gone by the next
- * review, and reporting it in between would show the user a finding the editor
- * is in the middle of fixing itself. What is left is exactly the collisions a
- * person typed and has to settle.
+ * A collision the editor minted is not one of these. `settle` re-mints the
+ * duplicate a split made and collapses the names a merge left (naming.ts), so
+ * either is gone by the next review, and reporting it in between would show
+ * the user a finding the editor is in the middle of fixing itself. What is
+ * left is exactly the collisions a person typed and has to settle.
  */
 export function clashes(review: Review): Clash[] {
   const connections = [
     ...review.junctions.map((one) => ({ ...one, where: one.symbols })),
     ...review.joints.map((one) => ({ ...one, where: [...one.ends] })),
-  ];
+  ].map((one) => ({ ...one, typed: one.names.filter((name) => !minted(name)) }));
   const found: Clash[] = connections
-    .filter((one) => one.names.length > 1)
+    .filter((one) => one.typed.length > 1)
     .map((one) => ({
       kind: "disagreement" as const,
-      names: one.names,
+      names: one.typed,
       where: [one.where],
     }));
   const byName = new Map<string, string[][]>();

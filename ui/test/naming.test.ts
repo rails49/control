@@ -115,6 +115,61 @@ describe("a split or a merge", () => {
     expect(drawing.symbols.x1!.connection).toBe("j3");
   });
 
+  it("collapses the minted names a merge left onto the lowest of them", () => {
+    // Wiring two junctions together leaves a name from each on one junction.
+    // Nobody is reading either, so the lowest wins and the other comes off,
+    // which is the smallest the diff can be.
+    const drawing = throat();
+    drawing.symbols.sw1!.connection = "j2";
+    drawing.symbols.sw2!.connection = "j2";
+    drawing.symbols.x1!.connection = "j5";
+    const found = review({
+      junctions: [junction(null, ["j2", "j5"], ["sw1", "sw2", "x1"])],
+    });
+    expect(settle(drawing, found)).toBe(true);
+    expect(
+      Object.values(drawing.symbols).map((spec) => spec.connection),
+    ).toEqual(["j2", "j2", "j2"]);
+  });
+
+  it("compares minted names by number, not as text", () => {
+    const drawing = throat();
+    drawing.symbols.sw1!.connection = "j9";
+    drawing.symbols.x1!.connection = "j10";
+    const found = review({
+      junctions: [junction(null, ["j10", "j9"], ["sw1", "x1"])],
+    });
+    settle(drawing, found);
+    expect(drawing.symbols.sw1!.connection).toBe("j9");
+  });
+
+  it("keeps the one typed name a merge left, over the minted ones", () => {
+    // Only one name was ever chosen by a person, so there is nothing to decide
+    // and minting over it would throw away the only meaningful name.
+    const drawing = throat();
+    drawing.symbols.sw1!.connection = "airolo";
+    drawing.symbols.x1!.connection = "j2";
+    const found = review({
+      junctions: [junction(null, ["airolo", "j2"], ["sw1", "sw2", "x1"])],
+    });
+    expect(settle(drawing, found)).toBe(true);
+    expect(
+      Object.values(drawing.symbols).map((spec) => spec.connection),
+    ).toEqual(["airolo", "airolo", "airolo"]);
+  });
+
+  it("leaves two typed names a merge left, for derivation to refuse", () => {
+    const drawing = throat();
+    drawing.symbols.sw1!.connection = "airolo";
+    drawing.symbols.sw2!.connection = "j2";
+    drawing.symbols.x1!.connection = "claro";
+    const found = review({
+      junctions: [junction(null, ["airolo", "claro", "j2"], ["sw1", "sw2", "x1"])],
+    });
+    expect(settle(drawing, found)).toBe(false);
+    expect(drawing.symbols.sw1!.connection).toBe("airolo");
+  });
+
   it("leaves a typed name on both halves, for derivation to refuse", () => {
     const drawing = throat();
     for (const spec of Object.values(drawing.symbols)) spec.connection = "airolo";

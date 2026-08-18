@@ -278,6 +278,39 @@ describe("names two connections cannot both wear", () => {
     ]);
   });
 
+  it("names only the typed ones where a merge left minted names too", () => {
+    const found = scissors();
+    found.junctions = [
+      { name: null, names: ["airolo", "bodio", "j4"], symbols: ["sw1", "sw2"] },
+    ];
+    expect(clashes(found)).toEqual([
+      {
+        kind: "disagreement",
+        names: ["airolo", "bodio"],
+        where: [["sw1", "sw2"]],
+      },
+    ]);
+  });
+
+  it("says nothing about the names a merge left that the editor is collapsing", () => {
+    // Wiring junctions together leaves a minted name from each on one
+    // junction. `settle` collapses them by the next review, so reporting it
+    // shows a finding the editor is in the middle of fixing itself.
+    const found = scissors();
+    found.junctions = [
+      { name: null, names: ["j2", "j5"], symbols: ["sw1", "sw2", "sw3"] },
+    ];
+    expect(clashes(found)).toEqual([]);
+  });
+
+  it("says nothing where a merge left one typed name among minted ones", () => {
+    const found = scissors();
+    found.junctions = [
+      { name: null, names: ["airolo", "j5"], symbols: ["sw1", "sw2"] },
+    ];
+    expect(clashes(found)).toEqual([]);
+  });
+
   it("says nothing about a duplicate the editor minted and is re-minting", () => {
     // `settle` re-mints a minted name a split left on both halves, so it is
     // gone by the next review. Reporting it in between shows a finding the
