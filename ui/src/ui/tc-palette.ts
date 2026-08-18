@@ -48,7 +48,7 @@ export class TcPalette extends LitElement {
       ${PALETTE.map((kind) => this.tile(kind))}
       <p class="hint">drag a symbol onto the sheet</p>
       <p class="hint">
-        <kbd>r</kbd> turn · <kbd>f</kbd> flip · <kbd>esc</kbd> cancel
+        <kbd>r</kbd> rotate · <kbd>f</kbd> flip · <kbd>esc</kbd> cancel
       </p>
     `;
   }

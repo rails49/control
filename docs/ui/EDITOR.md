@@ -174,11 +174,12 @@ the right-click dialog. A plus at the rectangle's lower corner on side A marks
 that side, drawn at the rectangle's own 0.3W.
 
 Each stub carries a signal centred on it: a chamfered plaque 0.53G by 0.22G
-floating 0.09G clear of the track, holding two lamps 0.12G across, green then
-red. There is no mast. The B signal is the A signal turned 180 degrees about
-the block's centre, so it hangs below the track with its lamps in the opposite
-order, which keeps the symbol point symmetric and makes rotation and flip read
-naturally.
+floating 0.09G clear of the track, holding two lamps 0.12G across, red then
+green. There is no mast. The A signal hangs below the track, on the left of a
+train leaving through A, as the SBB places signals. The B signal is the A
+signal turned 180 degrees about the block's centre, above the track with its
+lamps in the opposite order, which keeps the symbol point symmetric and makes
+rotation and flip read naturally.
 
 **Terminal**, 1×1, pin at `(0, 0.5)`. A track stub from the pin to a
 vertical bar 0.6G tall and 1.2W wide: the buffer stop. The stub is cut square

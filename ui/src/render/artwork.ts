@@ -85,8 +85,9 @@ function opaque(spec: SymbolSpec, lit: ReadonlySet<string>): SVGTemplateResult {
  * and a plus at the rectangle's lower corner on the A side.
  *
  * The signal is part of what a block is rather than anything placed
- * (store/DRAWING.md), and the pair is point symmetric — above the track at A,
- * below at B — so a rotation or a flip reads naturally. Sensors are not drawn
+ * (store/DRAWING.md), and the pair is point symmetric — below the track at A,
+ * above at B, on the left of a train leaving through that end, as the SBB
+ * places signals — so a rotation or a flip reads naturally. Sensors are not drawn
  * and nothing is written outside the rectangle; the label goes inside it, and
  * the canvas draws that upright, outside the turned group.
  */
@@ -100,8 +101,8 @@ function block(on: Lit): SVGTemplateResult {
     <path class=${`track${on()}`} d=${path({ x: x + w, y: b.y }, b)} />
     <rect class=${`block-body${on()}`}
           x=${x} y=${y} width=${w} height=${h} />
-    ${signal(a.x + at, a.y, -1)}
-    ${signal(b.x - at, b.y, 1)}
+    ${signal(a.x + at, a.y, 1)}
+    ${signal(b.x - at, b.y, -1)}
     <path class="mark" d=${`M${n(BLOCK.plus.x - arm)} ${n(BLOCK.plus.y)}
       h${n(2 * arm)} M${n(BLOCK.plus.x)} ${n(BLOCK.plus.y - arm)}
       v${n(2 * arm)}`} />

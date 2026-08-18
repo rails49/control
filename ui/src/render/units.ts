@@ -37,8 +37,9 @@ const SPAN = 6; // the block's footprint, and its two pins
  *
  * The signal is the sample's plaque: no mast, an octagonal outline with its
  * corners chamfered at 45 degrees, and a green lamp beside a red one. The pair
- * is point symmetric about the block's centre, above the track at the A end and
- * below at the B end, so a rotation or a flip reads naturally and the lamp
+ * is point symmetric about the block's centre, below the track at the A end and
+ * above at the B end — on the left of a train leaving through that end, as the
+ * SBB places signals — so a rotation or a flip reads naturally and the lamp
  * order turns with the plaque.
  */
 export const BLOCK = {
@@ -114,7 +115,7 @@ export const COLOURS: Record<string, string> = {
   "--track": "#12151a",
   "--body": "#ffffff",
   "--chosen": "#1f6feb",
-  "--good": "#1a7f37",
+  "--good": "#22c55e",
   "--wrong": "#cc2936",
   "--hint": "#7c8087",
   "--clear": "#17a24a",
