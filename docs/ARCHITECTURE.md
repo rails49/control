@@ -33,6 +33,9 @@ src/tc49/
   lib/          the Python binding of SYSTEM.md's contracts
     bus.py        the in-process bus — queued FIFO, run-to-completion,
                   prefix-filter subscriptions (SYSTEM.md#the-bus)
+    bridge.py     the WebSocket relay of a live session — `tc49/#` out as
+                  {topic, payload} frames, `request_submitted` in; deleted
+                  with the in-process bus when a real broker arrives
     layout.py     Layout — blocks, connections, transits, conflict matrix
                   (expanded from `concurrent` by inversion), derived
                   terminal blocks

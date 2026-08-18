@@ -106,6 +106,17 @@ breadth-first shape forecloses the same-tick-causality habit the contract
 refuses, since nested synchronous delivery would grant exactly what MQTT
 never will.
 
+**Milestone-1 bridge.** Until the bus is a real broker, a browser reaches it
+over a WebSocket relay ([ui/PANEL.md](ui/PANEL.md#implementation)): every
+`tc49/#` event goes out to every client as one JSON frame,
+`{"topic": …, "payload": …}`, and the one inbound topic is
+`tc49/schedule/request_submitted`, whose frame is published as the event it
+names. Any other inbound frame — another topic, or not `{topic, payload}`
+JSON — is answered with an `{"error": …}` frame and never reaches the bus.
+The relay adds no topics and no payload fields: the frame is the event, so
+the inventory below is its entire schema. When MQTT arrives the browser
+speaks MQTT-over-WebSocket to the broker and the relay is deleted.
+
 ## Event inventory
 
 Topics are `tc49/<role>/<leaf>`, **publisher-first**: the second segment
