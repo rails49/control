@@ -393,9 +393,18 @@ export class TcEditor extends LitElement {
     window.addEventListener("pointerup", this.dropped);
   }
 
+  /**
+   * The release that ends the drag, wherever it happened. A symbol still
+   * pending here was dropped nowhere, so it is abandoned.
+   *
+   * Except a portal's mate: a drop over the canvas leaves it in flight and this
+   * runs on the same release, which would abandon the pair's second half before
+   * it could be placed (ADR-0020). It is dropped by a click of its own, and no
+   * listener is waiting on that one.
+   */
   private dropped = (): void => {
     window.removeEventListener("pointerup", this.dropped);
-    if (this.editor.pending === null) return;
+    if (this.editor.pending === null || this.editor.mating) return;
     this.editor.cancelPending();
     this.redraw();
   };

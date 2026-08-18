@@ -327,3 +327,39 @@ describe("the right-click", () => {
     expect([...editor.selection].sort()).toEqual(["sw1", "sw2"]);
   });
 });
+
+/**
+ * A portal's mate is dropped by a click, which is the one placement the canvas
+ * sees a press for: a palette drag presses on the tile instead (ADR-0020).
+ */
+describe("the press that lands a portal's mate", () => {
+  /** A pair's first half dropped on (4, 2), leaving the mate in flight. */
+  function mating(): { editor: Editor; gesture: Gesture } {
+    const editor = turnouts();
+    editor.beginPlace("portal");
+    editor.dropPending(4.5, 2.5);
+    expect(editor.mating).toBe(true);
+    return { editor, gesture: new Gesture() };
+  }
+
+  it("does not clear the selection or start a rubber band", () => {
+    const { editor, gesture } = mating();
+    editor.select(["sw1"]);
+    expect(down(gesture, editor, 20.5, 20.5)).toBe("quiet");
+    expect([...editor.selection]).toEqual(["sw1"]);
+    // A rubber band left running would outlive the drop, since `up` returns as
+    // soon as it has placed what was pending.
+    expect(gesture.up(editor, { x: 20.5, y: 20.5 })).toBe("changed");
+    expect(gesture.moved(editor, { x: 30, y: 30 }, { x: 0, y: 0 })).toBe(
+      "quiet",
+    );
+  });
+
+  it("does not take hold of a symbol it lands on", () => {
+    const { editor, gesture } = mating();
+    // The half just dropped is what is selected, and a press on sw1 on the way
+    // to placing its mate must not pick sw1 up instead.
+    expect(down(gesture, editor, 0.5, 0.5)).toBe("quiet");
+    expect([...editor.selection]).toEqual(["p1"]);
+  });
+});

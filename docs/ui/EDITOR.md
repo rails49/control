@@ -96,6 +96,16 @@ run and not one for each of them. The tiles keep showing the symbol at 0
 degrees; the ghost shows the truth the moment it is grabbed. Escape, Delete and
 the right button abandon the drag.
 
+A portal is placed as a pair. Dropping one puts its mate straight back in
+flight, wearing the same label and turned 180 degrees, so the next click lands
+the far end. The turn suits track that vanishes and continues the same way
+somewhere else, whose two mouths face opposite; `r` turns it for the drawings
+that do not. Nothing is asked and nothing is armed: the mate is the same ghost
+under the same three keys, and the pair is one undo step, so undo takes both
+halves back and undo mid-flight takes the first half and the ghost together.
+Abandoning the mate leaves one portal, which is a finding rather than an
+error ([ADR-0020](../adr/0020-a-portal-is-placed-as-a-pair.md)).
+
 Tiles carry no names. Each kind is drawn one way, so the drawing is the name,
 and the title attribute has the word for anyone who wants it.
 
@@ -114,7 +124,7 @@ dimensions below are normative.
 | Double slip | ![double slip](images/double-slip.png) | |
 | 90° crossing | | upright, two straight routes |
 | 90° crossing, diagonal | | the same at 45 degrees |
-| Portal | ![portal](images/portal.png) | paired by label |
+| Portal | ![portal](images/portal.png) | paired by label; placed as a pair |
 
 Signals and sensors are not palette entries. Every block has both at both
 ends, so there is nothing to place.
@@ -390,6 +400,14 @@ Findings are listed in one panel:
 - connection names two people typed, and transits naming themselves from two
   symbol legs: save allowed, derivation refused;
 - overlaps of wires with symbols or wires: warning only.
+
+Two of those states are prevented at the gesture that would otherwise create
+them, rather than only reported once created. A wire in flight does not outlive
+the pin it started from (#74), and a portal is placed as a pair, so neither a
+stranded bend nor a lone portal accumulates unnoticed. Prevention stops at
+placement: deleting one portal of a pair still strands the other, and that is
+left to the finding, being a deliberate act with a mark on the canvas
+([ADR-0020](../adr/0020-a-portal-is-placed-as-a-pair.md)).
 
 Editing and running the same railroad at once is not prevented. The store
 snapshots at startup, so a run in progress keeps the layout it began with and

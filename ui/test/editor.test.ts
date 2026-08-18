@@ -38,9 +38,9 @@ describe("placing symbols", () => {
     expect(editor.drawing.symbols.b1!.length).toBe(1000);
   });
 
-  it("labels a fresh portal after itself rather than leaving it unnamed", () => {
+  it("labels a fresh portal rather than leaving it unnamed", () => {
     const name = editor.place("portal", [0, 0])!;
-    expect(editor.drawing.symbols[name]!.label).toBe(name);
+    expect(editor.drawing.symbols[name]!.label).toBe("p1");
   });
 
   it("selects what it just placed", () => {
@@ -744,6 +744,103 @@ describe("dragging a symbol out of the palette", () => {
     editor.cancelPending();
     expect(editor.pending).toBeNull();
     expect(editor.placementAt(4.5, 2.5)).toBeNull();
+  });
+});
+
+/**
+ * A portal is placed as a pair (ADR-0020): the drop lands one half and puts the
+ * other straight back in flight, so a portal never sits alone by accident.
+ */
+describe("placing a portal", () => {
+  /** The labels every portal in the drawing wears, in placement order. */
+  function labels(): (string | undefined)[] {
+    return Object.values(editor.drawing.symbols)
+      .filter((spec) => spec.kind === "portal")
+      .map((spec) => spec.label);
+  }
+
+  function dropFirst(x = 4.5, y = 2.5): string {
+    editor.beginPlace("portal");
+    return editor.dropPending(x, y)!;
+  }
+
+  it("puts the mate back in flight wearing the same label", () => {
+    const name = dropFirst();
+    expect(editor.pending).toMatchObject({
+      kind: "portal",
+      label: editor.drawing.symbols[name]!.label,
+    });
+  });
+
+  it("turns the mate to face the other way", () => {
+    dropFirst();
+    expect(editor.pending!.rot).toBe(180);
+  });
+
+  it("turns the mate from the facing the first half was dropped in", () => {
+    editor.beginPlace("portal");
+    editor.turnPending(); // dropped at 90
+    editor.dropPending(4.5, 2.5);
+    expect(editor.pending!.rot).toBe(270);
+  });
+
+  it("leaves the pair wearing one label, with nothing left in flight", () => {
+    dropFirst();
+    editor.dropPending(20.5, 20.5);
+    expect(labels()).toEqual(["p1", "p1"]);
+    expect(editor.pending).toBeNull();
+  });
+
+  it("takes the pair back in one undo step", () => {
+    dropFirst();
+    editor.dropPending(20.5, 20.5);
+    editor.undo();
+    expect(labels()).toEqual([]);
+  });
+
+  it("cancels the flight when the half it was anchored to is undone", () => {
+    dropFirst();
+    editor.undo();
+    expect(editor.pending).toBeNull();
+    expect(labels()).toEqual([]);
+  });
+
+  /**
+   * `mint()` frees a name on deletion but the label outlives it, so a label
+   * minted as a name would be handed out while an orphan still wore it — and
+   * the next portal placed would pair with that orphan silently.
+   */
+  it("skips a label an orphaned portal still wears", () => {
+    dropFirst();
+    editor.dropPending(20.5, 20.5); // p1 and p2, both labelled p1
+    editor.select(["p1"]);
+    editor.remove(); // p2 survives, still wearing label p1
+    dropFirst(40.5, 40.5);
+    expect(labels()).toEqual(["p1", "p2"]);
+  });
+
+  it("knows the mate from a symbol dragged off the palette", () => {
+    editor.beginPlace("portal");
+    expect(editor.mating).toBe(false);
+    editor.dropPending(4.5, 2.5);
+    expect(editor.mating).toBe(true);
+  });
+
+  /** A pair wears one label between the two of them, so labels advance once
+   *  per pair while names advance once per portal: `p3` is called `p3` and
+   *  labelled `p2`, which is the divergence ADR-0020 records. */
+  it("mints a fresh label for a pair placed after another", () => {
+    dropFirst();
+    editor.dropPending(20.5, 20.5);
+    dropFirst(40.5, 40.5);
+    editor.dropPending(60.5, 60.5);
+    expect(labels()).toEqual(["p1", "p1", "p2", "p2"]);
+    expect(Object.keys(editor.drawing.symbols)).toEqual([
+      "p1",
+      "p2",
+      "p3",
+      "p4",
+    ]);
   });
 });
 

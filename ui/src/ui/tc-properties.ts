@@ -89,7 +89,7 @@ export class TcProperties extends LitElement {
       return html`
         <sl-input
           label="Portal label"
-          help-text="Two portals with the same label are one joint."
+          help-text="Two portals with the same label join their wires as if directly connected."
           value=${this.draft.label ?? ""}
           @sl-input=${this.take("label")}
         ></sl-input>

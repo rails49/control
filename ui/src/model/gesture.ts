@@ -84,6 +84,12 @@ export class Gesture {
     }
     if (input.button !== 0) return "quiet";
 
+    // A symbol in flight is dropped by the release, so the press before it must
+    // not also select, rubber-band, or take hold of a pin. Only a portal's mate
+    // gets here — a palette drag presses on the tile, not the canvas — and it
+    // is dropped by a click, which is a press the canvas does see (ADR-0020).
+    if (editor.pending !== null) return "quiet";
+
     if (editor.pendingFrom !== null) {
       const pin = this.at(editor, review, point).pin;
       if (pin === null) {

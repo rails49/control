@@ -75,7 +75,9 @@ means a mistake. Terminal *blocks* stay derived from connectivity.
 **Portal**:
 A one-pin symbol paired by label with exactly one other portal; the pair
 joins its wires as if directly connected and derives to nothing. A drawing
-device for joining distant parts of the canvas.
+device for joining distant parts of the canvas. Placed with its mate, since one
+alone is a label worn once and derivation refuses it
+([ADR-0020](docs/adr/0020-a-portal-is-placed-as-a-pair.md)).
 _Avoid_: connector, link
 
 ### Stock

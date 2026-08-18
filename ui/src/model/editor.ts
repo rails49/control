@@ -146,10 +146,31 @@ export class Editor {
    * six of them, so a placement can overlap without its own cell being taken.
    */
   place(kind: Kind, at: [number, number], facing: Facing = {}): string | null {
+    return this.put(kind, at, facing, undefined, true);
+  }
+
+  /**
+   * The one that writes. `label` is a portal mate's, carried from the first
+   * half of the pair rather than minted afresh; `snapshot` is false for that
+   * second drop, so a pair placed by one gesture is one undo step
+   * ([ADR-0020](../../../docs/adr/0020-a-portal-is-placed-as-a-pair.md)).
+   */
+  private put(
+    kind: Kind,
+    at: [number, number],
+    facing: Facing,
+    label: string | undefined,
+    snapshot: boolean,
+  ): string | null {
     const name = mint(this.current, kind);
-    const spec: SymbolSpec = { kind, at, ...facing, ...defaults(kind, name) };
+    const spec: SymbolSpec = {
+      kind,
+      at,
+      ...facing,
+      ...defaults(kind, this.current, label),
+    };
     if (!clear(spec, this.current.symbols)) return null;
-    this.push();
+    if (snapshot) this.push();
     this.current.symbols[name] = spec;
     this.abut([name]);
     this.chosen = new Set([name]);
@@ -198,16 +219,39 @@ export class Editor {
     return { at, blocked: taken({ ...this.placing, at }, this.current.symbols) };
   }
 
-  /** Drop it. Refused where the squares are taken, so a drop the ghost showed
-   *  as blocked is a drop that does nothing. */
+  /**
+   * Drop it. Refused where the squares are taken, so a drop the ghost showed
+   * as blocked is a drop that does nothing.
+   *
+   * A portal is placed as a pair (ADR-0020): dropping the first half puts its
+   * mate straight back in flight wearing the same label, so the next click
+   * lands the far end. The mate starts turned 180 degrees, because track that
+   * vanishes and continues the same way somewhere else has its two mouths
+   * facing opposite; `r` turns it for the drawings that do not.
+   */
   dropPending(x: number, y: number): string | null {
     const landing = this.placementAt(x, y);
     if (this.placing === null || landing === null) return null;
     if (landing.blocked.length > 0) return null;
-    const { kind } = this.placing;
+    const { kind, label } = this.placing;
     const facing = facingOf(this.placing);
     this.placing = null;
-    return this.place(kind, landing.at, facing);
+    if (kind !== "portal" || label !== undefined) {
+      return this.put(kind, landing.at, facing, label, label === undefined);
+    }
+    const wearing = mintLabel(this.current);
+    const name = this.put(kind, landing.at, facing, wearing, true);
+    if (name !== null) {
+      this.placing = { ...turned(turned({ kind, ...facing })), label: wearing };
+    }
+    return name;
+  }
+
+  /** Whether what is in flight is the second half of a portal pair, which is
+   *  the one pending placement a release does not abandon: it was put there by
+   *  a drop rather than by a press on the palette. */
+  get mating(): boolean {
+    return this.placing !== null && this.placing.label !== undefined;
   }
 
   private reorient(change: (spec: Placing) => Placing): void {
@@ -573,6 +617,11 @@ export class Editor {
     to.push(clone(this.current));
     this.current = restored;
     this.drawingFrom = null;
+    // Nothing in flight outlives the undo of what it was anchored to. A wire
+    // would otherwise name a pin that is gone (#74); a portal's mate would
+    // land wearing a label nothing else wears, which is the lone portal the
+    // pair exists to prevent (ADR-0020).
+    this.placing = null;
     this.chosen = new Set(
       [...this.chosen].filter((name) => name in this.current.symbols),
     );
@@ -610,12 +659,15 @@ export function wiresWanted(kind: string): number {
 }
 
 /** The properties a kind cannot do without, so that a placed symbol is a
- *  document the store will take. A portal's label is what pairs it, and an
- *  empty one is not a name, so a fresh portal is labelled after itself and
- *  stays unpaired until someone says what it pairs with. */
-function defaults(kind: Kind, name: string): Partial<SymbolSpec> {
+ *  document the store will take. A portal's label is what pairs it: `label` is
+ *  the one its mate already wears, and a first half mints a fresh one. */
+function defaults(
+  kind: Kind,
+  drawing: Drawing,
+  label?: string,
+): Partial<SymbolSpec> {
   if (kind === "block") return { length: 1000 };
-  if (kind === "portal") return { label: name };
+  if (kind === "portal") return { label: label ?? mintLabel(drawing) };
   return {};
 }
 
@@ -633,6 +685,27 @@ function renamed(wire: Wire, was: string, name: string): Wire {
   const [a, b] = wirePins(wire);
   const pins: [string, string] = [swap(a), swap(b)];
   return Array.isArray(wire) ? pins : { ...wire, pins };
+}
+
+/**
+ * The lowest `p<n>` no portal wears.
+ *
+ * Labels are minted from the labels in the drawing rather than from `mint()`'s
+ * free names, because deletion frees a name while a label outlives it: delete
+ * one portal of the pair labelled `p1` and the survivor still wears `p1`, so a
+ * label minted as a name would hand `p1` to the next portal placed and pair it
+ * with the orphan (ADR-0020).
+ */
+export function mintLabel(drawing: Drawing): string {
+  const worn = new Set(
+    Object.values(drawing.symbols)
+      .filter((spec) => spec.kind === "portal")
+      .map((spec) => spec.label),
+  );
+  for (let n = 1; ; n++) {
+    const label = `${PREFIXES.portal}${n}`;
+    if (!worn.has(label)) return label;
+  }
 }
 
 /** The lowest free `<prefix><n>` for a kind. */
