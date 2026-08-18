@@ -44,3 +44,8 @@ The five canonical triage roles, each label string equal to its name. See `docs/
 ### Domain docs
 
 Single-context: `CONTEXT.md` at the root plus `docs/adr/`. See `docs/agents/domain.md`.
+
+### Batch implementation
+
+`/batch-implement` lands `ready-for-agent` issues unattended, one cold subagent
+each, gated by `scripts/check.sh`. See `.claude/skills/batch-implement/SKILL.md`.
