@@ -68,3 +68,53 @@ export class Replay {
     this.at = 0;
   }
 }
+
+/**
+ * The live feed: the bridge's frames read as the same events a trace holds
+ * (ui/PANEL.md, #72).
+ *
+ * The relay carries `{topic, payload}` and nothing else — the topic leaf is
+ * the event, exactly as SYSTEM.md's inventory has it — so the whole of the
+ * browser's side of the contract is here, and `Panel.apply` cannot tell a
+ * live session from a replay. Frames are stamped with the latest tick seen,
+ * which is what the bench tap does when it writes a trace.
+ *
+ * A frame that is not one is dropped rather than thrown: the bridge answers a
+ * refused frame with an `{error}` of its own, and a session must not end
+ * because one arrived.
+ */
+export class Live {
+  private at: number | null = null;
+
+  /** The latest tick the session has reached, `null` before the first. */
+  get tick(): number | null {
+    return this.at;
+  }
+
+  read(message: string): TraceEvent | null {
+    let frame: { topic?: unknown; payload?: unknown };
+    try {
+      frame = JSON.parse(message) as { topic?: unknown; payload?: unknown };
+    } catch {
+      return null;
+    }
+    if (typeof frame?.topic !== "string" || typeof frame?.payload !== "object") {
+      return null;
+    }
+    const payload = (frame.payload ?? {}) as Record<string, unknown>;
+    if (typeof payload.tick === "number") this.at = payload.tick;
+    return {
+      tick: this.at ?? 0,
+      event: frame.topic.slice(frame.topic.lastIndexOf("/") + 1),
+      ...payload,
+    };
+  }
+}
+
+/** The one topic the browser may write, and the frame that carries it
+ *  (SYSTEM.md, the bridge). Anything else inbound the relay refuses. */
+export const INBOUND = "tc49/schedule/request_submitted";
+
+export function submission(payload: Record<string, unknown>): string {
+  return JSON.stringify({ topic: INBOUND, payload });
+}

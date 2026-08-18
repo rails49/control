@@ -1,9 +1,8 @@
 # Dispatch panel
 
-Recorded design for the live panel: watching the railroad in real time and
-submitting requests. Deliberately after the [editor](EDITOR.md) in the order
-of work; nothing here is scheduled. Decisions that bind it:
-[ADR-0016](../adr/0016-the-panel-is-a-scheduler.md) and
+The live panel: watching the railroad in real time and submitting requests.
+Built after the [editor](EDITOR.md), as the order of work had it. Decisions
+that bind it: [ADR-0016](../adr/0016-the-panel-is-a-scheduler.md) and
 [ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md).
 Terminology follows [CONTEXT.md](../../CONTEXT.md).
 
@@ -54,6 +53,8 @@ aspect from `grant_refused` instead would require a per-train state machine
 over an event topic and would describe the dispatcher's state rather than the
 railway's.
 
+![A live session mid-run: a drag from south to claro_3's middle third](images/live-drag.png)
+
 ## What it does
 
 The panel is read-only apart from submitting requests. **Dragging** a train
@@ -97,6 +98,22 @@ half: a bridge from `tc49/#` to the browser over a WebSocket. That is not a
 store operation and does not live with one. Validation stays in the existing
 Python validator. The MQTT transport switch later changes only what the bridge
 subscribes to. The front end shares the editor's stack and symbol library.
+
+Joining a session needs one thing the bus cannot supply. The placement locks
+were published before any browser connected, and **facing** is on no topic at
+all ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)). The panel
+therefore reads the scenario from the store (`GET /scenarios`,
+`GET /scenarios/<id>`) and seeds stock, placement and facing from it.
+Everything after that is derived from the bus exactly as a replay derives it,
+which is why one panel model serves both. Facing stays determined from there:
+a train faces away from the end it entered through, so the next drag departs
+nose-first with no bookkeeping.
+
+The front end keeps the editor's model/component split. `model/panel.ts` turns
+bus payloads into render state and holds the scheduler's own state, meaning
+facing and the request ids it mints. `model/drag.ts` turns pointer positions
+into an arrival-end set or a cancel, DOM-free and tested the way the editor's
+gesture model is. `tc-panel` converts pixels into squares, paints, and sends.
 
 A first panel can render a recorded trace file with no server at all, which
 is immediately useful for reviewing past benchmark runs.

@@ -705,6 +705,16 @@ export const panelStyles = css`
     color: var(--wrong);
   }
 
+  /* Whether the bridge is answering: the one thing a live session's header
+     says that a replay's does not. */
+  header .link.joined {
+    color: var(--lit);
+  }
+
+  header .link.gone {
+    color: var(--wrong);
+  }
+
   main {
     overflow: hidden;
   }
@@ -814,5 +824,33 @@ export const panelStyles = css`
 
   .note.rejected {
     fill: var(--wrong);
+  }
+
+  /* Scheduling by drag (#72). A live session is the only one that can submit,
+     so only there does a train look like something to pick up. */
+  svg.scheduling .symbol.occupied {
+    cursor: grab;
+  }
+
+  /* The gesture in flight: the reach from where the train was taken hold of,
+     and a ring at each arrival end a drop here would ask for. Both are drawn
+     from the drag model's answer, never from a guess about feasibility. */
+  .reach {
+    stroke: var(--chosen);
+    stroke-width: ${W};
+    stroke-dasharray: ${3 * W} ${2 * W};
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .marker.hover {
+    fill: none;
+    stroke: var(--chosen);
+    stroke-width: ${0.9 * W};
+    pointer-events: none;
+  }
+
+  .symbol.target .block-body {
+    stroke: var(--chosen);
   }
 `;

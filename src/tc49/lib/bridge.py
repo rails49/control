@@ -75,6 +75,11 @@ class Bridge:
         try:
             for message in connection:
                 self._receive(connection, message)
+        except ConnectionClosed:
+            # A browser tab that is reloaded or discarded goes without a close
+            # handshake. That is a client leaving, not a fault: letting it out
+            # of the handler puts a traceback in the session's own log.
+            pass
         finally:
             with self._clients_lock:
                 self._clients.discard(connection)

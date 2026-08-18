@@ -1,12 +1,17 @@
 /**
- * The panel, fed by a recorded trace (ui/PANEL.md, #70): the drawing with the
- * run's state painted on top, and play/step control over the trace.
+ * The panel (ui/PANEL.md): the drawing with the railroad's state painted on
+ * top, fed either by a recorded trace or by a live session over the bridge,
+ * and — live — scheduling by drag.
  *
- * Everything shown is the panel model's answer (model/panel.ts) — this
- * component loads the drawing and its `/review` from the store, reads a trace
- * file, feeds events through the model, and paints. It computes nothing:
- * occupancy, aspects, markers and lit legs arrive as data, which is what lets
- * the live panel later swap the trace for the bridge without touching either.
+ * Everything shown is the panel model's answer (model/panel.ts) and everything
+ * a gesture means is the drag model's (model/drag.ts). This component loads
+ * the documents, converts the pointer's pixels into squares, paints, and sends
+ * the one frame the relay accepts. It computes nothing: occupancy, aspects,
+ * markers, lit legs and arrival ends all arrive as data.
+ *
+ * The two sources are exclusive, as the modes themselves are (ADR-0016):
+ * picking a railroad replays a trace, joining a session runs live, and only a
+ * live session can submit — a replay has nobody to submit to.
  */
 
 import { LitElement, html, svg, nothing } from "lit";
@@ -16,23 +21,41 @@ import "@shoelace-style/shoelace/dist/components/select/select.js";
 import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
+import { Drag } from "../model/drag.js";
 import { pinsOf, wirePins, type Drawing } from "../model/drawing.js";
-import { anchorOf, centreOf, transformOf } from "../model/geometry.js";
+import { anchorOf, centreOf, transformOf, type Point } from "../model/geometry.js";
 import { Panel, type BlockView, type Marker } from "../model/panel.js";
 import { arrowPose, fitBox } from "../model/scene.js";
-import { listDrawings, readDrawing, review } from "../model/store.js";
-import { parseTrace, Replay } from "../model/trace.js";
+import {
+  listDrawings,
+  listScenarios,
+  readDrawing,
+  readScenario,
+  review,
+  type Review,
+} from "../model/store.js";
+import { Live, parseTrace, Replay, submission } from "../model/trace.js";
 import { pointOf } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { panelStyles } from "./styles.js";
+
+/** Where `tc49 live` puts the bridge. Overridable for a session somewhere
+ *  else, which is the whole of the browser's configuration. */
+const BRIDGE =
+  new URLSearchParams(location.search).get("bridge") ??
+  `ws://${location.hostname || "127.0.0.1"}:8766`;
 
 @customElement("tc-panel")
 export class TcPanel extends LitElement {
   static override styles = panelStyles;
 
   @state() private drawings: string[] = [];
+  @state() private scenarios: string[] = [];
   @state() private drawing: Drawing | null = null;
   @state() private traceName: string | null = null;
+  /** The scenario a live session was started from, `null` while replaying. */
+  @state() private session: string | null = null;
+  @state() private connected = false;
   @state() private playing = false;
   @state() private rate = 2; // ticks per second
   @state() private trouble: string | null = null;
@@ -41,8 +64,12 @@ export class TcPanel extends LitElement {
   @state() private beat = 0;
 
   private panel: Panel | null = null;
+  private reviewed: Review | null = null;
   private replay: Replay | null = null;
+  private live: Live | null = null;
+  private socket: WebSocket | null = null;
   private timer: number | null = null;
+  private readonly drag = new Drag();
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -51,12 +78,16 @@ export class TcPanel extends LitElement {
 
   override disconnectedCallback(): void {
     this.pause();
+    this.leave();
     super.disconnectedCallback();
   }
 
   private async start(): Promise<void> {
     try {
-      this.drawings = await listDrawings();
+      [this.drawings, this.scenarios] = await Promise.all([
+        listDrawings(),
+        listScenarios(),
+      ]);
     } catch {
       this.trouble = "the store is not answering — run `tc49 serve`";
     }
@@ -64,19 +95,28 @@ export class TcPanel extends LitElement {
 
   /** Load a drawing and what it means. The panel needs the derived layout,
    *  so a drawing the store refuses to derive is trouble, not a canvas. */
+  private async load(name: string): Promise<boolean> {
+    const drawing = await readDrawing(name);
+    const reviewed = await review(drawing);
+    if (reviewed.layout === null || reviewed.explain === null) {
+      this.trouble = reviewed.refused ?? `'${name}' does not derive`;
+      return false;
+    }
+    this.panel = new Panel(reviewed.layout, reviewed.explain);
+    this.reviewed = reviewed;
+    this.drawing = drawing;
+    this.trouble = null;
+    return true;
+  }
+
+  // --- replaying a trace ----------------------------------------------------
+
   private async pick(name: string): Promise<void> {
     this.pause();
+    this.leave();
     try {
-      const drawing = await readDrawing(name);
-      const reviewed = await review(drawing);
-      if (reviewed.layout === null || reviewed.explain === null) {
-        this.trouble = reviewed.refused ?? `'${name}' does not derive`;
-        return;
-      }
-      this.panel = new Panel(reviewed.layout, reviewed.explain);
+      if (!(await this.load(name))) return;
       this.replay?.restart();
-      this.drawing = drawing;
-      this.trouble = null;
       this.beat++;
     } catch (error) {
       this.trouble = String(error instanceof Error ? error.message : error);
@@ -133,6 +173,120 @@ export class TcPanel extends LitElement {
     }
   }
 
+  // --- joining a live session -----------------------------------------------
+
+  /**
+   * Join the session running a scenario: its railroad, then its stock,
+   * placement and facing, then the bridge.
+   *
+   * The scenario is read from the store rather than announced by the bridge,
+   * which relays the bus and describes nothing (SYSTEM.md). Placement and
+   * facing have to come from somewhere: the placement locks were published
+   * before any browser connected, and facing is on no topic at all
+   * (ADR-0019).
+   */
+  private async join(id: string): Promise<void> {
+    this.pause();
+    this.leave();
+    this.replay = null;
+    this.traceName = null;
+    try {
+      const scenario = await readScenario(id);
+      if (!(await this.load(scenario.layout))) return;
+      this.panel!.place(scenario.trains);
+      this.session = id;
+      this.listen();
+      this.beat++;
+    } catch (error) {
+      this.trouble = String(error instanceof Error ? error.message : error);
+    }
+  }
+
+  private listen(): void {
+    this.live = new Live();
+    const socket = new WebSocket(BRIDGE);
+    socket.addEventListener("open", () => {
+      this.connected = true;
+      this.trouble = null;
+    });
+    socket.addEventListener("message", (frame) => this.heard(String(frame.data)));
+    socket.addEventListener("close", () => (this.connected = false));
+    socket.addEventListener("error", () => {
+      this.trouble = `no session at ${BRIDGE} — run \`tc49 live ${this.session}\``;
+    });
+    this.socket = socket;
+  }
+
+  private heard(message: string): void {
+    const event = this.live?.read(message);
+    if (event === undefined || event === null || this.panel === null) return;
+    this.panel.apply(event);
+    this.beat++;
+  }
+
+  private leave(): void {
+    this.drag.cancel();
+    this.socket?.close();
+    this.socket = null;
+    this.live = null;
+    this.session = null;
+    this.connected = false;
+  }
+
+  // --- scheduling by drag ---------------------------------------------------
+
+  /** Whether a gesture can schedule: only a joined session has anywhere to
+   *  submit to. */
+  private get scheduling(): boolean {
+    return this.connected && this.drawing !== null && this.panel !== null;
+  }
+
+  private down(event: PointerEvent): void {
+    if (!this.scheduling) return;
+    const took = this.drag.down(
+      this.drawing!,
+      this.reviewed!,
+      this.panel!.blocks(),
+      this.gridAt(event),
+    );
+    if (!took) return;
+    (event.target as Element).setPointerCapture?.(event.pointerId);
+    this.beat++;
+  }
+
+  private moved(event: PointerEvent): void {
+    if (this.drag.train === null) return;
+    this.drag.moved(this.drawing!, this.reviewed!, this.gridAt(event));
+    this.beat++;
+  }
+
+  /**
+   * The drop: one `request_submitted`, filter-free (ui/PANEL.md). The panel
+   * mints the id and takes the departure end from the train's facing; the
+   * dispatcher's answer comes back over the same socket and renders itself.
+   */
+  private up(event: PointerEvent): void {
+    if (this.drag.train === null) return;
+    const drop = this.drag.up(this.drawing!, this.reviewed!, this.gridAt(event));
+    this.beat++;
+    if (drop === null) return;
+    const request = this.panel!.request(drop.train, drop.dest);
+    if (request !== null) this.socket?.send(submission(request));
+  }
+
+  private gridAt(event: PointerEvent): Point {
+    const element = this.renderRoot.querySelector("svg")!;
+    const matrix = element.getScreenCTM();
+    if (matrix === null) return { x: 0, y: 0 };
+    const point = element.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const grid = point.matrixTransform(matrix.inverse());
+    return { x: grid.x, y: grid.y };
+  }
+
+  // --- painting -------------------------------------------------------------
+
   override render() {
     const ready = this.panel !== null && this.replay !== null;
     return html`
@@ -141,7 +295,7 @@ export class TcPanel extends LitElement {
           size="small"
           placeholder="railroad…"
           hoist
-          .value=${this.drawing?.drawing ?? ""}
+          .value=${this.session === null ? (this.drawing?.drawing ?? "") : ""}
           @sl-change=${(event: Event) =>
             this.pick((event.target as HTMLSelectElement).value)}
         >
@@ -163,44 +317,73 @@ export class TcPanel extends LitElement {
           @change=${(event: Event) => this.opened(event.target as HTMLInputElement)}
         />
         <span>${this.traceName ?? nothing}</span>
+        <sl-select
+          size="small"
+          placeholder="live session…"
+          hoist
+          .value=${this.session ?? ""}
+          @sl-change=${(event: Event) =>
+            this.join((event.target as HTMLSelectElement).value)}
+        >
+          ${this.scenarios.map(
+            (name) => html`<sl-option value=${name}>${name}</sl-option>`,
+          )}
+        </sl-select>
         <span class="spacer"></span>
         ${this.trouble === null
           ? nothing
           : html`<span class="trouble">${this.trouble}</span>`}
-        <sl-button size="small" ?disabled=${!ready} @click=${this.restart}>
-          Restart
-        </sl-button>
-        <sl-button
-          size="small"
-          ?disabled=${!ready || this.playing}
-          @click=${this.step}
-        >
-          Step
-        </sl-button>
-        <sl-button size="small" ?disabled=${!ready} @click=${() =>
-          this.playing ? this.pause() : this.play()}>
-          ${this.playing ? "Pause" : "Play"}
-        </sl-button>
-        <label class="rate">
-          <input
-            type="range"
-            min="0.5"
-            max="10"
-            step="0.5"
-            .value=${String(this.rate)}
-            @input=${(event: Event) =>
-              this.paced(Number((event.target as HTMLInputElement).value))}
-          />
-          ${this.rate}/s
-        </label>
-        <span class="tick">
-          ${this.replay?.tick === null || this.replay === null
-            ? "—"
-            : `tick ${this.replay.tick}`}
-        </span>
+        ${this.session === null ? this.transport(ready) : this.standing()}
+        <span class="tick">${this.stamp()}</span>
       </header>
       <main>${this.canvas()}</main>
     `;
+  }
+
+  /** Trace controls. A live session is paced by `tc49 live --period`, so there
+   *  is nothing here to step or wind on. */
+  private transport(ready: boolean) {
+    return html`
+      <sl-button size="small" ?disabled=${!ready} @click=${this.restart}>
+        Restart
+      </sl-button>
+      <sl-button size="small" ?disabled=${!ready || this.playing} @click=${this.step}>
+        Step
+      </sl-button>
+      <sl-button
+        size="small"
+        ?disabled=${!ready}
+        @click=${() => (this.playing ? this.pause() : this.play())}
+      >
+        ${this.playing ? "Pause" : "Play"}
+      </sl-button>
+      <label class="rate">
+        <input
+          type="range"
+          min="0.5"
+          max="10"
+          step="0.5"
+          .value=${String(this.rate)}
+          @input=${(event: Event) =>
+            this.paced(Number((event.target as HTMLInputElement).value))}
+        />
+        ${this.rate}/s
+      </label>
+    `;
+  }
+
+  private standing() {
+    return html`
+      <span class=${`link ${this.connected ? "joined" : "gone"}`}>
+        ${this.connected ? "live — drag a train" : "not connected"}
+      </span>
+      <sl-button size="small" @click=${this.leave}>Leave</sl-button>
+    `;
+  }
+
+  private stamp(): string {
+    const tick = this.session === null ? (this.replay?.tick ?? null) : this.live?.tick;
+    return tick === null || tick === undefined ? "—" : `tick ${tick}`;
   }
 
   private canvas() {
@@ -210,11 +393,18 @@ export class TcPanel extends LitElement {
     const lit = this.panel.litLegs();
     const green = this.panel.greenEnds();
     return svg`
-      <svg viewBox=${`${x} ${y} ${w} ${h}`}>
+      <svg
+        viewBox=${`${x} ${y} ${w} ${h}`}
+        class=${this.scheduling ? "scheduling" : ""}
+        @pointerdown=${this.down}
+        @pointermove=${this.moved}
+        @pointerup=${this.up}
+      >
         <defs>${DEFS}</defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
         ${this.wires()} ${this.symbols(blocks, lit, green)}
         ${this.labels(blocks)} ${this.arrows(blocks)} ${this.markers()}
+        ${this.gesture()}
       </svg>
     `;
   }
@@ -236,12 +426,18 @@ export class TcPanel extends LitElement {
     lit: Map<string, Set<string>>,
     green: Set<string>,
   ) {
+    const target = this.drag.drop?.block;
     return Object.entries(this.drawing!.symbols).map(([name, spec]) => {
       const block = blocks.get(name);
       const aspects = ["A", "B"]
         .filter((end) => green.has(`${name}.${end}`))
         .map((end) => `green-${end}`);
-      const classes = ["symbol", block?.state ?? "", ...aspects]
+      const classes = [
+        "symbol",
+        block?.state ?? "",
+        ...aspects,
+        name === target ? "target" : "",
+      ]
         .filter((one) => one !== "" && one !== "free")
         .join(" ");
       return svg`
@@ -298,6 +494,25 @@ export class TcPanel extends LitElement {
               ${marker.note}
             </text>`
       }
+    `;
+  }
+
+  /**
+   * The drag in flight: a line from where the train was taken hold of, and a
+   * ring at each arrival end a drop here would ask for — so the gesture's
+   * meaning is on screen before the release (ui/PANEL.md).
+   */
+  private gesture() {
+    const { from, to, drop } = this.drag;
+    if (from === null || to === null) return nothing;
+    return svg`
+      <line class="reach" x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />
+      ${(drop?.dest ?? []).map((end) => {
+        const dot = end.lastIndexOf(".");
+        const spec = this.drawing!.symbols[end.slice(0, dot)]!;
+        const { x, y } = anchorOf(spec, end.slice(dot + 1));
+        return svg`<circle class="marker hover" cx=${x} cy=${y} r="0.34" />`;
+      })}
     `;
   }
 }

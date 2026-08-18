@@ -8,6 +8,7 @@ drain-and-check rather than sleep and hope.
 """
 
 import json
+import logging
 import time
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -118,6 +119,20 @@ def test_a_second_client_hears_the_same_events(
         bus.publish("tc49/layout/tick", {"tick": 0})
         bus.drain()
         assert receive(client) == receive(second)
+
+
+def test_a_client_that_vanishes_leaves_quietly(
+    bus: Bus, bridge: Bridge, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A reloaded or discarded browser tab goes without a close handshake.
+    That is a client leaving, and it must not put a traceback in the session's
+    log — the log is what an operator running `tc49 live` reads."""
+    with caplog.at_level(logging.ERROR):
+        client = connect(f"ws://127.0.0.1:{bridge.port}")
+        settled(bridge, 1)
+        client.socket.close()  # the socket goes, no close frame sent
+        settled(bridge, 0)
+    assert caplog.records == []
 
 
 def test_a_departed_client_does_not_take_the_bridge_down(
