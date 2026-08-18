@@ -77,8 +77,10 @@ def generate(workload: Workload) -> Scenario:
 
     # 1. Placement — distinct station tracks, one train each.
     placements = rng.sample(STATION_TRACKS, workload.trains)
+    # Facing is scheduler state batch runs never read (ADR-0019); a constant
+    # keeps it out of the rng stream, so the drawn requests stay byte-identical.
     trains = {
-        f"t{i + 1}": TrainSpec(train_length(i), track)
+        f"t{i + 1}": TrainSpec(train_length(i), track, "A")
         for i, track in enumerate(placements)
     }
 

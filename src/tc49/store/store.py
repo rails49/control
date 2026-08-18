@@ -121,14 +121,20 @@ class AssetStore:
 
         trains: dict[str, TrainSpec] = {}
         for train, spec in as_mapping(doc["trains"], f"{where}: trains").items():
-            check_keys(spec, f"{where}: train '{train}'", {"length", "at"})
+            check_keys(spec, f"{where}: train '{train}'", {"length", "at", "facing"})
             length = check_length(spec["length"], f"{where}: train '{train}'")
             at = spec["at"]
             if at not in layout.blocks:
                 raise ValueError(
                     f"{where}: train '{train}' starts at unknown block '{at}'"
                 )
-            trains[train] = TrainSpec(length, at)
+            facing = spec["facing"]
+            if facing not in ("A", "B"):
+                raise ValueError(
+                    f"{where}: train '{train}' facing must be 'A' or 'B',"
+                    f" got {facing!r}"
+                )
+            trains[train] = TrainSpec(length, at, facing)
 
         requests: list[RequestSpec] = []
         if not isinstance(doc["requests"], list):

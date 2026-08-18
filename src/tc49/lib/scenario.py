@@ -13,6 +13,7 @@ from dataclasses import dataclass
 class TrainSpec:
     length: int
     at: str  # starting block
+    facing: str  # 'A' or 'B': the end of `at` it would depart through nose-first
 
 
 @dataclass(frozen=True)

@@ -50,7 +50,7 @@ def meet_document() -> dict[str, Any]:
     return {
         "scenario": "meet",
         "layout": "crossover-yard",
-        "trains": {"freight_1": {"length": 1100, "at": "yard_w"}},
+        "trains": {"freight_1": {"length": 1100, "at": "yard_w", "facing": "B"}},
         "requests": [
             {"train": "freight_1", "from": "yard_w.B", "to": ["yard_e"], "at": 0},
         ],
@@ -219,6 +219,7 @@ def test_meet_scenario_loads_clean(store: AssetStore) -> None:
     assert scenario.layout == "crossover-yard"
     assert scenario.trains["freight_1"].length == 1100
     assert scenario.trains["express_2"].at == "up_e"
+    assert scenario.trains["freight_1"].facing == "B"
     first = scenario.requests[0]
     assert (first.train, first.depart, first.arrivals, first.at) == (
         "freight_1",
@@ -239,6 +240,20 @@ def test_train_starting_block_must_exist(scratch_store: AssetStore) -> None:
     doc = meet_document()
     doc["trains"]["freight_1"]["at"] = "yard_q"
     with pytest.raises(ValueError, match="yard_q"):
+        scratch_store.put(doc)
+
+
+def test_train_must_declare_its_facing(scratch_store: AssetStore) -> None:
+    doc = meet_document()
+    del doc["trains"]["freight_1"]["facing"]
+    with pytest.raises(ValueError, match="freight_1.*facing"):
+        scratch_store.put(doc)
+
+
+def test_facing_must_be_an_end_letter(scratch_store: AssetStore) -> None:
+    doc = meet_document()
+    doc["trains"]["freight_1"]["facing"] = "yard_w.B"
+    with pytest.raises(ValueError, match="freight_1"):
         scratch_store.put(doc)
 
 

@@ -74,9 +74,10 @@ origin block, which for a chained working is unknown until the predecessor
 completes. The launch commits an empty route and completes in the same grant
 phase, moving nothing and locking nothing, so the request's latency is the
 one-tick admission-to-scan skew every request pays. An empty route has no
-final transit for the end to constrain and no stored facing to check it
-against ([LAYOUT.md](../store/LAYOUT.md#scenario-schema)) — this is the one case where
-the arrival end is vacuous. Treating it as degenerate rather than as an error
+final transit for the end to constrain, and the dispatcher holds no facing to
+check it against — facing is scheduler state it never sees
+([ADR-0019](../adr/0019-facing-is-scheduler-state.md)) — so this is the one
+case where the arrival end is vacuous. Treating it as degenerate rather than as an error
 keeps the admission rule free of special cases.
 
 A request may be pending for a train that is already active on an earlier

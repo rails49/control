@@ -92,7 +92,7 @@ scenario: meet
 layout: crossover-yard
 
 trains:
-  freight_1: { length: 1100, at: yard_w }
+  freight_1: { length: 1100, at: yard_w, facing: B }
 
 requests:
   - { train: freight_1, from: yard_w.B, to: [dn_e, up_e], at: 0 }
@@ -103,8 +103,8 @@ requests:
   drawing's own `drawing:` key carries. The loader resolves it to
   `layouts/<id>.drawing.yaml`, so a scenario can move between directories
   without rewriting.
-- **Trains are flat** — id, length, starting block. The dispatcher only ever
-  asks whether a train fits a block, so total length is the whole of what
+- **Trains are flat** — id, length, starting block, facing. The dispatcher only
+  ever asks whether a train fits a block, so total length is the whole of what
   milestone 1 reads; [GOALS.md](../GOALS.md)'s composed loco-and-car model arrives
   when something consumes it.
 - **`to` is a list of arrival ends**, any one of which satisfies the request
@@ -115,14 +115,18 @@ requests:
   and `to: [yard_w.B]` is one. The list is **unordered**: the entries are
   equally acceptable and route selection decides between them, so writing a
   preferred track first has no effect.
-- **No facing is stored.** Routes are strict pass-throughs
-  ([ADR-0001](../adr/0001-no-reversal-within-a-route.md)) and both `from` and `to`
-  name an end the train crosses, so orientation is a consequence of the route
-  rather than a fact needing to be recorded. The one place this shows is the
-  degenerate request — a train already standing in an arrival block completes
-  at its first launch attempt without moving, whichever end that arrival
-  names, because there is no final transit to constrain and nothing to check
-  the end against ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)).
+- **`facing` is declared, then derived.** It is the end of `at` the train
+  would depart through nose-first ([CONTEXT.md](../../CONTEXT.md#stock)) —
+  `A` or `B`, required at placement. Routes are strict pass-throughs
+  ([ADR-0001](../adr/0001-no-reversal-within-a-route.md)), so after placement
+  facing follows from the routes run and only a scheduler tracks it: the
+  dispatcher never reads it, and a file scenario's `from` is free to
+  contradict it ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)). The
+  dispatcher's blindness shows in the degenerate request — a train already
+  standing in an arrival block completes at its first launch attempt without
+  moving, whichever end that arrival names, because there is no final transit
+  to constrain and the dispatcher holds nothing to check the end against
+  ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)).
 - **`from` requires the end and takes the block optionally.** `from: yard_w.B`
   states the working the way a reader wants to see it, and is checked by the
   dispatcher at admission against where the train actually stands — the

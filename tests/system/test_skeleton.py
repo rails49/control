@@ -44,7 +44,7 @@ def test_no_fit_pruning_rejects_at_admission() -> None:
     scenario = Scenario(
         "long",
         "crossover-yard",
-        {"leviathan": TrainSpec(2000, "up_w")},
+        {"leviathan": TrainSpec(2000, "up_w", "B")},
         (RequestSpec("leviathan", "up_w.B", ("yard_e",), 0),),
     )
     trace = run(layout, scenario)
@@ -63,7 +63,7 @@ def test_unreachable_rejection_at_first_launch_attempt() -> None:
     scenario = Scenario(
         "stuck",
         "mini",
-        {"t1": TrainSpec(500, "a")},
+        {"t1": TrainSpec(500, "a", "A")},
         # Departing through a.A, the unconnected end: no route can exist.
         (RequestSpec("t1", "a.A", ("b.A",), 0),),
     )
@@ -80,7 +80,7 @@ def test_degenerate_request_completes_without_moving_whichever_end() -> None:
         scenario = Scenario(
             "stay",
             "crossover-yard",
-            {"parked": TrainSpec(600, "yard_w")},
+            {"parked": TrainSpec(600, "yard_w", "B")},
             (RequestSpec("parked", "yard_w.B", (end,), 0),),
         )
         trace = run(layout, scenario)
@@ -101,7 +101,10 @@ def test_a_refused_working_is_not_overtaken_by_the_trains_next_one() -> None:
     scenario = Scenario(
         "queued",
         "crossover-yard",
-        {"freight": TrainSpec(600, "yard_w"), "express": TrainSpec(600, "dn_w")},
+        {
+            "freight": TrainSpec(600, "yard_w", "B"),
+            "express": TrainSpec(600, "dn_w", "A"),
+        },
         (
             RequestSpec("freight", "yard_w.B", ("dn_w.A",), 0),
             RequestSpec("freight", "B", ("up_e.A",), 0),

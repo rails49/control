@@ -68,8 +68,10 @@ def scenario_documents(
     placements = draw(
         st.lists(st.sampled_from(blocks), min_size=count, max_size=count, unique=True)
     )
+    # Facing is scheduler state nothing in a batch run reads (ADR-0019), so a
+    # constant keeps the search pressure on interleaving.
     trains = {
-        f"t{i + 1}": {"length": length, "at": block}
+        f"t{i + 1}": {"length": length, "at": block, "facing": "A"}
         for i, block in enumerate(placements)
     }
 

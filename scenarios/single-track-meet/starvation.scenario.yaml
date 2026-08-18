@@ -25,8 +25,8 @@ scenario: starvation
 layout: single-track-meet
 
 trains:
-  waiter: { length: 1000, at: west_1 }
-  squatter: { length: 1000, at: east_1 }
+  waiter: { length: 1000, at: west_1, facing: B }
+  squatter: { length: 1000, at: east_1, facing: A }
 
 requests:
   - { train: waiter, from: west_1.B, to: [east_1.A], at: 0 }

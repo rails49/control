@@ -10,8 +10,8 @@ def two_train_scenario() -> Scenario:
         name="meet",
         layout="crossover-yard",
         trains={
-            "freight_1": TrainSpec(1100, "yard_w"),
-            "express_2": TrainSpec(600, "up_e"),
+            "freight_1": TrainSpec(1100, "yard_w", "B"),
+            "express_2": TrainSpec(600, "up_e", "A"),
         },
         requests=(
             RequestSpec("freight_1", "yard_w.B", ("yard_e",), 0),
