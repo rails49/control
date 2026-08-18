@@ -354,6 +354,21 @@ describe("drawing wires", () => {
     expect(wires()).toEqual(["b2.A west.B"]);
   });
 
+  it("refuses to start at a pin whose symbol is gone", () => {
+    // The invariant the rest of this relies on: a wire in flight always names
+    // a pin that is there, so nothing downstream has to check.
+    place("block", [0, 0]);
+    place("block", [10, 0]);
+    editor.select(["b1"]);
+    editor.remove();
+
+    editor.startWire("b1.B");
+
+    expect(editor.pendingFrom).toBeNull();
+    expect(editor.endWire("b2.A")).toBe(false);
+    expect(wires()).toEqual([]);
+  });
+
   it("leaves what is drawn behind when the wire is abandoned", () => {
     // A red pin is the normal state of a drawing mid-edit, so abandoning is
     // not an undo.

@@ -319,7 +319,7 @@ export class Editor {
 
   /** Delete the selection, and with it every wire it holds. Whatever was on
    *  the far end of those wires is left a pin short, which `/review` reports
-   *  as red. */
+   *  as red — unless it is a bend left holding nothing, which `sweep` takes. */
   remove(): void {
     if (this.chosen.size === 0) return;
     this.push();
@@ -341,6 +341,12 @@ export class Editor {
    * file, and enough on its own to make derivation refuse the drawing. A
    * symbol pin left short is the opposite: it is the mark that says where the
    * track now stops, so a bend still holding one wire stays and stays red.
+   *
+   * Every such bend goes, not only the ones this edit stranded. Since no edit
+   * can leave one any more, the rest are what a drawing was opened with, and
+   * taking those is a repair: they cannot be selected — a bend holding nothing
+   * draws nothing to click — so the alternative is a file nobody can fix here.
+   * It is the edit's own undo step either way.
    *
    * Sweeping cannot cascade: a bend with no wires holds none to take away.
    */
@@ -364,7 +370,8 @@ export class Editor {
   /**
    * Cut a wire, and say whether there was one to cut. Both pins it held are
    * left short of one, which `/review` reports as red — the normal state of a
-   * drawing mid-edit, and what says where the track now stops.
+   * drawing mid-edit, and what says where the track now stops. A bend left
+   * holding nothing is not that state and goes, `sweep` saying why.
    *
    * A wire has no symbol to select, so this is the one verb that takes what it
    * acts on rather than reading the selection (EDITOR.md#editing).
@@ -439,8 +446,17 @@ export class Editor {
 
   // --- drawing wires ------------------------------------------------------
 
-  /** Start a wire at a pin, or end the one in progress there. */
+  /**
+   * Start a wire at a pin, or end the one in progress there. Refused at a pin
+   * whose symbol is not there, which a press held across a delete can offer.
+   *
+   * This is the invariant the rest of the wire-drawing relies on: a wire in
+   * flight always names a pin that exists, kept true here, by `sweep` when the
+   * symbol goes, and by `edit` when it is renamed. Without it the next click
+   * writes a wire naming nothing, and the drawing will not load again.
+   */
   startWire(pin: PinRef): void {
+    if (!(symbolOf(pin) in this.current.symbols)) return;
     this.drawingFrom = pin;
   }
 

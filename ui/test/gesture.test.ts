@@ -117,6 +117,39 @@ describe("the slop between a wire-click and a bend-drag", () => {
     expect(editor.pendingFrom).toBeNull();
   });
 
+  /** Delete is a key, so it lands while a button is held: the press is on a
+   *  pin whose symbol is gone by the time the pointer comes back up. */
+  it("drops a press whose symbol was deleted under it", () => {
+    const editor = blocks();
+    const gesture = new Gesture();
+    down(gesture, editor, 0, 0.5);
+    editor.select(["b1"]);
+    editor.remove();
+
+    expect(gesture.up(editor, { x: 0, y: 0.5 })).toBe("quiet");
+
+    expect(editor.pendingFrom).toBeNull();
+    expect(editor.endWire("b2.A")).toBe(false);
+    expect(editor.drawing.wires).toEqual([]);
+  });
+
+  it("does not drag a symbol deleted under the press either", () => {
+    const editor = blocks();
+    const gesture = new Gesture();
+    down(gesture, editor, 0, 0.5);
+    editor.select(["b1"]);
+    editor.remove();
+
+    expect(gesture.moved(editor, { x: 2, y: 0.5 }, { x: 40, y: 0 })).toBe(
+      "quiet",
+    );
+    expect([...editor.selection]).toEqual([]);
+    // The next move used to reach `at` through `canMove` and throw.
+    expect(gesture.moved(editor, { x: 3, y: 0.5 }, { x: 60, y: 0 })).toBe(
+      "quiet",
+    );
+  });
+
   it("skips the press for a shift-click, which is the selection gesture", () => {
     const editor = blocks();
     const gesture = new Gesture();

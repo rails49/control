@@ -120,6 +120,7 @@ export class Gesture {
   }
 
   moved(editor: Editor, point: Point, screen: Point): Outcome {
+    this.forget(editor);
     if (this.press !== null) {
       const away = Math.hypot(
         screen.x - this.press.screen.x,
@@ -164,6 +165,7 @@ export class Gesture {
   }
 
   up(editor: Editor, point: Point): Outcome {
+    this.forget(editor);
     // The press that started this one was on a palette tile, so the drop is
     // the only part of the drag the canvas sees a button for. A drop the
     // ghost showed as blocked writes nothing and ends the drag all the same:
@@ -235,6 +237,24 @@ export class Gesture {
       return { outcome: "picked", found };
     }
     return { outcome: "quiet", found };
+  }
+
+  /**
+   * A press whose symbol is no longer there, forgotten.
+   *
+   * A press is a pin held between the pointer going down and the pointer
+   * saying what it meant, and Delete is a key: it lands while the button is
+   * still down. What comes back up would otherwise start a wire at a pin that
+   * has gone, or select a name the drawing no longer has and throw on the next
+   * move.
+   */
+  private forget(editor: Editor): void {
+    if (
+      this.press !== null &&
+      !(symbolOf(this.press.pin) in editor.drawing.symbols)
+    ) {
+      this.press = null;
+    }
   }
 
   /** What the drawing has under a grid point, drawn where the drag has it. */
