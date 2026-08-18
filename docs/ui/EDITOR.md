@@ -354,6 +354,19 @@ run together and those that cannot.
 
 Derivation refusing is shown the same way, at the edit that caused it.
 
+## Files
+
+A drawing is a file, `layouts/<name>.drawing.yaml`, so it persists and is
+shared through git like everything else in the repo (#64). The header's New…
+asks for a name up front and opens an empty canvas under it; nothing is
+written until the first Save, so an abandoned start leaves no file. Save As…
+writes the open drawing, unsaved edits included, under a new name at once, and
+Save targets that name from then on; the file under the old name keeps its
+last-saved state, which is how a test variant forks from a committed railroad.
+Both refuse a name a drawing already has: overwriting one deliberately is
+opening it and pressing Save. Deleting or renaming a file stays in git, where
+it is reviewable.
+
 ## Validation
 
 Findings are listed in one panel:

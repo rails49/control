@@ -507,6 +507,15 @@ export class Editor {
     this.future = [];
   }
 
+  /** Wear a new name, history included: the name says which file Save
+   *  writes, not what the drawing looks like, so undo never takes it back. */
+  rename(name: string): void {
+    this.changes++;
+    this.current = { ...this.current, drawing: name };
+    this.past = this.past.map((one) => ({ ...one, drawing: name }));
+    this.future = this.future.map((one) => ({ ...one, drawing: name }));
+  }
+
   /** Adopt a drawing, forgetting the edits that led to the last one — what
    *  loading a railroad does. */
   reset(drawing: Drawing): void {

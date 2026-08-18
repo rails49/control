@@ -16,7 +16,7 @@ import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import type { Kind } from "../symbols.generated.js";
-import { emptyDrawing, type SymbolSpec } from "../model/drawing.js";
+import { emptyDrawing, nameTrouble, type SymbolSpec } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { clashes, type Chosen, type Clash } from "../model/inspect.js";
 import {
@@ -85,12 +85,20 @@ export class TcEditor extends LitElement {
             (name) => html`<sl-option value=${name}>${name}</sl-option>`,
           )}
         </sl-select>
+        <sl-button size="small" @click=${this.newDrawing}>New…</sl-button>
         <span class="spacer"></span>
         ${this.tool(ZOOM_OUT, "Zoom out  −", () => this.zoom(OUT))}
         ${this.tool(ZOOM_IN, "Zoom in  +", () => this.zoom(1 / OUT))}
         ${this.tool(FIT, "Fit  0", () => this.fit())}
         ${this.tool(UNDO, "Undo  ⌘Z", () => this.act((e) => e.undo()))}
         ${this.tool(REDO, "Redo  ⇧⌘Z", () => this.act((e) => e.redo()))}
+        <sl-button
+          size="small"
+          ?disabled=${this.opened === ""}
+          @click=${this.saveAs}
+        >
+          Save As…
+        </sl-button>
         <sl-button
           size="small"
           variant="primary"
@@ -233,9 +241,50 @@ export class TcEditor extends LitElement {
       await saveDrawing(this.editor.drawing);
       this.saved = true;
       this.trouble = null;
+      // The first save of a new name is what creates the file, so the list
+      // that refuses taken names learns it here.
+      if (!this.drawings.includes(this.opened)) {
+        this.drawings = [...this.drawings, this.opened].sort();
+      }
     } catch (failure) {
       this.trouble = String(failure);
     }
+  }
+
+  /** A named empty canvas, asked for up front: `untitled` is not a file
+   *  anyone asked for, and nothing is written until the first Save, so an
+   *  abandoned start leaves no file behind. */
+  private async newDrawing(): Promise<void> {
+    const name = this.named("New railroad", "");
+    if (name === null) return;
+    this.editor.reset(emptyDrawing(name));
+    this.opened = name;
+    this.saved = false;
+    await this.updateComplete;
+    this.fit();
+    await this.reviewNow();
+  }
+
+  /** The fork: the open drawing, unsaved edits and all, written at once under
+   *  a new name. The file under the old name keeps its last-saved state. */
+  private async saveAs(): Promise<void> {
+    if (this.opened === "") return;
+    const name = this.named("Save as", this.opened);
+    if (name === null) return;
+    this.editor.rename(name);
+    this.opened = name;
+    await this.save();
+  }
+
+  /** One drawing name, asked for and checked. A refusal lands in the findings
+   *  panel rather than a re-prompt; asking again is one click away. */
+  private named(what: string, was: string): string | null {
+    const said = this.ask(what, was);
+    if (said === null) return null;
+    const trouble = nameTrouble(said, this.drawings);
+    if (trouble === null) return said;
+    this.trouble = trouble;
+    return null;
   }
 
   /** A drawing mid-edit is normally not derivable, so a refusal comes back

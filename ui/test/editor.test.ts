@@ -491,6 +491,22 @@ describe("undo and redo", () => {
   });
 });
 
+describe("renaming the drawing", () => {
+  it("restamps the document", () => {
+    editor.rename("fork");
+    expect(editor.drawing.drawing).toBe("fork");
+  });
+
+  it("keeps the new name through undo, so Save keeps writing the new file", () => {
+    place("block", [0, 0]);
+    editor.rename("fork");
+    editor.undo();
+    expect(editor.drawing.drawing).toBe("fork");
+    editor.redo();
+    expect(editor.drawing.drawing).toBe("fork");
+  });
+});
+
 describe("the properties dialog", () => {
   it("takes a symbol's own properties", () => {
     place("block", [0, 0]);
