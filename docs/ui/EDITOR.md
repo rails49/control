@@ -101,15 +101,16 @@ menu.
 What is dead and what is alive is not the bar's to decide. Save is dead with
 nothing open or nothing to write, Rotate, Flip and Delete are dead on an empty
 selection, Properties on anything but one symbol that has some, Undo and Redo
-at the ends of the snapshot stack, Open with no drawing to open. Those rules
+at the ends of the snapshot stack, Open with no drawing to open, Export SVG…
+with nothing to export. Those rules
 are `model/commands.ts` with a test and no DOM, which is the rule
 [below](#tests): the model owns the document, a component owns the DOM, and a
 rule that is neither is a module in `model/`. The keyboard asks the same module
 the bar does, so an item and the key beside it cannot come to mean different
 things.
 
-Export SVG… is #86. Until it lands the item names what is coming and is dead,
-which reads better than one that answers a click with nothing.
+Export SVG… writes the drawing to a file; what it writes is under
+[Files](#files).
 
 ## Canvas
 
@@ -564,6 +565,27 @@ last-saved state, which is how a test variant forks from a committed railroad.
 Both refuse a name a drawing already has: overwriting one deliberately is
 opening it and pressing Save. Deleting or renaming a file stays in git, where
 it is reviewable.
+
+`File ▸ Export SVG…` downloads the open drawing as a standalone SVG named for
+it (#86). The picture is the canvas's own markup, cloned rather than composed
+a second time, so the file is what the screen shows and cannot drift from it.
+The plate at the top of this page is that export.
+
+Three things change on the way out. The frame is the whole drawing, however
+the canvas happens to be panned, and the sheet is redrawn to that frame.
+Whatever is only a gesture in progress is left out: the landing marks, a wire
+in flight, the rubber band, the ghost, the selection highlight. So the same
+drawing exports to the same bytes whatever is under way.
+
+The colours and widths live in the canvas's stylesheet inside its shadow root,
+so a clone alone renders as unstyled black. `canvasStyles` itself is inlined at
+the top of the document, with the palette written onto the `svg`, a file having
+no host to inherit it from. Embedding the object the canvas renders with, and
+not a copy of the rules, is what keeps the file and the screen in step.
+
+The file is the user's and not the repo's: a Blob behind an `<a download>`, no
+store round trip and no new endpoint. Editor only; the panel's own image is a
+screenshot and PANEL.md wants nothing here.
 
 ## Validation
 
