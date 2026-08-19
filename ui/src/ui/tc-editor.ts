@@ -237,8 +237,8 @@ export class TcEditor extends LitElement {
       case "save-as":
         void this.saveAs();
         return;
-      // Dead until #86 draws the SVG.
       case "export-svg":
+        this.exportSvg();
         return;
       case "undo":
         this.act((editor) => editor.undo());
@@ -268,6 +268,26 @@ export class TcEditor extends LitElement {
         this.fit();
         return;
     }
+  }
+
+  /**
+   * The open drawing, written to a file the browser downloads.
+   *
+   * A Blob behind an `<a download>` and nothing else: the file is the user's
+   * and not the repo's, so there is no store round trip and no new endpoint.
+   * What is in it is the canvas's (`exported`); the name is the drawing's.
+   */
+  private exportSvg(): void {
+    const canvas = this.renderRoot.querySelector<TcCanvas>("tc-canvas");
+    if (canvas === null) return;
+    const blob = new Blob([canvas.exported()], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${this.opened}.svg`;
+    link.click();
+    // The click starts the download, which reads the url after this turn ends.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   /** The properties of the one selected symbol. The right-click menu asks the

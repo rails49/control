@@ -88,9 +88,12 @@ export const COMMANDS: Record<CommandId, Command> = {
     key: "⇧⌘S",
     enabled: ({ opened }) => opened !== "",
   },
-  // #86 draws the SVG. Until it does the item names what is coming and stays
-  // dead, which reads better than one that answers a click with nothing.
-  "export-svg": { label: "Export SVG…", enabled: () => false },
+  // The picture is of what is on the sheet, so unsaved edits are in it and
+  // only having nothing open makes it dead.
+  "export-svg": {
+    label: "Export SVG…",
+    enabled: ({ opened }) => opened !== "",
+  },
   undo: { label: "Undo", key: "⌘Z", enabled: ({ undo }) => undo },
   redo: { label: "Redo", key: "⇧⌘Z", enabled: ({ redo }) => redo },
   rotate: { label: "Rotate", key: "R", enabled: hasSelection },

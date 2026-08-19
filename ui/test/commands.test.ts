@@ -83,10 +83,12 @@ describe("what a drawing has to be open for", () => {
     expect(on("save-as", { opened: "gotthard", saved: false })).toBe(true);
   });
 
-  /** #86 draws the SVG. Until it does, the item says what is coming and is
-   *  dead, which is better than one that answers a click with nothing. */
-  it("exports nothing yet", () => {
-    expect(on("export-svg", { opened: "gotthard" })).toBe(false);
+  /** The export writes the drawing that is open, saved or not: it is a
+   *  picture of what is on the sheet, so unsaved edits belong in it. */
+  it("exports only a drawing that is open", () => {
+    expect(on("export-svg")).toBe(false);
+    expect(on("export-svg", { opened: "gotthard" })).toBe(true);
+    expect(on("export-svg", { opened: "gotthard", saved: false })).toBe(true);
   });
 
   it("always offers a new drawing", () => {
