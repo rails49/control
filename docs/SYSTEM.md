@@ -30,7 +30,7 @@ reading another component's internals. Terminology follows
 - **Dispatcher** — admits requests, chooses routes, grants moves
   deadlock-free; the research core ([DISPATCH.md](dispatcher/DISPATCH.md),
   [SAFETY.md](dispatcher/SAFETY.md)).
-- **Driver** — translates each granted move into layout commands.
+- **Driver** — turns each granted move into the command that moves the train.
 - **Layout interface** — the boundary to whatever runs the track: sensor
   readings and the tick come out, turnout and throttle commands go in. A
   simulator implements it in milestone 1, a hardware adapter later.
@@ -46,9 +46,10 @@ generator publishes the same schedule topics the milestone-1 scheduler does.
 One cycle of the machine: the layout interface publishes the tick; the
 scheduler releases the requests that have come due; the dispatcher runs its
 grant phase over everything buffered since the previous tick and publishes
-granted moves; the driver translates each into `align` + `cross` commands; the
-layout interface executes them and reports occupancy, which the dispatcher
-buffers for the next tick. The trace tap watches all of it.
+granted moves, publishing `align` for each so the route is set before anything
+moves; the driver turns the grant it sees into a `cross`; the layout interface
+executes both and reports occupancy, which the dispatcher buffers for the next
+tick. The trace tap watches all of it.
 
 ## The bus
 
@@ -124,9 +125,12 @@ names the role that writes there — `layout`, `schedule`, `dispatch`, `drive`
 — so rule 1 is verifiable from the name alone, `tc49/layout/*` keeps its
 meaning when hardware replaces the simulator, and a future UI gets
 `tc49/dispatch/#` for free. Leaves are past-tense facts, with two exceptions:
-the two driver commands are imperative (`align`, `cross` — past tense would
+the two commands are imperative (`align`, `cross` — past tense would
 be a lie, the command precedes the crossing), and `tick` is the sole noun
-leaf, naming a beat rather than a change.
+leaf, naming a beat rather than a change. `align` sits under `dispatch`
+because the dispatcher writes it: setting the route is its responsibility, and
+the driver moves locomotives
+([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)).
 
 | Topic | Kind | Publisher | Payload gist |
 | --- | --- | --- | --- |
@@ -143,7 +147,7 @@ leaf, naming a beat rather than a change.
 | `tc49/dispatch/grant_refused` | event | dispatcher | id, reason (`unsafe`, `held`, `transit_conflict`), obstacles `[{resource, holder}]` |
 | `tc49/dispatch/lock_granted` | event | dispatcher | train, resources |
 | `tc49/dispatch/lock_released` | event | dispatcher | train, resources |
-| `tc49/drive/align` | command | driver | connection, transit |
+| `tc49/dispatch/align` | command | dispatcher | connection, transit, points `[{addr, position}]` |
 | `tc49/drive/cross` | command | driver | train, connection, transit, into |
 
 | Consumer | Filter(s) |
@@ -151,7 +155,7 @@ leaf, naming a beat rather than a change.
 | Scheduler | `tc49/layout/tick` |
 | Dispatcher | `tc49/layout/+` **and** `tc49/schedule/request_submitted` |
 | Driver | `tc49/dispatch/move_granted` |
-| Layout interface | `tc49/drive/+` |
+| Layout interface | `tc49/drive/+` **and** `tc49/dispatch/align` |
 | Trace tap | `tc49/#` |
 
 Two invariants the inventory must maintain:
@@ -314,12 +318,14 @@ utilization metric is blind to idle trains.
 ### Driver
 
 *Reads* nothing. *Subscribes* `tc49/dispatch/move_granted`. *Publishes*
-`align` and `cross`.
+`cross`.
 
 The driver is a **stateless, layout-blind translator**: per granted move it
-immediately publishes `align` (set the connection to the transit) and
-`cross` (the move itself, mirrored). The move payload carries every field
-the commands need, so the driver holds no state and reads no assets. It does
+immediately publishes `cross`, the move itself, mirrored. Setting the route is
+the dispatcher's, which publishes `align`
+([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)), so a grant is
+the driver's green signal. The move payload carries every field `cross` needs,
+so the driver holds no state and reads no assets. It does
 not subscribe to the tick — the tick+1 skew is the boundary's property, and
 duplicating it here would land grants at N+2. The boundary stays real by
 footprint, not thickness: a **human driver** drops in by consuming grants as
@@ -329,17 +335,20 @@ future realistic-driving component fattens the driver behind the same topic.
 ### Layout interface
 
 *Reads* the layout and the scenario (initial train placement). *Subscribes*
-`tc49/drive/+`. *Publishes* the tick and the sensor events.
+`tc49/drive/+` and `tc49/dispatch/align`. *Publishes* the tick and the sensor
+events.
 
 The layout interface is the app's edge: **commands in, observations out**,
 plus ownership of time. Its outbound vocabulary is exactly what hardware can
 implement — anonymous occupancy sensors and the tick; it never asserts train
 identity, which detectors cannot honestly report (the dispatcher recovers
-identity from its own lock table). Commands are **transit-level, never
-turnout-level**: a hardware adapter's transit-to-turnout-positions table and
-the control loop that executes a `cross` (throttle up, watch the detector,
-stop) are private hardware configuration, exactly where "hardware is out of
-the app" wants them. The milestone-1 **simulator** applies `align` and
+identity from its own lock table). Commands are **transit-level**: an `align`
+names a connection and a transit, and carries the points that transit needs as
+address-and-position pairs, so an adapter throws what it is told and holds no
+table of its own. The transit-to-turnout-positions table is built from the
+drawing ([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)) rather
+than kept by an adapter. What stays private hardware configuration is the
+control loop that executes a `cross` (throttle up, watch the detector, stop). The milestone-1 **simulator** applies `align` and
 `cross` directly at the next tick, and owns pacing and termination: it stops
 advancing ticks when the scheduler is `exhausted` and a tick's cascade
 produced no commands ([BENCHMARKS.md](bench/BENCHMARKS.md#termination)). That stop

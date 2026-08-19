@@ -184,7 +184,9 @@ symbols:
 ```
 
 - **Symbols are a mapping from name to `kind` and its properties.** A block
-  takes a `length` and optional `sensors` per end; a portal a `label`; a terminal and a free-standing pin (`kind: pin`) nothing.
+  takes a `length` and optional `sensors` per end; a portal a `label`; a turnout
+  or a slip an optional `addr` ([Hardware ids](#hardware-ids)); a terminal and a
+  free-standing pin (`kind: pin`) nothing.
   A symbol of fixed geometry takes only the names below. The generic connection
   symbol declares its `pins`, its `transits`, and optionally which pairs of
   them are `concurrent`. Every kind also takes the placement keys of
@@ -249,14 +251,35 @@ auto-layout.
 
 ## Hardware ids
 
-The drawing holds hardware identities as optional symbol properties: sensor
-ids on block ends, decoder addresses on turnouts later. Derivation drops
-them, so the layout and the contracts in [SYSTEM.md](../SYSTEM.md) are
-unchanged, and SYSTEM.md's position that the transit-to-turnout table is
-private hardware configuration stands. A physical layout interface reads the
-drawing to build its maps, the same way the panel reads it to infer turnout
-positions ([ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md)).
-A drawing with no hardware ids is valid; the simulator needs none.
+The drawing holds hardware identities as optional symbol properties: `sensors`
+on a block's ends, and `addr` on a turnout or a slip. Derivation drops them, so
+the layout is unchanged and [LAYOUT.md](LAYOUT.md#layout-schema)'s "there are no
+turnouts in the layout" stands. The transit-to-turnout table is built from the
+drawing, and each `align` carries the points it names
+([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), so an
+adapter throws what it is told. A drawing with no hardware ids is valid; the
+simulator needs none.
+
+`addr` is a plain string and nothing checks it. A DCC accessory number is a
+string that happens to be digits, and what a physical point answers to is
+knowledge the drawing cannot hold. The one check the editor makes is that a
+motorised symbol has *some* address, since a drawing without them derives but
+cannot be driven ([EDITOR.md](../ui/EDITOR.md#validation)).
+
+Every motorised kind has one motor and two positions. A turnout's legs are
+already named for them; a slip's are not, so the library declares which leg
+wants which position:
+
+| Kind | `straight` | `curved` |
+| --- | --- | --- |
+| `turnout` | `straight` | `diverging` |
+| `single_slip` | `a`, `b` | `slip` |
+| `double_slip` | `a`, `b` | `slip_1`, `slip_2` |
+
+A fixed crossing has no motor and takes no `addr`. Nothing in the concurrency
+model changes: the library declares nothing concurrent through a crossing or a
+slip, because every route through one takes the shared frog, so two ways never
+run through a slip at once whatever its motor is doing.
 
 ## Derivation
 

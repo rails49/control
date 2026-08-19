@@ -28,14 +28,15 @@ which is finer than anything on this bus. Train identity is reconstructed
 from `lock_granted`, exactly as the dispatcher does; direction comes from the
 chosen route or the entry end of the last granted transit.
 
-**Turnout positions are inferred from `align`.** The panel holds the drawing,
-so it can work out which turnouts a transit traverses. This needs no turnout
-identity in the app, no new bus topic, and no change to
-[SYSTEM.md](../SYSTEM.md)'s position that the transit-to-turnout-positions
-table is private hardware configuration. It shows commanded position, not
-measured position, so a point that failed to throw would look fine. Reported
-position becomes worth adding if hardware with point feedback ever exists
-([ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md)).
+**Turnout positions are read off `align`.** The command carries the points it
+needs as address-and-position pairs
+([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), and the
+panel holds the drawing, so an address maps back to the symbol wearing it. The
+panel infers nothing, which supersedes the inference
+[ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md) put here.
+It still shows commanded position, not measured position, so a point that
+failed to throw looks fine. Reported position becomes worth adding if hardware
+with point feedback ever exists; the owner's turnouts do not report.
 
 **Signals are part of the block symbol.** A block carries a signal at each
 end, always, so there is nothing to place and nothing in the drawing to
@@ -87,8 +88,10 @@ one writer.
 
 Manual turnout throwing is not offered. RocRail allows it because it owns
 manual shunting, which this model excludes: trains move only on granted
-routes and reversal happens only between requests, at rest. There is also no
-turnout identity for a command to address, and a second authority deciding
+routes and reversal happens only between requests, at rest. A turnout now has
+an address a command could name
+([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), so what
+rules this out is no longer the absence of one: a second authority deciding
 what is safe would sit alongside the dispatcher.
 
 ## Implementation

@@ -80,7 +80,10 @@ connections:
   transit costs one tick ([DISPATCH.md](../dispatcher/DISPATCH.md#time-model)).
 - **There are no turnouts in the layout.** A connection is abstract; the
   turnouts it is realized by live in the drawing and are dropped by derivation,
-  so turnout switching time is not merely ignored but inexpressible here.
+  so turnout switching time is not merely ignored but inexpressible here. Their
+  hardware addresses live in the drawing too and are dropped with them
+  ([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)): the driver
+  reads the drawing for those, never the layout.
   Connection *length* is likewise absent — a connection can be metres of track,
   as the Gotthard return loop is, but a train transits it and can never stop in
   it.

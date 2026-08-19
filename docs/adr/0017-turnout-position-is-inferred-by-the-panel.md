@@ -1,5 +1,12 @@
 # Turnout position is inferred by the panel
 
+**Superseded by [ADR-0022](0022-a-symbol-carries-its-hardware-address.md).** A
+symbol now carries its own hardware address and the driver commands points by
+it, so there is a turnout identity to address and nothing left to infer. The
+timing argument below, that giving turnouts identity "buys nothing until
+hardware with point-position sensors exists", was about *reported* position,
+which is still not modelled.
+
 The [panel](../ui/PANEL.md) shows turnout positions, although the app has no turnouts. It
 subscribes to the existing `tc49/drive/align` command, which names a connection
 and a transit, and works out from its own drawing which turnouts that transit

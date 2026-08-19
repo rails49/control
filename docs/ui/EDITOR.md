@@ -710,9 +710,10 @@ The panel later adds a bus bridge alongside it
 Symbol pins and transits are generated into `ui/src/symbols.generated.ts` from
 the library in `drawing.py` by `tc49 symbols`, with a test asserting the
 committed file is current, so a renamed pin is a TypeScript compile error
-rather than a wrong drawing. Alongside them go the palette and the rotations,
-which come from the same declarations. Artwork stays hand-written against
-those names.
+rather than a wrong drawing. Alongside them go the palette, the rotations, and
+the leg-to-position table a motorised kind declares
+([DRAWING.md](../store/DRAWING.md#hardware-ids)), which come from the same
+declarations. Artwork stays hand-written against those names.
 
 ### Tests
 
