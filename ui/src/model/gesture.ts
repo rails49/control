@@ -12,7 +12,7 @@
 
 import { symbolOf, type PinRef } from "./drawing.js";
 import type { Editor } from "./editor.js";
-import { anchorOf, faceAt, type Point } from "./geometry.js";
+import { anchorOf, facePoint, type Point } from "./geometry.js";
 import type { Review } from "./store.js";
 import { under, within, type Under } from "./under.js";
 
@@ -287,9 +287,8 @@ export class Gesture {
     point: Point,
   ): { dx: number; dy: number } {
     const spec = editor.drawing.symbols[name]!;
-    const { at, rot } = faceAt(point.x, point.y);
     const was = anchorOf(spec, "P");
-    const now = anchorOf({ kind: "pin", at, rot }, "P");
+    const now = facePoint(point.x, point.y);
     return { dx: now.x - was.x, dy: now.y - was.y };
   }
 }

@@ -349,14 +349,14 @@ export const canvasStyles = css`
     fill: var(--paper);
   }
 
-  .squares {
+  .faces {
     pointer-events: none;
   }
 
-  .grid {
-    fill: none;
-    stroke: var(--rule);
-    stroke-width: 0.02;
+  /* A face centre. Ruled lines would have marked the cell corners, which are
+     the one class of point a wire can never land on. */
+  .face {
+    fill: var(--face);
   }
 
   /* A square two symbols both cover, marked over the artwork so the overlap a

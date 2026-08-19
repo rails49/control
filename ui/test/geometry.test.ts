@@ -5,6 +5,7 @@ import {
   anchorOf,
   cellsOf,
   faceAt,
+  facePoint,
   gridPointOf,
   labelTurn,
   placed,
@@ -211,6 +212,46 @@ describe("how a label is turned", () => {
       expect(labelTurn({ kind: "block", rot, flip: true })).toBe(
         labelTurn({ kind: "block", rot }),
       );
+    }
+  });
+});
+
+describe("where a bend dropped at a point would sit", () => {
+  it("is the centre of the face the drop chooses", () => {
+    // The wireline ends here and the sheet marks it, so the three have to be
+    // the same point or the preview promises what the drop will not give.
+    for (const [x, y] of [
+      [0.1, 0.4],
+      [3.9, 2.6],
+      [-1.2, 5.7],
+      [7, 7],
+    ]) {
+      const { at, rot } = faceAt(x!, y!);
+      expect(facePoint(x!, y!)).toEqual(anchorOf({ kind: "pin", at, rot }, "P"));
+    }
+  });
+
+  it("always lands on a face centre, never on a corner or a middle", () => {
+    // Face centres are the points with one whole coordinate and one half one.
+    for (let x = -2; x <= 4; x += 0.3) {
+      for (let y = -2; y <= 4; y += 0.3) {
+        const { x: fx, y: fy } = facePoint(x, y);
+        const halves = [fx, fy].map((v) => Math.abs(v * 2 - Math.round(v * 2)));
+        expect(Math.max(...halves)).toBeLessThan(1e-9);
+        const whole = [fx, fy].filter((v) => Math.abs(v - Math.round(v)) < 1e-9);
+        expect(whole.length).toBe(1);
+      }
+    }
+  });
+
+  it("is never more than half a square from the point asked about", () => {
+    // Which is what the old 15 degree wireline could be wrong by: it drew to
+    // the pointer's angle while the drop used the pointer's nearest face.
+    for (let x = -1; x <= 3; x += 0.17) {
+      for (let y = -1; y <= 3; y += 0.17) {
+        const { x: fx, y: fy } = facePoint(x, y);
+        expect(Math.hypot(fx - x, fy - y)).toBeLessThanOrEqual(0.5 + 1e-9);
+      }
     }
   });
 });

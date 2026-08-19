@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { SymbolSpec } from "../src/model/drawing.js";
-import {
-  ANCHORS,
-  anchorOf,
-  snapped,
-  transformOf,
-} from "../src/model/geometry.js";
+import { ANCHORS, anchorOf, transformOf } from "../src/model/geometry.js";
 
 /** Apply an SVG transform list the way SVG does: leftmost outermost, so the
  *  rightmost operation reaches the point first. */
@@ -53,30 +48,6 @@ describe("the artwork transform", () => {
           }
         }
       }
-    }
-  });
-});
-
-describe("the 15 degree snap", () => {
-  it("pulls a nearly level wireline level", () => {
-    const to = snapped({ x: 0, y: 0 }, { x: 4, y: 0.1 });
-    expect(to.y).toBeCloseTo(0, 9);
-  });
-
-  it("keeps the length the pointer gave it", () => {
-    const to = snapped({ x: 1, y: 1 }, { x: 4, y: 3 });
-    expect(Math.hypot(to.x - 1, to.y - 1)).toBeCloseTo(Math.hypot(3, 2), 9);
-  });
-
-  it("only ever lands on a multiple of 15 degrees", () => {
-    for (const [x, y] of [
-      [3, 1],
-      [-2, 5],
-      [0.5, -7],
-    ]) {
-      const to = snapped({ x: 0, y: 0 }, { x: x!, y: y! });
-      const degrees = (Math.atan2(to.y, to.x) * 180) / Math.PI;
-      expect(Math.abs(degrees / 15 - Math.round(degrees / 15))).toBeLessThan(1e-9);
     }
   });
 });

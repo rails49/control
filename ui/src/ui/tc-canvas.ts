@@ -22,8 +22,8 @@ import { Editor } from "../model/editor.js";
 import {
   cellsOf,
   centreOf,
+  facePoint,
   labelTurn,
-  snapped,
   transformOf,
   type Point,
 } from "../model/geometry.js";
@@ -32,7 +32,7 @@ import { clashes, dark, lit, type Chosen } from "../model/inspect.js";
 import type { Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
-import { BLOCK, PIN, fitted } from "../render/units.js";
+import { BLOCK, FACE, PIN, fitted } from "../render/units.js";
 import { canvasStyles } from "./styles.js";
 
 /** What a canvas with no review yet reads as. */
@@ -90,21 +90,22 @@ export class TcCanvas extends LitElement {
         @contextmenu=${this.menu}
       >
         <defs>
-          <pattern id="grid" width="1" height="1" patternUnits="userSpaceOnUse">
-            <path class="grid" d="M1 0 V1 H0" />
+          <!-- Where a wire can land, marked rather than ruled: a dot on every
+               face centre, which is every point faceAt can return and every
+               point a pin sits at. Two to a square is the whole lattice, but
+               each of the two sits on the tile's own edge and is clipped in
+               half by it, so the tile draws all four and each dot is the half
+               from this tile beside the half from the one next to it. -->
+          <pattern id="faces" width="1" height="1" patternUnits="userSpaceOnUse">
+            <circle class="face" cx="0" cy="0.5" r=${FACE} />
+            <circle class="face" cx="1" cy="0.5" r=${FACE} />
+            <circle class="face" cx="0.5" cy="0" r=${FACE} />
+            <circle class="face" cx="0.5" cy="1" r=${FACE} />
           </pattern>
           ${DEFS}
         </defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
-        <rect
-          class="squares"
-          x=${x}
-          y=${y}
-          width=${w}
-          height=${h}
-          fill="url(#grid)"
-        />
-        ${this.junctions()} ${this.wires()} ${this.symbols()} ${this.pins()}
+        ${this.faces()} ${this.junctions()} ${this.wires()} ${this.symbols()} ${this.pins()}
         ${this.stacked()} ${this.wireline()} ${this.rubberBand()} ${this.ghost()}
       </svg>
     `;
@@ -194,6 +195,21 @@ export class TcCanvas extends LitElement {
     });
   }
 
+  /**
+   * Where a wire can land, drawn only while one is in flight.
+   *
+   * A dot sits on every face centre, which is every point `faceAt` can return
+   * and every point a pin occupies, so the marks and the landing sites are the
+   * same set. They answer a question that is only asked between the click that
+   * starts a wire and the one that ends it, so the sheet is bare otherwise.
+   */
+  private faces(): unknown {
+    if (this.editor.pendingFrom === null) return nothing;
+    const { x, y, w, h } = this.view;
+    return svg`<rect class="faces" x=${x} y=${y} width=${w} height=${h}
+                     fill="url(#faces)" />`;
+  }
+
   private wires(): unknown {
     return this.editor.drawing.wires.map((wire) => {
       const [a, b] = wirePins(wire);
@@ -278,9 +294,17 @@ export class TcCanvas extends LitElement {
     );
   }
 
-  /** The wire following the pointer, softly snapped to multiples of 15
-   *  degrees. A click on a pin overrides the snap: the wire takes whatever
-   *  angle its two pins give it. */
+  /**
+   * The wire following the pointer, ending where the click would land it: on
+   * the pin under the pointer, or on the face centre a bend would take.
+   *
+   * It ends on a mark the sheet already draws rather than under the cursor, so
+   * the line is a statement about the drop and not about the mouse. It used to
+   * be pulled onto multiples of 15 degrees, which was an aid for laying
+   * parallel track — but the drop has always used the raw pointer, so the
+   * angle shown could be off by as much as half a square from the one the
+   * wire got.
+   */
   private wireline(): unknown {
     const from = this.editor.pendingFrom;
     if (from === null || this.pointer === null) return nothing;
@@ -288,7 +312,9 @@ export class TcCanvas extends LitElement {
     if (start === null) return nothing;
     const near = this.at(this.pointer).pin;
     const end =
-      near === null ? snapped(start, this.pointer) : this.point(near);
+      near === null
+        ? facePoint(this.pointer.x, this.pointer.y)
+        : this.point(near);
     if (end === null) return nothing;
     return svg`<line class="wireline" x1=${start.x} y1=${start.y}
                      x2=${end.x} y2=${end.y} />`;

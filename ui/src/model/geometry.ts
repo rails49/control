@@ -328,21 +328,16 @@ export function faceAt(x: number, y: number): { at: [number, number]; rot: 0 | 9
 }
 
 /**
- * A point pulled onto the nearest multiple of 15 degrees from another, keeping
- * its distance. The wireline follows the pointer this way while a wire is
- * being drawn: it is an aid for laying parallel track, not a rule, and a click
- * on a pin overrides it, because a wire takes whatever angle its two pins give
- * it (EDITOR.md).
+ * Where a bend dropped at a point would sit: the centre of the face `faceAt`
+ * chooses for it.
+ *
+ * This is where a click lands while a wire is being drawn, so it is also where
+ * the wireline has to end and what the dots on the sheet mark. One function
+ * for all three, so a preview cannot promise a point the drop does not use.
  */
-export function snapped(from: Point, to: Point, step = 15): Point {
-  const away = Math.hypot(to.x - from.x, to.y - from.y);
-  const quantum = (step * Math.PI) / 180;
-  const angle =
-    Math.round(Math.atan2(to.y - from.y, to.x - from.x) / quantum) * quantum;
-  return {
-    x: from.x + away * Math.cos(angle),
-    y: from.y + away * Math.sin(angle),
-  };
+export function facePoint(x: number, y: number): Point {
+  const { at, rot } = faceAt(x, y);
+  return anchorOf({ kind: "pin", at, rot }, "P");
 }
 
 function map(

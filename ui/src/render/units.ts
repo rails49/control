@@ -16,6 +16,17 @@ export const W = 0.15;
 /** Pins are circles of diameter W. */
 export const PIN = W / 2;
 
+/**
+ * The dot marking a face centre: where a wire can land a bend, and where every
+ * pin sits.
+ *
+ * Drawn only while a wire is in flight, which is the one moment the answer is
+ * being asked for, so the sheet is bare the rest of the time. Well under
+ * `PIN`, so a symbol already there covers the dot beneath it rather than
+ * ringing it.
+ */
+export const FACE = 0.04;
+
 /** A free-standing bend when a transit lights it: a dot wider than the
  *  pin over it, so the way shows past it. Unlit it is not drawn at all — the
  *  pin is already there in edit mode, and a black ring around a green pin says
@@ -138,6 +149,7 @@ export const COLOURS: Record<string, string> = {
   "--ink": "#1c1f24",
   "--paper": "#fbfbfa",
   "--rule": "#d9d6d0",
+  "--face": "#a8a49b",
   "--track": "#12151a",
   "--body": "#ffffff",
   "--chosen": "#1f6feb",

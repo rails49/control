@@ -46,6 +46,21 @@ one symbol. Pins sit at the centres of square sides, which is why symbols
 rotate in 90 degree steps and flip. Diagonal running comes from wires at
 angles, not from rotating symbols.
 
+**The squares are not ruled. While a wire is in flight the face centres are
+marked instead.** A grey dot sits on every centre of a square side: that is
+where every pin sits, and it is exactly where a wire can land a bend, so the
+marks and the landing sites are the same set. They are drawn between the click
+that starts a wire and the one that ends it and at no other time, that being
+when the question is asked; the sheet is otherwise bare.
+
+Ruled lines marked the square corners, which are the one class of point no pin
+can occupy and no wire can reach. No shift of a ruled grid could have fixed
+that — pins fall on both families of side centre, the ones a whole step across
+and half a step down and the ones the other way about, and no one translation
+carries both onto the crossings of a square grid. The dots read as a brick
+pattern rather than a scatter: along any row they are one square apart, and
+the next row is half a square across and half a square down.
+
 A free-standing pin sits at a face centre like any other pin. Being on a
 boundary it occupies no square, so a bend may sit against an occupied one.
 
@@ -289,11 +304,15 @@ properties dialog.
 
 ## Drawing wires
 
-Clicking a pin starts a wire: a wireline follows the pointer, softly snapped
-to multiples of 15 degrees, with a click on a pin overriding the snap. The
-snap is an aid for laying parallel track, not a rule; a wire takes whatever
-angle its two pins give it. Clicking empty canvas places a free-standing pin,
-a bend, and continues; clicking a pin that can accept the wire ends it.
+Clicking a pin starts a wire: a wireline follows the pointer and ends where
+the click would land it — on the pin under the pointer, or on the face centre
+a bend would take, which is one of the dots. The line is therefore a statement
+about the drop rather than about the mouse. It was once pulled onto multiples
+of 15 degrees as an aid for laying parallel track, but the drop always used
+the raw pointer, so the angle drawn could be half a square out from the one
+the wire got; a wire takes whatever angle its two pins give it. Clicking empty
+canvas places a free-standing pin, a bend, and continues; clicking a pin that
+can accept the wire ends it.
 
 Dropping a symbol so that one of its pins lands on another's is the fast way
 to join them, and it writes a real wire of zero length. Turnouts are usually
@@ -510,7 +529,7 @@ Diagram libraries (JointJS, GoJS, React Flow) were considered and rejected:
 their value is auto-routing and free-form graph models, the first deliberately
 absent here and the second replaced by seven fixed symbols, and each brings
 its own document model to fight. Canvas engines pay off at thousands of
-animated elements, not a few hundred static ones. What the editor needs, grid
+animated elements, not a few hundred static ones. What the editor needs, cell
 snap, a wireline preview, class toggles, `viewBox` zoom, is smaller than any
 library's learning curve.
 
