@@ -64,17 +64,25 @@ export const symbols = css`
     fill: var(--track);
   }
 
-  /* Both aspects are drawn, and edit mode shows both lit. Run mode, out of
-     scope for now, dims the one the signal is not showing. */
-  .lamp.clear {
-    fill: var(--clear);
+  /* Every lamp is drawn, and edit mode shows every one lit. Run mode dims the
+     lamps the aspect does not light; a lamp is named for its colour, an
+     aspect being a set of lamps rather than one. */
+  .lamp.green {
+    fill: var(--green);
   }
 
-  .lamp.danger {
-    fill: var(--danger);
+  .lamp.red {
+    fill: var(--red);
   }
 
-  .stop,
+  .lamp.amber {
+    fill: var(--amber);
+  }
+
+  /* Named buffer and not stop: stop is an aspect a signal shows (CONTEXT.md),
+     and a class of that name here would be inherited by the lamps of every
+     signal at stop, which sit inside a group carrying the aspect's name. */
+  .buffer,
   .mark,
   .portal-mouth,
   .tick {
@@ -89,7 +97,7 @@ export const symbols = css`
     stroke-width: ${BLOCK.body.border};
   }
 
-  .stop {
+  .buffer {
     stroke-width: ${TERMINAL.bar.w};
   }
 

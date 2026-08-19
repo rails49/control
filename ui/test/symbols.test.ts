@@ -134,11 +134,12 @@ describe("the artwork of the generic connection symbol", () => {
  * pinning coordinates would make every nudge a test edit.
  */
 describe("the artwork the samples fix", () => {
-  it("gives a block two signals, each a plaque with a green lamp and a red", () => {
+  it("gives a block two signals, each a plaque with three lamps", () => {
     const block = written({ kind: "block" } as SymbolSpec);
     expect(times(block, `class="plaque"`)).toBe(2);
-    expect(times(block, `class="lamp clear"`)).toBe(2);
-    expect(times(block, `class="lamp danger"`)).toBe(2);
+    for (const colour of ["green", "red", "amber"]) {
+      expect(times(block, `class="lamp ${colour}"`)).toBe(2);
+    }
     expect(block).not.toContain("mast");
   });
 

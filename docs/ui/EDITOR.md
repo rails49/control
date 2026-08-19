@@ -294,9 +294,11 @@ way.
 Colours follow the editor's mode. In edit mode track is black and a block's
 rectangle is white, and a signal shows all its lamps lit. Run mode, out of
 scope for now, recolours by toggling classes: track by route reservation, a
-block's rectangle by occupancy, and a signal by dimming the aspects it is not
-showing — one lamp lit of the three, whichever the dispatcher says
+block's rectangle by occupancy, and a signal by dimming the lamps its aspect
+does not light, whichever aspect the dispatcher says
 ([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+An aspect is a set of lamps rather than one of them, so the class goes on the
+signal's group and never on a lamp.
 
 ### Pins
 
@@ -331,29 +333,33 @@ rather than clipped, because the zoom rescues small text and nothing rescues
 text that is not there.
 
 Each stub carries a signal centred on it, unless nothing ever leaves that end:
-a chamfered plaque 0.53G by 0.22G floating 0.09G clear of the track, holding
-two lamps 0.12G across, red then green. There is no mast. The A signal hangs below the track, on the left of a
+a chamfered plaque 0.75G by 0.22G floating 0.09G clear of the track, holding
+three lamps 0.11G across at a pitch of 0.22G, with 0.10G of margin at each
+end. There is no mast. The A signal hangs below the track, on the left of a
 train leaving through A, as the SBB places signals. The B signal is the A
 signal turned 180 degrees about the block's centre, above the track with its
 lamps in the opposite order, which keeps the symbol point symmetric and makes
 rotation and flip read naturally.
 
-**A signal shows three aspects, and the plaque here holds two lamps.** `stop`,
-`approach` and `clear` are what the dispatcher sets
-([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)),
-so a third lamp belongs on this plaque — and its proportions are deliberately
-not fixed here. Three lamps of 0.12G leave 0.17G of a 0.53G plaque for margins
-and gaps, against 0.29G for two, which is the kind of number that has to be
-looked at on screen rather than reasoned about. It is settled when run mode is
-built and there is something to look at; until then the drawn signal is the
-two-lamp one above, and it is the geometry that is provisional, not the three
-aspects.
+**The lamps are ordered by distance from the block's rectangle**: green
+furthest, red between, amber nearest. That is the Swiss head — green, red,
+amber from the top — laid on its side with its top pointing away from the
+block. Distance from the rectangle is the only way to say it that survives a
+rotation, a flip and the 180 degrees between the two signals of a block; a
+plaque lying along the track has no top of its own.
+
+The plaque grew only in the middle. Its width across, its 0.09G chamfers and
+its 0.09G clearance of the track are the two-lamp plaque's, and so are the
+lamp pitch and the end margins: `2 x 0.22 + 0.11 + 2 x 0.10` is the 0.75G. At
+0.5G from the pin it spans 0.125G to 0.875G of a 1G stub, clear of both the
+pin and the rectangle. These numbers were settled by looking at the built run
+mode, which is what the earlier draft of this page deferred them to.
 
 **An end nothing leaves carries no signal.** A siding's blind end — Claro 4's
 B end, which runs into a buffer stop — could only ever show red, and a signal
 that can never clear is furniture. Which ends those are is read off the
 derived layout: an end appears in a transit or it does not, joints being
-transits too, so no topology is computed here. The plaque and both lamps are
+transits too, so no topology is computed here. The plaque and every lamp are
 omitted rather than dimmed, a dim signal being an aspect and there being no
 signal there to show one.
 

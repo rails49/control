@@ -47,8 +47,9 @@ const SPAN = 6; // the block's footprint, and its two pins
  * Block, 6×1: a centred rectangle with a 1G track stub each side, a signal on
  * each stub, and a plus at the rectangle's lower corner on side A.
  *
- * The signal is a plaque: no mast, an octagonal outline with its
- * corners chamfered at 45 degrees, and a green lamp beside a red one. The pair
+ * The signal is a plaque: no mast, an octagonal outline with its corners
+ * chamfered at 45 degrees, and three lamps in a row — green, red, amber,
+ * ordered by distance from the block's rectangle with green furthest. The pair
  * is point symmetric about the block's centre, below the track at the A end and
  * above at the B end — on the left of a train leaving through that end, as the
  * SBB places signals — so a rotation or a flip reads naturally and the lamp
@@ -64,12 +65,15 @@ export const BLOCK = {
   },
   signal: {
     at: 0.5, // along the stub, from the pin
-    w: 0.53,
+    // Three lamps at the two-lamp plaque's own pitch and end margins, so only
+    // the middle section is longer: 2 x pitch + a lamp + 2 x 0.1 of margin.
+    // The width across, the chamfer and the gap are untouched.
+    w: 0.75,
     h: 0.22,
     chamfer: 0.09,
     gap: 0.09, // between the plaque and the edge of the track
     lamp: 0.055, // radius
-    apart: 0.11, // each lamp's centre, either side of the plaque's
+    pitch: 0.22, // centre to centre; the outer two sit this far off the middle
   },
   plus: {
     x: (SPAN - BODY.w) / 2 + 0.2,
@@ -191,8 +195,11 @@ export const COLOURS: Record<string, string> = {
   // lit way would.
   "--unfinished": "#5b6472",
   "--hint": "#7c8087",
-  "--clear": "#17a24a",
-  "--danger": "#e0332a",
+  // The signal lamps, named for their colours: an aspect is a set of lit
+  // lamps, not a lamp, so no lamp can be named for an aspect (ADR-0025).
+  "--green": "#17a24a",
+  "--red": "#e0332a",
+  "--amber": "#e8a021",
   "--lit": "#a55b12",
   "--lit-body": "#f4e3cd",
   // A way lit because derivation refused over it wears the red every other

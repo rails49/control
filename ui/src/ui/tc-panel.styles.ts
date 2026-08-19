@@ -73,24 +73,19 @@ export const panelStyles = css`
     stroke-dasharray: ${2 * W} ${W};
   }
 
-  /* Signal aspects. The artwork draws both lamps; run mode shows one: red as
-     the resting aspect, green at an end whose resource beyond is locked to
-     the train standing there (locked-ahead, ui/PANEL.md). */
+  /* Signal aspects, as the Swiss standard sets them: stop is red alone,
+     approach is green with amber, clear is green alone. The artwork draws
+     every lamp and the aspect lights a set of them, so the aspect is a class
+     on the signal's group and never on a lamp (ui/PANEL.md). Every end rests
+     at stop, which is what an end no train may leave by keeps showing. */
   .signal .lamp {
     opacity: 0.18;
   }
 
-  .signal .lamp.danger {
-    opacity: 1;
-  }
-
-  .symbol.green-A .signal.end-A .lamp.danger,
-  .symbol.green-B .signal.end-B .lamp.danger {
-    opacity: 0.18;
-  }
-
-  .symbol.green-A .signal.end-A .lamp.clear,
-  .symbol.green-B .signal.end-B .lamp.clear {
+  .signal.stop .lamp.red,
+  .signal.approach .lamp.green,
+  .signal.approach .lamp.amber,
+  .signal.clear .lamp.green {
     opacity: 1;
   }
 

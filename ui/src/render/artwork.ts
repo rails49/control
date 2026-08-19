@@ -21,6 +21,10 @@ import { WHOLE } from "../model/inspect.js";
 import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W } from "./units.js";
 
 const NONE: ReadonlySet<string> = new Set();
+/** What a signal shows, as the dispatcher publishes it (CONTEXT.md). */
+export type Aspect = "stop" | "approach" | "clear";
+
+const RESTING: ReadonlyMap<string, Aspect> = new Map();
 
 /**
  * Draw a symbol, with the legs a chosen transit takes lit.
@@ -34,11 +38,17 @@ const NONE: ReadonlySet<string> = new Set();
  * `dark` names the block ends that carry no signal, which `dark` in
  * inspect.ts works out. It defaults to none, so a palette tile and a drag
  * ghost — neither of which has a `/review` to ask — draw the whole symbol.
+ *
+ * `aspects` names what each end's signal shows, keyed by end letter. It
+ * defaults to empty, which is edit mode: no aspect class, so every lamp
+ * stays lit and the symbol says what a signal is rather than what one is
+ * doing.
  */
 export function artwork(
   spec: SymbolSpec,
   lit: ReadonlySet<string> = NONE,
   dark: ReadonlySet<string> = NONE,
+  aspects: ReadonlyMap<string, Aspect> = RESTING,
 ): SVGTemplateResult {
   const on: Lit = (...legs) =>
     lit.has(WHOLE) || legs.some((leg) => lit.has(leg)) ? " lit" : "";
@@ -46,7 +56,7 @@ export function artwork(
     case "connection":
       return opaque(spec, lit);
     case "block":
-      return block(on, dark);
+      return block(on, dark, aspects);
     case "terminal":
       return terminal(on);
     case "portal":
@@ -100,7 +110,11 @@ function opaque(spec: SymbolSpec, lit: ReadonlySet<string>): SVGTemplateResult {
  * signal is an aspect, and there is no signal there to be showing one: nothing
  * leaves that end for a signal to clear for.
  */
-function block(on: Lit, dark: ReadonlySet<string>): SVGTemplateResult {
+function block(
+  on: Lit,
+  dark: ReadonlySet<string>,
+  aspects: ReadonlyMap<string, Aspect>,
+): SVGTemplateResult {
   const [a, b] = [anchorIn("block", "A"), anchorIn("block", "B")];
   const { x, y, w, h } = BLOCK.body;
   const { at } = BLOCK.signal;
@@ -112,10 +126,12 @@ function block(on: Lit, dark: ReadonlySet<string>): SVGTemplateResult {
           x=${x} y=${y} width=${w} height=${h} />
     ${dark.has("A")
       ? svg``
-      : svg`<g class="signal end-A">${signal(a.x + at, a.y, 1)}</g>`}
+      : svg`<g class=${`signal end-A ${aspects.get("A") ?? ""}`.trim()}>
+          ${signal(a.x + at, a.y, 1)}</g>`}
     ${dark.has("B")
       ? svg``
-      : svg`<g class="signal end-B">${signal(b.x - at, b.y, -1)}</g>`}
+      : svg`<g class=${`signal end-B ${aspects.get("B") ?? ""}`.trim()}>
+          ${signal(b.x - at, b.y, -1)}</g>`}
     <path class="mark" d=${`M${n(BLOCK.plus.x - arm)} ${n(BLOCK.plus.y)}
       h${n(2 * arm)} M${n(BLOCK.plus.x)} ${n(BLOCK.plus.y - arm)}
       v${n(2 * arm)}`} />
@@ -123,18 +139,21 @@ function block(on: Lit, dark: ReadonlySet<string>): SVGTemplateResult {
 }
 
 /**
- * A signal standing clear of the track: a plaque, a green lamp and a red one,
- * no mast. The caller wraps it in a group naming the block end it
- * governs (`end-A`, `end-B`), which is what lets run mode show one aspect per
- * end while edit mode keeps both lamps lit.
+ * A signal standing clear of the track: a plaque and three lamps, no mast.
+ * The caller wraps it in a group naming the block end it governs (`end-A`,
+ * `end-B`), which is what lets run mode show one aspect per end while edit
+ * mode keeps every lamp lit.
  *
- * `away` is -1 above the track and +1 below, and it turns the whole signal, so
- * the lamp order reverses with it. The two signals of a block are one point
- * symmetric pair (EDITOR.md#symbol-geometry), which is what a rotation or a
- * flip of the block maps onto itself.
+ * The lamps are ordered by distance from the block's rectangle — green
+ * furthest, red between, amber nearest — the Swiss head laid on its side with
+ * its top pointing away from the block. Distance from the rectangle is the
+ * only orientation-stable way to say it: `away` is -1 above the track and +1
+ * below and turns the whole signal, so the order turns with it and the two
+ * signals of a block stay one point symmetric pair
+ * (EDITOR.md#symbol-geometry), which a rotation or a flip maps onto itself.
  */
 function signal(x: number, y: number, away: -1 | 1): SVGTemplateResult {
-  const { w, h, chamfer: c, gap, lamp, apart } = BLOCK.signal;
+  const { w, h, chamfer: c, gap, lamp, pitch } = BLOCK.signal;
   const middle = y + away * (W / 2 + gap + h / 2);
   const [x0, x1] = [x - w / 2, x + w / 2];
   const [y0, y1] = [middle - h / 2, middle + h / 2];
@@ -142,10 +161,12 @@ function signal(x: number, y: number, away: -1 | 1): SVGTemplateResult {
     <path class="plaque" d=${`M${n(x0)} ${n(y0 + c)} L${n(x0 + c)} ${n(y0)}
       H${n(x1 - c)} L${n(x1)} ${n(y0 + c)} V${n(y1 - c)} L${n(x1 - c)} ${n(y1)}
       H${n(x0 + c)} L${n(x0)} ${n(y1 - c)} Z`} />
-    <circle class="lamp clear"
-            cx=${n(x + away * apart)} cy=${n(middle)} r=${lamp} />
-    <circle class="lamp danger"
-            cx=${n(x - away * apart)} cy=${n(middle)} r=${lamp} />
+    <circle class="lamp green"
+            cx=${n(x - away * pitch)} cy=${n(middle)} r=${lamp} />
+    <circle class="lamp red"
+            cx=${n(x)} cy=${n(middle)} r=${lamp} />
+    <circle class="lamp amber"
+            cx=${n(x + away * pitch)} cy=${n(middle)} r=${lamp} />
   `;
 }
 
@@ -162,7 +183,7 @@ function terminal(on: Lit): SVGTemplateResult {
   const bar = { x: TERMINAL.stub, y: p.y };
   return svg`
     <path class=${`track cut${on()}`} d=${path(p, bar)} />
-    <path class="stop" d=${`M${n(bar.x)} ${n(bar.y - TERMINAL.bar.h / 2)}
+    <path class="buffer" d=${`M${n(bar.x)} ${n(bar.y - TERMINAL.bar.h / 2)}
       V${n(bar.y + TERMINAL.bar.h / 2)}`} />
   `;
 }

@@ -267,46 +267,56 @@ describe("request layers", () => {
 });
 
 describe("signals", () => {
-  it("shows green exactly while the resource beyond is locked to the standing train", () => {
+  const shown = (model: ReturnType<typeof panel>) =>
+    Object.fromEntries(model.aspects());
+
+  it("shows nothing until the dispatcher has said anything", () => {
     const model = panel();
     placed(model);
-    expect(model.greenEnds().size).toBe(0);
-    feed(model, { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] });
-    expect(model.greenEnds()).toEqual(new Set(["a.B"]));
-    feed(model, { event: "lock_released", train: "t1", resources: ["sw.main"] });
-    expect(model.greenEnds().size).toBe(0);
+    expect(model.aspects().size).toBe(0);
   });
 
-  it("stays red when the resource beyond is another train's", () => {
+  it("shows what it is told, and nothing it was not told", () => {
     const model = panel();
     placed(model);
-    feed(model, { event: "lock_granted", train: "t2", resources: ["sw.side", "c"] });
-    expect(model.greenEnds().size).toBe(0);
+    feed(model, {
+      event: "aspects",
+      aspects: { "a.B": "clear", "b.A": "stop", "b.B": "approach" },
+    });
+    expect(shown(model)).toEqual({
+      "a.B": "clear",
+      "b.A": "stop",
+      "b.B": "approach",
+    });
+    // a.A was never named: nothing ever leaves it, so it carries no signal
+    // and is absent rather than dark.
+    expect(model.aspects().has("a.A")).toBe(false);
   });
 
-  it("keeps the signal behind a crossed transit red", () => {
+  it("replaces the whole picture, the topic being last-value", () => {
     const model = panel();
     placed(model);
     feed(
       model,
-      {
-        event: "request_submitted",
-        id: "t1-1",
-        train: "t1",
-        depart: "a.B",
-        dest: ["b.A"],
-      },
-      { event: "route_chosen", id: "t1-1", route: ["a", "sw.main", "b"] },
-      { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
-      { event: "move_granted", id: "t1-1", train: "t1", transit: "sw.main", into: "b" },
-      { event: "block_occupied", block: "b" },
-      { event: "block_vacated", block: "a" },
+      { event: "aspects", aspects: { "a.B": "clear", "b.A": "stop" } },
+      { event: "aspects", aspects: { "a.B": "stop", "b.A": "approach" } },
     );
-    // t1 stands in b facing B; sw.main behind it at b.A is still locked to
-    // it, but a green there would promise a departure no grant allows.
-    expect(model.greenEnds().has("b.A")).toBe(false);
-    feed(model, { event: "lock_granted", train: "t1", resources: ["jt.back"] });
-    expect(model.greenEnds()).toEqual(new Set(["b.B"]));
+    expect(shown(model)).toEqual({ "a.B": "stop", "b.A": "approach" });
+  });
+
+  it("derives no aspect of its own from the lock ledger", () => {
+    // The locks below would have lit a.B green under the old locked-ahead
+    // derivation. One authority publishes aspects now (ADR-0025), so the
+    // panel waits to be told and shows nothing meanwhile.
+    const model = panel();
+    placed(model);
+    feed(model, { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] });
+    expect(model.aspects().size).toBe(0);
+
+    feed(model, { event: "aspects", aspects: { "a.B": "approach" } });
+    expect(shown(model)).toEqual({ "a.B": "approach" });
+    feed(model, { event: "lock_released", train: "t1", resources: ["sw.main"] });
+    expect(shown(model)).toEqual({ "a.B": "approach" });
   });
 });
 

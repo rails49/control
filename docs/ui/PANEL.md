@@ -42,26 +42,25 @@ with point feedback ever exists; the owner's turnouts do not report.
 end, always, so there is nothing to place and nothing in the drawing to
 record. A signal governs departures through one block end, and routes are
 strict pass-throughs with no reversal within a route, so a signal at
-`claro_2.B` can only mean "may the train in `claro_2` leave via B". A signal
-at an end that leads only to a terminal governs a departure no train can make
-and is worth hiding, once the rest is settled.
+`claro_2.B` can only mean "may the train in `claro_2` leave via B".
 
-The aspect rule is **locked-ahead**: green if the resource beyond that end is
-currently locked to the train standing there. That is what a real signal
-means, it reuses the lock ledger the panel already maintains for
-reserved-block shading, and it stays stable while a train runs. Deriving the
-aspect from `grant_refused` instead would require a per-train state machine
-over an event topic and would describe the dispatcher's state rather than the
-railway's.
-
-**In the end state the panel derives no aspect at all.** The dispatcher
-publishes it — `stop`, `approach` or `clear`, read off how far ahead it has
-locked — and the panel renders what it is told
+**The panel derives no aspect.** The dispatcher publishes one — `stop`,
+`approach` or `clear`, read off how far ahead it has locked — on a last-value
+topic naming every signalled end, and the panel renders what it is told
 ([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
-Locked-ahead survives as the rule, one level up, and two things that are the
-panel's problem here stop being anyone's: the middle aspect, which no
-derivation from the lock ledger can produce, and whether an end the standing
-train does not face may show anything but red.
+An aspect is a function of locks the dispatcher holds and routes it committed,
+so a second party working it out is a second authority to disagree with.
+
+Two questions the panel's own locked-ahead derivation raised are answered by
+not arising. Whether an end the standing train does not face may show anything
+but red: the dispatcher knows the committed route, so it knows the one end a
+train may leave by, and every other end shows `stop` because nothing is locked
+beyond it. And the middle aspect, which the binary derivation could not
+produce at all: the dispatcher counts the depth, so `approach` and `clear` are
+simply two different counts.
+
+An end that leads nowhere carries no signal and the dispatcher does not name
+it, so the panel draws none — no rule here, just an end absent from the map.
 
 ![A live session mid-run: a drag from south to claro_3's middle third](images/live-drag.png)
 

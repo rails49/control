@@ -30,7 +30,12 @@ import {
   transformOf,
   type Point,
 } from "../model/geometry.js";
-import { Panel, type BlockView, type Marker } from "../model/panel.js";
+import {
+  Panel,
+  type Aspect,
+  type BlockView,
+  type Marker,
+} from "../model/panel.js";
 import { anchorAt, arrowPose, fitBox } from "../model/scene.js";
 import {
   listDrawings,
@@ -432,7 +437,7 @@ export class TcPanel extends LitElement {
     const { x, y, w, h } = fitBox(this.drawing);
     const blocks = this.panel.blocks();
     const lit = this.panel.litLegs();
-    const green = this.panel.greenEnds();
+    const aspects = this.panel.aspects();
     return svg`
       <svg
         viewBox=${`${x} ${y} ${w} ${h}`}
@@ -444,7 +449,7 @@ export class TcPanel extends LitElement {
       >
         <defs>${DEFS}</defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
-        ${this.wires()} ${this.symbols(blocks, lit, green)}
+        ${this.wires()} ${this.symbols(blocks, lit, aspects)}
         ${this.labels(blocks)} ${this.arrows(blocks)} ${this.markers()}
         ${this.gesture()}
       </svg>
@@ -466,26 +471,26 @@ export class TcPanel extends LitElement {
   private symbols(
     blocks: Map<string, BlockView>,
     lit: Map<string, Set<string>>,
-    green: Set<string>,
+    aspects: ReadonlyMap<string, Aspect>,
   ) {
     const target = this.drag.drop?.block;
     const blind = dark(this.reviewed!);
     return Object.entries(this.drawing!.symbols).map(([name, spec]) => {
       const block = blocks.get(name);
-      const aspects = ["A", "B"]
-        .filter((end) => green.has(`${name}.${end}`))
-        .map((end) => `green-${end}`);
-      const classes = [
-        "symbol",
-        block?.state ?? "",
-        ...aspects,
-        name === target ? "target" : "",
-      ]
+      // Keyed by end letter, which is what the artwork puts on each signal's
+      // group; an end the dispatcher never named simply has no aspect.
+      const showing = new Map(
+        (["A", "B"] as const).flatMap((end) => {
+          const shown = aspects.get(`${name}.${end}`);
+          return shown === undefined ? [] : [[end, shown] as const];
+        }),
+      );
+      const classes = ["symbol", block?.state ?? "", name === target ? "target" : ""]
         .filter((one) => one !== "" && one !== "free")
         .join(" ");
       return svg`
         <g class=${classes} transform=${transformOf(spec)}>
-          ${artwork(spec, lit.get(name), blind.get(name))}
+          ${artwork(spec, lit.get(name), blind.get(name), showing)}
         </g>
       `;
     });

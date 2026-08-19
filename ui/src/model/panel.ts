@@ -13,12 +13,16 @@
  * from the store's `/review`, handed in at construction.
  */
 
+import type { Aspect } from "../render/artwork.js";
 import { WHOLE } from "./inspect.js";
 import type { Explained, Layout } from "./store.js";
 import type { Submission, TraceEvent } from "./trace.js";
 
 /** A block end, written `<block>.<end>` as the bus writes it. */
 export type EndRef = string;
+
+export type { Aspect };
+
 
 export interface BlockView {
   state: "free" | "occupied" | "reserved" | "planned";
@@ -77,6 +81,8 @@ export function endOf(end: EndRef): string {
 export class Panel {
   /** resource → holding train: blocks and transits alike, the lock ledger. */
   private locks = new Map<string, string>();
+  /** block end → the aspect its signal shows, last as the dispatcher said. */
+  private shown = new Map<EndRef, Aspect>();
   /** block → the train standing in it. */
   private standing = new Map<string, string>();
   /** train → the block it last entered and the end it now faces. */
@@ -97,8 +103,6 @@ export class Panel {
    *  that never moved. */
   private started = false;
 
-  /** end → the transit resources attached there. */
-  private readonly attached = new Map<EndRef, string[]>();
   /** transit resource → the two block ends it joins. */
   private readonly joins = new Map<string, [EndRef, EndRef]>();
   /** transit resource → the symbols and legs its way takes. */
@@ -112,9 +116,6 @@ export class Panel {
       for (const [transit, ends] of Object.entries(transits)) {
         const resource = `${connection}.${transit}`;
         this.joins.set(resource, ends);
-        for (const end of ends) {
-          this.attached.set(end, [...(this.attached.get(end) ?? []), resource]);
-        }
         const way = explain.connections[connection]?.transits[transit]?.way;
         if (way !== undefined) this.ways.set(resource, way);
       }
@@ -222,6 +223,13 @@ export class Panel {
       case "block_vacated": {
         const { block } = event as unknown as { block: string };
         this.standing.delete(block);
+        return;
+      }
+      case "aspects": {
+        const { aspects } = event as unknown as {
+          aspects: Record<EndRef, Aspect>;
+        };
+        this.shown = new Map(Object.entries(aspects));
         return;
       }
       case "move_granted": {
@@ -354,27 +362,16 @@ export class Panel {
   }
 
   /**
-   * The block ends showing green: the resource beyond the end is locked to
-   * the train standing there — the locked-ahead rule (ui/PANEL.md).
+   * What each signalled block end is showing, exactly as the dispatcher said
+   * (ADR-0025). The panel derives nothing here: an aspect is a function of
+   * locks the dispatcher holds and routes it committed, and a second party
+   * working it out is a second authority to disagree with.
    *
-   * A known facing gates the aspect. The transit a train came in through
-   * stays locked a tick behind it, and a signal can only mean "may the train
-   * leave via this end" (ui/PANEL.md) — green over the entry end would
-   * promise a departure no grant allows.
+   * An end the dispatcher did not name carries no signal — a siding's blind
+   * end can only ever show `stop` — and is absent rather than dark.
    */
-  greenEnds(): Set<EndRef> {
-    const green = new Set<EndRef>();
-    for (const [block, train] of this.standing) {
-      const facing = this.heading.get(train);
-      for (const end of ["A", "B"]) {
-        if (facing?.block === block && facing.toward !== end) continue;
-        const beyond = this.attached.get(`${block}.${end}`) ?? [];
-        if (beyond.some((resource) => this.locks.get(resource) === train)) {
-          green.add(`${block}.${end}`);
-        }
-      }
-    }
-    return green;
+  aspects(): ReadonlyMap<EndRef, Aspect> {
+    return this.shown;
   }
 
   /** The legs of every committed route's way, symbol by symbol, in the shape

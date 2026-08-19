@@ -57,6 +57,13 @@ far ahead the dispatcher has locked: nothing, one block, two or more
 rather than being a rule of its own.
 _Avoid_: indication, state, colour, signal (the signal shows the aspect)
 
+**Lamp**:
+One of a signal's three lights, named for its colour: green, red, amber. An
+aspect is a *set* of lit lamps and not a lamp, which is why no lamp is named
+for an aspect — `stop` is red alone, `approach` is green with amber, `clear`
+is green alone, as the Swiss standard sets them.
+_Avoid_: bulb, light, LED, and any aspect's name
+
 ### Drawing
 
 **Drawing**:
