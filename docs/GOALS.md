@@ -137,11 +137,21 @@ will be decided once there is running experience to decide it with.
 ## Approach
 
 The app does not talk to hardware. It talks to the **layout interface**: sensor
-readings come in, turnout, signal and throttle commands go out. A simulator
-implements that interface first; a physical layout implements it later. Which
-hardware sits behind it is irrelevant to this app — the interface assumes only
-that individual turnouts can be aligned, individual signals lit, and individual
+readings come in, turnout, signal and throttle commands go out. Which hardware
+sits behind it is irrelevant to this app — the interface assumes only that
+individual turnouts can be aligned, individual signals lit, and individual
 trains throttled.
+
+The interface has two bindings, and they are **ranked**. A physical railroad is
+the normative one: the interface is shaped by what real track, real detectors
+and real locomotives can do, and where the two bindings could differ the
+physical railroad decides even at cost to the simulator. The **simulator** is
+the second binding. It is useful for testing and for evaluating a layout before
+it is built, may grow as elaborate as those uses need, and stays confined to
+its own app rather than shaping the contract
+([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)).
+Milestone 1 builds only the simulator, which is an order of work rather than a
+rank.
 
 The layout interface also owns time
 ([ADR-0009](adr/0009-layout-interface-owns-time.md)) and is the only part that
@@ -150,3 +160,24 @@ speed, it is what throttles up, watches the detector and stops. Under the
 simulator time is a tick and a train crosses one transit per beat; on a
 physical railroad a clock sets the beat and transits take as long as they take
 ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
+
+### Hardware that lies
+
+Everything above assumes the layout interface tells the truth: that a detector
+reporting `occupied` is right, and that points told to throw have thrown.
+Collision safety rests on that, since the lock table keeps two trains apart
+only if the track the dispatcher thinks it set is the track that is there. A
+physical railroad guarantees neither. Points fail to throw and report nothing,
+so a route that failed to set looks correct
+([ADR-0017](adr/0017-turnout-position-is-inferred-by-the-panel.md)). Detectors
+bounce, drop out, and read dirty wheels as an empty block. A decoder misses its
+packet, a locomotive stalls, or someone lifts a train off the track by hand.
+Collision safety is the property that matters when these happen, and it is the
+one the current argument does not cover.
+
+**This is an open subject.** No answer is proposed here. Its shape depends on
+what the hardware can report, whether that is point position, detector
+redundancy, a plausibility check of sensor events against the lock table, or an
+emergency stop, and none of that is known until there is a layout to learn it
+from. It is written down, and listed in #119, so a hardware effort starts from
+a list.

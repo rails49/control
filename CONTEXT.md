@@ -3,9 +3,12 @@
 Dispatching trains on a model railroad: deadlock-free, high-throughput
 allocation of track to scheduling requests. The app never touches hardware:
 whatever drives the track implements the **layout interface** — reporting
-sensor readings, executing turnout, signal and throttle commands. A simulator
-implements it first, a physical layout later. Components communicate over an
-event bus and an asset CRUD contract ([docs/SYSTEM.md](docs/SYSTEM.md)).
+sensor readings, executing turnout, signal and throttle commands. A physical
+railroad is the normative binding of that interface and a simulator the
+subordinate one, whichever exists first
+([ADR-0030](docs/adr/0030-the-physical-railroad-is-the-normative-binding.md)).
+Components communicate over an event bus and an asset CRUD contract
+([docs/SYSTEM.md](docs/SYSTEM.md)).
 
 ## Language
 
@@ -253,3 +256,13 @@ today, TypeScript alongside it once there is a UI. Siblings can drift, so they
 answer to a checkable schema of the contract rather than to prose or to each
 other ([ADR-0014](docs/adr/0014-python-apps-typescript-ui.md)).
 _Avoid_: port, sibling library, SDK
+
+**Layout binding**:
+A binding of the layout interface, one per thing that can run the track. It
+coexists, and it is **ranked**: the physical railroad is the normative one and
+the simulator conforms to it. Where the two could differ the physical railroad
+decides, even at cost to the simulator. Simulation stays behind the interface
+in its own app, free to grow there but never a field, a topic or a branch
+anywhere else
+([ADR-0030](docs/adr/0030-the-physical-railroad-is-the-normative-binding.md)).
+_Avoid_: backend, mode, target

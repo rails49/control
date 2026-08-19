@@ -10,6 +10,13 @@ first slice of it ([docs/MILESTONE-1.md](docs/MILESTONE-1.md)), so read GOALS.md
 before any design change and say which of the two a change belongs to. Where a
 doc and GOALS.md disagree, GOALS.md is right and the doc is a bug.
 
+**The physical railroad decides.** Before designing anything, say how it
+behaves on the actual layout. Consider the simulator only once that has an
+answer, and where the two pull apart the physical railroad wins even at cost to
+the simulator. Simulation stays behind the layout interface, in the `simulator`
+app, never a field, a topic or a branch in any other app
+([ADR-0030](docs/adr/0030-the-physical-railroad-is-the-normative-binding.md)).
+
 ## Apps
 
 An **app** is a unit that will run as its own container: `store`, `scheduler`,
