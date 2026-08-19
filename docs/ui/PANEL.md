@@ -133,9 +133,11 @@ endpoints like any other rejection
 ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)). The session
 survives, but the page does not recover: only the bus can say where that train
 stands, and under exclusive modes the train moves only if this panel moves it.
-A misplaced train is therefore undraggable for the rest of the session. The
-alternative would be the bridge describing the run, which
-[SYSTEM.md](../SYSTEM.md) rules out.
+The alternative would be the bridge describing the run, which
+[SYSTEM.md](../SYSTEM.md) rules out. Nothing stops the gesture itself, though:
+the panel mints a fresh request id for each drag, so a misplaced train is
+dragged and rejected as often as the operator tries, every time for the same
+reason.
 
 Within one page the panel does hold its ground: leaving and rejoining keeps
 what the bus has shown and re-seeds only trains it knows nothing about, and
