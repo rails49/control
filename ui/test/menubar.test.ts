@@ -147,6 +147,8 @@ describe("what each menu carries", () => {
       "Zoom in +",
       "Zoom out −",
       "Fit 0",
+      "──",
+      "Netlist N",
     ]);
   });
 
@@ -243,6 +245,17 @@ describe("what a dead item does", () => {
       .filter((one) => (one as HTMLButtonElement).disabled)
       .map((one) => one.querySelector(".label")!.textContent!.trim());
     expect(dead).toEqual(["Open", "Save", "Save As…", "Export SVG…"]);
+  });
+
+  /** The zoom commands are the canvas's own and stay alive on an empty page;
+   *  the netlist is of a drawing, and there is none. */
+  it("draws the netlist dead while the zoom commands stay alive", async () => {
+    const menubar = await down(await bar(NOTHING), "View");
+    const items = [...menubar.renderRoot.querySelectorAll("menu > li button")];
+    const dead = items
+      .filter((one) => (one as HTMLButtonElement).disabled)
+      .map((one) => one.querySelector(".label")!.textContent!.trim());
+    expect(dead).toEqual(["Netlist"]);
   });
 
   it("asks for nothing when it is clicked", async () => {

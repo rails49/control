@@ -3,7 +3,7 @@
  *
  * Shoelace's `sl-icon` loads its SVGs from a CDN at runtime unless a base path
  * is registered, and the editor has to work on the railroad's own network
- * (EDITOR.md#implementation). Fourteen glyphs are cheaper than vendoring an
+ * (EDITOR.md#implementation). Fifteen glyphs are cheaper than vendoring an
  * icon set for them.
  *
  * Each is drawn on a 16 unit square and inherits `currentColor`, so a button's
@@ -135,6 +135,14 @@ export const PROPERTIES = icon(svg`
   <circle cx="10" cy="10.5" r="1.7" />
 `);
 
+/** A sheet with a narrow column down its right side, lines in it: the netlist
+ *  pane beside the drawing, which is what the item puts there and takes away. */
+export const NETLIST = icon(svg`
+  <path d="M2.5 4a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" />
+  <path d="M9.5 3v10" />
+  <path d="M11 6.5h1.5M11 9.5h1.5" />
+`);
+
 /** The glyph beside each command's label, and on the three buttons the bar
  *  pins at its right end. Exhaustive over `CommandId` by its type. */
 export const GLYPHS: Record<CommandId, SVGTemplateResult> = {
@@ -152,4 +160,5 @@ export const GLYPHS: Record<CommandId, SVGTemplateResult> = {
   "zoom-in": ZOOM_IN,
   "zoom-out": ZOOM_OUT,
   fit: FIT,
+  netlist: NETLIST,
 };

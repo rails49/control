@@ -13,7 +13,7 @@
  */
 
 import { LitElement, html, nothing } from "lit";
-import { customElement, state } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
@@ -77,6 +77,12 @@ export class TcEditor extends LitElement {
    *  is waiting, which is the ordinary state. */
   @state() private discarding: { open: string | null } | null = null;
   @state() private chosen: Chosen | null = null;
+  /** Whether the netlist pane is open. Shut on load and shut again whenever a
+   *  drawing is opened, the netlist being a debugging view consulted when
+   *  something looks wrong rather than what the editor is for (ADR-0024).
+   *  Reflected onto the host because the shell's grid drops the column with
+   *  the pane, and an attribute is what `tc-editor.styles.ts` can read. */
+  @property({ type: Boolean, reflect: true }) netlist = false;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -122,15 +128,19 @@ export class TcEditor extends LitElement {
         }}
       ></tc-canvas>
 
-      <tc-netlist
-        .review=${this.reviewed}
-        .chosen=${this.chosen}
-        .symbol=${this.inspecting}
-        @transit-chosen=${(event: CustomEvent<Chosen | null>) => {
-          this.chosen = event.detail;
-          this.redraw();
-        }}
-      ></tc-netlist>
+      ${this.netlist
+        ? html`
+            <tc-netlist
+              .review=${this.reviewed}
+              .chosen=${this.chosen}
+              .symbol=${this.inspecting}
+              @transit-chosen=${(event: CustomEvent<Chosen | null>) => {
+                this.chosen = event.detail;
+                this.redraw();
+              }}
+            ></tc-netlist>
+          `
+        : nothing}
 
       <tc-menu .at=${this.menu} @menu-action=${this.chose}
         @menu-dismissed=${() => {
@@ -260,6 +270,9 @@ export class TcEditor extends LitElement {
       case "fit":
         this.fit();
         return;
+      case "netlist":
+        this.folding();
+        return;
       // A command with no arm above narrows to something other than `never`
       // here and fails to typecheck, so adding one to `CommandId` cannot leave
       // a live menu item that does nothing. The same guarantee `GLYPHS` gives
@@ -269,6 +282,16 @@ export class TcEditor extends LitElement {
         return unhandled;
       }
     }
+  }
+
+  /** The netlist pane, put beside the canvas or taken away again. Shutting it
+   *  unlights whatever transit was chosen in it: the pane is the only thing
+   *  that lights a way and the only thing that could unlight one, so a way
+   *  left lit with the pane gone would stay lit with nothing to clear it. */
+  private folding(): void {
+    this.netlist = !this.netlist;
+    if (!this.netlist) this.chosen = null;
+    this.redraw();
   }
 
   /**
@@ -334,8 +357,13 @@ export class TcEditor extends LitElement {
     this.discarding = null;
   }
 
-  /** What was asked for, once there is nothing in the way of it. */
+  /** What was asked for, once there is nothing in the way of it. A drawing
+   *  arrives with the netlist shut, whatever the last one left open, and with
+   *  no way lit: both belong to the railroad being replaced, and the netlist
+   *  is opened when something looks wrong rather than kept up (ADR-0024). */
   private opening(open: string | null): Promise<void> {
+    this.netlist = false;
+    this.chosen = null;
     return open === null ? this.newDrawing() : this.open(open);
   }
 
@@ -664,6 +692,10 @@ export class TcEditor extends LitElement {
         return;
       case "0":
         this.run("fit");
+        return;
+      case "n":
+      case "N":
+        this.run("netlist");
         return;
       default:
         return;

@@ -34,7 +34,7 @@ describe("the menus", () => {
         "Edit",
         ["undo", "redo", null, "rotate", "flip", "delete", null, "properties"],
       ],
-      ["View", ["zoom-in", "zoom-out", "fit"]],
+      ["View", ["zoom-in", "zoom-out", "fit", null, "netlist"]],
     ]);
   });
 
@@ -66,6 +66,7 @@ describe("the key beside the label", () => {
       "zoom-in": "+",
       "zoom-out": "−",
       fit: "0",
+      netlist: "N",
     });
   });
 });
@@ -138,5 +139,16 @@ describe("the view", () => {
     for (const id of ["zoom-in", "zoom-out", "fit"] as const) {
       expect(on(id)).toBe(true);
     }
+  });
+
+  /** The netlist is not the canvas's view but what the drawing derives to
+   *  (ADR-0024), and with nothing open there is no derivation to consult: the
+   *  pane would open on a hint and take a fifth of the width to say it. The
+   *  keyboard asks this same rule, so `N` on an empty page does nothing
+   *  either. */
+  it("consults the netlist only of a drawing that is open", () => {
+    expect(on("netlist")).toBe(false);
+    expect(on("netlist", { opened: "gotthard" })).toBe(true);
+    expect(on("netlist", { opened: "gotthard", saved: false })).toBe(true);
   });
 });

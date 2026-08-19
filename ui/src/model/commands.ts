@@ -32,7 +32,8 @@ export type CommandId =
   | "properties"
   | "zoom-in"
   | "zoom-out"
-  | "fit";
+  | "fit"
+  | "netlist";
 
 /** Where the editor stands, as far as a command needs to know. */
 export interface Standing {
@@ -108,6 +109,15 @@ export const COMMANDS: Record<CommandId, Command> = {
   "zoom-in": { label: "Zoom in", key: "+", enabled: () => true },
   "zoom-out": { label: "Zoom out", key: "−", enabled: () => true },
   fit: { label: "Fit", key: "0", enabled: () => true },
+  // Not the canvas's view but what the drawing derives to, so this one does
+  // need a drawing: with none open there is nothing derived to consult, and
+  // the pane would open on a hint and take a fifth of the width to say it
+  // (ADR-0024).
+  netlist: {
+    label: "Netlist",
+    key: "N",
+    enabled: ({ opened }) => opened !== "",
+  },
 };
 
 /** A verb that reads the selection is dead without one. */
@@ -130,7 +140,7 @@ export const MENUS: Menu[] = [
     name: "Edit",
     items: ["undo", "redo", null, "rotate", "flip", "delete", null, "properties"],
   },
-  { name: "View", items: ["zoom-in", "zoom-out", "fit"] },
+  { name: "View", items: ["zoom-in", "zoom-out", "fit", null, "netlist"] },
 ];
 
 /** The three pinned at the right end of the bar, in the order they sit in. */

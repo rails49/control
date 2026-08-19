@@ -88,7 +88,7 @@ with the key that does the same thing printed beside the item.
            ·  Save As… ⇧⌘S  ·  ──  ·  Export SVG…
     Edit   Undo ⌘Z  ·  Redo ⇧⌘Z  ·  ──  ·  Rotate R  ·  Flip F  ·  Delete ⌫
            ·  ──  ·  Properties…
-    View   Zoom in +  ·  Zoom out −  ·  Fit 0
+    View   Zoom in +  ·  Zoom out −  ·  Fit 0  ·  ──  ·  Netlist N
 
 **Open is a submenu, not a dialog.** Layouts are edited rarely, so the list of
 drawings is short and stays short, and a submenu is one gesture where a dialog
@@ -113,11 +113,11 @@ and the click the hand lands there afterwards is absorbed — it neither closes
 what the hover just opened nor re-opens it (#100). A second click closes it.
 With no menu down, the pointer crossing the bar opens nothing.
 
-**While a menu is down, the bare keys are the menu's.** `r`, `f`, `0`, `+`, `-`,
-Delete and Backspace do not reach the canvas, and Escape closes the menu rather
-than clearing the selection. That is the same bug as a key typed into a dialog
-field reaching the canvas, one of the six of `ddbefb2..feb1fae`, wearing a
-menu.
+**While a menu is down, the bare keys are the menu's.** `r`, `f`, `n`, `0`,
+`+`, `-`, Delete and Backspace do not reach the canvas, and Escape closes the
+menu rather than clearing the selection. That is the same bug as a key typed
+into a dialog field reaching the canvas, one of the six of `ddbefb2..feb1fae`,
+wearing a menu.
 
 **A shortcut is not a bare key.** `⌘S` and `⌘Z` are printed beside the items
 they duplicate, so with `File` down `⌘S` takes the menu up and saves, the same
@@ -599,11 +599,15 @@ The derived netlist sits beside the canvas and redraws as you edit. It is the
 same content `tc49 layout show` prints: blocks, and per connection its
 transits with their two block ends and its concurrent pairs.
 
-**It is opened from `View ▸ Netlist` and closed by default.** Shut, its column
-goes to zero and the drawing has the width. It stays a panel and not a popup:
-its whole advantage over `tc49 layout show` in a terminal is that clicking a
-transit lights its way on the drawing, and a modal over the canvas hides the
-thing being checked
+**It is opened from `View ▸ Netlist` or by `N`, and closed by default.** Shut,
+its column is not declared at all and the drawing has the width, and the item
+is dead while no drawing is open — there is nothing derived to consult then,
+and the key is dead with it (#90). Shutting the pane unlights whatever transit
+was chosen in it, that being the only thing that could unlight one.
+
+It stays a panel and not a popup: its whole advantage over `tc49 layout show`
+in a terminal is that clicking a transit lights its way on the drawing, and a
+modal over the canvas hides the thing being checked
 ([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
 
 Selecting a transit lights its way on the canvas, symbol by symbol and leg by
