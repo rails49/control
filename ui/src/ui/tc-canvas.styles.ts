@@ -42,19 +42,6 @@ export const canvasStyles = css`
     pointer-events: none;
   }
 
-  /* A junction wearing a name another connection also wears, or two its own
-     symbols disagree about: shown where it is rather than only in the panel.
-     It is the only tint left on the canvas, so colour here means something is
-     wrong rather than merely that a junction is a junction. */
-  .junction {
-    pointer-events: none;
-  }
-
-  .junction rect {
-    fill: var(--wrong);
-    opacity: 0.14;
-  }
-
   ${symbols}
 
   /* The wire following the pointer is an affordance rather than track, so it

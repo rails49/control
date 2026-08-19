@@ -21,7 +21,6 @@ import {
 import { Editor } from "../model/editor.js";
 import { GESTURING, TRANSIENT, svgFile } from "../model/export.js";
 import {
-  cellsOf,
   centreOf,
   facePoint,
   gridPointOf,
@@ -33,7 +32,6 @@ import {
 import { Gesture, type Outcome } from "../model/gesture.js";
 import {
   chosenWay,
-  clashes,
   dark,
   lit,
   unpaired,
@@ -118,7 +116,7 @@ export class TcCanvas extends LitElement {
           ${DEFS}
         </defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
-        ${this.faces()} ${this.junctions()} ${this.wires()} ${this.symbols()} ${this.pins()}
+        ${this.faces()} ${this.wires()} ${this.symbols()} ${this.pins()}
         ${this.stacked()} ${this.wireline()} ${this.rubberBand()} ${this.ghost()}
       </svg>
     `;
@@ -222,46 +220,6 @@ export class TcCanvas extends LitElement {
   }
 
   // --- what is drawn ------------------------------------------------------
-
-  /**
-   * The junctions in trouble, tinted where they are.
-   *
-   * Every junction used to be tinted, which read as shading behind half the
-   * symbols on the sheet while nothing was wrong. Junction membership is read
-   * in the netlist pane instead, where a connection's name heads its section
-   * above the symbols it is drawn from: a stray wire that merged two throats
-   * shows there as one section listing both, rather than as one region where
-   * you expected two (EDITOR.md#junctions).
-   *
-   * What stays is the tint on a name collision, so colour on the canvas means
-   * something is wrong. A clash is shown where it is rather than only in a
-   * panel, and names are minted, so this is rare and worth looking at.
-   *
-   * The region carries no name. A junction of one symbol is named after that
-   * symbol, so writing the name here put a symbol's own name beside it and
-   * read as a label the symbol carried rather than as an overlay.
-   */
-  private junctions(): unknown {
-    const troubled = new Set(
-      clashes(this.review ?? EMPTY).flatMap((clash) => clash.where.flat()),
-    );
-    if (troubled.size === 0) return nothing;
-    return (this.review?.junctions ?? []).map((junction) => {
-      if (!junction.symbols.some((name) => troubled.has(name))) return nothing;
-      const cells = junction.symbols.flatMap((name) => {
-        const spec = this.editor.drawing.symbols[name];
-        return spec === undefined ? [] : cellsOf(spec);
-      });
-      if (cells.length === 0) return nothing;
-      return svg`
-        <g class="junction clashing">
-          ${cells.map(
-            ([c, r]) => svg`<rect x=${c} y=${r} width="1" height="1" />`,
-          )}
-        </g>
-      `;
-    });
-  }
 
   /**
    * Where a wire can land, drawn only while one is in flight.

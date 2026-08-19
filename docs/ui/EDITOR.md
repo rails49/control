@@ -282,8 +282,7 @@ are round, so track joins seamlessly at any wire angle; a wire meeting a fixed
 Track that ends inside another shape is cut instead, because a round cap would
 bulge past a buffer bar or a portal's mouth. Where the end is square the cap is
 butt; where it is oblique the stroke is clipped, so the stub still lights and
-still widens like any other track, and nothing is painted over the junction tint
-behind it.
+still widens like any other track rather than reading as a solid.
 
 The signal, the tick, the buffer bar and the portal's mouth are proportioned
 against the grid square rather than against W. They are marks the size of a

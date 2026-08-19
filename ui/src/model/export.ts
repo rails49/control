@@ -2,8 +2,8 @@
  * The drawing as a standalone SVG file (#86).
  *
  * The picture is the canvas's own markup, cloned rather than re-rendered from
- * the document: composing the sheet, the wires, the pins and the junction
- * tints a second time would be a second implementation of `tc-canvas`, free to
+ * the document: composing the sheet, the wires, the pins and the marks a
+ * second time would be a second implementation of `tc-canvas`, free to
  * drift from what is on screen — the failure mode EDITOR.md#implementation
  * rules out for the netlist and rules out here for the same reason.
  *

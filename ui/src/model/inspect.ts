@@ -13,7 +13,6 @@
  * gave, which is what keeps a second union-find out of the front end.
  */
 
-import { minted } from "./naming.js";
 import type { Review, Transit } from "./store.js";
 
 /** A symbol lit whole, having no leg of its own the artwork draws: a joiner,
@@ -223,53 +222,6 @@ export function amongst(review: Review, symbol: string): Pair[] {
     }
   }
   return pairs;
-}
-
-/** A name the drawing writes twice, or two names it writes on one connection.
- *  Either way derivation refuses, and this says where to look. */
-export interface Clash {
-  kind: "duplicate" | "disagreement";
-  names: string[];
-  /** Where each connection involved is: a junction's symbols, or a joint's
-   *  two block ends, which is all a joint has to point at. */
-  where: string[][];
-}
-
-/**
- * The name collisions and the split-junction duplicates, worked out from what
- * the drawing writes rather than from the refusal.
- *
- * Derivation reports the first thing wrong and stops, and a duplicate name is
- * worse than that: two junctions both called `airolo` derive as one
- * connection, which is a wrong netlist rather than a refused one.
- *
- * A collision the editor minted is not one of these. `settle` re-mints the
- * duplicate a split made and collapses the names a merge left (naming.ts), so
- * either is gone by the next review, and reporting it in between would show
- * the user a finding the editor is in the middle of fixing itself. What is
- * left is exactly the collisions a person typed and has to settle.
- */
-export function clashes(review: Review): Clash[] {
-  const connections = [
-    ...review.junctions.map((one) => ({ ...one, where: one.symbols })),
-    ...review.joints.map((one) => ({ ...one, where: [...one.ends] })),
-  ].map((one) => ({ ...one, typed: one.names.filter((name) => !minted(name)) }));
-  const found: Clash[] = connections
-    .filter((one) => one.typed.length > 1)
-    .map((one) => ({
-      kind: "disagreement" as const,
-      names: one.typed,
-      where: [one.where],
-    }));
-  const byName = new Map<string, string[][]>();
-  for (const one of connections) {
-    if (one.name === null || minted(one.name)) continue;
-    byName.set(one.name, [...(byName.get(one.name) ?? []), one.where]);
-  }
-  for (const [name, where] of byName) {
-    if (where.length > 1) found.push({ kind: "duplicate", names: [name], where });
-  }
-  return found;
 }
 
 /** Whether two transits at one connection run together, and where the refusal

@@ -5,7 +5,6 @@ import {
   against,
   amongst,
   chosenWay,
-  clashes,
   dark,
   lit,
   routes,
@@ -253,110 +252,6 @@ describe("the pairs among the transits through a symbol", () => {
   });
 });
 
-describe("names two connections cannot both wear", () => {
-  it("finds nothing to say about a drawing that agrees with itself", () => {
-    expect(clashes(scissors())).toEqual([]);
-  });
-
-  it("reports a name a split left on both halves, with each half's symbols", () => {
-    const found = scissors();
-    found.junctions = [
-      { name: "airolo", names: ["airolo"], symbols: ["sw1", "sw2"] },
-      { name: "airolo", names: ["airolo"], symbols: ["sw3"] },
-    ];
-    expect(clashes(found)).toEqual([
-      {
-        kind: "duplicate",
-        names: ["airolo"],
-        where: [
-          ["sw1", "sw2"],
-          ["sw3"],
-        ],
-      },
-    ]);
-  });
-
-  it("reports a junction whose own symbols disagree about its name", () => {
-    const found = scissors();
-    found.junctions = [
-      { name: null, names: ["airolo", "bodio"], symbols: ["sw1", "sw2"] },
-    ];
-    expect(clashes(found)).toEqual([
-      {
-        kind: "disagreement",
-        names: ["airolo", "bodio"],
-        where: [["sw1", "sw2"]],
-      },
-    ]);
-  });
-
-  it("names only the typed ones where a merge left minted names too", () => {
-    const found = scissors();
-    found.junctions = [
-      { name: null, names: ["airolo", "bodio", "j4"], symbols: ["sw1", "sw2"] },
-    ];
-    expect(clashes(found)).toEqual([
-      {
-        kind: "disagreement",
-        names: ["airolo", "bodio"],
-        where: [["sw1", "sw2"]],
-      },
-    ]);
-  });
-
-  it("says nothing about the names a merge left that the editor is collapsing", () => {
-    // Wiring junctions together leaves a minted name from each on one
-    // junction. `settle` collapses them by the next review, so reporting it
-    // shows a finding the editor is in the middle of fixing itself.
-    const found = scissors();
-    found.junctions = [
-      { name: null, names: ["j2", "j5"], symbols: ["sw1", "sw2", "sw3"] },
-    ];
-    expect(clashes(found)).toEqual([]);
-  });
-
-  it("says nothing where a merge left one typed name among minted ones", () => {
-    const found = scissors();
-    found.junctions = [
-      { name: null, names: ["airolo", "j5"], symbols: ["sw1", "sw2"] },
-    ];
-    expect(clashes(found)).toEqual([]);
-  });
-
-  it("says nothing about a duplicate the editor minted and is re-minting", () => {
-    // `settle` re-mints a minted name a split left on both halves, so it is
-    // gone by the next review. Reporting it in between shows a finding the
-    // editor is in the middle of fixing itself.
-    const found = scissors();
-    found.junctions = [
-      { name: "j7", names: ["j7"], symbols: ["sw1", "sw2"] },
-      { name: "j7", names: ["j7"], symbols: ["sw3"] },
-    ];
-    expect(clashes(found)).toEqual([]);
-  });
-
-  it("reports a joint by its block ends, having no symbols to name", () => {
-    const found = scissors();
-    found.junctions = [
-      { name: "airolo", names: ["airolo"], symbols: ["sw1"] },
-    ];
-    found.joints = [
-      {
-        ends: ["dn_e.B", "yard_e.A"],
-        wires: [["dn_e.B", "yard_e.A"]],
-        name: "airolo",
-        names: ["airolo"],
-      },
-    ];
-    expect(clashes(found)).toEqual([
-      {
-        kind: "duplicate",
-        names: ["airolo"],
-        where: [["sw1"], ["dn_e.B", "yard_e.A"]],
-      },
-    ]);
-  });
-});
 
 describe("the block ends carrying no signal", () => {
   /** A siding: `yard` runs out of the scissors at its A end and into a buffer

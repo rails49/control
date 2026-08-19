@@ -173,9 +173,9 @@ function terminal(on: Lit): SVGTemplateResult {
  * The mouth is the stub cut off at an angle, and two strokes
  * carrying on past it at that same lean. The cut is a clip rather than a filled
  * shape, so the stub is ordinary track that lights and widens like the rest of
- * it, and nothing is painted over the junction tint behind the symbol. The
- * stroke runs a track width past the cut, which is what the clip needs to have
- * something to cut at every height across the track.
+ * it rather than a solid the sheet shows through nothing of. The stroke runs a
+ * track width past the cut, which is what the clip needs to have something to
+ * cut at every height across the track.
  */
 function portal(on: Lit): SVGTemplateResult {
   const p = anchorIn("portal", "P");

@@ -183,8 +183,8 @@ export const COLOURS: Record<string, string> = {
   // as a chosen transit takes the pale ground of `--lit`.
   "--wrong-body": "#f7dcdf",
   // The netlist pane's accents. They were a palette of six, one per junction
-  // region on the canvas; the canvas no longer tints a junction that is
-  // merely a junction, so what is left is what the panes still read.
+  // region on the canvas; the canvas tints no junction at all now, so what is
+  // left is what the panes still read.
   "--tint-1": "#14866d",
   "--tint-2": "#a55b12",
 };

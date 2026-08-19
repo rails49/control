@@ -18,7 +18,7 @@ import type { Kind } from "../symbols.generated.js";
 import { COMMANDS, type CommandId, type Standing } from "../model/commands.js";
 import { emptyDrawing, nameTrouble, type SymbolSpec } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
-import { clashes, type Chosen, type Clash } from "../model/inspect.js";
+import type { Chosen } from "../model/inspect.js";
 import {
   listDrawings,
   readDrawing,
@@ -183,23 +183,18 @@ export class TcEditor extends LitElement {
   }
 
   /** Everything wrong with the drawing, in one panel: the pins short of a
-   *  wire, the portal labels that pair with nothing, the names two connections
-   *  cannot both wear, and the refusal derivation came back with. A name
-   *  collision is listed even where derivation did not refuse, since two
-   *  junctions wearing one name derive as one connection — a wrong netlist
-   *  rather than a refused one. The refusal names one unpaired label and
+   *  wire, the portal labels that pair with nothing, and the refusal
+   *  derivation came back with. The refusal names one unpaired label and
    *  stops, so the lines above it are what say how many there are. */
   private findings() {
     const red = this.reviewed?.red_pins ?? [];
     const lone = this.reviewed?.unpaired_portals ?? [];
     const refused = this.reviewed?.refused ?? null;
-    const clashing = this.reviewed === null ? [] : clashes(this.reviewed);
     const stacked = this.stacked();
     if (
       red.length === 0 &&
       lone.length === 0 &&
       refused === null &&
-      clashing.length === 0 &&
       stacked.length === 0 &&
       this.naming === null
     ) {
@@ -217,7 +212,6 @@ export class TcEditor extends LitElement {
           ? nothing
           : html`<p>${red.length} pin(s) short of a wire: ${red.join(", ")}</p>`}
         ${lone.map((one) => html`<p>${wearing(one)}</p>`)}
-        ${clashing.map((clash) => html`<p>${said(clash)}</p>`)}
         ${refused === null ? nothing : html`<p>${refused}</p>`}
       </div>
     `;
@@ -725,18 +719,6 @@ export class TcEditor extends LitElement {
         return;
     }
   };
-}
-
-/** A name collision as a sentence. Which half is Airolo is not the editor's
- *  decision to make (naming.ts), so the finding says where both are and stops
- *  there. */
-function said(clash: Clash): string {
-  const where = clash.where.map((one) => one.join(", ")).join(" and ");
-  return clash.kind === "duplicate"
-    ? `two connections are both named '${clash.names[0]}': ${where}`
-    : `one connection is named ${clash.names
-        .map((name) => `'${name}'`)
-        .join(" and ")}: ${where}`;
 }
 
 /** A portal label that pairs with nothing, as a sentence. A label pairs
