@@ -22,6 +22,11 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
   clock — it never even learns the tick number
   ([SYSTEM.md](../SYSTEM.md#time)) — so a simulator and a physical layout drive
   it the same way.
+- **Signalled** — how far the dispatcher has locked ahead of a train is what
+  the signal it faces shows, and that aspect is the driver's only input; a
+  signal is at `stop` unless a block beyond it is locked, which follows from
+  the locks rather than being a rule of its own
+  ([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 
 ### Requests
 
@@ -166,7 +171,8 @@ Occupancy is a **standing lock** — every train always holds the lock on the
 block it stands in, moving or parked, requested or not. Launching is therefore
 not "taking a lock on the train's own block"; it is the safety layer granting
 the request's first increment: the first transit plus the second block under
-incremental locking, or the whole route under the full-route baseline.
+incremental locking at depth one, as far as the depth reaches above that, or
+the whole route under the full-route baseline.
 
 **The queue does not filter on arrival occupancy.** A request whose arrival
 blocks are occupied is scanned like any other; whether it launches is the
@@ -184,15 +190,17 @@ lock. Latency is completion tick − arrival tick.
 
 ## Time model
 
-Time is synchronous discrete **ticks**: each tick, every moving train
-completes one transit into its next block. Travel time within blocks is
-ignored, and so is transit length — the long return loop and a station ladder
-both cost one tick. The tick's ownership and mechanics belong to
-[SYSTEM.md](../SYSTEM.md#time): the layout interface publishes the tick event,
-and the dispatcher — which never learns the tick number — treats each tick
-event as its **grant boundary**. What follows is the dispatcher's semantics
-at that boundary. An event-driven clock with real traversal times can replace
-ticks later without changing the dispatcher.
+The dispatcher grants at a **boundary** the layout interface publishes, and
+what follows is its semantics at that boundary. Under the milestone-1
+simulator the boundary is a **tick**: each tick, every moving train completes
+one transit into its next block, travel time within blocks is ignored and so
+is transit length — the long return loop and a station ladder both cost one
+tick. That is the simulator's behaviour rather than the model's time
+([ADR-0027](../adr/0027-the-tick-is-the-simulators-grant-boundary.md)); on a
+physical railroad a clock sets the cadence and a transit takes as long as it
+takes. Either way the dispatcher never reads a clock and never learns the tick
+number, and the boundary's ownership and mechanics belong to
+[SYSTEM.md](../SYSTEM.md#time).
 
 **Buffer until the boundary.** Sensor events arrive as atomic facts and are
 buffered; the tick event triggers the grant phase, which treats everything
@@ -245,7 +253,18 @@ dispatcher the same way.
    before the train moves; unlock each behind the train. Trivially
    deadlock-free, low throughput. Serves as the benchmark yardstick.
 2. **Incremental locking** (research core) — lock only what the train needs to
-   advance: usually its current block plus the next transit and block.
+   advance: its current block plus the next transit and block, and, at a
+   lookahead depth above one, the transit and block after that. Milestone 1
+   runs at **depth one**; the end state targets **two**, because one block
+   ahead is only enough to move slowly enough to stop at the next signal and
+   two is what buys full speed, and it never asks for a third
+   ([ADR-0026](../adr/0026-two-blocks-ahead-is-full-speed.md)). Depth is a
+   parameter of the strategy, not of the safety layer: a lookahead lock is an
+   ordinary grant made early, and the check of
+   [ADR-0003](../adr/0003-route-aware-bankers-safety-check.md) has no notion of
+   depth — which is why raising it changes no argument in
+   [SAFETY.md](SAFETY.md). The baseline above is the same idea at unbounded
+   depth.
    High throughput, but naive incremental locking deadlocks — e.g. two trains
    entering a section of two facing blocks with no other connections between
    them each wait forever for the other to depart. The deadlock-avoidance
