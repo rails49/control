@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.2 -0.2 2.4 1.4" width="125" height="73">
+<style>
+.track { fill: none; stroke: #12151a; stroke-width: 0.15; stroke-linecap: round; }
+.block-body { fill: #ffffff; stroke: #12151a; stroke-width: 0.045; }
+.track.cut { stroke-linecap: butt; }
+.plaque { fill: #12151a; }
+.lamp.clear { fill: #17a24a; }
+.lamp.danger { fill: #e0332a; }
+.stop, .mark, .portal-mouth, .tick { fill: none; stroke: #12151a; stroke-linecap: butt; }
+.mark { stroke-width: 0.045; }
+.stop { stroke-width: 0.18; }
+.portal-mouth { stroke: #7c8087; stroke-width: 0.03; }
+.tick { stroke-width: 0.045; }
+</style>
+<g transform="translate(0 0)"><path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M2 0.5 L1 0.5"></path><path class="track" d="M0.5 1 L1 0.5"></path><path class="track" d="M1.5 0 L1 0.5"></path><path class="tick" d="M0.727 0.28
+    L0.909 0.28
+    L1.038 0.151"></path><path class="tick" d="M0.962 0.849
+    L1.091 0.72
+    L1.273 0.72"></path></g>
+</svg>

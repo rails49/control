@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.2 -0.2 6.4 1.4" width="333" height="73">
+<style>
+.track { fill: none; stroke: #12151a; stroke-width: 0.15; stroke-linecap: round; }
+.block-body { fill: #ffffff; stroke: #12151a; stroke-width: 0.045; }
+.track.cut { stroke-linecap: butt; }
+.plaque { fill: #12151a; }
+.lamp.clear { fill: #17a24a; }
+.lamp.danger { fill: #e0332a; }
+.stop, .mark, .portal-mouth, .tick { fill: none; stroke: #12151a; stroke-linecap: butt; }
+.mark { stroke-width: 0.045; }
+.stop { stroke-width: 0.18; }
+.portal-mouth { stroke: #7c8087; stroke-width: 0.03; }
+.tick { stroke-width: 0.045; }
+</style>
+<g transform="translate(0 0)">
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+    <path class="plaque" d="M0.235 0.755 L0.325 0.665
+      H0.675 L0.765 0.755 V0.795 L0.675 0.885
+      H0.325 L0.235 0.795 Z"></path>
+    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
+    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
+  </g>
+    <g class="signal end-B">
+    <path class="plaque" d="M5.235 0.205 L5.325 0.115
+      H5.675 L5.765 0.205 V0.245 L5.675 0.335
+      H5.325 L5.235 0.245 Z"></path>
+    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
+    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
+  </g>
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
+  </g>
+</svg>

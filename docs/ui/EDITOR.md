@@ -110,21 +110,21 @@ Tiles carry no names. Each kind is drawn one way, so the drawing is the name,
 and the title attribute has the word for anyone who wants it.
 
 The placeable symbols, with their semantics defined in
-[DRAWING.md](../store/DRAWING.md#symbols). The images are illustrative
-targets, to be replaced by screenshots of the implemented artwork; the
+[DRAWING.md](../store/DRAWING.md#symbols). The images are the tiles themselves,
+all at one grid square, so a symbol's width here is its footprint; the
 dimensions below are normative.
 
 | Symbol | | Notes |
 | --- | --- | --- |
-| Block | ![blocks](images/blocks.png) | shows occupancy on the panel; carries a signal and a sensor at each end |
-| Terminal | ![terminal](images/terminal.png) | deliberate track end |
-| Turnout | ![turnout](images/turnout.png) | |
-| Crossing | ![crossing](images/crossing.png) | |
-| Single slip | ![single slip](images/single-slip.png) | |
-| Double slip | ![double slip](images/double-slip.png) | |
-| 90° crossing | | upright, two straight routes |
-| 90° crossing, diagonal | | the same at 45 degrees |
-| Portal | ![portal](images/portal.png) | paired by label; placed as a pair |
+| Block | ![block](images/symbol-block.svg) | shows occupancy on the panel; carries a signal and a sensor at each end |
+| Terminal | ![terminal](images/symbol-terminal.svg) | deliberate track end |
+| Turnout | ![turnout](images/symbol-turnout.svg) | |
+| Crossing | ![crossing](images/symbol-crossing.svg) | |
+| Single slip | ![single slip](images/symbol-single_slip.svg) | |
+| Double slip | ![double slip](images/symbol-double_slip.svg) | |
+| 90° crossing | ![90 degree crossing](images/symbol-crossing_90.svg) | upright, two straight routes |
+| 90° crossing, diagonal | ![90 degree crossing, diagonal](images/symbol-crossing_90d.svg) | the same at 45 degrees |
+| Portal | ![portal](images/symbol-portal.svg) | paired by label; placed as a pair |
 
 Signals and sensors are not palette entries. Every block has both at both
 ends, so there is nothing to place.
