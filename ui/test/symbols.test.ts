@@ -51,9 +51,15 @@ describe("the generated symbol library", () => {
   });
 
   it("gives every placeable kind a place in the palette, and no other", () => {
-    // The palette is drawn in EDITOR.md's order, which is not the generator's,
-    // so a new placeable kind would otherwise be silently left off.
-    expect([...PALETTE].sort()).toEqual([...PLACEABLE].sort());
+    // The palette is drawn in EDITOR.md's groups, which are not the
+    // generator's order, so a new placeable kind would otherwise be silently
+    // left off.
+    expect(PALETTE.flat().sort()).toEqual([...PLACEABLE].sort());
+  });
+
+  it("puts each kind in exactly one group", () => {
+    const placed = PALETTE.flat();
+    expect(new Set(placed).size).toBe(placed.length);
   });
 
   it("declares a transit between two pins the same kind has", () => {

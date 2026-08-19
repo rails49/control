@@ -114,6 +114,16 @@ error ([ADR-0020](../adr/0020-a-portal-is-placed-as-a-pair.md)).
 Tiles carry no names. Each kind is drawn one way, so the drawing is the name,
 and the title attribute has the word for anyone who wants it.
 
+The tiles are laid out in three groups, in the order of the table below: the
+block by itself; the six symbols track crosses or divides at, two to a row so
+that the pairs — the two slips, the two 90 degree crossings — sit side by
+side; and the two ends of a drawing, where track stops and where it leaves the
+sheet. Space between the groups is the only thing telling them apart. A
+heading would be the only word in the palette, naming a category the symbols
+already show. The block takes a whole row rather than half of one: its 6x1
+tile is as wide as the pane allows, and halving it would draw it smaller than
+every other symbol when the tiles are all at one grid square.
+
 The placeable symbols, with their semantics defined in
 [DRAWING.md](../store/DRAWING.md#symbols). The images are the tiles themselves,
 all at one grid square, so a symbol's width here is its footprint; the
@@ -122,13 +132,13 @@ dimensions below are normative.
 | Symbol | | Notes |
 | --- | --- | --- |
 | Block | ![block](images/symbol-block.svg) | shows occupancy on the panel; carries a signal and a sensor at each end |
-| Terminal | ![terminal](images/symbol-terminal.svg) | deliberate track end |
 | Turnout | ![turnout](images/symbol-turnout.svg) | |
 | Crossing | ![crossing](images/symbol-crossing.svg) | |
 | Single slip | ![single slip](images/symbol-single_slip.svg) | |
 | Double slip | ![double slip](images/symbol-double_slip.svg) | |
 | 90° crossing | ![90 degree crossing](images/symbol-crossing_90.svg) | upright, two straight routes |
 | 90° crossing, diagonal | ![90 degree crossing, diagonal](images/symbol-crossing_90d.svg) | the same at 45 degrees |
+| Terminal | ![terminal](images/symbol-terminal.svg) | deliberate track end |
 | Portal | ![portal](images/symbol-portal.svg) | paired by label; placed as a pair |
 
 Signals and sensors are not palette entries. Every block has both at both

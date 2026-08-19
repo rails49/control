@@ -199,6 +199,24 @@ export const paletteStyles = css`
     margin: 0.3rem 0.2rem;
   }
 
+  /* One group of related symbols, two tiles to a row; a group of one takes the
+     whole width, a block's 6x1 tile being as wide as the pane allows. Space
+     between the groups is the only thing telling them apart — the palette has
+     no words in it and is not about to grow three headings. */
+  .group {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.15rem;
+  }
+
+  .group.wide {
+    grid-template-columns: 1fr;
+  }
+
+  .group + .group {
+    margin-top: 1.3rem;
+  }
+
   /* The tiles carry no names, so the symbol is centred in the tile rather than
      sitting at the head of a row of text. */
   button {
@@ -207,7 +225,6 @@ export const paletteStyles = css`
     justify-content: center;
     width: 100%;
     padding: 0.45rem 0.3rem;
-    margin-bottom: 0.15rem;
     border: 1px solid transparent;
     border-radius: 4px;
     background: none;

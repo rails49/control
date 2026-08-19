@@ -45,11 +45,29 @@ export class TcPalette extends LitElement {
       <!-- One definition for all the tiles: an id is looked up across the whole
            tree, not per svg, so repeating it in each tile would repeat the id. -->
       <svg class="defs" aria-hidden="true"><defs>${DEFS}</defs></svg>
-      ${PALETTE.map((kind) => this.tile(kind))}
+      ${PALETTE.map((group) => this.group(group))}
       <p class="hint">drag a symbol onto the sheet</p>
       <p class="hint">
         <kbd>r</kbd> rotate · <kbd>f</kbd> flip · <kbd>esc</kbd> cancel
       </p>
+    `;
+  }
+
+  /**
+   * One group of the palette, laid two tiles to a row. A group of one takes
+   * the whole width, which is what a block's 6x1 tile wants: at half the pane
+   * it would be drawn smaller than every other symbol, and the tiles are all
+   * at one grid square (EDITOR.md).
+   *
+   * The groups are told apart by the space between them and nothing else. The
+   * tiles carry no names, so a heading here would be the only word in the
+   * palette and would name a category the symbols already show.
+   */
+  private group(kinds: readonly Kind[]) {
+    return html`
+      <div class=${kinds.length === 1 ? "group wide" : "group"}>
+        ${kinds.map((kind) => this.tile(kind))}
+      </div>
     `;
   }
 

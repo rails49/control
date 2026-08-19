@@ -347,22 +347,29 @@ function n(value: number): number {
 }
 
 /**
- * The palette's order, the one EDITOR.md's table documents: grouped by what
+ * The palette's groups, the ones EDITOR.md's table documents: grouped by what
  * the symbols are rather than by their names, which is how `PLACEABLE` comes
- * out of the generator. A test asserts the two hold the same kinds, so a new
- * placeable kind has to be given a place here rather than appearing wherever
- * the alphabet puts it.
+ * out of the generator. A test asserts the groups hold the same kinds, so a
+ * new placeable kind has to be given a home here rather than appearing
+ * wherever the alphabet puts it.
+ *
+ * The block stands alone, being the only symbol that is a place rather than a
+ * way through one. Then the six symbols track crosses or divides at, laid two
+ * to a row so the pairs — the two slips, the two 90 degree crossings — sit
+ * side by side. Then the two ends of a drawing: where track stops and where it
+ * leaves the sheet.
  */
-export const PALETTE: readonly Kind[] = [
-  "block",
-  "terminal",
-  "turnout",
-  "crossing",
-  "single_slip",
-  "double_slip",
-  "crossing_90",
-  "crossing_90d",
-  "portal",
+export const PALETTE: readonly (readonly Kind[])[] = [
+  ["block"],
+  [
+    "turnout",
+    "crossing",
+    "single_slip",
+    "double_slip",
+    "crossing_90",
+    "crossing_90d",
+  ],
+  ["terminal", "portal"],
 ];
 
 /** What a palette tile shows: the symbol at its default placement. */
