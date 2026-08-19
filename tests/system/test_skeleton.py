@@ -74,6 +74,32 @@ def test_unreachable_rejection_at_first_launch_attempt() -> None:
     assert rejected["reason"] == "unreachable"
 
 
+def test_a_stated_departure_the_train_is_not_at_is_rejected() -> None:
+    """A departure block that disagrees with where the train stands is an
+    ordinary bad request, answered rather than raised, and the run carries on
+    around it (#73)."""
+    layout, _ = load("crossover-yard/meet")
+    scenario = Scenario(
+        "stale",
+        "crossover-yard",
+        {
+            "freight": TrainSpec(600, "yard_w", "B"),
+            "express": TrainSpec(600, "up_e", "A"),
+        },
+        (
+            # freight stands in yard_w; this states the far yard.
+            RequestSpec("freight", "yard_e.A", ("dn_w.B",), 0),
+            RequestSpec("express", "up_e.A", ("dn_w.B",), 0),
+        ),
+    )
+    trace = run(layout, scenario)
+    leaves = [line["event"] for line in events(trace, rid="freight-1")]
+    assert leaves == ["request_submitted", "request_rejected"]
+    [rejected] = events(trace, "request_rejected")
+    assert rejected["reason"] == "wrong_origin"
+    assert events(trace, "request_completed", rid="express-1")
+
+
 def test_degenerate_request_completes_without_moving_whichever_end() -> None:
     layout, _ = load("crossover-yard/meet")
     for end in ("yard_w.A", "yard_w.B"):

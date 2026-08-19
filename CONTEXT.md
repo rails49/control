@@ -118,8 +118,11 @@ _Avoid_: direction (ambiguous with travel direction), heading, orientation
 
 **Request**:
 An order to deliver a train out through one end of its block and in through one
-of a set of **arrival ends**. Rejected only if no arrival end survives — none
-fits the train, or none is reachable; otherwise accepted and queued.
+of a set of **arrival ends**. Rejected if no arrival end survives — none fits
+the train, or none is reachable — or if it states a departure block the train is
+not standing in; otherwise accepted and queued. Every rejection is an answer on
+the bus and never an exception, since the submitter may be an untrusted client
+([ADR-0021](docs/adr/0021-a-bad-request-is-answered-not-raised.md)).
 _Avoid_: order, job
 
 **Arrival end**:

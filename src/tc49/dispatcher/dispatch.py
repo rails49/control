@@ -116,7 +116,11 @@ class Dispatcher:
         self._seen_ids.add(rid)
         train = payload["train"]
         expected = self._expected_block(train)
-        self._check_stated_departure(rid, train, payload["depart"], expected)
+        if self._departs_elsewhere(payload["depart"], expected):
+            self._bus.publish(
+                "tc49/dispatch/request_rejected", {"id": rid, "reason": "wrong_origin"}
+            )
+            return
 
         surviving: list[str] = []
         pruned: list[dict[str, str]] = []
@@ -165,19 +169,14 @@ class Dispatcher:
         active = self._state.active.get(train)
         return active.route.arrival_block if active else self._state.block_of[train]
 
-    def _check_stated_departure(
-        self, rid: str, train: str, depart: str, expected: str | None
-    ) -> None:
-        """A stated departure block is checked against where the train
-        stands — an authoring slip is a loud error at a known tick."""
+    def _departs_elsewhere(self, depart: str, expected: str | None) -> bool:
+        """Whether a stated departure block disagrees with where the train
+        stands. A bare end letter states no block, and an earlier pending
+        request makes the block a future dispatcher choice; neither can
+        disagree."""
         if "." not in depart or expected is None:
-            return
-        stated = depart.rpartition(".")[0]
-        if stated != expected:
-            raise ValueError(
-                f"request '{rid}': train '{train}' departs from '{stated}'"
-                f" but stands in '{expected}'"
-            )
+            return False
+        return depart.rpartition(".")[0] != expected
 
     # -- the grant phase ---------------------------------------------------
 

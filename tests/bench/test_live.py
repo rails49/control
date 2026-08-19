@@ -140,3 +140,41 @@ def test_a_rejection_comes_back_with_its_reason(
         if frame["topic"].rsplit("/", 1)[-1] == "request_rejected"
     ]
     assert rejection["payload"]["reason"] == "unreachable"
+
+
+def test_a_stale_departure_is_answered_and_the_session_lives(
+    assembly: Assembly, client: ClientConnection
+) -> None:
+    """A panel that joins a running session seeds placement from the scenario
+    (ADR-0016), so its drag can state the block a train has already left. That
+    is an ordinary bad request from an untrusted client: the dispatcher answers
+    it and the railroad keeps ticking (#73)."""
+    submit(
+        client,
+        assembly,
+        {
+            "id": "freight_1-1",
+            "train": "freight_1",
+            "depart": "yard_w.B",
+            "dest": ["yard_e.A"],
+        },
+    )
+    tick_until(
+        assembly,
+        lambda: bool(events(assembly.trace, "request_completed", rid="freight_1-1")),
+    )
+    submit(  # the stale drag: freight_1 stands in yard_e now, not yard_w
+        client,
+        assembly,
+        {
+            "id": "freight_1-2",
+            "train": "freight_1",
+            "depart": "yard_w.B",
+            "dest": ["dn_w.A"],
+        },
+    )
+    [rejected] = events(assembly.trace, "request_rejected", rid="freight_1-2")
+    assert rejected["reason"] == "wrong_origin"
+    ticks = len(events(assembly.trace, "tick"))
+    tick_until(assembly, lambda: False, limit=3)
+    assert len(events(assembly.trace, "tick")) > ticks

@@ -8,10 +8,11 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
 
 ## Semantics
 
-- **Admission** — a request is rejected only if no arrival end survives: none
+- **Admission** — a request is rejected if no arrival end survives: none
   is a block the train fits, none is an end any route can enter through, or —
-  settled at the first launch attempt, from the origin — none is reachable.
-  All other requests are accepted and queued.
+  settled at the first launch attempt, from the origin — none is reachable. A
+  request stating a departure block its train is not standing in is rejected
+  too. All other requests are accepted and queued.
 - **Fixed routes** — a route is chosen when the train starts moving and never
   changed; only its locks are incremental
   ([ADR-0002](../adr/0002-fixed-route-per-request.md)).
@@ -52,6 +53,10 @@ need different information:
   request arrives. A stated departure block is checked here too, against where
   the train actually stands: the scheduler is layout-blind, so every
   feasibility check is the dispatcher's ([SYSTEM.md](../SYSTEM.md#scheduler)).
+  A disagreement rejects the request — reason `wrong_origin` — rather than
+  raising, since the submitter may be a stale browser
+  ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)). A request
+  naming no block, as a chained working does, can state no disagreement.
 - At the first launch attempt, arrival ends not reachable from the origin are
   pruned. This needs the origin block, which for a chained working is not known
   until its predecessor completes — so `request_rejected` can also be

@@ -136,7 +136,7 @@ leaf, naming a beat rather than a change.
 | `tc49/schedule/request_submitted` | event | scheduler | id, train, depart, dest ends |
 | `tc49/schedule/state/exhausted` | state | scheduler | last-value flag |
 | `tc49/dispatch/request_admitted` | event | dispatcher | id, surviving dest ends, pruned |
-| `tc49/dispatch/request_rejected` | event | dispatcher | id, reason (`no_fit`, `no_entry`, `unreachable`) |
+| `tc49/dispatch/request_rejected` | event | dispatcher | id, reason (`no_fit`, `no_entry`, `unreachable`, `wrong_origin`) |
 | `tc49/dispatch/request_completed` | event | dispatcher | id |
 | `tc49/dispatch/route_chosen` | event | dispatcher | id, route, k_tried |
 | `tc49/dispatch/move_granted` | event | dispatcher | id, train, transit, into |
@@ -294,7 +294,11 @@ The dispatcher is the deep module and the research core; its semantics are
 asynchronous**: requests arrive as events and every fate is announced as an
 event — `request_admitted`, `request_rejected` (at admission or at first
 launch attempt), `request_completed` — with the request id as correlation
-and idempotency key (duplicate request events are dropped). Sensor events
+and idempotency key (duplicate request events are dropped). *Every* fate,
+including a request that makes no sense: one stating a departure block its
+train is not standing in is answered `wrong_origin`, never raised, because
+the submitter may be a browser
+([ADR-0021](adr/0021-a-bad-request-is-answered-not-raised.md)). Sensor events
 are **buffered until the tick**, then treated as a set with the canonical
 grant order applied to the whole of it, so grants are a pure function of the
 buffered set, never of delivery order — and under MQTT a straggling sensor
