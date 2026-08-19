@@ -418,6 +418,22 @@ export const canvasStyles = css`
     pointer-events: none;
   }
 
+  /* The label a portal pairing with nothing wears, beside its mouth: the only
+     text a symbol other than a block carries, and there only while the drawing
+     is wrong, so colour on the canvas still means trouble
+     (EDITOR.md#symbol-geometry).
+
+     It is not a name rule, though it is drawn like one: a name is what a symbol
+     carries and this is a finding, and which end of it sits on the point is
+     the mark's own direction speaking, through the attribute a rule here would
+     beat. */
+  .unpaired {
+    font-family: system-ui, sans-serif;
+    fill: var(--wrong);
+    dominant-baseline: middle;
+    pointer-events: none;
+  }
+
   /* Every pin is drawn while editing, green where it has the wire it wants and
      red where it does not. The verdict is the store's, not the canvas's. */
   .pin {

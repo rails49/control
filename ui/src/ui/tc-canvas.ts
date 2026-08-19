@@ -23,16 +23,18 @@ import {
   cellsOf,
   centreOf,
   facePoint,
+  gridPointOf,
+  labelAnchor,
   labelTurn,
   transformOf,
   type Point,
 } from "../model/geometry.js";
 import { Gesture, type Outcome } from "../model/gesture.js";
-import { clashes, dark, lit, type Chosen } from "../model/inspect.js";
+import { clashes, dark, lit, unpaired, type Chosen } from "../model/inspect.js";
 import type { Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
-import { BLOCK, FACE, PIN, fitted } from "../render/units.js";
+import { BLOCK, FACE, PIN, PORTAL, fitted } from "../render/units.js";
 import { canvasStyles } from "./styles.js";
 
 /** What a canvas with no review yet reads as. */
@@ -117,7 +119,7 @@ export class TcCanvas extends LitElement {
   fit(): void {
     const box = this.getBoundingClientRect();
     const shape = box.width > 0 ? box.height / box.width : 0.7;
-    const points = this.editor.allPins();
+    const points: Point[] = [...this.editor.allPins(), ...this.marks()];
     if (points.length === 0) {
       this.view = { x: -1, y: -1, w: 16, h: 16 * shape };
       return;
@@ -129,6 +131,18 @@ export class TcCanvas extends LitElement {
     const w = Math.max(across, down / shape);
     const h = w * shape;
     this.view = { x: x - (w - across) / 2, y: y - (h - down) / 2, w, h };
+  }
+
+  /** Where the labels of the portals pairing with nothing are drawn, which
+   *  `fit` has to keep on screen. A portal's one pin is on the side away from
+   *  its mouth, so the outermost thing in the drawing can be the very mark that
+   *  wants looking at, a whole square outside the pin the margin is measured
+   *  from. */
+  private marks(): Point[] {
+    return [...unpaired(this.review ?? EMPTY).keys()].flatMap((name) => {
+      const spec = this.editor.drawing.symbols[name];
+      return spec === undefined ? [] : [gridPointOf(spec, PORTAL.mark)];
+    });
   }
 
   /** Zoom about the middle of the view, which is what a button can mean —
@@ -228,6 +242,7 @@ export class TcCanvas extends LitElement {
   private symbols(): unknown {
     const way = lit(this.review ?? EMPTY, this.chosen);
     const blind = dark(this.review ?? EMPTY);
+    const lone = unpaired(this.review ?? EMPTY);
     return Object.entries(this.editor.drawing.symbols).map(([name, spec]) => {
       const chosen = this.editor.selection.has(name);
       const shifted = this.shift(name);
@@ -240,31 +255,70 @@ export class TcCanvas extends LitElement {
           <g transform=${transformOf(spec)}>
             ${artwork(spec, way.get(name), blind.get(name))}
           </g>
-          ${this.label(name, spec)}
+          ${this.label(name, spec, lone.get(name))}
         </g>
       `;
     });
   }
 
   /**
-   * A block's label, which is its name, centred in its rectangle and turned
-   * outside the artwork's own group: upright on a horizontal block and read
-   * bottom to top on a vertical one (`labelTurn`).
+   * The text a symbol carries: a block's name always, and the label of a
+   * portal that pairs with nothing.
    *
-   * It is the only text on a symbol (EDITOR.md#symbol-geometry). Other names
-   * are read in the properties dialog and in the netlist pane, portals
-   * included, and the names over the tinted junction regions are `/review`'s
-   * overlay rather than anything a symbol carries.
+   * A block's label is the only text a *correct* drawing carries
+   * (EDITOR.md#symbol-geometry) — every other name is read in the properties
+   * dialog and in the netlist pane, portals included. The unpaired portal's
+   * label is a finding rather than a name the symbol wears: it is drawn in red
+   * and it goes away when the label pairs.
+   */
+  private label(
+    name: string,
+    spec: SymbolSpec,
+    lone: string | undefined,
+  ): unknown {
+    if (spec.kind === "portal") return this.portalLabel(spec, lone);
+    if (spec.kind !== "block") return nothing;
+    return this.blockName(name, spec);
+  }
+
+  /**
+   * A block's name, centred in its rectangle and turned outside the artwork's
+   * own group: upright on a horizontal block and read bottom to top on a
+   * vertical one (`labelTurn`).
    *
    * The label turns with the block, so the rectangle's long side is the width
    * it has to fit whichever way the block stands.
    */
-  private label(name: string, spec: SymbolSpec): unknown {
-    if (spec.kind !== "block") return nothing;
+  private blockName(name: string, spec: SymbolSpec): unknown {
     const { x, y } = centreOf(spec);
     return svg`<text class="name" x=${x} y=${y}
       font-size=${fitted(name, BLOCK.body.w)}
       transform=${`rotate(${labelTurn(spec)} ${x} ${y})`}>${name}</text>`;
+  }
+
+  /**
+   * The label a portal that pairs with nothing wears, beside its mouth in red.
+   *
+   * A lone portal is otherwise invisible twice over: nothing says it pairs
+   * with nothing, and nothing says which label it wears, so two of them at
+   * opposite ends of the canvas cannot be told from a pair by looking. The
+   * mark is therefore the label itself — it names the string to type at the
+   * other end, which is what a mark of any other shape would still cost a
+   * dialog visit to learn (ADR-0020).
+   *
+   * Which portals wear one is `/review`'s answer keyed by symbol (inspect.ts);
+   * no pairing is worked out here. `gridPointOf` takes the point through the
+   * symbol's own flip and quarter turns, so the label sits past the mouth
+   * whichever way the portal points and is still drawn upright, and
+   * `labelAnchor` starts it at the end nearest the mouth, so a long label runs
+   * away from the artwork rather than back across it.
+   */
+  private portalLabel(spec: SymbolSpec, lone: string | undefined): unknown {
+    if (lone === undefined) return nothing;
+    const { x, y } = gridPointOf(spec, PORTAL.mark);
+    return svg`<text class="unpaired" x=${x} y=${y}
+      text-anchor=${labelAnchor(spec, PORTAL.mark)}
+      font-size=${PORTAL.mark.size}>${lone}</text>`;
   }
 
   /** Every pin, green where `/review` is satisfied with it and red where it is

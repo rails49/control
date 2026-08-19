@@ -293,9 +293,26 @@ degrees from vertical, and two grey hairlines at that same angle beyond it,
 each about 0.53G long: the first crosses the track's centreline at the cut, the
 second 0.09G further out.
 
-A block's label is the only text on the canvas. Nothing else is named there, a
-portal and a junction region included; a name is read in the properties dialog
-and in the netlist pane.
+A portal whose label pairs with nothing wears that label, drawn in red beside
+its mouth: 0.30G text, upright at every rotation, beginning at `(1.2, 0.5)` of
+the symbol's own coordinates — past the mouth, on the side no wire lands. The
+end nearest the mouth is the end that sits on the point, so the label runs
+outwards however long it is instead of back across the artwork it marks. The
+fit takes the mark into its bounds as well as the pins: a portal's one pin is
+on the side away from its mouth, so the outermost thing in a drawing can be
+the very mark that wants looking at.
+
+The mark is the label because a lone portal is otherwise invisible twice over —
+nothing says it is unpaired and nothing says which label it is looking for — so
+the mark names the string to type at the other end
+([ADR-0020](../adr/0020-a-portal-is-placed-as-a-pair.md)). Which portals wear
+one is `/review`'s answer, not the editor's.
+
+A block's label is the only text a *correct* drawing carries. Nothing else is
+named on the canvas, a paired portal and a junction region included; a name is
+read in the properties dialog and in the netlist pane. The unpaired portal's
+label is a finding rather than a name the symbol wears, and it goes away when
+the label pairs.
 
 Each kind has exactly one appearance; diagonal legs are always 45 degrees.
 The former `angle` property that picked between appearances is removed

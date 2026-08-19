@@ -203,6 +203,28 @@ export function labelTurn(spec: SymbolSpec): number {
   return (spec.rot ?? 0) % 180 === 0 ? 0 : -90;
 }
 
+/**
+ * Which end of an upright label sits on `local`: the end nearest the symbol, so
+ * the text runs away from the artwork however long it is.
+ *
+ * A label beside a symbol is placed at one point of the symbol's own
+ * coordinates and drawn upright, so which way it then runs on screen is the
+ * placement's business: a portal turned 180 degrees has its mouth to the west
+ * and its label has to run west too. Centring the text instead would put a long
+ * label back over the artwork it marks.
+ *
+ * A point straight above or below the symbol leaves no side to prefer, so the
+ * label is centred there.
+ */
+export function labelAnchor(
+  spec: SymbolSpec,
+  local: Point,
+): "start" | "middle" | "end" {
+  const along = gridPointOf(spec, local).x - gridPointOf(spec, { x: 0, y: local.y }).x;
+  if (Math.abs(along) < 1e-6) return "middle";
+  return along > 0 ? "start" : "end";
+}
+
 /** The middle of a placed symbol's footprint, which is where a label goes. */
 export function centreOf(spec: SymbolSpec): Point {
   const [c, r] = spec.at ?? [0, 0];

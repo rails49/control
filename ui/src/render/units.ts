@@ -93,6 +93,17 @@ export const PORTAL = {
   stub: 0.69,
   lean: -0.41,
   mouth: { first: 0.7, apart: 0.09, reach: 0.27 },
+  /**
+   * Where the label of a portal that pairs with nothing begins, in the symbol's
+   * own coordinates: past the mouth, which is the side no wire lands on, so the
+   * mark sits in the space the vanishing track leaves.
+   *
+   * The end nearest the mouth sits on the point (`labelAnchor`), so the label
+   * runs outwards however long it is; a centred one would run back over the
+   * artwork it marks. Smaller than a block's label, a portal being a sixth of a
+   * block's footprint, and there is no rectangle to fit it to.
+   */
+  mark: { x: 1.2, y: 0.5, size: 0.3 },
 };
 
 /**

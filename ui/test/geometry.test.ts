@@ -7,6 +7,7 @@ import {
   faceAt,
   facePoint,
   gridPointOf,
+  labelAnchor,
   labelTurn,
   placed,
 } from "../src/model/geometry.js";
@@ -138,6 +139,34 @@ describe("a point of the symbol's own coordinates", () => {
           anchorOf(spec, "diverging"),
         );
       }
+    }
+  });
+});
+
+describe("which end of an upright label sits on its point", () => {
+  /** Where a portal's label goes: past the mouth, on the symbol's own +x. */
+  const mark = { x: 1.2, y: 0.5 };
+
+  it("starts the label where the point is east of the symbol", () => {
+    expect(labelAnchor({ kind: "portal", at: [2, 3] }, mark)).toBe("start");
+  });
+
+  it("ends it where the placement put the point west", () => {
+    // A portal turned 180 degrees has its mouth to the west, so a label
+    // running east from the point would run back over the artwork.
+    expect(labelAnchor({ kind: "portal", at: [2, 3], rot: 180 }, mark)).toBe(
+      "end",
+    );
+    expect(labelAnchor({ kind: "portal", at: [2, 3], flip: true }, mark)).toBe(
+      "end",
+    );
+  });
+
+  it("centres it where the point is straight above or below", () => {
+    for (const rot of [90, 270] as const) {
+      expect(labelAnchor({ kind: "portal", at: [2, 3], rot }, mark)).toBe(
+        "middle",
+      );
     }
   });
 });

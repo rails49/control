@@ -9,6 +9,7 @@ import {
   lit,
   routes,
   through,
+  unpaired,
 } from "../src/model/inspect.js";
 import type { Review } from "../src/model/store.js";
 
@@ -389,5 +390,39 @@ describe("the block ends carrying no signal", () => {
       transits: { straight_through: ["yard.B", "dn_e.A"] },
     };
     expect(dark(found).get("yard")).toBeUndefined();
+  });
+});
+
+describe("the portals wearing a label that does not pair", () => {
+  it("names each portal with the label it wears", () => {
+    const found = scissors();
+    found.unpaired_portals = [
+      { label: "p1", portals: ["portal1"] },
+      { label: "p2", portals: ["portal4"] },
+    ];
+    expect(unpaired(found)).toEqual(
+      new Map([
+        ["portal1", "p1"],
+        ["portal4", "p2"],
+      ]),
+    );
+  });
+
+  it("names every portal wearing a label worn three times", () => {
+    // Three is as unpaired as one, and the label is on all three: none of
+    // them is the odd one out, so the mark cannot pick one.
+    const found = scissors();
+    found.unpaired_portals = [
+      { label: "p1", portals: ["portal1", "portal2", "portal3"] },
+    ];
+    expect([...unpaired(found).keys()]).toEqual([
+      "portal1",
+      "portal2",
+      "portal3",
+    ]);
+  });
+
+  it("names nothing where every label pairs", () => {
+    expect(unpaired(scissors()).size).toBe(0);
   });
 });

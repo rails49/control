@@ -95,6 +95,26 @@ export function dark(review: Review): Map<string, Set<string>> {
   return found;
 }
 
+/**
+ * The portals whose label pairs with nothing, each with the label it wears.
+ *
+ * A portal is paired by label with exactly one other, and the store's review
+ * names every label not worn by exactly two, with the portals wearing it
+ * (EDITOR.md#implementation). This turns that answer inside out — keyed by
+ * symbol, as `lit` and `dark` are — so the canvas asks per symbol as it draws.
+ *
+ * Which labels pair is not worked out here. A label worn three times is on all
+ * three portals and none of them is the odd one out, so every portal wearing it
+ * is marked, which is what the store already says.
+ */
+export function unpaired(review: Review): Map<string, string> {
+  const found = new Map<string, string>();
+  for (const { label, portals } of review.unpaired_portals) {
+    for (const portal of portals) found.set(portal, label);
+  }
+  return found;
+}
+
 /** One rival of a chosen transit: whether the two run together, and where a
  *  refusal comes from. */
 export interface Against {
