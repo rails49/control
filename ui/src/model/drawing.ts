@@ -12,7 +12,13 @@
  * store's `/review` (EDITOR.md).
  */
 
-import { PINS, type Kind, type Rotation } from "../symbols.generated.js";
+import {
+  PINS,
+  POSITIONS,
+  type Kind,
+  type MotorisedKind,
+  type Rotation,
+} from "../symbols.generated.js";
 
 /** A pin, written `<symbol>.<pin>`. */
 export type PinRef = string;
@@ -48,6 +54,8 @@ export interface SymbolSpec {
   sensors?: Record<string, string>;
   /** A portal's pairing label: two portals wearing one label join. */
   label?: string;
+  /** What the hardware behind a motorised symbol answers to. */
+  addr?: string;
   /** The junction this symbol belongs to. */
   connection?: string;
   /** Transit names, keyed by the symbol leg the way through takes. */
@@ -83,6 +91,17 @@ const NAMED = new Set<AnyKind>(["block", "connection"]);
 
 export function named(kind: AnyKind): boolean {
   return NAMED.has(kind);
+}
+
+/**
+ * Whether a kind has a motor, and so carries the address hardware answers to
+ * ([ADR-0022](../../../docs/adr/0022-a-symbol-carries-its-hardware-address.md)).
+ * A turnout and both slips do; a fixed crossing has nothing to command and
+ * takes none. The library's leg-to-position table is the roll of them, so
+ * there is no second list here to fall out of step with it.
+ */
+export function motorised(kind: AnyKind): kind is MotorisedKind {
+  return kind in POSITIONS;
 }
 
 export interface Drawing {

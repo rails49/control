@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { named, nameTrouble, symbolTrouble } from "../src/model/drawing.js";
+import {
+  motorised,
+  named,
+  nameTrouble,
+  symbolTrouble,
+} from "../src/model/drawing.js";
 
 describe("naming a new drawing", () => {
   it("accepts a fresh name", () => {
@@ -43,6 +48,31 @@ describe("the kinds whose name is the user's to choose", () => {
   it("leaves the wiring and the fixed crossing unnamed as they were", () => {
     for (const kind of ["pin", "terminal", "portal", "crossing"] as const) {
       expect(named(kind)).toBe(false);
+    }
+  });
+});
+
+/**
+ * Which kinds carry an address (ADR-0022). A motorised symbol is commanded by
+ * the address hardware answers to, so it is the one thing typed on a turnout
+ * or a slip; a fixed crossing has no motor and takes none.
+ */
+describe("the kinds that carry an address", () => {
+  it("addresses every kind with a motor", () => {
+    for (const kind of ["turnout", "single_slip", "double_slip"] as const) {
+      expect(motorised(kind)).toBe(true);
+    }
+  });
+
+  it("leaves a fixed crossing unaddressed, having no motor to command", () => {
+    for (const kind of ["crossing", "crossing_90", "crossing_90d"] as const) {
+      expect(motorised(kind)).toBe(false);
+    }
+  });
+
+  it("addresses nothing that is not a symbol of fixed geometry", () => {
+    for (const kind of ["block", "portal", "pin", "terminal", "connection"] as const) {
+      expect(motorised(kind)).toBe(false);
     }
   });
 });

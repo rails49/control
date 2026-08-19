@@ -10,6 +10,12 @@
  * edit does not open the dialog at all — an empty modal is worse than none,
  * and the netlist pane is where a hidden name is read.
  *
+ * A turnout and a slip are left with something: `addr`, the address the
+ * hardware behind the points answers to (ADR-0022). It is what the bus
+ * commands them by, so it is theirs to type where their key is not, and their
+ * dialog holds it alone. A fixed crossing has no motor and so still holds
+ * nothing.
+ *
  * A block's key is the name it is known by everywhere: on the canvas, in the
  * netlist, and as the prefix of every transit id in a trace. Renaming one is a
  * real change and every wire that names its pins is rewritten with it, which
@@ -32,6 +38,7 @@ import "@shoelace-style/shoelace/dist/components/select/select.js";
 
 import { PINS } from "../symbols.generated.js";
 import {
+  motorised,
   named,
   symbolTrouble,
   type AnyKind,
@@ -121,6 +128,16 @@ export class TcProperties extends LitElement {
         ></sl-input>
       `;
     }
+    if (motorised(this.draft.kind)) {
+      return html`
+        <sl-input
+          label="Address"
+          help-text="What the points answer to. A DCC accessory number is a string that happens to be digits."
+          value=${this.draft.addr ?? ""}
+          @sl-input=${this.take("addr")}
+        ></sl-input>
+      `;
+    }
     // Every other kind is drawn one way, so there is nothing per-kind to set.
     return nothing;
   }
@@ -151,7 +168,7 @@ export class TcProperties extends LitElement {
     `;
   }
 
-  private take(key: "label") {
+  private take(key: "label" | "addr") {
     return (event: Event) => {
       this.draft = {
         ...this.draft,
@@ -188,18 +205,20 @@ export class TcProperties extends LitElement {
   }
 }
 
-/** Whether a kind has anything to edit: a name of its own, or the fields only
- *  a portal has. A pin, a terminal and a fixed crossing have neither, and the
- *  menu offers them no properties. */
+/** Whether a kind has anything to edit: a name of its own, a portal's label,
+ *  or a motor's address. A pin, a terminal and a fixed crossing have none of
+ *  them, and the menu offers them no properties. */
 export function editable(kind: AnyKind): boolean {
-  return named(kind) || kind === "portal";
+  return named(kind) || kind === "portal" || motorised(kind);
 }
 
 /** Drop what the drawing schema would refuse: an empty label is not a name,
- *  and an empty mapping is a key the file does not need. */
+ *  and an empty mapping is a key the file does not need. A cleared address is
+ *  no address rather than an empty one — a drawing with none is valid. */
 function tidy(spec: SymbolSpec): SymbolSpec {
   const tidied: SymbolSpec = { ...spec };
   if (!tidied.label) delete tidied.label;
+  if (!tidied.addr) delete tidied.addr;
   if (tidied.sensors && Object.keys(tidied.sensors).length === 0) {
     delete tidied.sensors;
   }

@@ -73,12 +73,13 @@ describe("what the menu offers", () => {
     }
   });
 
-  /** A turnout and a slip have a motor, but the bus addresses `addr` and not
-   *  the key (ADR-0022), so their names are minted and hidden too and there is
-   *  nothing left in the dialog to open (ADR-0023). */
-  it("offers the motorised kinds only the transforms", async () => {
+  /** A turnout and a slip have no name to type — the bus addresses `addr` and
+   *  not the key (ADR-0022) — but the address itself is theirs to set, so the
+   *  dialog opens holding that alone. */
+  it("offers the motorised kinds their properties and the transforms", async () => {
     for (const kind of ["turnout", "single_slip", "double_slip"] as const) {
       expect(await items(at({ symbol: "sw1", kind }))).toEqual([
+        "Properties…",
         "Rotate",
         "Flip",
         "Delete",
