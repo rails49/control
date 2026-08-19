@@ -19,6 +19,11 @@ throughout; the panel, which is used constantly, is where polish goes.
 
 ![RocRail layout](images/rocrail.png)
 
+The same railroad in this editor. Track is black and a block's rectangle white,
+every pin is drawn, and the tinted squares are the junctions derivation found.
+
+![Gotthard in the editor](images/gotthard.svg)
+
 ## What it is for
 
 Drawing a railroad is the easy half. The hard half is knowing that the picture
