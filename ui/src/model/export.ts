@@ -34,7 +34,7 @@ export const GESTURING: string[] = ["selected", "pending"];
 /** How large a grid square opens at, in pixels. The file has no pane to fill,
  *  so it carries a size; this is the one the plates in EDITOR.md are drawn
  *  at. */
-export const SQUARE = 44;
+const SQUARE = 44;
 
 export interface Sheet {
   /** The frame, in grid squares. */

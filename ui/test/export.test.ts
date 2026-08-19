@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { GESTURING, SQUARE, TRANSIENT, svgFile } from "../src/model/export.js";
+import { GESTURING, TRANSIENT, svgFile } from "../src/model/export.js";
 
 const BOX = { x: -1, y: -1, w: 10, h: 6 };
 
@@ -38,12 +38,13 @@ describe("the document", () => {
   });
 
   /** The canvas fills the pane it sits in; a file has no pane, so it opens at
-   *  a size of its own — the box in grid squares, at SQUARE pixels each. */
+   *  a size of its own: ten squares by six, at 44 pixels a square. */
   it("opens at the box's own size, over the rule that fills a pane", () => {
     const written = file();
-    expect(written).toContain(`width="${10 * SQUARE}" height="${6 * SQUARE}"`);
-    const pinned = `svg { width: ${10 * SQUARE}px; height: ${6 * SQUARE}px; }`;
+    expect(written).toContain('width="440" height="264"');
+    const pinned = "svg { width: 440px; height: 264px; }";
     expect(written).toContain(pinned);
+    // After the canvas's own rules, or the one that fills a pane would win.
     expect(written.indexOf(pinned)).toBeGreaterThan(written.indexOf(".track"));
   });
 
