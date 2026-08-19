@@ -132,9 +132,9 @@ requests:
   ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)).
 - **`from` requires the end and takes the block optionally.** `from: yard_w.B`
   states the working the way a reader wants to see it, and is checked by the
-  dispatcher at admission against where the train actually stands — the
-  scheduler is layout-blind, so every feasibility check is the dispatcher's
-  ([SYSTEM.md](../SYSTEM.md#scheduler)). But a
+  dispatcher at admission against where the train actually stands — every
+  feasibility check is the dispatcher's, whatever the scheduler happens to know
+  ([ADR-0028](../adr/0028-the-scheduler-knows-where-trains-stand.md)). But a
   chained working can no longer state it: where the previous request parked the
   train is a dispatcher choice among that request's arrival ends, unknown when
   the file is written. Those write `from: A`, and the block is whatever the

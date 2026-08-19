@@ -56,8 +56,9 @@ need different information:
   terminal block's dead end, which no route can ever enter through. Both are
   facts about the layout and the train, so both are decidable the moment the
   request arrives. A stated departure block is checked here too, against where
-  the train actually stands: the scheduler is layout-blind, so every
-  feasibility check is the dispatcher's ([SYSTEM.md](../SYSTEM.md#scheduler)).
+  the train actually stands: every feasibility check is the dispatcher's,
+  whatever the scheduler happens to know
+  ([ADR-0028](../adr/0028-the-scheduler-knows-where-trains-stand.md)).
   A disagreement rejects the request with reason `wrong_origin` rather than
   raising, since the submitter may be a stale browser
   ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)). A request
