@@ -51,6 +51,15 @@ describe("what the band marks as unsaved", () => {
     const header = await band({ drawing: "gotthard", unsaved: false });
     expect(header.renderRoot.querySelector(".unsaved")).toBeNull();
   });
+
+  /** The mark carries its meaning in a label as well as in ink, a dot being no
+   *  use to a reader that cannot see it. */
+  it("labels the dot rather than leaving it a glyph", async () => {
+    const header = await band({ drawing: "gotthard", unsaved: true });
+    const dot = header.renderRoot.querySelector(".unsaved")!;
+    expect(dot.getAttribute("role")).toBe("img");
+    expect(dot.getAttribute("aria-label")).toBe("unsaved");
+  });
 });
 
 describe("which mode the band says you are in", () => {

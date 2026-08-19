@@ -63,14 +63,16 @@ export class TcHeader extends LitElement {
     return html`
       <span class="drawing">${this.drawing ?? "no drawing"}</span>
       ${this.unsaved
-        ? html`<span class="unsaved" title="unsaved" aria-label="unsaved">●</span>`
+        ? html`<span class="unsaved" role="img" title="unsaved" aria-label="unsaved">
+            ●
+          </span>`
         : nothing}
       <span class="mode">${MODES[this.mode]}</span>
       ${this.trace === null ? nothing : html`<span class="trace">${this.trace}</span>`}
       <span class="spacer"></span>
       ${this.trouble === null
         ? nothing
-        : html`<span class="trouble">${this.trouble}</span>`}
+        : html`<span class="trouble" title=${this.trouble}>${this.trouble}</span>`}
       ${this.mode === "live"
         ? html`
             <span class=${`link ${this.linked ? "joined" : "gone"}`}>

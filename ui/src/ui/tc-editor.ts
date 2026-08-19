@@ -61,7 +61,9 @@ export class TcEditor extends LitElement {
    *  things the person drawing has to fix (#84). */
   @state() private trouble: string | null = null;
   /** A name the drawing will not take. That one *is* the author's, so it is a
-   *  finding. */
+   *  finding. It lives until the next accepted edit, the same lifetime it had
+   *  when it shared `trouble`: a refusal outliving what caused it would still
+   *  be listed against a drawing that no longer has the problem. */
   @state() private naming: string | null = null;
   @state() private saved = true;
   @state() private menu: MenuAt | null = null;
@@ -314,6 +316,7 @@ export class TcEditor extends LitElement {
       const at = this.editor.revision;
       this.reviewed = await review(this.editor.drawing);
       this.trouble = null;
+      this.naming = null;
       // A junction always has a valid name, so the names the drawing has not
       // settled are minted the moment the store says which junctions exist.
       // The write folds into the edit that caused it, and asking again with
