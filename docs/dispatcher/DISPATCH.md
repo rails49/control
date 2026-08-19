@@ -53,7 +53,7 @@ need different information:
   request arrives. A stated departure block is checked here too, against where
   the train actually stands: the scheduler is layout-blind, so every
   feasibility check is the dispatcher's ([SYSTEM.md](../SYSTEM.md#scheduler)).
-  A disagreement rejects the request — reason `wrong_origin` — rather than
+  A disagreement rejects the request with reason `wrong_origin` rather than
   raising, since the submitter may be a stale browser
   ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)). A request
   naming no block, as a chained working does, can state no disagreement.

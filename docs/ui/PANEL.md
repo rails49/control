@@ -118,10 +118,11 @@ browser that connects after a train has moved shows it in its scenario block,
 and a drag then states a departure block the dispatcher knows is wrong. That
 drag comes back rejected, reason `wrong_origin`, spelled out at the request's
 endpoints like any other rejection
-([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)) — the panel
-is stale, not the session. It stays stale until the bus shows that train
-moving, since nothing in the panel can learn where it stands: the alternative
-would be the bridge describing the run, which
+([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)). The session
+survives, but the page does not recover: only the bus can say where that train
+stands, and under exclusive modes the train moves only if this panel moves it.
+A misplaced train is therefore undraggable for the rest of the session. The
+alternative would be the bridge describing the run, which
 [SYSTEM.md](../SYSTEM.md) rules out.
 
 Within one page the panel does hold its ground: leaving and rejoining keeps

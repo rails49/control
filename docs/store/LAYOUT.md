@@ -136,8 +136,8 @@ requests:
   train is a dispatcher choice among that request's arrival ends, unknown when
   the file is written. Those write `from: A`, and the block is whatever the
   train is standing in. Where the block *is* written, an authoring slip is
-  rejected at a known tick — `request_rejected`, reason `wrong_origin`
-  ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)) — rather
+  rejected at a known tick, as `request_rejected` with reason `wrong_origin`
+  ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)), rather
   than running as a silently different experiment.
 
 ## Reading a layout
