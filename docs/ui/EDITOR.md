@@ -382,6 +382,12 @@ is a claim about the drawing that can be checked by looking at it. Selecting a
 symbol gives the inverse: every transit through it, split into those that can
 run together and those that cannot.
 
+`A3_B__CW_A` lit: out of Airolo's track 3, across the throat, into Claro west.
+That throat is the one the opening counts 19 transits and 33 concurrent pairs
+at; this drawing names its connection `butterfly`.
+
+![a transit lit across the throat](images/butterfly-transit.svg)
+
 Derivation refusing is shown the same way, at the edit that caused it.
 
 ## Files
