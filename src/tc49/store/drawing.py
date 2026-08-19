@@ -258,6 +258,7 @@ class Drawing:
             "unpaired_portals": self.unpaired_portals(),
             "junctions": self.junctions(),
             "joints": self.joints(),
+            "motor_faults": self.motor_faults(),
             "layout": layout,
             "explain": explain,
             "refused": refused,
@@ -292,6 +293,58 @@ class Drawing:
                 name = None
             declared = sorted({self.symbols[s].connection for s in group} - {""})
             found.append({"name": name, "names": declared, "symbols": group})
+        return found
+
+    def motor_faults(self) -> list[dict[str, Any]]:
+        """Where one address is wanted in both positions at once.
+
+        Points sharing an `addr` answer to one accessory output and move
+        together, which is how a crossover is wired and why a throat can have
+        fewer usable ways than its geometry suggests. Two things follow, and
+        neither is visible under the simulator, which has no addresses
+        (ADR-0030): a way needing two of them set differently cannot be thrown
+        at all, and two ways declared `concurrent` cannot be thrown at once.
+
+        Reported rather than raised. The layout derives either way — addresses
+        are dropped from it — so this is a drawing that cannot be driven, not
+        one that cannot be read.
+        """
+        try:
+            grouped = self._transits()
+        except ValueError:
+            return []  # it does not derive; `refused` says why
+        found: list[dict[str, Any]] = []
+        for connection, named in sorted(grouped.items()):
+            names = sorted(named)
+            together = [(one,) for one in names] + [
+                (one, two)
+                for i, one in enumerate(names)
+                for two in names[i + 1 :]
+                if self._concurrent(named[one][1], named[two][1])
+            ]
+            for ways in together:
+                wanted: dict[str, dict[str, set[str]]] = defaultdict(
+                    lambda: defaultdict(set)
+                )
+                for way in ways:
+                    for symbol, local in named[way][1]:
+                        points = self.symbols[symbol]
+                        if points.addr and points.kind in POSITIONS:
+                            position = POSITIONS[points.kind][local]
+                            wanted[points.addr][position].add(symbol)
+                for addr, at in sorted(wanted.items()):
+                    if len(at) > 1:
+                        found.append(
+                            {
+                                "connection": connection,
+                                "addr": addr,
+                                "transits": list(ways),
+                                "positions": {
+                                    position: sorted(at[position])
+                                    for position in sorted(at)
+                                },
+                            }
+                        )
         return found
 
     def joints(self) -> list[dict[str, Any]]:

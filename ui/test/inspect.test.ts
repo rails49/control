@@ -36,6 +36,7 @@ function scissors(): Review {
       },
     ],
     joints: [],
+    motor_faults: [],
     layout: {
       layout: "crossover-yard",
       blocks: { dn_e: { length: 3200 } },

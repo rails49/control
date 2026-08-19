@@ -260,11 +260,28 @@ drawing, and each `align` carries the points it names
 adapter throws what it is told. A drawing with no hardware ids is valid; the
 simulator needs none.
 
-`addr` is a plain string and nothing checks it. A DCC accessory number is a
-string that happens to be digits, and what a physical point answers to is
-knowledge the drawing cannot hold. The one check the editor makes is that a
-motorised symbol has *some* address, since a drawing without them derives but
+`addr` is a plain string and nothing checks it for shape. A DCC accessory
+number is a string that happens to be digits, and what a physical point answers
+to is knowledge the drawing cannot hold. The one check the editor makes is that
+a motorised symbol has *some* address, since a drawing without them derives but
 cannot be driven ([EDITOR.md](../ui/EDITOR.md#validation)).
+
+**Points may share an address, and then they move together.** One accessory
+output throws a crossover's two ends as a unit, so a throat can have fewer
+usable ways than its geometry suggests — `beb-gotthard` gangs `sw1` with `sw2`
+and `sw6` through `sw9`. Sharing is meaningful rather than a mistake, so
+nothing asks addresses to be unique. Two things do follow from it, and the
+review reports both as `motor_faults`:
+
+- A way needing two points on one address set differently cannot be thrown.
+- Two ways declared `concurrent` promise that two trains may hold the
+  connection at once, which the hardware cannot honour if they want a shared
+  address in opposite positions.
+
+Neither is visible under the simulator, which has no addresses
+([ADR-0030](../adr/0030-the-physical-railroad-is-the-normative-binding.md)), and
+neither stops derivation: addresses are dropped from the layout, so a drawing
+with a motor fault reads fine and cannot be driven.
 
 Every motorised kind has one motor and two positions. A turnout's legs are
 already named for them; a slip's are not, so the library declares which leg

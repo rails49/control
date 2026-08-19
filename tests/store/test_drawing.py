@@ -724,6 +724,85 @@ def test_a_dangling_pin_is_red_and_the_layout_is_refused() -> None:
     assert "points.diverging" in review["refused"]
 
 
+# --- review: points that share an address move together ---------------------
+
+
+def ganged_in_series() -> dict[str, Any]:
+    """One way crossing two points on the same address, one lying straight and
+    the other diverging. No accessory output can do that."""
+    doc = two_blocks(
+        swa={"kind": "turnout", "addr": "1", "connection": "throat"},
+        swb={"kind": "turnout", "addr": "1", "connection": "throat"},
+        swa_stop={"kind": "terminal"},
+        swb_stop={"kind": "terminal"},
+    )
+    doc["wires"] += [
+        ["west.B", "swa.toe"],
+        ["swa.straight", "swb.toe"],
+        ["swa.diverging", "swa_stop.P"],
+        ["swb.diverging", "east.A"],
+        ["swb.straight", "swb_stop.P"],
+    ]
+    return doc
+
+
+def ganged_across_concurrent() -> dict[str, Any]:
+    """Two ways that may run at once, each crossing a point on address `1`,
+    one straight and one diverging."""
+    doc = crossover()
+    for name, pin, leg, spare in (
+        ("up", "uw", "straight", "diverging"),
+        ("dn", "dw", "diverging", "straight"),
+    ):
+        points = f"sw{name}"
+        doc["symbols"][points] = {
+            "kind": "turnout",
+            "addr": "1",
+            "connection": "crossover",
+        }
+        doc["symbols"][f"{points}_stop"] = {"kind": "terminal"}
+        doc["wires"].remove([f"{name}_w.B", f"crossover.{pin}"])
+        doc["wires"] += [
+            [f"{name}_w.B", f"{points}.toe"],
+            [f"{points}.{leg}", f"crossover.{pin}"],
+            [f"{points}.{spare}", f"{points}_stop.P"],
+        ]
+    return doc
+
+
+def test_points_on_one_address_at_odds_in_one_way_are_a_fault() -> None:
+    faults = Drawing.from_document(ganged_in_series()).review()["motor_faults"]
+    assert [(f["addr"], f["positions"]) for f in faults] == [
+        ("1", {"curved": ["swb"], "straight": ["swa"]})
+    ]
+    assert len(faults[0]["transits"]) == 1
+
+
+def test_points_on_one_address_at_odds_across_concurrent_ways_are_a_fault() -> None:
+    """Each way is throwable alone; the pair is not, and only the pair is the
+    fault. Declared concurrent is a promise two trains may hold it at once."""
+    faults = Drawing.from_document(ganged_across_concurrent()).review()["motor_faults"]
+    assert [(f["addr"], f["transits"]) for f in faults] == [
+        ("1", ["dn_straight", "up_straight"])
+    ]
+
+
+def test_points_on_one_address_agreeing_are_no_fault() -> None:
+    doc = ganged_in_series()
+    doc["wires"].remove(["swb.diverging", "east.A"])
+    doc["wires"].remove(["swb.straight", "swb_stop.P"])
+    doc["wires"] += [["swb.straight", "east.A"], ["swb.diverging", "swb_stop.P"]]
+    assert Drawing.from_document(doc).review()["motor_faults"] == []
+
+
+@pytest.mark.parametrize("name", [*RAILROADS, "beb-gotthard"])
+def test_a_committed_drawing_can_be_thrown(name: str) -> None:
+    """beb-gotthard is the one that gangs points: `5` moves sw1 and sw2, `1`
+    moves sw6 through sw9, which is what the hardware needs and why that throat
+    has fewer usable ways than its geometry suggests."""
+    assert committed_drawing(name).review()["motor_faults"] == []
+
+
 def test_a_bend_short_of_its_second_wire_is_red() -> None:
     doc = two_blocks(bend={"kind": "pin"})
     doc["wires"].append(["west.B", "bend.P"])

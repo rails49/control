@@ -68,11 +68,24 @@ export interface UnpairedPortal {
   portals: string[];
 }
 
+/** One address wanted in both positions at once. Points sharing an `addr`
+ *  answer to one accessory output and move together, so a way needing two of
+ *  them set differently cannot be thrown, and two ways declared concurrent
+ *  cannot be thrown at once. `transits` is one way for the first and the two
+ *  for the second. */
+export interface MotorFault {
+  connection: string;
+  addr: string;
+  transits: string[];
+  positions: Record<string, string[]>;
+}
+
 export interface Review {
   red_pins: string[];
   unpaired_portals: UnpairedPortal[];
   junctions: Junction[];
   joints: Joint[];
+  motor_faults: MotorFault[];
   layout: Layout | null;
   explain: Explained | null;
   refused: string | null;

@@ -24,6 +24,7 @@ function review(parts: {
     unpaired_portals: [],
     junctions: parts.junctions ?? [],
     joints: parts.joints ?? [],
+    motor_faults: [],
     layout: null,
     explain: null,
     refused: null,

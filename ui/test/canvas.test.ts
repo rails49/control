@@ -40,6 +40,7 @@ function reviewed(unpaired: UnpairedPortal[]): Review {
     unpaired_portals: unpaired,
     junctions: [],
     joints: [],
+    motor_faults: [],
     layout: null,
     explain: null,
     refused: null,

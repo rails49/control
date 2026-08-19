@@ -25,6 +25,7 @@ const CLEAN: Review = {
   unpaired_portals: [],
   junctions: [],
   joints: [],
+  motor_faults: [],
   layout: null,
   explain: null,
   refused: null,
