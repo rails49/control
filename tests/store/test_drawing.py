@@ -940,6 +940,69 @@ def test_a_junction_the_drawing_has_not_named_reports_no_name() -> None:
     ]
 
 
+def test_a_way_looping_back_into_its_block_is_the_offending_way() -> None:
+    """The refusal is a statement about a route, and a sentence beside the
+    drawing cannot point at one (ADR-0024). The walk that failed is what the
+    editor lights, in the shape `explain` gives a transit's way, so the canvas
+    lights it with the machinery the netlist pane already uses."""
+    doc = two_blocks(
+        loop={
+            "kind": "connection",
+            "pins": ["A", "B", "C"],
+            "transits": [["A", "B"], ["C", "A"]],
+        },
+        bend={"kind": "pin"},
+        east_head={"kind": "terminal"},
+    )
+    doc["wires"] += [
+        ["west.B", "loop.A"],
+        ["loop.B", "bend.P"],
+        ["bend.P", "loop.C"],
+        ["east.A", "east_head.P"],
+    ]
+    review = Drawing.from_document(doc).review()
+    assert review["refused"] is not None
+    assert review["offending"] == [
+        {
+            "ends": ["west.B", "west.B"],
+            "way": [["loop", "0"], ["bend", ""], ["loop", "1"]],
+        }
+    ]
+
+
+def test_two_transits_deriving_one_name_come_back_as_both_ways() -> None:
+    """Two paths joining one pair of block ends: neither is the offender, so
+    both light."""
+    doc = two_blocks(
+        gap={
+            "kind": "connection",
+            "pins": ["A", "B"],
+            "transits": [["A", "B"], ["A", "B"]],
+        }
+    )
+    doc["wires"] += [["west.B", "gap.A"], ["gap.B", "east.A"]]
+    review = Drawing.from_document(doc).review()
+    assert "two transits named" in review["refused"]
+    assert review["offending"] == [
+        {"ends": ["east.A", "west.B"], "way": [["gap", "0"]]},
+        {"ends": ["east.A", "west.B"], "way": [["gap", "1"]]},
+    ]
+
+
+def test_a_refusal_that_is_not_about_a_way_offends_no_way() -> None:
+    """A dangling pin is a mark on the pin, not a route, so there is nothing
+    here to light and nothing raised in working that out."""
+    doc = two_blocks(points={"kind": "turnout"})
+    doc["wires"] += [["west.B", "points.toe"], ["points.straight", "east.A"]]
+    review = Drawing.from_document(doc).review()
+    assert review["refused"] is not None
+    assert review["offending"] == []
+
+
+def test_a_drawing_that_derives_offends_no_way() -> None:
+    assert Drawing.from_document(spanned()).review()["offending"] == []
+
+
 # --- names and determinism ------------------------------------------------
 
 

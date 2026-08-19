@@ -773,7 +773,8 @@ the red pins, the unpaired portal labels with the portals wearing each, the
 junctions as symbol groups each carrying the name its connection takes, the
 joints — the ways from one block end to another crossing no connection symbol,
 with the wires that may carry a name — the derived layout, its explanation,
-and the refusal where there is one. A drawing with a red pin is the normal
+the refusal where there is one, and the way or ways that refusal is about
+where it is about one. A drawing with a red pin is the normal
 state mid-edit, so that comes back as a refusal inside a 200; only a document
 that will not load at all is a bad request. Whatever is wrong with a drawing,
 the editor reads a status and a reason rather than losing the connection.

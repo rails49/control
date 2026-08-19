@@ -93,6 +93,21 @@ Use = tuple[str, str]  # a symbol and the local transit a walk took through it
 Walk = tuple[tuple[str, str], tuple[Use, ...]]  # the block ends, and the way
 
 
+class Refusal(ValueError):
+    """A refusal about a way through the drawing, carrying the walks behind it.
+
+    Two of derivation's refusals say something about a route rather than about
+    any one symbol, and the editor lights that route on the canvas rather than
+    printing the sentence beside it (ADR-0024). The walk is known where the
+    refusal is raised, so it travels with it; parsing it back out of the
+    message would be deriving topology a second time, in the front end.
+    """
+
+    def __init__(self, message: str, *ways: Walk) -> None:
+        super().__init__(message)
+        self.ways = ways
+
+
 @dataclass(frozen=True)
 class Symbol:
     """A symbol declares pins, transits between them, and which transit pairs
@@ -212,10 +227,12 @@ class Drawing:
         is what lets the front end own placement and rendering and no topology
         at all (EDITOR.md).
         """
+        offending: tuple[Walk, ...] = ()
         try:
             layout, explain, refused = self.derive(), self.explain(), None
         except ValueError as refusal:
             layout, explain, refused = None, None, str(refusal)
+            offending = refusal.ways if isinstance(refusal, Refusal) else ()
         return {
             "red_pins": self.red_pins(),
             "unpaired_portals": self.unpaired_portals(),
@@ -224,6 +241,10 @@ class Drawing:
             "layout": layout,
             "explain": explain,
             "refused": refused,
+            "offending": [
+                {"ends": list(ends), "way": [list(use) for use in used]}
+                for ends, used in offending
+            ],
         }
 
     def junctions(self) -> list[dict[str, Any]]:
@@ -324,9 +345,10 @@ class Drawing:
         spent: set[tuple[str, str]] = set()
         for ends, used in self._walks(joins):
             if ends[0] == ends[1]:
-                raise ValueError(
+                raise Refusal(
                     f"drawing '{self.name}': the way out of '{ends[0]}' leads"
-                    f" back into it — a transit joins two distinct block ends"
+                    f" back into it — a transit joins two distinct block ends",
+                    (ends, used),
                 )
             connection = connection_of[used[0][0]] if used else None
             if connection is None:
@@ -351,9 +373,11 @@ class Drawing:
         for ends, used in walks:
             name = self._transit_name(where, ends, used)
             if name in named:
-                raise ValueError(
+                raise Refusal(
                     f"{where}: two transits named '{name}' — name one of them"
-                    f" in the drawing"
+                    f" in the drawing",
+                    named[name],
+                    (ends, used),
                 )
             named[name] = (ends, used)
         return named

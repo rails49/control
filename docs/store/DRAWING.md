@@ -320,6 +320,14 @@ a layout keys transits by name; naming one of them in the drawing settles it.
 An end pair also has to be two *distinct* ends, so a way that leaves a block
 end and arrives back through it is refused as well.
 
+Both are statements about a way rather than about any one symbol, so both
+refusals carry the walks behind them — the two that share a name, or the one
+that loops — and a review hands them to the editor beside the sentence, in the
+shape `explain()` gives a transit's way. That is what lets the drawing show
+the fault where it is
+([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)). Every other
+refusal carries no way, and the review reports none.
+
 A transit name is overridden on the symbol transit the way through takes, so
 one symbol names every way that crosses it. `crossover-yard`'s four crossover
 transits are named on the two west turnouts, since every way through the
