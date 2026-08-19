@@ -12,9 +12,7 @@ merge by, and the order of a mapping: an existing key keeps its place and a
 new one joins at the end, which is what keeps a moved symbol out of the diff.
 
 ``ruamel.yaml`` ships no type information, which is why it is reached only
-here and behind ``_comments``. The reader and writer are one shared instance,
-which is fine while callers are one at a time and wants revisiting when the
-store grows a threaded HTTP face.
+here and behind ``_comments``.
 """
 
 from io import StringIO
@@ -26,10 +24,22 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.error import CommentMark
 from ruamel.yaml.tokens import CommentToken
 
-_ROUND_TRIP = YAML()
-_ROUND_TRIP.preserve_quotes = True
-_ROUND_TRIP.width = 4096  # never rewrap a line that was already written
-_ROUND_TRIP.indent(mapping=2, sequence=4, offset=2)  # as the drawings are written
+
+def _round_trip() -> YAML:
+    """A ruamel instance, one per read or write.
+
+    Sharing one was fine while callers are one at a time, but a dump that
+    raises leaves it mid-document: ``dump_all`` clears the context manager it
+    set up only on the way out, so the *next* dump writes into the failed
+    dump's stream and leaves its own empty — a file truncated to nothing by a
+    save that reported success. An instance per call has no state to leave
+    behind, and a handful of files a session cannot notice the cost.
+    """
+    yaml = YAML()
+    yaml.preserve_quotes = True
+    yaml.width = 4096  # never rewrap a line that was already written
+    yaml.indent(mapping=2, sequence=4, offset=2)  # as the drawings are written
+    return yaml
 
 
 def save(path: Path, doc: dict[str, Any]) -> None:
@@ -43,9 +53,11 @@ def save(path: Path, doc: dict[str, Any]) -> None:
     tree: Any = None
     if path.exists():
         with path.open() as f:
-            tree = _ROUND_TRIP.load(f)  # pyright: ignore[reportUnknownMemberType]
+            tree = _round_trip().load(f)  # pyright: ignore[reportUnknownMemberType]
     out = StringIO()
-    _ROUND_TRIP.dump(_merge(tree, doc), out)  # pyright: ignore[reportUnknownMemberType]
+    _round_trip().dump(  # pyright: ignore[reportUnknownMemberType]
+        _merge(tree, doc), out
+    )
     path.write_text(out.getvalue())
 
 

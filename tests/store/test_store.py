@@ -213,6 +213,24 @@ def test_a_document_that_will_not_serialise_leaves_the_file_alone(
     assert path.read_text() == before
 
 
+def test_a_save_after_one_that_failed_writes_the_file_it_was_given(
+    tmp_path: Path,
+) -> None:
+    """The failed save must leave nothing of itself behind either. One shared
+    ruamel instance kept the context manager the failed dump set up, so the
+    next save wrote into that dump's stream and truncated its own file to
+    nothing while reporting success."""
+    path = tmp_path / "d.yaml"
+    path.write_text("# reasoning\nsymbols:\n  west: {kind: terminal}\n")
+
+    with pytest.raises(RepresenterError):
+        yamlfile.save(path, {"symbols": {"west": {"kind": object()}}})
+    yamlfile.save(path, {"symbols": {"west": {"kind": "block", "length": 1000}}})
+
+    assert "length: 1000" in path.read_text()
+    assert "# reasoning" in path.read_text()
+
+
 def test_meet_scenario_loads_clean(store: AssetStore) -> None:
     scenario = store.get("crossover-yard/meet")
     assert isinstance(scenario, Scenario)
@@ -278,6 +296,19 @@ def test_departure_end_must_be_an_end_or_bare_letter(
     doc["requests"][0]["from"] = "yard_q.B"
     with pytest.raises(ValueError, match="yard_q"):
         scratch_store.put(doc)
+
+
+def test_an_address_typed_onto_a_turnout_is_read_back_unchanged(
+    scratch_store: AssetStore,
+) -> None:
+    """What the editor does with a typed address: save the document, reopen it,
+    and read back what was typed (ADR-0022). Nothing checks an address, so a
+    string that is not a number has to survive the trip too."""
+    doc = scratch_store.drawing("crossover-yard")
+    doc["symbols"]["west_ladder"]["addr"] = "LH-3/2"
+    scratch_store.put(doc)
+    reopened = scratch_store.drawing("crossover-yard")
+    assert reopened["symbols"]["west_ladder"]["addr"] == "LH-3/2"
 
 
 def test_put_is_whole_document_create_or_replace(scratch_store: AssetStore) -> None:
