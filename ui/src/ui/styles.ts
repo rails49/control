@@ -119,31 +119,8 @@ export const appStyles = css`
     grid-area: band;
   }
 
-  header {
+  tc-menubar {
     grid-area: bar;
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-    padding: 0.4rem 0.6rem;
-    border-bottom: 1px solid var(--rule);
-  }
-
-  header .spacer {
-    flex: 1;
-  }
-
-  /* An icon button is square around its glyph, where a labelled one is as wide
-     as its word. */
-  header sl-button[aria-label]::part(base) {
-    padding: 0;
-    width: 2rem;
-  }
-
-  header sl-button[aria-label]::part(label) {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
   }
 
   tc-palette {

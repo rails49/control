@@ -10,12 +10,10 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import "@shoelace-style/shoelace/dist/components/button/button.js";
-import "@shoelace-style/shoelace/dist/components/select/select.js";
-import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import type { Kind } from "../symbols.generated.js";
+import { COMMANDS, type CommandId, type Standing } from "../model/commands.js";
 import { emptyDrawing, nameTrouble, type SymbolSpec } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { clashes, type Chosen, type Clash } from "../model/inspect.js";
@@ -27,17 +25,18 @@ import {
   type Review,
   type UnpairedPortal,
 } from "../model/store.js";
-import { FIT, REDO, UNDO, ZOOM_IN, ZOOM_OUT } from "./icons.js";
 import { appStyles } from "./styles.js";
 import "./tc-canvas.js";
 import "./tc-header.js";
 import "./tc-menu.js";
+import "./tc-menubar.js";
 import "./tc-netlist.js";
 import "./tc-palette.js";
 import "./tc-properties.js";
 import type { TcCanvas } from "./tc-canvas.js";
 import type { MenuAction, MenuAt } from "./tc-menu.js";
-import type { Properties } from "./tc-properties.js";
+import type { TcMenubar } from "./tc-menubar.js";
+import { editable, type Properties } from "./tc-properties.js";
 
 /** One press of the zoom-out button, and the reciprocal for zoom in. A quarter
  *  again is about what the wheel gives for a comfortable turn of it. */
@@ -67,6 +66,9 @@ export class TcEditor extends LitElement {
   @state() private naming: string | null = null;
   @state() private saved = true;
   @state() private menu: MenuAt | null = null;
+  /** Whether a menu on the bar is down. While one is, the keyboard is the
+   *  menu's and nothing reaches the canvas. */
+  @state() private barMenu = false;
   @state() private editing: { name: string; spec: SymbolSpec } | null = null;
   @state() private chosen: Chosen | null = null;
 
@@ -90,40 +92,15 @@ export class TcEditor extends LitElement {
         .trouble=${this.trouble}
       ></tc-header>
 
-      <header>
-        <sl-select
-          size="small"
-          value=${this.opened}
-          placeholder="open a railroad"
-          @sl-change=${this.open}
-        >
-          ${this.drawings.map(
-            (name) => html`<sl-option value=${name}>${name}</sl-option>`,
-          )}
-        </sl-select>
-        <sl-button size="small" @click=${this.newDrawing}>New…</sl-button>
-        <span class="spacer"></span>
-        ${this.tool(ZOOM_OUT, "Zoom out  −", () => this.zoom(OUT))}
-        ${this.tool(ZOOM_IN, "Zoom in  +", () => this.zoom(1 / OUT))}
-        ${this.tool(FIT, "Fit  0", () => this.fit())}
-        ${this.tool(UNDO, "Undo  ⌘Z", () => this.act((e) => e.undo()))}
-        ${this.tool(REDO, "Redo  ⇧⌘Z", () => this.act((e) => e.redo()))}
-        <sl-button
-          size="small"
-          ?disabled=${this.opened === ""}
-          @click=${this.saveAs}
-        >
-          Save As…
-        </sl-button>
-        <sl-button
-          size="small"
-          variant="primary"
-          ?disabled=${this.saved || this.opened === ""}
-          @click=${this.save}
-        >
-          Save
-        </sl-button>
-      </header>
+      <tc-menubar
+        .standing=${this.standing}
+        .drawings=${this.drawings}
+        @command=${(event: CustomEvent<CommandId>) => this.run(event.detail)}
+        @open-drawing=${(event: CustomEvent<string>) => void this.open(event.detail)}
+        @menu-open=${(event: CustomEvent<boolean>) => {
+          this.barMenu = event.detail;
+        }}
+      ></tc-menubar>
 
       <tc-palette @take=${this.take}></tc-palette>
 
@@ -224,6 +201,84 @@ export class TcEditor extends LitElement {
     return selected.length === 1 ? selected[0]! : null;
   }
 
+  /** Where the editor stands, as far as a command needs to know
+   *  (model/commands.ts). Nothing here decides what is dead; that module
+   *  does, and it is what both the bar and the keyboard ask. */
+  private get standing(): Standing {
+    const one = this.inspecting;
+    const spec = one === null ? undefined : this.editor.drawing.symbols[one];
+    return {
+      opened: this.opened,
+      saved: this.saved,
+      drawings: this.drawings.length,
+      selection: this.editor.selection.size,
+      editable: spec !== undefined && editable(spec.kind),
+      undo: this.editor.canUndo,
+      redo: this.editor.canRedo,
+    };
+  }
+
+  /** One command, however it was asked for. A menu item and the key printed
+   *  beside it come through here, so the two cannot diverge, and a command
+   *  that is dead does nothing whichever way it was reached. */
+  private run(id: CommandId): void {
+    if (!COMMANDS[id].enabled(this.standing)) return;
+    switch (id) {
+      case "new":
+        void this.newDrawing();
+        return;
+      // The drawings are the submenu's own items, so `Open` itself is only
+      // ever the thing they hang off.
+      case "open":
+        return;
+      case "save":
+        void this.save();
+        return;
+      case "save-as":
+        void this.saveAs();
+        return;
+      // Dead until #86 draws the SVG.
+      case "export-svg":
+        return;
+      case "undo":
+        this.act((editor) => editor.undo());
+        return;
+      case "redo":
+        this.act((editor) => editor.redo());
+        return;
+      case "rotate":
+        this.act((editor) => editor.rotate());
+        return;
+      case "flip":
+        this.act((editor) => editor.flip());
+        return;
+      case "delete":
+        this.act((editor) => editor.remove());
+        return;
+      case "properties":
+        this.editSelected();
+        return;
+      case "zoom-in":
+        this.zoom(1 / OUT);
+        return;
+      case "zoom-out":
+        this.zoom(OUT);
+        return;
+      case "fit":
+        this.fit();
+        return;
+    }
+  }
+
+  /** The properties of the one selected symbol. The right-click menu asks the
+   *  same dialog about whatever is under the pointer instead. */
+  private editSelected(): void {
+    const name = this.inspecting;
+    if (name === null) return;
+    const spec = this.editor.drawing.symbols[name];
+    if (spec !== undefined) this.editing = { name, spec };
+  }
+
   // --- talking to the store -----------------------------------------------
 
   private async load(): Promise<void> {
@@ -235,9 +290,7 @@ export class TcEditor extends LitElement {
     }
   }
 
-  private async open(event: Event): Promise<void> {
-    const name = (event.target as HTMLInputElement).value;
-    if (name === "") return;
+  private async open(name: string): Promise<void> {
     try {
       this.editor.reset(await readDrawing(name));
       this.opened = name;
@@ -432,14 +485,6 @@ export class TcEditor extends LitElement {
     this.redraw();
   };
 
-  private tool(icon: unknown, label: string, act: () => void) {
-    return html`
-      <sl-button size="small" title=${label} aria-label=${label} @click=${act}>
-        ${icon}
-      </sl-button>
-    `;
-  }
-
   private zoom(scale: number): void {
     this.renderRoot.querySelector<TcCanvas>("tc-canvas")?.zoom(scale);
   }
@@ -463,15 +508,26 @@ export class TcEditor extends LitElement {
     ) {
       return;
     }
+    // A menu on the bar is down, so the keyboard is the menu's: `r` would
+    // typeahead in the menu and rotate the selection behind it at once, and
+    // Escape would close the menu and clear the selection. Escape is the one
+    // key the editor still answers, and closing the menu is all it does.
+    if (this.barMenu) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.renderRoot.querySelector<TcMenubar>("tc-menubar")?.close();
+      }
+      return;
+    }
     const meta = event.metaKey || event.ctrlKey;
     if (meta && event.key.toLowerCase() === "z") {
       event.preventDefault();
-      this.act((editor) => (event.shiftKey ? editor.redo() : editor.undo()));
+      this.run(event.shiftKey ? "redo" : "undo");
       return;
     }
     if (meta && event.key.toLowerCase() === "s") {
       event.preventDefault();
-      void this.save();
+      this.run(event.shiftKey ? "save-as" : "save");
       return;
     }
     // A symbol on its way out of the palette takes the same two keys the
@@ -499,6 +555,10 @@ export class TcEditor extends LitElement {
       return;
     }
 
+    // Every one of these is a command the bar also names, so the two cannot
+    // come to mean different things, and one that is dead does nothing here
+    // either — `r` with nothing selected does not mark the drawing unsaved
+    // and ask `/review` again.
     switch (event.key) {
       case "Escape":
         this.editor.cancelWire();
@@ -507,39 +567,31 @@ export class TcEditor extends LitElement {
         return;
       case "r":
       case "R":
-        this.selected((editor) => editor.rotate());
+        this.run("rotate");
         return;
       case "f":
       case "F":
-        this.selected((editor) => editor.flip());
+        this.run("flip");
         return;
       case "Delete":
       case "Backspace":
         event.preventDefault();
-        this.selected((editor) => editor.remove());
+        this.run("delete");
         return;
       case "+":
       case "=":
-        this.zoom(1 / OUT);
+        this.run("zoom-in");
         return;
       case "-":
-        this.zoom(OUT);
+        this.run("zoom-out");
         return;
       case "0":
-        this.fit();
+        this.run("fit");
         return;
       default:
         return;
     }
   };
-
-  /** A verb that needs something to act on. With nothing selected it does
-   *  nothing at all — not even mark the drawing unsaved and ask `/review`
-   *  again, which is what routing it through `act` did. */
-  private selected(change: (editor: Editor) => void): void {
-    if (this.editor.selection.size === 0) return;
-    this.act(change);
-  }
 }
 
 /** A name collision as a sentence. Which half is Airolo is not the editor's

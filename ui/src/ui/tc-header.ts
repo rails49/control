@@ -10,9 +10,10 @@
  * the navigation.
  *
  * It shows status and nothing else. Everything a person presses stays in the
- * control row below (EDITOR.md, PANEL.md), the unsaved dot included: it is the
- * mark that used to be readable only as the Save button's disabled state, and
- * #85 takes that button off the screen entirely.
+ * row below — the editor's menu bar, the panel's controls (EDITOR.md,
+ * PANEL.md) — the unsaved dot included: it is the mark that used to be
+ * readable only as the Save button's disabled state, and #85 took that button
+ * off the screen entirely.
  */
 
 import { LitElement, html, nothing } from "lit";
