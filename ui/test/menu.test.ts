@@ -43,7 +43,7 @@ async function items(what: MenuAt | null): Promise<string[]> {
 
 describe("what the menu offers", () => {
   it("offers a symbol its properties and the transforms", async () => {
-    expect(await items(at({ symbol: "sw1", kind: "turnout" }))).toEqual([
+    expect(await items(at({ symbol: "b1", kind: "block" }))).toEqual([
       "Properties…",
       "Rotate",
       "Flip",
@@ -73,15 +73,17 @@ describe("what the menu offers", () => {
     }
   });
 
-  /** A slip has a motor the bus addresses, so it keeps its name and its
-   *  dialog with it. */
-  it("still offers a slip its properties", async () => {
-    expect(await items(at({ symbol: "sl1", kind: "double_slip" }))).toEqual([
-      "Properties…",
-      "Rotate",
-      "Flip",
-      "Delete",
-    ]);
+  /** A turnout and a slip have a motor, but the bus addresses `addr` and not
+   *  the key (ADR-0022), so their names are minted and hidden too and there is
+   *  nothing left in the dialog to open (ADR-0023). */
+  it("offers the motorised kinds only the transforms", async () => {
+    for (const kind of ["turnout", "single_slip", "double_slip"] as const) {
+      expect(await items(at({ symbol: "sw1", kind }))).toEqual([
+        "Rotate",
+        "Flip",
+        "Delete",
+      ]);
+    }
   });
 
   /** A junction's name is the editor's own: it mints one, keeps it settled

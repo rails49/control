@@ -65,22 +65,21 @@ export function pinsOf(spec: SymbolSpec): readonly string[] {
 }
 
 /**
- * The kinds whose name is the user's to choose. A name is typed when hardware
- * answers to it — a block, or a symbol with a motor the bus will address —
- * and minted and hidden otherwise: a fixed crossing has nothing to command, a
- * pin and a terminal are wiring, and a portal is known by its label. The
- * hidden ones are still in the yaml and still read in the netlist pane.
+ * The kinds whose name is the user's to choose. A name is typed only where a
+ * person has to say it out loud
+ * ([ADR-0023](../../../docs/adr/0023-internal-names-are-minted-and-hidden.md)):
+ * a block, which the operator names, the bus carries and a scenario places
+ * trains in. Every other name is minted and hidden — a turnout and a slip are
+ * addressed by `addr` rather than by their key
+ * ([ADR-0022](../../../docs/adr/0022-a-symbol-carries-its-hardware-address.md)),
+ * a fixed crossing has nothing to command, a pin and a terminal are wiring,
+ * and a portal is known by its label. The hidden ones are still in the yaml and
+ * still read in the netlist pane.
  *
  * The generic connection symbol is here because its name is the only handle on
  * it, the kind being legacy and on its way out (#35).
  */
-const NAMED = new Set<AnyKind>([
-  "block",
-  "turnout",
-  "single_slip",
-  "double_slip",
-  "connection",
-]);
+const NAMED = new Set<AnyKind>(["block", "connection"]);
 
 export function named(kind: AnyKind): boolean {
   return NAMED.has(kind);
@@ -110,6 +109,28 @@ export function nameTrouble(name: string, taken: readonly string[]): string | nu
  *  that separates a symbol from its pin or the `/` that separates a path. */
 export function isName(name: string): boolean {
   return name !== "" && !name.includes(".") && !name.includes("/");
+}
+
+/**
+ * Why a symbol name will not do, or `null` for one that will. The properties
+ * dialog is the only place a symbol name is typed, so it is the only place a
+ * collision can be made, and it asks this before it closes: a refusal read
+ * across the screen was telling the author about a keystroke they had just
+ * made (ADR-0023).
+ *
+ * `was` is the name being replaced, so applying a dialog nothing was typed
+ * into is not a rename onto a name the drawing already has. `taken` is every
+ * name the drawing holds, `was` among them.
+ */
+export function symbolTrouble(
+  name: string,
+  was: string,
+  taken: readonly string[],
+): string | null {
+  if (name === "") return "a symbol needs a name";
+  if (!isName(name)) return `'${name}' cannot name a symbol`;
+  if (name !== was && taken.includes(name)) return `'${name}' is already taken`;
+  return null;
 }
 
 export function clone(drawing: Drawing): Drawing {

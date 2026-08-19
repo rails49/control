@@ -2,12 +2,13 @@
  * The properties dialog: a symbol's name, and per kind what only that kind
  * has (EDITOR.md).
  *
- * **Only a name hardware answers to is shown.** A block is named, and so is
- * anything with a motor the bus will address; a fixed crossing, a pin, a
- * terminal and a portal are minted and hidden (`named` in model/drawing.ts).
- * A kind left with nothing to edit does not open the dialog at all — an empty
- * modal is worse than none, and the netlist pane is where a hidden name is
- * read.
+ * **A name is typed only where a person has to say it out loud** (ADR-0023).
+ * That is a block, which the operator names and the bus carries, and a portal
+ * label, which is how a pair of mouths is known to be a pair. Every other name
+ * — a turnout's, a slip's, a fixed crossing's, a pin's, a terminal's — is
+ * minted and hidden (`named` in model/drawing.ts). A kind left with nothing to
+ * edit does not open the dialog at all — an empty modal is worse than none,
+ * and the netlist pane is where a hidden name is read.
  *
  * A block's key is the name it is known by everywhere: on the canvas, in the
  * netlist, and as the prefix of every transit id in a trace. Renaming one is a
