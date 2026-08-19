@@ -54,6 +54,15 @@ aspect from `grant_refused` instead would require a per-train state machine
 over an event topic and would describe the dispatcher's state rather than the
 railway's.
 
+**In the end state the panel derives no aspect at all.** The dispatcher
+publishes it — `stop`, `approach` or `clear`, read off how far ahead it has
+locked — and the panel renders what it is told
+([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+Locked-ahead survives as the rule, one level up, and two things that are the
+panel's problem here stop being anyone's: the middle aspect, which no
+derivation from the lock ledger can produce, and whether an end the standing
+train does not face may show anything but red.
+
 ![A live session mid-run: a drag from south to claro_3's middle third](images/live-drag.png)
 
 ## What it does
