@@ -1,10 +1,11 @@
 /**
  * The store's routes (EDITOR.md, PANEL.md), and nothing else.
  *
- * `review` is the whole of the editor's view of topology: red pins, the
- * junctions as symbol groups, the derived layout, its explanation, and the
- * refusal where there is one. A drawing with a red pin is the normal state
- * mid-edit, so a refusal arrives inside a 200 and is read rather than caught.
+ * `review` is the whole of the editor's view of topology: red pins, the portal
+ * labels that pair with nothing, the junctions as symbol groups, the derived
+ * layout, its explanation, and the refusal where there is one. A drawing with
+ * a red pin is the normal state mid-edit, so a refusal arrives inside a 200
+ * and is read rather than caught.
  */
 
 import type { Drawing } from "./drawing.js";
@@ -57,8 +58,18 @@ export interface Layout {
   >;
 }
 
+/** A portal label not worn by exactly two portals — worn once, or worn three
+ *  times and more — with the portals wearing it. A label pairs exactly two, so
+ *  both are one finding. The refusal names one label and stops, which is why
+ *  this is a list. */
+export interface UnpairedPortal {
+  label: string;
+  portals: string[];
+}
+
 export interface Review {
   red_pins: string[];
+  unpaired_portals: UnpairedPortal[];
   junctions: Junction[];
   joints: Joint[];
   layout: Layout | null;

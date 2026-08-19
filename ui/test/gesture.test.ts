@@ -15,6 +15,7 @@ import type { Review } from "../src/model/store.js";
  *  has answered for it. */
 const NOTHING: Review = {
   red_pins: [],
+  unpaired_portals: [],
   junctions: [],
   joints: [],
   layout: null,

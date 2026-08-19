@@ -20,6 +20,7 @@ import type { Review } from "../src/model/store.js";
 function scissors(): Review {
   return {
     red_pins: [],
+    unpaired_portals: [],
     junctions: [
       {
         name: "crossover",

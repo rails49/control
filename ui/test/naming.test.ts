@@ -16,6 +16,7 @@ function review(parts: {
 }): Review {
   return {
     red_pins: [],
+    unpaired_portals: [],
     junctions: parts.junctions ?? [],
     joints: parts.joints ?? [],
     layout: null,

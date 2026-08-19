@@ -26,6 +26,7 @@ const DRAWING: Drawing = {
 
 const REVIEW: Review = {
   red_pins: [],
+  unpaired_portals: [],
   junctions: [],
   joints: [],
   layout: null,

@@ -16,6 +16,7 @@ import { under, within } from "../src/model/under.js";
  *  has answered for it. */
 const NOTHING: Review = {
   red_pins: [],
+  unpaired_portals: [],
   junctions: [],
   joints: [],
   layout: null,

@@ -38,6 +38,7 @@ import { canvasStyles } from "./styles.js";
 /** What a canvas with no review yet reads as. */
 const EMPTY: Review = {
   red_pins: [],
+  unpaired_portals: [],
   junctions: [],
   joints: [],
   layout: null,
