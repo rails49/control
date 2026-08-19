@@ -38,7 +38,9 @@ the band already says, which is what is wrong that is not the author's doing.
 
 `/review` reports the first `ValueError` derivation raises, of twelve. Under
 [ADR-0023](0023-internal-names-are-minted-and-hidden.md) five become
-impossible, all of them typed-connection-name faults. Three restate a mark the
+impossible, all of them typed-connection-name faults: no gesture types one, and
+opening a drawing replaces every connection name it carries with a minted one,
+so nothing the editor holds has a name a person typed. Three restate a mark the
 canvas already carries: a lone portal label, and the two spellings of a pin
 holding the wrong number of wires. Two are reachable only from hand-written
 yaml, being a transit named from several `names:` overrides, and two blocks

@@ -563,21 +563,29 @@ nothing interrupts a sketch. Minting happens the moment `/review` says which
 junctions exist, and folds into the snapshot of the edit that caused it, so one
 action stays one undo step. There is no rename anywhere: a connection is not a
 thing hardware answers to, so its name is bookkeeping the editor keeps for
-itself, and the netlist pane is where it is read for debugging. A name already
-written in a drawing is honoured — minting only fills the gaps — which is what
-keeps Gotthard's `airolo` where it is, unshown and uneditable.
+itself, and the netlist pane is where it is read for debugging.
+
+**Opening a drawing re-mints every connection name it carries.** A name already
+written in one is not honoured: it is replaced before the first review is
+drawn, and the drawing is marked as holding unsaved edits, because it does.
+That is what makes a name clash impossible rather than rare: a typed name is
+one an edit can merge with another, and choosing which half is Airolo is not
+the editor's decision to make. Gotthard's `airolo` stays in the file's comments
+and in the netlist pane's section headers, under its minted replacement
+([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)). Nothing about
+the format changes: a `connection` key is still written and still read, so a
+hand-written railroad still loads and still derives.
 
 Deleting a symbol can split a junction in two, and wiring two together merges
 them. Either way names end up where derivation refuses them, and either way
 the editor settles it. A split re-mints on both sides; a merge collapses to the
 lowest minted name already on the junction, so what the diff shows is the other
-names coming off. Where a hand-written drawing brings in typed names, a merge
-leaving exactly one of them keeps it, that being the only name anybody chose,
-and a merge leaving two is the one case the editor will not settle, since choosing
-which half is Airolo is not its decision to make. That case cannot be reached by
-drawing; it needs a file that typed two names in the first place. What tells the
-two apart is the shape of the name itself: `j` and digits is one the editor
-made, and anything else is one a person typed.
+names coming off. There is never a decision in it: every name being chosen
+between is one the editor minted, the load pass leaving no other kind. What
+tells a minted name from a typed one is the shape of the name itself, `j` and
+digits being one the editor made and anything else one a person typed. The load
+pass reads that rule to decide what to replace, and is the only place it is
+still needed.
 
 A wire joining two blocks directly is a connection too
 ([DRAWING.md](../store/DRAWING.md#a-wire-between-two-blocks)). Its name is
