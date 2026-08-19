@@ -38,6 +38,34 @@ derived netlist beside the drawing and, for any transit, the way it takes and
 the reason it excludes each other transit. That is the feature the rest of the
 editor exists to serve.
 
+## The band
+
+A band across the top of the page, above the controls, naming what is open and
+saying what is going on outside the drawing. The panel wears the same one
+(`tc-header`, [PANEL.md](PANEL.md#implementation)), both pages having the same
+two things to say: which railroad is on screen, and what is wrong that is not
+the author's doing.
+
+It names the drawing, or says plainly that none is open, and marks it with a
+dot while it holds edits the store has not been given. That state had no
+indicator at all before: it was inferrable only from the Save button being
+enabled, which is a control's affordance doing a status line's job, and #85
+takes that button off the screen entirely.
+
+**The store not answering reads here, not in the findings panel.** The findings
+are what the person drawing has to fix — red pins, unpaired portal labels, name
+collisions, the refusal derivation came back with — and a store that is not
+answering is none of them. A name the drawing will not take stays a finding;
+that one is the author's.
+
+The band names the page it is on and links to the other, which is the whole of
+the navigation. The editor and the panel are separate entries and separate
+apps ([ADR-0016](../adr/0016-the-panel-is-a-scheduler.md)) and nothing here
+merges them.
+
+It costs about 2rem off a full-height grid, and that is accepted: the rows
+become the band, the control row, and the work.
+
 ## Canvas
 
 The canvas is a grid of squares, and the grid is not negotiable. A symbol
@@ -361,9 +389,9 @@ which has no menu to hang one on.
 
 That rule is about buttons, not menus. A menu bar names the key beside the
 item, as the right-click menu does, so the verbs belong there. The header is
-being reworked into a status band (#84) and a `File` / `Edit` / `View` bar
-(#85), with zoom and fit staying one click, plus an SVG export of the drawing
-(#86). Cut wire does not move: no menu that reads the selection can act on a
+now a status band (#84) above a control row that #85 reworks into a `File` /
+`Edit` / `View` bar, with zoom and fit staying one click, plus an SVG export of
+the drawing (#86). Cut wire does not move: no menu that reads the selection can act on a
 wire.
 
 Click and drag mean different things on a pin, and which one it is is settled

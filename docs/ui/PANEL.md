@@ -136,12 +136,19 @@ facing and the request ids it mints. `model/drag.ts` turns pointer positions
 into an arrival-end set or a cancel, DOM-free and tested the way the editor's
 gesture model is. `tc-panel` converts pixels into squares, paints, and sends.
 
-The header is being split in two (#84). A status band shared with the editor
-takes the railroad's name, the mode (replay or live, exclusive under ADR-0016
-and today inferrable only from which select was last touched), and the status
-the control row carries now: the bridge link, the tick, and the trouble
-message. The row keeps the controls. The editor's menu bar (#85) is not
-repeated here; the panel has no File to fill.
+The header is two rows (#84). The top one is the band the editor also wears
+(`tc-header`, [EDITOR.md](EDITOR.md#the-band)): the railroad's name, the mode,
+and the status that is nobody's mistake — the bridge link, the tick, and the
+trouble message. The row below keeps the things you press. The editor's menu
+bar (#85) is not repeated here; the panel has no File to fill.
+
+The mode is the half of the band only the panel has. Replay and live are
+exclusive ([ADR-0016](../adr/0016-the-panel-is-a-scheduler.md)), and which one
+you were in was inferrable only from whichever select you last touched. The
+band says it, and says *nothing joined* where neither source is feeding — a
+railroad picked with no trace open and no session joined. A replay names its
+trace file beside the mode, that being what says which run is on screen rather
+than merely which railroad.
 
 A first panel can render a recorded trace file with no server at all, which
 is immediately useful for reviewing past benchmark runs.
