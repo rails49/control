@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { wireConnection, type Drawing } from "../src/model/drawing.js";
+import {
+  wireConnection,
+  wirePins,
+  type Drawing,
+} from "../src/model/drawing.js";
 import { Editor } from "../src/model/editor.js";
 import {
   minted,
   nameJoint,
   nameJunction,
+  remint,
   settle,
 } from "../src/model/naming.js";
 import type { Joint, Junction, Review } from "../src/model/store.js";
@@ -50,30 +55,6 @@ describe("minting a junction's name", () => {
     ).toBe(true);
     expect(drawing.symbols.sw1!.connection).toBe("j1");
     expect(drawing.symbols.sw2!.connection).toBe("j1");
-  });
-
-  it("leaves a junction someone has named alone", () => {
-    const drawing = throat();
-    drawing.symbols.sw1!.connection = "airolo";
-    drawing.symbols.sw2!.connection = "airolo";
-    const found = review({
-      junctions: [junction("airolo", ["airolo"], ["sw1", "sw2"])],
-    });
-    expect(settle(drawing, found)).toBe(false);
-    expect(drawing.symbols.sw1!.connection).toBe("airolo");
-  });
-
-  it("leaves a junction two people have named differently to derivation", () => {
-    // Choosing which half is Airolo is not the editor's decision to make, so
-    // the refusal stands and the findings list says so.
-    const drawing = throat();
-    drawing.symbols.sw1!.connection = "airolo";
-    drawing.symbols.sw2!.connection = "claro";
-    const found = review({
-      junctions: [junction(null, ["airolo", "claro"], ["sw1", "sw2"])],
-    });
-    expect(settle(drawing, found)).toBe(false);
-    expect(drawing.symbols.sw1!.connection).toBe("airolo");
   });
 
   it("keeps out of the way of names already in use", () => {
@@ -145,86 +126,40 @@ describe("a split or a merge", () => {
     expect(drawing.symbols.sw1!.connection).toBe("j9");
   });
 
-  it("keeps the one typed name a merge left, over the minted ones", () => {
-    // Only one name was ever chosen by a person, so there is nothing to decide
-    // and minting over it would throw away the only meaningful name.
-    const drawing = throat();
-    drawing.symbols.sw1!.connection = "airolo";
-    drawing.symbols.x1!.connection = "j2";
-    const found = review({
-      junctions: [junction(null, ["airolo", "j2"], ["sw1", "sw2", "x1"])],
-    });
-    expect(settle(drawing, found)).toBe(true);
-    expect(
-      Object.values(drawing.symbols).map((spec) => spec.connection),
-    ).toEqual(["airolo", "airolo", "airolo"]);
-  });
-
-  it("leaves two typed names a merge left, for derivation to refuse", () => {
-    const drawing = throat();
-    drawing.symbols.sw1!.connection = "airolo";
-    drawing.symbols.sw2!.connection = "j2";
-    drawing.symbols.x1!.connection = "claro";
-    const found = review({
-      junctions: [junction(null, ["airolo", "claro", "j2"], ["sw1", "sw2", "x1"])],
-    });
-    expect(settle(drawing, found)).toBe(false);
-    expect(drawing.symbols.sw1!.connection).toBe("airolo");
-  });
-
-  it("leaves a typed name on both halves, for derivation to refuse", () => {
-    const drawing = throat();
-    for (const spec of Object.values(drawing.symbols)) spec.connection = "airolo";
-    const found = review({
-      junctions: [
-        junction("airolo", ["airolo"], ["sw1", "sw2"]),
-        junction("airolo", ["airolo"], ["x1"]),
-      ],
-    });
-    expect(settle(drawing, found)).toBe(false);
-    expect(drawing.symbols.x1!.connection).toBe("airolo");
-  });
 });
 
+/** Two blocks joined by a bare wire through a bend: a joint, which is a
+ *  connection in itself and carries its name on one of its own wires. */
+const joined = (): Drawing => ({
+  drawing: "test",
+  symbols: {
+    west: { kind: "block", length: 1000 },
+    east: { kind: "block", length: 1000 },
+    n1: { kind: "pin" },
+  },
+  wires: [
+    ["west.B", "n1.P"],
+    ["n1.P", "east.A"],
+  ],
+});
+
+const chain: Joint = {
+  ends: ["east.A", "west.B"],
+  wires: [
+    ["n1.P", "west.B"],
+    ["east.A", "n1.P"],
+  ],
+  name: null,
+  names: [],
+};
+
 describe("a wire between two blocks", () => {
-  const joined = (): Drawing => ({
-    drawing: "test",
-    symbols: {
-      west: { kind: "block", length: 1000 },
-      east: { kind: "block", length: 1000 },
-      n1: { kind: "pin" },
-    },
-    wires: [
-      ["west.B", "n1.P"],
-      ["n1.P", "east.A"],
-    ],
-  });
-
-  const chain: Joint = {
-    ends: ["east.A", "west.B"],
-    wires: [
-      ["n1.P", "west.B"],
-      ["east.A", "n1.P"],
-    ],
-    name: null,
-    names: [],
-  };
-
   it("takes a minted name on one segment of the chain", () => {
     // A person draws a wire between two blocks and is asked nothing.
     const drawing = joined();
     expect(settle(drawing, review({ joints: [chain] }))).toBe(true);
     const named = drawing.wires.map(wireConnection).filter(Boolean);
     expect(named).toEqual(["j1"]);
-  });
-
-  it("leaves a joint someone named where it is", () => {
-    const drawing = joined();
-    drawing.wires[0] = { pins: ["west.B", "n1.P"], connection: "gap" };
-    const found = review({
-      joints: [{ ...chain, name: "gap", names: ["gap"] }],
-    });
-    expect(settle(drawing, found)).toBe(false);
   });
 
   it("renaming leaves one segment of the chain carrying the name", () => {
@@ -238,6 +173,146 @@ describe("a wire between two blocks", () => {
     nameJoint(drawing, chain, "gap");
     expect(drawing.wires.map(wireConnection)).toEqual(["gap", undefined]);
   });
+});
+
+/**
+ * Opening a drawing re-mints every connection name it carries (ADR-0023).
+ *
+ * A typed connection name is a name derivation can refuse and the editor
+ * cannot settle: delete the block between two named junctions, wire the
+ * neighbours together, and the two names are one connection's. No open drawing
+ * holds one, so that state cannot arise — the drawing as opened is the drawing
+ * as loaded, with the names replaced.
+ */
+describe("opening a drawing", () => {
+  it("replaces a name a person typed with one of its own", () => {
+    const drawing = throat();
+    drawing.symbols.sw1!.connection = "airolo";
+    drawing.symbols.sw2!.connection = "airolo";
+    const found = review({
+      junctions: [junction("airolo", ["airolo"], ["sw1", "sw2"])],
+    });
+    expect(remint(drawing, found)).toBe(true);
+    expect(drawing.symbols.sw1!.connection).toBe("j1");
+  });
+
+  it("leaves every member of the junction wearing the one name", () => {
+    const drawing = throat();
+    drawing.symbols.sw1!.connection = "airolo";
+    drawing.symbols.sw2!.connection = "airolo";
+    drawing.symbols.x1!.connection = "airolo";
+    const found = review({
+      junctions: [junction("airolo", ["airolo"], ["sw1", "sw2", "x1"])],
+    });
+    remint(drawing, found);
+    expect(
+      Object.values(drawing.symbols).map((spec) => spec.connection),
+    ).toEqual(["j1", "j1", "j1"]);
+  });
+
+  it("replaces a joint's typed name the same way", () => {
+    // A bare wire between two blocks is a connection too, and no more a
+    // special case here than it is anywhere else.
+    const drawing = joined();
+    drawing.wires[0] = { pins: ["west.B", "n1.P"], connection: "gap" };
+    const found = review({
+      joints: [{ ...chain, name: "gap", names: ["gap"] }],
+    });
+    expect(remint(drawing, found)).toBe(true);
+    expect(drawing.wires.map(wireConnection).filter(Boolean)).toEqual(["j1"]);
+  });
+
+  it("leaves a name it minted itself alone", () => {
+    const drawing = throat();
+    drawing.symbols.sw1!.connection = "j1";
+    drawing.symbols.sw2!.connection = "j1";
+    const found = review({
+      junctions: [junction("j1", ["j1"], ["sw1", "sw2"])],
+    });
+    expect(remint(drawing, found)).toBe(false);
+    expect(drawing.symbols.sw1!.connection).toBe("j1");
+  });
+
+  it("keeps out of the way of the minted names it is keeping", () => {
+    const drawing = throat();
+    drawing.symbols.x1!.connection = "j1";
+    drawing.symbols.sw1!.connection = "airolo";
+    drawing.symbols.sw2!.connection = "airolo";
+    const found = review({
+      junctions: [
+        junction("j1", ["j1"], ["x1"]),
+        junction("airolo", ["airolo"], ["sw1", "sw2"]),
+      ],
+    });
+    remint(drawing, found);
+    expect(drawing.symbols.x1!.connection).toBe("j1");
+    expect(drawing.symbols.sw1!.connection).toBe("j2");
+  });
+
+  it("settles a merge of two junctions a person had named", () => {
+    // The case the editor could not settle: delete the block between Airolo
+    // and Claro West and wire the neighbours together, and derivation refused
+    // because choosing which half is Airolo was nobody's to make. With neither
+    // name honoured there is nothing to choose.
+    const drawing = throat();
+    drawing.symbols.sw1!.connection = "airolo";
+    drawing.symbols.sw2!.connection = "airolo";
+    drawing.symbols.x1!.connection = "claro_west";
+    const found = review({
+      junctions: [junction(null, ["airolo", "claro_west"], ["sw1", "sw2", "x1"])],
+    });
+    expect(remint(drawing, found)).toBe(true);
+    expect(
+      Object.values(drawing.symbols).map((spec) => spec.connection),
+    ).toEqual(["j1", "j1", "j1"]);
+  });
+
+  it("re-mints both halves of a split a typed name was left on", () => {
+    const drawing = throat();
+    for (const spec of Object.values(drawing.symbols)) spec.connection = "airolo";
+    const found = review({
+      junctions: [
+        junction("airolo", ["airolo"], ["sw1", "sw2"]),
+        junction("airolo", ["airolo"], ["x1"]),
+      ],
+    });
+    expect(remint(drawing, found)).toBe(true);
+    expect(drawing.symbols.sw1!.connection).toBe("j1");
+    expect(drawing.symbols.x1!.connection).toBe("j2");
+  });
+
+  /** A junction of one symbol is named after that symbol and writes no
+   *  `connection` at all, so there is no typed name to replace and the drawing
+   *  opens as it was written. */
+  it("writes nothing onto a lone symbol that names its own connection", () => {
+    const drawing = throat();
+    const found = review({
+      junctions: [junction("sw1", [], ["sw1"])],
+    });
+    expect(remint(drawing, found)).toBe(false);
+    expect(drawing.symbols.sw1).not.toHaveProperty("connection");
+  });
+
+  it("touches nothing but the names, so the topology is what it was", () => {
+    const drawing = throat();
+    drawing.symbols.sw1!.connection = "airolo";
+    drawing.symbols.sw2!.connection = "airolo";
+    const before = structuredClone(drawing);
+    remint(
+      drawing,
+      review({ junctions: [junction("airolo", ["airolo"], ["sw1", "sw2"])] }),
+    );
+    expect(bare(drawing)).toEqual(bare(before));
+  });
+
+  /** The drawing with every connection name taken off it: what a re-mint is
+   *  not allowed to change. */
+  function bare(drawing: Drawing): Drawing {
+    const stripped = structuredClone(drawing);
+    for (const spec of Object.values(stripped.symbols)) delete spec.connection;
+    stripped.wires = stripped.wires.map(wirePins);
+    return stripped;
+  }
 });
 
 describe("a review that arrived too late", () => {

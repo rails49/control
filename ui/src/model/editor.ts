@@ -35,7 +35,7 @@ import {
   taken,
   turned,
 } from "./geometry.js";
-import { settle } from "./naming.js";
+import { remint, settle } from "./naming.js";
 import type { Review } from "./store.js";
 
 /** What a new symbol of each kind is called: `sw1`, `sw2`, and so on. Short,
@@ -481,6 +481,19 @@ export class Editor {
    */
   settle(review: Review, at: number): boolean {
     return at === this.revision && settle(this.current, review);
+  }
+
+  /**
+   * The same pass, run once on the drawing as it was opened, with no typed
+   * connection name honoured (naming.ts). A name a person typed is one the
+   * editor cannot settle when an edit merges two connections wearing them, so
+   * no open drawing holds one.
+   *
+   * Not an undo step: `reset` has just emptied the stack, and the drawing as
+   * opened is the drawing as loaded.
+   */
+  remint(review: Review, at: number): boolean {
+    return at === this.revision && remint(this.current, review);
   }
 
   /** How many times the document has changed. Only useful for telling whether

@@ -404,7 +404,7 @@ export class TcEditor extends LitElement {
       this.trouble = null;
       await this.updateComplete;
       this.fit();
-      await this.reviewNow();
+      await this.reviewNow(true);
     } catch (failure) {
       this.trouble = String(failure);
     }
@@ -465,22 +465,34 @@ export class TcEditor extends LitElement {
     return null;
   }
 
-  /** A drawing mid-edit is normally not derivable, so a refusal comes back
-   *  inside a 200 and is shown; only a document that will not load at all is
-   *  an error worth reporting as one. */
-  private async reviewNow(): Promise<void> {
+  /**
+   * A drawing mid-edit is normally not derivable, so a refusal comes back
+   * inside a 200 and is shown; only a document that will not load at all is
+   * an error worth reporting as one.
+   *
+   * A junction always has a valid name, so the names the drawing has not
+   * settled are minted the moment the store says which junctions exist. The
+   * write folds into the edit that caused it, and asking again with the names
+   * in place is what makes the pane agree with the drawing. `opening` is the
+   * one review that also replaces the names a person typed (ADR-0023), which
+   * happens once, before anything is drawn from the answer.
+   */
+  private async reviewNow(opening = false): Promise<void> {
     try {
       const at = this.editor.revision;
-      this.reviewed = await review(this.editor.drawing);
+      const first = await review(this.editor.drawing);
       this.trouble = null;
       this.naming = null;
-      // A junction always has a valid name, so the names the drawing has not
-      // settled are minted the moment the store says which junctions exist.
-      // The write folds into the edit that caused it, and asking again with
-      // the names in place is what makes the pane agree with the drawing.
-      if (this.editor.settle(this.reviewed, at)) {
+      const named = opening
+        ? this.editor.remint(first, at)
+        : this.editor.settle(first, at);
+      if (named) {
+        // Opening a hand-written railroad has edits to save, because the names
+        // it was written with are not the ones it now holds.
         this.saved = false;
         this.reviewed = await review(this.editor.drawing);
+      } else {
+        this.reviewed = first;
       }
       this.redraw();
     } catch (failure) {

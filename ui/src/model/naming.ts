@@ -12,13 +12,20 @@
  * second union-find here. What this module decides is only what they are
  * called.
  *
- * **Splits and merges resolve by provenance.** Deleting a symbol can split a
+ * **A typed name is replaced on load.** Opening a drawing re-mints every
+ * connection name it carries, so no open drawing holds one a person typed
+ * ([ADR-0023](../../../docs/adr/0023-internal-names-are-minted-and-hidden.md)).
+ * A `connection` key is still written and still read, and a hand-written
+ * drawing still loads and still derives; what changes is that the editor stops
+ * honouring a typed one the moment the drawing is opened.
+ *
+ * **Splits and merges settle themselves.** Deleting a symbol can split a
  * junction in two, which leaves one name on both halves; wiring two together
  * merges them, which leaves both names on one junction. Derivation refuses
- * either way, and either way the editor settles it when only minted names are
- * involved, because nobody is reading `j7`. A name someone typed stays where
- * it is, and the refusal is reported: choosing which half is Airolo is not the
- * editor's decision to make.
+ * either way, and either way the editor settles it, because every name it is
+ * choosing between is one it minted and nobody is reading `j7`. Which half is
+ * Airolo was the one question it could not answer, and there is no longer an
+ * Airolo to ask it about.
  */
 
 import { TRANSITS } from "../symbols.generated.js";
@@ -27,9 +34,48 @@ import type { Joint, Junction, Review } from "./store.js";
 
 const MINTED = /^j[1-9][0-9]*$/;
 
-/** Whether a name was minted here, which is what makes it safe to re-mint. */
+/** Whether a name was minted here. Only needed while loading, to tell what to
+ *  replace: everything a drawing holds after that is minted. */
 export function minted(name: string): boolean {
   return MINTED.test(name);
+}
+
+/**
+ * Open a drawing: the settle pass, with no typed name honoured. Says whether
+ * it wrote anything, which it does for every hand-written railroad.
+ *
+ * The re-minted document is what the editor holds from then on. It is not an
+ * undo step — there is nothing to undo back to — and the drawing is marked as
+ * holding unsaved edits, because it does.
+ */
+export function remint(drawing: Drawing, review: Review): boolean {
+  return settle(drawing, forgetting(review));
+}
+
+/**
+ * The review as it reads once no typed name is honoured: a junction or a joint
+ * carrying one has no name at all, so the settle pass mints it a fresh one and
+ * writes it over every member.
+ *
+ * All of a connection's names go together rather than the typed ones alone. A
+ * junction wearing `airolo` and `j2` is a merge that has already happened, and
+ * keeping `j2` would hand the merged throat a name half of it never wore for
+ * no gain: the name is nobody's to read either way.
+ *
+ * A junction of one symbol is named after that symbol and writes no
+ * `connection` at all, so it carries no name to replace and is left as the
+ * drawing has it.
+ */
+function forgetting(review: Review): Review {
+  return {
+    ...review,
+    junctions: review.junctions.map(forgotten),
+    joints: review.joints.map(forgotten),
+  };
+}
+
+function forgotten<One extends Junction | Joint>(one: One): One {
+  return one.names.every(minted) ? one : { ...one, name: null, names: [] };
 }
 
 /**
@@ -76,21 +122,15 @@ function settled(
 /**
  * Which of several names on one junction survives a merge.
  *
- * A merge leaves one name from each of the junctions it joined, and only a
- * typed one is a decision. Where every name is minted the lowest of them wins,
- * so the merged junction keeps a name it already wore and the rest of the diff
- * is names coming off. Where exactly one was typed it wins outright: it is the
- * only name anybody chose, and minting over it would throw away the only
- * meaningful one. Two typed names is the case the editor cannot settle, and
- * derivation refuses it.
+ * A merge leaves one name from each of the junctions it joined, and every one
+ * of them is minted — a typed name does not outlive the load that read it — so
+ * the lowest wins. The merged junction keeps a name it already wore and the
+ * rest of the diff is names coming off.
  *
  * The names this drops are free again by the next review, which is where
  * `taken` comes from; nothing tries to reuse them within one pass.
  */
-function survivor(names: string[]): string | null {
-  const typed = names.filter((name) => !minted(name));
-  if (typed.length > 1) return null;
-  if (typed.length === 1) return typed[0]!;
+function survivor(names: string[]): string {
   return names.reduce((one, other) => (number(one) <= number(other) ? one : other));
 }
 
@@ -151,8 +191,10 @@ function wants(one: Junction | Joint): boolean {
   return one.name === null && one.names.length === 0;
 }
 
-/** It shares its name with another, which derivation refuses. Re-minted where
- *  the name was minted, left alone where someone typed it. */
+/** It shares its name with another, which derivation refuses, so it takes a
+ *  fresh one. Only a minted name is re-minted: the one other name a junction
+ *  can wear is its own lone symbol's key, which is not this module's to
+ *  change. */
 function clashes(one: Junction | Joint, review: Review): boolean {
   if (one.name === null || !minted(one.name)) return false;
   const wearing = [...review.junctions, ...review.joints].filter(
