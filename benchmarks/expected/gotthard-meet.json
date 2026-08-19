@@ -16,14 +16,14 @@
     },
     "Incremental": {
       "status": "ok",
-      "makespan": 3,
-      "ticks": 3,
+      "makespan": 5,
+      "ticks": 5,
       "completed": 2,
       "rejected": 0,
-      "mean_latency": 3.0,
-      "max_latency": 3,
+      "mean_latency": 4.0,
+      "max_latency": 5,
       "mean_utilization": 0.4,
-      "mean_parallelism": 1.0,
+      "mean_parallelism": 0.6667,
       "stalls": []
     }
   }

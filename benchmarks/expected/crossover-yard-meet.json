@@ -22,7 +22,7 @@
       "rejected": 0,
       "mean_latency": 3.3333,
       "max_latency": 4,
-      "mean_utilization": 0.2614,
+      "mean_utilization": 0.2955,
       "mean_parallelism": 0.4375,
       "stalls": []
     }
