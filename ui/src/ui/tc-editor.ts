@@ -67,7 +67,7 @@ export class TcEditor extends LitElement {
    *  `trouble`: a refusal outliving what caused it would still be listed
    *  against a drawing that no longer has the problem. A symbol name is
    *  refused in the properties dialog instead, where it was typed, and never
-   *  reaches here (ADR-0023).  */
+   *  reaches here (ADR-0023). */
   @state() private naming: string | null = null;
   @state() private saved = true;
   @state() private menu: MenuAt | null = null;

@@ -42,7 +42,7 @@ export function minted(name: string): boolean {
 
 /**
  * Open a drawing: the settle pass, with no typed name honoured. Says whether
- * it wrote anything, which it does for every hand-written railroad.
+ * it wrote anything, which it does for any drawing that names a connection.
  *
  * The re-minted document is what the editor holds from then on. It is not an
  * undo step — there is nothing to undo back to — and the drawing is marked as

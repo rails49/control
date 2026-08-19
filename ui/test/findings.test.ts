@@ -175,6 +175,18 @@ describe("a name the drawing will not take", () => {
     expect(listed(shell)).toEqual(["Every pin holds its wires."]);
   });
 
+  /** A refusal never reaches the document, so there is no snapshot of it to
+   *  undo back past. */
+  it("leaves nothing behind for undo to take back", async () => {
+    const { shell, session } = await mounted();
+    const dialog = await opened(shell, session, "b1");
+
+    await typed(dialog, field(dialog), "sw1");
+    await apply(dialog);
+
+    expect(session.canUndo).toBe(false);
+  });
+
   it("closes on a name the drawing can take, having renamed the symbol", async () => {
     const { shell, session } = await mounted();
     const dialog = await opened(shell, session, "b1");

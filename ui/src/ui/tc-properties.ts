@@ -73,7 +73,7 @@ export class TcProperties extends LitElement {
     if (this.editing === null) return nothing;
     return html`
       <sl-dialog open label="Properties" @sl-after-hide=${this.close}>
-        ${named(this.draft.kind) ? this.named() : nothing}
+        ${named(this.draft.kind) ? this.nameField() : nothing}
         ${this.perKind()}
         <sl-button slot="footer" @click=${this.close}>Cancel</sl-button>
         <sl-button slot="footer" variant="primary" @click=${this.apply}>
@@ -86,7 +86,7 @@ export class TcProperties extends LitElement {
   /** The name field, and why what is in it will not do. The reason stands
    *  where the name was typed rather than in a panel across the screen, and it
    *  is shown as it is typed rather than only on Apply. */
-  private named() {
+  private nameField() {
     const trouble = this.trouble;
     return html`
       <sl-input
