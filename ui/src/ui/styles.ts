@@ -543,6 +543,45 @@ export const canvasStyles = css`
   }
 `;
 
+/* The box a menu drops into, shared by the right-click menu and the bar's, so
+   that the editor's two menu systems read as one. Position is the caller's:
+   one is pinned to the pointer and the other hangs off its title. */
+const panel = css`
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  min-width: 12rem;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--paper);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.14);
+  font: 13px/1.4 system-ui, sans-serif;
+`;
+
+/* One row of a menu: a label that takes the width, and whatever sits either
+   side of it. */
+const row = css`
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+`;
+
+/* The key that does the same thing, set apart from the words rather than
+   competing with them. */
+const shortcut = css`
+  color: var(--hint);
+  font: inherit;
+`;
+
 export const menuStyles = css`
   .sheet {
     position: fixed;
@@ -553,41 +592,19 @@ export const menuStyles = css`
   menu {
     position: fixed;
     z-index: 11;
-    margin: 0;
-    padding: 0.25rem;
-    list-style: none;
-    min-width: 12rem;
-    border: 1px solid var(--rule);
-    border-radius: 5px;
-    background: var(--paper);
-    box-shadow: 0 6px 18px rgb(0 0 0 / 0.14);
-    font: 13px/1.4 system-ui, sans-serif;
+    ${panel}
   }
 
   button {
-    display: flex;
-    align-items: baseline;
-    gap: 1.5rem;
-    width: 100%;
-    padding: 0.3rem 0.5rem;
-    border: none;
-    border-radius: 3px;
-    background: none;
-    color: var(--ink);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
+    ${row}
   }
 
   button span {
     flex: 1;
   }
 
-  /* The key that does the same thing, set apart from the words rather than
-     competing with them. */
   kbd {
-    color: var(--hint);
-    font: inherit;
+    ${shortcut}
   }
 
   button:hover {
@@ -598,6 +615,148 @@ export const menuStyles = css`
   button:hover kbd {
     color: inherit;
     opacity: 0.75;
+  }
+`;
+
+/**
+ * The menu bar (`tc-menubar`): three titles at the left, the three commands
+ * pressed constantly pinned at the right.
+ */
+export const menubarStyles = css`
+  :host {
+    display: flex;
+    gap: 0.1rem;
+    align-items: center;
+    padding: 0.2rem 0.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .spacer {
+    flex: 1;
+  }
+
+  /* Everything on the bar sits above the sheet that dismisses a menu, so a
+     click on the title that is down closes it instead of being swallowed. */
+  .menu,
+  .tool {
+    position: relative;
+    z-index: 12;
+  }
+
+  .sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+  }
+
+  .title {
+    padding: 0.2rem 0.55rem;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .title:hover {
+    background: #f0eeea;
+  }
+
+  .title.on {
+    background: var(--chosen);
+    color: #fff;
+  }
+
+  menu {
+    position: absolute;
+    top: calc(100% + 0.2rem);
+    left: 0;
+    z-index: 13;
+    ${panel}
+  }
+
+  /* The drawings hang off the Open row rather than below it. */
+  li.submenu {
+    position: relative;
+  }
+
+  menu.drawings {
+    top: -0.3rem;
+    left: 100%;
+    min-width: 9rem;
+  }
+
+  li button {
+    ${row}
+  }
+
+  /* A label never wraps: a drawing's name is one word however long it is, and
+     wrapping is also what stops the submenu widening to fit one. */
+  .label {
+    flex: 1;
+    white-space: nowrap;
+  }
+
+  /* The glyph column, one 16 unit square wide whatever the glyph, so every
+     label in a menu starts at the same place. */
+  .glyph {
+    display: flex;
+    width: 16px;
+  }
+
+  .tick {
+    width: 16px;
+  }
+
+  .more {
+    color: var(--hint);
+  }
+
+  kbd {
+    ${shortcut}
+  }
+
+  li button:hover:not(:disabled) {
+    background: var(--chosen);
+    color: #fff;
+  }
+
+  li button:hover:not(:disabled) kbd,
+  li button:hover:not(:disabled) .more {
+    color: inherit;
+    opacity: 0.75;
+  }
+
+  /* A dead item still reads, so that what is missing to bring it back can be
+     worked out from the word rather than from its absence. */
+  li button:disabled {
+    color: var(--hint);
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .divider {
+    margin: 0.25rem 0.4rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  /* An icon button is square around its glyph. */
+  .tool {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.6rem;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .tool:hover {
+    background: #f0eeea;
   }
 `;
 
