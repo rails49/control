@@ -4,6 +4,7 @@ import {
   WHOLE,
   against,
   amongst,
+  chosenWay,
   clashes,
   dark,
   lit,
@@ -103,14 +104,18 @@ function scissors(): Review {
 
 describe("the way a chosen transit takes", () => {
   it("lights each symbol on the way at the leg the way takes", () => {
-    const way = lit(scissors(), { connection: "crossover", transit: "up_to_dn" });
+    const way = lit(
+      chosenWay(scissors(), { connection: "crossover", transit: "up_to_dn" }),
+    );
     expect(way.get("dn_e_points")).toEqual(new Set(["diverging"]));
     expect(way.get("diamond")).toEqual(new Set(["a"]));
     expect(way.get("up_w_points")).toEqual(new Set(["diverging"]));
   });
 
   it("lights the two block ends the transit runs between, whole", () => {
-    const way = lit(scissors(), { connection: "crossover", transit: "up_to_dn" });
+    const way = lit(
+      chosenWay(scissors(), { connection: "crossover", transit: "up_to_dn" }),
+    );
     expect(way.get("dn_e")).toEqual(new Set([WHOLE]));
     expect(way.get("up_w")).toEqual(new Set([WHOLE]));
   });
@@ -121,14 +126,17 @@ describe("the way a chosen transit takes", () => {
       ["bend_3", ""],
       ["dn_w_points", "straight"],
     ];
-    const way = lit(found, { connection: "crossover", transit: "dn_straight" });
+    const way = lit(
+      chosenWay(found, { connection: "crossover", transit: "dn_straight" }),
+    );
     expect(way.get("bend_3")).toEqual(new Set([WHOLE]));
   });
 
   it("lights nothing when nothing is chosen, or when the choice is stale", () => {
-    expect(lit(scissors(), null).size).toBe(0);
+    expect(lit(chosenWay(scissors(), null)).size).toBe(0);
     expect(
-      lit(scissors(), { connection: "crossover", transit: "gone" }).size,
+      lit(chosenWay(scissors(), { connection: "crossover", transit: "gone" }))
+        .size,
     ).toBe(0);
   });
 });

@@ -31,7 +31,14 @@ import {
   type Point,
 } from "../model/geometry.js";
 import { Gesture, type Outcome } from "../model/gesture.js";
-import { clashes, dark, lit, unpaired, type Chosen } from "../model/inspect.js";
+import {
+  chosenWay,
+  clashes,
+  dark,
+  lit,
+  unpaired,
+  type Chosen,
+} from "../model/inspect.js";
 import { fitBox } from "../model/scene.js";
 import type { Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
@@ -285,7 +292,7 @@ export class TcCanvas extends LitElement {
    *  the frog that makes two transits exclusive is a claim about the drawing,
    *  and this is where it is checked by looking. */
   private symbols(): unknown {
-    const way = lit(this.review ?? EMPTY, this.chosen);
+    const way = lit(chosenWay(this.review ?? EMPTY, this.chosen));
     const blind = dark(this.review ?? EMPTY);
     const lone = unpaired(this.review ?? EMPTY);
     return Object.entries(this.editor.drawing.symbols).map(([name, spec]) => {

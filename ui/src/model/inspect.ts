@@ -14,7 +14,7 @@
  */
 
 import { minted } from "./naming.js";
-import type { Review } from "./store.js";
+import type { Review, Transit } from "./store.js";
 
 /** A symbol lit whole, having no leg of its own the artwork draws: a joiner,
  *  a block end, the generic connection box. */
@@ -27,30 +27,39 @@ export interface Chosen {
 }
 
 /**
- * What the canvas lights for a chosen transit: each symbol on its way, at the
- * legs the way takes, and the two block ends it runs between.
+ * What the canvas lights for a set of ways: each symbol on one, at the legs
+ * that way takes, and the two block ends it runs between.
  *
  * The block ends are not on the way — derivation stops walking at a block —
- * but they are what the transit joins, and lighting them is what makes the
- * lit run read as one movement rather than as scattered frogs.
+ * but they are what a transit joins, and lighting them is what makes the lit
+ * run read as one movement rather than as scattered frogs.
+ *
+ * A way, rather than a choice in the netlist pane: the ways behind a refusal
+ * arrive already walked (`review.offending`), and both callers want the same
+ * answer in the same shape.
  */
-export function lit(
-  review: Review,
-  chosen: Chosen | null,
-): Map<string, Set<string>> {
+export function lit(ways: readonly Transit[]): Map<string, Set<string>> {
   const found = new Map<string, Set<string>>();
-  if (chosen === null) return found;
-  const transit =
-    review.explain?.connections[chosen.connection]?.transits[chosen.transit];
-  if (transit === undefined) return found;
   const light = (symbol: string, leg: string) => {
     const legs = found.get(symbol) ?? new Set<string>();
     legs.add(leg);
     found.set(symbol, legs);
   };
-  for (const [symbol, leg] of transit.way) light(symbol, leg === "" ? WHOLE : leg);
-  for (const end of transit.ends) light(end.split(".")[0]!, WHOLE);
+  for (const { ends, way } of ways) {
+    for (const [symbol, leg] of way) light(symbol, leg === "" ? WHOLE : leg);
+    for (const end of ends) light(end.split(".")[0]!, WHOLE);
+  }
   return found;
+}
+
+/** The way a transit chosen in the netlist pane takes, as the one way to
+ *  light. Empty where nothing is chosen, and where the choice is stale —
+ *  every edit re-reviews, and a transit can go with the wire that made it. */
+export function chosenWay(review: Review, chosen: Chosen | null): Transit[] {
+  if (chosen === null) return [];
+  const transit =
+    review.explain?.connections[chosen.connection]?.transits[chosen.transit];
+  return transit === undefined ? [] : [transit];
 }
 
 /**
