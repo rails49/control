@@ -8,6 +8,7 @@ each.
 """
 
 from collections.abc import Callable
+from copy import deepcopy
 from itertools import pairwise
 from pathlib import Path
 from random import Random
@@ -18,7 +19,7 @@ import yaml
 
 from tc49.lib.layout import Layout
 from tc49.store import AssetStore
-from tc49.store.drawing import Drawing
+from tc49.store.drawing import LIBRARY, POSITIONS, Drawing
 from tests.store.railroads import RAILROADS, derive, read
 
 
@@ -1197,6 +1198,12 @@ _SCHEMA_ERRORS: list[tuple[Mutate, str]] = [
     (lambda d: d["symbols"]["west"].update(at=["a", "b"]), "at must be two integers"),
     (lambda d: d["symbols"]["west"].update(rot=45), "rot must be one of"),
     (lambda d: d["symbols"]["west"].update(flip="yes"), "flip must be true or false"),
+    # A fixed crossing has no motor, so there is nothing for an address to
+    # answer to (ADR-0022).
+    (
+        lambda d: d["symbols"].update(points={"kind": "crossing", "addr": "31"}),
+        "unknown key",
+    ),
     # Each kind is drawn one way, so nothing picks between appearances.
     (
         lambda d: d["symbols"].update(points={"kind": "crossing", "angle": "shallow"}),
@@ -1209,6 +1216,57 @@ def test_hardware_ids_load_and_are_dropped_by_derivation() -> None:
     doc = spanned()
     doc["symbols"]["west"]["sensors"] = {"A": "s1", "B": "s2"}
     assert derive(doc)["blocks"]["west"] == {"length": 1000}
+
+
+def test_the_motorised_kinds_are_the_ones_with_a_motor() -> None:
+    """ADR-0022's table, which a fixed crossing is not in: it has no motor, so
+    it has no position to be commanded into and takes no address."""
+    assert set(POSITIONS) == {"turnout", "single_slip", "double_slip"}
+
+
+@pytest.mark.parametrize("kind", sorted(POSITIONS))
+def test_every_leg_of_a_motorised_kind_wants_one_of_the_two_positions(
+    kind: str,
+) -> None:
+    """One motor, two positions: a way through the symbol takes some leg, and
+    the leg has to say which way the points must lie, whichever leg it is."""
+    assert set(POSITIONS[kind]) == set(LIBRARY[kind])
+    assert set(POSITIONS[kind].values()) == {"straight", "curved"}
+
+
+@pytest.mark.parametrize("kind", sorted(POSITIONS))
+def test_a_motorised_symbol_takes_the_address_hardware_answers_to(kind: str) -> None:
+    """`addr` is a plain string and nothing checks it: a DCC accessory number
+    is a string that happens to be digits, and what a physical point answers to
+    is knowledge the drawing cannot hold (ADR-0022)."""
+    doc = two_blocks(points={"kind": kind, "addr": "31"})
+    assert Drawing.from_document(doc).symbols["points"].addr == "31"
+
+
+def test_an_address_written_as_digits_is_read_as_the_string_it_names() -> None:
+    """`addr: 31` in the yaml is the accessory number 31, not an integer the
+    schema has to refuse."""
+    doc = two_blocks(points={"kind": "turnout", "addr": 31})
+    assert Drawing.from_document(doc).symbols["points"].addr == "31"
+
+
+def test_an_address_is_dropped_by_derivation() -> None:
+    """The layout carries no hardware id, so a drawing derives the same one
+    addressed and unaddressed."""
+    doc = two_blocks(
+        north=block(),
+        north_stop={"kind": "terminal"},
+        points={"kind": "turnout"},
+    )
+    doc["wires"] += [
+        ["west.B", "points.toe"],
+        ["points.straight", "east.A"],
+        ["points.diverging", "north.A"],
+        ["north.B", "north_stop.P"],
+    ]
+    addressed = deepcopy(doc)
+    addressed["symbols"]["points"]["addr"] = "31"
+    assert derive(addressed) == derive(doc)
 
 
 def test_placement_loads_and_derives_to_the_same_layout() -> None:

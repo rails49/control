@@ -63,6 +63,25 @@ LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
     "double_slip": {**_THROUGH, "slip_1": ("a1", "b2"), "slip_2": ("b1", "a2")},
 }
 
+# What each leg of a motorised kind wants the motor set to (ADR-0022). Every
+# motorised kind has one motor and two positions: a turnout lies straight or
+# diverging, a slip straight or curved, both roads together. A turnout's legs
+# are already named for its positions and a slip's are not, so the table says
+# it once, here, rather than in every reader of a way.
+#
+# It is also the roll of kinds that have a motor at all, which is what takes an
+# `addr`; a fixed crossing is not in it and takes none.
+POSITIONS: dict[str, dict[str, str]] = {
+    "turnout": {"straight": "straight", "diverging": "curved"},
+    "single_slip": {"a": "straight", "b": "straight", "slip": "curved"},
+    "double_slip": {
+        "a": "straight",
+        "b": "straight",
+        "slip_1": "curved",
+        "slip_2": "curved",
+    },
+}
+
 # `pin` (a free-standing bend) and `portal` are joiners: they pass a wire
 # through and derive to nothing. The bend is named because the editor treats it
 # apart from every other kind — it is placed by clicking empty canvas rather
@@ -122,6 +141,7 @@ class Symbol:
     connection: str = ""  # the junction this symbol belongs to, where authored
     length: int = 0
     label: str = ""  # a portal's, which pairs it with its mate
+    addr: str = ""  # a motorised symbol's, naming what the hardware answers to
 
 
 @dataclass(frozen=True)
@@ -742,7 +762,10 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
 def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
     """A symbol of fixed geometry: its pins, its transits and its concurrency
     come from the library, so the drawing writes only the names it wants."""
-    check_keys(spec, where, {"kind"}, {"names", "connection"} | _PLACEMENT)
+    optional = {"names", "connection"} | _PLACEMENT
+    if kind in POSITIONS:
+        optional.add("addr")
+    check_keys(spec, where, {"kind"}, optional)
     transits = LIBRARY[kind]
 
     names: dict[str, str] = {}
@@ -761,6 +784,9 @@ def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
         dict(transits),
         names=names,
         connection=_connection_of(where, spec),
+        # Nothing checks an address, so nothing but the yaml's own quoting
+        # separates the accessory number 31 from the string "31" (ADR-0022).
+        addr=str(spec.get("addr", "")),
     )
 
 
