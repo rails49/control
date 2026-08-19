@@ -18,19 +18,22 @@ def safe(
     cur: Mapping[str, str],
     rem: Mapping[str, Sequence[str]],
     idle: Iterable[str],
+    held: Mapping[str, Sequence[str]],
 ) -> bool:
     """`cur`: each active train's occupied block — for a mid-transit train
     the block it is crossing *into* (its origin counts as free, Lemma 1).
     `rem`: the blocks of its route strictly after `cur`, ending at its
     destination; empty for a train arriving at its destination.
-    `idle`: the blocks held by idle trains."""
+    `idle`: the blocks held by idle trains.
+    `held`: the blocks of `rem` it has already locked, which a frozen train
+    blocks just as it blocks `cur` — it stands in one and holds the rest."""
     active = frozenset(cur)
     idle_blocks = frozenset(idle)
     dest = {t: (rem[t][-1] if rem[t] else cur[t]) for t in active}
     memo: dict[frozenset[str], bool] = {}
 
     def feasible(t: str, done: frozenset[str]) -> bool:
-        frozen = {cur[u] for u in active - done - {t}}
+        frozen = {b for u in active - done - {t} for b in (cur[u], *held[u])}
         parked = {dest[u] for u in done}
         return all(
             b not in frozen and b not in parked and b not in idle_blocks for b in rem[t]

@@ -171,10 +171,11 @@ class Incremental:
                 # The launch grants the first increment, and the first move
                 # follows in the same phase — so the state to check is the
                 # post-grant one: mid-transit, cur at the far block.
-                cur, rem, idle = safety_view(state, skip=req.train)
+                cur, rem, idle, held = safety_view(state, skip=req.train)
                 cur[req.train] = route.blocks[1]
                 rem[req.train] = list(route.blocks[2:])
-                if safe(cur, rem, idle):
+                held[req.train] = []  # the increment is cur; nothing beyond it
+                if safe(cur, rem, idle, held):
                     for resource in increment:
                         state.locks[resource] = req.train
                     return Launched(route, tried, increment)
@@ -199,10 +200,11 @@ class Incremental:
             None,
         )
         if blocking is None:
-            cur, rem, idle = safety_view(state, skip=train)
+            cur, rem, idle, held = safety_view(state, skip=train)
             cur[train] = into  # mid-transit: the far block (Lemma 1)
             rem[train] = list(active.route.blocks[i + 2 :])
-            if safe(cur, rem, idle):
+            held[train] = []  # the increment is cur; nothing beyond it
+            if safe(cur, rem, idle, held):
                 # The move after a launch re-grants the increment the launch
                 # already locked; report only what is newly locked.
                 newly = [r for r in (transit, into) if state.locks.get(r) != train]
@@ -218,21 +220,27 @@ class Incremental:
 
 def safety_view(
     state: State, skip: str | None = None
-) -> tuple[dict[str, str], dict[str, list[str]], list[str]]:
+) -> tuple[dict[str, str], dict[str, list[str]], list[str], dict[str, list[str]]]:
     """The safe() inputs for the current state, excluding `skip` (the train
-    whose tentative position the caller supplies), if any."""
+    whose tentative position the caller supplies), if any.
+
+    What a train holds ahead is read off the lock table rather than off the
+    strategy's depth, so the check describes the state it is given whatever
+    asked for it."""
     cur: dict[str, str] = {}
     rem: dict[str, list[str]] = {}
+    held: dict[str, list[str]] = {}
     for train, active in state.active.items():
         if train != skip:
             cur[train] = active.route.blocks[active.cur_index]
             rem[train] = list(active.route.blocks[active.cur_index + 1 :])
+            held[train] = [b for b in rem[train] if state.locks.get(b) == train]
     idle = [
         block
         for train, block in state.block_of.items()
         if train not in state.active and train != skip
     ]
-    return cur, rem, idle
+    return cur, rem, idle, held
 
 
 def _unsafe_obstacle(

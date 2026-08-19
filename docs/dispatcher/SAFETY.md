@@ -34,20 +34,31 @@ in the same tick's buffered set, so the two behave identically.
   the dispatcher will move it, so *its block is permanently unavailable*.
 - For an active train `t`: `cur(t)` is the block it occupies; if it is
   mid-transit, `cur(t)` is the block it is crossing *into*. `rem(t)` is the
-  blocks of its route strictly after `cur(t)`, ending at `dest(t)`.
+  blocks of its route strictly after `cur(t)`, ending at `dest(t)`. `held(t)`
+  is the blocks of `rem(t)` it has already locked.
 
 `cur(t)` for a mid-transit train is its destination because "frozen" means
 *stops as soon as it physically can*, and by Lemma 1 that is always the far
 block. Its origin therefore counts as free. This is sound — the release is
 guaranteed, not hoped for — and strictly more permissive than counting both.
 
+`held(t)` is empty whenever a grant locks no further than `cur(t)`, which is
+every grant a depth-one strategy makes. It is read off the lock table rather
+than off the strategy's depth, so the check describes the state it is handed
+whatever asked for it, and a strategy that reaches further ahead cannot make
+the check optimistic by accident.
+
 ## The check
 
 ```
 safe(state):
   # memoized over S ⊆ active — the set of trains assumed already finished
+  frozen(t, S)   = ⋃ {{cur(u)} ∪ held(u) : u ∈ active, u ∉ S ∪ {t}}
+
   feasible(t, S) = every b in rem(t) satisfies
-       b ∉ {cur(u) : u ∈ active, u ∉ S ∪ {t}}   # frozen active trains
+       b ∉ frozen(t, S)                         # frozen active trains:
+                                                #   where they stand, and
+                                                #   what they already hold
      ∧ b ∉ {dest(u) : u ∈ S}                    # finishers, parked
      ∧ b ∉ {cur(u) : u ∈ idle}                  # permanent obstacles
 
@@ -149,7 +160,9 @@ unsafe: in a circular wait no train can be first in any ordering, since each
 needs a block held by a train frozen behind it. Hence no deadlock.
 
 **Progress.** In any reachable state with an unfinished train, take a witness
-ordering `t₁…tₖ`. Every block on `rem(t₁)` is free or held by `t₁` itself, so
+ordering `t₁…tₖ`. Every block on `rem(t₁)` is free or held by `t₁` itself —
+which is what `feasible(t₁, ∅)` establishes, `frozen` covering what the other
+trains hold and not only where they stand — so
 `t₁`'s next transit and block are grantable, and granting them preserves
 safety — `t₁` remains the head of the same witness. The dispatcher re-examines
 waiting trains at every grant phase, so the grant is eventually issued. Each advance
