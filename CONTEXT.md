@@ -3,7 +3,7 @@
 Dispatching trains on a model railroad: deadlock-free, high-throughput
 allocation of track to scheduling requests. The app never touches hardware:
 whatever drives the track implements the **layout interface** — reporting
-sensor readings, executing turnout and throttle commands. A simulator
+sensor readings, executing turnout, signal and throttle commands. A simulator
 implements it first, a physical layout later. Components communicate over an
 event bus and an asset CRUD contract ([docs/SYSTEM.md](docs/SYSTEM.md)).
 
@@ -41,6 +41,21 @@ them `concurrent`. The same concept one level down: a symbol declares transits
 between its pins, usually unnamed, and derivation composes symbol transits
 into connection transits.
 _Avoid_: route (reserved for the request-level path), path, crossing
+
+**Signal**:
+What stands at a block end and tells a driver whether to go and how fast. Shows
+one **aspect**, set by the dispatcher. An end nothing ever leaves carries none,
+a signal that could only show `stop` being furniture.
+_Avoid_: light, head, semaphore, distant
+
+**Aspect**:
+What a signal shows, one of exactly three — `stop`, `approach` (proceed,
+prepared to stop at the next signal), and `clear` (full speed) — read off how
+far ahead the dispatcher has locked: nothing, one block, two or more
+([ADR-0025](docs/adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+`stop` unless a block beyond has been reserved, which follows from the locks
+rather than being a rule of its own.
+_Avoid_: indication, state, colour, signal (the signal shows the aspect)
 
 ### Drawing
 
@@ -103,7 +118,9 @@ _Avoid_: gap, splice, bare wire (a joint may be several)
 
 **Train**:
 A collection of locomotives and cars moving or parked as a unit; its length is
-the sum of its parts. A train occupies exactly one block at a time.
+the sum of its parts. A train at rest occupies exactly one block; while
+crossing it holds the transit and, until its tail clears, the block behind as
+well.
 _Avoid_: consist
 
 **Facing**:
@@ -147,8 +164,10 @@ _Avoid_: itinerary, journey, plan
 
 **Lock**:
 Exclusive claim on a block or transit by one train. Incremental locking claims
-only the current and next resources of a route; full-route locking claims all
-of them up front. Occupancy is a **standing lock**: every train, moving or
+a little way ahead of the train and releases what it has left — one block ahead
+is enough to move, two is what buys full speed, and a third is never asked for
+([ADR-0026](docs/adr/0026-two-blocks-ahead-is-full-speed.md)); full-route
+locking claims every resource up front. Occupancy is a **standing lock**: every train, moving or
 parked, requested or not, always holds the lock on the block it stands in.
 _Avoid_: reservation, allocation
 
@@ -160,14 +179,24 @@ nothing in the dispatcher will move it; this is what
 [SAFETY.md](docs/dispatcher/SAFETY.md) means by a permanent obstacle.
 _Avoid_: running/stopped, busy/free
 
+**Grant boundary**:
+The beat the layout interface publishes and the dispatcher grants on: each one
+triggers a grant phase over the sensor events buffered since the last, so
+grants are a function of that set and not of arrival order
+([ADR-0009](docs/adr/0009-layout-interface-owns-time.md)). What generates it is
+the binding — the simulator's tick, a clock on a physical railroad — and the
+dispatcher never reads a clock either way.
+_Avoid_: beat, round, cycle
+
 **Tick**:
-The discrete time unit: each tick, a moving train completes one transit.
-Published as an event by the layout interface, carrying a deterministic
-counter, and doubling as the dispatcher's grant boundary
-([ADR-0009](docs/adr/0009-layout-interface-owns-time.md)). Travel time within
-blocks is ignored. The dispatcher never reads a clock and never learns the
-tick number.
-_Avoid_: step, cycle
+The **simulator's** grant boundary, carrying a deterministic counter: each
+tick a moving train completes one transit, and travel time within blocks and
+transit length are ignored. That is a property of the simulator, not of the
+model — on a physical railroad a transit takes as long as it takes
+([ADR-0027](docs/adr/0027-the-tick-is-the-simulators-grant-boundary.md)). The
+dispatcher never learns the tick number.
+_Avoid_: step, cycle. Not a synonym for *grant boundary*: say that where any
+binding's beat would do
 
 ### Bus
 
@@ -186,8 +215,8 @@ _Avoid_: retained message (the MQTT mechanism, not the model concept)
 
 **Command**:
 An imperative event the layout interface executes: `align` (set a connection
-to a transit) and `cross` (a train crosses a transit into a block). The only
-imperatives on the bus — everything else is a past-tense fact.
+to a transit) and `cross` (a train crosses a transit into a block, at a stated
+speed). The only imperatives on the bus — everything else is a past-tense fact.
 _Avoid_: instruction
 
 **Request id**:
