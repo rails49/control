@@ -32,7 +32,7 @@ import {
   type Pair,
 } from "../model/inspect.js";
 import type { Review } from "../model/store.js";
-import { netlistStyles } from "./styles.js";
+import { netlistStyles } from "./tc-netlist.styles.js";
 
 export type { Chosen } from "../model/inspect.js";
 

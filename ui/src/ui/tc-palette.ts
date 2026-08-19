@@ -20,7 +20,7 @@ import { customElement } from "lit/decorators.js";
 import type { Kind } from "../symbols.generated.js";
 import { FOOTPRINTS, transformOf } from "../model/geometry.js";
 import { artwork, DEFS, PALETTE, TILE } from "../render/artwork.js";
-import { paletteStyles } from "./styles.js";
+import { paletteStyles } from "./tc-palette.styles.js";
 
 const TITLES: Record<Kind, string> = {
   block: "Block",

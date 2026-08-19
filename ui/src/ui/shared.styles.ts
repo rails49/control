@@ -1,0 +1,194 @@
+/**
+ * What more than one component wears: the palette, the symbol rules, the lit
+ * way, and the box a menu drops into.
+ *
+ * The styles are kept out of the components so that what a component has is
+ * behaviour; each component's own rules sit in a module beside it, and read
+ * from here what it shares with another.
+ *
+ * Every dimension and every colour comes from `render/units.ts`: the colours
+ * are declared here as the custom properties the rules read, and the widths
+ * are interpolated straight in, so a stroke is W wide because W says so and
+ * not because two files agree.
+ */
+
+import { css, unsafeCSS } from "lit";
+
+import {
+  BLOCK,
+  COLOURS,
+  HAIRLINE,
+  SLIP,
+  TERMINAL,
+  W,
+} from "../render/units.js";
+
+/** The palette, as the custom properties every rule reads. */
+export const palette = unsafeCSS(
+  Object.entries(COLOURS)
+    .map(([name, value]) => `${name}: ${value};`)
+    .join("\n    "),
+);
+
+/**
+ * The symbols themselves, drawn the same on the canvas and on a palette tile:
+ * both are the symbol's own coordinates, one grid square to one user unit, so
+ * one set of rules serves both and a tile shows what will be placed. Track is
+ * solid and round-capped, never patterned — wires run at any angle, and a
+ * pattern's spacing would vary with direction.
+ */
+export const symbols = css`
+  .track {
+    fill: none;
+    stroke: var(--track);
+    stroke-width: ${W};
+    stroke-linecap: round;
+  }
+
+  /* White in edit mode; run mode, out of scope for now, recolours it by
+     occupancy through the same class. */
+  .block-body {
+    fill: var(--body);
+    stroke: var(--track);
+    stroke-width: ${BLOCK.body.border};
+  }
+
+  /* A stroke ending inside another shape is cut square, so that a round cap
+     cannot bulge past a buffer bar. */
+  .track.cut {
+    stroke-linecap: butt;
+  }
+
+  .plaque {
+    fill: var(--track);
+  }
+
+  /* Both aspects are drawn, and edit mode shows both lit. Run mode, out of
+     scope for now, dims the one the signal is not showing. */
+  .lamp.clear {
+    fill: var(--clear);
+  }
+
+  .lamp.danger {
+    fill: var(--danger);
+  }
+
+  .stop,
+  .mark,
+  .portal-mouth,
+  .tick {
+    fill: none;
+    stroke: var(--track);
+    stroke-linecap: butt;
+  }
+
+  /* The plus marking a block's A side, at the weight of the rectangle it sits
+     on the corner of. */
+  .mark {
+    stroke-width: ${BLOCK.body.border};
+  }
+
+  .stop {
+    stroke-width: ${TERMINAL.bar.w};
+  }
+
+  .portal-mouth {
+    stroke: var(--hint);
+    stroke-width: ${HAIRLINE};
+  }
+
+  .tick {
+    stroke-width: ${SLIP.weight};
+  }
+`;
+
+/**
+ * Track that is not a symbol, and the lit way: shared by the editor's canvas
+ * and the panel, which paint the same drawing.
+ */
+export const way = css`
+  /* A wire is track: same width, same round cap, so it joins a symbol's leg
+     seamlessly at whatever angle its two pins give it. */
+  .wire {
+    stroke: var(--track);
+    stroke-width: ${W};
+    stroke-linecap: round;
+  }
+
+  /* The generic connection symbol shows no turnout detail, which is what it
+     says about itself. */
+  .opaque {
+    fill: #edeae4;
+    stroke: var(--track);
+    stroke-width: ${0.5 * W};
+    stroke-dasharray: ${2 * W} ${W};
+  }
+
+  /* A lit way, leg by leg: the legs of the symbols on it. On the canvas it is
+     the transit chosen in the netlist pane; on the panel it is a committed
+     route — the same claim, made by the dispatcher instead of the pointer. */
+  .symbol .track.lit {
+    stroke: var(--lit);
+    stroke-width: ${1.6 * W};
+  }
+
+  .symbol .bend.lit {
+    fill: var(--lit);
+  }
+
+  /* A slip's tick is the only thing telling its road from the through route, so
+     it lights with the transit. It stays a mark: half again its own weight is
+     enough to read beside track three times as thick. */
+  .symbol .tick.lit {
+    stroke: var(--lit);
+    stroke-width: ${SLIP.lit};
+  }
+
+  /* A block's body covers all but the stubs of its track, so the end of a lit
+     transit would otherwise be two orange flecks. */
+  .symbol .block-body.lit,
+  .symbol .opaque.lit {
+    fill: var(--lit-body);
+    stroke: var(--lit);
+  }
+`;
+
+/* The box a menu drops into, shared by the right-click menu and the bar's, so
+   that the editor's two menu systems read as one. Position is the caller's:
+   one is pinned to the pointer and the other hangs off its title. Named for
+   the menu it belongs to, `tc-panel` being another thing entirely. */
+export const menuBox = css`
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  min-width: 12rem;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--paper);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.14);
+  font: 13px/1.4 system-ui, sans-serif;
+`;
+
+/* One row of a menu: a label that takes the width, and whatever sits either
+   side of it. */
+export const menuRow = css`
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+`;
+
+/* The key that does the same thing, set apart from the words rather than
+   competing with them. */
+export const menuShortcut = css`
+  color: var(--hint);
+  font: inherit;
+`;

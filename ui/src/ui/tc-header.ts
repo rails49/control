@@ -19,7 +19,7 @@
 import { LitElement, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
-import { headerStyles } from "./styles.js";
+import { headerStyles } from "./tc-header.styles.js";
 
 /** Which page the band is on and, on the panel, which of ADR-0016's two
  *  exclusive sources is feeding it. */

@@ -5,7 +5,8 @@
  * the drawing scales as one piece and how large G is on screen is the
  * `viewBox`'s business alone. Configuring the look is editing this module:
  * nothing else in the editor holds a dimension or a colour, and the colours
- * reach the stylesheets as the custom properties `styles.ts` declares.
+ * reach the stylesheets as the custom properties `ui/shared.styles.ts`
+ * declares.
  */
 
 /** Track and wire width, W = f·G with f = 0.15. Everything below is written in

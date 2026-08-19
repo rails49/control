@@ -31,7 +31,7 @@ import "@shoelace-style/shoelace/dist/components/select/select.js";
 
 import { PINS } from "../symbols.generated.js";
 import { named, type AnyKind, type SymbolSpec } from "../model/drawing.js";
-import { propertiesStyles } from "./styles.js";
+import { propertiesStyles } from "./tc-properties.styles.js";
 
 /** What the dialog hands back: a new name where it changed, and the spec. */
 export interface Properties {

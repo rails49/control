@@ -37,7 +37,7 @@ import type { Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { BLOCK, FACE, PIN, PORTAL, fitted } from "../render/units.js";
-import { canvasStyles, exportStyles } from "./styles.js";
+import { canvasStyles, exportStyles } from "./tc-canvas.styles.js";
 
 /** What a canvas with no review yet reads as. */
 const EMPTY: Review = {

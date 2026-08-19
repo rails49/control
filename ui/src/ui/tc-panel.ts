@@ -44,7 +44,7 @@ import { Live, parseTrace, Replay, submission } from "../model/trace.js";
 import { pointOf } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { BLOCK, fitted } from "../render/units.js";
-import { panelStyles } from "./styles.js";
+import { panelStyles } from "./tc-panel.styles.js";
 import "./tc-header.js";
 import type { Mode } from "./tc-header.js";
 

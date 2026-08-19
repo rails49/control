@@ -25,7 +25,7 @@ import {
   type Review,
   type UnpairedPortal,
 } from "../model/store.js";
-import { appStyles } from "./styles.js";
+import { appStyles } from "./tc-editor.styles.js";
 import "./tc-canvas.js";
 import "./tc-header.js";
 import "./tc-menu.js";

@@ -30,7 +30,7 @@ import {
   type Standing,
 } from "../model/commands.js";
 import { GLYPHS } from "./icons.js";
-import { menubarStyles } from "./styles.js";
+import { menubarStyles } from "./tc-menubar.styles.js";
 
 @customElement("tc-menubar")
 export class TcMenubar extends LitElement {

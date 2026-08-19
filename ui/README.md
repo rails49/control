@@ -57,7 +57,9 @@ src/
     tc-properties.ts  the properties dialog
     tc-menu.ts     the right-click menu
     tc-panel.ts    the dispatch panel: trace replay painted over the drawing
-    styles.ts      every component's styles
+    <component>.styles.ts  a component's styles, beside it
+    shared.styles.ts   what more than one of them wears: the palette, the
+                   symbol rules, the lit way, the box a menu drops into
 test/            vitest; keys.test.ts and menu.test.ts need a DOM (happy-dom),
                  the rest run without one
 ```

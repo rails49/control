@@ -16,7 +16,7 @@ import { customElement, property } from "lit/decorators.js";
 
 import type { Under } from "../model/under.js";
 import { editable } from "./tc-properties.js";
-import { menuStyles } from "./styles.js";
+import { menuStyles } from "./tc-menu.styles.js";
 
 export type MenuAction =
   | "properties"
