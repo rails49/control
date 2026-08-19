@@ -19,6 +19,7 @@ import {
   type SymbolSpec,
 } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
+import { GESTURING, TRANSIENT, svgFile } from "../model/export.js";
 import {
   cellsOf,
   centreOf,
@@ -31,11 +32,12 @@ import {
 } from "../model/geometry.js";
 import { Gesture, type Outcome } from "../model/gesture.js";
 import { clashes, dark, lit, unpaired, type Chosen } from "../model/inspect.js";
+import { fitBox } from "../model/scene.js";
 import type { Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { BLOCK, FACE, PIN, PORTAL, fitted } from "../render/units.js";
-import { canvasStyles } from "./styles.js";
+import { canvasStyles, exportStyles } from "./styles.js";
 
 /** What a canvas with no review yet reads as. */
 const EMPTY: Review = {
@@ -143,6 +145,49 @@ export class TcCanvas extends LitElement {
       const spec = this.editor.drawing.symbols[name];
       return spec === undefined ? [] : [gridPointOf(spec, PORTAL.mark)];
     });
+  }
+
+  /**
+   * The drawing as a standalone SVG file (model/export.ts).
+   *
+   * The picture is this component's own markup, cloned. What is on the sheet
+   * is composed here and nowhere else, so re-rendering it from the document
+   * would be a second composition free to disagree with the screen — the
+   * failure mode EDITOR.md#implementation rules out for the netlist.
+   *
+   * Three things change on the way out. The frame is the whole drawing
+   * (`fitBox`) rather than wherever the canvas happens to be looking, so the
+   * file does not depend on the view; the sheet, which is drawn to the view,
+   * is redrawn to that frame; and the parts that are a gesture in progress go,
+   * so the same drawing gives the same bytes whatever is under way.
+   */
+  exported(): string {
+    const box = fitBox(this.editor.drawing);
+    const clone = this.renderRoot
+      .querySelector("svg")!
+      .cloneNode(true) as SVGSVGElement;
+    for (const part of TRANSIENT) {
+      for (const node of clone.querySelectorAll(part)) node.remove();
+    }
+    for (const gesturing of GESTURING) {
+      for (const node of clone.querySelectorAll(`.${gesturing}`)) {
+        node.classList.remove(gesturing);
+      }
+    }
+    // Lit writes a class attribute as its template composes it, blanks and
+    // all (`class="pin  "`), so dropping a class would leave the blank where
+    // it was and the same drawing would export differently mid-gesture. Every
+    // class is written back as its tokens.
+    for (const node of clone.querySelectorAll("[class]")) {
+      node.setAttribute("class", [...node.classList].join(" "));
+    }
+    uncomment(clone);
+    const sheet = clone.querySelector(".sheet")!;
+    sheet.setAttribute("x", String(box.x));
+    sheet.setAttribute("y", String(box.y));
+    sheet.setAttribute("width", String(box.w));
+    sheet.setAttribute("height", String(box.h));
+    return svgFile({ box, styles: exportStyles.cssText, body: clone.innerHTML });
   }
 
   /** Zoom about the middle of the view, which is what a button can mean —
@@ -566,6 +611,17 @@ export class TcCanvas extends LitElement {
   }
 }
 
+
+/** Lit's bookkeeping, out of the exported clone: the markers it leaves between
+ *  the parts of a template mean nothing in a file, and each carries a number
+ *  minted per page load, which would make the same drawing export differently
+ *  every session. */
+function uncomment(node: Node): void {
+  for (const child of [...node.childNodes]) {
+    if (child.nodeType === Node.COMMENT_NODE) child.remove();
+    else uncomment(child);
+  }
+}
 
 declare global {
   interface HTMLElementTagNameMap {

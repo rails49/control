@@ -520,6 +520,23 @@ export const canvasStyles = css`
   }
 `;
 
+/**
+ * What an exported file carries: the canvas's rules, and the palette they
+ * read (#86).
+ *
+ * On screen the custom properties come off `tc-editor`'s host and the canvas
+ * inherits them; a file has no host above it, so they are written onto the svg
+ * itself. Both sides read the same `COLOURS`, and the rules are `canvasStyles`
+ * itself rather than a copy of it, so the file cannot drift from the screen.
+ */
+export const exportStyles = css`
+  svg {
+    ${palette}
+  }
+
+  ${canvasStyles}
+`;
+
 /* The box a menu drops into, shared by the right-click menu and the bar's, so
    that the editor's two menu systems read as one. Position is the caller's:
    one is pinned to the pointer and the other hangs off its title. */

@@ -119,3 +119,96 @@ describe("fitting the view", () => {
     canvas.remove();
   });
 });
+
+/**
+ * What `File ▸ Export SVG…` writes (#86, model/export.ts).
+ *
+ * A DOM test because the clone is the one part of the export that needs a
+ * document: what the file says around it is the model's and has its own test
+ * with no DOM.
+ */
+describe("the drawing as a standalone file", () => {
+  /** Two blocks and the wire between them, drawn well apart so the frame is
+   *  plainly not the pane's shape. */
+  const RAILROAD: Drawing = {
+    drawing: "two-blocks",
+    symbols: {
+      west: { kind: "block", at: [0, 0], length: 1000 },
+      east: { kind: "block", at: [6, 0], length: 1000 },
+    },
+    wires: [["west.B", "east.A"]],
+  };
+
+  async function drawn() {
+    const canvas = document.createElement("tc-canvas");
+    canvas.editor = new Editor(structuredClone(RAILROAD));
+    canvas.review = reviewed([]);
+    document.body.append(canvas);
+    await canvas.updateComplete;
+    return canvas;
+  }
+
+  it("frames the whole drawing wherever the canvas is looking", async () => {
+    const canvas = await drawn();
+    canvas.zoom(8);
+    await canvas.updateComplete;
+    const written = canvas.exported();
+    const [x, y, w, h] = /viewBox="([^"]*)"/
+      .exec(written)![1]!
+      .split(" ")
+      .map(Number);
+    // The pins span 0 to 8 across and sit on the one row.
+    expect(x!).toBeLessThanOrEqual(0);
+    expect(x! + w!).toBeGreaterThanOrEqual(8);
+    expect(y!).toBeLessThanOrEqual(0.5);
+    expect(y! + h!).toBeGreaterThanOrEqual(0.5);
+    // The sheet is drawn to the pane on screen, so it is redrawn to the frame.
+    expect(written).toContain(
+      `<rect class="sheet" x="${x}" y="${y}" width="${w}" height="${h}"`,
+    );
+    canvas.remove();
+  });
+
+  it("keeps what is on the sheet: the pins and the block names", async () => {
+    const canvas = await drawn();
+    const written = canvas.exported();
+    expect(written).toContain('class="pin"');
+    expect(written).toContain(">west</text>");
+    expect(written).toContain(">east</text>");
+    canvas.remove();
+  });
+
+  /** Lit leaves a marker between the parts of a template, and each carries a
+   *  number minted per page load: left in, the same drawing would export
+   *  differently every session. */
+  it("leaves out lit's bookkeeping", async () => {
+    const canvas = await drawn();
+    expect(canvas.exported()).not.toContain("<!--");
+    canvas.remove();
+  });
+
+  /** A gesture in progress is not the drawing, so the same drawing gives the
+   *  same bytes whether or not one is under way. */
+  it("leaves out a selection and a wire in flight", async () => {
+    const canvas = await drawn();
+    const quiet = canvas.exported();
+    canvas.editor.select(["west"]);
+    canvas.editor.startWire("east.B");
+    canvas.requestUpdate();
+    await canvas.updateComplete;
+    expect(canvas.renderRoot.querySelector(".symbol.selected")).not.toBeNull();
+    expect(canvas.renderRoot.querySelector(".faces")).not.toBeNull();
+    expect(canvas.exported()).toBe(quiet);
+    canvas.remove();
+  });
+
+  /** The colours and widths live in the canvas's own stylesheet, so a file
+   *  without them renders as unstyled black. */
+  it("carries the colours the canvas draws with", async () => {
+    const canvas = await drawn();
+    const written = canvas.exported();
+    expect(written).toContain("--paper: #fbfbfa;");
+    expect(written).toContain("fill: var(--paper)");
+    canvas.remove();
+  });
+});
