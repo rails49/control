@@ -90,7 +90,10 @@ with the key that does the same thing printed beside the item.
 
 **Open is a submenu, not a dialog.** Layouts are edited rarely, so the list of
 drawings is short and stays short, and a submenu is one gesture where a dialog
-is three. The drawing that is open is ticked.
+is three. The drawing that is open is ticked, and the tick is all that entry
+is: choosing it closes the menu as any item does and changes nothing else
+(#101). Re-reading the open drawing would throw away whatever has been drawn
+since, which is a lot to ask of a click that looks like it does nothing.
 
 **New… and Open show no key.** Chrome keeps `⌘N` for a new window; it never
 reaches the page and cannot be `preventDefault`ed, and `⌘O` is unreliable for

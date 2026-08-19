@@ -192,8 +192,13 @@ export class TcMenubar extends LitElement {
     );
   }
 
+  /** One of the drawings `Open` lists. The tick says which one is open, and
+   *  that is all it says: choosing it asks for nothing, the menu closing
+   *  being the whole of what a click on it does (#101). Re-reading the open
+   *  drawing would throw away whatever has been drawn since. */
   private opening(name: string): void {
     this.show(null);
+    if (name === this.standing.opened) return;
     this.dispatchEvent(
       new CustomEvent<string>("open-drawing", {
         detail: name,

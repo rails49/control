@@ -62,6 +62,26 @@ async function onto(menubar: TcMenubar, name: string): Promise<TcMenubar> {
   return menubar;
 }
 
+/** Put `File` down and its drawings out beside it, which is where a drawing is
+ *  chosen. */
+async function listing(menubar: TcMenubar): Promise<TcMenubar> {
+  await down(menubar, "File");
+  (menubar.renderRoot.querySelector("li.submenu button") as HTMLElement).click();
+  await menubar.updateComplete;
+  return menubar;
+}
+
+/** Click one of the drawings `Open` lists. */
+async function choose(menubar: TcMenubar, name: string): Promise<TcMenubar> {
+  const entries = [...menubar.renderRoot.querySelectorAll("menu.drawings li button")];
+  const entry = entries.find(
+    (one) => one.querySelector(".label")!.textContent!.trim() === name,
+  ) as HTMLElement;
+  entry.click();
+  await menubar.updateComplete;
+  return menubar;
+}
+
 /** The title whose menu is down, `null` while none is. */
 function showing(menubar: TcMenubar): string | null {
   const titles = [...menubar.renderRoot.querySelectorAll("button.title")];
@@ -173,20 +193,46 @@ describe("opening a drawing", () => {
   });
 
   it("says which drawing was chosen, and puts the menu up", async () => {
-    const menubar = await down(await bar(), "File");
-    (menubar.renderRoot.querySelector("li.submenu button") as HTMLElement).click();
-    await menubar.updateComplete;
+    const menubar = await listing(await bar());
     const heard: string[] = [];
     menubar.addEventListener("open-drawing", (event) => {
       heard.push((event as CustomEvent<string>).detail);
     });
 
-    const first = menubar.renderRoot.querySelector("menu.drawings li button")!;
-    (first as HTMLElement).click();
-    await menubar.updateComplete;
+    await choose(menubar, "crossover-yard");
 
     expect(heard).toEqual(["crossover-yard"]);
     expect(menubar.renderRoot.querySelector("menu")).toBeNull();
+  });
+
+  /** The tick says which drawing is open, and that is all it is: re-reading it
+   *  would throw away whatever has been drawn since (#101). The bar asks for
+   *  nothing, so nothing downstream has to know to ignore it. */
+  it("asks for nothing when the drawing already open is chosen", async () => {
+    const menubar = await listing(await bar({ ...LIVE, saved: true }));
+    const heard: string[] = [];
+    menubar.addEventListener("open-drawing", (event) => {
+      heard.push((event as CustomEvent<string>).detail);
+    });
+
+    await choose(menubar, "gotthard");
+
+    expect(heard).toEqual([]);
+    expect(menubar.renderRoot.querySelector("menu")).toBeNull();
+  });
+
+  /** Unsaved edits are what a re-read would cost, and the entry is no more a
+   *  way to lose them than it is with none in hand. */
+  it("asks for nothing either when there are edits to lose", async () => {
+    const menubar = await listing(await bar());
+    const heard: string[] = [];
+    menubar.addEventListener("open-drawing", (event) => {
+      heard.push((event as CustomEvent<string>).detail);
+    });
+
+    await choose(menubar, "gotthard");
+
+    expect(heard).toEqual([]);
   });
 });
 
