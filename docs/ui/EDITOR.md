@@ -465,21 +465,31 @@ portal-label questions that rare layout editing does not justify.
 
 ### Properties
 
-The right-click dialog edits a symbol's name, and per kind: a block's length
-and sensor ids, and a portal's label.
+The right-click dialog edits, per kind: a block's name, length and sensor ids, a
+portal's label, and a turnout's or a slip's address.
 
-**Only a name hardware answers to is shown.** A block is named, and so is a
-turnout or a slip, which has a motor the bus will address. A fixed crossing has
-nothing to command, a pin and a terminal are wiring, and a portal is known by
-its label, so those names are minted, hidden, and read in the netlist pane when
-they are wanted at all. A kind left with nothing to set opens no dialog: an
-empty modal is worse than none, so a pin, a terminal and a fixed crossing are
-offered only the transforms. New names are minted short — `b1`, `sw1`, `n1`, `e1`, `p1` — a key
-being read in the wire list far more than anywhere else.
+**A name is typed only where a person has to say it out loud**
+([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)). That is a
+block, which the operator names and the bus carries, and a portal label, which
+is how a pair of mouths is known to be a pair. Every other name (a turnout, a
+slip, a crossing, a pin, a terminal) is minted, hidden, and read in the netlist
+pane when it is wanted at all. A turnout was once named on the grounds that it
+"has a motor the bus will address"; the bus addresses `addr`, not the key
+([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), so one
+handle on a point is enough and the drawing keeps the one hardware answers to.
+
+A kind left with nothing to set opens no dialog: an empty modal is worse than
+none, so a pin, a terminal and a fixed crossing are offered only the transforms.
+New names are minted short — `b1`, `sw1`, `n1`, `e1`, `p1` — a key being read in
+the wire list far more than anywhere else.
 
 A block's key is its only name: the one drawn in the block, read in the
 netlist, and prefixed to every transit id in a trace. That is why it is minted
-short and why renaming one is a real change.
+short and why renaming one is a real change. **A name the drawing already has is
+refused here, where it was typed**, rather than reported afterwards: the dialog
+stays open and says so. The dialog is the only place a name is typed, so it is
+the only place a collision can be made, and a finding read across the screen was
+telling the author about a keystroke they had just made.
 
 Transit names are not edited here. A drawing can still write one on a symbol's
 leg and derivation honours it — a name on a turnout's straight leg is taken by
@@ -503,11 +513,12 @@ once tinted as a region on the sheet, which put shading behind half the
 symbols in a drawing while nothing was wrong; the same merged throat is one
 section where you expected two, read rather than seen.
 
-What is still tinted is a junction in trouble: a name another connection also
-wears, or two its own symbols disagree about, marked where it is rather than
-only in a panel. It is the only tint left on the canvas, so colour there means
-something is wrong. Names are minted, so a clash needs a hand-typed name and
-is rare.
+A junction in trouble was tinted too: a name another connection also wore, or
+two its own symbols disagreed about. No gesture types a connection name, so no
+gesture can make that clash, and the tint goes with it
+([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)). Colour on the
+canvas still means something is wrong; what it means it about is now a pin, a
+label, a symbol or a way ([Validation](#validation)).
 
 A region was never named. A junction drawn from one symbol is named after that
 symbol, so a name written over the region sat beside the symbol and read as a
@@ -517,22 +528,23 @@ label the symbol carried — which is what the canvas reserves for a block.
 written into the drawing at once, so a junction always has a valid name and
 nothing interrupts a sketch. Minting happens the moment `/review` says which
 junctions exist, and folds into the snapshot of the edit that caused it, so one
-action stays one undo step. There is no rename: a connection is not a thing
-hardware answers to, so its name is bookkeeping the editor keeps for itself,
-and the netlist pane is where it is read for debugging. A name already written
-in a drawing is honoured — minting only fills the gaps — which is what keeps
-Gotthard's `airolo` where it is.
+action stays one undo step. There is no rename anywhere: a connection is not a
+thing hardware answers to, so its name is bookkeeping the editor keeps for
+itself, and the netlist pane is where it is read for debugging. A name already
+written in a drawing is honoured — minting only fills the gaps — which is what
+keeps Gotthard's `airolo` where it is, unshown and uneditable.
 
 Deleting a symbol can split a junction in two, and wiring two together merges
 them. Either way names end up where derivation refuses them, and either way
-the editor settles it when no typed name is involved. A split re-mints on both
-sides; a merge collapses to the lowest minted name already on the junction, so
-what the diff shows is the other names coming off. Where a merge leaves exactly
-one typed name among minted ones, the typed name wins outright: it is the only
-name anybody chose. Two typed names is the one case left, and it stays the
-refusal it was — choosing which half is Airolo is not the editor's decision to
-make. What tells the two apart is the shape of the name itself: `j` and digits
-is one the editor made, and anything else is one a person typed.
+the editor settles it. A split re-mints on both sides; a merge collapses to the
+lowest minted name already on the junction, so what the diff shows is the other
+names coming off. Where a hand-written drawing brings in typed names, a merge
+leaving exactly one of them keeps it, that being the only name anybody chose,
+and a merge leaving two is the one case the editor will not settle, since choosing
+which half is Airolo is not its decision to make. That case cannot be reached by
+drawing; it needs a file that typed two names in the first place. What tells the
+two apart is the shape of the name itself: `j` and digits is one the editor
+made, and anything else is one a person typed.
 
 A wire joining two blocks directly is a connection too
 ([DRAWING.md](../store/DRAWING.md#a-wire-between-two-blocks)). Its name is
