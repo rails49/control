@@ -134,5 +134,12 @@ facing and the request ids it mints. `model/drag.ts` turns pointer positions
 into an arrival-end set or a cancel, DOM-free and tested the way the editor's
 gesture model is. `tc-panel` converts pixels into squares, paints, and sends.
 
+The header is being split in two (#84). A status band shared with the editor
+takes the railroad's name, the mode (replay or live, exclusive under ADR-0016
+and today inferrable only from which select was last touched), and the status
+the control row carries now: the bridge link, the tick, and the trouble
+message. The row keeps the controls. The editor's menu bar (#85) is not
+repeated here; the panel has no File to fill.
+
 A first panel can render a recorded trace file with no server at all, which
 is immediately useful for reviewing past benchmark runs.

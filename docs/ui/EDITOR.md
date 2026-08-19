@@ -342,6 +342,13 @@ right-click menu names the key beside each item, which is where a shortcut is
 conventionally learnt, and a line under the palette heading covers the drag,
 which has no menu to hang one on.
 
+That rule is about buttons, not menus. A menu bar names the key beside the
+item, as the right-click menu does, so the verbs belong there. The header is
+being reworked into a status band (#84) and a `File` / `Edit` / `View` bar
+(#85), with zoom and fit staying one click, plus an SVG export of the drawing
+(#86). Cut wire does not move: no menu that reads the selection can act on a
+wire.
+
 Click and drag mean different things on a pin, and which one it is is settled
 by whether the pointer moves. A click starts or ends a wire; a drag past a few
 pixels takes hold of the bend instead. Drawing a wire is click-then-click
