@@ -4,8 +4,9 @@ Software for scheduling, dispatching, and driving trains on a model railroad.
 
 This repo (eventually) implements the features described in the docs:
 
-- [Goals](docs/GOALS.md) — assets (tracks, blocks, connections, stock) and the
-  operations performed on them.
+- [Goals](docs/GOALS.md) — the end state: assets (tracks, blocks, connections,
+  stock) and the three operations performed on them — scheduling, dispatching,
+  driving.
 - [Milestone 1](docs/MILESTONE-1.md) — what is being built first, and what is
   deliberately out of scope.
 - [System](docs/SYSTEM.md) — the apps and the contracts between them: the

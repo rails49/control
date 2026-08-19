@@ -4,6 +4,12 @@ Software for scheduling, dispatching, and driving trains on a model railroad. Se
 [README.md](README.md) for the doc map; the research core is deadlock-free,
 high-throughput dispatch ([docs/dispatcher/DISPATCH.md](docs/dispatcher/DISPATCH.md)).
 
+[docs/GOALS.md](docs/GOALS.md) is the **end state**: the three functions —
+scheduling, dispatching, driving — and how they meet. Most of the repo is a
+first slice of it ([docs/MILESTONE-1.md](docs/MILESTONE-1.md)), so read GOALS.md
+before any design change and say which of the two a change belongs to. Where a
+doc and GOALS.md disagree, GOALS.md is right and the doc is a bug.
+
 ## Apps
 
 An **app** is a unit that will run as its own container: `store`, `scheduler`,
