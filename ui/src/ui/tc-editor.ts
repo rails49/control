@@ -25,6 +25,7 @@ import {
   review,
   saveDrawing,
   type Review,
+  type UnpairedPortal,
 } from "../model/store.js";
 import { FIT, REDO, UNDO, ZOOM_IN, ZOOM_OUT } from "./icons.js";
 import { appStyles } from "./styles.js";
@@ -152,20 +153,24 @@ export class TcEditor extends LitElement {
   }
 
   /** Everything wrong with the drawing, in one panel: the pins short of a
-   *  wire, the names two connections cannot both wear, and the refusal
-   *  derivation came back with. A name collision is listed even where
-   *  derivation did not refuse, since two junctions wearing one name derive as
-   *  one connection — a wrong netlist rather than a refused one. */
+   *  wire, the portal labels that pair with nothing, the names two connections
+   *  cannot both wear, and the refusal derivation came back with. A name
+   *  collision is listed even where derivation did not refuse, since two
+   *  junctions wearing one name derive as one connection — a wrong netlist
+   *  rather than a refused one. The refusal names one unpaired label and
+   *  stops, so the lines above it are what say how many there are. */
   private findings() {
     if (this.trouble !== null) {
       return html`<div class="findings"><p>${this.trouble}</p></div>`;
     }
     const red = this.reviewed?.red_pins ?? [];
+    const lone = this.reviewed?.unpaired_portals ?? [];
     const refused = this.reviewed?.refused ?? null;
     const clashing = this.reviewed === null ? [] : clashes(this.reviewed);
     const stacked = this.stacked();
     if (
       red.length === 0 &&
+      lone.length === 0 &&
       refused === null &&
       clashing.length === 0 &&
       stacked.length === 0
@@ -182,6 +187,7 @@ export class TcEditor extends LitElement {
         ${red.length === 0
           ? nothing
           : html`<p>${red.length} pin(s) short of a wire: ${red.join(", ")}</p>`}
+        ${lone.map((one) => html`<p>${wearing(one)}</p>`)}
         ${clashing.map((clash) => html`<p>${said(clash)}</p>`)}
         ${refused === null ? nothing : html`<p>${refused}</p>`}
       </div>
@@ -529,6 +535,17 @@ function said(clash: Clash): string {
     : `one connection is named ${clash.names
         .map((name) => `'${name}'`)
         .join(" and ")}: ${where}`;
+}
+
+/** A portal label that pairs with nothing, as a sentence. A label pairs
+ *  exactly two portals, so worn once and worn three times are one finding and
+ *  the count is what the line has to say; the portals wearing it are where to
+ *  look, and each of them carries the same label on the canvas. */
+function wearing({ label, portals }: UnpairedPortal): string {
+  const worn = portals.length === 1 ? "1 portal" : `${portals.length} portals`;
+  return `portal label '${label}' is worn by ${worn}, not two: ${portals.join(
+    ", ",
+  )}`;
 }
 
 declare global {
