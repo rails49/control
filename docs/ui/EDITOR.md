@@ -345,26 +345,28 @@ portal-label questions that rare layout editing does not justify.
 ### Properties
 
 The right-click dialog edits a symbol's name, and per kind: a block's length
-and sensor ids; a portal's label; a symbol leg's transit name.
+and sensor ids, and a portal's label.
 
 **Only a name hardware answers to is shown.** A block is named, and so is a
 turnout or a slip, which has a motor the bus will address. A fixed crossing has
 nothing to command, a pin and a terminal are wiring, and a portal is known by
 its label, so those names are minted, hidden, and read in the netlist pane when
 they are wanted at all. A kind left with nothing to set opens no dialog: an
-empty modal is worse than none, so a pin and a terminal are offered only the
-transforms. New names are minted short — `b1`, `sw1`, `n1`, `e1`, `p1` — a key
+empty modal is worse than none, so a pin, a terminal and a fixed crossing are
+offered only the transforms. New names are minted short — `b1`, `sw1`, `n1`, `e1`, `p1` — a key
 being read in the wire list far more than anywhere else.
 
 A block's key is its only name: the one drawn in the block, read in the
 netlist, and prefixed to every transit id in a trace. That is why it is minted
 short and why renaming one is a real change.
 
-Transit names are set on a symbol's legs, which is how the drawing stores them
-and how they behave: a name written on a turnout's straight leg is taken by
-every derived transit that runs through it. Naming a leg and watching which
-transits in the netlist pane pick the name up is the explanation. A transit
-that crosses two named legs is refused, and the finding says which two.
+Transit names are not edited here. A drawing can still write one on a symbol's
+leg and derivation honours it — a name on a turnout's straight leg is taken by
+every derived transit that runs through it, and a transit crossing two named
+legs is refused, naming both ([DRAWING.md](../store/DRAWING.md)). The dialog
+does not offer it: a derived transit is named for the two block ends it joins,
+and those names carry the context. Dropping the field is what leaves a fixed
+crossing with nothing to set at all.
 
 ### Junctions
 

@@ -61,6 +61,29 @@ describe("what the menu offers", () => {
     ]);
   });
 
+  /** A fixed crossing has no motor to name and, since transit names left the
+   *  dialog (#82), nothing else to set either. */
+  it("offers a fixed crossing only the transforms", async () => {
+    for (const kind of ["crossing", "crossing_90", "crossing_90d"] as const) {
+      expect(await items(at({ symbol: "x1", kind }))).toEqual([
+        "Rotate",
+        "Flip",
+        "Delete",
+      ]);
+    }
+  });
+
+  /** A slip has a motor the bus addresses, so it keeps its name and its
+   *  dialog with it. */
+  it("still offers a slip its properties", async () => {
+    expect(await items(at({ symbol: "sl1", kind: "double_slip" }))).toEqual([
+      "Properties…",
+      "Rotate",
+      "Flip",
+      "Delete",
+    ]);
+  });
+
   /** A junction's name is the editor's own: it mints one, keeps it settled
    *  through splits and merges, and shows it in the netlist pane. */
   it("offers a junction nothing", async () => {

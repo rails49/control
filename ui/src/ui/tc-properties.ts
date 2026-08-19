@@ -14,11 +14,11 @@
  * real change and every wire that names its pins is rewritten with it, which
  * is why they are minted short.
  *
- * **Transit names go on symbol legs**, which is how the drawing stores them
- * and how they behave: a name written on a turnout's straight leg is taken by
- * every derived transit that runs through it. Solving backwards from a derived
- * transit was rejected — it fails when no unique carrier exists, and it hides
- * the rule the editor exists to make visible.
+ * **Transit names are not edited here.** A drawing can still write one on a
+ * symbol's leg and derivation honours it, but the dialog does not offer it: a
+ * derived transit is named for the two block ends it joins, and those names
+ * carry the context. Dropping the field leaves a fixed crossing with nothing
+ * to set at all, so it opens no dialog.
  */
 
 import { LitElement, html, nothing } from "lit";
@@ -29,7 +29,7 @@ import "@shoelace-style/shoelace/dist/components/input/input.js";
 import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/components/select/select.js";
 
-import { PINS, TRANSITS, type LibraryKind } from "../symbols.generated.js";
+import { PINS } from "../symbols.generated.js";
 import { named, type AnyKind, type SymbolSpec } from "../model/drawing.js";
 import { propertiesStyles } from "./styles.js";
 
@@ -74,7 +74,7 @@ export class TcProperties extends LitElement {
               ></sl-input>
             `
           : nothing}
-        ${this.perKind()} ${this.legs()}
+        ${this.perKind()}
         <sl-button slot="footer" @click=${this.close}>Cancel</sl-button>
         <sl-button slot="footer" variant="primary" @click=${this.apply}>
           Apply
@@ -112,37 +112,13 @@ export class TcProperties extends LitElement {
           };
         }}
       ></sl-input>
-      <h3>Sensor ids</h3>
       ${PINS.block.map(
         (end) => html`
           <sl-input
-            label=${`End ${end}`}
+            label=${`Sensor ${end}`}
             value=${this.draft.sensors?.[end] ?? ""}
             @sl-input=${(event: Event) =>
               this.sensor(end, (event.target as HTMLInputElement).value)}
-          ></sl-input>
-        `,
-      )}
-    `;
-  }
-
-  /** A name on a leg is taken by every derived transit that runs through it,
-   *  which is what the netlist pane shows. */
-  private legs() {
-    const legs = TRANSITS[this.draft.kind as LibraryKind];
-    if (legs === undefined) return nothing;
-    return html`
-      <h3>Transit names</h3>
-      <p class="hint">
-        A name on a leg is taken by every transit that runs through it.
-      </p>
-      ${Object.keys(legs).map(
-        (leg) => html`
-          <sl-input
-            label=${leg}
-            value=${this.draft.names?.[leg] ?? ""}
-            @sl-input=${(event: Event) =>
-              this.leg(leg, (event.target as HTMLInputElement).value)}
           ></sl-input>
         `,
       )}
@@ -164,12 +140,6 @@ export class TcProperties extends LitElement {
     this.draft = { ...this.draft, sensors };
   }
 
-  private leg(leg: string, name: string): void {
-    const names = { ...this.draft.names, [leg]: name };
-    if (name === "") delete names[leg];
-    this.draft = { ...this.draft, names };
-  }
-
   private apply(): void {
     if (this.editing === null) return;
     this.dispatchEvent(
@@ -189,13 +159,11 @@ export class TcProperties extends LitElement {
   }
 }
 
-/** Whether a kind has anything to edit: a name of its own, the fields only a
- *  block or a portal has, or transit names on its legs. A pin and a terminal
- *  have none of the three, and the menu offers them no properties. */
+/** Whether a kind has anything to edit: a name of its own, or the fields only
+ *  a portal has. A pin, a terminal and a fixed crossing have neither, and the
+ *  menu offers them no properties. */
 export function editable(kind: AnyKind): boolean {
-  return (
-    named(kind) || kind === "portal" || kind in TRANSITS
-  );
+  return named(kind) || kind === "portal";
 }
 
 /** Drop what the drawing schema would refuse: an empty label is not a name,
