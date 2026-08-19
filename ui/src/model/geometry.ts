@@ -191,6 +191,18 @@ export function anchorOf(spec: SymbolSpec, pin: string): Point {
   return { x: c + local.x, y: r + local.y };
 }
 
+/**
+ * How far a symbol's label is turned from upright, in degrees.
+ *
+ * A block standing on end is read bottom to top rather than sideways, so a
+ * quarter turn takes the label with it. Neither the flip nor which end carries
+ * the plus comes into it: a vertical block reads the same way whichever end is
+ * A, which is what keeps the label from turning over as the block is flipped.
+ */
+export function labelTurn(spec: SymbolSpec): number {
+  return (spec.rot ?? 0) % 180 === 0 ? 0 : -90;
+}
+
 /** The middle of a placed symbol's footprint, which is where a label goes. */
 export function centreOf(spec: SymbolSpec): Point {
   const [c, r] = spec.at ?? [0, 0];

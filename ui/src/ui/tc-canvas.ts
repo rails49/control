@@ -22,6 +22,7 @@ import { Editor } from "../model/editor.js";
 import {
   cellsOf,
   centreOf,
+  labelTurn,
   snapped,
   transformOf,
   type Point,
@@ -31,7 +32,7 @@ import { clashes, lit, type Chosen } from "../model/inspect.js";
 import type { Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
-import { PIN } from "../render/units.js";
+import { BLOCK, PIN, fitted } from "../render/units.js";
 import { canvasStyles } from "./styles.js";
 
 /** What a canvas with no review yet reads as. */
@@ -222,19 +223,24 @@ export class TcCanvas extends LitElement {
   }
 
   /**
-   * A block's label, which is its name, centred in its rectangle and drawn
-   * upright outside the turned group, where a quarter turn would stand it on
-   * its side.
+   * A block's label, which is its name, centred in its rectangle and turned
+   * outside the artwork's own group: upright on a horizontal block and read
+   * bottom to top on a vertical one (`labelTurn`).
    *
    * It is the only text on a symbol (EDITOR.md#symbol-geometry). Other names
    * are read in the properties dialog and in the netlist pane, portals
    * included, and the names over the tinted junction regions are `/review`'s
    * overlay rather than anything a symbol carries.
+   *
+   * The label turns with the block, so the rectangle's long side is the width
+   * it has to fit whichever way the block stands.
    */
   private label(name: string, spec: SymbolSpec): unknown {
     if (spec.kind !== "block") return nothing;
     const { x, y } = centreOf(spec);
-    return svg`<text class="name" x=${x} y=${y}>${name}</text>`;
+    return svg`<text class="name" x=${x} y=${y}
+      font-size=${fitted(name, BLOCK.body.w)}
+      transform=${`rotate(${labelTurn(spec)} ${x} ${y})`}>${name}</text>`;
   }
 
   /** Every pin, green where `/review` is satisfied with it and red where it is

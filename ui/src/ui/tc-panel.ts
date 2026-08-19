@@ -23,7 +23,12 @@ import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import { Drag } from "../model/drag.js";
 import { wirePins, type Drawing } from "../model/drawing.js";
-import { centreOf, transformOf, type Point } from "../model/geometry.js";
+import {
+  centreOf,
+  labelTurn,
+  transformOf,
+  type Point,
+} from "../model/geometry.js";
 import { Panel, type BlockView, type Marker } from "../model/panel.js";
 import { anchorAt, arrowPose, fitBox } from "../model/scene.js";
 import {
@@ -37,6 +42,7 @@ import {
 import { Live, parseTrace, Replay, submission } from "../model/trace.js";
 import { pointOf } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
+import { BLOCK, fitted } from "../render/units.js";
 import { panelStyles } from "./styles.js";
 
 /** Where `tc49 live` puts the bridge. Overridable for a session somewhere
@@ -476,16 +482,19 @@ export class TcPanel extends LitElement {
     });
   }
 
-  /** A block's text, upright outside the turned group: its train when one
-   *  stands there, its own name dimly otherwise. */
+  /** A block's text, turned with the block as the editor turns it: its train
+   *  when one stands there, its own name dimly otherwise. A train's name is
+   *  the longer of the two, so this is where the fit is usually doing work. */
   private labels(blocks: Map<string, BlockView>) {
     return Object.entries(this.drawing!.symbols).map(([name, spec]) => {
       if (spec.kind !== "block") return nothing;
       const view = blocks.get(name);
       const { x, y } = centreOf(spec);
-      return view?.state === "occupied" && view.train !== undefined
-        ? svg`<text class="name train" x=${x} y=${y}>${view.train}</text>`
-        : svg`<text class="name" x=${x} y=${y}>${name}</text>`;
+      const occupied = view?.state === "occupied" && view.train !== undefined;
+      const text = occupied ? view!.train! : name;
+      return svg`<text class=${occupied ? "name train" : "name"} x=${x} y=${y}
+        font-size=${fitted(text, BLOCK.body.w)}
+        transform=${`rotate(${labelTurn(spec)} ${x} ${y})`}>${text}</text>`;
     });
   }
 

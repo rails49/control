@@ -188,6 +188,19 @@ centred in the rectangle; sensors are not drawn and everything else lives in
 the right-click dialog. A plus at the rectangle's lower corner on side A marks
 that side, drawn at the rectangle's own 0.3W.
 
+The label turns with the block but not inside its artwork: a horizontal block
+reads upright and a vertical one bottom to top, at both quarter turns and
+under a flip, so a label is never upside down and never mirrored. Which end is
+A is the plus's business, not the label's. It is drawn at 0.50G, or at
+whatever smaller size makes it fit the rectangle's long side — that being the
+width it has to fit whichever way the block stands. The size is estimated from
+the name's length rather than measured, since measuring means a second render
+pass to read a number the label is already laid out from, and a label a few
+percent smaller than it had to be is invisible where a render loop is not.
+There is no floor: a name long enough to shrink past legibility is drawn small
+rather than clipped, because the zoom rescues small text and nothing rescues
+text that is not there.
+
 Each stub carries a signal centred on it: a chamfered plaque 0.53G by 0.22G
 floating 0.09G clear of the track, holding two lamps 0.12G across, red then
 green. There is no mast. The A signal hangs below the track, on the left of a

@@ -14,7 +14,7 @@ import {
   BLOCK,
   COLOURS,
   HAIRLINE,
-  LABEL,
+  NOTE,
   SLIP,
   TERMINAL,
   W,
@@ -413,9 +413,10 @@ export const canvasStyles = css`
   ${way}
 
   /* A block's label, the only text on a symbol: centred in its rectangle rather
-     than sitting on a point. */
+     than sitting on a point. The size is set per label rather than here, being
+     the size that name fits the rectangle at (render/units.ts). */
   .name {
-    font: ${LABEL.size}px system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     fill: var(--ink);
     text-anchor: middle;
     dominant-baseline: middle;
@@ -775,9 +776,10 @@ export const panelStyles = css`
   }
 
   /* A block's label: its train when one stands there, its own name dimly
-     otherwise. Drawn upright outside the turned group, as the editor does. */
+     otherwise. Drawn outside the turned group and sized per label, as the
+     editor does. */
   .name {
-    font: ${LABEL.size}px system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     fill: var(--hint);
     text-anchor: middle;
     dominant-baseline: middle;
@@ -817,7 +819,7 @@ export const panelStyles = css`
   }
 
   .note {
-    font: ${LABEL.size}px system-ui, sans-serif;
+    font: ${NOTE}px system-ui, sans-serif;
     fill: var(--hint);
     text-anchor: middle;
   }

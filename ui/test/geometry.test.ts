@@ -6,6 +6,7 @@ import {
   cellsOf,
   faceAt,
   gridPointOf,
+  labelTurn,
   placed,
 } from "../src/model/geometry.js";
 
@@ -186,6 +187,30 @@ describe("placing a bend", () => {
       const { at, rot } = faceAt(x!, y!);
       const { x: px, y: py } = anchorOf({ kind: "pin", at, rot }, "P");
       expect(Math.hypot(px - x!, py - y!)).toBeLessThanOrEqual(0.75);
+    }
+  });
+});
+
+describe("how a label is turned", () => {
+  it("leaves a horizontal block's label upright", () => {
+    expect(labelTurn({ kind: "block" })).toBe(0);
+    expect(labelTurn({ kind: "block", rot: 180 })).toBe(0);
+  });
+
+  it("reads a vertical block bottom to top, whichever way it stands", () => {
+    // Both quarter turns give the same 1x6 footprint, and the label is not
+    // the place to tell them apart: which end carries the plus already says.
+    expect(labelTurn({ kind: "block", rot: 90 })).toBe(-90);
+    expect(labelTurn({ kind: "block", rot: 270 })).toBe(-90);
+  });
+
+  it("does not turn over when the block is flipped", () => {
+    // beb-gotthard's `CW` is `rot: 270, flip: true`. A flip that mirrored the
+    // label would leave it unreadable rather than merely upside down.
+    for (const rot of [0, 90, 180, 270] as const) {
+      expect(labelTurn({ kind: "block", rot, flip: true })).toBe(
+        labelTurn({ kind: "block", rot }),
+      );
     }
   });
 });

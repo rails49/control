@@ -100,8 +100,34 @@ const TICK = 0.045;
 
 export const SLIP = { off: 0.22, arm: 0.182, weight: TICK, lit: 1.5 * TICK };
 
-/** The label inside a block, which is the only text a symbol carries. */
-export const LABEL = { size: 0.22 };
+/**
+ * The label inside a block, which is the only text a symbol carries.
+ *
+ * `size` is what it is drawn at when it fits, and `advance` is what a glyph is
+ * assumed to be wide, as a fraction of the size. The estimate is deliberately
+ * generous: the alternative is measuring the drawn text, which means a second
+ * render pass to read a number the label is already laid out from, and a
+ * label a few percent smaller than it had to be is invisible where a render
+ * loop is not.
+ */
+export const LABEL = { size: 0.5, advance: 0.55 };
+
+/**
+ * The size a label is drawn at: `LABEL.size`, or as much smaller as it takes
+ * to sit inside `width`.
+ *
+ * There is no floor. A name long enough to shrink past legibility is drawn
+ * small rather than clipped, because the zoom can rescue small text and
+ * nothing rescues text that is not there.
+ */
+export function fitted(text: string, width: number): number {
+  return Math.min(LABEL.size, width / (text.length * LABEL.advance));
+}
+
+/** A note beside a marker on the panel. It is not text on a symbol and has no
+ *  rectangle to fit, so it keeps a size of its own rather than following the
+ *  label's. */
+export const NOTE = 0.22;
 
 /**
  * The palette, as the custom properties the stylesheets read. Track is black
