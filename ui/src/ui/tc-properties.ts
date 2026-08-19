@@ -9,10 +9,10 @@
  * modal is worse than none, and the netlist pane is where a hidden name is
  * read.
  *
- * A block's key is a short stable id and its label is its real name, `Zürich
- * HB Gleis 1`. The id prefixes every transit id in a trace, so renaming one is
- * a real change and every wire that names its pins is rewritten with it; the
- * label is free to change and touches nothing.
+ * A block's key is the name it is known by everywhere: on the canvas, in the
+ * netlist, and as the prefix of every transit id in a trace. Renaming one is a
+ * real change and every wire that names its pins is rewritten with it, which
+ * is why they are minted short.
  *
  * **Transit names go on symbol legs**, which is how the drawing stores them
  * and how they behave: a name written on a turnout's straight leg is taken by
@@ -111,12 +111,6 @@ export class TcProperties extends LitElement {
             length: Number((event.target as HTMLInputElement).value),
           };
         }}
-      ></sl-input>
-      <sl-input
-        label="Display label"
-        help-text="The platform's real name. Changing it touches nothing else."
-        value=${this.draft.label ?? ""}
-        @sl-input=${this.take("label")}
       ></sl-input>
       <h3>Sensor ids</h3>
       ${PINS.block.map(

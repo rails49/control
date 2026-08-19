@@ -222,18 +222,19 @@ export class TcCanvas extends LitElement {
   }
 
   /**
-   * A block's label, centred in its rectangle and drawn upright outside the
-   * turned group, where a quarter turn would stand it on its side.
+   * A block's label, which is its name, centred in its rectangle and drawn
+   * upright outside the turned group, where a quarter turn would stand it on
+   * its side.
    *
-   * It is the only text on a symbol (EDITOR.md#symbol-geometry). A name is read
-   * in the properties dialog and in the netlist pane instead, portals included,
-   * and the names over the tinted junction regions are `/review`'s overlay
-   * rather than anything a symbol carries.
+   * It is the only text on a symbol (EDITOR.md#symbol-geometry). Other names
+   * are read in the properties dialog and in the netlist pane, portals
+   * included, and the names over the tinted junction regions are `/review`'s
+   * overlay rather than anything a symbol carries.
    */
   private label(name: string, spec: SymbolSpec): unknown {
     if (spec.kind !== "block") return nothing;
     const { x, y } = centreOf(spec);
-    return svg`<text class="name" x=${x} y=${y}>${spec.label || name}</text>`;
+    return svg`<text class="name" x=${x} y=${y}>${name}</text>`;
   }
 
   /** Every pin, green where `/review` is satisfied with it and red where it is

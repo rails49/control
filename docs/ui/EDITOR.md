@@ -183,7 +183,7 @@ face centres as always. Rotations and flips give the other orientations.
 
 **Block**, 6×1, pins at `(0, 0.5)` and `(6, 0.5)`. A centred rectangle
 4G×0.8G, border 0.3W, filled white in edit mode, and a 1G track stub on each
-side. The label, the block's display name or the train parked in it, is
+side. The label, the block's name or the train parked in it, is
 centred in the rectangle; sensors are not drawn and everything else lives in
 the right-click dialog. A plus at the rectangle's lower corner on side A marks
 that side, drawn at the rectangle's own 0.3W.
@@ -306,8 +306,8 @@ portal-label questions that rare layout editing does not justify.
 
 ### Properties
 
-The right-click dialog edits a symbol's name, and per kind: a block's length,
-display label and sensor ids; a portal's label; a symbol leg's transit name.
+The right-click dialog edits a symbol's name, and per kind: a block's length
+and sensor ids; a portal's label; a symbol leg's transit name.
 
 **Only a name hardware answers to is shown.** A block is named, and so is a
 turnout or a slip, which has a motor the bus will address. A fixed crossing has
@@ -318,9 +318,9 @@ empty modal is worse than none, so a pin and a terminal are offered only the
 transforms. New names are minted short — `b1`, `sw1`, `n1`, `e1`, `p1` — a key
 being read in the wire list far more than anywhere else.
 
-A block's key is a short stable id and its label is its real name, `Zürich HB
-Gleis 1`. The id prefixes every transit id in a trace, so it is worth keeping
-short and worth not renaming; the label is free to change.
+A block's key is its only name: the one drawn in the block, read in the
+netlist, and prefixed to every transit id in a trace. That is why it is minted
+short and why renaming one is a real change.
 
 Transit names are set on a symbol's legs, which is how the drawing stores them
 and how they behave: a name written on a turnout's straight leg is taken by

@@ -106,7 +106,7 @@ class Symbol:
     names: dict[str, str] = field(default_factory=dict[str, Any])  # transit -> name
     connection: str = ""  # the junction this symbol belongs to, where authored
     length: int = 0
-    label: str = ""
+    label: str = ""  # a portal's, which pairs it with its mate
 
 
 @dataclass(frozen=True)
@@ -667,7 +667,7 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
     placement = set(_PLACEMENT)
     _check_geometry(spec, where)
     if kind == "block":
-        check_keys(spec, where, {"kind", "length"}, {"sensors", "label"} | placement)
+        check_keys(spec, where, {"kind", "length"}, {"sensors"} | placement)
         for end, sensor in as_mapping(
             spec.get("sensors") or {}, f"{where}: sensors"
         ).items():
@@ -675,17 +675,14 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
                 raise ValueError(f"{where}: sensors names unknown end '{end}'")
             check_name(sensor, f"{where}: sensor")
         # Hardware ids are the drawing's alone: derivation drops them, so the
-        # layout and SYSTEM.md's contracts never see them. A block's `label` is
-        # its real name, `Zürich HB Gleis 1`; its key stays the short id that
-        # prefixes every transit id, so a label change touches nothing.
-        if "label" in spec:
-            check_name(spec["label"], f"{where}: label")
+        # layout and SYSTEM.md's contracts never see them. A block has no name
+        # but its key, which is what the canvas draws and what prefixes every
+        # transit id; `label` belongs to a portal, where it pairs two mouths.
         return Symbol(
             name,
             kind,
             PINS[kind],
             length=check_length(spec["length"], where),
-            label=str(spec.get("label", "")),
         )
     if kind in ("terminal", "pin"):
         check_keys(spec, where, {"kind"}, placement)

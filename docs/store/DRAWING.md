@@ -76,7 +76,7 @@ transits.
 
 | Symbol | Kind | Pins | Transits | Concurrent | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length, optional display label, optional sensor id per end |
+| Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length, optional sensor id per end |
 | Terminal | `terminal` | 1 (`P`) | none | n/a | marks a deliberate track end |
 | Turnout | `turnout` | 3 (`toe`, `straight`, `diverging`) | `straight`, `diverging` | none | |
 | Crossing | `crossing` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | a grade crossing: one train at a time |
@@ -182,17 +182,17 @@ symbols:
 ```
 
 - **Symbols are a mapping from name to `kind` and its properties.** A block
-  takes a `length`, an optional display `label` and optional `sensors` per end;
-  a portal a `label`; a terminal and a free-standing pin (`kind: pin`) nothing.
+  takes a `length` and optional `sensors` per end; a portal a `label`; a terminal and a free-standing pin (`kind: pin`) nothing.
   A symbol of fixed geometry takes only the names below. The generic connection
   symbol declares its `pins`, its `transits`, and optionally which pairs of
   them are `concurrent`. Every kind also takes the placement keys of
   [Geometry](#geometry).
-- **A block's key is its id, its `label` is for people.** The id is short and
-  stable because it prefixes every transit id on the bus and in traces; the
-  label is the platform's real name, `Zürich HB Gleis 1`, and changing it
-  touches nothing downstream. The editor shows the label where there is one and
-  the id otherwise.
+- **A block's key is its only name.** It is short and stable because it
+  prefixes every transit id on the bus and in traces, and it is what the editor
+  draws in the block. A block carried a display `label` for the platform's real
+  name, `Zürich HB Gleis 1`, and nothing ever set one: the key was the name
+  being read, so the second name was dropped (#82). `label` now belongs to a
+  portal alone, where it pairs two mouths.
 - **Pins are written `<symbol>.<pin>`.** A block's are its ends `A` and `B`;
   a one-pin symbol's is `P`; the symbol table above gives the rest, and a
   generic connection symbol names its own.

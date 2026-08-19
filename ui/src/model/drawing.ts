@@ -46,7 +46,7 @@ export interface SymbolSpec {
   /** Blocks. */
   length?: number;
   sensors?: Record<string, string>;
-  /** Blocks and portals: a display name, and a portal's pairing label. */
+  /** A portal's pairing label: two portals wearing one label join. */
   label?: string;
   /** The junction this symbol belongs to. */
   connection?: string;

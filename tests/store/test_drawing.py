@@ -1109,13 +1109,14 @@ def test_the_90_degree_crossings_are_two_kinds_sharing_one_pin_set() -> None:
         assert symbol.concurrent == frozenset()
 
 
-def test_a_block_label_loads_and_is_dropped_by_derivation() -> None:
-    """The key is the id that prefixes every transit id; the label is the
-    platform's real name and reaches nothing downstream."""
+def test_a_block_takes_no_label() -> None:
+    """A block's key is its only name (#82). The display label it once took is
+    refused outright rather than ignored, so a file still carrying one is a
+    finding at load rather than a name that quietly stops being drawn."""
     doc = spanned()
     doc["symbols"]["west"]["label"] = "Zürich HB Gleis 1"
-    assert derive(doc)["blocks"]["west"] == {"length": 1000}
-    assert "west" in derive(doc)["blocks"]
+    with pytest.raises(ValueError, match=r"unknown key\(s\) \['label'\]"):
+        Drawing.from_document(doc)
 
 
 @pytest.mark.parametrize("mutate, message", _SCHEMA_ERRORS)

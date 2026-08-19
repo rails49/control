@@ -611,10 +611,10 @@ describe("the properties dialog", () => {
       kind: "block",
       at: [0, 0],
       length: 2400,
-      label: "Zürich HB Gleis 1",
+      sensors: { A: "s1" },
     });
     expect(editor.drawing.symbols.b1!.length).toBe(2400);
-    expect(editor.drawing.symbols.b1!.label).toBe("Zürich HB Gleis 1");
+    expect(editor.drawing.symbols.b1!.sensors).toEqual({ A: "s1" });
   });
 
   it("rewrites every wire when a symbol is renamed", () => {

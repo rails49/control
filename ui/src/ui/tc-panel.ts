@@ -485,7 +485,7 @@ export class TcPanel extends LitElement {
       const { x, y } = centreOf(spec);
       return view?.state === "occupied" && view.train !== undefined
         ? svg`<text class="name train" x=${x} y=${y}>${view.train}</text>`
-        : svg`<text class="name" x=${x} y=${y}>${spec.label || name}</text>`;
+        : svg`<text class="name" x=${x} y=${y}>${name}</text>`;
     });
   }
 
