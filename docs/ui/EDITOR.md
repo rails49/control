@@ -280,10 +280,11 @@ tile, not track that widens with it, so their fractions are of G and stay that
 way.
 
 Colours follow the editor's mode. In edit mode track is black and a block's
-rectangle is white, and a signal shows both its lamps lit. Run mode, out of
+rectangle is white, and a signal shows all its lamps lit. Run mode, out of
 scope for now, recolours by toggling classes: track by route reservation, a
-block's rectangle by occupancy, and a signal by dimming the aspect it is not
-showing, green where a route is reserved at that end and red otherwise.
+block's rectangle by occupancy, and a signal by dimming the aspects it is not
+showing — one lamp lit of the three, whichever the dispatcher says
+([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 
 ### Pins
 
@@ -324,6 +325,17 @@ train leaving through A, as the SBB places signals. The B signal is the A
 signal turned 180 degrees about the block's centre, above the track with its
 lamps in the opposite order, which keeps the symbol point symmetric and makes
 rotation and flip read naturally.
+
+**A signal shows three aspects, and the plaque here holds two lamps.** `stop`,
+`approach` and `clear` are what the dispatcher sets
+([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)),
+so a third lamp belongs on this plaque — and its proportions are deliberately
+not fixed here. Three lamps of 0.12G leave 0.17G of a 0.53G plaque for margins
+and gaps, against 0.29G for two, which is the kind of number that has to be
+looked at on screen rather than reasoned about. It is settled when run mode is
+built and there is something to look at; until then the drawn signal is the
+two-lamp one above, and it is the geometry that is provisional, not the three
+aspects.
 
 **An end nothing leaves carries no signal.** A siding's blind end — Claro 4's
 B end, which runs into a buffer stop — could only ever show red, and a signal
