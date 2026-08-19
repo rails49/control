@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   PINS,
   PLACEABLE,
+  POSITIONS,
   TRANSITS,
   type Kind,
   type Leg,
   type LibraryKind,
+  type MotorisedKind,
   type Pin,
+  type Position,
 } from "../src/symbols.generated.js";
 import type { SymbolSpec } from "../src/model/drawing.js";
 import { WHOLE } from "../src/model/inspect.js";
@@ -39,6 +42,15 @@ describe("the generated symbol library", () => {
       "slip_2",
       "diverging",
     ]);
+  });
+
+  it("gives every leg of a motorised kind the position it wants", () => {
+    // A slip's legs are not named for its positions, so this table is the
+    // only place the editor can learn that `slip` means curved.
+    const kind: MotorisedKind = "single_slip";
+    const position: Position = POSITIONS[kind].slip;
+    const turnout: Position = POSITIONS.turnout.diverging;
+    expect([position, turnout]).toEqual(["curved", "curved"]);
   });
 
   it("keeps the bend off the palette and everything else on it", () => {

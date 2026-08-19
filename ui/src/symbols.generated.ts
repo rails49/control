@@ -1,7 +1,8 @@
 // Generated from src/tc49/store/drawing.py. Run `tc49 symbols` to update.
 //
-// The symbol library: what pins each kind has, and what transits run between
-// them. Artwork is hand-written against these names.
+// The symbol library: what pins each kind has, what transits run between
+// them, and which position each leg of a motorised kind wants. Artwork is
+// hand-written against these names.
 
 export const PINS = {
   block: ["A", "B"],
@@ -62,6 +63,34 @@ export type LibraryKind = keyof typeof TRANSITS;
 export type Leg<K extends LibraryKind = LibraryKind> = {
   [P in K]: keyof (typeof TRANSITS)[P];
 }[K];
+
+/** Which position a kind's motor must be in for a way to take each of its
+ *  legs. Every motorised kind has one motor and two positions, and a slip's
+ *  legs are not named for them, so the library says which is which. */
+export const POSITIONS = {
+  double_slip: {
+    a: "straight",
+    b: "straight",
+    slip_1: "curved",
+    slip_2: "curved",
+  },
+  single_slip: {
+    a: "straight",
+    b: "straight",
+    slip: "curved",
+  },
+  turnout: {
+    diverging: "curved",
+    straight: "straight",
+  },
+} as const;
+
+/** A kind with a motor: it is commanded by address into one of two positions,
+ *  and it is the only sort of kind that carries an address. */
+export type MotorisedKind = keyof typeof POSITIONS;
+
+/** What a motor can be set to. */
+export type Position = "curved" | "straight";
 
 /** The palette. A free-standing bend is not on it: it is placed by clicking
  *  empty canvas while drawing a wire. */

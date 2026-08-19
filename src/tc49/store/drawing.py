@@ -49,9 +49,9 @@ from tc49.lib.layout import (
 # kinds rather than two appearances of one because their footprints and pin
 # positions differ (ui/EDITOR.md).
 #
-# `LIBRARY`, `PINS` and `ROTATIONS` are public because the editor's TypeScript
-# is generated from them (symbols.py); the rest of the module's constants are
-# its own.
+# `LIBRARY`, `POSITIONS`, `PINS` and `ROTATIONS` are public because the
+# editor's TypeScript is generated from them (symbols.py); the rest of the
+# module's constants are its own.
 _CROSS = ("a1", "a2", "b1", "b2")
 _THROUGH = {"a": ("a1", "a2"), "b": ("b1", "b2")}
 LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
