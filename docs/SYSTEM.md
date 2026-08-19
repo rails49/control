@@ -203,6 +203,12 @@ publisher swaps, the contract doesn't. What the contract needs is the
 is the simulator's behaviour rather than the model's time
 ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
 
+The topic and payload field are named for a binding rather than for the
+contract, which is backwards: a hardware adapter has to publish
+`tc49/layout/tick` carrying a field called `tick`, and CONTEXT.md's entry for
+*tick* reserves the word for the simulator's beat. Read `tc49/layout/tick` as
+the milestone-1 name of the grant-boundary event. Renaming it is #118.
+
 **The tick event is the grant boundary.** There is no separate boundary
 event. On each tick the scheduler releases requests that have come due, the
 dispatcher runs its grant phase over the sensor events buffered since the
@@ -279,7 +285,10 @@ are idle and where they stand, so it reads the layout and follows the
 dispatcher's events, while the dispatcher stays the only judge of what is
 possible ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md)). Here
 it releases the scenario's
-requests at their `at` ticks, performing only the *mechanical* arrival-end
+requests at their `at` ticks — a tick number is the milestone binding of "at a
+stated time" and not the model's answer, since a boundary count means nothing
+to a timetable once a hardware adapter is picking the cadence
+([MILESTONE-1.md](MILESTONE-1.md#scope)) — performing only the *mechanical* arrival-end
 expansion (`to: [yard_e]` → `yard_e.A, yard_e.B` — pure syntax, no layout
 needed), and mints each request's **id deterministically in scenario order**
 (e.g. `<train>-1`, `<train>-2`) — never clock-derived, since byte-identical
