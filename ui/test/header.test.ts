@@ -85,7 +85,7 @@ describe("which mode the band says you are in", () => {
 
 describe("the status the band takes over", () => {
   /** The store not answering is not one of the author's mistakes, so it
-   *  reads here rather than in the findings panel (#84). */
+   *  reads here rather than on the drawing (#84). */
   it("reads the trouble the page is in", async () => {
     const header = await band({ trouble: "the store is not answering" });
     expect(reads(header, ".trouble")).toBe("the store is not answering");

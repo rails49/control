@@ -7,7 +7,7 @@
  * The canvas is where you find out where, so the shell's whole job here is to
  * hand the band one fact off the review and to stop handing it the moment the
  * drawing derives again. A DOM test of the shell, mounted the way
- * `findings.test.ts` mounts it, because the fact crosses two components.
+ * `refusals.test.ts` mounts it, because the fact crosses two components.
  */
 
 import { beforeEach, describe, expect, it } from "vitest";

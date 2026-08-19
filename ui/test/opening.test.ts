@@ -7,7 +7,7 @@
  * A DOM test of the shell: what is thrown away is the shell's own state — the
  * drawing, the flag the band's dot reads, the snapshots undo walks — and the
  * question is a dialog the operator answers. It mounts the shell the way
- * `findings.test.ts` does.
+ * `refusals.test.ts` does.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

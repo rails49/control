@@ -6,6 +6,10 @@
  * (EDITOR.md): red pins, junction membership and the derived layout are the
  * store's answers, not a second implementation here that could disagree with
  * the first inside the tool whose job is to be believed.
+ *
+ * What that answer says is wrong is not listed here. The canvas marks each
+ * fault where it is and the band says coarsely whether the drawing derives
+ * (ADR-0024), so the review goes to those two and the shell keeps none of it.
  */
 
 import { LitElement, html, nothing } from "lit";
@@ -25,7 +29,6 @@ import {
   review,
   saveDrawing,
   type Review,
-  type UnpairedPortal,
 } from "../model/store.js";
 import { appStyles } from "./tc-editor.styles.js";
 import "./tc-canvas.js";
@@ -119,18 +122,15 @@ export class TcEditor extends LitElement {
         }}
       ></tc-canvas>
 
-      <div class="side">
-        ${this.findings()}
-        <tc-netlist
-          .review=${this.reviewed}
-          .chosen=${this.chosen}
-          .symbol=${this.inspecting}
-          @transit-chosen=${(event: CustomEvent<Chosen | null>) => {
-            this.chosen = event.detail;
-            this.redraw();
-          }}
-        ></tc-netlist>
-      </div>
+      <tc-netlist
+        .review=${this.reviewed}
+        .chosen=${this.chosen}
+        .symbol=${this.inspecting}
+        @transit-chosen=${(event: CustomEvent<Chosen | null>) => {
+          this.chosen = event.detail;
+          this.redraw();
+        }}
+      ></tc-netlist>
 
       <tc-menu .at=${this.menu} @menu-action=${this.chose}
         @menu-dismissed=${() => {
@@ -176,39 +176,6 @@ export class TcEditor extends LitElement {
     `;
   }
 
-  /** Everything wrong with the drawing, in one panel: the pins short of a
-   *  wire, the portal labels that pair with nothing, and the refusal
-   *  derivation came back with. The refusal names one unpaired label and
-   *  stops, so the lines above it are what say how many there are. */
-  private findings() {
-    const red = this.reviewed?.red_pins ?? [];
-    const lone = this.reviewed?.unpaired_portals ?? [];
-    const refused = this.reviewed?.refused ?? null;
-    const stacked = this.stacked();
-    if (
-      red.length === 0 &&
-      lone.length === 0 &&
-      refused === null &&
-      stacked.length === 0
-    ) {
-      return html`
-        <div class="findings clean">
-          <p>Every pin holds its wires.</p>
-        </div>
-      `;
-    }
-    return html`
-      <div class="findings">
-        ${stacked.map((where) => html`<p>${where} overlap</p>`)}
-        ${red.length === 0
-          ? nothing
-          : html`<p>${red.length} pin(s) short of a wire: ${red.join(", ")}</p>`}
-        ${lone.map((one) => html`<p>${wearing(one)}</p>`)}
-        ${refused === null ? nothing : html`<p>${refused}</p>`}
-      </div>
-    `;
-  }
-
   /** Whether the drawing derives, which is the whole of what the band says
    *  about the drawing itself (ADR-0024). Off the store's refusal and nothing
    *  else: an overlap and a symbol still lacking an address derive, and a
@@ -217,14 +184,6 @@ export class TcEditor extends LitElement {
    *  appears nor clears on a fault that is not the author's. */
   private get derives(): boolean {
     return this.reviewed === null || this.reviewed.refused === null;
-  }
-
-  /** The symbols sharing a square, named once however many squares they share.
-   *  Read off the drawing rather than raised by the rotate or flip that made
-   *  the overlap, so it stays true through an undo (EDITOR.md#canvas). */
-  private stacked(): string[] {
-    const shared = this.editor.overlaps();
-    return [...new Set(shared.map(({ symbols }) => symbols.join(" and ")))];
   }
 
   /** The one symbol the netlist pane inspects, where exactly one is selected.
@@ -710,17 +669,6 @@ export class TcEditor extends LitElement {
         return;
     }
   };
-}
-
-/** A portal label that pairs with nothing, as a sentence. A label pairs
- *  exactly two portals, so worn once and worn three times are one finding and
- *  the count is what the line has to say; the portals wearing it are where to
- *  look, and each of them carries the same label on the canvas. */
-function wearing({ label, portals }: UnpairedPortal): string {
-  const worn = portals.length === 1 ? "1 portal" : `${portals.length} portals`;
-  return `portal label '${label}' is worn by ${worn}, not two: ${portals.join(
-    ", ",
-  )}`;
 }
 
 declare global {

@@ -1,13 +1,14 @@
 // @vitest-environment happy-dom
 
 /**
- * What the findings panel lists, and for how long.
+ * A name the editor will not take, and where the refusal is shown.
  *
- * The panel is where you look for what to fix in the drawing (#84), so what
- * lands there and what does not is behaviour, not layout — and a finding that
- * outlives what caused it is as wrong as one that never appears. A DOM test
- * because the split is between two pieces of the shell's own state; the shell
- * mounts under happy-dom the way `keys.test.ts` mounts it.
+ * Every other fault is marked on the drawing (ADR-0024), so a name is the one
+ * thing left that has to be said in words — and which of the two places says
+ * it is behaviour, not layout: a symbol's name is refused in the dialog it was
+ * typed in, and a drawing's own name in the band. A DOM test because each of
+ * them crosses two components; the shell mounts under happy-dom the way
+ * `keys.test.ts` mounts it.
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
@@ -80,13 +81,6 @@ async function asked(shell: TcEditor, command: string): Promise<void> {
   await settled(shell);
 }
 
-/** The lines the findings panel is showing. */
-function listed(shell: TcEditor): string[] {
-  return [...shell.renderRoot.querySelectorAll(".findings p")].map((line) =>
-    line.textContent!.trim(),
-  );
-}
-
 /** Let the review in flight settle, then let Lit paint what it said. */
 async function settled(shell: { updateComplete: Promise<boolean> }): Promise<void> {
   for (let turn = 0; turn < 5; turn++) await Promise.resolve();
@@ -134,7 +128,7 @@ async function apply(dialog: TcProperties): Promise<void> {
  *
  * It used to close the dialog, discard the edit, and report it in a panel
  * across the screen, which told the author about a keystroke they had just
- * made. Now the dialog refuses and stays open, and the findings say nothing.
+ * made. Now the dialog refuses and stays open, and nothing else says anything.
  */
 describe("a name the drawing will not take", () => {
   it("is refused with the dialog still open", async () => {
@@ -181,7 +175,10 @@ describe("a name the drawing will not take", () => {
     expect(field(dialog).getAttribute("help-text")).toContain("cannot name");
   });
 
-  it("puts nothing in the findings, which are about the drawing", async () => {
+  /** The dialog holds the refusal, so nothing else reports it: a symbol name
+   *  read across the screen is what ADR-0023 took away, and the band would be
+   *  the same mistake in a new place. */
+  it("says nothing in the band, which is not where a symbol is named", async () => {
     const { shell, session } = await mounted();
     const dialog = await opened(shell, session, "b1");
 
@@ -189,7 +186,7 @@ describe("a name the drawing will not take", () => {
     await apply(dialog);
     await settled(shell);
 
-    expect(listed(shell)).toEqual(["Every pin holds its wires."]);
+    expect(band(shell).trouble).toBeNull();
   });
 
   /** A refusal never reaches the document, so there is no snapshot of it to
@@ -216,7 +213,6 @@ describe("a name the drawing will not take", () => {
       "claro_1",
       "sw1",
     ]);
-    expect(listed(shell)).toEqual(["Every pin holds its wires."]);
   });
 });
 

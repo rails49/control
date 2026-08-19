@@ -5,7 +5,7 @@
  *
  * A DOM test at the dialog's own seam: it is handed a symbol and answers with
  * the spec to write back, and which fields it offers is the whole of what a
- * kind can be given. The shell around it is `findings.test.ts`.
+ * kind can be given. The shell around it is `refusals.test.ts`.
  */
 
 import { describe, expect, it } from "vitest";

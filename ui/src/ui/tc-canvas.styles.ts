@@ -126,7 +126,7 @@ export const canvasStyles = css`
      (EDITOR.md#symbol-geometry).
 
      It is not a name rule, though it is drawn like one: a name is what a symbol
-     carries and this is a finding, and which end of it sits on the point is
+     carries and this is a fault mark, and which end of it sits on the point is
      the mark's own direction speaking, through the attribute a rule here would
      beat. */
   .unpaired {

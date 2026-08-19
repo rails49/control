@@ -317,8 +317,8 @@ export class TcCanvas extends LitElement {
    * A block's label is the only text a *correct* drawing carries
    * (EDITOR.md#symbol-geometry) — every other name is read in the properties
    * dialog and in the netlist pane, portals included. The unpaired portal's
-   * label is a finding rather than a name the symbol wears: it is drawn in red
-   * and it goes away when the label pairs.
+   * label is a fault mark rather than a name the symbol wears: it is drawn in
+   * red and it goes away when the label pairs.
    */
   private label(
     name: string,

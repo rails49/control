@@ -49,7 +49,7 @@ src/
     artwork.ts   what each symbol looks like, hand-written against the
                  generated pin names
   ui/
-    tc-editor.ts   the shell: toolbar, findings, keys, talking to the store
+    tc-editor.ts   the shell: menus, keys, dialogs, talking to the store
     tc-palette.ts  one tile per placeable kind
     tc-canvas.ts   the surface: pointer events, viewBox zoom and pan
     tc-netlist.ts  the derived netlist, and why each pair does or does not

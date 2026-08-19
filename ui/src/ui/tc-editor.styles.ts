@@ -39,27 +39,11 @@ export const appStyles = css`
     min-width: 0;
   }
 
-  .side {
+  tc-netlist {
     grid-area: side;
     border-left: 1px solid var(--rule);
     overflow-y: auto;
     padding: 0.6rem;
-  }
-
-  .findings {
-    margin: 0 0 0.8rem;
-    padding: 0.5rem 0.6rem;
-    border-left: 3px solid var(--wrong);
-    background: #fdf0f0;
-  }
-
-  .findings.clean {
-    border-left-color: var(--tint-1);
-    background: #eef7f3;
-  }
-
-  .findings p {
-    margin: 0.15rem 0;
   }
 
   .hint {

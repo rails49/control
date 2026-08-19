@@ -61,7 +61,7 @@ export interface Layout {
 
 /** A portal label not worn by exactly two portals — worn once, or worn three
  *  times and more — with the portals wearing it. A label pairs exactly two, so
- *  both are one finding. The refusal names one label and stops, which is why
+ *  both are one fault. The refusal names one label and stops, which is why
  *  this is a list. */
 export interface UnpairedPortal {
   label: string;

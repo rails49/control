@@ -227,8 +227,8 @@ somewhere else, whose two mouths face opposite; `r` turns it for the drawings
 that do not. Nothing is asked and nothing is armed: the mate is the same ghost
 under the same three keys, and the pair is one undo step, so undo takes both
 halves back and undo mid-flight takes the first half and the ghost together.
-Abandoning the mate leaves one portal, which is a finding rather than an
-error ([ADR-0020](../adr/0020-a-portal-is-placed-as-a-pair.md)).
+Abandoning the mate leaves one portal, which is a fault marked on the drawing
+rather than an error ([ADR-0020](../adr/0020-a-portal-is-placed-as-a-pair.md)).
 
 Tiles carry no names. Each kind is drawn one way, so the drawing is the name,
 and the title attribute has the word for anyone who wants it.
@@ -426,8 +426,8 @@ one is `/review`'s answer, not the editor's.
 A block's label is the only text a *correct* drawing carries. Nothing else is
 named on the canvas, a paired portal and a junction region included; a name is
 read in the properties dialog and in the netlist pane. The unpaired portal's
-label is a finding rather than a name the symbol wears, and it goes away when
-the label pairs.
+label is a fault mark rather than a name the symbol wears, and it goes away
+when the label pairs.
 
 Each kind has exactly one appearance; diagonal legs are always 45 degrees.
 The former `angle` property that picked between appearances is removed
@@ -523,7 +523,7 @@ netlist, and prefixed to every transit id in a trace. That is why it is minted
 short and why renaming one is a real change. **A name the drawing already has is
 refused here, where it was typed**, rather than reported afterwards: the dialog
 stays open and says so. The dialog is the only place a name is typed, so it is
-the only place a collision can be made, and a finding read across the screen was
+the only place a collision can be made, and a refusal read across the screen was
 telling the author about a keystroke they had just made.
 
 Transit names are not edited here. A drawing can still write one on a symbol's
@@ -723,14 +723,16 @@ refusal about anything else is about a symbol, which already carries its own
 mark, and lights nothing.
 
 A name the drawing already has is refused in the properties dialog, where it was
-typed, and never becomes a finding at all ([Properties](#properties)).
+typed, and is never a fault of the drawing at all ([Properties](#properties)).
+A name no *drawing* can wear is typed at a prompt instead, so its refusal reads
+in the band ([The band](#the-band)) — the one thing here said in words.
 
 Two states are prevented at the gesture that would otherwise create
 them, rather than only reported once created. A wire in flight does not outlive
 the pin it started from (#74), and a portal is placed as a pair, so neither a
 stranded bend nor a lone portal accumulates unnoticed. Prevention stops at
 placement: deleting one portal of a pair still strands the other, and that is
-left to the finding, being a deliberate act with a mark on the canvas
+left to the mark on the canvas, being a deliberate act
 ([ADR-0020](../adr/0020-a-portal-is-placed-as-a-pair.md)).
 
 Editing and running the same railroad at once is not prevented. The store
@@ -811,8 +813,8 @@ that will not load at all is a bad request. Whatever is wrong with a drawing,
 the editor reads a status and a reason rather than losing the connection.
 
 A label is unpaired when it is not worn by exactly two portals: worn once, and
-worn three times or more, are one finding, because a label pairs exactly two.
-The refusal names one label and stops, so the finding is what tells the editor
+worn three times or more, are one fault, because a label pairs exactly two.
+The refusal names one label and stops, so the list is what tells the editor
 about all of them at once rather than one per fix.
 
 A junction and a joint each report a `name`, `null` where the drawing has not
