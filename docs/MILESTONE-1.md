@@ -47,7 +47,9 @@ exercises it:
   by the layout-blind scheduler of [SYSTEM.md](SYSTEM.md#scheduler). There is
   no arrival process and no continual-arrivals scheduler.
 - **Driving** is the stateless translator of [SYSTEM.md](SYSTEM.md#driver),
-  with the simulator advancing each train one transit per tick.
+  with the simulator advancing each train one transit per tick. A train has no
+  speed here and reads no signal: the grant it is handed is the whole of what
+  it is told.
 
 ## Rigor bar
 
@@ -64,12 +66,16 @@ Each of these was ruled out deliberately, not overlooked:
 | --- | --- |
 | A physical layout behind the layout interface | a later effort ([GOALS.md](GOALS.md)); the transit-level command vocabulary of [SYSTEM.md](SYSTEM.md#layout-interface) is the hook |
 | MQTT transport, out-of-process deployment | the bus contract is already MQTT-safe ([ADR-0008](adr/0008-bus-contract-is-the-mqtt-safe-intersection.md)); the in-process bus is the milestone binding |
-| A real scheduler with continual arrivals | requests are a fixed batch here |
+| A real scheduler with continual arrivals | requests are a fixed batch here; the end-state scheduler also reads the layout and follows the dispatcher so it can generate traffic that can succeed ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md)) |
+| Signal aspects on the bus | the dispatcher publishes no aspect and the driver obeys the grant itself; `stop`/`approach`/`clear` and the speed on `cross` are the end state ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)) |
+| Locking two blocks ahead | depth one here — depth is a parameter of the incremental strategy, and raising it changes no safety argument ([ADR-0026](adr/0026-two-blocks-ahead-is-full-speed.md)) |
+| Trains that have a speed | one transit per tick, and a tick is the simulator's boundary rather than the model's unit of time ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)) |
+| Braking distance | an open subject even in the end state, with a working answer and no decision ([GOALS.md](GOALS.md#driving)) |
 | Human driving | the simulator drives |
 | UI / visualization | the event trace is the hook for a future one |
 | Mechanized deadlock-freedom proof | argument only, per the rigor bar above |
 | Mid-route rerouting | [ADR-0002](adr/0002-fixed-route-per-request.md) |
 | Request priorities (express > local) | the pluggable queue-ordering key of [DISPATCH.md](dispatcher/DISPATCH.md#queue-discipline) preserves the upgrade path |
-| Transit durations proportional to length | every transit costs one tick, so makespan is a tick count; revisit only if makespan realism becomes a question |
+| Transit durations proportional to length | every transit costs one tick, so makespan is a tick count; on a physical railroad they vary by construction ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)), so revisit here only if makespan realism becomes a question |
 | An aging / anti-starvation rule | starvation is measured by max latency first; add a rule only if the benchmarks show one is needed |
 | Guaranteeing an obstructing train eventually gets a request | a **scheduler obligation** the dispatcher's liveness is explicitly conditional on ([SAFETY.md](dispatcher/SAFETY.md)); the dispatcher neither detects nor resolves it — the harness only names it and reports the run `stalled` |
