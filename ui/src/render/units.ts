@@ -148,10 +148,9 @@ export const COLOURS: Record<string, string> = {
   "--danger": "#e0332a",
   "--lit": "#a55b12",
   "--lit-body": "#f4e3cd",
-  "--tint-0": "#1f6feb",
+  // The netlist pane's accents. They were a palette of six, one per junction
+  // region on the canvas; the canvas no longer tints a junction that is
+  // merely a junction, so what is left is what the panes still read.
   "--tint-1": "#14866d",
   "--tint-2": "#a55b12",
-  "--tint-3": "#8250df",
-  "--tint-4": "#b3417a",
-  "--tint-5": "#56761c",
 };

@@ -155,31 +155,37 @@ export class TcCanvas extends LitElement {
   // --- what is drawn ------------------------------------------------------
 
   /**
-   * A junction is a connected group of non-block symbols, which `/review`
-   * computes. Tinting it as one region is what makes a stray wire that merged
-   * two throats visible long before it is a wrong concurrency pair.
+   * The junctions in trouble, tinted where they are.
+   *
+   * Every junction used to be tinted, which read as shading behind half the
+   * symbols on the sheet while nothing was wrong. Junction membership is read
+   * in the netlist pane instead, where a connection's name heads its section
+   * above the symbols it is drawn from: a stray wire that merged two throats
+   * shows there as one section listing both, rather than as one region where
+   * you expected two (EDITOR.md#junctions).
+   *
+   * What stays is the tint on a name collision, so colour on the canvas means
+   * something is wrong. A clash is shown where it is rather than only in a
+   * panel, and names are minted, so this is rare and worth looking at.
    *
    * The region carries no name. A junction of one symbol is named after that
    * symbol, so writing the name here put a symbol's own name beside it and
-   * read as a label the symbol carried rather than as an overlay
-   * (EDITOR.md#junctions). The name is read in the netlist pane, where it
-   * heads its section, and in the right-click menu that renames it.
+   * read as a label the symbol carried rather than as an overlay.
    */
   private junctions(): unknown {
-    // A name collision is shown at the edit that caused it (EDITOR.md), and
-    // where it is is the region wearing the name, not a sentence in a panel.
     const troubled = new Set(
       clashes(this.review ?? EMPTY).flatMap((clash) => clash.where.flat()),
     );
-    return (this.review?.junctions ?? []).map((junction, index) => {
+    if (troubled.size === 0) return nothing;
+    return (this.review?.junctions ?? []).map((junction) => {
+      if (!junction.symbols.some((name) => troubled.has(name))) return nothing;
       const cells = junction.symbols.flatMap((name) => {
         const spec = this.editor.drawing.symbols[name];
         return spec === undefined ? [] : cellsOf(spec);
       });
       if (cells.length === 0) return nothing;
-      const wrong = junction.symbols.some((name) => troubled.has(name));
       return svg`
-        <g class=${`junction tint-${index % 6} ${wrong ? "clashing" : ""}`}>
+        <g class="junction clashing">
           ${cells.map(
             ([c, r]) => svg`<rect x=${c} y=${r} width="1" height="1" />`,
           )}

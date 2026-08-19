@@ -20,7 +20,7 @@ throughout; the panel, which is used constantly, is where polish goes.
 ![RocRail layout](images/rocrail.png)
 
 The same railroad in this editor. Track is black and a block's rectangle white,
-every pin is drawn, and the tinted squares are the junctions derivation found.
+and every pin is drawn.
 
 ![Gotthard in the editor](images/gotthard.svg)
 
@@ -370,17 +370,25 @@ that crosses two named legs is refused, and the finding says which two.
 
 A junction is a connected group of non-block symbols declaring at least one
 transit, which is exactly what derivation computes, so the editor computes it
-too rather than asking. Wire a
-crossing to a turnout and they become one tinted region. That region is worth
-looking at in its own right: a stray wire that merges two throats into one
-junction is visible as one region where you expected two, long before it shows
-up as a wrong concurrency pair.
+too rather than asking. Wire a crossing to a turnout and they become one
+junction.
 
-The region is tinted and not named. A junction drawn from one symbol is named
-after that symbol, so a name written over the region sat beside the symbol and
-read as a label the symbol carried — which is what the canvas reserves for a
-block. The name is read where it means something: heading its section in the
-netlist pane, above the symbols the junction is drawn from.
+**A junction is read in the netlist pane, not tinted on the canvas.** Its name
+heads its section there, above the symbols it is drawn from, so a stray wire
+that merges two throats shows as one section listing both. Every junction was
+once tinted as a region on the sheet, which put shading behind half the
+symbols in a drawing while nothing was wrong; the same merged throat is one
+section where you expected two, read rather than seen.
+
+What is still tinted is a junction in trouble: a name another connection also
+wears, or two its own symbols disagree about, marked where it is rather than
+only in a panel. It is the only tint left on the canvas, so colour there means
+something is wrong. Names are minted, so a clash needs a hand-typed name and
+is rare.
+
+A region was never named. A junction drawn from one symbol is named after that
+symbol, so a name written over the region sat beside the symbol and read as a
+label the symbol carried — which is what the canvas reserves for a block.
 
 **A connection's name is nobody's to type.** Names are minted, `j1`, `j2`, and
 written into the drawing at once, so a junction always has a valid name and

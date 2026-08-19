@@ -367,39 +367,17 @@ export const canvasStyles = css`
     pointer-events: none;
   }
 
+  /* A junction wearing a name another connection also wears, or two its own
+     symbols disagree about: shown where it is rather than only in the panel.
+     It is the only tint left on the canvas, so colour here means something is
+     wrong rather than merely that a junction is a junction. */
   .junction {
     pointer-events: none;
   }
 
   .junction rect {
-    fill: currentColor;
-    opacity: 0.1;
-  }
-
-  /* A junction wearing a name another connection also wears, or two its own
-     symbols disagree about: shown where it is rather than only in the panel. */
-  .junction.clashing rect {
     fill: var(--wrong);
     opacity: 0.14;
-  }
-
-  .tint-0 {
-    color: var(--tint-0);
-  }
-  .tint-1 {
-    color: var(--tint-1);
-  }
-  .tint-2 {
-    color: var(--tint-2);
-  }
-  .tint-3 {
-    color: var(--tint-3);
-  }
-  .tint-4 {
-    color: var(--tint-4);
-  }
-  .tint-5 {
-    color: var(--tint-5);
   }
 
   ${symbols}
