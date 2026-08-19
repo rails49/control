@@ -128,8 +128,8 @@ class Dispatcher:
             block = end.rpartition(".")[0]
             if block == expected:
                 # Possibly degenerate — the request names the block the train
-                # stands in (or will park in), accepted whichever end it names
-                # (DISPATCH.md); the first launch attempt decides.
+                # stands in, accepted whichever end it names (DISPATCH.md);
+                # the first launch attempt decides.
                 surviving.append(end)
             elif self._state.train_lengths[train] > self._state.layout.blocks[block]:
                 pruned.append({"end": end, "reason": "no_fit"})
@@ -162,12 +162,11 @@ class Dispatcher:
         )
 
     def _expected_block(self, train: str) -> str | None:
-        """Where the train stands, or will next park — None when an earlier
-        pending request makes that a future dispatcher choice."""
+        """Where the train stands, active route or not (#99) — None when an
+        earlier pending request makes that a future dispatcher choice."""
         if any(req.train == train for req in self._pending):
             return None
-        active = self._state.active.get(train)
-        return active.route.arrival_block if active else self._state.block_of[train]
+        return self._state.block_of[train]
 
     def _departs_elsewhere(self, depart: str, expected: str | None) -> bool:
         """Whether a stated departure block disagrees with where the train

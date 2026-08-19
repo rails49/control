@@ -100,6 +100,45 @@ def test_a_stated_departure_the_train_is_not_at_is_rejected() -> None:
     assert events(trace, "request_completed", rid="express-1")
 
 
+def test_a_mid_route_drag_is_judged_against_where_the_train_stands() -> None:
+    """The departure block is checked against where the train stands, active
+    route or not (#99). freight launches at tick 1 and is standing in dn_w
+    when the second working is released at tick 2, so dn_w is the one block
+    that working may state: not the block the train has left, not a block
+    further along its route, and not the block the route arrives at.
+    """
+    layout, _ = load("crossover-yard/meet")
+    fates = {
+        "dn_w.B": "request_admitted",  # where it stands
+        "yard_w.B": "request_rejected",  # the block it has left
+        "dn_e.B": "request_rejected",  # a block further along its route
+        "yard_e.A": "request_rejected",  # where the route arrives
+    }
+    for depart, fate in fates.items():
+        scenario = Scenario(
+            "midroute",
+            "crossover-yard",
+            {"freight": TrainSpec(600, "yard_w", "B")},
+            (
+                RequestSpec("freight", "yard_w.B", ("yard_e.A",), 0),
+                RequestSpec("freight", depart, ("dn_w.A",), 2),
+            ),
+        )
+        trace = run(layout, scenario)
+        # The admission answer only: a working admitted here is launched once
+        # the active route completes, and the launch stage judges it again
+        # from the origin the train has by then (DISPATCH.md).
+        answers = [
+            line["event"]
+            for line in events(trace, rid="freight-2")
+            if line["event"] in ("request_admitted", "request_rejected")
+        ]
+        assert answers[:1] == [fate], depart
+        if fate == "request_rejected":
+            [rejected] = events(trace, "request_rejected", rid="freight-2")
+            assert rejected["reason"] == "wrong_origin", depart
+
+
 def test_degenerate_request_completes_without_moving_whichever_end() -> None:
     layout, _ = load("crossover-yard/meet")
     for end in ("yard_w.A", "yard_w.B"):
