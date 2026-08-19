@@ -102,6 +102,12 @@ the same reason. A blank is better than a binding the browser eats. `⌘S` and
 icon buttons at the right end of the bar. Undo and redo are not: `⌘Z` and
 `⇧⌘Z` are known, and the `Edit` menu is where they are read.
 
+**Sliding along the bar reads the next menu.** With one menu down, the pointer
+crossing onto a neighbouring title puts that menu down, as every menu bar does,
+and the click the hand lands there afterwards is absorbed — it neither closes
+what the hover just opened nor re-opens it (#100). A second click closes it.
+With no menu down, the pointer crossing the bar opens nothing.
+
 **While a menu is down, the bare keys are the menu's.** `r`, `f`, `0`, `+`, `-`,
 Delete and Backspace do not reach the canvas, and Escape closes the menu rather
 than clearing the selection. That is the same bug as a key typed into a dialog

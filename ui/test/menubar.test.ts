@@ -36,13 +36,37 @@ async function bar(standing: Standing = LIVE): Promise<TcMenubar> {
   return menubar;
 }
 
-/** Put one of the bar's menus down. */
-async function down(menubar: TcMenubar, name: string): Promise<TcMenubar> {
+/** The title on the bar that reads `name`. */
+function title(menubar: TcMenubar, name: string): HTMLElement {
   const titles = [...menubar.renderRoot.querySelectorAll("button.title")];
-  const title = titles.find((one) => one.textContent!.trim() === name);
-  (title as HTMLElement).click();
+  return titles.find((one) => one.textContent!.trim() === name) as HTMLElement;
+}
+
+/** Click one of the bar's titles. */
+async function click(menubar: TcMenubar, name: string): Promise<TcMenubar> {
+  title(menubar, name).click();
   await menubar.updateComplete;
   return menubar;
+}
+
+/** Put one of the bar's menus down, which is what a click on a closed title
+ *  does. */
+async function down(menubar: TcMenubar, name: string): Promise<TcMenubar> {
+  return click(menubar, name);
+}
+
+/** Slide the pointer onto one of the bar's titles. */
+async function onto(menubar: TcMenubar, name: string): Promise<TcMenubar> {
+  title(menubar, name).dispatchEvent(new Event("pointerenter"));
+  await menubar.updateComplete;
+  return menubar;
+}
+
+/** The title whose menu is down, `null` while none is. */
+function showing(menubar: TcMenubar): string | null {
+  const titles = [...menubar.renderRoot.querySelectorAll("button.title")];
+  const down = titles.find((one) => one.getAttribute("aria-expanded") === "true");
+  return down === undefined ? null : down.textContent!.trim();
 }
 
 /** What the menu that is down reads, top to bottom. A divider is a rule. */
@@ -233,5 +257,54 @@ describe("what the editor is told", () => {
 
     expect(heard).toEqual(["undo"]);
     expect(menubar.renderRoot.querySelector("menu")).toBeNull();
+  });
+});
+
+describe("sliding along the bar", () => {
+  /** Every menu bar reads the next title as the pointer crosses it, and the
+   *  click that catches up with the hand must not undo what the hand did
+   *  (#100). */
+  it("opens the neighbour hovered onto, and the click that follows leaves it", async () => {
+    const menubar = await down(await bar(), "File");
+
+    await onto(menubar, "Edit");
+    expect(showing(menubar)).toBe("Edit");
+
+    await click(menubar, "Edit");
+    expect(showing(menubar)).toBe("Edit");
+  });
+
+  /** A bar whose menus opened under a pointer merely crossing it would open
+   *  them by accident, so the hover only reads on while one is already down. */
+  it("opens nothing while no menu is down", async () => {
+    const menubar = await bar();
+
+    await onto(menubar, "File");
+    await onto(menubar, "Edit");
+
+    expect(showing(menubar)).toBeNull();
+  });
+
+  /** A click away from the bar takes the menu up however it went down: the
+   *  absorbed click is the one on the title, not the next one anywhere. */
+  it("puts the menu up when the click lands outside it", async () => {
+    const menubar = await down(await bar(), "File");
+    await onto(menubar, "Edit");
+
+    const sheet = menubar.renderRoot.querySelector(".sheet")!;
+    sheet.dispatchEvent(new Event("pointerdown"));
+    await menubar.updateComplete;
+
+    expect(showing(menubar)).toBeNull();
+  });
+
+  it("closes on the second click after a hover", async () => {
+    const menubar = await down(await bar(), "File");
+    await onto(menubar, "Edit");
+
+    await click(menubar, "Edit");
+    await click(menubar, "Edit");
+
+    expect(showing(menubar)).toBeNull();
   });
 });

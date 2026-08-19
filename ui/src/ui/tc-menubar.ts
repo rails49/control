@@ -48,6 +48,11 @@ export class TcMenubar extends LitElement {
   /** Whether `Open`'s drawings are showing beside the `File` menu. */
   @state() private listing = false;
 
+  /** Whether the menu that is down was opened by the pointer sliding onto its
+   *  title rather than by a click on it, and the click the hand is about to
+   *  land there has yet to be absorbed. */
+  private hovered = false;
+
   override render() {
     return html`
       ${this.showing === null
@@ -73,11 +78,11 @@ export class TcMenubar extends LitElement {
           class=${`title ${down ? "on" : ""}`}
           aria-haspopup="true"
           aria-expanded=${down}
-          @click=${() => this.show(down ? null : menu.name)}
+          @click=${() => this.pressed(menu.name)}
           @pointerenter=${() => {
             // Once a menu is down, sliding along the bar reads the next one,
             // which is what every menu bar does.
-            if (this.showing !== null) this.show(menu.name);
+            if (this.showing !== null) this.show(menu.name, true);
           }}
         >
           ${menu.name}
@@ -162,6 +167,20 @@ export class TcMenubar extends LitElement {
     `;
   }
 
+  /** A click on a title. It opens the menu, or takes it up when that menu is
+   *  already down — except for the click that lands on a title the hand has
+   *  just hovered onto, which is the hover's own and is absorbed (#100).
+   *  Closing there would undo the menu the same gesture just asked for. */
+  private pressed(name: string): void {
+    if (this.showing !== name) {
+      this.show(name);
+    } else if (this.hovered) {
+      this.hovered = false;
+    } else {
+      this.show(null);
+    }
+  }
+
   private choose(id: CommandId): void {
     this.show(null);
     this.dispatchEvent(
@@ -186,10 +205,13 @@ export class TcMenubar extends LitElement {
 
   /** Put a menu down, or take them all up. The editor is told either way: with
    *  a menu down the keyboard is the menu's, and `r` reaching the canvas from
-   *  under an open `File` would rotate the selection behind it. */
-  private show(name: string | null): void {
+   *  under an open `File` would rotate the selection behind it. `hovered` says
+   *  the pointer put it down rather than a click, which is what `pressed`
+   *  reads to absorb the click that follows. */
+  private show(name: string | null, hovered = false): void {
     if (this.showing === name) return;
     this.showing = name;
+    this.hovered = hovered;
     this.listing = false;
     this.dispatchEvent(
       new CustomEvent<boolean>("menu-open", {
