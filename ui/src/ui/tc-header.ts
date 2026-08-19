@@ -2,11 +2,13 @@
  * The band across the top of both pages: what is open, which mode it is being
  * looked at in, and the status that is nobody's mistake.
  *
- * The one exception is coarse enough to belong here: whether the drawing
- * derives ([ADR-0024](../../../docs/adr/0024-the-drawing-shows-its-own-faults.md)).
- * That is the author's to fix, but it names no fault and counts nothing — the
- * canvas is where you find out where — so it is status beside the rest, not a
- * findings list creeping back into the band.
+ * Two things the author is answerable for read here anyway
+ * ([ADR-0024](../../../docs/adr/0024-the-drawing-shows-its-own-faults.md)).
+ * Whether the drawing derives is coarse enough to belong: it names no fault
+ * and counts nothing — the canvas is where you find out where — so it is
+ * status beside the rest, not a list of faults creeping back into the band. A
+ * name no drawing can wear is the other: it is typed at a prompt that is gone
+ * by the time it is refused, and nothing on the canvas is wrong.
  *
  * One component for both pages, because the two facts every page has — what is
  * open and what is wrong outside the drawing — are the same facts. The editor
@@ -54,8 +56,9 @@ export class TcHeader extends LitElement {
   /** The trace file a replay is reading, `null` when none is open. */
   @property() trace: string | null = null;
 
-  /** What is wrong outside the drawing — the store not answering, a bridge
-   *  that is not there. Never a finding about the drawing itself. */
+  /** What the page could not do — the store not answering, a bridge that is
+   *  not there, a name no drawing can wear. Never a fault of the drawing
+   *  itself: those are marked where they are (ADR-0024). */
   @property() trouble: string | null = null;
 
   /** Whether the drawing derives, which is the one thing the band says about

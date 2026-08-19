@@ -17,6 +17,7 @@ import type { Drawing } from "../src/model/drawing.js";
 import type { Editor } from "../src/model/editor.js";
 import type { Review } from "../src/model/store.js";
 import type { TcEditor } from "../src/ui/tc-editor.js";
+import type { TcHeader } from "../src/ui/tc-header.js";
 import type { TcProperties } from "../src/ui/tc-properties.js";
 import type SlInput from "@shoelace-style/shoelace/dist/components/input/input.js";
 
@@ -53,14 +54,30 @@ beforeEach(() => {
   }) as unknown as typeof fetch;
 });
 
-/** A mounted editor holding the drawing above. */
+/** A mounted editor holding the drawing above, with the review it asks for on
+ *  load already answered: that answer clears the band, so a test that raced it
+ *  would be testing the timing and not the refusal. */
 async function mounted() {
   const shell = document.createElement("tc-editor");
   document.body.append(shell);
-  await shell.updateComplete;
+  await settled(shell);
   const session = (shell as unknown as { editor: Editor }).editor;
   session.reset(structuredClone(DRAWING));
   return { shell, session };
+}
+
+/** The band across the top, which is where the editor says what it could not
+ *  do. */
+function band(shell: TcEditor): TcHeader {
+  return shell.renderRoot.querySelector("tc-header")!;
+}
+
+/** A command asked for on the menu bar, and everything it sets in motion. */
+async function asked(shell: TcEditor, command: string): Promise<void> {
+  shell.renderRoot
+    .querySelector("tc-menubar")!
+    .dispatchEvent(new CustomEvent("command", { detail: command }));
+  await settled(shell);
 }
 
 /** The lines the findings panel is showing. */
@@ -203,34 +220,44 @@ describe("a name the drawing will not take", () => {
   });
 });
 
-/** A drawing's own name is still asked for with a prompt and still refused in
- *  the panel: it is not typed in a dialog that could hold it open. */
+/**
+ * A drawing's own name is asked for with a prompt, which has nowhere of its
+ * own to hold a refusal: no symbol on the canvas is wrong, and there is no
+ * dialog to stay open the way the properties dialog does. So it reads in the
+ * band, which is where the editor says what it could not do (ADR-0024).
+ */
 describe("a name no drawing can wear", () => {
-  it("is listed, being the author's own mistake", async () => {
+  it("reads in the band", async () => {
     const { shell } = await mounted();
     window.prompt = () => "a/b";
 
-    shell.renderRoot
-      .querySelector("tc-menubar")!
-      .dispatchEvent(new CustomEvent("command", { detail: "new" }));
-    await settled(shell);
+    await asked(shell, "new");
 
-    expect(listed(shell)).toEqual(["'a/b' cannot name a file"]);
+    expect(band(shell).trouble).toBe("'a/b' cannot name a file");
   });
-});
 
-describe("a store that is not answering", () => {
-  /** Not one of the author's mistakes, so it reads in the band instead — and
-   *  it used to be drawn *instead of* the findings, hiding every one of them
-   *  until the next successful review. */
-  it("is not listed among the findings", async () => {
+  /** `Save As…` types a name the same way and is refused the same way. */
+  it("reads there for Save As too", async () => {
     const { shell } = await mounted();
+    window.prompt = () => "gotthard";
+    await asked(shell, "new");
 
-    answer = () => Promise.reject(new Error("no store"));
+    window.prompt = () => "gotthard/2";
+    await asked(shell, "save-as");
+
+    expect(band(shell).trouble).toBe("'gotthard/2' cannot name a file");
+  });
+
+  /** The refusal does not outlive what caused it: the next accepted edit
+   *  reviews, and a review that answers clears the band. */
+  it("clears on the next accepted edit", async () => {
+    const { shell } = await mounted();
+    window.prompt = () => "a/b";
+    await asked(shell, "new");
+
     shell.renderRoot.querySelector("tc-canvas")!.dispatchEvent(new CustomEvent("edit"));
     await settled(shell);
 
-    expect(listed(shell)).toEqual(["Every pin holds its wires."]);
-    expect(shell.renderRoot.querySelector("tc-header")!.trouble).toContain("no store");
+    expect(band(shell).trouble).toBeNull();
   });
 });

@@ -57,18 +57,12 @@ export class TcEditor extends LitElement {
   @state() private drawings: string[] = [];
   @state() private opened = "";
   @state() private reviewed: Review | null = null;
-  /** What is wrong outside the drawing — the store not answering, a save that
-   *  did not land. It reads in the band, not among the findings, which are the
-   *  things the person drawing has to fix (#84). */
+  /** What the editor could not do — the store not answering, a save that did
+   *  not land, a name no drawing can wear. It reads in the band, none of it
+   *  being a fault of the drawing that the canvas could mark (#84, ADR-0024).
+   *  It lives until the next accepted edit, a refusal outliving what caused it
+   *  being as wrong as one that never shows. */
   @state() private trouble: string | null = null;
-  /** A name no drawing can wear, said of the one asked for by `New…` or
-   *  `Save As…`. That one *is* the author's, so it is a finding. It lives
-   *  until the next accepted edit, the same lifetime it had when it shared
-   *  `trouble`: a refusal outliving what caused it would still be listed
-   *  against a drawing that no longer has the problem. A symbol name is
-   *  refused in the properties dialog instead, where it was typed, and never
-   *  reaches here (ADR-0023). */
-  @state() private naming: string | null = null;
   @state() private saved = true;
   @state() private menu: MenuAt | null = null;
   /** Whether a menu on the bar is down. While one is, the keyboard is the
@@ -195,8 +189,7 @@ export class TcEditor extends LitElement {
       red.length === 0 &&
       lone.length === 0 &&
       refused === null &&
-      stacked.length === 0 &&
-      this.naming === null
+      stacked.length === 0
     ) {
       return html`
         <div class="findings clean">
@@ -206,7 +199,6 @@ export class TcEditor extends LitElement {
     }
     return html`
       <div class="findings">
-        ${this.naming === null ? nothing : html`<p>${this.naming}</p>`}
         ${stacked.map((where) => html`<p>${where} overlap</p>`)}
         ${red.length === 0
           ? nothing
@@ -447,15 +439,15 @@ export class TcEditor extends LitElement {
     await this.save();
   }
 
-  /** One drawing name, asked for and checked. A refusal lands in the findings
-   *  panel rather than a re-prompt; asking again is one click away. */
+  /** One drawing name, asked for and checked. A refusal reads in the band
+   *  rather than re-prompting: the prompt is gone by then, nothing on the
+   *  canvas is wrong, and asking again is one click away (ADR-0024). */
   private named(what: string, was: string): string | null {
-    this.naming = null;
     const said = this.ask(what, was);
     if (said === null) return null;
     const trouble = nameTrouble(said, this.drawings);
     if (trouble === null) return said;
-    this.naming = trouble;
+    this.trouble = trouble;
     return null;
   }
 
@@ -476,7 +468,6 @@ export class TcEditor extends LitElement {
       const at = this.editor.revision;
       const first = await review(this.editor.drawing);
       this.trouble = null;
-      this.naming = null;
       const named = opening
         ? this.editor.remint(first, at)
         : this.editor.settle(first, at);

@@ -60,7 +60,9 @@ took that button off the screen entirely.
 
 **The store not answering reads here.** That is what is wrong that is not the
 author's doing; what the author has to fix is marked on the drawing
-([Validation](#validation)).
+([Validation](#validation)). A name no drawing can wear is the one refusal that
+joins it: it is typed at a prompt that is gone by the time it is refused, and
+nothing on the canvas is wrong ([Files](#files)).
 
 Beside it, one coarse indicator: this drawing derives, or it does not. It names
 no fault and counts nothing, the canvas being where you find out where. A drawing
@@ -628,8 +630,11 @@ written until the first Save, so an abandoned start leaves no file. Save As…
 writes the open drawing, unsaved edits included, under a new name at once, and
 Save targets that name from then on; the file under the old name keeps its
 last-saved state, which is how a test variant forks from a committed railroad.
-Both refuse a name a drawing already has: overwriting one deliberately is
-opening it and pressing Save. Deleting or renaming a file stays in git, where
+Both refuse a name a drawing already has, and a name no file can wear;
+overwriting one deliberately is opening it and pressing Save. The refusal reads
+in the band ([The band](#the-band)) rather than asking again — the prompt is
+gone by then, and asking is one click away — and it goes on the next accepted
+edit. Deleting or renaming a file stays in git, where
 it is reviewable.
 
 **Unsaved edits are not discarded silently.** Opening another drawing and
