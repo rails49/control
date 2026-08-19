@@ -30,6 +30,7 @@ import {
 import { FIT, REDO, UNDO, ZOOM_IN, ZOOM_OUT } from "./icons.js";
 import { appStyles } from "./styles.js";
 import "./tc-canvas.js";
+import "./tc-header.js";
 import "./tc-menu.js";
 import "./tc-netlist.js";
 import "./tc-palette.js";
@@ -55,7 +56,13 @@ export class TcEditor extends LitElement {
   @state() private drawings: string[] = [];
   @state() private opened = "";
   @state() private reviewed: Review | null = null;
+  /** What is wrong outside the drawing — the store not answering, a save that
+   *  did not land. It reads in the band, not among the findings, which are the
+   *  things the person drawing has to fix (#84). */
   @state() private trouble: string | null = null;
+  /** A name the drawing will not take. That one *is* the author's, so it is a
+   *  finding. */
+  @state() private naming: string | null = null;
   @state() private saved = true;
   @state() private menu: MenuAt | null = null;
   @state() private editing: { name: string; spec: SymbolSpec } | null = null;
@@ -74,8 +81,14 @@ export class TcEditor extends LitElement {
 
   override render() {
     return html`
+      <tc-header
+        mode="editor"
+        .drawing=${this.opened === "" ? null : this.opened}
+        .unsaved=${!this.saved}
+        .trouble=${this.trouble}
+      ></tc-header>
+
       <header>
-        <span class="drawing">${this.opened || "no drawing"}</span>
         <sl-select
           size="small"
           value=${this.opened}
@@ -160,9 +173,6 @@ export class TcEditor extends LitElement {
    *  rather than a refused one. The refusal names one unpaired label and
    *  stops, so the lines above it are what say how many there are. */
   private findings() {
-    if (this.trouble !== null) {
-      return html`<div class="findings"><p>${this.trouble}</p></div>`;
-    }
     const red = this.reviewed?.red_pins ?? [];
     const lone = this.reviewed?.unpaired_portals ?? [];
     const refused = this.reviewed?.refused ?? null;
@@ -173,7 +183,8 @@ export class TcEditor extends LitElement {
       lone.length === 0 &&
       refused === null &&
       clashing.length === 0 &&
-      stacked.length === 0
+      stacked.length === 0 &&
+      this.naming === null
     ) {
       return html`
         <div class="findings clean">
@@ -183,6 +194,7 @@ export class TcEditor extends LitElement {
     }
     return html`
       <div class="findings">
+        ${this.naming === null ? nothing : html`<p>${this.naming}</p>`}
         ${stacked.map((where) => html`<p>${where} overlap</p>`)}
         ${red.length === 0
           ? nothing
@@ -285,11 +297,12 @@ export class TcEditor extends LitElement {
   /** One drawing name, asked for and checked. A refusal lands in the findings
    *  panel rather than a re-prompt; asking again is one click away. */
   private named(what: string, was: string): string | null {
+    this.naming = null;
     const said = this.ask(what, was);
     if (said === null) return null;
     const trouble = nameTrouble(said, this.drawings);
     if (trouble === null) return said;
-    this.trouble = trouble;
+    this.naming = trouble;
     return null;
   }
 
@@ -375,8 +388,9 @@ export class TcEditor extends LitElement {
   private applied(event: CustomEvent<Properties>): void {
     const { was, name, spec } = event.detail;
     this.editing = null;
+    this.naming = null;
     if (!this.editor.edit(was, name, spec)) {
-      this.trouble = `'${name}' is not a name this drawing can take`;
+      this.naming = `'${name}' is not a name this drawing can take`;
       return;
     }
     this.edited();

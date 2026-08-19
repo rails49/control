@@ -103,15 +103,20 @@ export const appStyles = css`
     ${palette}
 
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     grid-template-columns: 12rem 1fr 22rem;
     grid-template-areas:
+      "band band band"
       "bar bar bar"
       "palette canvas side";
     height: 100vh;
     background: var(--paper);
     color: var(--ink);
     font: 13px/1.4 system-ui, sans-serif;
+  }
+
+  tc-header {
+    grid-area: band;
   }
 
   header {
@@ -125,10 +130,6 @@ export const appStyles = css`
 
   header .spacer {
     flex: 1;
-  }
-
-  header .drawing {
-    font-weight: 600;
   }
 
   /* An icon button is square around its glyph, where a labelled one is as wide
