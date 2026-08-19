@@ -1,6 +1,7 @@
 /**
  * What more than one component wears: the palette, the symbol rules, the lit
- * way, and the box a menu drops into.
+ * way, and what a menu is made of — its box, its rows, and the key set beside
+ * a label.
  *
  * The styles are kept out of the components so that what a component has is
  * behaviour; each component's own rules sit in a module beside it, and read
