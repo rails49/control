@@ -30,10 +30,15 @@ const NONE: ReadonlySet<string> = new Set();
  * meeting at the frog, and a slip lights its entry half, its tick and its exit
  * half. `WHOLE` lights every stroke, which is what a symbol with no legs the
  * artwork draws — a joiner, a block end, the generic box — is lit by.
+ *
+ * `dark` names the block ends that carry no signal, which `dark` in
+ * inspect.ts works out. It defaults to none, so a palette tile and a drag
+ * ghost — neither of which has a `/review` to ask — draw the whole symbol.
  */
 export function artwork(
   spec: SymbolSpec,
   lit: ReadonlySet<string> = NONE,
+  dark: ReadonlySet<string> = NONE,
 ): SVGTemplateResult {
   const on: Lit = (...legs) =>
     lit.has(WHOLE) || legs.some((leg) => lit.has(leg)) ? " lit" : "";
@@ -41,7 +46,7 @@ export function artwork(
     case "connection":
       return opaque(spec, lit);
     case "block":
-      return block(on);
+      return block(on, dark);
     case "terminal":
       return terminal(on);
     case "portal":
@@ -89,9 +94,13 @@ function opaque(spec: SymbolSpec, lit: ReadonlySet<string>): SVGTemplateResult {
  * above at B, on the left of a train leaving through that end, as the SBB
  * places signals — so a rotation or a flip reads naturally. Sensors are not drawn
  * and nothing is written outside the rectangle; the label goes inside it, and
- * the canvas draws that upright, outside the turned group.
+ * the canvas draws that outside the turned group.
+ *
+ * An end named in `dark` draws no signal at all rather than a dim one. A dim
+ * signal is an aspect, and there is no signal there to be showing one: nothing
+ * leaves that end for a signal to clear for.
  */
-function block(on: Lit): SVGTemplateResult {
+function block(on: Lit, dark: ReadonlySet<string>): SVGTemplateResult {
   const [a, b] = [anchorIn("block", "A"), anchorIn("block", "B")];
   const { x, y, w, h } = BLOCK.body;
   const { at } = BLOCK.signal;
@@ -101,8 +110,12 @@ function block(on: Lit): SVGTemplateResult {
     <path class=${`track${on()}`} d=${path({ x: x + w, y: b.y }, b)} />
     <rect class=${`block-body${on()}`}
           x=${x} y=${y} width=${w} height=${h} />
-    <g class="signal end-A">${signal(a.x + at, a.y, 1)}</g>
-    <g class="signal end-B">${signal(b.x - at, b.y, -1)}</g>
+    ${dark.has("A")
+      ? svg``
+      : svg`<g class="signal end-A">${signal(a.x + at, a.y, 1)}</g>`}
+    ${dark.has("B")
+      ? svg``
+      : svg`<g class="signal end-B">${signal(b.x - at, b.y, -1)}</g>`}
     <path class="mark" d=${`M${n(BLOCK.plus.x - arm)} ${n(BLOCK.plus.y)}
       h${n(2 * arm)} M${n(BLOCK.plus.x)} ${n(BLOCK.plus.y - arm)}
       v${n(2 * arm)}`} />

@@ -28,7 +28,7 @@ import {
   type Point,
 } from "../model/geometry.js";
 import { Gesture, type Outcome } from "../model/gesture.js";
-import { clashes, lit, type Chosen } from "../model/inspect.js";
+import { clashes, dark, lit, type Chosen } from "../model/inspect.js";
 import type { Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
@@ -204,6 +204,7 @@ export class TcCanvas extends LitElement {
    *  and this is where it is checked by looking. */
   private symbols(): unknown {
     const way = lit(this.review ?? EMPTY, this.chosen);
+    const blind = dark(this.review ?? EMPTY);
     return Object.entries(this.editor.drawing.symbols).map(([name, spec]) => {
       const chosen = this.editor.selection.has(name);
       const shifted = this.shift(name);
@@ -214,7 +215,7 @@ export class TcCanvas extends LitElement {
           transform=${`translate(${shifted.x} ${shifted.y})`}
         >
           <g transform=${transformOf(spec)}>
-            ${artwork(spec, way.get(name))}
+            ${artwork(spec, way.get(name), blind.get(name))}
           </g>
           ${this.label(name, spec)}
         </g>

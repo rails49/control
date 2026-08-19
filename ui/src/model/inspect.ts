@@ -53,6 +53,48 @@ export function lit(
   return found;
 }
 
+/**
+ * The block ends carrying no signal: those a train can never be let out of,
+ * because no transit leaves them.
+ *
+ * A block shows a signal at each end, and at a siding's blind end that signal
+ * could only ever be red — Claro 4's B end runs into a buffer stop
+ * (EDITOR.md#symbol-geometry). Which ends those are is the derived layout's
+ * answer: an end appears in a transit or it does not, and joints are transits
+ * too, so this one field is the whole of it and no topology is computed here.
+ *
+ * An end is only dark once its pin is satisfied. An unwired end is in no
+ * transit either, but it is unfinished rather than blind, and a block whose
+ * signals vanished the moment it was dropped — the palette tile and the ghost
+ * having just shown both — would read as a fault in the drawing rather than a
+ * fact about it. A drawing that does not derive has no answer at all, and
+ * every signal stays.
+ *
+ * Keyed by symbol, as `lit` is, so the canvas asks per symbol as it draws.
+ */
+export function dark(review: Review): Map<string, Set<string>> {
+  const found = new Map<string, Set<string>>();
+  const layout = review.layout;
+  if (layout === null) return found;
+  const routed = new Set<string>();
+  for (const connection of Object.values(layout.connections)) {
+    for (const ends of Object.values(connection.transits)) {
+      for (const end of ends) routed.add(end);
+    }
+  }
+  const red = new Set(review.red_pins);
+  for (const block of Object.keys(layout.blocks)) {
+    for (const end of ["A", "B"]) {
+      const pin = `${block}.${end}`;
+      if (routed.has(pin) || red.has(pin)) continue;
+      const ends = found.get(block) ?? new Set<string>();
+      ends.add(end);
+      found.set(block, ends);
+    }
+  }
+  return found;
+}
+
 /** One rival of a chosen transit: whether the two run together, and where a
  *  refusal comes from. */
 export interface Against {

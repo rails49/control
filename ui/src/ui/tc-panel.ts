@@ -22,6 +22,7 @@ import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import { Drag } from "../model/drag.js";
+import { dark } from "../model/inspect.js";
 import { wirePins, type Drawing } from "../model/drawing.js";
 import {
   centreOf,
@@ -461,6 +462,7 @@ export class TcPanel extends LitElement {
     green: Set<string>,
   ) {
     const target = this.drag.drop?.block;
+    const blind = dark(this.reviewed!);
     return Object.entries(this.drawing!.symbols).map(([name, spec]) => {
       const block = blocks.get(name);
       const aspects = ["A", "B"]
@@ -476,7 +478,7 @@ export class TcPanel extends LitElement {
         .join(" ");
       return svg`
         <g class=${classes} transform=${transformOf(spec)}>
-          ${artwork(spec, lit.get(name))}
+          ${artwork(spec, lit.get(name), blind.get(name))}
         </g>
       `;
     });

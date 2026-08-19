@@ -201,13 +201,28 @@ There is no floor: a name long enough to shrink past legibility is drawn small
 rather than clipped, because the zoom rescues small text and nothing rescues
 text that is not there.
 
-Each stub carries a signal centred on it: a chamfered plaque 0.53G by 0.22G
-floating 0.09G clear of the track, holding two lamps 0.12G across, red then
-green. There is no mast. The A signal hangs below the track, on the left of a
+Each stub carries a signal centred on it, unless nothing ever leaves that end:
+a chamfered plaque 0.53G by 0.22G floating 0.09G clear of the track, holding
+two lamps 0.12G across, red then green. There is no mast. The A signal hangs below the track, on the left of a
 train leaving through A, as the SBB places signals. The B signal is the A
 signal turned 180 degrees about the block's centre, above the track with its
 lamps in the opposite order, which keeps the symbol point symmetric and makes
 rotation and flip read naturally.
+
+**An end nothing leaves carries no signal.** A siding's blind end — Claro 4's
+B end, which runs into a buffer stop — could only ever show red, and a signal
+that can never clear is furniture. Which ends those are is read off the
+derived layout: an end appears in a transit or it does not, joints being
+transits too, so no topology is computed here. The plaque and both lamps are
+omitted rather than dimmed, a dim signal being an aspect and there being no
+signal there to show one.
+
+An end goes dark only once its pin is satisfied. An unwired end is in no
+transit either, but it is unfinished rather than blind, and a block whose
+signals vanished the moment it was dropped — the palette tile and the ghost
+having just shown both — would read as a fault in the drawing rather than a
+fact about it. A drawing that does not derive is no answer at all, and every
+signal stays.
 
 **Terminal**, 1×1, pin at `(0, 0.5)`. A track stub from the pin to a
 vertical bar 0.6G tall and 1.2W wide: the buffer stop. The stub is cut square

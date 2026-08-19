@@ -5,6 +5,7 @@ import {
   against,
   amongst,
   clashes,
+  dark,
   lit,
   routes,
   through,
@@ -343,5 +344,49 @@ describe("names two connections cannot both wear", () => {
         where: [["sw1"], ["dn_e.B", "yard_e.A"]],
       },
     ]);
+  });
+});
+
+describe("the block ends carrying no signal", () => {
+  /** A siding: `yard` runs out of the scissors at its A end and into a buffer
+   *  stop at its B end, which is Claro 4's shape. */
+  function siding(): Review {
+    const found = scissors();
+    found.layout!.blocks = { dn_e: { length: 3200 }, yard: { length: 900 } };
+    found.layout!.connections.throat = {
+      transits: { into_yard: ["dn_e.B", "yard.A"] },
+    };
+    return found;
+  }
+
+  it("darkens an end no transit leaves", () => {
+    expect(dark(siding()).get("yard")).toEqual(new Set(["B"]));
+  });
+
+  it("leaves an end a transit leaves alone", () => {
+    expect(dark(siding()).get("yard")?.has("A")).toBe(false);
+  });
+
+  it("leaves an unwired end alone, it being unfinished rather than blind", () => {
+    // A block dropped on the sheet is in no transit at either end. Both
+    // signals vanishing there would read as a fault rather than as a siding.
+    const found = siding();
+    found.red_pins = ["yard.A", "yard.B"];
+    expect(dark(found).get("yard")).toBeUndefined();
+  });
+
+  it("darkens nothing when the drawing does not derive", () => {
+    // No layout is no answer, and no answer is not evidence of a dead end.
+    const found = siding();
+    found.layout = null;
+    expect(dark(found).size).toBe(0);
+  });
+
+  it("counts a joint's ends as routed, a joint being a connection too", () => {
+    const found = siding();
+    found.layout!.connections.joint = {
+      transits: { straight_through: ["yard.B", "dn_e.A"] },
+    };
+    expect(dark(found).get("yard")).toBeUndefined();
   });
 });
