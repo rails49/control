@@ -1,17 +1,17 @@
 drawing: beb-gotthard
 symbols:
-  sw1: {kind: turnout, at: [15, 4], connection: butterfly}
-  sw2: {kind: turnout, at: [15, 3], rot: 180, connection: butterfly}
-  sw3: {kind: turnout, at: [14, 5], rot: 0, connection: butterfly}
-  sw4: {kind: turnout, at: [24, 4], rot: 180, flip: false, connection: butterfly}
-  sw5: {kind: turnout, at: [25, 3], rot: 180, flip: false, connection: butterfly}
+  sw1: {kind: turnout, at: [15, 4], connection: j1, addr: '5'}
+  sw2: {kind: turnout, at: [15, 3], rot: 180, connection: j1, addr: '5'}
+  sw3: {kind: turnout, at: [14, 5], rot: 0, connection: j1, addr: '6'}
+  sw4: {kind: turnout, at: [24, 4], rot: 180, flip: false, connection: j1, addr: '7'}
+  sw5: {kind: turnout, at: [25, 3], rot: 180, flip: false, connection: j1, addr: '3'}
   n1: {kind: pin, at: [24, 5], rot: 0}
-  x90d1: {kind: crossing_90d, at: [3, 3], rot: 180, flip: false, connection: butterfly}
+  x90d1: {kind: crossing_90d, at: [3, 3], rot: 180, flip: false, connection: j1}
   end1: {kind: terminal, at: [7, 3], rot: 180, flip: false}
-  sw6: {kind: turnout, at: [5, 1], rot: 180, flip: false, connection: butterfly}
-  sw7: {kind: turnout, at: [2, 5], rot: 0, flip: false, connection: butterfly}
-  sw8: {kind: turnout, at: [5, 5], rot: 0, flip: true, connection: butterfly}
-  sw9: {kind: turnout, at: [2, 1], rot: 180, flip: true, connection: butterfly}
+  sw6: {kind: turnout, at: [5, 1], rot: 180, flip: false, connection: j1, addr: '1'}
+  sw7: {kind: turnout, at: [2, 5], rot: 0, flip: false, connection: j1, addr: '1'}
+  sw8: {kind: turnout, at: [5, 5], rot: 0, flip: true, connection: j1, addr: '1'}
+  sw9: {kind: turnout, at: [2, 1], rot: 180, flip: true, connection: j1, addr: '1'}
   n2: {kind: pin, at: [26, 1], rot: 0}
   p1: {kind: portal, at: [-1, 5], rot: 0, flip: true, label: p1}
   p2: {kind: portal, at: [-3, 5], rot: 180, flip: true, label: p1}
@@ -19,12 +19,12 @@ symbols:
   n5: {kind: pin, at: [2, 8], rot: 0}
   n6: {kind: pin, at: [0, 1], rot: 0}
   n9: {kind: pin, at: [1, 9], rot: 0}
-  sw10: {kind: turnout, at: [0, 5], rot: 180, flip: false}
+  sw10: {kind: turnout, at: [0, 5], rot: 180, flip: false, connection: j1, addr: '2'}
   n10: {kind: pin, at: [-2, 3], rot: 90}
   n11: {kind: pin, at: [-2, 7], rot: 90}
   n12: {kind: pin, at: [0, 7], rot: 90}
-  sw11: {kind: turnout, at: [-4, 14], rot: 90, connection: j4}
-  sw12: {kind: turnout, at: [-1, 16], rot: 180, flip: true, connection: j4}
+  sw11: {kind: turnout, at: [-4, 14], rot: 90, connection: j4, addr: '9'}
+  sw12: {kind: turnout, at: [-1, 16], rot: 180, flip: true, connection: j4, addr: '10'}
   n14: {kind: pin, at: [-4, 15], rot: 90}
   n15: {kind: pin, at: [-2, 16], rot: 0}
   n16: {kind: pin, at: [1, 18], rot: 0}
@@ -32,9 +32,9 @@ symbols:
   e2: {kind: terminal, at: [2, 21], rot: 180, flip: false}
   e3: {kind: terminal, at: [10, 12], rot: 180, flip: false}
   e4: {kind: terminal, at: [10, 13], rot: 180, flip: false}
-  sw13: {kind: turnout, at: [22, 16], rot: 180, flip: false}
-  sw14: {kind: turnout, at: [22, 15], rot: 0, flip: true, connection: j2}
-  sw15: {kind: turnout, at: [20, 13], rot: 0, flip: true, connection: j2}
+  sw13: {kind: turnout, at: [22, 16], rot: 180, flip: false, addr: '13'}
+  sw14: {kind: turnout, at: [22, 15], rot: 0, flip: true, connection: j2, addr: '14'}
+  sw15: {kind: turnout, at: [20, 13], rot: 0, flip: true, connection: j2, addr: '15'}
   n19: {kind: pin, at: [20, 12], rot: 0}
   n20: {kind: pin, at: [24, 15], rot: 0}
   n21: {kind: pin, at: [25, 14], rot: 0}
@@ -43,8 +43,8 @@ symbols:
   n26: {kind: pin, at: [25, 8], rot: 0}
   n27: {kind: pin, at: [26, 10], rot: 90}
   n29: {kind: pin, at: [21, 18], rot: 0}
-  sw16: {kind: turnout, at: [12, 18], rot: 180, flip: false, connection: j3}
-  sw17: {kind: turnout, at: [10, 20], rot: 180, flip: false, connection: j3}
+  sw16: {kind: turnout, at: [12, 18], rot: 180, flip: false, connection: j3, addr: '12'}
+  sw17: {kind: turnout, at: [10, 20], rot: 180, flip: false, connection: j3, addr: '11'}
   n30: {kind: pin, at: [10, 21], rot: 0}
   n31: {kind: pin, at: [25, 16], rot: 0}
   n32: {kind: pin, at: [26, 15], rot: 90}

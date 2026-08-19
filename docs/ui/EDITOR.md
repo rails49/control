@@ -625,7 +625,8 @@ run together and those that cannot.
 
 `A3_B__CW_A` lit: out of Airolo's track 3, across the throat, into Claro west.
 That throat is the one the opening counts 19 transits and 33 concurrent pairs
-at; this drawing names its connection `butterfly`.
+at; its connection is `j1`, minted
+([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)).
 
 ![a transit lit across the throat](images/butterfly-transit.svg)
 
