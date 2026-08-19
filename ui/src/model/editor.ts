@@ -14,6 +14,7 @@
 import type { Kind } from "../symbols.generated.js";
 import {
   clone,
+  isName,
   pinsOf,
   symbolOf,
   wireKey,
@@ -669,12 +670,6 @@ function defaults(
   if (kind === "block") return { length: 1000 };
   if (kind === "portal") return { label: label ?? mintLabel(drawing) };
   return {};
-}
-
-/** What the drawing schema takes as a name: not empty, and without the `.`
- *  that separates a symbol from its pin or the `/` that separates a path. */
-export function isName(name: string): boolean {
-  return name !== "" && !name.includes(".") && !name.includes("/");
 }
 
 /** A wire with a renamed symbol's pins rewritten, keeping the form it was

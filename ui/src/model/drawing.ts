@@ -106,6 +106,12 @@ export function nameTrouble(name: string, taken: readonly string[]): string | nu
   return null;
 }
 
+/** What the drawing schema takes as a name: not empty, and without the `.`
+ *  that separates a symbol from its pin or the `/` that separates a path. */
+export function isName(name: string): boolean {
+  return name !== "" && !name.includes(".") && !name.includes("/");
+}
+
 export function clone(drawing: Drawing): Drawing {
   return structuredClone(drawing);
 }
