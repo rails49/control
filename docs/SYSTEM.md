@@ -30,7 +30,9 @@ reading another component's internals. Terminology follows
 - **Dispatcher** — admits requests, chooses routes, grants moves
   deadlock-free; the research core ([DISPATCH.md](dispatcher/DISPATCH.md),
   [SAFETY.md](dispatcher/SAFETY.md)).
-- **Driver** — turns each granted move into the command that moves the train.
+- **Driver** — turns each granted move into the command that moves the train;
+  in the end state it reads the aspect it is handed and decides how fast
+  ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 - **Layout interface** — the boundary to whatever runs the track: sensor
   readings and the tick come out, turnout and throttle commands go in. A
   simulator implements it in milestone 1, a hardware adapter later.
@@ -195,7 +197,10 @@ Advancing means: execute the pending commands, publish their sensor events,
 grant phase the tick triggers finds them in its buffered set. Publishing the
 tick first would slip every grant by a tick. A
 hardware adapter later picks its own cadence behind the same event: the
-publisher swaps, the contract doesn't.
+publisher swaps, the contract doesn't. What the contract needs is the
+**boundary**; `tick` is the simulator's name for it, and "one transit per beat"
+is the simulator's behaviour rather than the model's time
+([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
 
 **The tick event is the grant boundary.** There is no separate boundary
 event. On each tick the scheduler releases requests that have come due, the
@@ -267,7 +272,12 @@ justifies exactly that footprint.
 *Reads* the scenario. *Subscribes* `tc49/layout/tick`. *Publishes*
 `request_submitted` and the `state/exhausted` last-value topic.
 
-The scheduler is **layout-blind and tick-only**. It releases the scenario's
+The scheduler is **layout-blind and tick-only** — in milestone 1. The end
+state reverses that: to generate continual traffic it has to know which trains
+are idle and where they stand, so it reads the layout and follows the
+dispatcher's events, while the dispatcher stays the only judge of what is
+possible ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md)). Here
+it releases the scenario's
 requests at their `at` ticks, performing only the *mechanical* arrival-end
 expansion (`to: [yard_e]` → `yard_e.A, yard_e.B` — pure syntax, no layout
 needed), and mints each request's **id deterministically in scenario order**
@@ -324,7 +334,9 @@ The driver is a **stateless, layout-blind translator**: per granted move it
 immediately publishes `cross`, the move itself, mirrored. Setting the route is
 the dispatcher's, which publishes `align`
 ([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)), so a grant is
-the driver's green signal. The move payload carries every field `cross` needs,
+the driver's green signal — a metaphor here, and literally the contract in the
+end state, where the grant carries the aspect and the driver's answer is a
+speed ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)). The move payload carries every field `cross` needs,
 so the driver holds no state and reads no assets. It does
 not subscribe to the tick — the tick+1 skew is the boundary's property, and
 duplicating it here would land grants at N+2. The boundary stays real by
@@ -363,6 +375,32 @@ the occupancy topics are event topics, facts that happened, not state.
 nothing and subscribes to nothing, which is precisely why it exists as a
 second contract — components need answers to queries, and the bus refuses
 request/reply.
+
+### Beyond milestone 1
+
+The contracts above are what milestone 1 builds, and they are not final.
+[GOALS.md](GOALS.md) describes the whole system; four decisions grow these
+contracts, and they are listed here so no footprint above is read as the last
+word.
+
+| Growth | Why | Where |
+| --- | --- | --- |
+| `move_granted` carries the **aspect** — `stop`, `approach`, `clear` | the dispatcher's authority is what the driver obeys, and a driver cannot work out which signal it faces because sensors are anonymous | [ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md) |
+| A last-value `tc49/dispatch/state/…` topic carries **every signalled block end's aspect** | signal heads, the panel and a person driving by eye are audiences that are not the automated driver, and a late subscriber needs the whole picture, not the next change | same |
+| `cross` carries a **speed** | the driver decides how fast; the layout interface keeps throttle-up-watch-the-detector-stop, where the braking curve and detector geometry live | same |
+| The **scheduler reads the layout** and subscribes to `tc49/dispatch/#` | continual generated traffic has to name an idle train and a reachable destination; the dispatcher stays the single feasibility authority | [ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md) |
+| The boundary event's cadence comes from a **clock**, transits vary in length | `tick` is the simulator's binding of the boundary, not the model's unit of time | [ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md) |
+
+None of it adds a role, a writer, or a query — which is the point. Every
+growth lands on a topic that already exists or a state topic under a role that
+already writes there, so the single-writer rule, the event/state split and the
+prefix-filter rule all survive without amendment.
+
+Locking two blocks ahead instead of one
+([ADR-0026](adr/0026-two-blocks-ahead-is-full-speed.md)) appears nowhere in
+this table, because it is not a contract change at all: it is a parameter of
+the incremental strategy behind the seam of
+[ADR-0005](adr/0005-seam-at-locking-strategy.md).
 
 ## The trace
 
