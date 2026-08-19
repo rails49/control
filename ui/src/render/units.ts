@@ -167,6 +167,12 @@ export const COLOURS: Record<string, string> = {
   "--chosen": "#1f6feb",
   "--good": "#22c55e",
   "--wrong": "#cc2936",
+  // The quieter of the two weights a fault is marked in: what derives but is
+  // unfinished, against the red of what stops derivation (ADR-0024). A slate
+  // rather than a second shade of alarm, so the two are told apart at a glance,
+  // and it carries no other meaning on the canvas the way an amber next to the
+  // lit way would.
+  "--unfinished": "#5b6472",
   "--hint": "#7c8087",
   "--clear": "#17a24a",
   "--danger": "#e0332a",

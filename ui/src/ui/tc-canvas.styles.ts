@@ -31,10 +31,14 @@ export const canvasStyles = css`
   }
 
   /* A square two symbols both cover, marked over the artwork so the overlap a
-     rotate or a flip made is visible where it is. */
+     rotate or a flip made is visible where it is. In the quieter weight: an
+     overlap is cosmetic and the drawing derives regardless, so marking it in
+     the red a pin short of a wire wears would overstate it (ADR-0024). Heavier
+     than the red mark to make up for the slate, which reads fainter over paper
+     at the same opacity. */
   .stacked {
-    fill: var(--wrong);
-    opacity: 0.22;
+    fill: var(--unfinished);
+    opacity: 0.3;
     pointer-events: none;
   }
 
@@ -121,8 +125,8 @@ export const canvasStyles = css`
 
   /* The symbol on its way out of the palette, drawn where a drop would put it.
      Faint, so what is already on the sheet reads through it and the ghost is
-     plainly not placed yet; the squares it cannot have are marked as any other
-     overlap is. */
+     plainly not placed yet; the squares it cannot have are marked where they
+     are, as an overlap is. */
   .ghost {
     opacity: 0.45;
     pointer-events: none;
@@ -130,6 +134,15 @@ export const canvasStyles = css`
 
   .ghost.blocked {
     opacity: 0.3;
+  }
+
+  /* Under the ghost the same square is a refusal rather than an overlap: the
+     drop places nothing (EDITOR.md#canvas), and what stops something is red.
+     The rule sits on the ancestor rather than on a class of its own, so the
+     mark cannot be renamed on one side and left on the other. */
+  .ghost.blocked .stacked {
+    fill: var(--wrong);
+    opacity: 0.22;
   }
 
   .band {

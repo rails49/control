@@ -13,10 +13,16 @@
  * the pane in its own defaults. So each sheet is checked to carry the shared
  * blocks it reads, against the blocks themselves rather than a copy of a rule
  * out of one.
+ *
+ * The palette is the other thing a rule reads from outside itself, and a mark
+ * saying the wrong thing about a drawing is as silent a fault as a sheet
+ * painted in the browser's defaults, so which weight each fault is marked in
+ * is checked here too.
  */
 
 import { describe, expect, it } from "vitest";
 
+import { COLOURS } from "../src/render/units.js";
 import {
   menuBox,
   menuRow,
@@ -68,5 +74,48 @@ describe("what a menu is made of", () => {
       expect(menuStyles.cssText).toContain(part.cssText);
       expect(menubarStyles.cssText).toContain(part.cssText);
     }
+  });
+});
+
+/**
+ * The two weights a fault is marked in (#92).
+ *
+ * Red is what stops derivation; the quieter mark is what derives but is
+ * unfinished (ADR-0024). Both are palette entries, so a rule asks for the
+ * weight it means rather than for a colour that happens to match, and the
+ * canvas keeps discriminating when the next unfinished thing — a turnout
+ * without an address — takes the same mark.
+ */
+describe("the two weights a fault is marked in", () => {
+  /** The block of a rule, by its selector, out of a sheet's text. */
+  function rule(sheet: string, selector: string): string {
+    const escaped = selector.replace(/[.]/g, "\\.");
+    const found = sheet.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
+    expect(found, `no rule for ${selector}`).not.toBeNull();
+    return found![1]!;
+  }
+
+  it("are two colours, not one used twice", () => {
+    expect(COLOURS["--unfinished"]).toBeDefined();
+    expect(COLOURS["--unfinished"]).not.toBe(COLOURS["--wrong"]);
+  });
+
+  it("marks a square two symbols cover in the quieter one", () => {
+    expect(rule(canvasStyles.cssText, ".stacked")).toContain(
+      "var(--unfinished)",
+    );
+  });
+
+  it("leaves a pin short of a wire and a lone portal label red", () => {
+    expect(rule(canvasStyles.cssText, ".pin.red")).toContain("var(--wrong)");
+    expect(rule(canvasStyles.cssText, ".unpaired")).toContain("var(--wrong)");
+  });
+
+  /** The ghost draws the same mark on the squares a drop cannot have, and that
+   *  drop places nothing at all: a refusal, so it stays red. */
+  it("leaves the squares a blocked drop wants red", () => {
+    expect(rule(canvasStyles.cssText, ".ghost.blocked .stacked")).toContain(
+      "var(--wrong)",
+    );
   });
 });
