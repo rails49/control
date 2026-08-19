@@ -15,6 +15,7 @@ import type { Kind } from "../symbols.generated.js";
 import {
   clone,
   isName,
+  motorised,
   pinsOf,
   symbolOf,
   wireKey,
@@ -351,6 +352,24 @@ export class Editor {
    *  and the editor reports it rather than refusing (EDITOR.md#canvas). */
   overlaps(): { cell: [number, number]; symbols: string[] }[] {
     return overlaps(this.current.symbols);
+  }
+
+  /**
+   * The motorised symbols carrying no address: a drawing that derives and
+   * cannot yet be driven (ADR-0022, ADR-0024).
+   *
+   * Whether an address is the right one is knowledge the drawing does not
+   * hold, so having none at all is the whole of the check. It is read off the
+   * open document, as an overlap is, so the mark clears on the keystroke that
+   * types one rather than on the next answer from the store.
+   *
+   * Which kinds have a motor is the library's, through `motorised`; a fixed
+   * crossing has none and is never named.
+   */
+  unaddressed(): string[] {
+    return Object.entries(this.current.symbols)
+      .filter(([, spec]) => motorised(spec.kind) && !spec.addr)
+      .map(([name]) => name);
   }
 
   /** A quarter turn clockwise, each selected symbol about its own cell. */

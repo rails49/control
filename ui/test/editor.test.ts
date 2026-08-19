@@ -133,6 +133,46 @@ describe("an overlap a rotate made", () => {
   });
 });
 
+/**
+ * A turnout and a slip are driven by commanding an address (ADR-0022), so one
+ * carrying none is a drawing that derives and cannot be run. The editor cannot
+ * say whether an address is right — only the person wiring the railroad knows
+ * that — so having none is the whole of the check, and it is read off the open
+ * drawing the way an overlap is.
+ */
+describe("a motorised symbol with no address", () => {
+  it("names a turnout and both slips", () => {
+    place("turnout", [0, 0]);
+    editor.place("single_slip", [3, 0]);
+    editor.place("double_slip", [6, 0]);
+    expect(editor.unaddressed().sort()).toEqual(["ds1", "ss1", "sw1"]);
+  });
+
+  it("passes over a fixed crossing, which has no motor to address", () => {
+    editor.place("crossing", [0, 0]);
+    editor.place("crossing_90", [3, 0]);
+    editor.place("crossing_90d", [5, 0]);
+    place("block", [0, 3]);
+    editor.place("portal", [0, 6]);
+    expect(editor.unaddressed()).toEqual([]);
+  });
+
+  it("stops naming it as soon as an address is typed", () => {
+    place("turnout", [0, 0]);
+    const spec = editor.drawing.symbols.sw1!;
+    expect(editor.edit("sw1", "sw1", { ...spec, addr: "31" })).toBe(true);
+    expect(editor.unaddressed()).toEqual([]);
+  });
+
+  it("names it again when the address is cleared", () => {
+    place("turnout", [0, 0]);
+    const spec = editor.drawing.symbols.sw1!;
+    editor.edit("sw1", "sw1", { ...spec, addr: "31" });
+    editor.edit("sw1", "sw1", { ...spec, addr: "" });
+    expect(editor.unaddressed()).toEqual(["sw1"]);
+  });
+});
+
 describe("staging a drawing that has never been placed", () => {
   const unplaced = (): Drawing => ({
     drawing: "facing-pair",
