@@ -92,11 +92,17 @@ the same reason. A blank is better than a binding the browser eats. `⌘S` and
 icon buttons at the right end of the bar. Undo and redo are not: `⌘Z` and
 `⇧⌘Z` are known, and the `Edit` menu is where they are read.
 
-**While a menu is down, the keyboard is the menu's.** `r`, `f`, `0`, `+`, `-`,
+**While a menu is down, the bare keys are the menu's.** `r`, `f`, `0`, `+`, `-`,
 Delete and Backspace do not reach the canvas, and Escape closes the menu rather
 than clearing the selection. That is the same bug as a key typed into a dialog
 field reaching the canvas, one of the six of `ddbefb2..feb1fae`, wearing a
 menu.
+
+**A shortcut is not a bare key.** `⌘S` and `⌘Z` are printed beside the items
+they duplicate, so with `File` down `⌘S` takes the menu up and saves, the same
+as clicking the item that just taught it. Swallowing it would leave the key the
+menu names doing nothing while Chrome's own `⌘S` offers to save the page over
+the app.
 
 What is dead and what is alive is not the bar's to decide. Save is dead with
 nothing open or nothing to write, Rotate, Flip and Delete are dead on an empty

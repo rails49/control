@@ -10,7 +10,7 @@
  * real one exercises it.
  */
 
-import { beforeAll, expect, test } from "vitest";
+import { afterEach, beforeAll, expect, test } from "vitest";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 
 import "../src/ui/tc-editor.js";
@@ -32,6 +32,13 @@ beforeAll(() => {
   // store is running here.
   globalThis.fetch = (() =>
     Promise.reject(new Error("no store"))) as typeof fetch;
+});
+
+// A shell listens on the window for as long as it is in the page, so one left
+// behind would answer the next test's keystrokes too — and answer them with no
+// menu down, which is the very thing under test here.
+afterEach(() => {
+  document.body.replaceChildren();
 });
 
 /** A mounted editor holding one selected turnout, and a Shoelace input to
@@ -80,9 +87,15 @@ function views(shell: { renderRoot: ParentNode }): () => number {
   return () => asked;
 }
 
-function key(target: EventTarget, name: string): KeyboardEvent {
+function key(
+  target: EventTarget,
+  name: string,
+  held: { meta?: boolean; shift?: boolean } = {},
+): KeyboardEvent {
   const event = new KeyboardEvent("keydown", {
     key: name,
+    metaKey: held.meta ?? false,
+    shiftKey: held.shift ?? false,
     bubbles: true,
     composed: true,
     cancelable: true,
@@ -145,6 +158,37 @@ test("escape closes the menu rather than clearing the selection", async () => {
 
   expect(bar.renderRoot.querySelector("menu")).toBeNull();
   expect([...session.selection]).toEqual(["sw1"]);
+});
+
+/**
+ * The other half of the rule: a shortcut is not a bare key. `File` prints
+ * `Save ⌘S` beside the item, so the press is that item — it takes the menu up
+ * and runs, rather than being swallowed under the menu that just taught it
+ * (#85).
+ */
+test("a shortcut printed in the menu runs the command and takes the menu up", async () => {
+  const { shell, session } = await mounted();
+  key(window, "r");
+  const turned = structuredClone(session.drawing.symbols["sw1"]);
+  const bar = await opened(shell);
+
+  const event = key(window, "z", { meta: true });
+  await bar.updateComplete;
+
+  expect(event.defaultPrevented).toBe(true);
+  expect(session.drawing.symbols["sw1"]).not.toEqual(turned);
+  expect(bar.renderRoot.querySelector("menu")).toBeNull();
+});
+
+/** ⌘S under an open `File` is the editor's save, so Chrome's "Save page as…"
+ *  never opens over the app. */
+test("save's key is taken from the browser while a menu is down", async () => {
+  const { shell } = await mounted();
+  await opened(shell);
+
+  const event = key(window, "s", { meta: true });
+
+  expect(event.defaultPrevented).toBe(true);
 });
 
 test("the same keys reach the canvas again once the menu is up", async () => {

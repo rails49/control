@@ -528,18 +528,26 @@ export class TcEditor extends LitElement {
     ) {
       return;
     }
+    const meta = event.metaKey || event.ctrlKey;
     // A menu on the bar is down, so the keyboard is the menu's: `r` would
     // typeahead in the menu and rotate the selection behind it at once, and
-    // Escape would close the menu and clear the selection. Escape is the one
-    // key the editor still answers, and closing the menu is all it does.
+    // Escape would close the menu and clear the selection. Escape closes the
+    // menu, and closing it is all it does.
+    //
+    // A shortcut is not a bare key. The open menu prints `⌘S` beside Save, so
+    // pressing it has to be that item (#85) — otherwise the key it just
+    // taught does nothing while Chrome offers to save the page over the top.
+    // It takes the menu up, the command having been chosen, and falls through
+    // to the handlers below, which are the ones the item itself reaches.
     if (this.barMenu) {
       if (event.key === "Escape") {
         event.preventDefault();
         this.renderRoot.querySelector<TcMenubar>("tc-menubar")?.close();
+        return;
       }
-      return;
+      if (!meta) return;
+      this.renderRoot.querySelector<TcMenubar>("tc-menubar")?.close();
     }
-    const meta = event.metaKey || event.ctrlKey;
     if (meta && event.key.toLowerCase() === "z") {
       event.preventDefault();
       this.run(event.shiftKey ? "redo" : "undo");
