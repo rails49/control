@@ -3,9 +3,10 @@
  *
  * `review` is the whole of the editor's view of topology: red pins, the portal
  * labels that pair with nothing, the junctions as symbol groups, the derived
- * layout, its explanation, and the refusal where there is one. A drawing with
- * a red pin is the normal state mid-edit, so a refusal arrives inside a 200
- * and is read rather than caught.
+ * layout, its explanation, the refusal where there is one, and the way that
+ * refusal is about where it is about one. A drawing with a red pin is the
+ * normal state mid-edit, so a refusal arrives inside a 200 and is read rather
+ * than caught.
  */
 
 import type { Drawing } from "./drawing.js";
@@ -75,6 +76,9 @@ export interface Review {
   layout: Layout | null;
   explain: Explained | null;
   refused: string | null;
+  /** The way or ways a refusal is about, walked where derivation refused. A
+   *  refusal about anything else offends no way and this is empty. */
+  offending: Transit[];
 }
 
 export async function listDrawings(): Promise<string[]> {

@@ -178,6 +178,10 @@ export const COLOURS: Record<string, string> = {
   "--danger": "#e0332a",
   "--lit": "#a55b12",
   "--lit-body": "#f4e3cd",
+  // A way lit because derivation refused over it wears the red every other
+  // stopping fault wears, and a block on it takes the pale ground of that red
+  // as a chosen transit takes the pale ground of `--lit`.
+  "--wrong-body": "#f7dcdf",
   // The netlist pane's accents. They were a palette of six, one per junction
   // region on the canvas; the canvas no longer tints a junction that is
   // merely a junction, so what is left is what the panes still read.

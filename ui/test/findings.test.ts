@@ -34,6 +34,7 @@ const CLEAN: Review = {
   layout: null,
   explain: null,
   refused: null,
+  offending: [],
 };
 
 /** What `/review` answers with, swapped per test. Rejecting stands for a store

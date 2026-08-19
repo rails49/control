@@ -99,6 +99,7 @@ function scissors(): Review {
       },
     },
     refused: null,
+    offending: [],
   };
 }
 

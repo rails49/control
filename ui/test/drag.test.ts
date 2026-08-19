@@ -32,6 +32,7 @@ const REVIEW: Review = {
   layout: null,
   explain: null,
   refused: null,
+  offending: [],
 };
 
 const BLOCKS = new Map<string, BlockView>([

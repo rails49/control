@@ -22,6 +22,7 @@ function review(parts: {
     layout: null,
     explain: null,
     refused: null,
+    offending: [],
   };
 }
 

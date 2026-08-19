@@ -55,6 +55,7 @@ const EMPTY: Review = {
   layout: null,
   explain: null,
   refused: null,
+  offending: [],
 };
 
 interface Box {
@@ -288,19 +289,31 @@ export class TcCanvas extends LitElement {
     });
   }
 
-  /** The way a chosen transit takes, symbol by symbol and leg by leg. Naming
-   *  the frog that makes two transits exclusive is a claim about the drawing,
-   *  and this is where it is checked by looking. */
+  /**
+   * The way lit on the drawing, symbol by symbol and leg by leg: the transit
+   * chosen in the netlist pane, or the way a refusal is about.
+   *
+   * Naming the frog that makes two transits exclusive is a claim about the
+   * drawing, and this is where it is checked by looking. A refusal is the same
+   * kind of claim — it is about a route, and a sentence beside the drawing
+   * cannot point at one — so it lights the same way, in the red that means
+   * derivation stopped (ADR-0024). The two never arrive together: a drawing
+   * that refuses has no netlist to choose from.
+   */
   private symbols(): unknown {
-    const way = lit(chosenWay(this.review ?? EMPTY, this.chosen));
-    const blind = dark(this.review ?? EMPTY);
-    const lone = unpaired(this.review ?? EMPTY);
+    const review = this.review ?? EMPTY;
+    const wrong = lit(review.offending);
+    const way = wrong.size > 0 ? wrong : lit(chosenWay(review, this.chosen));
+    const blind = dark(review);
+    const lone = unpaired(review);
     return Object.entries(this.editor.drawing.symbols).map(([name, spec]) => {
       const chosen = this.editor.selection.has(name);
       const shifted = this.shift(name);
       return svg`
         <g
-          class=${`symbol ${chosen ? "selected" : ""}`}
+          class=${`symbol ${chosen ? "selected" : ""} ${
+            wrong.has(name) ? "offending" : ""
+          }`}
           data-symbol=${name}
           transform=${`translate(${shifted.x} ${shifted.y})`}
         >

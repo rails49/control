@@ -36,6 +36,7 @@ const CLEAN: Review = {
   layout: null,
   explain: null,
   refused: null,
+  offending: [],
 };
 
 /** What the operator types when `File ▸ New…` asks for a name. */

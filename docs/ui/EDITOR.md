@@ -689,7 +689,15 @@ three restate a mark the canvas already carries, and two are reachable only from
 hand-written yaml. The two left are both statements about a way: the way out of
 a block end leads back into that same block, or two transits at one connection
 derive one name. The editor lights that way in red with the machinery the
-netlist pane already uses to light a transit.
+netlist pane already uses to light a transit — every leg of it and both its
+block ends, in the red that means derivation stopped rather than the colour a
+chosen transit wears. Two ways light where two of them derive one name:
+neither is the offender.
+
+The way is walked where derivation refuses and comes back with the review
+([DRAWING.md](../store/DRAWING.md)), never parsed out of the sentence. A
+refusal about anything else is about a symbol, which already carries its own
+mark, and lights nothing.
 
 A name the drawing already has is refused in the properties dialog, where it was
 typed, and never becomes a finding at all ([Properties](#properties)).

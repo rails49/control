@@ -82,6 +82,29 @@ export const canvasStyles = css`
      question selecting it asked. */
   ${way}
 
+  /* The way a refusal is about, lit in the red that means derivation stopped
+     rather than in the colour a chosen transit wears (ADR-0024). It reads as
+     one run for the same reason a chosen transit does — every leg of it and
+     both its block ends — and the rules ride on the lit classes so that what
+     is lit stays one answer with one shape. */
+  .symbol.offending .track.lit {
+    stroke: var(--wrong);
+  }
+
+  .symbol.offending .tick.lit {
+    stroke: var(--wrong);
+  }
+
+  .symbol.offending .bend.lit {
+    fill: var(--wrong);
+  }
+
+  .symbol.offending .block-body.lit,
+  .symbol.offending .opaque.lit {
+    fill: var(--wrong-body);
+    stroke: var(--wrong);
+  }
+
   /* A block's label, the only text on a symbol: centred in its rectangle rather
      than sitting on a point. The size is set per label rather than here, being
      the size that name fits the rectangle at (render/units.ts). */

@@ -111,6 +111,18 @@ describe("the two weights a fault is marked in", () => {
     expect(rule(canvasStyles.cssText, ".unpaired")).toContain("var(--wrong)");
   });
 
+  /** A way is lit in one colour when a transit is chosen and in another when
+   *  derivation refused over it, and the second is a refusal (#93). Every
+   *  stroke a way lights has to change, or a red run reads as a chosen one
+   *  wherever it crosses a frog. */
+  it("lights the way a refusal is about red, leg by leg", () => {
+    for (const stroke of [".track.lit", ".tick.lit", ".bend.lit"]) {
+      expect(
+        rule(canvasStyles.cssText, `.symbol.offending ${stroke}`),
+      ).toContain("var(--wrong)");
+    }
+  });
+
   /** The ghost draws the same mark on the squares a drop cannot have, and that
    *  drop places nothing at all: a refusal, so it stays red. */
   it("leaves the squares a blocked drop wants red", () => {

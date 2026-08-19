@@ -22,6 +22,7 @@ const NOTHING: Review = {
   layout: null,
   explain: null,
   refused: null,
+  offending: [],
 };
 
 /** One turnout on the square at (2, 1). Its pins are the face centres of that

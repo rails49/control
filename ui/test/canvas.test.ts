@@ -16,7 +16,8 @@ import { describe, expect, it } from "vitest";
 import "../src/ui/tc-canvas.js";
 import type { Drawing } from "../src/model/drawing.js";
 import { Editor } from "../src/model/editor.js";
-import type { Review, UnpairedPortal } from "../src/model/store.js";
+import type { Chosen } from "../src/model/inspect.js";
+import type { Review, Transit, UnpairedPortal } from "../src/model/store.js";
 
 /**
  * A pair, both halves wearing `p1`, their mouths facing outwards at either end
@@ -41,6 +42,7 @@ function reviewed(unpaired: UnpairedPortal[]): Review {
     layout: null,
     explain: null,
     refused: null,
+    offending: [],
   };
 }
 
@@ -209,6 +211,95 @@ describe("the drawing as a standalone file", () => {
     const written = canvas.exported();
     expect(written).toContain("--paper: #fbfbfa;");
     expect(written).toContain("fill: var(--paper)");
+    canvas.remove();
+  });
+});
+
+/**
+ * The way behind a refusal, lit red on the canvas (ADR-0024, #93).
+ *
+ * A DOM test for the reason the portal label's is: what the store returns has
+ * to reach the artwork keyed by symbol, and a model-seam test would stay green
+ * with the mark landing nowhere.
+ */
+describe("the way a refusal is about", () => {
+  /** A turnout whose two roads run back into the block they left, which is the
+   *  reversal derivation refuses. */
+  const LOOP: Drawing = {
+    drawing: "loop",
+    symbols: {
+      west: { kind: "block", at: [0, 0], length: 1000 },
+      points: { kind: "turnout", at: [7, 0] },
+      east: { kind: "block", at: [10, 0], length: 1000 },
+    },
+    wires: [],
+  };
+
+  async function drawn(offending: Transit[], chosen: Chosen | null = null) {
+    const canvas = document.createElement("tc-canvas");
+    canvas.editor = new Editor(structuredClone(LOOP));
+    canvas.review = { ...reviewed([]), offending };
+    canvas.chosen = chosen;
+    document.body.append(canvas);
+    await canvas.updateComplete;
+    return canvas;
+  }
+
+  /** Which symbols are marked as the offending way, and whether the way is
+   *  lit at all. */
+  async function marked(offending: Transit[]) {
+    const canvas = await drawn(offending);
+    const symbols = [...canvas.renderRoot.querySelectorAll("g.symbol.offending")]
+      .map((group) => group.getAttribute("data-symbol")!)
+      .sort();
+    const legs = canvas.renderRoot.querySelectorAll(
+      "g.symbol.offending .lit",
+    ).length;
+    canvas.remove();
+    return { symbols, legs };
+  }
+
+  it("lights the symbols on a way that loops back into its own block", async () => {
+    const { symbols, legs } = await marked([
+      { ends: ["west.B", "west.B"], way: [["points", "straight"]] },
+    ]);
+    expect(symbols).toEqual(["points", "west"]);
+    expect(legs).toBeGreaterThan(0);
+  });
+
+  it("lights both ways where two transits derive one name", async () => {
+    const { symbols } = await marked([
+      { ends: ["east.A", "west.B"], way: [["points", "straight"]] },
+      { ends: ["east.A", "west.B"], way: [["points", "diverging"]] },
+    ]);
+    expect(symbols).toEqual(["east", "points", "west"]);
+  });
+
+  it("lights nothing where the refusal is not about a way", async () => {
+    expect(await marked([])).toEqual({ symbols: [], legs: 0 });
+  });
+
+  it("leaves a transit chosen in the netlist pane lit as it was", async () => {
+    const canvas = await drawn([], { connection: "c", transit: "t" });
+    canvas.review = {
+      ...canvas.review!,
+      explain: {
+        layout: "loop",
+        connections: {
+          c: {
+            transits: {
+              t: { ends: ["east.A", "west.B"], way: [["points", "straight"]] },
+            },
+            exclusive: [],
+          },
+        },
+      },
+    };
+    await canvas.updateComplete;
+    expect(canvas.renderRoot.querySelectorAll(".lit").length).toBeGreaterThan(0);
+    expect(canvas.renderRoot.querySelectorAll(".symbol.offending")).toHaveLength(
+      0,
+    );
     canvas.remove();
   });
 });

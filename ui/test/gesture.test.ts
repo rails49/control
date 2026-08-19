@@ -21,6 +21,7 @@ const NOTHING: Review = {
   layout: null,
   explain: null,
   refused: null,
+  offending: [],
 };
 
 /** Two turnouts three squares apart, each one square: sw1 on (0, 0) and sw2 on
