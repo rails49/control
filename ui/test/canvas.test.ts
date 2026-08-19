@@ -18,6 +18,7 @@ import type { Drawing } from "../src/model/drawing.js";
 import { Editor } from "../src/model/editor.js";
 import type { Chosen } from "../src/model/inspect.js";
 import type { Review, Transit, UnpairedPortal } from "../src/model/store.js";
+import type { TcCanvas } from "../src/ui/tc-canvas.js";
 
 /**
  * A pair, both halves wearing `p1`, their mouths facing outwards at either end
@@ -300,6 +301,88 @@ describe("the way a refusal is about", () => {
     expect(canvas.renderRoot.querySelectorAll(".symbol.offending")).toHaveLength(
       0,
     );
+    canvas.remove();
+  });
+});
+
+/**
+ * The quiet mark a motorised symbol with no address wears (#96, ADR-0024).
+ *
+ * A DOM test because the mark is a shape on the canvas rather than an answer
+ * in the model — `Editor.unaddressed` has its own test — and because what is
+ * worth checking is that it sits on the symbol it is about and that no review
+ * is consulted for it: a drawing that derives still carries it.
+ */
+describe("the mark a symbol with no address wears", () => {
+  /** One turnout addressed, one not, a slip with none, and a fixed crossing,
+   *  which has no motor to address at all. */
+  const YARD: Drawing = {
+    drawing: "yard",
+    symbols: {
+      sw1: { kind: "turnout", at: [0, 0], addr: "31" },
+      sw2: { kind: "turnout", at: [3, 0] },
+      ss1: { kind: "single_slip", at: [6, 0] },
+      x1: { kind: "crossing", at: [9, 0] },
+      b1: { kind: "block", at: [0, 3], length: 1000 },
+    },
+    wires: [],
+  };
+
+  async function drawn(drawing: Drawing = YARD) {
+    const canvas = document.createElement("tc-canvas");
+    canvas.editor = new Editor(structuredClone(drawing));
+    canvas.review = reviewed([]);
+    document.body.append(canvas);
+    await canvas.updateComplete;
+    return canvas;
+  }
+
+  /** Which symbols wear the mark, by the group each one is drawn in. */
+  function worn(canvas: TcCanvas): string[] {
+    return [...canvas.renderRoot.querySelectorAll(".unaddressed")]
+      .map((mark) => mark.closest("g.symbol")!.getAttribute("data-symbol")!)
+      .sort();
+  }
+
+  it("marks a turnout and a slip carrying none, and nothing else", async () => {
+    const canvas = await drawn();
+    expect(worn(canvas)).toEqual(["ss1", "sw2"]);
+    canvas.remove();
+  });
+
+  it("draws it on the squares the symbol covers", async () => {
+    const canvas = await drawn();
+    const mark = canvas.renderRoot.querySelector(
+      'g[data-symbol="ss1"] .unaddressed',
+    )!;
+    const box = (name: string) => Number(mark.getAttribute(name));
+    // A single slip is two squares wide, and the ring sits inside them.
+    expect(box("x")).toBeGreaterThanOrEqual(6);
+    expect(box("x") + box("width")).toBeLessThanOrEqual(8);
+    expect(box("y")).toBeGreaterThanOrEqual(0);
+    expect(box("y") + box("height")).toBeLessThanOrEqual(1);
+    canvas.remove();
+  });
+
+  it("turns with the symbol, the footprint turning with it", async () => {
+    const canvas = await drawn({
+      ...YARD,
+      symbols: { ss1: { kind: "single_slip", at: [6, 0], rot: 90 } },
+    });
+    const mark = canvas.renderRoot.querySelector(".unaddressed")!;
+    expect(Number(mark.getAttribute("width"))).toBeLessThan(
+      Number(mark.getAttribute("height")),
+    );
+    canvas.remove();
+  });
+
+  it("clears on the keystroke, no second review being asked for", async () => {
+    const canvas = await drawn();
+    const spec = canvas.editor.drawing.symbols.sw2!;
+    canvas.editor.edit("sw2", "sw2", { ...spec, addr: "32" });
+    canvas.requestUpdate();
+    await canvas.updateComplete;
+    expect(worn(canvas)).toEqual(["ss1"]);
     canvas.remove();
   });
 });

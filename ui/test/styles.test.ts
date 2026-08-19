@@ -107,6 +107,14 @@ describe("the two weights a fault is marked in", () => {
     );
   });
 
+  it("marks a symbol with no address in the quieter one as well", () => {
+    // The second thing that derives and is unfinished, and so the same
+    // weight rather than a third (#96).
+    expect(rule(canvasStyles.cssText, ".unaddressed")).toContain(
+      "var(--unfinished)",
+    );
+  });
+
   it("leaves a pin short of a wire and a lone portal label red", () => {
     expect(rule(canvasStyles.cssText, ".pin.red")).toContain("var(--wrong)");
     expect(rule(canvasStyles.cssText, ".unpaired")).toContain("var(--wrong)");

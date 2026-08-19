@@ -689,6 +689,17 @@ busy layout would look as urgent as a broken one. Saving is allowed throughout.
 The band carries the same distinction coarsely, one indicator saying only
 whether the drawing derives ([The band](#the-band)).
 
+The two quiet marks share a weight and not a shape. An overlap is about the
+squares, so the squares are tinted; a missing address is about the symbol, so
+the symbol is ringed — a dashed outline round the squares it covers, which
+leaves the artwork the ring is about legible under it. A fixed crossing has no
+motor, takes no address
+([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), and is
+never ringed. Whether an address is the right one is not knowable here, so
+having none at all is the whole of the check, and it is read off the open
+drawing rather than from `/review`: the ring goes on the keystroke that types
+one.
+
 A refusal is a way, not a sentence. `/review` reports the first `ValueError`
 derivation raises, of twelve; five are typed-connection-name faults that can no
 longer occur ([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)),

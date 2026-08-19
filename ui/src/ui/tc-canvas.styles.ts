@@ -1,5 +1,6 @@
 import { css } from "lit";
 
+import { RING } from "../render/units.js";
 import { palette, symbols, way } from "./shared.styles.js";
 
 /** The drawing surface (`tc-canvas`). */
@@ -39,6 +40,22 @@ export const canvasStyles = css`
   .stacked {
     fill: var(--unfinished);
     opacity: 0.3;
+    pointer-events: none;
+  }
+
+  /* A turnout or a slip carrying no address, ringed on the squares it covers.
+     The drawing derives without one and cannot be driven, which is what the
+     quieter of the two weights says (ADR-0024); it is the same slate an
+     overlap wears, since there are two weights and not three.
+
+     A ring rather than a wash: a tinted square is already what an overlap
+     looks like, and a wash over the symbol would hide the very artwork the
+     mark is about. Drawn under the pins the way the artwork is. */
+  .unaddressed {
+    fill: none;
+    stroke: var(--unfinished);
+    stroke-width: ${RING.weight};
+    stroke-dasharray: ${RING.dash} ${RING.gap};
     pointer-events: none;
   }
 

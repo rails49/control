@@ -127,6 +127,17 @@ describe("what the band says about the drawing", () => {
     expect(indicator(shell)).toBeNull();
   });
 
+  /** A turnout with no address derives as well: a valid layout nobody can
+   *  drive yet, marked on the canvas in that same quiet weight (#96). */
+  it("stays clean where a turnout carries no address", async () => {
+    const shell = await mounted({ sw1: { kind: "turnout", at: [0, 0] } });
+
+    edit(shell);
+    await settled(shell);
+
+    expect(indicator(shell)).toBeNull();
+  });
+
   /** One is the author's to fix and the other is not, so the store going quiet
    *  neither raises the indicator nor takes it down. */
   it("shows beside a store that stops answering", async () => {

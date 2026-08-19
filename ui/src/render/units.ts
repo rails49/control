@@ -147,6 +147,23 @@ export function fitted(text: string, width: number): number {
   return Math.min(LABEL.size, width / (text.length * LABEL.advance));
 }
 
+/**
+ * The ring a turnout or a slip with no address wears: drawn round the squares
+ * the symbol covers, inset so the stroke sits inside its own footprint and two
+ * symbols side by side wear two rings rather than share one line.
+ *
+ * Dashed and lighter than any track, so it reads as a mark on the drawing
+ * rather than as something built on the railroad, and it leaves the artwork it
+ * is about legible underneath.
+ */
+export const RING = {
+  inset: 0.07,
+  radius: 0.12,
+  weight: 2 * HAIRLINE,
+  dash: 0.16,
+  gap: 0.12,
+};
+
 /** A note beside a marker on the panel. It is not text on a symbol and has no
  *  rectangle to fit, so it keeps a size of its own rather than following the
  *  label's. */

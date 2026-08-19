@@ -26,6 +26,7 @@ import {
   gridPointOf,
   labelAnchor,
   labelTurn,
+  placed,
   transformOf,
   type Point,
 } from "../model/geometry.js";
@@ -41,7 +42,7 @@ import { fitBox } from "../model/scene.js";
 import type { Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
-import { BLOCK, FACE, PIN, PORTAL, fitted } from "../render/units.js";
+import { BLOCK, FACE, PIN, PORTAL, RING, fitted } from "../render/units.js";
 import { canvasStyles, exportStyles } from "./tc-canvas.styles.js";
 
 /** What a canvas with no review yet reads as. */
@@ -264,6 +265,7 @@ export class TcCanvas extends LitElement {
     const way = wrong.size > 0 ? wrong : lit(chosenWay(review, this.chosen));
     const blind = dark(review);
     const lone = unpaired(review);
+    const unset = new Set(this.editor.unaddressed());
     return Object.entries(this.editor.drawing.symbols).map(([name, spec]) => {
       const chosen = this.editor.selection.has(name);
       const shifted = this.shift(name);
@@ -279,9 +281,33 @@ export class TcCanvas extends LitElement {
             ${artwork(spec, way.get(name), blind.get(name))}
           </g>
           ${this.label(name, spec, lone.get(name))}
+          ${unset.has(name) ? this.unaddressed(spec) : nothing}
         </g>
       `;
     });
+  }
+
+  /**
+   * The mark a turnout or a slip with no address wears: a ring round the
+   * squares it covers, in the quieter of the two weights (ADR-0024).
+   *
+   * Such a drawing derives and cannot be driven, which is what the quiet
+   * weight says and why the band stays clean. A ring rather than a wash over
+   * the squares: that mark is already an overlap's, and a wash would cover the
+   * artwork the ring is about. It sits in the symbol's own group, so it moves
+   * with a drag as the label does.
+   *
+   * Which symbols wear one is `Editor.unaddressed`, read off the open drawing:
+   * no review is asked, so the mark goes on the keystroke that types an
+   * address.
+   */
+  private unaddressed(spec: SymbolSpec): unknown {
+    const [c, r] = spec.at ?? [0, 0];
+    const { w, h } = placed(spec).footprint;
+    return svg`<rect class="unaddressed"
+      x=${c + RING.inset} y=${r + RING.inset}
+      width=${w - 2 * RING.inset} height=${h - 2 * RING.inset}
+      rx=${RING.radius} />`;
   }
 
   /**
