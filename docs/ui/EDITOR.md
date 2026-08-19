@@ -123,7 +123,9 @@ are `model/commands.ts` with a test and no DOM, which is the rule
 [below](#tests): the model owns the document, a component owns the DOM, and a
 rule that is neither is a module in `model/`. The keyboard asks the same module
 the bar does, so an item and the key beside it cannot come to mean different
-things.
+things. One switch turns the command into the verb it runs, and its default arm
+assigns the id to a `never`, so a command added to the union without an arm
+fails to compile rather than drawing a live item that does nothing (#102).
 
 Export SVG… writes the drawing to a file; what it writes is under
 [Files](#files).

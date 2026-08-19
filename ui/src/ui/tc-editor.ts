@@ -267,6 +267,14 @@ export class TcEditor extends LitElement {
       case "fit":
         this.fit();
         return;
+      // A command with no arm above narrows to something other than `never`
+      // here and fails to typecheck, so adding one to `CommandId` cannot leave
+      // a live menu item that does nothing. The same guarantee `GLYPHS` gives
+      // over the same union, for the verb rather than the glyph.
+      default: {
+        const unhandled: never = id;
+        return unhandled;
+      }
     }
   }
 
