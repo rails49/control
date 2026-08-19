@@ -14,7 +14,9 @@ them.
 **Blocks** are sections of track without turnouts where a train can park. Each
 block is oriented with ends `A` and `B` and has a length. Sensors report the
 presence of train(s) in a block — usually one, but cars decoupled from each
-other appear as separate trains.
+other appear as separate trains. Each end a train can leave through carries a
+**signal**, which is how a driver is told whether to go and how fast; an end
+nothing ever leaves carries none.
 
 **Connections** join one end (`A` or `B`) of each of one or more blocks, and
 are realized by zero or more turnouts. The ways a train can traverse a
@@ -42,26 +44,109 @@ The rolling stock traveling or parked on the tracks:
 
 - Individual locomotives and cars, each with a length (and other properties).
 - **Trains**: collections of cars and locomotives. A train's length is the sum
-  of its parts. A train occupies exactly one block at a time (plus, while
-  crossing, one transit); it must fit in every block of its route.
+  of its parts. A train at rest occupies exactly one block; while crossing it
+  holds the transit and, until its tail clears, the block behind as well. It
+  must fit in every block of its route.
 
 ## Operations
 
-Railroad operations divide into three distinct functions:
+Railroad operations divide into three distinct functions, each of them an app
+([ADR-0013](adr/0013-apps-are-deployment-units.md)). What follows is the whole
+of them; [MILESTONE-1.md](MILESTONE-1.md) says which parts are being built
+first.
 
-1. **Scheduling** — a request to deliver a train from end `A` or `B` of one
-   block to another block, corresponding to shipping goods or passengers to
-   their destinations. Requests arrive continually; a schedule may also be set
-   up in advance.
-2. **[Dispatching](dispatcher/DISPATCH.md)** — accepts requests by finding and allocating
-   routes, deadlock-free and with high throughput.
-3. **Driving** — takes the role of a locomotive engineer, performed by a human
-   or automatically.
+### Scheduling
+
+Decides which train departs from where, to what destination, and when — as
+soon as possible, or at a stated time. Its prototype counterpart is the
+timetable, though a model railroad more often wants plausible random traffic
+than an exact one. Requests arrive continually; a schedule may also be set up
+in advance.
+
+A request delivers a train out through one end of the block it stands in and
+in through one of a set of arrival ends
+([ADR-0007](adr/0007-requests-name-a-set-of-arrival-ends.md)). Three sources
+produce them — a timetable released at its due times, a generator inventing
+traffic, and a person clicking on the panel — and all three are the one
+scheduler, so there is a single writer and a single minter of request ids
+([ADR-0016](adr/0016-the-panel-is-a-scheduler.md)).
+
+To invent traffic that can succeed, the scheduler has to know which trains are
+idle and where they stand, so it reads the layout and follows the dispatcher's
+events. It judges nothing: whether a request is possible is the dispatcher's
+answer and only ever the dispatcher's
+([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md)).
+
+### Dispatching
+
+Accepts requests by finding and allocating routes, deadlock-free and with high
+throughput — the research core, in [DISPATCH.md](dispatcher/DISPATCH.md) and
+[SAFETY.md](dispatcher/SAFETY.md). A route is chosen when the train starts
+moving and never changed
+([ADR-0002](adr/0002-fixed-route-per-request.md)); only its locks are
+incremental.
+
+**Incrementally** is the point. An express running Milano to Zürich without
+intermediate stops crosses many blocks, and locking all of them at departure
+would hold most of the railroad for one train for the whole journey. Instead
+the dispatcher locks a little way ahead, sets the turnouts of what it has
+locked, and clears the signal. As the train advances it locks further ahead
+and releases what the train has left — a block that a train has vacated is
+free, and its signal returns to `stop` at once. Sensors in blocks, and at some
+connections, are how it knows: a signal shows `stop` unless a block beyond it
+has been explicitly reserved for a train, which is a consequence of locks
+rather than a rule about signals.
+
+How far ahead it has locked is exactly what the train's signal says, because
+stopping takes distance:
+
+| Locked ahead | Aspect | The train |
+| --- | --- | --- |
+| nothing | `stop` | stands |
+| one block | `approach` | moves, slowly enough to stop at the next signal |
+| two or more | `clear` | runs at full speed |
+
+So one block ahead is enough to move — a train can at least reach the next
+block, and may have to wait there — and **two is what buys full speed**. Two is
+also the most that is ever asked for: a third block ahead shows the same aspect
+as the second, so it buys nothing and holds track another train may be waiting
+for ([ADR-0026](adr/0026-two-blocks-ahead-is-full-speed.md)).
+
+### Driving
+
+Takes the role of a locomotive engineer, one per train, performed by a person
+or automatically. A driver decides one thing — how fast, or whether to stop —
+by reading the signal it faces. It does not decide where the train goes: the
+turnouts are already set when the signal clears, so the train follows the rails
+it is given.
+
+A person driving looks out of the window. An automated driver has to be told
+which aspect applies to its train, since track detectors are anonymous and
+report occupancy without identity; the dispatcher, which knows which train is
+where, says so as part of granting the move
+([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+
+`approach` promises the train can stop before the next signal, and something
+has to make that true. The working answer is a per-locomotive calibration of
+what "slow" means, together with a constraint on the railroad rather than on
+the software: a block is at least a braking distance long at approach speed.
+**This is an open subject** — speed signalling, which puts a limit in the
+aspect itself, is among the alternatives — and which solution is implemented
+will be decided once there is running experience to decide it with.
 
 ## Approach
 
 The app does not talk to hardware. It talks to the **layout interface**: sensor
-readings come in, turnout and throttle commands go out. A simulator implements
-that interface first; a physical layout implements it later. Which hardware
-sits behind it is irrelevant to this app — the interface assumes only that
-individual turnouts can be aligned and individual trains throttled.
+readings come in, turnout, signal and throttle commands go out. A simulator
+implements that interface first; a physical layout implements it later. Which
+hardware sits behind it is irrelevant to this app — the interface assumes only
+that individual turnouts can be aligned, individual signals lit, and individual
+trains throttled.
+
+The layout interface also owns time
+([ADR-0009](adr/0009-layout-interface-owns-time.md)) and is the only part that
+knows how a locomotive actually behaves: told to take a train into a block at a
+speed, it is what throttles up, watches the detector and stops. Under the
+simulator time is a tick and a train crosses one transit per beat; on a
+physical railroad a clock sets the beat and transits take as long as they take
+([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
