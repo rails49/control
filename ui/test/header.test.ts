@@ -119,6 +119,36 @@ describe("the status the band takes over", () => {
   });
 });
 
+describe("whether the drawing derives", () => {
+  /** The coarse counterpart to the marks on the canvas (ADR-0024): one
+   *  indicator, no fault named and nothing counted. */
+  it("marks a drawing derivation refused", async () => {
+    expect(reads(await band({ drawing: "gotthard", derives: false }), ".refused")).toBe(
+      "does not derive",
+    );
+  });
+
+  it("is clean while the drawing derives", async () => {
+    expect(reads(await band({ drawing: "gotthard", derives: true }), ".refused")).toBeNull();
+  });
+
+  /** A page with nothing to say about derivation — the panel — says nothing. */
+  it("is clean where nothing said otherwise", async () => {
+    expect(reads(await band(), ".refused")).toBeNull();
+  });
+
+  /** One is the author's to fix and the other is not, so neither stands in for
+   *  the other and both can show at once. */
+  it("is a mark of its own, beside the store not answering", async () => {
+    const header = await band({
+      derives: false,
+      trouble: "the store is not answering",
+    });
+    expect(reads(header, ".refused")).toBe("does not derive");
+    expect(reads(header, ".trouble")).toBe("the store is not answering");
+  });
+});
+
 describe("the way to the other page", () => {
   it("sends the editor to the panel", async () => {
     const other = (await band({ mode: "editor" })).renderRoot.querySelector("a.other")!;

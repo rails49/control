@@ -41,6 +41,18 @@ export const headerStyles = css`
     flex: 1;
   }
 
+  /* The one thing the band says about the drawing itself: coarse, so it is a
+     mark and not a sentence. A pale ground rather than red text alone, or it
+     would read as the first clause of the trouble beside it, which is the
+     other party's mistake. It never shrinks; the sentence does. */
+  .refused {
+    flex: none;
+    padding: 0 0.35rem;
+    border-radius: 0.2rem;
+    background: var(--wrong-body);
+    color: var(--wrong);
+  }
+
   /* One line, whatever the store said: the band's height is a row of the
      page's grid, and a wrapped message would take the wrap out of the canvas. */
   .trouble {

@@ -95,6 +95,7 @@ export class TcEditor extends LitElement {
         mode="editor"
         .drawing=${this.opened === "" ? null : this.opened}
         .unsaved=${!this.saved}
+        .derives=${this.derives}
         .trouble=${this.trouble}
       ></tc-header>
 
@@ -216,6 +217,16 @@ export class TcEditor extends LitElement {
         ${refused === null ? nothing : html`<p>${refused}</p>`}
       </div>
     `;
+  }
+
+  /** Whether the drawing derives, which is the whole of what the band says
+   *  about the drawing itself (ADR-0024). Off the store's refusal and nothing
+   *  else: an overlap and a symbol still lacking an address derive, and a
+   *  drawing nothing has been asked about yet has nothing against it. A store
+   *  that stops answering leaves the last review standing, so the mark neither
+   *  appears nor clears on a fault that is not the author's. */
+  private get derives(): boolean {
+    return this.reviewed === null || this.reviewed.refused === null;
   }
 
   /** The symbols sharing a square, named once however many squares they share.

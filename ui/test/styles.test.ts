@@ -33,6 +33,7 @@ import {
 } from "../src/ui/shared.styles.js";
 import { canvasStyles, exportStyles } from "../src/ui/tc-canvas.styles.js";
 import { appStyles } from "../src/ui/tc-editor.styles.js";
+import { headerStyles } from "../src/ui/tc-header.styles.js";
 import { menuStyles } from "../src/ui/tc-menu.styles.js";
 import { menubarStyles } from "../src/ui/tc-menubar.styles.js";
 import { paletteStyles } from "../src/ui/tc-palette.styles.js";
@@ -121,6 +122,16 @@ describe("the two weights a fault is marked in", () => {
         rule(canvasStyles.cssText, `.symbol.offending ${stroke}`),
       ).toContain("var(--wrong)");
     }
+  });
+
+  /** The band's indicator is the coarse counterpart to the canvas's marks and
+   *  shows only for what stopped derivation, so it wears that weight (#91). An
+   *  overlap and a missing address leave it clean, and nothing there should
+   *  ever read in the quiet one. */
+  it("marks the band in the weight that stops derivation", () => {
+    const mark = rule(headerStyles.cssText, ".refused");
+    expect(mark).toContain("var(--wrong)");
+    expect(mark).not.toContain("var(--unfinished)");
   });
 
   /** The ghost draws the same mark on the squares a drop cannot have, and that

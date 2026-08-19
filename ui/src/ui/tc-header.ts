@@ -2,6 +2,12 @@
  * The band across the top of both pages: what is open, which mode it is being
  * looked at in, and the status that is nobody's mistake.
  *
+ * The one exception is coarse enough to belong here: whether the drawing
+ * derives ([ADR-0024](../../../docs/adr/0024-the-drawing-shows-its-own-faults.md)).
+ * That is the author's to fix, but it names no fault and counts nothing — the
+ * canvas is where you find out where — so it is status beside the rest, not a
+ * findings list creeping back into the band.
+ *
  * One component for both pages, because the two facts every page has — what is
  * open and what is wrong outside the drawing — are the same facts. The editor
  * and the panel stay separate entries (vite.config.ts) and separate apps
@@ -52,6 +58,12 @@ export class TcHeader extends LitElement {
    *  that is not there. Never a finding about the drawing itself. */
   @property() trouble: string | null = null;
 
+  /** Whether the drawing derives, which is the one thing the band says about
+   *  the drawing itself (ADR-0024). The mark names no fault and counts
+   *  nothing: the canvas is where you find out where. A page with nothing to
+   *  say about derivation leaves it alone and is left clean. */
+  @property({ type: Boolean }) derives = true;
+
   /** Whether the bridge is answering. Read only in a live session. */
   @property({ type: Boolean }) linked = false;
 
@@ -71,6 +83,9 @@ export class TcHeader extends LitElement {
       <span class="mode">${MODES[this.mode]}</span>
       ${this.trace === null ? nothing : html`<span class="trace">${this.trace}</span>`}
       <span class="spacer"></span>
+      ${this.derives
+        ? nothing
+        : html`<span class="refused">does not derive</span>`}
       ${this.trouble === null
         ? nothing
         : html`<span class="trouble" title=${this.trouble}>${this.trouble}</span>`}
