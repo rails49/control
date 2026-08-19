@@ -110,8 +110,8 @@ function block(on: Lit): SVGTemplateResult {
 }
 
 /**
- * A signal standing clear of the track: the sample's plaque, a green lamp and a
- * red one, no mast. The caller wraps it in a group naming the block end it
+ * A signal standing clear of the track: a plaque, a green lamp and a red one,
+ * no mast. The caller wraps it in a group naming the block end it
  * governs (`end-A`, `end-B`), which is what lets run mode show one aspect per
  * end while edit mode keeps both lamps lit.
  *
@@ -157,7 +157,7 @@ function terminal(on: Lit): SVGTemplateResult {
 /**
  * Paired by label with another portal somewhere else on the drawing.
  *
- * The mouth is the sample's: the stub cut off at an angle, and two strokes
+ * The mouth is the stub cut off at an angle, and two strokes
  * carrying on past it at that same lean. The cut is a clip rather than a filled
  * shape, so the stub is ordinary track that lights and widens like the rest of
  * it, and nothing is painted over the junction tint behind the symbol. The

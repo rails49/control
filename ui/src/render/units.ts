@@ -23,8 +23,8 @@ export const PIN = W / 2;
 export const BEND = 0.75 * W;
 
 /**
- * The weight of a mark the sample tiles draw as a one-unit line: the strokes at
- * a portal's mouth. Thinner than any track, which is what keeps a mark a mark.
+ * The weight of a mark drawn as a one-unit line: the strokes at a portal's
+ * mouth. Thinner than any track, which is what keeps a mark a mark.
  */
 export const HAIRLINE = 0.03;
 
@@ -35,7 +35,7 @@ const SPAN = 6; // the block's footprint, and its two pins
  * Block, 6×1: a centred rectangle with a 1G track stub each side, a signal on
  * each stub, and a plus at the rectangle's lower corner on side A.
  *
- * The signal is the sample's plaque: no mast, an octagonal outline with its
+ * The signal is a plaque: no mast, an octagonal outline with its
  * corners chamfered at 45 degrees, and a green lamp beside a red one. The pair
  * is point symmetric about the block's centre, below the track at the A end and
  * above at the B end — on the left of a train leaving through that end, as the

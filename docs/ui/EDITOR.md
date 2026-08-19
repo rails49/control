@@ -153,10 +153,10 @@ butt; where it is oblique the stroke is clipped, so the stub still lights and
 still widens like any other track, and nothing is painted over the junction tint
 behind it.
 
-The signal, the tick, the buffer bar and the portal's mouth take their
-proportions from the *Stellwerk* tiles the look is copied from. Those tiles are
-one grid square, so the proportions are fractions of G and are used as such
-rather than rescaled to W.
+The signal, the tick, the buffer bar and the portal's mouth are proportioned
+against the grid square rather than against W. They are marks the size of a
+tile, not track that widens with it, so their fractions are of G and stay that
+way.
 
 Colours follow the editor's mode. In edit mode track is black and a block's
 rectangle is white, and a signal shows both its lamps lit. Run mode, out of
