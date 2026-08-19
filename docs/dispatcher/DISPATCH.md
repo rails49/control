@@ -172,8 +172,8 @@ Occupancy is a **standing lock** — every train always holds the lock on the
 block it stands in, moving or parked, requested or not. Launching is therefore
 not "taking a lock on the train's own block"; it is the safety layer granting
 the request's first increment: the first transit plus the second block under
-incremental locking at depth one, as far as the depth reaches above that, or
-the whole route under the full-route baseline.
+incremental locking, with the increment beyond it asked for as the train
+starts moving, or the whole route under the full-route baseline.
 
 **The queue does not filter on arrival occupancy.** A request whose arrival
 blocks are occupied is scanned like any other; whether it launches is the
@@ -253,19 +253,21 @@ dispatcher the same way.
 1. **Full-route locking** (baseline) — lock every block and transit of a route
    before the train moves; unlock each behind the train. Trivially
    deadlock-free, low throughput. Serves as the benchmark yardstick.
-2. **Incremental locking** (research core) — lock only what the train needs to
-   advance: its current block plus the next transit and block, and, at a
-   lookahead depth above one, the transit and block after that. Milestone 1
-   runs at **depth one**; the end state targets **two**, because one block
-   ahead is only enough to move slowly enough to stop at the next signal and
-   two is what buys full speed, and it never asks for a third
-   ([ADR-0026](../adr/0026-two-blocks-ahead-is-full-speed.md)). Depth is a
-   parameter of the strategy, not of the safety layer: a lookahead lock is an
-   ordinary grant made early, and the check of
-   [ADR-0003](../adr/0003-route-aware-bankers-safety-check.md) has no notion of
-   depth — which is why raising it changes no argument in
-   [SAFETY.md](SAFETY.md). The baseline above is the same idea at unbounded
-   depth.
+2. **Incremental locking** (research core) — lock what the train needs to
+   advance, its current block plus the next transit and block, and then ask
+   for the transit and block after that. It runs at **depth two**, because one
+   block ahead is only enough to move slowly enough to stop at the next signal
+   and two is what buys full speed, and it never asks for a third
+   ([ADR-0026](../adr/0026-two-blocks-ahead-is-full-speed.md)). The second
+   increment is **asked for, not required**: obstructed or unsafe, the move
+   happens anyway and the train runs at `approach` instead of `clear`
+   ([ADR-0029](../adr/0029-a-lock-held-ahead-is-a-block-the-check-must-see.md)).
+   Refusing the move on its account would leave `approach` with nothing to
+   describe. A lookahead lock is an ordinary grant made early, so
+   [ADR-0003](../adr/0003-route-aware-bankers-safety-check.md)'s check answers
+   it unchanged — but it is told what a train holds ahead of where it stands,
+   which is the one thing depth makes the safety layer's business. The
+   baseline above is the same idea at unbounded depth.
    High throughput, but naive incremental locking deadlocks — e.g. two trains
    entering a section of two facing blocks with no other connections between
    them each wait forever for the other to depart. The deadlock-avoidance

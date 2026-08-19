@@ -68,7 +68,6 @@ Each of these was ruled out deliberately, not overlooked:
 | MQTT transport, out-of-process deployment | the bus contract is already MQTT-safe ([ADR-0008](adr/0008-bus-contract-is-the-mqtt-safe-intersection.md)); the in-process bus is the milestone binding |
 | A real scheduler with continual arrivals | requests are a fixed batch here; the end-state scheduler also reads the layout and follows the dispatcher so it can generate traffic that can succeed ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md)) |
 | Signal aspects on the bus | the dispatcher publishes no aspect and the driver obeys the grant itself; `stop`/`approach`/`clear` and the speed on `cross` are the end state ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)) |
-| Locking two blocks ahead | depth one here — depth is a parameter of the incremental strategy, and raising it changes no safety argument ([ADR-0026](adr/0026-two-blocks-ahead-is-full-speed.md)) |
 | Trains that have a speed | one transit per tick, and a tick is the simulator's boundary rather than the model's unit of time ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)) |
 | Braking distance | an open subject even in the end state, with a working answer and no decision ([GOALS.md](GOALS.md#driving)) |
 | Human driving | the simulator drives |

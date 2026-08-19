@@ -1,5 +1,13 @@
 # Two blocks ahead is full speed
 
+**Corrected in part by
+[ADR-0029](0029-a-lock-held-ahead-is-a-block-the-check-must-see.md).** The
+conclusion below stands — target two blocks ahead, never a third — and 0029 is
+where it is built. What does not stand is "The safety core does not change":
+the check had to learn what a train holds ahead of where it stands, because
+until then it could not see a lock it had not been told about. 0029 also
+records what depth two costs, measured.
+
 Incremental locking targets **two blocks ahead** and never asks for a third.
 One block ahead is enough to move, at the reduced speed the `approach` aspect
 commands ([ADR-0025](0025-a-signal-is-what-the-dispatcher-tells-the-driver.md));

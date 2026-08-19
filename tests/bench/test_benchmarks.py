@@ -109,22 +109,27 @@ def test_batch_trace_is_pinned_byte_identical() -> None:
     assert path.read_text() == trace
 
 
-def test_incremental_splits_the_gotthard_meet_across_two_lines() -> None:
-    """The story `gotthard/meet` exists to tell, asserted rather than quoted.
+def test_a_two_block_route_leaves_incremental_nothing_to_withhold() -> None:
+    """`gotthard/meet` no longer splits, and the reason is worth pinning.
 
-    `FullRoute` locks `south`'s whole route over blue 2 and `north` ends up
-    serialised behind it on the same line. `Incremental` locks only the first
-    increment, so `north`'s launch finds blue 2 held, falls through to its
-    second candidate, and takes the yellow — the two trains then run
-    simultaneously and the run is two ticks shorter.
+    Its routes are two blocks long, and an increment plus the one asked for
+    ahead of it (ADR-0029) is exactly two blocks — so `Incremental` locks the
+    whole route at the first grant and *is* `FullRoute` here. `south` takes
+    the airolo transit at tick 1 and holds it until it crosses, `north` is
+    refused `transit_conflict` twice, and only then falls through to the
+    yellow. That is the cost ADR-0026 named as holding track speculatively,
+    seen at the smallest scale that can show it.
+
+    The strategies part company again as soon as a route is longer than the
+    lookahead; `gotthard/saturation` below is where that is asserted. If this
+    test ever fails, the lookahead or the route length changed, and the two
+    should be compared afresh rather than the numbers simply re-recorded.
     """
     results = {name: m for name, (_, m) in bench("gotthard/meet").items()}
-    assert results["Incremental"].makespan is not None
-    assert results["FullRoute"].makespan is not None
-    assert results["Incremental"].makespan < results["FullRoute"].makespan
-    assert (
-        results["Incremental"].mean_parallelism > results["FullRoute"].mean_parallelism
-    )
+    baseline, incremental = results["FullRoute"], results["Incremental"]
+    assert incremental.makespan is not None and baseline.makespan is not None
+    assert incremental.makespan == baseline.makespan
+    assert incremental.mean_parallelism == baseline.mean_parallelism
 
 
 def test_incremental_drains_gotthard_saturation_faster() -> None:

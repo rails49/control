@@ -40,6 +40,11 @@ class Move:
     transit: str
     into: str
     locked: list[str]  # resources newly locked for this move; [] under FullRoute
+    # The second increment, when it was obtained: a separate grant, published
+    # as its own lock_granted so a grant stays one transit with its far block
+    # (ADR-0029). Empty means it was not obtained, which is the `approach`
+    # aspect rather than an error.
+    ahead: list[str]
 
 
 class LockingStrategy(Protocol):
@@ -127,15 +132,22 @@ class FullRoute:
             active.route.transits[i],
             active.route.blocks[i + 1],
             locked=[],
+            ahead=[],
         )
 
 
 class Incremental:
-    """Each grant locks only the next transit plus block, gated by the
-    route-aware banker's safety check. A launch tries up to `k` candidates
-    and takes the first whose post-launch state is safe; transit
-    concurrency is instantaneous admissibility at the grant, never part of
-    the deadlock check."""
+    """Each grant locks the next transit plus block, gated by the
+    route-aware banker's safety check, and then asks for one increment more.
+    A launch tries up to `k` candidates and takes the first whose
+    post-launch state is safe; transit concurrency is admissibility at the
+    grant, never part of the deadlock check.
+
+    The second increment is asked for and not required (ADR-0029): a train
+    that gets it holds two blocks beyond where it stands and runs at
+    `clear`, one that does not runs at `approach`. Refusing the move
+    because the second increment was unavailable would make `approach`
+    unreachable, which is the aspect it exists to express."""
 
     def __init__(self, layout: Layout, k: int) -> None:
         self._layout = layout
@@ -210,12 +222,38 @@ class Incremental:
                 newly = [r for r in (transit, into) if state.locks.get(r) != train]
                 state.locks[transit] = train
                 state.locks[into] = train
-                return Move(active.route.blocks[i], transit, into, newly)
+                ahead = self._reach_ahead(train, i, state)
+                return Move(active.route.blocks[i], transit, into, newly, ahead)
             blocking = (
                 "unsafe",
                 *_unsafe_obstacle(active.route.blocks[i + 1 :], state, train),
             )
         return Refused(blocking[0], [{"resource": blocking[1], "holder": blocking[2]}])
+
+    def _reach_ahead(self, train: str, i: int, state: State) -> list[str]:
+        """The second increment, asked for once the first is granted. Returns
+        what it locked, or [] — obstructed, unsafe, or a route with nothing
+        that far ahead. Never a refusal: the move has already been granted,
+        and an empty answer is what the `approach` aspect reports.
+
+        The safety check is the same one the first increment passed, with the
+        train now standing at the far block and holding the one beyond it —
+        an ordinary grant made early (ADR-0026), so an ordinary check."""
+        route = state.active[train].route
+        if i + 1 >= len(route.transits):
+            return []  # the route ends within one block of here
+        transit, into = route.transits[i + 1], route.blocks[i + 2]
+        if any(state.obstacle(r, train) is not None for r in (transit, into)):
+            return []
+        cur, rem, idle, held = safety_view(state, skip=train)
+        cur[train] = route.blocks[i + 1]
+        rem[train] = list(route.blocks[i + 2 :])
+        held[train] = [into]
+        if not safe(cur, rem, idle, held):
+            return []
+        state.locks[transit] = train
+        state.locks[into] = train
+        return [transit, into]
 
 
 def safety_view(

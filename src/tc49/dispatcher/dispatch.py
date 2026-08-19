@@ -294,11 +294,14 @@ class Dispatcher:
                 },
             )
             return
-        if result.locked:
-            self._publish(
-                "lock_granted",
-                {"train": active.request.train, "resources": result.locked},
-            )
+        for resources in (result.locked, result.ahead):
+            # Two grants, not one of four: a grant is a transit with its far
+            # block, and the second increment is a separate one (ADR-0029).
+            if resources:
+                self._publish(
+                    "lock_granted",
+                    {"train": active.request.train, "resources": resources},
+                )
         self._publish(
             "move_granted",
             {

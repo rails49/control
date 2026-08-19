@@ -1,6 +1,9 @@
 """Incremental locking gated by safe(): issue #27's acceptance criteria."""
 
 from tc49.dispatcher import Incremental
+from tc49.dispatcher.dispatch import Active, Request, State
+from tc49.dispatcher.locking import Move
+from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tc49.store import AssetStore
@@ -193,3 +196,82 @@ def test_transits_are_never_held_across_a_wait() -> None:
         resources = line["resources"]
         assert len(resources) == 2
         assert "." not in resources[0] and "." in resources[1]
+
+
+def a_state(layout: Layout, route: Route, locks: dict[str, str]) -> State:
+    """One active train, `t`, standing at the head of `route`."""
+    request = Request("t-1", "t", f"{route.blocks[0]}.B", (), 0, 0)
+    return State(
+        layout,
+        {"t": 500, "other": 500},
+        dict(locks),
+        {"t": route.blocks[0]},
+        {"t": Active(request, route, 0, None)},
+    )
+
+
+def a_route(layout: Layout, train: str) -> Route:
+    """The first candidate route of at least three blocks that `layout`
+    offers from `train`'s standing block, so there is a second increment to
+    reach for at all."""
+    for block in sorted(layout.blocks):
+        for end in ("A", "B"):
+            for arrival in sorted(layout.blocks):
+                if arrival == block:
+                    continue
+                for route in candidates(
+                    layout,
+                    block,
+                    f"{block}.{end}",
+                    (f"{arrival}.A",),
+                    500,
+                    4,
+                    frozenset(),
+                ):
+                    if len(route.blocks) >= 3:
+                        return route
+    raise AssertionError("no route of three blocks in this layout")
+
+
+def test_a_grant_reaches_one_increment_past_what_it_needs() -> None:
+    """Depth two: the grant locks the increment it needs and then the one
+    after it, so the train stands with two blocks locked ahead rather than
+    one — which is the difference between `approach` and `clear`."""
+    layout, _ = load("gotthard/saturation")
+    route = a_route(layout, "t")
+    state = a_state(layout, route, {route.blocks[0]: "t"})
+
+    move = Incremental(layout, 2).grant("t", state)
+    assert isinstance(move, Move)
+    assert move.locked == [route.transits[0], route.blocks[1]]
+    assert move.ahead == [route.transits[1], route.blocks[2]]
+    assert state.locks[route.blocks[2]] == "t"
+
+
+def test_an_unavailable_second_increment_refuses_nothing() -> None:
+    """The second increment is asked for, not required. With it held by
+    another train the move is granted exactly as before, reporting nothing
+    ahead — and reporting nothing ahead is what `approach` means, not an
+    error the train has to wait on."""
+    layout, _ = load("gotthard/saturation")
+    route = a_route(layout, "t")
+    state = a_state(layout, route, {route.blocks[0]: "t", route.blocks[2]: "other"})
+
+    move = Incremental(layout, 2).grant("t", state)
+    assert isinstance(move, Move)
+    assert move.locked == [route.transits[0], route.blocks[1]]
+    assert move.ahead == []
+    assert state.locks[route.blocks[2]] == "other"
+
+
+def test_a_route_with_nothing_two_blocks_ahead_reaches_for_nothing() -> None:
+    """The last grant of a route has no second increment to ask for, and
+    that is not a failure either."""
+    layout, _ = load("gotthard/saturation")
+    route = a_route(layout, "t")
+    short = Route(route.blocks[:2], route.transits[:1])
+    state = a_state(layout, short, {short.blocks[0]: "t"})
+
+    move = Incremental(layout, 2).grant("t", state)
+    assert isinstance(move, Move)
+    assert move.ahead == []
