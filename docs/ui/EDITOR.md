@@ -33,10 +33,16 @@ netlist is which movements may run at the same time.
 
 Airolo makes the point. Its WX310 is drawn the standard way, four turnouts and
 a crossing, and derivation composes 19 transits and 33 concurrent pairs out of
-them. Nobody can confirm 33 pairs by reading them. So the editor shows the
+them. Nobody can confirm 33 pairs by reading them. So the editor can show the
 derived netlist beside the drawing and, for any transit, the way it takes and
-the reason it excludes each other transit. That is the feature the rest of the
-editor exists to serve.
+the reason it excludes each other transit.
+
+That was once the feature the rest of the editor existed to serve. It is now a
+debugging view, opened when something looks wrong rather than kept on screen
+while drawing: enough railroads have been drawn that derivation is trusted
+([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)). What the editor
+is for day to day is the drawing itself, and everything wrong with a drawing is
+marked on the drawing.
 
 ## The band
 
@@ -52,11 +58,15 @@ indicator at all before: it was inferrable only from the Save button being
 enabled, which is a control's affordance doing a status line's job, and #85
 took that button off the screen entirely.
 
-**The store not answering reads here, not in the findings panel.** The findings
-are what the person drawing has to fix — red pins, unpaired portal labels, name
-collisions, the refusal derivation came back with — and a store that is not
-answering is none of them. A name the drawing will not take stays a finding;
-that one is the author's.
+**The store not answering reads here.** That is what is wrong that is not the
+author's doing; what the author has to fix is marked on the drawing
+([Validation](#validation)).
+
+Beside it, one coarse indicator: this drawing derives, or it does not. It names
+no fault and counts nothing, the canvas being where you find out where. A drawing
+with an overlap or a turnout still lacking an address leaves it clean, both
+being drawings that derive
+([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
 
 The band names the page it is on and links to the other, which is the whole of
 the navigation. The editor and the panel are separate entries and separate
@@ -151,8 +161,9 @@ the pointer is over an obstacle, and follows the pointer again once the offset
 is clear.
 
 Rotate and flip are not constrained, since a turned symbol has a different
-footprint and can land on a neighbour. An overlap is reported instead: the
-squares are marked and the findings name the symbols. It is computed from the
+footprint and can land on a neighbour. An overlap is marked instead, on the
+squares that are shared, in the quieter of the two weights, since it derives
+fine ([Validation](#validation)). It is computed from the
 drawing rather than raised by the action, so it reads the same after an undo or
 after opening a file that already had one.
 
@@ -556,6 +567,13 @@ The derived netlist sits beside the canvas and redraws as you edit. It is the
 same content `tc49 layout show` prints: blocks, and per connection its
 transits with their two block ends and its concurrent pairs.
 
+**It is opened from `View ▸ Netlist` and closed by default.** Shut, its column
+goes to zero and the drawing has the width. It stays a panel and not a popup:
+its whole advantage over `tc49 layout show` in a terminal is that clicking a
+transit lights its way on the drawing, and a modal over the canvas hides the
+thing being checked
+([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
+
 Selecting a transit lights its way on the canvas, symbol by symbol and leg by
 leg, and lists every other transit at that connection as either concurrent or
 excluded, naming the symbol they share. *Exclusive because both take `sw16`*
@@ -607,15 +625,40 @@ screenshot and PANEL.md wants nothing here.
 
 ## Validation
 
-Findings are listed in one panel:
+**Faults are marked on the drawing, not listed beside it**
+([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)). A text list is
+how a computer says what it found; a person drawing a railroad finds it by
+looking, and half the old panel restated a mark the canvas already carried: a
+red pin is called that because the canvas draws it red.
 
-- pins with one connection, and unpaired portal labels: save allowed,
-  derivation refused;
-- connection names two people typed, and transits naming themselves from two
-  symbol legs: save allowed, derivation refused;
-- overlaps of wires with symbols or wires: warning only.
+| Fault | Mark | Derives? |
+| --- | --- | --- |
+| A pin short of a wire | the pin, red | no |
+| A portal label worn by other than two | the label, red ground | no |
+| Derivation refused | the offending way, lit red along its path | no |
+| A turnout or slip with no `addr` | the symbol, quiet mark | yes |
+| Symbols sharing a square | the shared squares, quiet mark | yes |
 
-Two of those states are prevented at the gesture that would otherwise create
+Red is what stops derivation; the quieter mark is what derives but is
+unfinished. An overlap is cosmetic, and a drawing with no addresses is a valid
+layout nobody can drive yet. Without the split, an unaddressed turnout on a
+busy layout would look as urgent as a broken one. Saving is allowed throughout.
+The band carries the same distinction coarsely, one indicator saying only
+whether the drawing derives ([The band](#the-band)).
+
+A refusal is a way, not a sentence. `/review` reports the first `ValueError`
+derivation raises, of twelve; five are typed-connection-name faults that can no
+longer occur ([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)),
+three restate a mark the canvas already carries, and two are reachable only from
+hand-written yaml. The two left are both statements about a way: the way out of
+a block end leads back into that same block, or two transits at one connection
+derive one name. The editor lights that way in red with the machinery the
+netlist pane already uses to light a transit.
+
+A name the drawing already has is refused in the properties dialog, where it was
+typed, and never becomes a finding at all ([Properties](#properties)).
+
+Two states are prevented at the gesture that would otherwise create
 them, rather than only reported once created. A wire in flight does not outlive
 the pin it started from (#74), and a portal is placed as a pair, so neither a
 stranded bend nor a lone portal accumulates unnoticed. Prevention stops at
