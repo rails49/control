@@ -50,7 +50,7 @@ It names the drawing, or says plainly that none is open, and marks it with a
 dot while it holds edits the store has not been given. That state had no
 indicator at all before: it was inferrable only from the Save button being
 enabled, which is a control's affordance doing a status line's job, and #85
-takes that button off the screen entirely.
+took that button off the screen entirely.
 
 **The store not answering reads here, not in the findings panel.** The findings
 are what the person drawing has to fix — red pins, unpaired portal labels, name
@@ -64,7 +64,52 @@ apps ([ADR-0016](../adr/0016-the-panel-is-a-scheduler.md)) and nothing here
 merges them.
 
 It costs about 2rem off a full-height grid, and that is accepted: the rows
-become the band, the control row, and the work.
+become the band, the bar, and the work.
+
+## The bar
+
+Under the band, a menu bar: `File`, `Edit` and `View` at the left, and the zoom
+and fit buttons pinned at its right end. Every command the editor has is in it,
+with the key that does the same thing printed beside the item.
+
+    File   New…  ·  Open ▸ (the drawings, ✓ on the open one)  ·  Save ⌘S
+           ·  Save As… ⇧⌘S  ·  ──  ·  Export SVG…
+    Edit   Undo ⌘Z  ·  Redo ⇧⌘Z  ·  ──  ·  Rotate R  ·  Flip F  ·  Delete ⌫
+           ·  ──  ·  Properties…
+    View   Zoom in +  ·  Zoom out −  ·  Fit 0
+
+**Open is a submenu, not a dialog.** Layouts are edited rarely, so the list of
+drawings is short and stays short, and a submenu is one gesture where a dialog
+is three. The drawing that is open is ticked.
+
+**New… and Open show no key.** Chrome keeps `⌘N` for a new window; it never
+reaches the page and cannot be `preventDefault`ed, and `⌘O` is unreliable for
+the same reason. A blank is better than a binding the browser eats. `⌘S` and
+`⇧⌘S` are the editor's.
+
+**Zoom and fit stay one click.** They are pressed constantly while drawing and
+`View ▸ Zoom in` is three clicks for what is now one, so those three are also
+icon buttons at the right end of the bar. Undo and redo are not: `⌘Z` and
+`⇧⌘Z` are known, and the `Edit` menu is where they are read.
+
+**While a menu is down, the keyboard is the menu's.** `r`, `f`, `0`, `+`, `-`,
+Delete and Backspace do not reach the canvas, and Escape closes the menu rather
+than clearing the selection. That is the same bug as a key typed into a dialog
+field reaching the canvas, one of the six of `ddbefb2..feb1fae`, wearing a
+menu.
+
+What is dead and what is alive is not the bar's to decide. Save is dead with
+nothing open or nothing to write, Rotate, Flip and Delete are dead on an empty
+selection, Properties on anything but one symbol that has some, Undo and Redo
+at the ends of the snapshot stack, Open with no drawing to open. Those rules
+are `model/commands.ts` with a test and no DOM, which is the rule
+[below](#tests): the model owns the document, a component owns the DOM, and a
+rule that is neither is a module in `model/`. The keyboard asks the same module
+the bar does, so an item and the key beside it cannot come to mean different
+things.
+
+Export SVG… is #86. Until it lands the item names what is coming and is dead,
+which reads better than one that answers a click with nothing.
 
 ## Canvas
 
@@ -106,8 +151,8 @@ after opening a file that already had one.
 
 Zoom and pan are the SVG `viewBox`: the wheel zooms about the pointer and the
 middle button pans. Both directions of the wheel were there from the start and
-neither was findable, so the header carries a minus and a plus beside Fit and
-the keyboard has `+`, `-` and `0`.
+neither was findable, so the bar carries a minus and a plus beside Fit and the
+keyboard has `+`, `-` and `0`.
 
 A bend is placed by the same two keys as any other symbol, `at` naming a cell
 and `rot` turning its one pin onto a face of it
@@ -381,18 +426,16 @@ move cannot change the derived layout. Rotate, flip, and delete apply to the
 selection, from a right-click menu with key bindings; each selected symbol
 turns about its own cell rather than the selection turning as a block.
 
-`r`, `f` and Delete are the whole verb set, so the header carries none of them:
-a button that duplicates a key it does not teach is a button doing nothing. The
-right-click menu names the key beside each item, which is where a shortcut is
-conventionally learnt, and a line under the palette heading covers the drag,
-which has no menu to hang one on.
+`r`, `f` and Delete are the whole verb set, so the page carries no bare verb
+*button*: a button that duplicates a key it does not teach is a button doing
+nothing.
 
-That rule is about buttons, not menus. A menu bar names the key beside the
-item, as the right-click menu does, so the verbs belong there. The header is
-now a status band (#84) above a control row that #85 reworks into a `File` /
-`Edit` / `View` bar, with zoom and fit staying one click, plus an SVG export of
-the drawing (#86). Cut wire does not move: no menu that reads the selection can act on a
-wire.
+That rule is about buttons, not menus. A menu names the key beside each item,
+which is where a shortcut is conventionally learnt, so every verb lives in one
+— the right-click menu here, and the [bar](#the-bar) — and a line under the
+palette heading covers the drag, which has no menu to hang one on. Cut wire
+does not move: no menu that reads the selection can act on a wire, so the
+editor keeps both menu systems deliberately.
 
 Click and drag mean different things on a pin, and which one it is is settled
 by whether the pointer moves. A click starts or ends a wire; a drag past a few
@@ -512,7 +555,7 @@ Derivation refusing is shown the same way, at the edit that caused it.
 ## Files
 
 A drawing is a file, `layouts/<name>.drawing.yaml`, so it persists and is
-shared through git like everything else in the repo (#64). The header's New…
+shared through git like everything else in the repo (#64). `File ▸ New…`
 asks for a name up front and opens an empty canvas under it; nothing is
 written until the first Save, so an abandoned start leaves no file. Save As…
 writes the open drawing, unsaved edits included, under a new name at once, and
@@ -573,9 +616,13 @@ pointer is stays with the canvas and dies with the gesture. That split is what
 puts the centring, the footprint a turn transposes, and the refusal over an
 occupied square in the tested layer rather than in a component.
 
-Toolbar icons are inline SVG. Shoelace's `sl-icon` fetches from a CDN at
-runtime unless a base path is registered, and the editor has to work on the
-railroad's own network.
+The bar's icons are inline SVG, one per command, drawn on a 16 unit square in
+`ui/icons.ts`. Shoelace's `sl-icon` fetches from a CDN at runtime unless a base
+path is registered, and the editor has to work on the railroad's own network.
+The map is keyed by `CommandId` and exhaustive, so a command declared without a
+glyph is a compile error; it lives beside the drawings rather than beside the
+declarations because a glyph is a `lit` template and `model/` imports no
+`ui/`.
 
 Diagram libraries (JointJS, GoJS, React Flow) were considered and rejected:
 their value is auto-routing and free-form graph models, the first deliberately
@@ -650,7 +697,7 @@ automation for now.
 A component is not exempt. The model owns the document, a component owns the
 DOM, and anything that is neither is a module in `model/` with a test, whichever
 file calls it: a rule deciding what a gesture means, what a menu applies to,
-which keystroke belongs to the canvas.
+which keystroke belongs to the canvas, which command is dead.
 
 This section used to say that Lit components stay thin enough that there is
 little in them to test, and that one grows a test when it grows logic. Five of
