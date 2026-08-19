@@ -12,10 +12,10 @@ the store rather than to an app of its own — a `ui` package could not import
     GET  /scenarios/<id>        one scenario: stock, placement, facing
 
 `review` is the one that carries the editor's whole view of topology: red
-pins, junction membership, the derived layout, and why each pair of transits
-does or does not run together. The front end reimplements none of it, so a
-second union-find cannot disagree with the first inside the tool whose job is
-to be believed.
+pins, the portal labels that pair with nothing, junction membership, the
+derived layout, and why each pair of transits does or does not run together.
+The front end reimplements none of it, so a second union-find cannot disagree
+with the first inside the tool whose job is to be believed.
 
 The two scenario routes are the panel's: a live session's stock, placement,
 and facing come from the scenario document (ui/PANEL.md, ADR-0019), and the

@@ -808,6 +808,67 @@ def test_a_way_through_a_junction_is_not_a_joint() -> None:
     assert committed_drawing("crossover-yard").joints() == []
 
 
+def with_portals(*labels: str) -> dict[str, Any]:
+    """A drawing that derives, plus a portal per label wired to a terminal of
+    its own — so nothing here is a red pin and the only thing wrong is what
+    the labels do or do not pair."""
+    doc = spanned()
+    for i, label in enumerate(labels):
+        doc["symbols"][f"p{i}"] = {"kind": "portal", "label": label}
+        doc["symbols"][f"p{i}_stop"] = {"kind": "terminal"}
+        doc["wires"].append([f"p{i}.P", f"p{i}_stop.P"])
+    return doc
+
+
+def test_a_label_no_second_portal_wears_is_reported_with_the_portal() -> None:
+    """The refusal names one label and stops, so two lone portals used to
+    report one and reveal the next on the fix. The finding names them all."""
+    review = Drawing.from_document(with_portals("staging", "hidden")).review()
+    assert review["unpaired_portals"] == [
+        {"label": "hidden", "portals": ["p1"]},
+        {"label": "staging", "portals": ["p0"]},
+    ]
+
+
+def test_a_label_three_portals_wear_is_reported_the_same_way() -> None:
+    """Both halves of "a label pairs exactly two" are one finding: a third
+    mouth is no more a pair than a lone one, and derivation refuses both."""
+    doc = with_portals("staging", "staging", "staging")
+    assert Drawing.from_document(doc).review()["unpaired_portals"] == [
+        {"label": "staging", "portals": ["p0", "p1", "p2"]}
+    ]
+
+
+def test_a_drawing_whose_labels_all_pair_reports_no_unpaired_portal() -> None:
+    doc = two_blocks(
+        gap=gap_symbol(),
+        here={"kind": "portal", "label": "staging"},
+        there={"kind": "portal", "label": "staging"},
+    )
+    doc["wires"] += [["west.B", "gap.A"], ["gap.B", "here.P"], ["there.P", "east.A"]]
+    review = Drawing.from_document(doc).review()
+    assert review["unpaired_portals"] == []
+    assert review["refused"] is None
+
+
+def test_an_unpaired_label_is_reported_beside_the_rest_of_the_review() -> None:
+    """The finding is one of several: reviewing a drawing that will not derive
+    still answers with its red pins, its junctions and its joints, and the
+    refusal stays a refusal — this changes what is reported, not what
+    derives."""
+    doc = with_portals("staging")
+    doc["symbols"]["north"] = block()
+    doc["symbols"]["points"] = {"kind": "turnout", "connection": "throat"}
+    doc["wires"][1] = {"pins": ["east.B", "north.A"], "connection": "hop"}
+    doc["wires"].append(["north.B", "east_stop.P"])
+    review = Drawing.from_document(doc).review()
+    assert [f["label"] for f in review["unpaired_portals"]] == ["staging"]
+    assert review["red_pins"] == ["points.diverging", "points.straight", "points.toe"]
+    assert [j["name"] for j in review["junctions"]] == ["gap", "throat"]
+    assert [j["name"] for j in review["joints"]] == ["hop"]
+    assert review["layout"] is None and review["refused"] is not None
+
+
 @pytest.mark.parametrize("name", RAILROADS)
 def test_review_answers_however_damaged_the_drawing_is(name: str) -> None:
     """The editor reviews on every edit, so a half-finished drawing has to come

@@ -558,14 +558,19 @@ a store operation, which keeps `tests/system/test_app_boundaries.py` intact:
 
 `review` takes a document rather than a name, because the interesting drawing
 is the one being edited: unsaved, and often not yet derivable. It answers with
-the red pins, the junctions as symbol groups each carrying the name its
-connection takes, the joints — the ways from one block end to another crossing
-no connection symbol, with the wires that may carry a name — the derived
-layout, its explanation, and the refusal where there is one. A drawing with a
-red pin is the normal state mid-edit, so that comes back as a refusal inside a
-200; only a document that will not load at all is a bad request. Whatever is
-wrong with a drawing, the editor reads a status and a reason rather than losing
-the connection.
+the red pins, the unpaired portal labels with the portals wearing each, the
+junctions as symbol groups each carrying the name its connection takes, the
+joints — the ways from one block end to another crossing no connection symbol,
+with the wires that may carry a name — the derived layout, its explanation,
+and the refusal where there is one. A drawing with a red pin is the normal
+state mid-edit, so that comes back as a refusal inside a 200; only a document
+that will not load at all is a bad request. Whatever is wrong with a drawing,
+the editor reads a status and a reason rather than losing the connection.
+
+A label is unpaired when it is not worn by exactly two portals: worn once, and
+worn three times or more, are one finding, because a label pairs exactly two.
+The refusal names one label and stops, so the finding is what tells the editor
+about all of them at once rather than one per fix.
 
 A junction and a joint each report a `name`, `null` where the drawing has not
 settled one, and `names`, what the drawing actually writes. That is what tells

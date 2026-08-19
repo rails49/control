@@ -204,9 +204,11 @@ class Drawing:
     def review(self) -> dict[str, Any]:
         """Everything the editor draws that the document does not hold.
 
-        Red pins and junction regions are wanted exactly when the drawing is
-        incomplete, which is when derivation refuses, so both are worked out
-        without raising and the refusal is reported rather than thrown. That
+        Red pins, unpaired portal labels and junction regions are wanted
+        exactly when the drawing is incomplete, which is when derivation
+        refuses, so each is worked out without raising and the refusal is
+        reported rather than thrown. A refusal names one fault and stops,
+        which is why the findings are lists and it is not. That
         is what lets the front end own placement and rendering and no topology
         at all (EDITOR.md).
         """
@@ -216,6 +218,7 @@ class Drawing:
             layout, explain, refused = None, None, str(refusal)
         return {
             "red_pins": self.red_pins(),
+            "unpaired_portals": self.unpaired_portals(),
             "junctions": self.junctions(),
             "joints": self.joints(),
             "layout": layout,
@@ -295,6 +298,20 @@ class Drawing:
             for pin in symbol.pins
             if len(joins[node := f"{symbol.name}.{pin}"]) != _wires_wanted(symbol)
         )
+
+    def unpaired_portals(self) -> list[dict[str, Any]]:
+        """The labels no pair wears, each with the portals wearing it: worn
+        once, or worn three times and more, since a label pairs exactly two.
+
+        Reported rather than raised for the reason red pins are: derivation
+        names one label and stops, so a drawing with two lone portals would
+        report one and reveal the next on the fix, and the editor has to be
+        told about all of them at once (EDITOR.md#validation)."""
+        return [
+            {"label": label, "portals": sorted(worn_by)}
+            for label, worn_by in sorted(self._portals().items())
+            if len(worn_by) != 2
+        ]
 
     def _transits(self) -> dict[str, dict[str, Walk]]:
         """Every transit, by connection and by derived name, with the way it

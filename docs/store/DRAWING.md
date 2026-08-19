@@ -146,7 +146,9 @@ A portal joins distant parts of a drawing without a wire across the whole
 canvas (return loops, hidden staging). Two portals with the same label join
 their wires as if directly connected, and derivation emits nothing for the
 portal itself. A label must appear on exactly two portals, each with its pin
-wired; anything else is an error, save allowed, derive refused.
+wired; anything else is an error, save allowed, derive refused. A review
+reports every such label with the portals wearing it, the way it reports red
+pins, so an editor learns about all of them at once instead of one per fix.
 
 ## Drawing schema
 
