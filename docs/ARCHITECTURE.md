@@ -256,6 +256,18 @@ Four properties:
    `benchmarks/expected/` plus scenario YAML fixtures, so the event
    inventory can evolve without fixture churn.
 
+   **This one is a property of the bindings rather than of the system.** It
+   needs the simulator's deterministic beat and the in-process bus's queued
+   FIFO, and it could not hold on a physical railroad, where the cadence comes
+   from a clock and sensor arrival order is unspecified. Properties 1–3 survive
+   that change of binding and this one does not, which a hardware effort should
+   know before reading the suite
+   ([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)).
+   What does survive is what determinism is testing for: that grants are a pure
+   function of the buffered sensor set rather than of arrival order, which is a
+   dispatcher property and the reason the boundary exists
+   ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
+
 **The library-core seam is pure functions only.** Direct unit tests cover
 `safe()` on hand-built states, layout graph queries, route policies, and the
 scheduler's arrival-end expansion. The six boundary conditions closing

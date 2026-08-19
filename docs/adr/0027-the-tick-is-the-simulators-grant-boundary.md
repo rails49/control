@@ -1,5 +1,13 @@
 # The tick is the simulator's grant boundary
 
+*(Amended under
+[ADR-0030](0030-the-physical-railroad-is-the-normative-binding.md): the
+rejection below argues from testing, and the hardware argument is stronger. On
+a real railroad sensor arrival order is unspecified, so an order-dependent
+grant makes the railroad's behaviour depend on wire timing. That is a
+correctness defect on hardware, and determinism in the tests is its consequence
+rather than its reason. The decision itself is unchanged.)*
+
 The layout interface always publishes a **grant-boundary** event, and the
 dispatcher always runs its grant phase over the sensor events buffered since
 the last one. What generates the boundary is the binding. The simulator's is
