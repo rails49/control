@@ -625,6 +625,19 @@ Both refuse a name a drawing already has: overwriting one deliberately is
 opening it and pressing Save. Deleting or renaming a file stays in git, where
 it is reviewable.
 
+**Unsaved edits are not discarded silently.** Opening another drawing and
+starting a new one both throw away whatever has been drawn since the last
+Save, so with the band's dot showing they ask first (#101). It is a dialog,
+the one the properties are edited in, rather than a native `confirm` the page
+cannot style. Declining leaves the editor exactly as it was — the same drawing,
+the same edits, the same dot, the same undo history — because the question
+comes before anything is read or reset, `New…` asking for its name only once
+the edits have been given up. Accepting opens what was asked for. With nothing
+to lose nothing is asked, and the question does not offer to save first: Save
+is one key away, and discarding or cancelling is the whole of it. While it is
+up the keyboard is the dialog's, as it is under an open menu: Escape declines
+it and no bare key reaches the canvas behind it.
+
 `File ▸ Export SVG…` downloads the open drawing as a standalone SVG named for
 it (#86). The picture is the canvas's own markup, cloned rather than composed
 a second time, so the file is what the screen shows and cannot drift from it.

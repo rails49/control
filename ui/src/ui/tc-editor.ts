@@ -10,6 +10,8 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import "@shoelace-style/shoelace/dist/components/button/button.js";
+import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import type { Kind } from "../symbols.generated.js";
@@ -70,6 +72,10 @@ export class TcEditor extends LitElement {
    *  menu's and nothing reaches the canvas. */
   @state() private barMenu = false;
   @state() private editing: { name: string; spec: SymbolSpec } | null = null;
+  /** What is waiting on the operator's word before the open drawing is thrown
+   *  away: the drawing to open, or `null` for a new one. `null` while nothing
+   *  is waiting, which is the ordinary state. */
+  @state() private discarding: { open: string | null } | null = null;
   @state() private chosen: Chosen | null = null;
 
   override connectedCallback(): void {
@@ -96,7 +102,7 @@ export class TcEditor extends LitElement {
         .standing=${this.standing}
         .drawings=${this.drawings}
         @command=${(event: CustomEvent<CommandId>) => this.run(event.detail)}
-        @open-drawing=${(event: CustomEvent<string>) => void this.open(event.detail)}
+        @open-drawing=${(event: CustomEvent<string>) => this.discard(event.detail)}
         @menu-open=${(event: CustomEvent<boolean>) => {
           this.barMenu = event.detail;
         }}
@@ -141,6 +147,33 @@ export class TcEditor extends LitElement {
           this.editing = null;
         }}
       ></tc-properties>
+
+      ${this.discarding === null ? nothing : this.question(this.discarding.open)}
+    `;
+  }
+
+  /** The one thing the editor asks rather than does. Edits the store has not
+   *  been given are the operator's, and a menu click is a thin thing to lose
+   *  an evening's drawing to (#101), so what would discard them says so and
+   *  waits. It is the dialog the properties are edited in, not a native
+   *  `confirm`, which the page cannot style and a browser may suppress. */
+  private question(open: string | null) {
+    // Nothing is open until a drawing is chosen, and what is drawn on the
+    // canvas before that is still an evening's work.
+    const losing = this.opened === "" ? "The canvas" : `'${this.opened}'`;
+    const instead =
+      open === null ? "Starting a new drawing" : `Opening '${open}'`;
+    return html`
+      <sl-dialog open label="Discard unsaved edits?" @sl-after-hide=${this.kept}>
+        <p>
+          ${losing} has edits that have not been saved. ${instead} discards
+          them.
+        </p>
+        <sl-button slot="footer" @click=${this.kept}>Cancel</sl-button>
+        <sl-button slot="footer" variant="danger" @click=${this.discarded}>
+          Discard
+        </sl-button>
+      </sl-dialog>
     `;
   }
 
@@ -225,7 +258,7 @@ export class TcEditor extends LitElement {
     if (!COMMANDS[id].enabled(this.standing)) return;
     switch (id) {
       case "new":
-        void this.newDrawing();
+        this.discard(null);
         return;
       // The drawings are the submenu's own items, so `Open` itself is only
       // ever the thing they hang off.
@@ -316,6 +349,34 @@ export class TcEditor extends LitElement {
     } catch (failure) {
       this.trouble = `the store is not answering: ${String(failure)}`;
     }
+  }
+
+  /** Throw the open drawing away for another, or for a new one — the two
+   *  things that discard whatever has been drawn since the last save. Edits
+   *  the store has not been given are asked about first; with nothing to lose
+   *  there is nothing to ask, and the drawing opens as it always did (#101). */
+  private discard(open: string | null): void {
+    if (this.saved) void this.opening(open);
+    else this.discarding = { open };
+  }
+
+  /** The operator said the edits can go. */
+  private discarded(): void {
+    const pending = this.discarding;
+    this.discarding = null;
+    if (pending !== null) void this.opening(pending.open);
+  }
+
+  /** The operator said they cannot — by the Cancel button, by Escape, or by
+   *  the dialog's own close. The editor is left exactly as it was: nothing has
+   *  been read or reset by this point, the question having come first. */
+  private kept(): void {
+    this.discarding = null;
+  }
+
+  /** What was asked for, once there is nothing in the way of it. */
+  private opening(open: string | null): Promise<void> {
+    return open === null ? this.newDrawing() : this.open(open);
   }
 
   private async open(name: string): Promise<void> {
@@ -534,6 +595,17 @@ export class TcEditor extends LitElement {
         .composedPath()
         .some((node) => node instanceof HTMLElement && node.matches(CONTROLS))
     ) {
+      return;
+    }
+    // The question about to discard the drawing is up, so the keyboard is the
+    // dialog's: Escape answers it and nothing else reaches anything. `r`
+    // rotating the selection behind a modal, or Escape clearing it while
+    // taking the question down, is the same bug the open menu has below.
+    if (this.discarding !== null) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.kept();
+      }
       return;
     }
     const meta = event.metaKey || event.ctrlKey;
