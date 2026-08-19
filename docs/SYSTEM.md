@@ -145,10 +145,11 @@ the driver moves locomotives
 | `tc49/dispatch/request_rejected` | event | dispatcher | id, reason (`no_fit`, `no_entry`, `unreachable`, `wrong_origin`) |
 | `tc49/dispatch/request_completed` | event | dispatcher | id |
 | `tc49/dispatch/route_chosen` | event | dispatcher | id, route, k_tried |
-| `tc49/dispatch/move_granted` | event | dispatcher | id, train, transit, into |
+| `tc49/dispatch/move_granted` | event | dispatcher | id, train, transit, into, aspect |
 | `tc49/dispatch/grant_refused` | event | dispatcher | id, reason (`unsafe`, `held`, `transit_conflict`), obstacles `[{resource, holder}]` |
 | `tc49/dispatch/lock_granted` | event | dispatcher | train, resources |
 | `tc49/dispatch/lock_released` | event | dispatcher | train, resources |
+| `tc49/dispatch/state/aspects` | state | dispatcher | last-value map of signalled block end to aspect |
 | `tc49/dispatch/align` | command | dispatcher | connection, transit, points `[{addr, position}]` |
 | `tc49/drive/cross` | command | driver | train, connection, transit, into |
 
@@ -317,6 +318,13 @@ are **buffered until the tick**, then treated as a set with the canonical
 grant order applied to the whole of it, so grants are a pure function of the
 buffered set, never of delivery order — and under MQTT a straggling sensor
 is processed at the next boundary: a deferred grant, conservative and safe.
+Every signalled block end's aspect goes on the last-value
+`state/aspects` topic, republished whenever any of them changes: signal heads,
+the panel and a person driving by eye are audiences that are not the automated
+driver, and a late subscriber wants the whole picture rather than the next
+change ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+An end nothing ever leaves carries no signal and does not appear.
+
 Granted moves are published one event each (`move_granted`), distinct from
 the `lock_granted` ledger — the move is the driver's command; the ledger
 feeds the utilization metric, and a `FullRoute` launch locks a whole route
@@ -334,9 +342,11 @@ The driver is a **stateless, layout-blind translator**: per granted move it
 immediately publishes `cross`, the move itself, mirrored. Setting the route is
 the dispatcher's, which publishes `align`
 ([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)), so a grant is
-the driver's green signal — a metaphor here, and literally the contract in the
-end state, where the grant carries the aspect and the driver's answer is a
-speed ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)). The move payload carries every field `cross` needs,
+the driver's green signal. The grant now carries the aspect, and the driver
+ignores it: turning an aspect into a speed needs `cross` to carry one and
+transits to take time, which milestone 1 defers
+([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md),
+[MILESTONE-1.md](MILESTONE-1.md)). The move payload carries every field `cross` needs,
 so the driver holds no state and reads no assets. It does
 not subscribe to the tick — the tick+1 skew is the boundary's property, and
 duplicating it here would land grants at N+2. The boundary stays real by
@@ -385,8 +395,6 @@ word.
 
 | Growth | Why | Where |
 | --- | --- | --- |
-| `move_granted` carries the **aspect** — `stop`, `approach`, `clear` | the dispatcher's authority is what the driver obeys, and a driver cannot work out which signal it faces because sensors are anonymous | [ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md) |
-| A last-value `tc49/dispatch/state/…` topic carries **every signalled block end's aspect** | signal heads, the panel and a person driving by eye are audiences that are not the automated driver, and a late subscriber needs the whole picture, not the next change | same |
 | `cross` carries a **speed** | the driver decides how fast; the layout interface keeps throttle-up-watch-the-detector-stop, where the braking curve and detector geometry live | same |
 | The **scheduler reads the layout** and subscribes to `tc49/dispatch/#` | continual generated traffic has to name an idle train and a reachable destination; the dispatcher stays the single feasibility authority | [ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md) |
 | The boundary event's cadence comes from a **clock**, transits vary in length | `tick` is the simulator's binding of the boundary, not the model's unit of time | [ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md) |

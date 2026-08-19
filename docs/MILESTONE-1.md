@@ -67,7 +67,7 @@ Each of these was ruled out deliberately, not overlooked:
 | A physical layout behind the layout interface | a later effort ([GOALS.md](GOALS.md)); the transit-level command vocabulary of [SYSTEM.md](SYSTEM.md#layout-interface) is the hook |
 | MQTT transport, out-of-process deployment | the bus contract is already MQTT-safe ([ADR-0008](adr/0008-bus-contract-is-the-mqtt-safe-intersection.md)); the in-process bus is the milestone binding |
 | A real scheduler with continual arrivals | requests are a fixed batch here; the end-state scheduler also reads the layout and follows the dispatcher so it can generate traffic that can succeed ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md)) |
-| Signal aspects on the bus | the dispatcher publishes no aspect and the driver obeys the grant itself; `stop`/`approach`/`clear` and the speed on `cross` are the end state ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)) |
+| A driver that obeys the aspect | the dispatcher publishes `stop`/`approach`/`clear`, on the grant and on a last-value topic, and the driver ignores it: acting on it needs a speed on `cross` and transits that take time ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)) |
 | Trains that have a speed | one transit per tick, and a tick is the simulator's boundary rather than the model's unit of time ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)) |
 | Braking distance | an open subject even in the end state, with a working answer and no decision ([GOALS.md](GOALS.md#driving)) |
 | Human driving | the simulator drives |

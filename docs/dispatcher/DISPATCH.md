@@ -23,9 +23,11 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
   ([SYSTEM.md](../SYSTEM.md#time)) — so a simulator and a physical layout drive
   it the same way.
 - **Signalled** — how far the dispatcher has locked ahead of a train is what
-  the signal it faces shows, and that aspect is the driver's only input; a
-  signal is at `stop` unless a block beyond it is locked, which follows from
-  the locks rather than being a rule of its own
+  the signal it faces shows. The aspect is published on the grant and on a
+  last-value topic carrying every signalled end, and it is the driver's only
+  input once the driver acts on it. A signal is at `stop` unless a block
+  beyond it is locked, which follows from the locks rather than being a rule
+  of its own
   ([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 
 ### Requests

@@ -70,6 +70,56 @@ class State:
         return None
 
 
+def locked_ahead(state: State, train: str, route: Route, standing: int) -> int:
+    """How many blocks of `route` past index `standing` are locked to
+    `train`, counted until the first that is not."""
+    depth = 0
+    for block in route.blocks[standing + 1 :]:
+        if state.locks.get(block) != train:
+            break
+        depth += 1
+    return depth
+
+
+def aspect_of(depth: int) -> str:
+    """The aspect a signal shows for a locked-ahead depth (ADR-0025)."""
+    if depth >= 2:
+        return "clear"
+    return "approach" if depth else "stop"
+
+
+def departure_end(layout: Layout, block: str, transit: str) -> str:
+    """The end of `block` that `transit` crosses: the end a train leaving by
+    that transit departs through, and so the signal the aspect belongs to."""
+    connection, _, name = transit.partition(".")
+    first, second = layout.connections[connection].transits[name]
+    return first if first.rpartition(".")[0] == block else second
+
+
+def aspects(state: State) -> dict[str, str]:
+    """Every signalled block end's aspect. An end nothing ever leaves carries
+    no signal and does not appear; an end no train is authorised to leave by
+    shows `stop`, which falls out of there being nothing locked beyond it
+    rather than being a rule of its own.
+
+    A train mid-transit has already had `cur_index` advanced, so the block it
+    stands in is one back. The aspect belongs to where it stands, not where
+    it is going.
+    """
+    shown = {end: "stop" for end in sorted(state.layout.end_connection)}
+    for train, active in state.active.items():
+        standing = active.cur_index - (1 if active.outstanding else 0)
+        if standing >= len(active.route.transits):
+            continue  # in its arrival block; nothing left to leave by
+        end = departure_end(
+            state.layout,
+            active.route.blocks[standing],
+            active.route.transits[standing],
+        )
+        shown[end] = aspect_of(locked_ahead(state, train, active.route, standing))
+    return shown
+
+
 class Dispatcher:
     def __init__(
         self, bus: Bus, layout: Layout, scenario: Scenario, strategy: LockingStrategy
@@ -94,6 +144,7 @@ class Dispatcher:
         self._next_seq = 0
         self._phases = 0  # grant phases run; stamps admissions for grant order
         self._buffered: list[tuple[str, str]] = []  # (leaf, block) since last tick
+        self._aspects: dict[str, str] = {}  # last published, so only changes go
         bus.subscribe("tc49/layout/+", self._on_layout)
         bus.subscribe("tc49/schedule/request_submitted", self._on_request)
 
@@ -240,6 +291,7 @@ class Dispatcher:
             else:
                 waiting.add(req.train)
                 self._launch(req, result)
+        self._publish_aspects()
 
     def _apply_sensors(self) -> None:
         """The buffered set, in canonical order — never delivery order."""
@@ -309,10 +361,30 @@ class Dispatcher:
                 "train": active.request.train,
                 "transit": result.transit,
                 "into": result.into,
+                # Read off the locks the strategy has just taken, from where
+                # the train still stands: cur_index advances below.
+                "aspect": aspect_of(
+                    locked_ahead(
+                        self._state,
+                        active.request.train,
+                        active.route,
+                        active.cur_index,
+                    )
+                ),
             },
         )
         active.outstanding = result
         active.cur_index += 1
+
+    def _publish_aspects(self) -> None:
+        """The signalled ends, on a last-value topic, when any of them has
+        changed. Every end each time rather than the ones that moved: a late
+        subscriber wants the whole picture on connect, not the first change
+        after it arrives (SYSTEM.md)."""
+        shown = aspects(self._state)
+        if shown != self._aspects:
+            self._aspects = shown
+            self._publish("state/aspects", {"aspects": shown})
 
     def _publish(self, leaf: str, payload: Payload) -> None:
         self._bus.publish(f"tc49/dispatch/{leaf}", payload)

@@ -15,10 +15,11 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "tc49/dispatch/request_rejected": ("id", "reason"),
     "tc49/dispatch/request_completed": ("id",),
     "tc49/dispatch/route_chosen": ("id", "route", "k_tried"),
-    "tc49/dispatch/move_granted": ("id", "train", "transit", "into"),
+    "tc49/dispatch/move_granted": ("id", "train", "transit", "into", "aspect"),
     "tc49/dispatch/grant_refused": ("id", "reason", "obstacles"),
     "tc49/dispatch/lock_granted": ("train", "resources"),
     "tc49/dispatch/lock_released": ("train", "resources"),
+    "tc49/dispatch/state/aspects": ("aspects",),
     "tc49/drive/align": ("connection", "transit"),
     "tc49/drive/cross": ("train", "connection", "transit", "into"),
 }
