@@ -236,6 +236,23 @@ describe("request layers", () => {
     ]);
   });
 
+  it("spells a stale departure out, so a joining panel sees why (#73)", () => {
+    const model = panel();
+    placed(model);
+    feed(model, submitted, {
+      event: "request_rejected",
+      id: "t1-1",
+      reason: "wrong_origin",
+    });
+    expect(model.markers()[0]).toEqual({
+      id: "t1-1",
+      train: "t1",
+      at: "a.B",
+      role: "rejected",
+      note: "the train is elsewhere",
+    });
+  });
+
   it("clears a rejection when the train asks again", () => {
     const model = panel();
     placed(model);
@@ -371,7 +388,8 @@ describe("facing", () => {
     // Rejoining re-reads the scenario, but the railroad has moved on since it
     // was written. Re-seeding would put the train back where it started, and
     // a drag would then state a departure block the dispatcher knows is
-    // wrong — which stops the session dead rather than being rejected.
+    // wrong — rejected as `wrong_origin` (#73), so the train would be
+    // undraggable until the bus showed it moving again.
     const model = panel();
     model.place(STOCK);
     feed(

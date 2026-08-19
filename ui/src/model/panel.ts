@@ -55,6 +55,7 @@ const REJECTED: Record<string, string> = {
   no_fit: "the train doesn't fit",
   no_entry: "no arrival end is enterable",
   unreachable: "no path exists",
+  wrong_origin: "the train is elsewhere",
 };
 
 /** A pruned arrival end's reason, short enough to sit at the end it marks. */

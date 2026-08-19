@@ -74,7 +74,8 @@ not dropped; drag supersedes the click sequence this page first recorded.
 The drag is **filter-free**: the panel never grays out targets or pre-judges
 fit or reachability. Every drop submits, the dispatcher stays the sole
 feasibility authority, and a rejection renders at the request's endpoints
-with its reason spelled out (`no_fit`, `no_entry`, `unreachable`).
+with its reason spelled out (`no_fit`, `no_entry`, `unreachable`,
+`wrong_origin`).
 
 The panel therefore **is** a scheduler, and modes are exclusive: a run uses
 the file scheduler or the panel, never both
@@ -114,14 +115,14 @@ is 2 seconds, picked by watching the panel rather than by argument.
 
 **A panel joins at the start of a session.** The bridge holds no backlog, so a
 browser that connects after a train has moved shows it in its scenario block,
-and a drag then states a departure block the dispatcher knows is wrong. The
-dispatcher raises on that rather than rejecting it, which stops the session:
-the check was written when the only writer was an authored file, where a
-disagreement is a slip worth failing loudly on. With a browser writing, it
-needs to be an answer instead. Tracked in #73; nothing in the panel can
-fix it, because answering it means either the bridge describing the run —
-which [SYSTEM.md](../SYSTEM.md) rules out — or the dispatcher replying rather
-than raising.
+and a drag then states a departure block the dispatcher knows is wrong. That
+drag comes back rejected, reason `wrong_origin`, spelled out at the request's
+endpoints like any other rejection
+([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)) — the panel
+is stale, not the session. It stays stale until the bus shows that train
+moving, since nothing in the panel can learn where it stands: the alternative
+would be the bridge describing the run, which
+[SYSTEM.md](../SYSTEM.md) rules out.
 
 Within one page the panel does hold its ground: leaving and rejoining keeps
 what the bus has shown and re-seeds only trains it knows nothing about, and
