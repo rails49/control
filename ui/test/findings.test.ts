@@ -17,6 +17,8 @@ import type { Drawing } from "../src/model/drawing.js";
 import type { Editor } from "../src/model/editor.js";
 import type { Review } from "../src/model/store.js";
 import type { TcEditor } from "../src/ui/tc-editor.js";
+import type { TcProperties } from "../src/ui/tc-properties.js";
+import type SlInput from "@shoelace-style/shoelace/dist/components/input/input.js";
 
 /** Two symbols, so a rename onto a taken name has something to collide with. */
 const DRAWING: Drawing = {
@@ -74,37 +76,134 @@ async function settled(shell: { updateComplete: Promise<boolean> }): Promise<voi
   await shell.updateComplete;
 }
 
-/** The properties dialog applying a name, which is where a rename is refused. */
-function rename(shell: TcEditor, was: string, name: string): void {
-  shell.renderRoot.querySelector("tc-properties")!.dispatchEvent(
-    new CustomEvent("properties", {
-      detail: { was, name, spec: { kind: "turnout", at: [0, 0] } },
-    }),
-  );
+/** The properties dialog, opened on the one selected symbol the way the
+ *  `Properties…` command opens it. */
+async function opened(shell: TcEditor, session: Editor, name: string) {
+  session.select([name]);
+  shell.renderRoot
+    .querySelector("tc-menubar")!
+    .dispatchEvent(new CustomEvent("command", { detail: "properties" }));
+  await settled(shell);
+  const dialog = shell.renderRoot.querySelector("tc-properties")!;
+  await dialog.updateComplete;
+  return dialog;
 }
 
-describe("a name the drawing will not take", () => {
-  it("is listed, being the author's own mistake", async () => {
-    const { shell } = await mounted();
+/** The dialog's name field, as it reads now. */
+function field(dialog: TcProperties): SlInput {
+  return dialog.renderRoot.querySelector<SlInput>("sl-input")!;
+}
 
-    rename(shell, "sw1", "b1");
+/** Type a name into it, which is the one gesture that makes a collision. */
+async function typed(
+  dialog: TcProperties,
+  into: SlInput,
+  name: string,
+): Promise<void> {
+  into.value = name;
+  into.dispatchEvent(new CustomEvent("sl-input"));
+  await dialog.updateComplete;
+}
+
+/** Press Apply. */
+async function apply(dialog: TcProperties): Promise<void> {
+  const buttons = [...dialog.renderRoot.querySelectorAll("sl-button")];
+  (buttons.find((one) => one.textContent!.trim() === "Apply") as HTMLElement).click();
+  await dialog.updateComplete;
+}
+
+/**
+ * A name the drawing already has, typed where names are typed (ADR-0023).
+ *
+ * It used to close the dialog, discard the edit, and report it in a panel
+ * across the screen, which told the author about a keystroke they had just
+ * made. Now the dialog refuses and stays open, and the findings say nothing.
+ */
+describe("a name the drawing will not take", () => {
+  it("is refused with the dialog still open", async () => {
+    const { shell, session } = await mounted();
+    const dialog = await opened(shell, session, "b1");
+
+    await typed(dialog, field(dialog), "sw1");
+    await apply(dialog);
     await settled(shell);
 
-    expect(listed(shell)).toEqual(["'b1' is not a name this drawing can take"]);
+    expect(dialog.renderRoot.querySelector("sl-dialog")).not.toBeNull();
+    expect(session.drawing.symbols).toHaveProperty("b1");
   });
 
-  /** It used to share `trouble`, which every review cleared. Split off without
-   *  that clearing, a refusal stayed listed against a drawing that no longer
-   *  had the problem — and kept the panel from ever reading clean again. */
-  it("stops being listed once an edit is accepted", async () => {
-    const { shell } = await mounted();
-    rename(shell, "sw1", "b1");
-    await settled(shell);
+  it("stays in the field, to be edited rather than retyped", async () => {
+    const { shell, session } = await mounted();
+    const dialog = await opened(shell, session, "b1");
 
-    shell.renderRoot.querySelector("tc-canvas")!.dispatchEvent(new CustomEvent("edit"));
+    await typed(dialog, field(dialog), "sw1");
+    await apply(dialog);
+
+    expect(field(dialog).value).toBe("sw1");
+  });
+
+  it("says which name is taken, beside the field it was typed in", async () => {
+    const { shell, session } = await mounted();
+    const dialog = await opened(shell, session, "b1");
+
+    await typed(dialog, field(dialog), "sw1");
+
+    expect(field(dialog).getAttribute("help-text")).toContain(
+      "'sw1' is already taken",
+    );
+  });
+
+  it("refuses a name that is not a legal key the same way", async () => {
+    const { shell, session } = await mounted();
+    const dialog = await opened(shell, session, "b1");
+
+    await typed(dialog, field(dialog), "b1.A");
+    await apply(dialog);
+
+    expect(dialog.renderRoot.querySelector("sl-dialog")).not.toBeNull();
+    expect(field(dialog).getAttribute("help-text")).toContain("cannot name");
+  });
+
+  it("puts nothing in the findings, which are about the drawing", async () => {
+    const { shell, session } = await mounted();
+    const dialog = await opened(shell, session, "b1");
+
+    await typed(dialog, field(dialog), "sw1");
+    await apply(dialog);
     await settled(shell);
 
     expect(listed(shell)).toEqual(["Every pin holds its wires."]);
+  });
+
+  it("closes on a name the drawing can take, having renamed the symbol", async () => {
+    const { shell, session } = await mounted();
+    const dialog = await opened(shell, session, "b1");
+
+    await typed(dialog, field(dialog), "claro_1");
+    await apply(dialog);
+    await settled(shell);
+
+    expect(Object.keys(session.drawing.symbols).sort()).toEqual([
+      "claro_1",
+      "sw1",
+    ]);
+    expect(listed(shell)).toEqual(["Every pin holds its wires."]);
+  });
+});
+
+/** A drawing's own name is still asked for with a prompt and still refused in
+ *  the panel: it is not typed in a dialog that could hold it open. */
+describe("a name no drawing can wear", () => {
+  it("is listed, being the author's own mistake", async () => {
+    const { shell } = await mounted();
+    window.prompt = () => "a/b";
+
+    shell.renderRoot
+      .querySelector("tc-menubar")!
+      .dispatchEvent(new CustomEvent("command", { detail: "new" }));
+    await settled(shell);
+
+    expect(listed(shell)).toEqual(["'a/b' cannot name a file"]);
   });
 });
 

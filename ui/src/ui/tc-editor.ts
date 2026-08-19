@@ -61,10 +61,13 @@ export class TcEditor extends LitElement {
    *  did not land. It reads in the band, not among the findings, which are the
    *  things the person drawing has to fix (#84). */
   @state() private trouble: string | null = null;
-  /** A name the drawing will not take. That one *is* the author's, so it is a
-   *  finding. It lives until the next accepted edit, the same lifetime it had
-   *  when it shared `trouble`: a refusal outliving what caused it would still
-   *  be listed against a drawing that no longer has the problem. */
+  /** A name no drawing can wear, said of the one asked for by `New…` or
+   *  `Save As…`. That one *is* the author's, so it is a finding. It lives
+   *  until the next accepted edit, the same lifetime it had when it shared
+   *  `trouble`: a refusal outliving what caused it would still be listed
+   *  against a drawing that no longer has the problem. A symbol name is
+   *  refused in the properties dialog instead, where it was typed, and never
+   *  reaches here (ADR-0023).  */
   @state() private naming: string | null = null;
   @state() private saved = true;
   @state() private menu: MenuAt | null = null;
@@ -143,6 +146,7 @@ export class TcEditor extends LitElement {
 
       <tc-properties
         .editing=${this.editing}
+        .taken=${Object.keys(this.editor.drawing.symbols)}
         @properties=${this.applied}
         @properties-closed=${() => {
           this.editing = null;
@@ -541,15 +545,13 @@ export class TcEditor extends LitElement {
     return said === null || said.trim() === "" ? null : said.trim();
   }
 
+  /** What the dialog handed back, which it only does for a name the drawing
+   *  can take: it asks `symbolTrouble` before it closes, so the document's own
+   *  guard has nothing left to catch here. */
   private applied(event: CustomEvent<Properties>): void {
     const { was, name, spec } = event.detail;
     this.editing = null;
-    this.naming = null;
-    if (!this.editor.edit(was, name, spec)) {
-      this.naming = `'${name}' is not a name this drawing can take`;
-      return;
-    }
-    this.edited();
+    if (this.editor.edit(was, name, spec)) this.edited();
   }
 
   // --- dragging a symbol off the palette -----------------------------------

@@ -31,7 +31,12 @@ import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/components/select/select.js";
 
 import { PINS } from "../symbols.generated.js";
-import { named, type AnyKind, type SymbolSpec } from "../model/drawing.js";
+import {
+  named,
+  symbolTrouble,
+  type AnyKind,
+  type SymbolSpec,
+} from "../model/drawing.js";
 import { propertiesStyles } from "./tc-properties.styles.js";
 
 /** What the dialog hands back: a new name where it changed, and the spec. */
@@ -49,6 +54,11 @@ export class TcProperties extends LitElement {
   @property({ attribute: false }) editing: { name: string; spec: SymbolSpec } | null =
     null;
 
+  /** Every name the drawing holds, the one being edited among them. What a
+   *  rename is refused against, the dialog being the only place a name is
+   *  typed. */
+  @property({ attribute: false }) taken: readonly string[] = [];
+
   @state() private draft: SymbolSpec = { kind: "block" };
   @state() private name = "";
 
@@ -63,18 +73,7 @@ export class TcProperties extends LitElement {
     if (this.editing === null) return nothing;
     return html`
       <sl-dialog open label="Properties" @sl-after-hide=${this.close}>
-        ${named(this.draft.kind)
-          ? html`
-              <sl-input
-                label="Name"
-                help-text="The id every transit through this symbol is prefixed with."
-                value=${this.name}
-                @sl-input=${(event: Event) => {
-                  this.name = (event.target as HTMLInputElement).value;
-                }}
-              ></sl-input>
-            `
-          : nothing}
+        ${named(this.draft.kind) ? this.named() : nothing}
         ${this.perKind()}
         <sl-button slot="footer" @click=${this.close}>Cancel</sl-button>
         <sl-button slot="footer" variant="primary" @click=${this.apply}>
@@ -82,6 +81,32 @@ export class TcProperties extends LitElement {
         </sl-button>
       </sl-dialog>
     `;
+  }
+
+  /** The name field, and why what is in it will not do. The reason stands
+   *  where the name was typed rather than in a panel across the screen, and it
+   *  is shown as it is typed rather than only on Apply. */
+  private named() {
+    const trouble = this.trouble;
+    return html`
+      <sl-input
+        class=${trouble === null ? "" : "refused"}
+        label="Name"
+        help-text=${trouble ??
+        "The id every transit through this symbol is prefixed with."}
+        value=${this.name}
+        @sl-input=${(event: Event) => {
+          this.name = (event.target as HTMLInputElement).value;
+        }}
+      ></sl-input>
+    `;
+  }
+
+  /** Why the typed name will not do, or `null` for one that will. Nothing to
+   *  say where the kind has no name to type (model/drawing.ts). */
+  private get trouble(): string | null {
+    if (this.editing === null || !named(this.draft.kind)) return null;
+    return symbolTrouble(this.name, this.editing.name, this.taken);
   }
 
   private perKind() {
@@ -143,6 +168,9 @@ export class TcProperties extends LitElement {
 
   private apply(): void {
     if (this.editing === null) return;
+    // A name the drawing will not take leaves the dialog open holding it, so
+    // it can be corrected where it was typed (ADR-0023).
+    if (this.trouble !== null) return;
     this.dispatchEvent(
       new CustomEvent<Properties>("properties", {
         detail: { was: this.editing.name, name: this.name, spec: tidy(this.draft) },
