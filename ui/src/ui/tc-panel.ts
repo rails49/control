@@ -45,6 +45,8 @@ import { pointOf } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { BLOCK, fitted } from "../render/units.js";
 import { panelStyles } from "./styles.js";
+import "./tc-header.js";
+import type { Mode } from "./tc-header.js";
 
 /** Where `tc49 live` puts the bridge. Overridable for a session somewhere
  *  else, which is the whole of the browser's configuration. */
@@ -324,6 +326,15 @@ export class TcPanel extends LitElement {
   override render() {
     const ready = this.panel !== null && this.replay !== null;
     return html`
+      <tc-header
+        .drawing=${this.drawing?.drawing ?? null}
+        .mode=${this.mode}
+        .trace=${this.traceName}
+        .trouble=${this.trouble}
+        .linked=${this.connected}
+        .tick=${this.stamp}
+      ></tc-header>
+
       <header>
         <sl-select
           size="small"
@@ -350,7 +361,6 @@ export class TcPanel extends LitElement {
           hidden
           @change=${(event: Event) => this.opened(event.target as HTMLInputElement)}
         />
-        <span>${this.traceName ?? nothing}</span>
         <sl-select
           size="small"
           placeholder="live session…"
@@ -364,11 +374,9 @@ export class TcPanel extends LitElement {
           )}
         </sl-select>
         <span class="spacer"></span>
-        ${this.trouble === null
-          ? nothing
-          : html`<span class="trouble">${this.trouble}</span>`}
-        ${this.session === null ? this.transport(ready) : this.standing()}
-        <span class="tick">${this.stamp()}</span>
+        ${this.session === null
+          ? this.transport(ready)
+          : html`<sl-button size="small" @click=${this.leave}>Leave</sl-button>`}
       </header>
       <main>${this.canvas()}</main>
     `;
@@ -406,18 +414,17 @@ export class TcPanel extends LitElement {
     `;
   }
 
-  private standing() {
-    return html`
-      <span class=${`link ${this.connected ? "joined" : "gone"}`}>
-        ${this.connected ? "live — drag a train" : "not connected"}
-      </span>
-      <sl-button size="small" @click=${this.leave}>Leave</sl-button>
-    `;
+  /** Which of the two exclusive sources (ADR-0016) is feeding the panel. A
+   *  session wins because joining one drops the replay; with neither, the
+   *  railroad on screen is a drawing nothing is running on. */
+  private get mode(): Mode {
+    if (this.session !== null) return "live";
+    return this.replay === null ? "unjoined" : "replay";
   }
 
-  private stamp(): string {
-    const tick = this.session === null ? (this.replay?.tick ?? null) : this.live?.tick;
-    return tick === null || tick === undefined ? "—" : `tick ${tick}`;
+  /** How far the run has got, from whichever source is feeding it. */
+  private get stamp(): number | null {
+    return (this.session === null ? this.replay?.tick : this.live?.tick) ?? null;
   }
 
   private canvas() {

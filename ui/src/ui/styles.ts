@@ -752,7 +752,7 @@ export const panelStyles = css`
     ${palette}
 
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     height: 100vh;
     background: var(--paper);
     color: var(--ink);
@@ -771,32 +771,11 @@ export const panelStyles = css`
     flex: 1;
   }
 
-  header .tick {
-    font-variant-numeric: tabular-nums;
-    color: var(--hint);
-    min-width: 4.5rem;
-    text-align: right;
-  }
-
   header label.rate {
     display: flex;
     gap: 0.4rem;
     align-items: center;
     color: var(--hint);
-  }
-
-  .trouble {
-    color: var(--wrong);
-  }
-
-  /* Whether the bridge is answering: the one thing a live session's header
-     says that a replay's does not. */
-  header .link.joined {
-    color: var(--lit);
-  }
-
-  header .link.gone {
-    color: var(--wrong);
   }
 
   main {
