@@ -15,11 +15,19 @@ pnpm install
 pnpm dev                   # the editor at /, the panel at /panel.html
 ```
 
-`../scripts/dev.sh` does both and starts only what is not already up, which is
-worth having because vite holds 5173 strictly: a second `pnpm dev` fails rather
-than moving to 5174, leaving an open tab talking to a server that has gone.
-Vite binds `[::1]`, so the pages are reached as `localhost` rather than
-`127.0.0.1`.
+`../scripts/dev.sh` does all of it and starts only what is not already up,
+which is worth having because vite holds 5173 strictly: a second `pnpm dev`
+fails rather than moving to 5174, leaving an open tab talking to a server that
+has gone. Vite binds `[::1]`, so the pages are reached as `localhost` rather
+than `127.0.0.1`.
+
+Given a scenario it also brings up the session the panel joins —
+`../scripts/dev.sh gotthard/meet` — a `tc49 live` on `ws://127.0.0.1:8766`,
+started `--no-store` because the store is already up and outlives any one
+session. Without a scenario there is no session, and the panel says so.
+
+`../scripts/dev.sh stop` puts down everything the script started and leaves
+alone anything it did not.
 
 The panel picks a railroad from the store and opens a trace file from disk —
 `tc49 bench crossover-yard/meet --trace Incremental` prints one — then plays
