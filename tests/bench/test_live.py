@@ -22,6 +22,7 @@ from websockets.sync.client import ClientConnection, connect
 
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.lib.bridge import Bridge
+from tc49.lib.bus import Payload
 from tc49.lib.inventory import INBOUND
 from tests.harness import events, load
 
@@ -91,6 +92,18 @@ def drag(
     return cast(str, events(assembly.trace, "request_submitted")[-1]["id"])
 
 
+# Every shape ADR-0036 drops: read rather than trusted, and dropped in
+# silence, a gesture carrying no id to address an answer to.
+UNCOMPOSABLE: list[object] = [
+    "freight_1 to yard_e",  # not an object at all
+    {},  # neither field
+    {"train": None, "dest": ["yard_e.A"]},  # no train
+    {"train": "freight_1", "dest": "yard_e.A"},  # dest a string, not ends
+    {"train": "freight_1", "dest": ["yard_e.A", 7]},  # not all ends
+    {"train": "ghost", "dest": ["yard_e.A"]},  # a train it holds no facing for
+]
+
+
 def test_the_timetable_is_off_and_facing_is_still_published(
     assembly: Assembly,
 ) -> None:
@@ -105,6 +118,31 @@ def test_the_timetable_is_off_and_facing_is_still_published(
     assert events(assembly.trace, "route_chosen") == []
     [placed] = events(assembly.trace, "facing")
     assert placed["facing"] == {"express_2": "up_e.A", "freight_1": "yard_w.B"}
+
+
+def test_the_session_survives_every_gesture_it_cannot_compose(
+    assembly: Assembly,
+) -> None:
+    """#107's lesson at the scheduler (ADR-0036): anything at all can be
+    published where a person's page writes, so each uncomposable shape in
+    turn, then an honest drag that runs to completion — the railroad ticked
+    through all of it, nothing was published in answer, and every frame is a
+    line in the trace by virtue of having been published."""
+    assembly.bus.drain()  # the startup cascade, so what follows is the answer
+    before = len(events(assembly.trace))
+    for payload in UNCOMPOSABLE:
+        assembly.bus.publish(INBOUND, cast(Payload, payload))
+        assembly.bus.drain()
+    assert events(assembly.trace, "request_submitted") == []
+    assert len(events(assembly.trace)) == before + len(UNCOMPOSABLE)
+
+    assembly.bus.publish(INBOUND, {"train": "freight_1", "dest": ["yard_e.A"]})
+    assembly.bus.drain()
+    tick_until(
+        assembly,
+        lambda: bool(events(assembly.trace, "request_completed", rid="freight_1-1")),
+    )
+    assert events(assembly.trace, "request_completed", rid="freight_1-1")
 
 
 def test_a_gesture_is_composed_answered_and_run_over_the_same_socket(
