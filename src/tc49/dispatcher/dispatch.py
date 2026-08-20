@@ -9,6 +9,7 @@ model). Standing locks are seeded from the scenario and published at
 startup. The locking discipline is the pluggable strategy of locking.py.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
@@ -120,6 +121,43 @@ def aspects(state: State) -> dict[str, str]:
     return shown
 
 
+def allocation(state: State, pending: Sequence[Request]) -> Payload:
+    """The run's picture: where every train stands, the lock table with its
+    holders, and every request still alive — carrying the route a committed
+    one is running.
+
+    A projection of the lock table and the queue, published beside its source
+    exactly as `aspects` is (ADR-0032). Everything a joining client draws is
+    here, because the events that built it were published before it connected
+    and an event topic is never replayed. Ordered by admission, and the maps
+    sorted, so the picture is a function of the state and not of a dict's
+    insertion history.
+    """
+    routes = {active.request.id: active.route for active in state.active.values()}
+    live = sorted(
+        [*pending, *(active.request for active in state.active.values())],
+        key=lambda request: request.seq,
+    )
+    return {
+        "trains": dict(sorted(state.block_of.items())),
+        "locks": dict(sorted(state.locks.items())),
+        "requests": [
+            {
+                "id": request.id,
+                "train": request.train,
+                "depart": request.depart,
+                "dest": list(request.arrivals),
+                **(
+                    {"route": routes[request.id].interleaved()}
+                    if request.id in routes
+                    else {}
+                ),
+            }
+            for request in live
+        ],
+    }
+
+
 class Dispatcher:
     def __init__(
         self, bus: Bus, layout: Layout, scenario: Scenario, strategy: LockingStrategy
@@ -145,6 +183,8 @@ class Dispatcher:
         self._phases = 0  # grant phases run; stamps admissions for grant order
         self._buffered: list[tuple[str, str]] = []  # (leaf, block) since last tick
         self._aspects: dict[str, str] = {}  # last published, so only changes go
+        self._allocation: Payload = {}  # likewise: the picture, when it moves
+        self._publish_allocation()
         bus.subscribe("tc49/layout/+", self._on_layout)
         bus.subscribe("tc49/schedule/request_submitted", self._on_request)
 
@@ -211,6 +251,7 @@ class Dispatcher:
             "tc49/dispatch/request_admitted",
             {"id": rid, "dest": surviving, "pruned": pruned},
         )
+        self._publish_allocation()
 
     def _expected_block(self, train: str) -> str | None:
         """Where the train stands, active route or not (#99) — None when an
@@ -292,6 +333,7 @@ class Dispatcher:
                 waiting.add(req.train)
                 self._launch(req, result)
         self._publish_aspects()
+        self._publish_allocation()
 
     def _apply_sensors(self) -> None:
         """The buffered set, in canonical order — never delivery order."""
@@ -409,6 +451,15 @@ class Dispatcher:
         if shown != self._aspects:
             self._aspects = shown
             self._publish("state/aspects", {"aspects": shown})
+
+    def _publish_allocation(self) -> None:
+        """The run's picture, on a last-value topic, when any of what it
+        carries has moved. Published from the two places that move it: a
+        request joining the queue, and the grant phase that runs it."""
+        picture = allocation(self._state, self._pending)
+        if picture != self._allocation:
+            self._allocation = picture
+            self._publish("state/allocation", picture)
 
     def _publish(self, leaf: str, payload: Payload) -> None:
         self._bus.publish(f"tc49/dispatch/{leaf}", payload)
