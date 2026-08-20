@@ -156,8 +156,8 @@ export class TcEditor extends LitElement {
   /** The one thing the editor asks rather than does. Edits the store has not
    *  been given are the operator's, and a menu click is a thin thing to lose
    *  an evening's drawing to (#101), so what would discard them says so and
-   *  waits. It is the dialog the properties are edited in, not a native
-   *  `confirm`, which the page cannot style and a browser may suppress. */
+   *  waits. It is a dialog of the editor's own, not a native `confirm`, which
+   *  the page cannot style and a browser may suppress. */
   private question(wanted: string | null) {
     // Nothing is open until a drawing is chosen, and what is drawn on the
     // canvas before that is still an evening's work.

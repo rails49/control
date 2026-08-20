@@ -299,8 +299,8 @@ export class TcCanvas extends LitElement {
    * with a drag as the label does.
    *
    * Which symbols wear one is `Editor.unaddressed`, read off the open drawing:
-   * no review is asked, so the mark goes on the keystroke that types an
-   * address.
+   * no review is asked, so the mark clears as soon as the drawing has the
+   * address, which is when the properties dialog applies its draft.
    */
   private unaddressed(spec: SymbolSpec): unknown {
     const [c, r] = spec.at ?? [0, 0];
