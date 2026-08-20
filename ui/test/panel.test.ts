@@ -406,6 +406,24 @@ describe("the run's picture", () => {
     expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
   });
 
+  it("leaves a rejection standing, the picture never carrying one", () => {
+    // A rejection is the panel's whole answer to a filter-free drag, and the
+    // dispatcher does not hold the request it refused. Letting the next
+    // picture wipe the marker would take the reason off the screen the moment
+    // anything else on the railroad moved.
+    const model = panel();
+    feed(
+      model,
+      { event: "request_submitted", id: "t1-9", train: "t1", depart: "a.B", dest: ["b.A"] },
+      { event: "request_rejected", id: "t1-9", reason: "unreachable" },
+      PICTURE,
+    );
+    expect(model.markers().filter((marker) => marker.id === "t1-9")).toEqual([
+      { id: "t1-9", train: "t1", at: "a.B", role: "rejected", note: "no path exists" },
+      { id: "t1-9", train: "t1", at: "b.A", role: "rejected" },
+    ]);
+  });
+
   it("forgets a request the picture no longer carries", () => {
     const model = panel();
     feed(model, PICTURE, { ...PICTURE, requests: [] });

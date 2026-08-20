@@ -279,8 +279,16 @@ export class Panel {
           const toward = this.heading.get(train)?.toward;
           if (toward !== undefined) this.heading.set(train, { block, toward });
         }
-        this.requests = new Map(
-          requests.map((request) => [
+        // A rejection is not in the picture — the dispatcher does not hold
+        // the request it refused — and stays until the train is dragged
+        // again, so the reason does not leave the screen the moment anything
+        // else on the railroad moves.
+        const refused = [...this.requests].filter(
+          ([, request]) => request.phase === "rejected",
+        );
+        this.requests = new Map([
+          ...refused,
+          ...requests.map((request): [string, Request] => [
             request.id,
             {
               ...request,
@@ -290,7 +298,7 @@ export class Panel {
               phase: request.route === undefined ? "admitted" : "committed",
             },
           ]),
-        );
+        ]);
         this.started = true;
         return;
       }
