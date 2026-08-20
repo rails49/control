@@ -77,15 +77,15 @@ class Bridge:
                 pass  # its handler thread is already on the way out
 
     def _serve_client(self, connection: ServerConnection) -> None:
-        with self._clients_lock:
-            # Under the same lock the relay takes, so a frame published while
-            # this runs either lands in the last values sent here or is
-            # relayed after: a client is never served a picture that has
-            # already been overtaken by the events it sits behind.
-            for topic, payload in self._bus.last_values.items():
-                connection.send(json.dumps({"topic": topic, "payload": payload}))
-            self._clients.add(connection)
         try:
+            with self._clients_lock:
+                # Under the same lock the relay takes, so a frame published
+                # while this runs either lands in the last values sent here or
+                # is relayed after: a client is never served a picture that
+                # has already been overtaken by the events it sits behind.
+                for topic, payload in self._bus.last_values.items():
+                    connection.send(json.dumps({"topic": topic, "payload": payload}))
+                self._clients.add(connection)
             for message in connection:
                 self._receive(connection, message)
         except ConnectionClosed:

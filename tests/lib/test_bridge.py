@@ -178,7 +178,11 @@ def test_a_client_that_vanishes_leaves_quietly(
 ) -> None:
     """A reloaded or discarded browser tab goes without a close handshake.
     That is a client leaving, and it must not put a traceback in the session's
-    log — the log is what an operator running `tc49 live` reads."""
+    log — the log is what an operator running `tc49 live` reads. It can go
+    while it is being served the last values, too, which is why that send sits
+    inside the same guard."""
+    bus.publish("tc49/dispatch/state/aspects", {"aspects": {}})
+    bus.drain()
     with caplog.at_level(logging.ERROR):
         client = connect(f"ws://127.0.0.1:{bridge.port}")
         settled(bridge, 1)
