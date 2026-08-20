@@ -17,11 +17,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import "../src/ui/tc-editor.js";
 import type { Drawing } from "../src/model/drawing.js";
 import type { Editor } from "../src/model/editor.js";
-import type { Review } from "../src/model/store.js";
 import type { TcEditor } from "../src/ui/tc-editor.js";
 import type { TcHeader } from "../src/ui/tc-header.js";
 import type { TcProperties } from "../src/ui/tc-properties.js";
 import type SlInput from "@shoelace-style/shoelace/dist/components/input/input.js";
+import { mounted, serving, session, settled } from "./support/shell.js";
 
 /** Two symbols, so a rename onto a taken name has something to collide with. */
 const DRAWING: Drawing = {
@@ -30,43 +30,18 @@ const DRAWING: Drawing = {
   wires: [],
 };
 
-/** A drawing the store is happy with: nothing to report. */
-const CLEAN: Review = {
-  red_pins: [],
-  unpaired_portals: [],
-  junctions: [],
-  joints: [],
-  motor_faults: [],
-  layout: null,
-  explain: null,
-  refused: null,
-  offending: [],
-};
-
-/** What `/review` answers with, swapped per test. Rejecting stands for a store
- *  that is not running. */
-let answer: () => Promise<unknown>;
-
 beforeEach(() => {
-  answer = () => Promise.resolve(CLEAN);
-  globalThis.fetch = ((path: string) => {
-    const payload = path === "/review" ? answer() : Promise.resolve({ drawings: [] });
-    return payload.then(
-      (body) => ({ ok: true, json: () => Promise.resolve(body) }) as unknown as Response,
-    );
-  }) as unknown as typeof fetch;
+  serving();
 });
 
 /** A mounted editor holding the drawing above, with the review it asks for on
  *  load already answered: that answer clears the band, so a test that raced it
  *  would be testing the timing and not the refusal. */
-async function mounted() {
-  const shell = document.createElement("tc-editor");
-  document.body.append(shell);
-  await settled(shell);
-  const session = (shell as unknown as { editor: Editor }).editor;
-  session.reset(structuredClone(DRAWING));
-  return { shell, session };
+async function holding(): Promise<{ shell: TcEditor; editing: Editor }> {
+  const shell = await mounted();
+  const editing = session(shell);
+  editing.reset(structuredClone(DRAWING));
+  return { shell, editing };
 }
 
 /** The band across the top, which is where the editor says what it could not
@@ -75,16 +50,10 @@ function band(shell: TcEditor): TcHeader {
   return shell.renderRoot.querySelector("tc-header")!;
 }
 
-/** Let the review in flight settle, then let Lit paint what it said. */
-async function settled(shell: { updateComplete: Promise<boolean> }): Promise<void> {
-  for (let turn = 0; turn < 5; turn++) await Promise.resolve();
-  await shell.updateComplete;
-}
-
 /** The properties dialog, opened on the one selected symbol the way the
  *  `Properties…` command opens it. */
-async function opened(shell: TcEditor, session: Editor, name: string) {
-  session.select([name]);
+async function opened(shell: TcEditor, editing: Editor, name: string) {
+  editing.select([name]);
   shell.renderRoot
     .querySelector("tc-menubar")!
     .dispatchEvent(new CustomEvent("command", { detail: "properties" }));
@@ -126,20 +95,20 @@ async function apply(dialog: TcProperties): Promise<void> {
  */
 describe("a name the drawing will not take", () => {
   it("is refused with the dialog still open", async () => {
-    const { shell, session } = await mounted();
-    const dialog = await opened(shell, session, "b1");
+    const { shell, editing } = await holding();
+    const dialog = await opened(shell, editing, "b1");
 
     await typed(dialog, field(dialog), "sw1");
     await apply(dialog);
     await settled(shell);
 
     expect(dialog.renderRoot.querySelector("sl-dialog")).not.toBeNull();
-    expect(session.drawing.symbols).toHaveProperty("b1");
+    expect(editing.drawing.symbols).toHaveProperty("b1");
   });
 
   it("stays in the field, to be edited rather than retyped", async () => {
-    const { shell, session } = await mounted();
-    const dialog = await opened(shell, session, "b1");
+    const { shell, editing } = await holding();
+    const dialog = await opened(shell, editing, "b1");
 
     await typed(dialog, field(dialog), "sw1");
     await apply(dialog);
@@ -148,8 +117,8 @@ describe("a name the drawing will not take", () => {
   });
 
   it("says which name is taken, beside the field it was typed in", async () => {
-    const { shell, session } = await mounted();
-    const dialog = await opened(shell, session, "b1");
+    const { shell, editing } = await holding();
+    const dialog = await opened(shell, editing, "b1");
 
     await typed(dialog, field(dialog), "sw1");
 
@@ -159,8 +128,8 @@ describe("a name the drawing will not take", () => {
   });
 
   it("refuses a name that is not a legal key the same way", async () => {
-    const { shell, session } = await mounted();
-    const dialog = await opened(shell, session, "b1");
+    const { shell, editing } = await holding();
+    const dialog = await opened(shell, editing, "b1");
 
     await typed(dialog, field(dialog), "b1.A");
     await apply(dialog);
@@ -173,8 +142,8 @@ describe("a name the drawing will not take", () => {
    *  read across the screen is what ADR-0023 took away, and the band would be
    *  the same mistake in a new place. */
   it("says nothing in the band, which is not where a symbol is named", async () => {
-    const { shell, session } = await mounted();
-    const dialog = await opened(shell, session, "b1");
+    const { shell, editing } = await holding();
+    const dialog = await opened(shell, editing, "b1");
 
     await typed(dialog, field(dialog), "sw1");
     await apply(dialog);
@@ -186,24 +155,24 @@ describe("a name the drawing will not take", () => {
   /** A refusal never reaches the document, so there is no snapshot of it to
    *  undo back past. */
   it("leaves nothing behind for undo to take back", async () => {
-    const { shell, session } = await mounted();
-    const dialog = await opened(shell, session, "b1");
+    const { shell, editing } = await holding();
+    const dialog = await opened(shell, editing, "b1");
 
     await typed(dialog, field(dialog), "sw1");
     await apply(dialog);
 
-    expect(session.canUndo).toBe(false);
+    expect(editing.canUndo).toBe(false);
   });
 
   it("closes on a name the drawing can take, having renamed the symbol", async () => {
-    const { shell, session } = await mounted();
-    const dialog = await opened(shell, session, "b1");
+    const { shell, editing } = await holding();
+    const dialog = await opened(shell, editing, "b1");
 
     await typed(dialog, field(dialog), "claro_1");
     await apply(dialog);
     await settled(shell);
 
-    expect(Object.keys(session.drawing.symbols).sort()).toEqual([
+    expect(Object.keys(editing.drawing.symbols).sort()).toEqual([
       "claro_1",
       "sw1",
     ]);

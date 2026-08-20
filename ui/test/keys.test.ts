@@ -10,14 +10,16 @@
  * real one exercises it.
  */
 
-import { afterEach, beforeAll, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 
 import "../src/ui/tc-editor.js";
 import type { Drawing } from "../src/model/drawing.js";
 import type { Editor } from "../src/model/editor.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
+import type { TcEditor } from "../src/ui/tc-editor.js";
 import type { TcMenubar } from "../src/ui/tc-menubar.js";
+import { mounted, serving, session } from "./support/shell.js";
 
 /** One turnout, selected, the way the right-click that opens the properties
  *  dialog leaves it. */
@@ -27,11 +29,10 @@ const DRAWING: Drawing = {
   wires: [],
 };
 
-beforeAll(() => {
+beforeEach(() => {
   // The shell asks the store what it has the moment it is connected, and no
   // store is running here.
-  globalThis.fetch = (() =>
-    Promise.reject(new Error("no store"))) as typeof fetch;
+  serving({ broken: new Error("no store") });
 });
 
 // A shell listens on the window for as long as it is in the page, so one left
@@ -43,22 +44,20 @@ afterEach(() => {
 
 /** A mounted editor holding one selected turnout, and a Shoelace input to
  *  type into, standing in for the properties dialog's name field. */
-async function mounted(): Promise<{
-  shell: HTMLElement & { updateComplete: Promise<boolean>; renderRoot: ParentNode };
-  session: Editor;
+async function holding(): Promise<{
+  shell: TcEditor;
+  editing: Editor;
   field: HTMLInputElement;
 }> {
-  const shell = document.createElement("tc-editor");
-  document.body.append(shell);
-  await shell.updateComplete;
-  const session = (shell as unknown as { editor: Editor }).editor;
-  session.reset(structuredClone(DRAWING));
-  session.select(["sw1"]);
+  const shell = await mounted();
+  const editing = session(shell);
+  editing.reset(structuredClone(DRAWING));
+  editing.select(["sw1"]);
 
   const control = document.createElement("sl-input");
   document.body.append(control);
   await control.updateComplete;
-  return { shell, session, field: control.shadowRoot!.querySelector("input")! };
+  return { shell, editing, field: control.shadowRoot!.querySelector("input")! };
 }
 
 /** The bar's `File` menu, put down the way a pointer puts it down. */
@@ -105,29 +104,29 @@ function key(
 }
 
 test("a name typed into a control does not turn the selection", async () => {
-  const { session, field } = await mounted();
-  const was = structuredClone(session.drawing.symbols["sw1"]);
+  const { editing, field } = await holding();
+  const was = structuredClone(editing.drawing.symbols["sw1"]);
 
   for (const letter of "far_frog") key(field, letter);
 
-  expect(session.drawing.symbols["sw1"]).toEqual(was);
+  expect(editing.drawing.symbols["sw1"]).toEqual(was);
 });
 
 test("backspace in a control neither deletes the symbol nor is swallowed", async () => {
-  const { session, field } = await mounted();
+  const { editing, field } = await holding();
 
   const event = key(field, "Backspace");
 
-  expect(session.drawing.symbols["sw1"]).toBeDefined();
+  expect(editing.drawing.symbols["sw1"]).toBeDefined();
   expect(event.defaultPrevented).toBe(false);
 });
 
 test("the same keys still reach the canvas from outside a control", async () => {
-  const { session } = await mounted();
+  const { editing } = await holding();
 
   key(window, "r");
 
-  expect(session.drawing.symbols["sw1"]!.rot).toBe(90);
+  expect(editing.drawing.symbols["sw1"]!.rot).toBe(90);
 });
 
 /**
@@ -136,28 +135,28 @@ test("the same keys still reach the canvas from outside a control", async () => 
  * Escape would clear it rather than closing the menu (#85).
  */
 test("the canvas keys do not reach it while a menu is down", async () => {
-  const { shell, session } = await mounted();
+  const { shell, editing } = await holding();
   const asked = views(shell);
   await opened(shell);
-  const was = structuredClone(session.drawing.symbols["sw1"]);
+  const was = structuredClone(editing.drawing.symbols["sw1"]);
 
   for (const name of ["r", "f", "Delete", "Backspace", "0", "+", "-"]) {
     key(window, name);
   }
 
-  expect(session.drawing.symbols["sw1"]).toEqual(was);
+  expect(editing.drawing.symbols["sw1"]).toEqual(was);
   expect(asked()).toBe(0);
 });
 
 test("escape closes the menu rather than clearing the selection", async () => {
-  const { shell, session } = await mounted();
+  const { shell, editing } = await holding();
   const bar = await opened(shell);
 
   key(window, "Escape");
   await bar.updateComplete;
 
   expect(bar.renderRoot.querySelector("menu")).toBeNull();
-  expect([...session.selection]).toEqual(["sw1"]);
+  expect([...editing.selection]).toEqual(["sw1"]);
 });
 
 /**
@@ -167,23 +166,23 @@ test("escape closes the menu rather than clearing the selection", async () => {
  * (#85).
  */
 test("a shortcut printed in the menu runs the command and takes the menu up", async () => {
-  const { shell, session } = await mounted();
+  const { shell, editing } = await holding();
   key(window, "r");
-  const turned = structuredClone(session.drawing.symbols["sw1"]);
+  const turned = structuredClone(editing.drawing.symbols["sw1"]);
   const bar = await opened(shell);
 
   const event = key(window, "z", { meta: true });
   await bar.updateComplete;
 
   expect(event.defaultPrevented).toBe(true);
-  expect(session.drawing.symbols["sw1"]).not.toEqual(turned);
+  expect(editing.drawing.symbols["sw1"]).not.toEqual(turned);
   expect(bar.renderRoot.querySelector("menu")).toBeNull();
 });
 
 /** ⌘S under an open `File` is the editor's save, so Chrome's "Save page as…"
  *  never opens over the app. */
 test("save's key is taken from the browser while a menu is down", async () => {
-  const { shell } = await mounted();
+  const { shell } = await holding();
   await opened(shell);
 
   const event = key(window, "s", { meta: true });
@@ -192,12 +191,12 @@ test("save's key is taken from the browser while a menu is down", async () => {
 });
 
 test("the same keys reach the canvas again once the menu is up", async () => {
-  const { shell, session } = await mounted();
+  const { shell, editing } = await holding();
   const bar = await opened(shell);
   key(window, "Escape");
   await bar.updateComplete;
 
   key(window, "r");
 
-  expect(session.drawing.symbols["sw1"]!.rot).toBe(90);
+  expect(editing.drawing.symbols["sw1"]!.rot).toBe(90);
 });

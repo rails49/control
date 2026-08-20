@@ -14,9 +14,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-editor.js";
 import type { Drawing } from "../src/model/drawing.js";
-import type { Editor } from "../src/model/editor.js";
-import type { Review } from "../src/model/store.js";
 import type { TcEditor } from "../src/ui/tc-editor.js";
+import { mounted, serving, session, settled } from "./support/shell.js";
 
 /** A drawing a red pin short of nothing, one per name the store has. */
 function stored(name: string): Drawing {
@@ -27,36 +26,12 @@ function stored(name: string): Drawing {
   };
 }
 
-/** A drawing the store is happy with: nothing to report. */
-const CLEAN: Review = {
-  red_pins: [],
-  unpaired_portals: [],
-  junctions: [],
-  joints: [],
-  motor_faults: [],
-  layout: null,
-  explain: null,
-  refused: null,
-  offending: [],
-};
-
 /** What the operator types when `File ▸ New…` asks for a name. */
 const NAMED = "arth-goldau";
 
 beforeEach(() => {
   window.prompt = () => NAMED;
-  globalThis.fetch = ((path: string) => {
-    const body =
-      path === "/review"
-        ? CLEAN
-        : path === "/drawings"
-          ? { drawings: ["gotthard", "otira"] }
-          : stored(path.slice("/drawings/".length));
-    return Promise.resolve({
-      ok: true,
-      json: () => Promise.resolve(body),
-    } as unknown as Response);
-  }) as unknown as typeof fetch;
+  serving({ drawings: ["gotthard", "otira"], read: stored });
 });
 
 // A shell listens on the window for as long as it is in the page, so one left
@@ -65,27 +40,12 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-/** Let the reviews and reads in flight settle, then let Lit paint what they
- *  said — the band included, the dot being what it draws. */
-async function settled(shell: TcEditor): Promise<void> {
-  for (let turn = 0; turn < 10; turn++) await Promise.resolve();
-  await shell.updateComplete;
-  await shell.renderRoot.querySelector("tc-header")!.updateComplete;
-}
-
 /** A mounted editor with `gotthard` open and saved, which is where every test
  *  here starts. */
-async function mounted(): Promise<TcEditor> {
-  const shell = document.createElement("tc-editor");
-  document.body.append(shell);
-  await settled(shell);
+async function opened(): Promise<TcEditor> {
+  const shell = await mounted();
   await choose(shell, "gotthard");
   return shell;
-}
-
-/** The session the shell is editing. */
-function session(shell: TcEditor): Editor {
-  return (shell as unknown as { editor: Editor }).editor;
 }
 
 /** Choose a drawing on the bar, which is the one way one is opened. */
@@ -139,7 +99,7 @@ function unsaved(shell: TcEditor): boolean {
 
 describe("opening a drawing over unsaved edits", () => {
   it("asks before anything is read or reset", async () => {
-    const shell = await mounted();
+    const shell = await opened();
     await drawn(shell);
 
     await choose(shell, "otira");
@@ -151,7 +111,7 @@ describe("opening a drawing over unsaved edits", () => {
   /** Declining costs nothing at all: the same drawing, the same edits, the
    *  same dot, and undo still holding the step that made them. */
   it("leaves everything as it was when the edits are kept", async () => {
-    const shell = await mounted();
+    const shell = await opened();
     await drawn(shell);
     await choose(shell, "otira");
 
@@ -165,7 +125,7 @@ describe("opening a drawing over unsaved edits", () => {
   });
 
   it("opens the drawing chosen once the edits are given up", async () => {
-    const shell = await mounted();
+    const shell = await opened();
     await drawn(shell);
     await choose(shell, "otira");
 
@@ -180,7 +140,7 @@ describe("opening a drawing over unsaved edits", () => {
   /** The question names both drawings: the one about to be thrown away and
    *  the one asked for. */
   it("names what is at stake and what was asked for", async () => {
-    const shell = await mounted();
+    const shell = await opened();
     await drawn(shell);
 
     await choose(shell, "otira");
@@ -192,9 +152,7 @@ describe("opening a drawing over unsaved edits", () => {
   /** Nothing is open until a drawing is chosen, and what is drawn before that
    *  is worth the same question — under a name the band does not have. */
   it("asks about a canvas drawn on before anything was opened", async () => {
-    const shell = document.createElement("tc-editor");
-    document.body.append(shell);
-    await settled(shell);
+    const shell = await mounted();
     await drawn(shell);
 
     await choose(shell, "otira");
@@ -205,7 +163,7 @@ describe("opening a drawing over unsaved edits", () => {
   /** The question is modal, so Escape is its: it declines, and the selection
    *  behind it is not the canvas's to clear on the way. */
   it("takes Escape as a refusal, and the canvas hears nothing", async () => {
-    const shell = await mounted();
+    const shell = await opened();
     await drawn(shell);
     await choose(shell, "otira");
 
@@ -218,7 +176,7 @@ describe("opening a drawing over unsaved edits", () => {
   });
 
   it("opens straight away when there is nothing to lose", async () => {
-    const shell = await mounted();
+    const shell = await opened();
 
     await choose(shell, "otira");
 
@@ -231,7 +189,7 @@ describe("starting a new drawing over unsaved edits", () => {
   /** The name is asked for after the edits are, not before: a prompt answered
    *  and then a discard declined would have asked for nothing. */
   it("asks before anything is reset, and asks for no name yet", async () => {
-    const shell = await mounted();
+    const shell = await opened();
     await drawn(shell);
     let asks = 0;
     window.prompt = () => {
@@ -247,7 +205,7 @@ describe("starting a new drawing over unsaved edits", () => {
   });
 
   it("leaves everything as it was when the edits are kept", async () => {
-    const shell = await mounted();
+    const shell = await opened();
     await drawn(shell);
     await fresh(shell);
 
@@ -260,7 +218,7 @@ describe("starting a new drawing over unsaved edits", () => {
   });
 
   it("empties the canvas under the new name once they are given up", async () => {
-    const shell = await mounted();
+    const shell = await opened();
     await drawn(shell);
     await fresh(shell);
 
@@ -271,7 +229,7 @@ describe("starting a new drawing over unsaved edits", () => {
   });
 
   it("starts one straight away when there is nothing to lose", async () => {
-    const shell = await mounted();
+    const shell = await opened();
 
     await fresh(shell);
 

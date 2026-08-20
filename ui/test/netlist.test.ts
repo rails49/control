@@ -18,9 +18,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-editor.js";
 import type { Drawing } from "../src/model/drawing.js";
-import type { Review } from "../src/model/store.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { TcEditor } from "../src/ui/tc-editor.js";
+import { mounted, serving, settled } from "./support/shell.js";
 
 const DRAWING: Drawing = {
   drawing: "gotthard",
@@ -28,47 +28,10 @@ const DRAWING: Drawing = {
   wires: [],
 };
 
-/** A drawing the store is happy with. */
-const CLEAN: Review = {
-  red_pins: [],
-  unpaired_portals: [],
-  junctions: [],
-  joints: [],
-  motor_faults: [],
-  layout: null,
-  explain: null,
-  refused: null,
-  offending: [],
-};
-
 beforeEach(() => {
   document.body.replaceChildren();
-  globalThis.fetch = ((path: string) => {
-    const body =
-      path === "/drawings"
-        ? { drawings: ["gotthard"] }
-        : path === "/review"
-          ? CLEAN
-          : DRAWING;
-    return Promise.resolve({
-      ok: true,
-      json: () => Promise.resolve(body),
-    } as unknown as Response);
-  }) as unknown as typeof fetch;
+  serving({ drawings: ["gotthard"], read: () => DRAWING });
 });
-
-/** Let the store answers in flight settle, then let Lit paint what they said. */
-async function settled(shell: TcEditor): Promise<void> {
-  for (let turn = 0; turn < 8; turn++) await Promise.resolve();
-  await shell.updateComplete;
-}
-
-async function mounted(): Promise<TcEditor> {
-  const shell = document.createElement("tc-editor");
-  document.body.append(shell);
-  await settled(shell);
-  return shell;
-}
 
 /** The shell with `gotthard` open, which is what the netlist item needs to be
  *  alive at all. */
