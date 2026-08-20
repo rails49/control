@@ -11,7 +11,7 @@ the ordering is a function of `(layout, state)` and stays deterministic.
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 
-from tc49.lib.layout import Layout
+from tc49.lib.layout import Layout, block_of, opposite_end
 
 
 @dataclass(frozen=True)
@@ -35,11 +35,6 @@ class Route:
         return [self.blocks[0], *self.crossing_order()]
 
 
-def other_end(end: str) -> str:
-    block, _, letter = end.rpartition(".")
-    return f"{block}.{'B' if letter == 'A' else 'A'}"
-
-
 def candidates(
     layout: Layout,
     origin: str,
@@ -55,7 +50,7 @@ def candidates(
         exit_end: str, blocks: tuple[str, ...], transits: tuple[str, ...]
     ) -> None:
         for transit, far_end in layout.transits_at(exit_end):
-            far_block = far_end.rpartition(".")[0]
+            far_block = block_of(far_end)
             if transit in transits or far_block in blocks:
                 continue  # simple path
             if layout.blocks[far_block] < train_length:
@@ -63,7 +58,7 @@ def candidates(
             path = (blocks + (far_block,), transits + (transit,))
             if far_end in arrivals:
                 routes.append(Route(*path))
-            extend(other_end(far_end), *path)
+            extend(opposite_end(far_end), *path)
 
     extend(depart_end, (origin,), ())
     routes.sort(

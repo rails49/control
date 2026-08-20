@@ -22,7 +22,7 @@ from typing import cast
 from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.layout import Layout
+from tc49.lib.layout import Layout, block_of
 from tc49.lib.payload import gesture
 from tc49.lib.rejection import Reason
 from tc49.lib.scenario import Scenario
@@ -103,7 +103,7 @@ def departure_end(layout: Layout, block: str, transit: str) -> str:
     that transit departs through, and so the signal the aspect belongs to."""
     connection, _, name = transit.partition(".")
     first, second = layout.connections[connection].transits[name]
-    return first if first.rpartition(".")[0] == block else second
+    return first if block_of(first) == block else second
 
 
 def aspects(state: State) -> dict[str, str]:
@@ -278,7 +278,7 @@ class Dispatcher:
         surviving: list[str] = []
         pruned: list[dict[str, str]] = []
         for end in request.dest:
-            block = end.rpartition(".")[0]
+            block = block_of(end)
             if block == expected:
                 # Possibly degenerate — the request names the block the train
                 # stands in, accepted whichever end it names (DISPATCH.md);
@@ -329,9 +329,9 @@ class Dispatcher:
         only the dispatcher holds, so it is answered rather than raised, and
         it is not `wrong_origin`: the train is not standing there, but
         neither is anything else."""
-        blocks = [end.rpartition(".")[0] for end in request.dest]
+        blocks = [block_of(end) for end in request.dest]
         if "." in request.depart:
-            blocks.append(request.depart.rpartition(".")[0])
+            blocks.append(block_of(request.depart))
         return any(block not in self._state.layout.blocks for block in blocks)
 
     def _expected_block(self, train: str) -> str | None:
@@ -348,7 +348,7 @@ class Dispatcher:
         disagree."""
         if "." not in depart or expected is None:
             return False
-        return depart.rpartition(".")[0] != expected
+        return block_of(depart) != expected
 
     # -- the grant phase ---------------------------------------------------
 
@@ -384,7 +384,7 @@ class Dispatcher:
             if req.train in waiting:
                 continue
             origin = state.block_of[req.train]
-            if any(end.rpartition(".")[0] == origin for end in req.arrivals):
+            if any(block_of(end) == origin for end in req.arrivals):
                 # Degenerate: already standing in an arrival block, whichever
                 # end that arrival names. Empty route, complete in this phase.
                 self._pending.remove(req)
