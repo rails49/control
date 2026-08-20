@@ -883,6 +883,19 @@ editor per call and answers with an outcome the component maps onto rendering
 and events; the component keeps the pixel conversion and the viewBox, and
 `gesture.test.ts` drives the rules from grid points.
 
+The same happened to the shell. `tc-editor.ts` had grown a drawing lifecycle —
+new, open, save, save as, the names it refuses, and the `/review` it re-asks on
+every edit — that six test files could only reach by mounting the component,
+stubbing `fetch` and `window.prompt`, and casting through it to its private
+`Editor`. It is now `model/filing.ts` (#105), which owns what is open, whether
+it is saved, what the store last said, and what went wrong: files and review
+together, because a refusal and the unsaved dot are written from both and
+splitting them puts the pair back in the shell. It takes the store as a
+dependency so a test hands it a fake rather than forging an HTTP answer, and
+takes the editor per call as `Gesture` does. The prompt stays in the component,
+a modal question being the DOM's; the component asks and `Filing` vets what
+came back.
+
 On the Python side: the endpoints, `explain()`, and a round trip asserting a
 loaded and saved drawing keeps its comments.
 
