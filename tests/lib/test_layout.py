@@ -125,6 +125,6 @@ def test_points_must_name_a_transit_the_connection_has() -> None:
 
 def test_a_position_is_one_of_the_two_a_motor_answers_to() -> None:
     doc = minimal_layout()
-    doc["connections"]["j"]["points"] = {"ab": [{"addr": "12", "position": "curved"}]}
-    with pytest.raises(ValueError, match="curved"):
+    doc["connections"]["j"]["points"] = {"ab": [{"addr": "12", "position": "sideways"}]}
+    with pytest.raises(ValueError, match="sideways"):
         Layout.from_document(doc)
