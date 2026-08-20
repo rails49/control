@@ -320,6 +320,90 @@ describe("signals", () => {
   });
 });
 
+/**
+ * Joining a running session (#106, ADR-0032). The dispatcher publishes its
+ * picture on `state/allocation` and the relay hands a connecting client each
+ * state topic's last value, so the page opens on where the railroad *is*
+ * rather than on where the scenario says it started.
+ */
+describe("the run's picture", () => {
+  const PICTURE = {
+    event: "allocation",
+    trains: { t1: "b" },
+    locks: { b: "t1", "jt.back": "t1", c: "t1" },
+    requests: [
+      {
+        id: "t1-7",
+        train: "t1",
+        depart: "b.B",
+        dest: ["c.B"],
+        route: ["b", "jt.back", "c"],
+      },
+    ],
+  };
+
+  it("stands the trains where it says, and holds what it says is held", () => {
+    const model = panel();
+    feed(model, PICTURE);
+    expect(model.blocks().get("b")).toMatchObject({ state: "occupied", train: "t1" });
+    expect(model.blocks().get("c")).toMatchObject({ state: "reserved", train: "t1" });
+    expect(model.blocks().get("a")).toMatchObject({ state: "free" });
+  });
+
+  it("draws a committed route from the request that owns it", () => {
+    const model = panel();
+    feed(model, PICTURE);
+    expect(model.litLegs()).toEqual(new Map([["p2", new Set([WHOLE])]]));
+  });
+
+  it("marks a live request that has not been committed", () => {
+    const model = panel();
+    feed(model, {
+      event: "allocation",
+      trains: { t1: "a" },
+      locks: { a: "t1" },
+      requests: [{ id: "t1-7", train: "t1", depart: "a.B", dest: ["b.A", "c.A"] }],
+    });
+    expect(model.markers()).toEqual([
+      { id: "t1-7", train: "t1", at: "a.B", role: "depart" },
+      { id: "t1-7", train: "t1", at: "b.A", role: "arrival" },
+      { id: "t1-7", train: "t1", at: "c.A", role: "arrival" },
+    ]);
+  });
+
+  it("supersedes the scenario, which says where the railroad started", () => {
+    // The page reads the scenario before the socket opens, so the picture
+    // arrives second and has the last word: a train the run has moved is
+    // drawn where it now stands, and a drag departs from there.
+    const model = panel();
+    model.place({ t1: { at: "a", facing: "B" } });
+    feed(model, PICTURE);
+    expect(model.blocks().get("a")).toMatchObject({ state: "free" });
+    expect(model.blocks().get("b")).toMatchObject({ train: "t1", toward: "B" });
+    expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
+  });
+
+  it("forgets a request the picture no longer carries", () => {
+    const model = panel();
+    feed(model, PICTURE, { ...PICTURE, requests: [] });
+    expect(model.markers()).toEqual([]);
+    expect(model.litLegs().size).toBe(0);
+  });
+
+  it("does not read a lock after it as a placement", () => {
+    // The picture is the placement a joining page gets, so what follows is
+    // an ordinary reservation — the same rule the first tick sets in a
+    // replay.
+    const model = panel();
+    feed(model, PICTURE, {
+      event: "lock_granted",
+      train: "t1",
+      resources: ["sw.main", "a"],
+    });
+    expect(model.blocks().get("a")).toMatchObject({ state: "reserved" });
+  });
+});
+
 describe("reset", () => {
   it("forgets everything, placement rule included", () => {
     const model = panel();

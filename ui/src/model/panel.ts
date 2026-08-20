@@ -141,11 +141,11 @@ export class Panel {
    * trains stand before the first event arrives, and which way they face.
    *
    * A trace replay reads placement off the opening locks, but a browser joins
-   * a session that was already assembled, so those locks are long gone. The
-   * scenario is where facing is written down at all (ADR-0019), and it is the
-   * one thing no event carries. A live panel therefore starts here, and
-   * everything after it is derived from the bus exactly as a replay derives
-   * it.
+   * a session that was already assembled, so those locks are long gone. What
+   * the run holds arrives on `allocation` and supersedes this (ADR-0032);
+   * what is left to the scenario is facing, which is where it is written down
+   * at all (ADR-0019) and the one thing no event carries. Everything after is
+   * derived from the bus exactly as a replay derives it.
    *
    * It seeds only the trains this model knows nothing about. The scenario
    * says where a railroad *started*, and rejoining does not rewind it: a
@@ -235,6 +235,48 @@ export class Panel {
           points: { addr: string; position: Position }[];
         };
         for (const { addr, position } of points) this.lying.set(addr, position);
+        return;
+      }
+      case "allocation": {
+        // The run's picture, as the dispatcher holds it (ADR-0032): the page
+        // opens on this rather than on where the scenario says the railroad
+        // started, and it has the last word over anything seeded before the
+        // socket opened. A train's facing is not in it and stays where this
+        // model already had it — facing is scheduler state and on no
+        // dispatcher topic at all (ADR-0019).
+        const { trains, locks, requests } = event as unknown as {
+          trains: Record<string, string>;
+          locks: Record<string, string>;
+          requests: {
+            id: string;
+            train: string;
+            depart: EndRef;
+            dest: EndRef[];
+            route?: string[];
+          }[];
+        };
+        this.locks = new Map(Object.entries(locks));
+        this.standing = new Map(
+          Object.entries(trains).map(([train, block]) => [block, train]),
+        );
+        for (const [train, block] of Object.entries(trains)) {
+          const toward = this.heading.get(train)?.toward;
+          if (toward !== undefined) this.heading.set(train, { block, toward });
+        }
+        this.granted.clear();
+        this.requests = new Map(
+          requests.map((request) => [
+            request.id,
+            {
+              ...request,
+              pruned: [],
+              // A request the dispatcher still holds has passed admission;
+              // one it has given a route is running it.
+              phase: request.route === undefined ? "admitted" : "committed",
+            },
+          ]),
+        );
+        this.started = true;
         return;
       }
       case "aspects": {

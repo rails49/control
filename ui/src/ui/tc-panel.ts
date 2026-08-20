@@ -201,14 +201,15 @@ export class TcPanel extends LitElement {
   // --- joining a live session -----------------------------------------------
 
   /**
-   * Join the session running a scenario: its railroad, then its stock,
-   * placement and facing, then the bridge.
+   * Join the session running a scenario: its railroad, then its stock and
+   * facing, then the bridge.
    *
    * The scenario is read from the store rather than announced by the bridge,
-   * which relays the bus and describes nothing (SYSTEM.md). Placement and
-   * facing have to come from somewhere: the placement locks were published
-   * before any browser connected, and facing is on no topic at all
-   * (ADR-0019).
+   * which relays the bus and describes nothing (SYSTEM.md). Placement comes
+   * off the bus — the relay hands a connecting client the dispatcher's own
+   * picture, which arrives after this and has the last word (ADR-0032) — and
+   * the scenario is left seeding facing, which is on no topic at all
+   * (ADR-0019) and so has nowhere else to come from.
    */
   private async join(id: string): Promise<void> {
     // Rejoining the session already on screen keeps what the bus has shown;
