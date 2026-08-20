@@ -55,15 +55,24 @@ interface Request {
   route?: string[];
 }
 
-/** A rejection reason spelled out, as the spec words them (#67). */
+/** A rejection reason spelled out, as the spec words them (#67). The last
+ *  three answer a payload the dispatcher could not read as a request at all
+ *  (ADR-0034); an honest drag cannot produce one, so what they are here for
+ *  is a stale page, a race or a buggy client — which is exactly the reader
+ *  who needs to be told plainly. */
 const REJECTED: Record<string, string> = {
   no_fit: "the train doesn't fit",
   no_entry: "no arrival end is enterable",
   unreachable: "no path exists",
   wrong_origin: "the train is elsewhere",
+  unknown_train: "the session has no such train",
+  unknown_block: "the layout has no such block",
+  malformed: "the request could not be read",
 };
 
-/** A pruned arrival end's reason, short enough to sit at the end it marks. */
+/** A pruned arrival end's reason, short enough to sit at the end it marks.
+ *  Only the reasons that drop one arrival end and leave the others standing:
+ *  a whole-request rejection has no end of its own to sit at. */
 const PRUNED: Record<string, string> = {
   no_fit: "doesn't fit",
   no_entry: "not enterable",

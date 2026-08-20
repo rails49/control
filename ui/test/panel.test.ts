@@ -253,6 +253,26 @@ describe("request layers", () => {
     });
   });
 
+  it("spells out a payload the dispatcher could not read (#107)", () => {
+    const spelled = {
+      unknown_train: "the session has no such train",
+      unknown_block: "the layout has no such block",
+      malformed: "the request could not be read",
+    };
+    for (const [reason, note] of Object.entries(spelled)) {
+      const model = panel();
+      placed(model);
+      feed(model, submitted, { event: "request_rejected", id: "t1-1", reason });
+      expect(model.markers()[0]).toEqual({
+        id: "t1-1",
+        train: "t1",
+        at: "a.B",
+        role: "rejected",
+        note,
+      });
+    }
+  });
+
   it("clears a rejection when the train asks again", () => {
     const model = panel();
     placed(model);
