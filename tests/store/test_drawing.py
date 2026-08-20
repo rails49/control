@@ -795,7 +795,7 @@ def test_points_on_one_address_agreeing_are_no_fault() -> None:
     assert Drawing.from_document(doc).review()["motor_faults"] == []
 
 
-@pytest.mark.parametrize("name", [*RAILROADS, "beb-gotthard"])
+@pytest.mark.parametrize("name", RAILROADS)
 def test_a_committed_drawing_can_be_thrown(name: str) -> None:
     """beb-gotthard is the one that gangs points: `5` moves sw1 and sw2, `1`
     moves sw6 through sw9, which is what the hardware needs and why that throat

@@ -46,6 +46,12 @@ def prose(text: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip().startswith("#")]
 
 
+# The railroads that explain themselves in comments, which is what there is to
+# keep. A drawing made in the editor has none — `beb-gotthard` is the first —
+# so the ones with prose are read off rather than assumed to be all of them.
+COMMENTED = [name for name in RAILROADS if prose(written(ROOT, name))]
+
+
 def meet_document() -> dict[str, Any]:
     return {
         "scenario": "meet",
@@ -88,7 +94,13 @@ def test_saving_an_unchanged_drawing_changes_no_byte(
     assert written(tmp_path, name) == before
 
 
-@pytest.mark.parametrize("name", RAILROADS)
+def test_a_railroad_explains_itself_in_comments() -> None:
+    """Else the test below is parametrised over nothing and says nothing, which
+    is what its own `assert before` refuses to do one railroad at a time."""
+    assert COMMENTED
+
+
+@pytest.mark.parametrize("name", COMMENTED)
 def test_placing_every_symbol_keeps_the_prose(
     drawings: AssetStore, tmp_path: Path, name: str
 ) -> None:
