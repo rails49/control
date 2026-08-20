@@ -457,3 +457,91 @@ describe("facing", () => {
     expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
   });
 });
+
+/**
+ * Where each point lies, as the alignment command says (ADR-0022, #98). The
+ * panel works nothing out: the dispatcher sends the addresses and positions
+ * the transit's way needs, and this is the ledger of what it last said.
+ */
+describe("point positions", () => {
+  it("reads them off the alignment command, address by address", () => {
+    const model = panel();
+    feed(model, {
+      event: "align",
+      connection: "sw",
+      transit: "side",
+      points: [
+        { addr: "12", position: "thrown" },
+        { addr: "13", position: "closed" },
+      ],
+    });
+    expect(model.positions()).toEqual(
+      new Map([
+        ["12", "thrown"],
+        ["13", "closed"],
+      ]),
+    );
+  });
+
+  it("leaves a point where the last command naming it left it", () => {
+    // A point stays thrown until something throws it back: `align` names the
+    // points one transit needs, and says nothing about the rest of them.
+    const model = panel();
+    feed(
+      model,
+      {
+        event: "align",
+        connection: "sw",
+        transit: "side",
+        points: [{ addr: "12", position: "thrown" }],
+      },
+      {
+        event: "align",
+        connection: "jt",
+        transit: "back",
+        points: [{ addr: "13", position: "closed" }],
+      },
+      {
+        event: "align",
+        connection: "sw",
+        transit: "main",
+        points: [{ addr: "12", position: "closed" }],
+      },
+    );
+    expect(model.positions()).toEqual(
+      new Map([
+        ["12", "closed"],
+        ["13", "closed"],
+      ]),
+    );
+  });
+
+  it("forgets where they lie when a replay starts over", () => {
+    // A run's points belong to that run: replaying from the top shows a
+    // railroad nothing has commanded yet, not the last run's last word.
+    const model = panel();
+    feed(model, {
+      event: "align",
+      connection: "sw",
+      transit: "side",
+      points: [{ addr: "12", position: "thrown" }],
+    });
+    model.reset();
+    expect(model.positions()).toEqual(new Map());
+  });
+
+  it("takes a transit needing nothing thrown as saying nothing", () => {
+    const model = panel();
+    feed(
+      model,
+      {
+        event: "align",
+        connection: "sw",
+        transit: "side",
+        points: [{ addr: "12", position: "thrown" }],
+      },
+      { event: "align", connection: "jt", transit: "back", points: [] },
+    );
+    expect(model.positions()).toEqual(new Map([["12", "thrown"]]));
+  });
+});

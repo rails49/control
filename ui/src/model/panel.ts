@@ -14,6 +14,7 @@
  */
 
 import type { Aspect } from "../render/artwork.js";
+import type { Position } from "../symbols.generated.js";
 import { WHOLE } from "./inspect.js";
 import type { Explained, Layout } from "./store.js";
 import type { Submission, TraceEvent } from "./trace.js";
@@ -83,6 +84,9 @@ export class Panel {
   private locks = new Map<string, string>();
   /** block end → the aspect its signal shows, last as the dispatcher said. */
   private shown = new Map<EndRef, Aspect>();
+  /** address → the position the last `align` naming it commanded. Commanded,
+   *  not measured: nothing on the bus reports where a point actually lies. */
+  private lying = new Map<string, Position>();
   /** block → the train standing in it. */
   private standing = new Map<string, string>();
   /** train → the block it last entered and the end it now faces. */
@@ -124,6 +128,7 @@ export class Panel {
 
   reset(): void {
     this.locks.clear();
+    this.lying.clear();
     this.standing.clear();
     this.heading.clear();
     this.requests.clear();
@@ -223,6 +228,13 @@ export class Panel {
       case "block_vacated": {
         const { block } = event as unknown as { block: string };
         this.standing.delete(block);
+        return;
+      }
+      case "align": {
+        const { points } = event as unknown as {
+          points: { addr: string; position: Position }[];
+        };
+        for (const { addr, position } of points) this.lying.set(addr, position);
         return;
       }
       case "aspects": {
@@ -372,6 +384,21 @@ export class Panel {
    */
   aspects(): ReadonlyMap<EndRef, Aspect> {
     return this.shown;
+  }
+
+  /**
+   * Where each point lies, by the address its motor answers to
+   * ([ADR-0022](../../../docs/adr/0022-a-symbol-carries-its-hardware-address.md)).
+   *
+   * The dispatcher sends the points a transit's way needs with the alignment
+   * command, so this is a ledger of what it last said rather than anything
+   * derived: the panel neither knows which points a transit traverses nor
+   * works out how each must lie. An address stays where the last command
+   * naming it left it — `align` speaks for one transit and says nothing about
+   * the rest of the railroad.
+   */
+  positions(): ReadonlyMap<string, Position> {
+    return this.lying;
   }
 
   /** The legs of every committed route's way, symbol by symbol, in the shape
