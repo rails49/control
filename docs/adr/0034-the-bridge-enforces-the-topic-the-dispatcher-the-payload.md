@@ -1,5 +1,13 @@
 # The bridge enforces the topic, the dispatcher the payload
 
+**Extended by
+[ADR-0036](0036-the-scheduler-is-an-app-the-panel-is-a-view.md).** The line
+below is unchanged and now falls one component further upstream: the browser's
+one inbound topic is `tc49/ui/request_wanted`, so the **scheduler** is the
+first app to touch a frame a browser wrote, and it never raises on a bus
+payload either. A gesture carries no id at all, which makes every unreadable
+one the null-id case this ADR already answers by dropping it to the trace.
+
 [ADR-0021](0021-a-bad-request-is-answered-not-raised.md) made a *readable* bad
 request an answer rather than a crash, and left the rest open: a payload the
 dispatcher cannot read at all still raised out of a bus handler and still ended

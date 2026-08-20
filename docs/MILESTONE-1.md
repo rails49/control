@@ -44,8 +44,10 @@ whole subject; the other two are real components kept to the minimum that
 exercises it:
 
 - **Scheduling** is a fixed request list read from a scenario file, released
-  by the layout-blind scheduler of [SYSTEM.md](SYSTEM.md#scheduler). There is
-  no arrival process and no continual-arrivals scheduler. A request's `at` is a
+  by the scheduler of [SYSTEM.md](SYSTEM.md#scheduler) — which reads the
+  layout, but only to keep facing, and invents nothing
+  ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). There
+  is no arrival process and no continual-arrivals scheduler. A request's `at` is a
   **tick number**, and that is the milestone binding rather than the model:
   [GOALS.md](GOALS.md#scheduling) says a request comes due at a stated time,
   read off the fast clock, and a boundary count is not a time — a hardware
@@ -72,7 +74,7 @@ Each of these was ruled out deliberately, not overlooked:
 | --- | --- |
 | A physical layout behind the layout interface | a later effort ([GOALS.md](GOALS.md)); the transit-level command vocabulary of [SYSTEM.md](SYSTEM.md#layout-interface) is the hook |
 | MQTT transport, out-of-process deployment | the bus contract is already MQTT-safe ([ADR-0008](adr/0008-bus-contract-is-the-mqtt-safe-intersection.md)); the in-process bus is the milestone binding |
-| A real scheduler with continual arrivals | requests are a fixed batch here; the end-state scheduler also reads the layout and follows the dispatcher so it can generate traffic that can succeed ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md)) |
+| A real scheduler with continual arrivals | requests are a fixed batch or a person's gestures here; the end-state scheduler *generates* traffic, which is what its layout knowledge is ultimately for ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md)) |
 | A driver that obeys the aspect | the dispatcher publishes `stop`/`approach`/`clear`, on the grant and on a last-value topic, and the driver ignores it: acting on it needs a speed on `cross` and transits that take time ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)) |
 | Trains that have a speed | one transit per tick, and a tick is the simulator's boundary rather than the model's unit of time ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)) |
 | Braking distance | an open subject even in the end state, with a working answer and no decision ([GOALS.md](GOALS.md#driving)) |

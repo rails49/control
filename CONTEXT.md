@@ -170,8 +170,10 @@ _Avoid_: consist
 The end of its block through which a parked train would depart nose-first.
 Declared with initial placement, thereafter fully determined: routes are
 strict pass-throughs, so a train faces away from the end it entered through,
-and deliberate reversal at rest is the only other change. Not dispatcher
-state — a request's departure end carries everything the dispatcher needs.
+and deliberate reversal at rest is the only other change. Held by the
+scheduler and published on its own state topic, which every view reads to draw
+a train's direction. Not dispatcher state — a request's departure end carries
+everything the dispatcher needs.
 _Avoid_: direction (ambiguous with travel direction), heading, orientation
 
 ### Dispatch
@@ -245,8 +247,10 @@ binding's beat would do
 
 **Topic**:
 A named bus channel, `tc49/<role>/<leaf>`, the role — `layout`, `schedule`,
-`dispatch`, `drive` — naming its single writer. Consumers subscribe by prefix
-filter; the full inventory is
+`dispatch`, `drive`, `ui` — naming its single writing **role**, of which there
+may be concurrent instances on an event topic and never on a state topic
+([ADR-0035](docs/adr/0035-a-topic-has-one-writing-role.md)). Consumers
+subscribe by prefix filter; the full inventory is
 [SYSTEM.md](docs/SYSTEM.md#event-inventory).
 _Avoid_: channel, queue
 
@@ -262,15 +266,26 @@ to a transit) and `cross` (a train crosses a transit into a block, at a stated
 speed). The only imperatives on the bus — everything else is a past-tense fact.
 _Avoid_: instruction
 
+**Gesture**:
+What a person's action on a UI puts on the bus: a train and where to put it,
+and nothing else. **Not a request** — it carries no id and no departure end,
+which is the whole of what the scheduler adds when it composes the request the
+gesture asks for. One that cannot be composed is dropped rather than answered,
+there being no id to address an answer to
+([ADR-0036](docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
+_Avoid_: command (reserved for the layout interface's imperatives), request,
+click, action
+
 **Request id**:
 The scheduler-minted identity of a request. Both idempotency key (duplicate
 events are dropped) and correlation key threading a request's lifecycle and
 move events — and **opaque to both**, so uniqueness is the whole contract and
 no consumer reads the shape
-([ADR-0033](docs/adr/0033-a-request-id-is-unique-not-meaningful.md)). A file
-scheduler mints `<train>-1`, `<train>-2`, … deterministically in scenario
-order, which replay needs; a panel mints per-page ids, which it does not.
-Never clock-derived.
+([ADR-0033](docs/adr/0033-a-request-id-is-unique-not-meaningful.md)). The
+scheduler mints `<train>-1`, `<train>-2`, … from one undivided counter in
+scenario order, which replay needs — and a run carrying gestures does not,
+no benchmark run receiving any. Never clock-derived, and never minted by a
+page.
 _Avoid_: event id (there is no universal envelope id)
 
 ### Interruptions

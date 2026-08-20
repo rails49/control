@@ -1,5 +1,15 @@
 # A joining client is served the run's retained state
 
+**Corrected in part by
+[ADR-0036](0036-the-scheduler-is-an-app-the-panel-is-a-view.md).** The last
+paragraph below predicts that a server-side scheduler deletes
+`tc49/schedule/state/facing`. It does not: the panel *renders* facing as a
+block's direction arrow, so the topic has readers that are not its writer, and
+what the move changes is that its single writer is now an app rather than
+whichever tab was open. Everything else stands, including the reading of the
+two-tab problem as a single-writer violation — 0035 restates the rule so that
+it names multi-instance *state* rather than the tab count.
+
 A browser that connects to a running session sees nothing until the next event
 moves. Event topics are never replayed
 ([ADR-0008](0008-bus-contract-is-the-mqtt-safe-intersection.md)), so a panel

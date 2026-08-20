@@ -1,8 +1,12 @@
 # Dispatch panel
 
-The live panel: watching the railroad in real time and submitting requests.
-Built after the [editor](EDITOR.md), as the order of work had it. Decisions
-that bind it: [ADR-0016](../adr/0016-the-panel-is-a-scheduler.md) and
+The live panel: watching the railroad in real time and asking for trains to be
+moved. Built after the [editor](EDITOR.md), as the order of work had it.
+Decisions that bind it:
+[ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md), which
+made it a view rather than the scheduler it began as
+([ADR-0016](../adr/0016-the-panel-is-a-scheduler.md)),
+[ADR-0035](../adr/0035-a-topic-has-one-writing-role.md), and
 [ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md).
 Terminology follows [CONTEXT.md](../../CONTEXT.md).
 
@@ -25,8 +29,12 @@ There are no sensor dots at block ends. `block_occupied` and `block_vacated`
 carry a block, and the layout interface publishes anonymous occupancy and
 never asserts train identity. RocRail's two dots depict per-end detection,
 which is finer than anything on this bus. Train identity is reconstructed
-from `lock_granted`, exactly as the dispatcher does; direction comes from the
-chosen route or the entry end of the last granted transit.
+from `lock_granted`, exactly as the dispatcher does. Direction is not derived
+here at all: it is the train's **facing**, read off
+`tc49/schedule/state/facing`, which the scheduler keeps from the entry end of
+each granted transit and from a committed route's departure end
+([ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). A
+train that has never moved has an arrow for the same reason a moved one does.
 
 **Turnout positions are read off `align`.** The command carries the points it
 needs as address-and-position pairs
@@ -66,16 +74,17 @@ it, so the panel draws none — no rule here, just an end absent from the map.
 
 ## What it does
 
-The panel is read-only apart from submitting requests. **Dragging** a train
-from its block to a destination block publishes `request_submitted`, the
-existing topic in the existing `schedule` role, and the dispatcher answers
-with `request_admitted` or `request_rejected`. The block's outer thirds name
-one arrival end — the end the train enters through, as
-[CONTEXT.md](../../CONTEXT.md) defines it — and the middle third names both,
-"either way round". Dropping on the train's own block cancels. The departure
-end is never part of the gesture: it is the train's **facing** end, scheduler
-state the dispatcher never sees
-([ADR-0019](../adr/0019-facing-is-scheduler-state.md)). One drag names one
+The panel is read-only apart from gesturing. **Dragging** a train from its
+block to a destination block publishes `tc49/ui/request_wanted` —
+`{train, dest}`, the panel's whole write surface — and the scheduler composes
+the request the dispatcher then answers with `request_admitted` or
+`request_rejected`. The block's outer thirds name one arrival end — the end
+the train enters through, as [CONTEXT.md](../../CONTEXT.md) defines it — and
+the middle third names both, "either way round". Dropping on the train's own
+block cancels. The departure end is never part of the gesture: it is the
+train's **facing** end, which the scheduler holds and the dispatcher never
+sees ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)). Neither is the
+request id, which the scheduler mints. One drag names one
 block, so multi-block arrival sets
 ([ADR-0007](../adr/0007-requests-name-a-set-of-arrival-ends.md)) are deferred,
 not dropped; drag supersedes the click sequence this page first recorded.
@@ -86,13 +95,20 @@ feasibility authority, and a rejection renders at the request's endpoints
 with its reason spelled out (`no_fit`, `no_entry`, `unreachable`,
 `wrong_origin`).
 
-The panel therefore **is** a scheduler, and modes are exclusive: a run uses
-the file scheduler or the panel, never both
-([ADR-0016](../adr/0016-the-panel-is-a-scheduler.md)). That preserves the
-single-writer rule and the single deterministic id minter. Scenario runs keep
-byte-identical replay; panel runs make no such claim. Later the
-panel-scheduler can preload a scenario and also take clicks, which is still
-one writer.
+The panel is therefore **not** a scheduler: a gesture is not a request, and
+the one writer of requests is the scheduler app
+([ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). Two
+tabs are two views and harmless, which is what the earlier arrangement could
+not manage — it made them two holders of facing and two minters of ids. Modes
+stop being exclusive: a timetable and a person are two sources of one
+scheduler, and which of them a session has is configuration. Scenario runs
+keep byte-identical replay; a run carrying gestures makes no such claim, and a
+benchmark run receives none.
+
+A gesture the scheduler cannot compose is **dropped in silence** and lives in
+the trace. It carries no id, so there is nothing to address an answer to, and
+the panel renders the roster from the run — so an honest drag cannot produce
+one ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 
 Manual turnout throwing is not offered. RocRail allows it because it owns
 manual shunting, which this model excludes: trains move only on granted
@@ -115,13 +131,14 @@ Joining a session takes everything off the bus. Placement, locks, routes and
 live requests come from the dispatcher's retained picture; **facing**, which
 is scheduler state and on no dispatcher topic at all
 ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)), comes from the
-scheduler's own retained topic. The panel still reads the scenario from the
-store (`GET /scenarios`, `GET /scenarios/<id>`) for stock, and for placement
-and facing where a session is starting cold and there is nothing retained to
-prefer. Everything after that is derived from the bus exactly as a replay
-derives it, which is why one panel model serves both. Facing stays determined
-from there: a train faces away from the end it entered through, so the next
-drag departs nose-first with no bookkeeping.
+scheduler's own retained topic. Both are written by apps that are always
+running, so there is no cold start to seed: the panel reads the scenario from
+the store (`GET /scenarios`, `GET /scenarios/<id>`) for one thing only, which
+drawing to render, nothing retained saying which railroad a session runs and a
+topic that did being the bridge describing the run (#67). Everything else is
+derived from the bus exactly as a replay derives it, which is why one panel
+model serves both — a trace carries the state topics too, so a replay gets
+facing from the same place a live session does.
 
 A session ticks on a wall clock, one knob: `tc49 live --period`. The default
 is 2 seconds, picked by watching the panel rather than by argument.
@@ -143,14 +160,16 @@ composed while a train is moving can still name a block it has left by the
 time the request lands — but it stops being the ordinary consequence of
 opening the page.
 
-Request ids do not carry on across a reload and no longer need to: the panel
-mints them per page, unique by construction, so a fresh page cannot re-use an
-id the dispatcher has seen
-([ADR-0033](../adr/0033-a-request-id-is-unique-not-meaningful.md)).
+Request ids are not the page's business at all. The scheduler mints them from
+one undivided counter, so a reload, a second tab and a rejoining page are all
+incapable of re-using an id the dispatcher has seen — which is a fresh page
+having nothing to re-use, rather than a page minting carefully
+([ADR-0033](../adr/0033-a-request-id-is-unique-not-meaningful.md),
+[ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 
 The front end keeps the editor's model/component split. `model/panel.ts` turns
-bus payloads into render state and holds the scheduler's own state, meaning
-facing and the request ids it mints. `model/drag.ts` turns pointer positions
+bus payloads into render state and holds no scheduler state: facing arrives on
+its topic and ids arrive on `request_submitted`. `model/drag.ts` turns pointer positions
 into an arrival-end set or a cancel, DOM-free and tested the way the editor's
 gesture model is. `tc-panel` converts pixels into squares, paints, and sends.
 
@@ -161,7 +180,7 @@ trouble message. The row below keeps the things you press. The editor's menu
 bar (#85) is not repeated here; the panel has no File to fill.
 
 The mode is the half of the band only the panel has. Replay and live are
-exclusive ([ADR-0016](../adr/0016-the-panel-is-a-scheduler.md)), and which one
+exclusive — a page shows a recorded run or a running one — and which one
 you were in was inferrable only from whichever select you last touched. The
 band says it, and says *nothing joined* where neither source is feeding — a
 railroad picked with no trace open and no session joined. A replay names its

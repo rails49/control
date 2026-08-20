@@ -1,8 +1,8 @@
 # System
 
 How the app is organized: four components — asset store, scheduler, dispatcher,
-driver — plus the external **layout interface**, communicating over an event
-bus and an asset CRUD contract. This page fixes those contracts. An implementer
+driver — plus the external **layout interface** and the **UI**, communicating
+over an event bus and an asset CRUD contract. This page fixes those contracts. An implementer
 of any one component should need this page and at most one internals doc
 ([dispatcher/INTERNALS.md](dispatcher/INTERNALS.md) for the dispatcher); nothing here requires
 reading another component's internals. Terminology follows
@@ -23,6 +23,10 @@ reading another component's internals. Terminology follows
           └───────────┘  └────────────┘  └────────┘  └──────────────────┘
                 ▲▼             ▲▼            ▲▼               ▲▼
           ═══════════════════════ bus: tc49/# ═══════════════════════════
+                                     ▲▼
+                                ┌────┴───┐
+                                │   ui   │  gestures out, everything in
+                                └────────┘
 ```
 
 - **Scheduler** — turns the scenario's request list into request events,
@@ -39,6 +43,10 @@ reading another component's internals. Terminology follows
 - **Asset store** — serves the layout and scenario documents; the one
   contract that is not the bus, because it answers queries and the bus
   refuses to.
+- **UI** — the panel, and a throttle later: watches the bus and writes
+  **gestures** under `tc49/ui/*`. A gesture is not a request — it names a
+  train and where to put it, and the scheduler composes the request
+  ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 
 These are **roles, not implementations**. Each names a boundary any
 implementer can stand behind unchanged: the simulator and a hardware adapter
@@ -88,9 +96,14 @@ exists for that.
 
 **Topic rules.** Three rules bind the inventory below:
 
-1. **Single writer** — exactly one component publishes on any topic, which
+1. **Single writer** — exactly one **role** publishes on any topic, which
    upgrades the ordering promise to plain per-topic FIFO and makes ownership
-   checkable by inspection.
+   checkable by inspection. A role with concurrent instances — two browser
+   tabs are two instances of `ui` — may write an **event** topic, provided no
+   consumer depends on ordering across instances; it may never write a
+   **state** topic, which is last-value-wins and so diverges exactly when its
+   writers know different things
+   ([ADR-0035](adr/0035-a-topic-has-one-writing-role.md)).
 2. **Event and state topics are disjoint** — an event topic carries facts
    that happened and is never replayed; a state topic is last-value-wins.
    Every topic is declared as one or the other, and state is marked in the
@@ -113,8 +126,11 @@ never will.
 over a WebSocket relay ([ui/PANEL.md](ui/PANEL.md#implementation)): every
 `tc49/#` event goes out to every client as one JSON frame,
 `{"topic": …, "payload": …}`, and the one inbound topic is
-`tc49/schedule/request_submitted`, whose frame is published as the event it
-names. Any other inbound frame — another topic, or not `{topic, payload}`
+`tc49/ui/request_wanted`, whose frame is published as the event it
+names. `tc49/schedule/request_submitted` is refused inbound like any other
+topic: the browser writes gestures and never requests, which is what makes the
+single-minter claim something the topic check enforces rather than an intention
+([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). Any other inbound frame — another topic, or not `{topic, payload}`
 JSON — is answered with an `{"error": …}` frame and never reaches the bus.
 The relay adds no topics and no payload fields: the frame is the event, so
 the inventory below is its entire schema. When MQTT arrives the browser
@@ -137,8 +153,8 @@ never raises on anything arriving from the bus
 ## Event inventory
 
 Topics are `tc49/<role>/<leaf>`, **publisher-first**: the second segment
-names the role that writes there — `layout`, `schedule`, `dispatch`, `drive`
-— so rule 1 is verifiable from the name alone, `tc49/layout/*` keeps its
+names the role that writes there — `layout`, `schedule`, `dispatch`, `drive`,
+`ui` — so rule 1 is verifiable from the name alone, `tc49/layout/*` keeps its
 meaning when hardware replaces the simulator, and a future UI gets
 `tc49/dispatch/#` for free. Leaves are past-tense facts, with two exceptions:
 the two commands are imperative (`align`, `cross` — past tense would
@@ -156,6 +172,7 @@ the driver moves locomotives
 | `tc49/schedule/request_submitted` | event | scheduler | id, train, depart, dest ends |
 | `tc49/schedule/state/exhausted` | state | scheduler | last-value flag |
 | `tc49/schedule/state/facing` | state | scheduler | last-value map of train to the end it would depart through |
+| `tc49/ui/request_wanted` | event | UI | train, dest ends — a request minus the id and depart the scheduler owns |
 | `tc49/dispatch/request_admitted` | event | dispatcher | id, surviving dest ends, pruned |
 | `tc49/dispatch/request_rejected` | event | dispatcher | id, reason (`no_fit`, `no_entry`, `unreachable`, `wrong_origin`, `unknown_train`, `unknown_block`, `malformed`) |
 | `tc49/dispatch/request_completed` | event | dispatcher | id |
@@ -171,7 +188,7 @@ the driver moves locomotives
 
 | Consumer | Filter(s) |
 | --- | --- |
-| Scheduler | `tc49/layout/tick` |
+| Scheduler | `tc49/layout/tick`, `tc49/dispatch/#` **and** `tc49/ui/#` |
 | Dispatcher | `tc49/layout/+` **and** `tc49/schedule/request_submitted` |
 | Driver | `tc49/dispatch/move_granted` |
 | Layout interface | `tc49/drive/+` **and** `tc49/dispatch/align` |
@@ -181,9 +198,9 @@ Two invariants the inventory must maintain:
 
 - **Leaf names are globally unique** across all topics — the trace's `event`
   field is the leaf alone and depends on it.
-- **Consumers subscribe by prefix filter only** (rule 3). The dispatcher's
-  two filters are the accepted maximum; a consumer needing a list of
-  individual topics is a design smell.
+- **Consumers subscribe by prefix filter only** (rule 3). Each filter names a
+  role, as the scheduler's three do; a consumer needing a list of individual
+  topics is a design smell. The count is not the invariant — the shape is.
 
 **Payload conventions.** Correlate by request id, don't repeat: lifecycle
 events carry the id plus only what is *new* — `request_rejected` drops
@@ -292,38 +309,54 @@ justifies exactly that footprint.
 
 ### Scheduler
 
-*Reads* the scenario. *Subscribes* `tc49/layout/tick`. *Publishes*
-`request_submitted` and the `state/exhausted` last-value topic.
+*Reads* the scenario and the layout. *Subscribes* `tc49/layout/tick`,
+`tc49/dispatch/#` and `tc49/ui/#`. *Publishes* `request_submitted` and the
+`state/exhausted` and `state/facing` last-value topics.
 
-The scheduler is **layout-blind and tick-only** — in milestone 1. The end
-state reverses that: to generate continual traffic it has to know which trains
-are idle and where they stand, so it reads the layout and follows the
-dispatcher's events, while the dispatcher stays the only judge of what is
-possible ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md)). Here
-it releases the scenario's
-requests at their `at` ticks — a tick number is the milestone binding of "at a
-stated time" and not the model's answer, since a boundary count means nothing
-to a timetable once a hardware adapter is picking the cadence
-([MILESTONE-1.md](MILESTONE-1.md#scope)) — performing only the *mechanical* arrival-end
-expansion (`to: [yard_e]` → `yard_e.A, yard_e.B` — pure syntax, no layout
-needed), and mints each request's **id**, which is opaque to every consumer
-and need only be unique
-([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)). This
-scheduler mints deterministically in scenario order (`<train>-1`,
-`<train>-2`), which byte-identical replay requires of it; a panel-scheduler
-makes no such claim and mints per page. Never clock-derived, by either. It
-also holds facing, which is scheduler state
-([ADR-0019](adr/0019-facing-is-scheduler-state.md)), and publishes it as a
-last-value topic so a rejoining panel has somewhere to read it back from
+The scheduler is the **one writer of requests**, and its sources are three: a
+timetable released at its `at` ticks, a person gesturing on the panel, and a
+generator inventing traffic later — "three sources inside one scheduler, not
+three publishers"
+([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md),
+[GOALS.md](GOALS.md#scheduling)). Which of them a session has is
+configuration, not a rule: `tc49 live` runs with the timetable off while `at`
+is still a tick number
+([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
+
+A tick number is the milestone binding of "at a stated time" and not the
+model's answer, since a boundary count means nothing to a timetable once a
+hardware adapter is picking the cadence
+([MILESTONE-1.md](MILESTONE-1.md#scope)). From a scenario request the
+scheduler performs only the *mechanical* arrival-end expansion
+(`to: [yard_e]` → `yard_e.A, yard_e.B` — pure syntax, no layout needed); from
+a **gesture** it supplies the two fields the gesture omits, the id and the
+departure end. It mints each request's **id**, which is opaque to every
+consumer and need only be unique
+([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)), from one
+undivided counter in scenario order (`<train>-1`, `<train>-2`), which
+byte-identical replay requires of it — a run carrying gestures makes no such
+claim, and a benchmark run receives none. Never clock-derived.
+
+It **holds facing**, which is scheduler state
+([ADR-0019](adr/0019-facing-is-scheduler-state.md)): seeded from the
+scenario's placement, carried forward from the entry end of each
+`move_granted` and from a committed route's departure end, and published as a
+last-value topic that every view reads to draw a train's direction arrow
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
-All semantic
-checking — departure-end consistency, `no_fit`/`no_entry` pruning,
-reachability — belongs to the dispatcher at admission, leaving one
-feasibility authority instead of two. Completions and rejections are noise
-to it in milestone 1: the scenario is a fixed schedule. That thinness is
-deliberate — this scheduler is the honest template for a future scheduling
-UI or freight generator: publish intents, let the dispatcher judge. When its
-last request is out it sets `exhausted`, the milestone-1 termination signal.
+That upkeep is why it reads the layout: `move_granted` names a transit and the
+block entered, not the end entered through, so which ends a transit joins has
+to come from somewhere.
+
+It **judges nothing**. All semantic checking — departure-end consistency,
+`no_fit`/`no_entry` pruning, reachability — belongs to the dispatcher at
+admission, leaving one feasibility authority instead of two; a gesture naming
+a train that is not idle is composed and submitted like any other, and
+answered `wrong_origin` or queued. What it cannot compose it **drops** — a
+gesture is the first thing a browser writes and carries no id, so there is
+nothing to address an answer to and the frame is already a line in the trace
+([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
+Like the dispatcher, it never raises on a bus payload. When the last timetable
+request is out it sets `exhausted`, the milestone-1 termination signal.
 
 ### Dispatcher
 
@@ -445,20 +478,29 @@ request/reply.
 ### Beyond milestone 1
 
 The contracts above are what milestone 1 builds, and they are not final.
-[GOALS.md](GOALS.md) describes the whole system; four decisions grow these
-contracts, and they are listed here so no footprint above is read as the last
-word.
+[GOALS.md](GOALS.md) describes the whole system; three decisions still grow
+these contracts, and they are listed here so no footprint above is read as the
+last word. A fourth has already landed: the scheduler reads the layout and
+subscribes `tc49/dispatch/#`, spent early on holding facing rather than on a
+generator ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 
 | Growth | Why | Where |
 | --- | --- | --- |
 | `cross` carries a **speed** | the driver decides how fast; the layout interface keeps throttle-up-watch-the-detector-stop, where the braking curve and detector geometry live | same |
-| The **scheduler reads the layout** and subscribes to `tc49/dispatch/#` | continual generated traffic has to name an idle train and a reachable destination; the dispatcher stays the single feasibility authority | [ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md) |
+| The scheduler **invents traffic** | continual generated traffic has to name an idle train and a reachable destination, which is what it now reads the layout for; the dispatcher stays the single feasibility authority | [ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md) |
 | The boundary event's cadence comes from a **clock**, transits vary in length | `tick` is the simulator's binding of the boundary, not the model's unit of time | [ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md) |
 
-None of it adds a role, a writer, or a query — which is the point. Every
-growth lands on a topic that already exists or a state topic under a role that
-already writes there, so the single-writer rule, the event/state split and the
-prefix-filter rule all survive without amendment.
+None of the three adds a role, a writer, or a query — which is the point.
+Every one lands on a topic that already exists or a state topic under a role
+that already writes there, so the single-writer rule, the event/state split
+and the prefix-filter rule survive without amendment.
+
+The growth that did not manage this is worth naming, since the claim above was
+once made of it too: taking a person's gesture off a page added the `ui` role,
+a topic and an inbound path, and rule 1 had to be restated in terms of roles
+rather than components to admit two browser tabs at all
+([ADR-0035](adr/0035-a-topic-has-one-writing-role.md)). The event/state split
+survived untouched, and did the diagnostic work.
 
 Locking two blocks ahead instead of one
 ([ADR-0026](adr/0026-two-blocks-ahead-is-full-speed.md)) appears nowhere in

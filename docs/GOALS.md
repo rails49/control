@@ -73,8 +73,10 @@ in through one of a set of arrival ends
 ([ADR-0007](adr/0007-requests-name-a-set-of-arrival-ends.md)). Three sources
 produce them — a timetable released at its due times, a generator inventing
 traffic, and a person clicking on the panel — and all three are the one
-scheduler, so there is a single writer and a single minter of request ids
-([ADR-0016](adr/0016-the-panel-is-a-scheduler.md)).
+scheduler, so there is a single writer and a single minter of request ids.
+The person's click reaches it as a **gesture**, which names a train and where
+to put it and is not itself a request
+([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 
 To invent traffic that can succeed, the scheduler has to know which trains are
 idle and where they stand, so it reads the layout and follows the dispatcher's

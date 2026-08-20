@@ -1,5 +1,17 @@
 # The panel is a scheduler
 
+**Partly superseded by
+[ADR-0036](0036-the-scheduler-is-an-app-the-panel-is-a-view.md).** The
+conclusion below is reversed — the scheduler is an app and the panel is a view
+that emits gestures — and the reasoning below is what reversed it. Exclusivity
+keeps one writer per *component*, and a browser tab can be opened twice, so the
+single-writer rule and the single minter both broke the moment a second tab
+joined a session ([ADR-0032](0032-a-joining-client-is-served-the-runs-retained-state.md)).
+The `tc49/ui/request_wanted` alternative priced and refused below is the one
+now bought, at that price. What stands is everything else: the dispatcher as
+sole feasibility authority, one deterministic minter, and the refusal of manual
+turnout throwing, which 0036 does not touch.
+
 Clicking a train on the [panel](../ui/PANEL.md) and then one or more arrival ends publishes
 `tc49/schedule/request_submitted`: the existing topic, in the existing
 `schedule` role. The panel is therefore a scheduler, and a run uses the file
