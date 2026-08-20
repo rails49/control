@@ -651,15 +651,15 @@ it is reviewable.
 **Unsaved edits are not discarded silently.** Opening another drawing and
 starting a new one both throw away whatever has been drawn since the last
 Save, so where there is something to lose they ask first (#101). It is a
-dialog, the one the properties are edited in, rather than a native `confirm`
-the page cannot style. Declining leaves the editor exactly as it was — the
-same drawing, the same edits, the same dot, the same undo history — because
-the question comes before anything is read or reset, `New…` asking for its
-name only once the edits have been given up. Accepting opens what was asked
-for. With nothing to lose nothing is asked, and the question does not offer to
-save first: Save is one key away, and discarding or cancelling is the whole of
-it. While it is up the keyboard is the dialog's, as it is under an open menu:
-Escape declines it and no bare key reaches the canvas behind it.
+dialog of the editor's own, rather than a native `confirm` the page cannot
+style. Declining leaves the editor exactly as it was — the same drawing, the
+same edits, the same dot, the same undo history — because the question comes
+before anything is read or reset, `New…` asking for its name only once the
+edits have been given up. Accepting opens what was asked for. With nothing to
+lose nothing is asked, and the question does not offer to save first: Save is
+one key away, and discarding or cancelling is the whole of it. While it is up
+the keyboard is the dialog's, as it is under an open menu: Escape declines it
+and no bare key reaches the canvas behind it.
 
 What counts as something to lose is not the band's dot. A drawing shows as
 unsaved from the moment `New…` names it, the file not existing until the first
@@ -722,8 +722,10 @@ motor, takes no address
 ([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), and is
 never ringed. Whether an address is the right one is not knowable here, so
 having none at all is the whole of the check, and it is read off the open
-drawing rather than from `/review`: the ring goes on the keystroke that types
-one.
+drawing rather than from `/review`: the ring clears as soon as the drawing has
+the address, no review asked for. The address is typed into the properties
+dialog, which holds it as a draft, so that moment is Apply rather than the
+keystroke ([Properties](#properties)).
 
 A refusal is a way, not a sentence. `/review` reports the first `ValueError`
 derivation raises, of twelve; five are typed-connection-name faults that can no
