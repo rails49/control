@@ -237,3 +237,50 @@ describe("starting a new drawing over unsaved edits", () => {
     expect(open(shell)).toBe(NAMED);
   });
 });
+
+/**
+ * A canvas just started has no file — the dot is up, honestly — but nothing
+ * has been drawn on it, so there is nothing an operator would recognise as
+ * lost and nothing to ask about (#136).
+ */
+describe("a new drawing nothing has been drawn on", () => {
+  it("shows as unsaved, the file not existing yet", async () => {
+    const shell = await mounted();
+
+    await fresh(shell);
+
+    expect(open(shell)).toBe(NAMED);
+    expect(unsaved(shell)).toBe(true);
+  });
+
+  it("is thrown away for another new one without a question", async () => {
+    const shell = await mounted();
+    await fresh(shell);
+
+    await fresh(shell);
+
+    expect(asked(shell)).toBeNull();
+    expect(open(shell)).toBe(NAMED);
+  });
+
+  it("is thrown away for a drawing opened without a question", async () => {
+    const shell = await mounted();
+    await fresh(shell);
+
+    await choose(shell, "otira");
+
+    expect(asked(shell)).toBeNull();
+    expect(open(shell)).toBe("otira");
+  });
+
+  it("asks once anything has been drawn on it", async () => {
+    const shell = await mounted();
+    await fresh(shell);
+    await drawn(shell);
+
+    await fresh(shell);
+
+    expect(asked(shell)).not.toBeNull();
+    expect(open(shell)).toBe(NAMED);
+  });
+});

@@ -46,6 +46,10 @@ export class Filing {
   private list: readonly string[] = [];
   private name = "";
   private clean = true;
+  /** Whether the open drawing is one started here that nothing has happened to
+   *  since. It has no file, so `clean` is false and the band's dot is up
+   *  telling the truth, but there is nothing on it anyone could lose (#136). */
+  private untouched = false;
   private wrong: string | null = null;
   private said: Review | null = null;
 
@@ -67,6 +71,17 @@ export class Filing {
   /** Whether the store has been given every edit. */
   get saved(): boolean {
     return this.clean;
+  }
+
+  /** Whether there are edits an operator would recognise as lost: a drawing
+   *  edited since it was last written, or a never-written one that has been
+   *  drawn on. It is what the question before a discard asks (#101, #136), and
+   *  it is not `saved`: a drawing is unsaved from the moment it is started,
+   *  the file not existing yet, and asking about a canvas nothing has been
+   *  placed on is the dialog that gets dismissed unread — which is how the
+   *  question fails on the evening's drawing that it is there for. */
+  get edits(): boolean {
+    return !this.clean && !this.untouched;
   }
 
   /** What the editor could not do — the store not answering, a save that did
@@ -115,8 +130,10 @@ export class Filing {
       editor.reset(await this.store.readDrawing(name));
       this.name = name;
       // Staging is an edit, so a railroad that arrives without placement
-      // opens with something to save rather than something already saved.
+      // opens with something to save, and something to lose, rather than
+      // something already saved.
       this.clean = !editor.stage();
+      this.untouched = false;
       this.wrong = null;
     } catch (failure) {
       this.wrong = String(failure);
@@ -144,6 +161,7 @@ export class Filing {
     editor.reset(emptyDrawing(name));
     this.name = name;
     this.clean = false;
+    this.untouched = true;
     await this.reviewing(editor);
     return true;
   }
@@ -186,6 +204,7 @@ export class Filing {
    *  asked afterwards, so nothing waits on a round trip. */
   edited(editor: Editor): void {
     this.clean = false;
+    this.untouched = false;
     this.notify();
     void this.reviewing(editor);
   }

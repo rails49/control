@@ -339,6 +339,91 @@ describe("an edit", () => {
 });
 
 /**
+ * Whether discarding the drawing would lose anything (#136). Not the same
+ * question as `saved`: a drawing that has never been written is unsaved from
+ * the moment it is started, the file not existing yet, and a canvas nothing
+ * has been placed on still has nothing to discard.
+ */
+describe("whether there are edits to lose", () => {
+  it("has nothing to lose on a canvas just started", async () => {
+    const { filing, editor } = made(["gotthard"]);
+    await filing.load();
+
+    await filing.create("arth-goldau", editor);
+
+    expect(filing.edits).toBe(false);
+  });
+
+  /** The dot is telling the truth about the file, which does not exist. */
+  it("still says that canvas is unsaved", async () => {
+    const { filing, editor } = made(["gotthard"]);
+    await filing.load();
+
+    await filing.create("arth-goldau", editor);
+
+    expect(filing.saved).toBe(false);
+  });
+
+  it("has edits to lose once anything is drawn on it", async () => {
+    const { filing, editor } = made(["gotthard"]);
+    await filing.load();
+    await filing.create("arth-goldau", editor);
+
+    editor.place("block", [0, 0]);
+    filing.edited(editor);
+    await quiet();
+
+    expect(filing.edits).toBe(true);
+  });
+
+  it("has nothing to lose on a drawing as the store gave it", async () => {
+    const { filing, editor } = made(["gotthard"]);
+
+    await filing.open("gotthard", editor);
+
+    expect(filing.edits).toBe(false);
+  });
+
+  it("has edits to lose on one edited since it was read", async () => {
+    const { filing, editor } = made(["gotthard"]);
+    await filing.open("gotthard", editor);
+
+    editor.place("block", [20, 20]);
+    filing.edited(editor);
+    await quiet();
+
+    expect(filing.edits).toBe(true);
+  });
+
+  /** Staging is an edit, so a railroad that arrives without placement has
+   *  changes to save and something to lose with them (#105). */
+  it("counts the staging an unplaced railroad needed", async () => {
+    const { filing, store, editor } = made(["gotthard"]);
+    store.stored.gotthard = {
+      drawing: "gotthard",
+      symbols: { sw1: { kind: "turnout" }, b1: { kind: "block" } },
+      wires: [],
+    };
+
+    await filing.open("gotthard", editor);
+
+    expect(filing.edits).toBe(true);
+  });
+
+  it("has nothing to lose again once the drawing is saved", async () => {
+    const { filing, editor } = made(["gotthard"]);
+    await filing.open("gotthard", editor);
+    editor.place("block", [20, 20]);
+    filing.edited(editor);
+    await quiet();
+
+    await filing.save(editor);
+
+    expect(filing.edits).toBe(false);
+  });
+});
+
+/**
  * What the band says about the drawing itself: it derives, or it does not
  * (#91, ADR-0024). The canvas is where you find out where, so the whole of
  * this is one fact off the store's refusal.

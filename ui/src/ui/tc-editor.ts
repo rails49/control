@@ -308,12 +308,15 @@ export class TcEditor extends LitElement {
   // --- talking to the store -----------------------------------------------
 
   /** Throw the open drawing away for another, or for a new one — the two
-   *  things that discard whatever has been drawn since the last save. Edits
-   *  the store has not been given are asked about first; with nothing to lose
-   *  there is nothing to ask, and the drawing opens as it always did (#101). */
+   *  things that discard whatever has been drawn since the last save. Edits an
+   *  operator would recognise as lost are asked about first; with nothing to
+   *  lose there is nothing to ask, and the drawing opens as it always did
+   *  (#101). What is asked about is `edits` and not `saved`: a canvas just
+   *  started is unsaved and has nothing on it, and there is nothing to ask
+   *  about (#136). */
   private discard(open: string | null): void {
-    if (this.filing.saved) void this.opening(open);
-    else this.discarding = { open };
+    if (this.filing.edits) this.discarding = { open };
+    else void this.opening(open);
   }
 
   /** The operator said the edits can go. */

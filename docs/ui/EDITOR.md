@@ -650,16 +650,25 @@ it is reviewable.
 
 **Unsaved edits are not discarded silently.** Opening another drawing and
 starting a new one both throw away whatever has been drawn since the last
-Save, so with the band's dot showing they ask first (#101). It is a dialog,
-the one the properties are edited in, rather than a native `confirm` the page
-cannot style. Declining leaves the editor exactly as it was — the same drawing,
-the same edits, the same dot, the same undo history — because the question
-comes before anything is read or reset, `New…` asking for its name only once
-the edits have been given up. Accepting opens what was asked for. With nothing
-to lose nothing is asked, and the question does not offer to save first: Save
-is one key away, and discarding or cancelling is the whole of it. While it is
-up the keyboard is the dialog's, as it is under an open menu: Escape declines
-it and no bare key reaches the canvas behind it.
+Save, so where there is something to lose they ask first (#101). It is a
+dialog, the one the properties are edited in, rather than a native `confirm`
+the page cannot style. Declining leaves the editor exactly as it was — the
+same drawing, the same edits, the same dot, the same undo history — because
+the question comes before anything is read or reset, `New…` asking for its
+name only once the edits have been given up. Accepting opens what was asked
+for. With nothing to lose nothing is asked, and the question does not offer to
+save first: Save is one key away, and discarding or cancelling is the whole of
+it. While it is up the keyboard is the dialog's, as it is under an open menu:
+Escape declines it and no bare key reaches the canvas behind it.
+
+What counts as something to lose is not the band's dot. A drawing shows as
+unsaved from the moment `New…` names it, the file not existing until the first
+Save, and that stays true. But nothing has been placed on that canvas, so a
+second `New…` over it discards it without a question: a dialog that fires over
+an empty canvas is the kind that gets dismissed without reading, which is how
+the guard fails at the moment it is there for (#136). The question comes back
+with the first edit of any kind, and a drawing that arrived needing staging
+counts as edited, because it has changes to save.
 
 `File ▸ Export SVG…` downloads the open drawing as a standalone SVG named for
 it (#86). The picture is the canvas's own markup, cloned rather than composed
