@@ -3,7 +3,7 @@
 /**
  * The band across the top of both pages: what is open, which mode it is being
  * looked at in, and the status that is nobody's mistake — the store not
- * answering, the bridge, the tick.
+ * answering, the bridge, the boundary.
  *
  * A DOM test, the whole of the behaviour being what the component renders,
  * as `tc-menu`'s is.
@@ -108,14 +108,18 @@ describe("the status the band takes over", () => {
     expect(reads(await band({ mode: "editor", linked: true }), ".link")).toBeNull();
   });
 
-  it("stamps the tick, and a dash before the first one", async () => {
-    expect(reads(await band({ mode: "replay", tick: 7 }), ".tick")).toBe("tick 7");
-    expect(reads(await band({ mode: "replay", tick: null }), ".tick")).toBe("—");
+  it("stamps the boundary, and a dash before the first one", async () => {
+    expect(reads(await band({ mode: "replay", boundary: 7 }), ".boundary")).toBe(
+      "boundary 7",
+    );
+    expect(reads(await band({ mode: "replay", boundary: null }), ".boundary")).toBe(
+      "—",
+    );
   });
 
   /** The editor has no clock: a drawing is not a run. */
-  it("stamps no tick in the editor", async () => {
-    expect(reads(await band({ mode: "editor", tick: 7 }), ".tick")).toBeNull();
+  it("stamps no boundary in the editor", async () => {
+    expect(reads(await band({ mode: "editor", boundary: 7 }), ".boundary")).toBeNull();
   });
 });
 

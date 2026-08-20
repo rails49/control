@@ -23,7 +23,7 @@ Vite binds `[::1]`, so the pages are reached as `localhost` rather than
 
 The panel picks a railroad from the store and opens a trace file from disk —
 `tc49 bench crossover-yard/meet --trace Incremental` prints one — then plays
-or steps it tick by tick.
+or steps it one grant boundary at a time.
 
 ```
 pnpm check                 # tsc --noEmit
@@ -43,7 +43,7 @@ src/
     gesture.ts   what a pointer gesture means: press, drag, band, pan
     naming.ts    connection names, minted and written into the drawing
     store.ts     the four routes
-    trace.ts     a recorded trace, parsed and stepped tick by tick
+    trace.ts     a recorded trace, parsed and stepped by grant boundary
     panel.ts     the panel model: bus payloads in, render state out
   render/
     artwork.ts   what each symbol looks like, hand-written against the

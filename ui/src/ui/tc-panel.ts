@@ -72,7 +72,7 @@ export class TcPanel extends LitElement {
   @state() private session: string | null = null;
   @state() private connected = false;
   @state() private playing = false;
-  @state() private rate = 2; // ticks per second
+  @state() private rate = 2; // boundaries per second
   @state() private trouble: string | null = null;
   /** Bumped after each step: the model mutates in place, so rendering is
    *  asked for rather than observed. */
@@ -332,7 +332,7 @@ export class TcPanel extends LitElement {
         .trace=${this.traceName}
         .trouble=${this.trouble}
         .linked=${this.connected}
-        .tick=${this.stamp}
+        .boundary=${this.stamp}
       ></tc-header>
 
       <header>
@@ -424,7 +424,9 @@ export class TcPanel extends LitElement {
 
   /** How far the run has got, from whichever source is feeding it. */
   private get stamp(): number | null {
-    return (this.session === null ? this.replay?.tick : this.live?.tick) ?? null;
+    return (
+      (this.session === null ? this.replay?.boundary : this.live?.boundary) ?? null
+    );
   }
 
   private canvas() {

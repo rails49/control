@@ -27,13 +27,13 @@ export const headerStyles = css`
 
   .mode,
   .trace,
-  .tick {
+  .boundary {
     color: var(--hint);
   }
 
-  .tick {
+  .boundary {
     font-variant-numeric: tabular-nums;
-    min-width: 4.5rem;
+    min-width: 7rem;
     text-align: right;
   }
 

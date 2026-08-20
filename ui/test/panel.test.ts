@@ -60,20 +60,21 @@ function facing(...ends: string[]): Partial<TraceEvent> {
 }
 
 function feed(model: Panel, ...events: Partial<TraceEvent>[]): void {
-  for (const event of events) model.apply({ tick: 0, event: "?", ...event } as TraceEvent);
+  for (const event of events)
+    model.apply({ boundary: 0, event: "?", ...event } as TraceEvent);
 }
 
-/** The placement locks a trace opens with, then the first tick. */
+/** The placement locks a trace opens with, then the first boundary. */
 function placed(model: Panel): void {
   feed(
     model,
     { event: "lock_granted", train: "t1", resources: ["a"] },
-    { event: "tick" },
+    { event: "boundary" },
   );
 }
 
 describe("occupancy", () => {
-  it("stands a train where its pre-tick lock says", () => {
+  it("stands a train where its pre-boundary lock says", () => {
     const model = panel();
     placed(model);
     expect(model.blocks().get("a")).toMatchObject({
@@ -420,7 +421,7 @@ describe("the run's picture", () => {
 
   it("does not read a lock after it as a placement", () => {
     // The picture is the placement a joining page gets, so what follows is
-    // an ordinary reservation — the same rule the first tick sets in a
+    // an ordinary reservation — the same rule the first boundary sets in a
     // replay.
     const model = panel();
     feed(model, PICTURE, {
@@ -474,7 +475,7 @@ describe("facing", () => {
   });
 
   it("draws no arrow while facing names a block the train is not in yet", () => {
-    // A grant names the next block a tick before the sensor does, and the
+    // A grant names the next block a boundary before the sensor does, and
     // scheduler follows the grant. Until the sensor speaks the train is drawn
     // where it stands, with no arrow — rather than with the next block's
     // arrow on this one.

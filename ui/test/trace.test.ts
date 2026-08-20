@@ -1,6 +1,6 @@
 /**
- * The recorded trace: JSONL from the bench tap, parsed and stepped tick by
- * tick. No DOM anywhere; a trace is text in and events out.
+ * The recorded trace: JSONL from the bench tap, parsed and stepped one grant
+ * boundary at a time. No DOM anywhere; a trace is text in and events out.
  */
 
 import { describe, expect, it } from "vitest";
@@ -8,10 +8,10 @@ import { describe, expect, it } from "vitest";
 import { gesture, INBOUND, Live, parseTrace, Replay } from "../src/model/trace.js";
 
 const SAMPLE = `
-{"tick":0,"event":"lock_granted","train":"t1","resources":["a"]}
-{"tick":0,"event":"tick"}
-{"tick":1,"event":"tick"}
-{"tick":1,"event":"block_occupied","block":"b"}
+{"boundary":0,"event":"lock_granted","train":"t1","resources":["a"]}
+{"boundary":0,"event":"boundary"}
+{"boundary":1,"event":"boundary"}
+{"boundary":1,"event":"block_occupied","block":"b"}
 `;
 
 describe("parseTrace", () => {
@@ -19,14 +19,14 @@ describe("parseTrace", () => {
     const events = parseTrace(SAMPLE);
     expect(events).toHaveLength(4);
     expect(events[0]).toMatchObject({
-      tick: 0,
+      boundary: 0,
       event: "lock_granted",
       train: "t1",
     });
   });
 
   it("refuses a line that is not an event", () => {
-    expect(() => parseTrace('{"tick":0,"event":"tick"}\nnot json')).toThrow(
+    expect(() => parseTrace('{"boundary":0,"event":"boundary"}\nnot json')).toThrow(
       /line 2/,
     );
     expect(() => parseTrace('{"no":"event field"}')).toThrow(/line 1/);
@@ -34,19 +34,19 @@ describe("parseTrace", () => {
 });
 
 describe("Replay", () => {
-  it("steps one tick stamp at a time", () => {
+  it("steps one boundary stamp at a time", () => {
     const replay = new Replay(parseTrace(SAMPLE));
     expect(replay.done).toBe(false);
-    expect(replay.tick).toBe(null);
+    expect(replay.boundary).toBe(null);
     const first = replay.step();
-    expect(first.map((event) => event.event)).toEqual(["lock_granted", "tick"]);
-    expect(replay.tick).toBe(0);
+    expect(first.map((event) => event.event)).toEqual(["lock_granted", "boundary"]);
+    expect(replay.boundary).toBe(0);
     const second = replay.step();
     expect(second.map((event) => event.event)).toEqual([
-      "tick",
+      "boundary",
       "block_occupied",
     ]);
-    expect(replay.tick).toBe(1);
+    expect(replay.boundary).toBe(1);
     expect(replay.done).toBe(true);
     expect(replay.step()).toEqual([]);
   });
@@ -57,7 +57,7 @@ describe("Replay", () => {
     replay.step();
     replay.restart();
     expect(replay.done).toBe(false);
-    expect(replay.tick).toBe(null);
+    expect(replay.boundary).toBe(null);
     expect(replay.step()).toHaveLength(2);
   });
 });
@@ -69,19 +69,19 @@ describe("Live", () => {
   it("reads a relayed frame as the event its topic leaf names", () => {
     const live = new Live();
     expect(live.read(frame("tc49/dispatch/lock_granted", { train: "t1" }))).toEqual({
-      tick: 0,
+      boundary: 0,
       event: "lock_granted",
       train: "t1",
     });
   });
 
-  it("stamps every frame with the latest tick, as the bench tap does", () => {
+  it("stamps every frame with the latest boundary, as the bench tap does", () => {
     const live = new Live();
-    expect(live.tick).toBeNull();
-    live.read(frame("tc49/layout/tick", { tick: 7 }));
-    expect(live.tick).toBe(7);
+    expect(live.boundary).toBeNull();
+    live.read(frame("tc49/layout/boundary", { boundary: 7 }));
+    expect(live.boundary).toBe(7);
     expect(live.read(frame("tc49/layout/block_occupied", { block: "b" }))).toEqual({
-      tick: 7,
+      boundary: 7,
       event: "block_occupied",
       block: "b",
     });

@@ -69,9 +69,9 @@ export class TcHeader extends LitElement {
   /** Whether the bridge is answering. Read only in a live session. */
   @property({ type: Boolean }) linked = false;
 
-  /** The tick the run has reached, `null` before the first one. Read on the
-   *  panel only: a drawing is not a run. */
-  @property({ type: Number }) tick: number | null = null;
+  /** The grant boundary the run has reached, `null` before the first one.
+   *  Read on the panel only: a drawing is not a run. */
+  @property({ type: Number }) boundary: number | null = null;
 
   override render() {
     const editing = this.mode === "editor";
@@ -100,7 +100,9 @@ export class TcHeader extends LitElement {
         : nothing}
       ${editing
         ? nothing
-        : html`<span class="tick">${this.tick === null ? "—" : `tick ${this.tick}`}</span>`}
+        : html`<span class="boundary">
+            ${this.boundary === null ? "—" : `boundary ${this.boundary}`}
+          </span>`}
       <a class="other" href=${editing ? "/panel.html" : "/"}>
         ${editing ? "panel" : "editor"}
       </a>

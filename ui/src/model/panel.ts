@@ -108,9 +108,9 @@ export class Panel {
    *  (ADR-0019), and the topic carries it whole. */
   private heading = new Map<string, { block: string; toward: string }>();
   private requests = new Map<string, Request>();
-  /** Whether the first tick has passed: a lock on a block before it is the
-   *  trace's opening placement, there being no occupancy event for a train
-   *  that never moved. */
+  /** Whether the first boundary has passed: a lock on a block before it is
+   *  the trace's opening placement, there being no occupancy event for a
+   *  train that never moved. */
   private started = false;
 
   /** transit resource → the symbols and legs its way takes. */
@@ -152,7 +152,7 @@ export class Panel {
 
   apply(event: TraceEvent): void {
     switch (event.event) {
-      case "tick":
+      case "boundary":
         this.started = true;
         return;
       case "lock_granted": {
@@ -315,7 +315,7 @@ export class Panel {
         return;
       }
       default:
-        return; // ticks aside, the panel reads a subset of the bus
+        return; // boundaries aside, the panel reads a subset of the bus
     }
   }
 
