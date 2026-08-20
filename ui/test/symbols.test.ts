@@ -45,12 +45,12 @@ describe("the generated symbol library", () => {
   });
 
   it("gives every leg of a motorised kind the position it wants", () => {
-    // A slip's legs are not named for its positions, so this table is the
-    // only place the editor can learn that `slip` means curved.
+    // No kind's legs are named for its positions, so this table is the only
+    // place the editor can learn that `slip` and `diverging` mean thrown.
     const kind: MotorisedKind = "single_slip";
     const position: Position = POSITIONS[kind].slip;
     const turnout: Position = POSITIONS.turnout.diverging;
-    expect([position, turnout]).toEqual(["curved", "curved"]);
+    expect([position, turnout]).toEqual(["thrown", "thrown"]);
   });
 
   it("keeps the bend off the palette and everything else on it", () => {
