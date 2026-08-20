@@ -162,10 +162,12 @@ export const way = css`
   }
 `;
 
-/* The box a menu drops into, shared by the right-click menu and the bar's, so
-   that the editor's two menu systems read as one. Position is the caller's:
-   one is pinned to the pointer and the other hangs off its title. Named for
-   the menu it belongs to, `tc-panel` being another thing entirely. */
+/**
+ * The box a menu drops into, shared by the right-click menu and the bar's, so
+ * that the editor's two menu systems read as one. Position is the caller's:
+ * one is pinned to the pointer and the other hangs off its title. Named for
+ * the menu it belongs to, `tc-panel` being another thing entirely.
+ */
 export const menuBox = css`
   margin: 0;
   padding: 0.25rem;
@@ -178,8 +180,8 @@ export const menuBox = css`
   font: 13px/1.4 system-ui, sans-serif;
 `;
 
-/* One row of a menu: a label that takes the width, and whatever sits either
-   side of it. */
+/** One row of a menu: a label that takes the width, and whatever sits either
+ *  side of it. */
 export const menuRow = css`
   display: flex;
   align-items: center;
@@ -195,8 +197,8 @@ export const menuRow = css`
   cursor: pointer;
 `;
 
-/* The key that does the same thing, set apart from the words rather than
-   competing with them. */
+/** The key that does the same thing, set apart from the words rather than
+ *  competing with them. */
 export const menuShortcut = css`
   color: var(--hint);
   font: inherit;
