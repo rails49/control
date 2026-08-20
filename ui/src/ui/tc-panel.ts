@@ -1,13 +1,13 @@
 /**
  * The panel (ui/PANEL.md): the drawing with the railroad's state painted on
  * top, fed either by a recorded trace or by a live session over the bridge,
- * and — live — scheduling by drag.
+ * and — live — scheduling by drag and turning a train around by right-click.
  *
  * Everything shown is the panel model's answer (model/panel.ts) and everything
  * a drag means is the drag model's (model/drag.ts). This component loads the
  * documents, converts the pointer's pixels into squares, paints, and sends the
- * one frame the relay accepts. It computes nothing: occupancy, aspects,
- * markers, lit legs and arrival ends all arrive as data.
+ * frames the relay accepts. It computes nothing: occupancy, aspects, markers,
+ * lit legs, arrival ends and whether a train is busy all arrive as data.
  *
  * The two sources are exclusive: picking a railroad replays a trace, joining a
  * session runs live, and only a live session can gesture — a replay has nobody
@@ -21,7 +21,7 @@ import "@shoelace-style/shoelace/dist/components/select/select.js";
 import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
-import { Drag } from "../model/drag.js";
+import { Drag, trainAt } from "../model/drag.js";
 import { dark } from "../model/inspect.js";
 import { wirePins, type Drawing } from "../model/drawing.js";
 import {
@@ -45,14 +45,16 @@ import {
   review,
   type Review,
 } from "../model/store.js";
-import { gesture, Live, parseTrace, Replay } from "../model/trace.js";
+import { gesture, Live, parseTrace, Replay, reversal } from "../model/trace.js";
 import type { Position } from "../symbols.generated.js";
 import { pointOf } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { BLOCK, fitted } from "../render/units.js";
 import { panelStyles } from "./tc-panel.styles.js";
 import "./tc-header.js";
+import "./tc-menu.js";
 import type { Mode } from "./tc-header.js";
+import type { MenuItem } from "./tc-menu.js";
 
 /** Where `tc49 live` puts the bridge. Overridable for a session somewhere
  *  else, which is the whole of the browser's configuration. */
@@ -77,6 +79,9 @@ export class TcPanel extends LitElement {
   /** Bumped after each step: the model mutates in place, so rendering is
    *  asked for rather than observed. */
   @state() private beat = 0;
+  /** The open right-click menu: where it hangs and whose train it is about,
+   *  `null` for none. */
+  @state() private menu: { x: number; y: number; train: string } | null = null;
 
   private panel: Panel | null = null;
   private reviewed: Review | null = null;
@@ -256,6 +261,7 @@ export class TcPanel extends LitElement {
 
   private leave(): void {
     this.drag.cancel();
+    this.menu = null;
     this.socket?.close();
     this.socket = null;
     this.live = null;
@@ -310,7 +316,59 @@ export class TcPanel extends LitElement {
     this.beat++;
   }
 
-  private gridAt(event: PointerEvent): Point {
+  // --- turning a train around -----------------------------------------------
+
+  /**
+   * The right-click: the menu over the block a train stands in, and nothing
+   * anywhere else (#124).
+   *
+   * The native menu is suppressed over the whole drawing, the way `tc-canvas`
+   * suppresses it, so a right-click on paper is not half this gesture and
+   * half the browser's. The press that opened this may have started a drag —
+   * a long press on a touch screen raises `contextmenu` — and the menu takes
+   * it over.
+   */
+  private offer(event: MouseEvent): void {
+    event.preventDefault();
+    this.abandon();
+    this.menu = null;
+    if (!this.scheduling) return;
+    const standing = trainAt(
+      this.drawing!,
+      this.reviewed!,
+      this.panel!.blocks(),
+      this.gridAt(event),
+    );
+    if (standing === null) return;
+    this.menu = { x: event.clientX, y: event.clientY, train: standing.train };
+  }
+
+  /** The one item the panel offers, greyed while that train has a request in
+   *  flight: the panel's only pre-judgement of a gesture, against the
+   *  filter-free drag where every drop submits (ui/PANEL.md). "Turn around"
+   *  and not "Reverse", which is the throttle's word — this moves nothing. */
+  private get offered(): MenuItem[] {
+    const train = this.menu?.train;
+    if (train === undefined) return [];
+    return [
+      {
+        label: "Turn around",
+        action: "turn-around",
+        disabled: this.panel!.inFlight(train),
+      },
+    ];
+  }
+
+  /** Chosen: one `reversal_wanted` naming the train. The scheduler flips its
+   *  facing and the arrow follows — the whole of the feedback. */
+  private chose(): void {
+    const train = this.menu?.train;
+    this.menu = null;
+    if (train === undefined) return;
+    this.socket?.send(reversal(train));
+  }
+
+  private gridAt(event: MouseEvent): Point {
     const element = this.renderRoot.querySelector("svg")!;
     const matrix = element.getScreenCTM();
     if (matrix === null) return { x: 0, y: 0 };
@@ -379,6 +437,15 @@ export class TcPanel extends LitElement {
           : html`<sl-button size="small" @click=${this.leave}>Leave</sl-button>`}
       </header>
       <main>${this.canvas()}</main>
+
+      <tc-menu
+        .at=${this.menu}
+        .items=${this.offered}
+        @menu-action=${this.chose}
+        @menu-dismissed=${() => {
+          this.menu = null;
+        }}
+      ></tc-menu>
     `;
   }
 
@@ -449,6 +516,7 @@ export class TcPanel extends LitElement {
         @pointermove=${this.moved}
         @pointerup=${this.up}
         @pointercancel=${this.abandon}
+        @contextmenu=${this.offer}
       >
         <defs>${DEFS}</defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />

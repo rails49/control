@@ -72,12 +72,9 @@ export class Drag {
     blocks: Map<string, BlockView>,
     point: Point,
   ): boolean {
-    const block = blockAt(drawing, review, point);
-    const view = block === null ? undefined : blocks.get(block);
-    if (block === null || view?.train === undefined || view.state !== "occupied") {
-      return false;
-    }
-    this.held = { train: view.train, block, from: point, to: point };
+    const standing = trainAt(drawing, review, blocks, point);
+    if (standing === null) return false;
+    this.held = { ...standing, from: point, to: point };
     this.proposal = null;
     return true;
   }
@@ -123,6 +120,28 @@ export class Drag {
     if (block === null || block === this.held.block) return null;
     return { train: this.held.train, block, dest: endsOf(drawing, block, point) };
   }
+}
+
+/**
+ * The train standing under a point, where one does — and the block it stands
+ * in, which for a drag is the drop that cancels.
+ *
+ * The press that takes hold of a train and the right-click that offers to
+ * turn one around ask this same question of the same point (ui/PANEL.md), so
+ * neither can come to disagree about which train was clicked.
+ */
+export function trainAt(
+  drawing: Drawing,
+  review: Review,
+  blocks: Map<string, BlockView>,
+  point: Point,
+): { train: string; block: string } | null {
+  const block = blockAt(drawing, review, point);
+  const view = block === null ? undefined : blocks.get(block);
+  if (block === null || view?.train === undefined || view.state !== "occupied") {
+    return null;
+  }
+  return { train: view.train, block };
 }
 
 /** The block symbol under a point, where the point is on one. The question is

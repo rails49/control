@@ -419,6 +419,25 @@ export class Panel {
     return lit;
   }
 
+  /**
+   * Whether the train has a request in flight: submitted, admitted or
+   * committed, but not one already answered with a rejection.
+   *
+   * The panel pre-judges one gesture on this and no other (ui/PANEL.md).
+   * Turning a train around while a request of its own is queued would flip
+   * the arrow under it: the request still departs the old end, and
+   * `route_chosen` turns the arrow back when it launches. A rejected request
+   * leaves the train idle — its marker stays on screen, but nothing is going
+   * to move it — and that is precisely when the operator wants to turn it
+   * around.
+   */
+  inFlight(train: string): boolean {
+    for (const request of this.requests.values()) {
+      if (request.train === train && request.phase !== "rejected") return true;
+    }
+    return false;
+  }
+
   /** The endpoints worth marking: pending requests as endpoints only — never
    *  a predicted path — and rejections with their reason in words. */
   markers(): Marker[] {

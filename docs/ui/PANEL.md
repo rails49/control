@@ -83,10 +83,13 @@ it, so the panel draws none — no rule here, just an end absent from the map.
 
 ## What it does
 
-The panel is read-only apart from gesturing. **Dragging** a train from its
-block to a destination block publishes `tc49/ui/request_wanted` —
-`{train, dest}`, the panel's whole write surface — and the scheduler composes
-the request the dispatcher then answers with `request_admitted` or
+The panel is read-only apart from gesturing, and it gestures in two ways: a
+drag, which asks for a train to be moved, and a right-click, which turns one
+around where it stands.
+
+**Dragging** a train from its block to a destination block publishes
+`tc49/ui/request_wanted` — `{train, dest}` — and the scheduler composes the
+request the dispatcher then answers with `request_admitted` or
 `request_rejected`. The block's outer thirds name one arrival end — the end
 the train enters through, as [CONTEXT.md](../../CONTEXT.md) defines it — and
 the middle third names both, "either way round". Dropping on the train's own
@@ -125,6 +128,42 @@ A gesture the scheduler cannot compose is **dropped in silence** and lives in
 the trace. It carries no id, so there is nothing to address an answer to, and
 the panel renders the roster from the run — so an honest drag cannot produce
 one ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
+
+**Right-clicking** the block a train stands in opens a menu with one item,
+**Turn around**, which publishes `tc49/ui/reversal_wanted` (`{train}`). The
+scheduler flips that train's **facing** to the other end of the same block and
+the arrow turns. That is the whole of the feedback: nothing moves, no request
+is composed, and no `tc49/dispatch` topic carries anything. Facing is
+otherwise fully determined once placed, routes being strict pass-throughs, and
+deliberate reversal at rest is the one exception
+([ADR-0019](../adr/0019-facing-is-scheduler-state.md)). It is what a train
+that can run either way needs, and what switching needs: the panel should read
+true before you drag anywhere.
+
+A gesture of its own rather than a departure end named inside the drag. The
+press location is the panel's last free motion, and a drag cannot say "turn
+around and stay put", which is the whole case. A menu also says what it does
+before you commit, which suits a gesture whose entire effect is one arrow
+rotating, and no motion the drag uses can reach it: a plain click on a train's
+own block is already the drag's cancel. Not "Reverse", which is the throttle's
+word; this moves nothing. The menu is where the human driver's throttle will
+hang later, when `tc49/ui` grows its third leaf.
+
+Over bare paper, over an empty block, or with no session joined no menu opens,
+and neither does the browser's own, which the drawing suppresses throughout.
+The item is **greyed while that train has a request in flight**, meaning any
+request from submit to completion. This is the panel's one pre-judgement of a
+gesture, against the filter-free drag, and it earns the exception: a disabled
+item says the train is busy, where silence says nothing. Reversing under a
+queued request would produce a lie, since the request still departs the old
+end and `route_chosen` turns the arrow back when it launches. A **rejected**
+request leaves the train idle, its marker still on screen but nothing left to
+move it, and that is precisely when you want to turn around. The scheduler
+drops such a gesture anyway, a stale page always being able to send one.
+
+The panel is mouse-and-keyboard. Touch works where the browser gives it, iOS
+Safari raising `contextmenu` on a long press, but is not designed for; the one
+care taken is cancelling the drag that same press began.
 
 Manual turnout throwing is not offered. RocRail allows it because it owns
 manual shunting, which this model excludes: trains move only on granted
@@ -187,7 +226,10 @@ The front end keeps the editor's model/component split. `model/panel.ts` turns
 bus payloads into render state and holds no scheduler state: facing arrives on
 its topic and ids arrive on `request_submitted`. `model/drag.ts` turns pointer positions
 into an arrival-end set or a cancel, DOM-free and tested the way the editor's
-gesture model is. `model/scene.ts` is what the drawing alone answers: the
+gesture model is; `trainAt` there is the one question the press and the
+right-click share, so the two can never disagree about which train was
+clicked. `tc-menu` renders the items it is given, the editor and the panel
+each working out their own list. `model/scene.ts` is what the drawing alone answers: the
 viewBox, an arrow's pose, and which symbol an address is worn by. `tc-panel`
 converts pixels into squares, paints, and sends.
 

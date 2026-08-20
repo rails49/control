@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { Drag } from "../src/model/drag.js";
+import { Drag, trainAt } from "../src/model/drag.js";
 import type { Drawing } from "../src/model/drawing.js";
 import type { BlockView } from "../src/model/panel.js";
 import type { Review } from "../src/model/store.js";
@@ -67,6 +67,36 @@ describe("taking hold", () => {
   it("ignores a press on bare paper", () => {
     const drag = new Drag();
     expect(drag.down(DRAWING, REVIEW, BLOCKS, { x: 20, y: 20 })).toBe(false);
+  });
+});
+
+/**
+ * The one question the press and the right-click share (#124): which train
+ * was clicked. Asked once so the drag and the "Turn around" menu can never
+ * disagree about it.
+ */
+describe("the train under a point", () => {
+  const asked = (point: { x: number; y: number }) =>
+    trainAt(DRAWING, REVIEW, BLOCKS, point);
+
+  it("names the train and the block it stands in", () => {
+    expect(asked(on("a", 0.5))).toEqual({ train: "t1", block: "a" });
+  });
+
+  it("names none over an empty block or over bare paper", () => {
+    expect(asked(on("b", 0.5))).toBeNull();
+    expect(asked({ x: 20, y: 20 })).toBeNull();
+  });
+
+  /** A block a route has reserved ahead of a train is not a train standing:
+   *  the arrow it would turn belongs to a block somewhere else. */
+  it("names none over a block merely locked or planned", () => {
+    const ahead = new Map<string, BlockView>([
+      ["a", { state: "reserved", train: "t1" }],
+      ["b", { state: "planned", train: "t1" }],
+    ]);
+    expect(trainAt(DRAWING, REVIEW, ahead, on("a", 0.5))).toBeNull();
+    expect(trainAt(DRAWING, REVIEW, ahead, on("b", 0.5))).toBeNull();
   });
 });
 

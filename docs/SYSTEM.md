@@ -373,7 +373,7 @@ an idle railroad can draw it
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
 
 It is also the **sole payload authority**: a browser can publish anything on
-the one inbound topic, and after the relay is deleted nothing stands in front
+an inbound topic, and after the relay is deleted nothing stands in front
 of it, so the dispatcher never raises on a bus payload. A request naming a
 train or a block that does not exist is answered `unknown_train` or
 `unknown_block`; one carrying a readable id and otherwise not a request is
@@ -525,7 +525,7 @@ fields in inventory order — which is what makes the determinism property a
 byte compare
 ([ARCHITECTURE.md](ARCHITECTURE.md#tests)). A payload field outside the
 inventory fails loudly, which is a promise about what the **apps** write:
-on the one topic a client writes the tap records what it was given — the
+on the topics a client writes the tap records what it was given — the
 inventory's fields in order, then anything else, and a payload that is not
 an object under `payload` — since that line is the whole record of a frame
 the dispatcher drops

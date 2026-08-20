@@ -573,6 +573,80 @@ describe("gestures", () => {
 });
 
 /**
+ * Whether a train has a request in flight, which is the one thing the panel
+ * pre-judges a gesture on (#124): "Turn around" is offered greyed while it
+ * has, because a disabled item says *this train is busy* where silence says
+ * nothing.
+ */
+describe("a request in flight", () => {
+  const submitted: Partial<TraceEvent> = {
+    event: "request_submitted",
+    id: "t1-1",
+    train: "t1",
+    depart: "a.B",
+    dest: ["b.A"],
+  };
+
+  it("is nothing at all before a train is dragged", () => {
+    const model = panel();
+    placed(model);
+    expect(model.inFlight("t1")).toBe(false);
+  });
+
+  it("holds from submit through admission and commitment", () => {
+    const model = panel();
+    placed(model);
+    feed(model, submitted);
+    expect(model.inFlight("t1")).toBe(true);
+    feed(model, { event: "request_admitted", id: "t1-1", dest: ["b.A"], pruned: [] });
+    expect(model.inFlight("t1")).toBe(true);
+    feed(model, { event: "route_chosen", id: "t1-1", route: ["a", "sw.main", "b"] });
+    expect(model.inFlight("t1")).toBe(true);
+  });
+
+  it("ends when the request completes", () => {
+    const model = panel();
+    placed(model);
+    feed(model, submitted, { event: "request_completed", id: "t1-1" });
+    expect(model.inFlight("t1")).toBe(false);
+  });
+
+  /** A rejected request's marker stays on screen until the train is dragged
+   *  again, and that is precisely when you want to turn around. */
+  it("ends on a rejection, whose marker is still shown", () => {
+    const model = panel();
+    placed(model);
+    feed(model, submitted, {
+      event: "request_rejected",
+      id: "t1-1",
+      reason: "no_entry",
+    });
+    expect(model.inFlight("t1")).toBe(false);
+    expect(model.markers().map((marker) => marker.role)).toContain("rejected");
+  });
+
+  it("is asked of one train and answered for that one", () => {
+    const model = panel();
+    placed(model);
+    feed(model, submitted);
+    expect(model.inFlight("t2")).toBe(false);
+  });
+
+  /** A page joining a running session is served the dispatcher's picture,
+   *  and every request in it is one the train is busy with. */
+  it("is read off the run's picture a joining page is served", () => {
+    const model = panel();
+    feed(model, {
+      event: "allocation",
+      trains: { t1: "a" },
+      locks: {},
+      requests: [{ id: "t1-9", train: "t1", depart: "a.B", dest: ["b.A"] }],
+    });
+    expect(model.inFlight("t1")).toBe(true);
+  });
+});
+
+/**
  * Where each point lies, as the alignment command says (ADR-0022, #98). The
  * panel works nothing out: the dispatcher sends the addresses and positions
  * the transit's way needs, and this is the ledger of what it last said.
