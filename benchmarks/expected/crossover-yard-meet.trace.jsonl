@@ -1,3 +1,4 @@
+{"tick":0,"event":"facing","facing":{"express_2":"up_e.A","freight_1":"yard_w.B"}}
 {"tick":0,"event":"lock_granted","train":"freight_1","resources":["yard_w"]}
 {"tick":0,"event":"lock_granted","train":"express_2","resources":["up_e"]}
 {"tick":0,"event":"allocation","trains":{"express_2":"up_e","freight_1":"yard_w"},"locks":{"up_e":"express_2","yard_w":"freight_1"},"requests":[]}
@@ -17,6 +18,7 @@
 {"tick":1,"event":"grant_refused","id":"express_2-1","reason":"transit_conflict","obstacles":[{"resource":"west_ladder.to_dn","holder":"freight_1"},{"resource":"crossover.dn_straight","holder":"freight_1"}]}
 {"tick":1,"event":"aspects","aspects":{"dn_e.A":"stop","dn_e.B":"stop","dn_w.A":"stop","dn_w.B":"stop","up_e.A":"stop","up_e.B":"stop","up_w.A":"stop","up_w.B":"stop","yard_e.A":"stop","yard_w.B":"clear"}}
 {"tick":1,"event":"allocation","trains":{"express_2":"up_e","freight_1":"yard_w"},"locks":{"crossover.dn_straight":"freight_1","dn_e":"freight_1","dn_w":"freight_1","east_ladder.from_dn":"freight_1","up_e":"express_2","west_ladder.to_dn":"freight_1","yard_e":"freight_1","yard_w":"freight_1"},"requests":[{"id":"freight_1-1","train":"freight_1","depart":"yard_w.B","dest":["yard_e.A"],"route":["yard_w","west_ladder.to_dn","dn_w","crossover.dn_straight","dn_e","east_ladder.from_dn","yard_e"]},{"id":"express_2-1","train":"express_2","depart":"up_e.A","dest":["yard_w.B"]}]}
+{"tick":1,"event":"facing","facing":{"express_2":"up_e.A","freight_1":"dn_w.B"}}
 {"tick":1,"event":"cross","train":"freight_1","connection":"west_ladder","transit":"to_dn","into":"dn_w"}
 {"tick":1,"event":"block_vacated","block":"yard_w"}
 {"tick":1,"event":"block_occupied","block":"dn_w"}
@@ -30,7 +32,9 @@
 {"tick":2,"event":"move_granted","id":"express_2-1","train":"express_2","transit":"crossover.up_straight","into":"up_w","aspect":"clear"}
 {"tick":2,"event":"aspects","aspects":{"dn_e.A":"stop","dn_e.B":"stop","dn_w.A":"stop","dn_w.B":"clear","up_e.A":"clear","up_e.B":"stop","up_w.A":"stop","up_w.B":"stop","yard_e.A":"stop","yard_w.B":"stop"}}
 {"tick":2,"event":"allocation","trains":{"express_2":"up_e","freight_1":"dn_w"},"locks":{"crossover.dn_straight":"freight_1","crossover.up_straight":"express_2","dn_e":"freight_1","dn_w":"freight_1","east_ladder.from_dn":"freight_1","up_e":"express_2","up_w":"express_2","west_ladder.to_up":"express_2","yard_e":"freight_1","yard_w":"express_2"},"requests":[{"id":"freight_1-1","train":"freight_1","depart":"yard_w.B","dest":["yard_e.A"],"route":["yard_w","west_ladder.to_dn","dn_w","crossover.dn_straight","dn_e","east_ladder.from_dn","yard_e"]},{"id":"express_2-1","train":"express_2","depart":"up_e.A","dest":["yard_w.B"],"route":["up_e","crossover.up_straight","up_w","west_ladder.to_up","yard_w"]}]}
+{"tick":2,"event":"facing","facing":{"express_2":"up_e.A","freight_1":"dn_e.B"}}
 {"tick":2,"event":"cross","train":"freight_1","connection":"crossover","transit":"dn_straight","into":"dn_e"}
+{"tick":2,"event":"facing","facing":{"express_2":"up_w.A","freight_1":"dn_e.B"}}
 {"tick":2,"event":"cross","train":"express_2","connection":"crossover","transit":"up_straight","into":"up_w"}
 {"tick":2,"event":"block_vacated","block":"dn_w"}
 {"tick":2,"event":"block_occupied","block":"dn_e"}
@@ -45,7 +49,9 @@
 {"tick":3,"event":"move_granted","id":"freight_1-1","train":"freight_1","transit":"east_ladder.from_dn","into":"yard_e","aspect":"approach"}
 {"tick":3,"event":"aspects","aspects":{"dn_e.A":"stop","dn_e.B":"approach","dn_w.A":"stop","dn_w.B":"stop","up_e.A":"stop","up_e.B":"stop","up_w.A":"approach","up_w.B":"stop","yard_e.A":"stop","yard_w.B":"stop"}}
 {"tick":3,"event":"allocation","trains":{"express_2":"up_w","freight_1":"dn_e"},"locks":{"dn_e":"freight_1","east_ladder.from_dn":"freight_1","up_w":"express_2","west_ladder.to_up":"express_2","yard_e":"freight_1","yard_w":"express_2"},"requests":[{"id":"freight_1-1","train":"freight_1","depart":"yard_w.B","dest":["yard_e.A"],"route":["yard_w","west_ladder.to_dn","dn_w","crossover.dn_straight","dn_e","east_ladder.from_dn","yard_e"]},{"id":"express_2-1","train":"express_2","depart":"up_e.A","dest":["yard_w.B"],"route":["up_e","crossover.up_straight","up_w","west_ladder.to_up","yard_w"]}]}
+{"tick":3,"event":"facing","facing":{"express_2":"yard_w.A","freight_1":"dn_e.B"}}
 {"tick":3,"event":"cross","train":"express_2","connection":"west_ladder","transit":"to_up","into":"yard_w"}
+{"tick":3,"event":"facing","facing":{"express_2":"yard_w.A","freight_1":"yard_e.B"}}
 {"tick":3,"event":"cross","train":"freight_1","connection":"east_ladder","transit":"from_dn","into":"yard_e"}
 {"tick":3,"event":"block_vacated","block":"up_w"}
 {"tick":3,"event":"block_occupied","block":"yard_w"}
@@ -77,6 +83,8 @@
 {"tick":13,"event":"move_granted","id":"freight_1-2","train":"freight_1","transit":"east_ladder.from_dn","into":"dn_e","aspect":"clear"}
 {"tick":13,"event":"aspects","aspects":{"dn_e.A":"stop","dn_e.B":"stop","dn_w.A":"stop","dn_w.B":"stop","up_e.A":"stop","up_e.B":"stop","up_w.A":"stop","up_w.B":"stop","yard_e.A":"clear","yard_w.B":"stop"}}
 {"tick":13,"event":"allocation","trains":{"express_2":"yard_w","freight_1":"yard_e"},"locks":{"crossover.dn_straight":"freight_1","dn_e":"freight_1","dn_w":"freight_1","east_ladder.from_dn":"freight_1","yard_e":"freight_1","yard_w":"express_2"},"requests":[{"id":"freight_1-2","train":"freight_1","depart":"yard_e.A","dest":["dn_w.A","dn_w.B"],"route":["yard_e","east_ladder.from_dn","dn_e","crossover.dn_straight","dn_w"]}]}
+{"tick":13,"event":"facing","facing":{"express_2":"yard_w.A","freight_1":"yard_e.A"}}
+{"tick":13,"event":"facing","facing":{"express_2":"yard_w.A","freight_1":"dn_e.A"}}
 {"tick":13,"event":"cross","train":"freight_1","connection":"east_ladder","transit":"from_dn","into":"dn_e"}
 {"tick":13,"event":"block_vacated","block":"yard_e"}
 {"tick":13,"event":"block_occupied","block":"dn_e"}
@@ -86,6 +94,7 @@
 {"tick":14,"event":"move_granted","id":"freight_1-2","train":"freight_1","transit":"crossover.dn_straight","into":"dn_w","aspect":"approach"}
 {"tick":14,"event":"aspects","aspects":{"dn_e.A":"approach","dn_e.B":"stop","dn_w.A":"stop","dn_w.B":"stop","up_e.A":"stop","up_e.B":"stop","up_w.A":"stop","up_w.B":"stop","yard_e.A":"stop","yard_w.B":"stop"}}
 {"tick":14,"event":"allocation","trains":{"express_2":"yard_w","freight_1":"dn_e"},"locks":{"crossover.dn_straight":"freight_1","dn_e":"freight_1","dn_w":"freight_1","yard_w":"express_2"},"requests":[{"id":"freight_1-2","train":"freight_1","depart":"yard_e.A","dest":["dn_w.A","dn_w.B"],"route":["yard_e","east_ladder.from_dn","dn_e","crossover.dn_straight","dn_w"]}]}
+{"tick":14,"event":"facing","facing":{"express_2":"yard_w.A","freight_1":"dn_w.A"}}
 {"tick":14,"event":"cross","train":"freight_1","connection":"crossover","transit":"dn_straight","into":"dn_w"}
 {"tick":14,"event":"block_vacated","block":"dn_e"}
 {"tick":14,"event":"block_occupied","block":"dn_w"}

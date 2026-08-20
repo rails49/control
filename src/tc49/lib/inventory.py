@@ -11,6 +11,7 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "tc49/layout/block_vacated": ("block",),
     "tc49/schedule/request_submitted": ("id", "train", "depart", "dest"),
     "tc49/schedule/state/exhausted": ("exhausted",),
+    "tc49/schedule/state/facing": ("facing",),
     "tc49/dispatch/request_admitted": ("id", "dest", "pruned"),
     "tc49/dispatch/request_rejected": ("id", "reason"),
     "tc49/dispatch/request_completed": ("id",),

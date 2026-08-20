@@ -76,7 +76,7 @@ def assemble(
     bus = Bus()
     out = io.StringIO()
     TraceTap(bus, out)
-    Scheduler(bus, scenario)
+    Scheduler(bus, layout, scenario)
     dispatcher = Dispatcher(bus, layout, scenario, make_strategy(layout, k))
     Driver(bus)
     return Assembly(bus, dispatcher, Simulator(bus, scenario), layout, scenario, k, out)
@@ -88,13 +88,16 @@ def assemble_live(
     make_strategy: StrategyFactory = FullRoute,
     k: int = DEFAULT_K,
 ) -> Assembly:
-    """The live-session wiring (#71): the batch assembly minus the file
-    scheduler. Modes are exclusive (ADR-0016) — the scenario contributes
-    stock, placement, and facing, its requests are never released, and the
+    """The live-session wiring (#71): the batch assembly with the timetable
+    off. Which sources a session has is configuration rather than a rule
+    (ADR-0036) — a scenario's `at` is still a tick number, so releasing it
+    into a two-second wall clock would dump a timetable on an operator in the
+    first minute. The scenario contributes stock, placement, and facing; the
     bridge a caller attaches to the bus is the only inbound path."""
     bus = Bus()
     out = io.StringIO()
     TraceTap(bus, out)
+    Scheduler(bus, layout, scenario, timetable=False)
     dispatcher = Dispatcher(bus, layout, scenario, make_strategy(layout, k))
     Driver(bus)
     return Assembly(bus, dispatcher, Simulator(bus, scenario), layout, scenario, k, out)

@@ -81,14 +81,20 @@ def submit(
         time.sleep(0.01)
 
 
-def test_the_file_requests_are_never_released(assembly: Assembly) -> None:
-    """crossover-yard/meet schedules three workings from tick 0; in a live
-    session the scenario contributes stock, placement, and facing only
-    (ADR-0016), so nothing is submitted and the railroad just ticks."""
+def test_the_timetable_is_off_and_facing_is_still_published(
+    assembly: Assembly,
+) -> None:
+    """crossover-yard/meet schedules three workings from tick 0; a live
+    session runs the same scheduler with the timetable off (ADR-0036), so
+    nothing is submitted and the railroad just ticks. Facing is not off with
+    it: it is the scenario's placement, and a joining page has no other
+    source for a direction arrow."""
     tick_until(assembly, lambda: False, limit=10)
     assert events(assembly.trace, "tick")
     assert events(assembly.trace, "request_submitted") == []
     assert events(assembly.trace, "route_chosen") == []
+    [placed] = events(assembly.trace, "facing")
+    assert placed["facing"] == {"express_2": "up_e.A", "freight_1": "yard_w.B"}
 
 
 def test_a_submitted_frame_is_answered_and_run_over_the_same_socket(

@@ -3,8 +3,9 @@
 
 `bench` runs one named scenario under both locking strategies and prints the
 comparison. `live` runs a session an outside client can join: wall-clock
-ticks, the bridge relaying `tc49/#` out and `request_submitted` in, the
-store served over HTTP, and no file scheduler (ADR-0016 exclusivity). `sweep` takes no arguments: the grid of BENCHMARKS.md is the
+ticks, the bridge relaying `tc49/#` out and gestures in, the store served
+over HTTP, and the scheduler's timetable off while `at` is a tick number
+(ADR-0036). `sweep` takes no arguments: the grid of BENCHMARKS.md is the
 research design, not a knob, and that page is its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
 review that a committed layout file used to give in a diff (ADR-0015).
@@ -212,7 +213,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
             f"live: {args.scenario} at {args.period}s per tick\n"
             f"  bridge  ws://127.0.0.1:{bridge.port}\n"
             f"  store   http://127.0.0.1:{args.store_port}\n"
-            "no file scheduler runs; Ctrl-C ends the session, and a restart"
+            "the timetable is off; Ctrl-C ends the session, and a restart"
             " comes up fresh from the scenario\n"
         )
         out.flush()
