@@ -523,7 +523,13 @@ delivered before the first tick event, such as the startup standing locks.
 Key order is
 canonical — `tick`, `event`, then the event's fields in inventory order —
 which is what makes the determinism property a byte compare
-([ARCHITECTURE.md](ARCHITECTURE.md#tests)).
+([ARCHITECTURE.md](ARCHITECTURE.md#tests)). A payload field outside the
+inventory fails loudly, which is a promise about what the **apps** write:
+on the one topic a client writes the tap records what it was given — the
+inventory's fields in order, then anything else, and a payload that is not
+an object under `payload` — since that line is the whole record of a frame
+the dispatcher drops
+([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 
 `metrics(trace)` stays a pure function of the trace, and the trace stays
 **load-bearing**: every metric derives from recorded events — makespan from

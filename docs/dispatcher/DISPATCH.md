@@ -12,7 +12,8 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
   is a block the train fits, none is an end any route can enter through, or —
   settled at the first launch attempt, from the origin — none is reachable. A
   request stating a departure block its train is not standing in is rejected
-  too. All other requests are accepted and queued.
+  too, as is a payload the dispatcher cannot read as a request at all. All
+  other requests are accepted and queued.
 - **Fixed routes** — a route is chosen when the train starts moving and never
   changed; only its locks are incremental
   ([ADR-0002](../adr/0002-fixed-route-per-request.md)).
@@ -65,6 +66,15 @@ need different information:
   raising, since the submitter may be a stale browser
   ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)). A request
   naming no block, as a chained working does, can state no disagreement.
+  This stage is also where the payload is **read**, rather than trusted:
+  anything at all can be published on the inbound topic and after the relay
+  is deleted nothing stands in front of the dispatcher, so a train the
+  session does not have is answered `unknown_train`, a departure or arrival
+  block the layout does not have `unknown_block`, and a payload carrying a
+  readable id that is otherwise not a request `malformed`. One with no
+  readable id is dropped — every rejection is addressed by id, and the frame
+  is a line in the trace by virtue of having been published
+  ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 - At the first launch attempt, arrival ends not reachable from the origin are
   pruned. This needs the origin block, which for a chained working is not known
   until its predecessor completes — so `request_rejected` can also be

@@ -98,7 +98,10 @@ The drag is **filter-free**: the panel never grays out targets or pre-judges
 fit or reachability. Every drop submits, the dispatcher stays the sole
 feasibility authority, and a rejection renders at the request's endpoints
 with its reason spelled out (`no_fit`, `no_entry`, `unreachable`,
-`wrong_origin`).
+`wrong_origin`, `unknown_train`, `unknown_block`, `malformed`). The last
+three answer a payload the dispatcher could not read as a request; an honest
+drag cannot produce one, and the page that can is a stale one, a race or a
+bug ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 
 The panel is therefore **not** a scheduler: a gesture is not a request, and
 the one writer of requests is the scheduler app
