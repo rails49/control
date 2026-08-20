@@ -14,8 +14,14 @@
 
 import { svg, type SVGTemplateResult } from "lit";
 
-import { TRANSITS, type Kind, type LibraryKind } from "../symbols.generated.js";
-import type { SymbolSpec } from "../model/drawing.js";
+import {
+  POSITIONS,
+  TRANSITS,
+  type Kind,
+  type LibraryKind,
+  type Position,
+} from "../symbols.generated.js";
+import { motorised, type AnyKind, type SymbolSpec } from "../model/drawing.js";
 import { anchorIn, footprintOf, type Point } from "../model/geometry.js";
 import { WHOLE } from "../model/inspect.js";
 import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W } from "./units.js";
@@ -43,15 +49,22 @@ const RESTING: ReadonlyMap<string, Aspect> = new Map();
  * defaults to empty, which is edit mode: no aspect class, so every lamp
  * stays lit and the symbol says what a signal is rather than what one is
  * doing.
+ *
+ * `position` is where a point lies, as the alignment command commanded it
+ * (ui/PANEL.md): the roads only the other position offers are drawn set
+ * against. It defaults to none, which is edit mode and a symbol nothing has
+ * commanded yet — a drawing says what a point is, never where it lies.
  */
 export function artwork(
   spec: SymbolSpec,
   lit: ReadonlySet<string> = NONE,
   dark: ReadonlySet<string> = NONE,
   aspects: ReadonlyMap<string, Aspect> = RESTING,
+  position?: Position,
 ): SVGTemplateResult {
   const on: Lit = (...legs) =>
     lit.has(WHOLE) || legs.some((leg) => lit.has(leg)) ? " lit" : "";
+  const set = against(spec.kind, position);
   switch (spec.kind) {
     case "connection":
       return opaque(spec, lit);
@@ -64,21 +77,39 @@ export function artwork(
     case "pin":
       return bend(on);
     case "turnout":
-      return turnout(on);
+      return turnout(on, set);
     case "crossing":
     case "crossing_90":
     case "crossing_90d":
       return crossed(spec.kind, on);
     case "single_slip":
-      return crossed(spec.kind, on, ["slip"]);
+      return crossed(spec.kind, on, ["slip"], set);
     case "double_slip":
-      return crossed(spec.kind, on, ["slip_1", "slip_2"]);
+      return crossed(spec.kind, on, ["slip_1", "slip_2"], set);
   }
 }
 
 /** Whether any of the legs running over a stroke is lit, as the class suffix
  *  the stroke takes. */
 type Lit = (...legs: string[]) => string;
+
+/** Whether a stroke is set against: every leg over it wants the position the
+ *  point is not in, so the road it draws is not one the point offers. A
+ *  stroke a leg of either position runs over is on the way whichever way the
+ *  point lies, which is what keeps a slip's half-strokes drawn. */
+type Against = (legs: readonly string[]) => boolean;
+
+const NEITHER: Against = () => false;
+
+/** The library declares which position each leg wants, so where a point lies
+ *  is enough to say which roads it does not offer. A kind with no motor —
+ *  a fixed crossing, a block — has none whatever it is handed. */
+function against(kind: AnyKind, position: Position | undefined): Against {
+  if (position === undefined || !motorised(kind)) return NEITHER;
+  const wants: Record<string, Position> = POSITIONS[kind];
+  return (legs) =>
+    legs.length > 0 && legs.every((leg) => wants[leg] !== position);
+}
 
 /** The generic connection symbol: a box with the pins it declares and no
  *  turnout detail, which is exactly what it knows about itself. It is legacy
@@ -253,12 +284,16 @@ function bend(on: Lit): SVGTemplateResult {
  *  a train actually takes rather than the curve beyond the frog. The diverging
  *  road is the one 45 degree leg ending on a face centre, which is how
  *  turnouts stack between parallel station tracks. */
-function turnout(on: Lit): SVGTemplateResult {
+function turnout(on: Lit, set: Against = NEITHER): SVGTemplateResult {
   const p = (pin: string) => anchorIn("turnout", pin);
-  return svg`${roads(on, [
-    { legs: ["straight"], d: path(p("toe"), p("straight")) },
-    { legs: ["diverging"], d: path(p("toe"), p("diverging")) },
-  ])}`;
+  return svg`${roads(
+    on,
+    [
+      { legs: ["straight"], d: path(p("toe"), p("straight")) },
+      { legs: ["diverging"], d: path(p("toe"), p("diverging")) },
+    ],
+    set,
+  )}`;
 }
 
 /**
@@ -274,22 +309,27 @@ function crossed(
   kind: LibraryKind,
   on: Lit,
   slips: string[] = [],
+  set: Against = NEITHER,
 ): SVGTemplateResult {
   const p = (pin: string) => anchorIn(kind, pin);
   const frog = middle(p("a1"), p("a2"));
   const legs = TRANSITS[kind] as Record<string, readonly [string, string]>;
   const over = (pin: string) =>
     Object.keys(legs).filter((leg) => legs[leg]!.includes(pin));
-  return svg`${roads(on, [
-    ...["a1", "a2", "b1", "b2"].map((pin) => ({
-      legs: over(pin),
-      d: path(p(pin), frog),
-    })),
-    ...slips.map((leg) => {
-      const [from, to] = legs[leg]!;
-      return { legs: [leg], as: "tick", d: tick(frog, p(from), p(to)) };
-    }),
-  ])}`;
+  return svg`${roads(
+    on,
+    [
+      ...["a1", "a2", "b1", "b2"].map((pin) => ({
+        legs: over(pin),
+        d: path(p(pin), frog),
+      })),
+      ...slips.map((leg) => {
+        const [from, to] = legs[leg]!;
+        return { legs: [leg], as: "tick", d: tick(frog, p(from), p(to)) };
+      }),
+    ],
+    set,
+  )}`;
 }
 
 /**
@@ -341,6 +381,7 @@ function crossing(p: Point, u: Point, q: Point, v: Point): Point {
 function roads(
   on: Lit,
   drawn: { legs: string[]; d: string; as?: string }[],
+  set: Against = NEITHER,
 ): SVGTemplateResult[] {
   return [...drawn]
     .sort(
@@ -348,7 +389,9 @@ function roads(
     )
     .map(
       ({ legs, d, as }) =>
-        svg`<path class=${`${as ?? "track"}${on(...legs)}`} d=${d} />`,
+        svg`<path class=${`${as ?? "track"}${on(...legs)}${
+          set(legs) ? " against" : ""
+        }`} d=${d} />`,
     );
 }
 

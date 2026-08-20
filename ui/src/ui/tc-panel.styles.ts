@@ -73,6 +73,18 @@ export const panelStyles = css`
     stroke-dasharray: ${2 * W} ${W};
   }
 
+  /* Where a point lies (CONTEXT.md): the road its position does not offer is
+     drawn faint, so a turnout on the panel shows which way it is set and the
+     editor's plain drawing keeps saying only what a point is. Fading rather
+     than recolouring, because this is not a fault and not a way lit: the road
+     is simply not on offer. A lit leg the points are not yet set for fades
+     with it, which is the honest picture — the route is chosen and the
+     alignment has not happened yet. */
+  .symbol .track.against,
+  .symbol .tick.against {
+    opacity: 0.25;
+  }
+
   /* Signal aspects, as the Swiss standard sets them: stop is red alone,
      approach is green with amber, clear is green alone. The artwork draws
      every lamp and the aspect lights a set of them, so the aspect is a class

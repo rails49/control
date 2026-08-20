@@ -36,7 +36,7 @@ import {
   type BlockView,
   type Marker,
 } from "../model/panel.js";
-import { anchorAt, arrowPose, fitBox } from "../model/scene.js";
+import { anchorAt, arrowPose, fitBox, lying } from "../model/scene.js";
 import {
   listDrawings,
   listScenarios,
@@ -46,6 +46,7 @@ import {
   type Review,
 } from "../model/store.js";
 import { Live, parseTrace, Replay, submission } from "../model/trace.js";
+import type { Position } from "../symbols.generated.js";
 import { pointOf } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { BLOCK, fitted } from "../render/units.js";
@@ -438,6 +439,9 @@ export class TcPanel extends LitElement {
     const blocks = this.panel.blocks();
     const lit = this.panel.litLegs();
     const aspects = this.panel.aspects();
+    // Where each point lies: the addresses the alignment command carried, read
+    // back as the symbols wearing them (ui/PANEL.md).
+    const lies = lying(this.drawing, this.panel.positions());
     return svg`
       <svg
         viewBox=${`${x} ${y} ${w} ${h}`}
@@ -449,7 +453,7 @@ export class TcPanel extends LitElement {
       >
         <defs>${DEFS}</defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
-        ${this.wires()} ${this.symbols(blocks, lit, aspects)}
+        ${this.wires()} ${this.symbols(blocks, lit, aspects, lies)}
         ${this.labels(blocks)} ${this.arrows(blocks)} ${this.markers()}
         ${this.gesture()}
       </svg>
@@ -472,6 +476,7 @@ export class TcPanel extends LitElement {
     blocks: Map<string, BlockView>,
     lit: Map<string, Set<string>>,
     aspects: ReadonlyMap<string, Aspect>,
+    lies: ReadonlyMap<string, Position>,
   ) {
     const target = this.drag.drop?.block;
     const blind = dark(this.reviewed!);
@@ -490,7 +495,7 @@ export class TcPanel extends LitElement {
         .join(" ");
       return svg`
         <g class=${classes} transform=${transformOf(spec)}>
-          ${artwork(spec, lit.get(name), blind.get(name), showing)}
+          ${artwork(spec, lit.get(name), blind.get(name), showing, lies.get(name))}
         </g>
       `;
     });
