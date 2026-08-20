@@ -157,6 +157,34 @@ def test_a_mid_route_drag_is_judged_against_where_the_train_stands() -> None:
             assert reason == Reason.WRONG_ORIGIN, depart
 
 
+def test_a_mid_route_drag_before_the_train_has_moved_states_its_origin() -> None:
+    """The same rule at the tick #99 reported it from (#134). freight commits
+    to yard_e in boundary 1's grant phase and crosses only on the tick after,
+    so a working released that same boundary is read while the train is still
+    standing in yard_w, active route and all: the repro's four departures,
+    with yard_w as where the train stands rather than the block it has left.
+
+    Both faces of the fault are here. yard_w.B — the string a correct panel
+    composes, facing moving only on `block_occupied` — was the departure the
+    check refused, and yard_e.A, where the route arrives, was the one it let
+    through, on the reading that the train was already standing there.
+    """
+    layout, _ = load("crossover-yard/meet")
+    fates = {
+        "yard_w.B": "request_admitted",  # where it stands, not yet moved
+        "dn_w.B": "request_rejected",  # the next block of its route
+        "dn_e.B": "request_rejected",  # a block further along its route
+        "yard_e.A": "request_rejected",  # where the route arrives
+    }
+    for depart, fate in fates.items():
+        answer, reason = admission_answer(
+            midroute_drag(layout, depart, ("dn_w.A",), 1), "freight-2"
+        )
+        assert answer == fate, depart
+        if fate == "request_rejected":
+            assert reason == Reason.WRONG_ORIGIN, depart
+
+
 def test_degenerate_request_completes_without_moving_whichever_end() -> None:
     layout, _ = load("crossover-yard/meet")
     for end in ("yard_w.A", "yard_w.B"):
