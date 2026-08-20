@@ -7,6 +7,13 @@ whole write surface — is published as the event it names. Anything else
 inbound is refused with an error frame; the dispatcher stays the sole
 feasibility authority precisely because nothing else can reach the bus.
 
+On connect a client is sent each state topic's last value, before any live
+frame and in the same schema — the frames it would have had were it already
+there. That is not the relay describing the run (#67): the bus promises a
+state topic delivers its latest value to a late subscriber, a broker delivers
+it the moment a client subscribes, and a relay that dropped it would be
+weaker than the contract it binds (ADR-0032).
+
 It lives here beside the bus binding it rides on and shares its fate: when
 the bus becomes a real broker, the browser speaks MQTT-over-WebSocket to the
 broker directly and this file is deleted (ADR-0013 wiring note, #67).
@@ -71,6 +78,12 @@ class Bridge:
 
     def _serve_client(self, connection: ServerConnection) -> None:
         with self._clients_lock:
+            # Under the same lock the relay takes, so a frame published while
+            # this runs either lands in the last values sent here or is
+            # relayed after: a client is never served a picture that has
+            # already been overtaken by the events it sits behind.
+            for topic, payload in self._bus.last_values.items():
+                connection.send(json.dumps({"topic": topic, "payload": payload}))
             self._clients.add(connection)
         try:
             for message in connection:

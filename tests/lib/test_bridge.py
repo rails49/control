@@ -121,6 +121,58 @@ def test_a_second_client_hears_the_same_events(
         assert receive(client) == receive(second)
 
 
+def test_a_client_connecting_late_is_served_each_state_topics_last_value(
+    bus: Bus, bridge: Bridge
+) -> None:
+    """A panel joining a running session sees nothing until something moves,
+    unless the relay hands it what a late subscriber is owed (ADR-0032). The
+    bus promises a state topic delivers its last value; a real broker delivers
+    it the moment a client subscribes, and the relay must not be weaker."""
+    bus.publish("tc49/dispatch/state/aspects", {"aspects": {"a.B": "stop"}})
+    bus.publish("tc49/dispatch/state/allocation", {"trains": {"t1": "a"}})
+    bus.drain()
+    with connect(f"ws://127.0.0.1:{bridge.port}") as late:
+        settled(bridge, 1)
+        assert receive(late) == {
+            "topic": "tc49/dispatch/state/aspects",
+            "payload": {"aspects": {"a.B": "stop"}},
+        }
+        assert receive(late) == {
+            "topic": "tc49/dispatch/state/allocation",
+            "payload": {"trains": {"t1": "a"}},
+        }
+
+
+def test_the_last_values_come_before_any_live_frame(bus: Bus, bridge: Bridge) -> None:
+    """Order is the whole point: a picture arriving after the events that
+    have already moved on from it would undo them."""
+    bus.publish("tc49/dispatch/state/aspects", {"aspects": {"a.B": "clear"}})
+    bus.drain()
+    with connect(f"ws://127.0.0.1:{bridge.port}") as late:
+        settled(bridge, 1)
+        bus.publish("tc49/layout/tick", {"tick": 7})
+        bus.drain()
+        assert receive(late)["topic"] == "tc49/dispatch/state/aspects"
+        assert receive(late)["payload"] == {"tick": 7}
+
+
+def test_an_event_topic_is_not_replayed_to_a_joining_client(
+    bus: Bus, bridge: Bridge
+) -> None:
+    """State topics excepted, there is no replay for a late subscriber
+    (SYSTEM.md): the relay forwards frames it would have forwarded had the
+    client been there, and holds no backlog."""
+    bus.publish("tc49/layout/tick", {"tick": 1})
+    bus.publish("tc49/dispatch/state/aspects", {"aspects": {}})
+    bus.drain()
+    with connect(f"ws://127.0.0.1:{bridge.port}") as late:
+        settled(bridge, 1)
+        assert receive(late)["topic"] == "tc49/dispatch/state/aspects"
+        bus.publish("tc49/layout/tick", {"tick": 2})
+        bus.drain()
+        assert receive(late)["payload"] == {"tick": 2}
+
+
 def test_a_client_that_vanishes_leaves_quietly(
     bus: Bus, bridge: Bridge, caplog: pytest.LogCaptureFixture
 ) -> None:

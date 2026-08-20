@@ -26,6 +26,14 @@ class Bus:
         self._queue: deque[tuple[str, Payload, _Subscription | None]] = deque()
         self._last_values: dict[str, Payload] = {}
 
+    @property
+    def last_values(self) -> dict[str, Payload]:
+        """Every state topic's last value, in the order each was first
+        published. What a late subscriber is owed, for a subscriber that
+        cannot use ``subscribe`` — the bridge relaying to a client that
+        connects mid-run (ADR-0032)."""
+        return dict(self._last_values)
+
     def subscribe(self, topic_filter: str, handler: Handler) -> None:
         _validate_filter(topic_filter)
         subscription = (topic_filter, handler)
