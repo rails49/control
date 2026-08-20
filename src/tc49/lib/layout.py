@@ -13,7 +13,7 @@ outside — Layout is a data structure, not a policy.
 The ``check_*`` helpers are shared with the scenario validation in
 ``store.py``. The ``<block>.<A|B>`` end form is parsed here and nowhere else:
 ``check_end`` validates one, ``block_of``, ``end_letter`` and ``opposite_end``
-take one apart.
+take one apart, and ``end_on`` reads one off a transit.
 """
 
 from collections.abc import Container
@@ -267,3 +267,18 @@ def end_letter(end: str) -> str:
 def opposite_end(end: str) -> str:
     """The other end of the same block: a block has exactly A and B."""
     return f"{block_of(end)}.{'B' if end_letter(end) == 'A' else 'A'}"
+
+
+def end_on(layout: Layout, block: str, transit: str) -> str:
+    """The end of `block` that `transit` crosses.
+
+    Which end that is does not depend on which way a train is going over it:
+    leaving, it is the departure end the train goes out through, and so the
+    signal the aspect belongs to; entering, it is the arrival end the train
+    comes in through. Neither is on the bus — `move_granted` names the transit
+    and the block, and `route_chosen` names the route — so both the dispatcher
+    and the scheduler read it off the layout here.
+    """
+    connection, _, name = transit.partition(".")
+    first, second = layout.connections[connection].transits[name]
+    return first if block_of(first) == block else second

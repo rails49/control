@@ -4,9 +4,9 @@ from typing import Any
 
 import pytest
 
-from tc49.lib.layout import Layout, Point, block_of, end_letter, opposite_end
+from tc49.lib.layout import Layout, Point, block_of, end_letter, end_on, opposite_end
 from tc49.store import AssetStore
-from tests.harness import ROOT
+from tests.harness import ROOT, load
 
 
 @pytest.fixture
@@ -138,3 +138,18 @@ def test_an_end_is_taken_apart_into_its_block_and_its_letter() -> None:
 def test_the_opposite_end_is_the_other_end_of_the_same_block() -> None:
     assert opposite_end("yard_w.A") == "yard_w.B"
     assert opposite_end("yard_w.B") == "yard_w.A"
+
+
+def test_a_transit_names_one_end_of_each_block_it_joins() -> None:
+    """Read from either side, `end_on` gives that side's own end — which is
+    what lets one function serve the departure end the dispatcher signals and
+    the arrival end the scheduler faces a train away from."""
+    layout, _ = load("crossover-yard/meet")
+    connection = next(iter(layout.connections))
+    transit, (first, second) = next(
+        iter(layout.connections[connection].transits.items())
+    )
+    transit_id = f"{connection}.{transit}"
+
+    assert end_on(layout, block_of(first), transit_id) == first
+    assert end_on(layout, block_of(second), transit_id) == second

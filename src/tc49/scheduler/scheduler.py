@@ -24,7 +24,7 @@ has never moved having no other source for one.
 from collections import Counter
 
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.layout import Layout, block_of, opposite_end
+from tc49.lib.layout import Layout, end_on, opposite_end
 from tc49.lib.payload import gesture
 from tc49.lib.scenario import Scenario
 
@@ -124,13 +124,13 @@ class Scheduler:
         """
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "move_granted":
-            entered = _end_on(self._layout, payload["transit"], payload["into"])
+            entered = end_on(self._layout, payload["into"], payload["transit"])
             self._facing[payload["train"]] = opposite_end(entered)
         elif leaf == "route_chosen":
             train = self._train_of.get(payload["id"])
             route = payload["route"]
             if train is not None and len(route) > 1:
-                self._facing[train] = _end_on(self._layout, route[1], route[0])
+                self._facing[train] = end_on(self._layout, route[0], route[1])
         elif leaf in ("request_completed", "request_rejected"):
             self._train_of.pop(payload["id"], None)
         self._publish_facing()
@@ -151,13 +151,3 @@ def _expand(arrivals: tuple[str, ...]) -> list[str]:
         else:
             ends += [f"{entry}.A", f"{entry}.B"]
     return ends
-
-
-def _end_on(layout: Layout, transit: str, block: str) -> str:
-    """The end of `block` that `transit` crosses — the end a train entering
-    that way comes in through, and the end one leaving that way departs
-    through. Neither is on the bus: `move_granted` names the transit and the
-    block, and `route_chosen` names the route."""
-    connection, _, name = transit.partition(".")
-    first, second = layout.connections[connection].transits[name]
-    return first if block_of(first) == block else second

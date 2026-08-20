@@ -22,7 +22,7 @@ from typing import cast
 from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.layout import Layout, block_of
+from tc49.lib.layout import Layout, block_of, end_on
 from tc49.lib.payload import gesture
 from tc49.lib.rejection import Reason
 from tc49.lib.scenario import Scenario
@@ -98,14 +98,6 @@ def aspect_of(depth: int) -> str:
     return "approach" if depth else "stop"
 
 
-def departure_end(layout: Layout, block: str, transit: str) -> str:
-    """The end of `block` that `transit` crosses: the end a train leaving by
-    that transit departs through, and so the signal the aspect belongs to."""
-    connection, _, name = transit.partition(".")
-    first, second = layout.connections[connection].transits[name]
-    return first if block_of(first) == block else second
-
-
 def aspects(state: State) -> dict[str, str]:
     """Every signalled block end's aspect. An end nothing ever leaves carries
     no signal and does not appear; an end no train is authorised to leave by
@@ -121,7 +113,7 @@ def aspects(state: State) -> dict[str, str]:
         standing = active.cur_index - (1 if active.outstanding else 0)
         if standing >= len(active.route.transits):
             continue  # in its arrival block; nothing left to leave by
-        end = departure_end(
+        end = end_on(
             state.layout,
             active.route.blocks[standing],
             active.route.transits[standing],
