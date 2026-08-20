@@ -102,6 +102,10 @@ with its reason spelled out (`no_fit`, `no_entry`, `unreachable`,
 three answer a payload the dispatcher could not read as a request; an honest
 drag cannot produce one, and the page that can is a stale one, a race or a
 bug ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
+The names are not retyped here: `src/rejection.generated.ts` is written from
+`tc49.lib.rejection` by `tc49 generate`, and the wording table is keyed by
+what it says, so a reason the dispatcher mints and this page cannot spell is
+a compile error (#126).
 
 The panel is therefore **not** a scheduler: a gesture is not a request, and
 the one writer of requests is the scheduler app

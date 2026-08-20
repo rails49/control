@@ -37,3 +37,24 @@ class Reason(StrEnum):
     NO_FIT = "no_fit"
     NO_ENTRY = "no_entry"
     UNREACHABLE = "unreachable"
+
+
+_HEADER = """\
+// Generated from src/tc49/lib/rejection.py. Run `tc49 generate` to update.
+//
+// Why the dispatcher rejected a request. The names alone: what each one
+// tells a reader is the panel's wording, and no part of the schema.
+"""
+
+
+def render() -> str:
+    """The whole of `ui/src/rejection.generated.ts`."""
+    names = "\n".join(f'  | "{reason}"' for reason in Reason)
+    return f"""\
+{_HEADER}
+/** A rejection reason, as `tc49/dispatch/request_rejected` carries it. A
+ *  wording table keyed by this is total, so a reason minted in Python and
+ *  left unworded here is a compile error rather than a raw token on screen. */
+export type Reason =
+{names};
+"""

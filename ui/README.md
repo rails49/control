@@ -44,6 +44,7 @@ pnpm build
 ```
 src/
   symbols.generated.ts   pins, transits, the palette — written by `tc49 generate`
+  rejection.generated.ts why a request was rejected — likewise generated
   model/
     drawing.ts   the document, exactly as the store serves and takes it back
     geometry.ts  footprints, pin anchors, quarter turns, the 15 degree snap

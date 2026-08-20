@@ -19,6 +19,7 @@
  */
 
 import type { Aspect } from "../render/artwork.js";
+import type { Reason } from "../rejection.generated.js";
 import type { Position } from "../symbols.generated.js";
 import { WHOLE } from "./inspect.js";
 import type { Explained, Layout } from "./store.js";
@@ -65,7 +66,7 @@ interface Request {
  *  (ADR-0034); an honest drag cannot produce one, so what they are here for
  *  is a stale page, a race or a buggy client — which is exactly the reader
  *  who needs to be told plainly. */
-const REJECTED: Record<string, string> = {
+const REJECTED: Record<Reason, string> = {
   no_fit: "the train doesn't fit",
   no_entry: "no arrival end is enterable",
   unreachable: "no path exists",
@@ -78,11 +79,20 @@ const REJECTED: Record<string, string> = {
 /** A pruned arrival end's reason, short enough to sit at the end it marks.
  *  Only the reasons that drop one arrival end and leave the others standing:
  *  a whole-request rejection has no end of its own to sit at. */
-const PRUNED: Record<string, string> = {
+const PRUNED: Partial<Record<Reason, string>> = {
   no_fit: "doesn't fit",
   no_entry: "not enterable",
   unreachable: "unreachable",
 };
+
+/** A reason in the words a table gives it, or the raw token where the
+ *  dispatcher answering is newer than the page reading it. Neither table is
+ *  indexed directly: what arrives on the bus is a string, and only the
+ *  generated set says which strings are reasons. */
+function spell(table: Partial<Record<Reason, string>>, reason: string): string {
+  const wordings: Record<string, string | undefined> = table;
+  return wordings[reason] ?? reason;
+}
 
 /** The two halves of an end ref, `<block>.<end>`. */
 export function blockOf(end: EndRef): string {
@@ -425,7 +435,7 @@ export class Panel {
             train,
             at: end,
             role: "pruned",
-            note: PRUNED[reason] ?? reason,
+            note: spell(PRUNED, reason),
           });
         }
       } else if (request.phase === "rejected") {
@@ -434,7 +444,7 @@ export class Panel {
           train,
           at: request.depart,
           role: "rejected",
-          note: REJECTED[request.reason ?? ""] ?? request.reason,
+          note: spell(REJECTED, request.reason ?? ""),
         });
         for (const end of request.dest) {
           found.push({ id, train, at: end, role: "rejected" });

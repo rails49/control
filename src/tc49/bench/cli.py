@@ -10,7 +10,7 @@ research design, not a knob, and that page is its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
 review that a committed layout file used to give in a diff (ADR-0015).
 `generate` rewrites every TypeScript file the UI is handed rather than
-keeps by hand, the symbol library being the first of them.
+keeps by hand: the symbol library, and the set of rejection reasons.
 """
 
 import argparse
@@ -31,6 +31,8 @@ from tc49.bench.runner import (
 from tc49.bench.sweep import sweep
 from tc49.lib.bridge import Bridge
 from tc49.lib.layout import Layout
+from tc49.lib.rejection import GENERATED as REJECTION
+from tc49.lib.rejection import render as render_rejection
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 from tc49.store.server import make_server
@@ -39,7 +41,10 @@ from tc49.store.symbols import render as render_symbols
 
 ROOT = find_root()
 
-GENERATED: dict[str, Callable[[], str]] = {SYMBOLS: render_symbols}
+GENERATED: dict[str, Callable[[], str]] = {
+    SYMBOLS: render_symbols,
+    REJECTION: render_rejection,
+}
 """Every file the UI is handed rather than keeps by hand, and what writes it.
 Keyed by the path each takes inside a checkout, so one command writes them
 all and one flag says which checkout (ADR-0022)."""

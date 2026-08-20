@@ -89,7 +89,9 @@ ui/                         the layout editor: TypeScript, pnpm, Lit
                             (ADR-0014). Outside src/tc49/, which is Python.
                             src/symbols.generated.ts is written by
                             `tc49 generate` from store/drawing.py's symbol
-                            library, and a test asserts it is current
+                            library, and src/rejection.generated.ts from
+                            lib/rejection.py's reason set; a test asserts
+                            each is current
               src/model/    the document, the geometry, the editing session,
                             connection naming and the store client — no DOM,
                             and what the Vitest tests target
