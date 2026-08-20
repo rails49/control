@@ -58,10 +58,15 @@ first.
 ### Scheduling
 
 Decides which train departs from where, to what destination, and when — as
-soon as possible, or at a stated time. Its prototype counterpart is the
-timetable, though a model railroad more often wants plausible random traffic
-than an exact one. Requests arrive continually; a schedule may also be set up
-in advance.
+soon as possible, or at a stated time. A stated time is read off the
+railroad's **fast clock**, the scaled time a model railroad runs its
+operations on and the only thing a timetable can be written against; it is not
+a count of the simulator's grant boundaries
+([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)), which a
+hardware adapter does not produce. Its prototype counterpart is the timetable,
+though a model railroad more often wants plausible random traffic than an
+exact one. Requests arrive continually; a schedule may also be set up in
+advance.
 
 A request delivers a train out through one end of the block it stands in and
 in through one of a set of arrival ends

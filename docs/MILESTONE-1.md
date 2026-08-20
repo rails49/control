@@ -47,11 +47,11 @@ exercises it:
   by the layout-blind scheduler of [SYSTEM.md](SYSTEM.md#scheduler). There is
   no arrival process and no continual-arrivals scheduler. A request's `at` is a
   **tick number**, and that is the milestone binding rather than the model:
-  [GOALS.md](GOALS.md#scheduling) says a request comes due "at a stated time",
-  and a boundary count is not a time — a hardware adapter picks its own
-  cadence, so counting beats tells a timetable nothing. Tick-numbered `at` is
-  the same shape of simplification as one transit per tick
-  ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
+  [GOALS.md](GOALS.md#scheduling) says a request comes due at a stated time,
+  read off the fast clock, and a boundary count is not a time — a hardware
+  adapter picks its own cadence, so counting beats tells a timetable nothing.
+  Tick-numbered `at` is the same shape of simplification as one transit per
+  tick ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
 - **Driving** is the stateless translator of [SYSTEM.md](SYSTEM.md#driver),
   with the simulator advancing each train one transit per tick. A train has no
   speed here and reads no signal: the grant it is handed is the whole of what
@@ -76,7 +76,7 @@ Each of these was ruled out deliberately, not overlooked:
 | A driver that obeys the aspect | the dispatcher publishes `stop`/`approach`/`clear`, on the grant and on a last-value topic, and the driver ignores it: acting on it needs a speed on `cross` and transits that take time ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)) |
 | Trains that have a speed | one transit per tick, and a tick is the simulator's boundary rather than the model's unit of time ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)) |
 | Braking distance | an open subject even in the end state, with a working answer and no decision ([GOALS.md](GOALS.md#driving)) |
-| A request due at a *time* | `at` is a tick number here; a clock a timetable can be written against is end-state work ([GOALS.md](GOALS.md#scheduling), #117) |
+| A request due at a *time* | `at` is a tick number here; the fast clock a timetable is written against is end-state work ([GOALS.md](GOALS.md#scheduling)) |
 | Human driving | the simulator drives |
 | UI / visualization | the event trace is the hook for a future one |
 | Mechanized deadlock-freedom proof | argument only, per the rigor bar above |
