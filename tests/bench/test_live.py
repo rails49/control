@@ -145,10 +145,10 @@ def test_a_rejection_comes_back_with_its_reason(
 def test_a_stale_departure_is_answered_and_the_session_lives(
     assembly: Assembly, client: ClientConnection
 ) -> None:
-    """A panel that joins a running session seeds placement from the scenario
-    (ADR-0016), so its drag can state the block a train has already left. That
-    is an ordinary bad request from an untrusted client: the dispatcher answers
-    it and the railroad keeps ticking (#73)."""
+    """A drag composed while a train is moving can still name a block it has
+    left by the time the request lands (ADR-0021), and a client is untrusted
+    besides. That is an ordinary bad request: the dispatcher answers it and
+    the railroad keeps ticking (#73)."""
     submit(
         client,
         assembly,
@@ -178,3 +178,62 @@ def test_a_stale_departure_is_answered_and_the_session_lives(
     ticks = len(events(assembly.trace, "tick"))
     tick_until(assembly, lambda: False, limit=3)
     assert len(events(assembly.trace, "tick")) > ticks
+
+
+def test_a_reloaded_page_is_served_the_picture_and_answered_again(
+    assembly: Assembly, bridge: Bridge, client: ClientConnection
+) -> None:
+    """#106's own reproduction, over the socket.
+
+    A page submits and goes away. The page that replaces it joins a session
+    already running, so it is served the run's picture — where the train
+    stands and what it is running — instead of nothing, and its own drag is
+    answered. The id it mints is its own (ADR-0033): the same one again would
+    be dropped at the top of admission, which is what left the marker stuck in
+    "requested" for good.
+    """
+    submit(
+        client,
+        assembly,
+        {
+            "id": "freight_1-1",
+            "train": "freight_1",
+            "depart": "yard_w.B",
+            "dest": ["yard_e.A"],
+        },
+    )
+    tick_until(
+        assembly,
+        lambda: bool(events(assembly.trace, "route_chosen", rid="freight_1-1")),
+    )
+    client.close()  # the tab is reloaded: no close handshake, just gone
+
+    with connect(f"ws://127.0.0.1:{bridge.port}") as reloaded:
+        deadline = time.monotonic() + TIMEOUT
+        while bridge.connections == 0:
+            assert time.monotonic() < deadline
+            time.sleep(0.01)
+        [picture] = [
+            frame["payload"]
+            for frame in frames_until(reloaded, "allocation")
+            if frame["topic"].rsplit("/", 1)[-1] == "allocation"
+        ]
+        assert picture["trains"]["freight_1"]  # somewhere, and the page knows it
+        assert [request["id"] for request in picture["requests"]] == ["freight_1-1"]
+
+        submit(  # the same train, dragged again from a page that minted afresh
+            reloaded,
+            assembly,
+            {
+                "id": "freight_1-9f31c0a2-1",
+                "train": "freight_1",
+                "depart": f"{picture['trains']['freight_1']}.B",
+                "dest": ["dn_w.A"],
+            },
+        )
+    answered = [
+        line["event"]
+        for line in events(assembly.trace, rid="freight_1-9f31c0a2-1")
+        if line["event"] in ("request_admitted", "request_rejected")
+    ]
+    assert answered, "the drag got no answer at all"
