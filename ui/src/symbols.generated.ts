@@ -65,23 +65,23 @@ export type Leg<K extends LibraryKind = LibraryKind> = {
 }[K];
 
 /** Which position a kind's motor must be in for a way to take each of its
- *  legs. Every motorised kind has one motor and two positions, and a slip's
- *  legs are not named for them, so the library says which is which. */
+ *  legs. Every motorised kind has one motor and two positions, and no kind's
+ *  legs are named for them, so the library says which is which. */
 export const POSITIONS = {
   double_slip: {
-    a: "straight",
-    b: "straight",
-    slip_1: "curved",
-    slip_2: "curved",
+    a: "closed",
+    b: "closed",
+    slip_1: "thrown",
+    slip_2: "thrown",
   },
   single_slip: {
-    a: "straight",
-    b: "straight",
-    slip: "curved",
+    a: "closed",
+    b: "closed",
+    slip: "thrown",
   },
   turnout: {
-    diverging: "curved",
-    straight: "straight",
+    diverging: "thrown",
+    straight: "closed",
   },
 } as const;
 
@@ -90,7 +90,7 @@ export const POSITIONS = {
 export type MotorisedKind = keyof typeof POSITIONS;
 
 /** What a motor can be set to. */
-export type Position = "curved" | "straight";
+export type Position = "closed" | "thrown";
 
 /** The palette. A free-standing bend is not on it: it is placed by clicking
  *  empty canvas while drawing a wire. */

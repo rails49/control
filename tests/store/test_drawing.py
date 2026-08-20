@@ -773,7 +773,7 @@ def ganged_across_concurrent() -> dict[str, Any]:
 def test_points_on_one_address_at_odds_in_one_way_are_a_fault() -> None:
     faults = Drawing.from_document(ganged_in_series()).review()["motor_faults"]
     assert [(f["addr"], f["positions"]) for f in faults] == [
-        ("1", {"curved": ["swb"], "straight": ["swa"]})
+        ("1", {"closed": ["swa"], "thrown": ["swb"]})
     ]
     assert len(faults[0]["transits"]) == 1
 
@@ -1310,7 +1310,7 @@ def test_every_leg_of_a_motorised_kind_wants_one_of_the_two_positions(
     """One motor, two positions: a way through the symbol takes some leg, and
     the leg has to say which way the points must lie, whichever leg it is."""
     assert set(POSITIONS[kind]) == set(LIBRARY[kind])
-    assert set(POSITIONS[kind].values()) == {"straight", "curved"}
+    assert set(POSITIONS[kind].values()) == {"closed", "thrown"}
 
 
 @pytest.mark.parametrize("kind", sorted(POSITIONS))

@@ -64,21 +64,21 @@ LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
 }
 
 # What each leg of a motorised kind wants the motor set to (ADR-0022). Every
-# motorised kind has one motor and two positions: a turnout lies straight or
-# diverging, a slip straight or curved, both roads together. A turnout's legs
-# are already named for its positions and a slip's are not, so the table says
-# it once, here, rather than in every reader of a way.
+# motorised kind has one motor and two positions, `closed` and `thrown`, the
+# pair a DCC accessory decoder answers to: a turnout lies one way or the other,
+# a slip both roads together. No kind's legs are named for the positions, so
+# the table says it once, here, rather than in every reader of a way.
 #
 # It is also the roll of kinds that have a motor at all, which is what takes an
 # `addr`; a fixed crossing is not in it and takes none.
 POSITIONS: dict[str, dict[str, str]] = {
-    "turnout": {"straight": "straight", "diverging": "curved"},
-    "single_slip": {"a": "straight", "b": "straight", "slip": "curved"},
+    "turnout": {"straight": "closed", "diverging": "thrown"},
+    "single_slip": {"a": "closed", "b": "closed", "slip": "thrown"},
     "double_slip": {
-        "a": "straight",
-        "b": "straight",
-        "slip_1": "curved",
-        "slip_2": "curved",
+        "a": "closed",
+        "b": "closed",
+        "slip_1": "thrown",
+        "slip_2": "thrown",
     },
 }
 

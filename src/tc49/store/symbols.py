@@ -91,8 +91,8 @@ def _positions() -> str:
     )
     return f"""\
 /** Which position a kind's motor must be in for a way to take each of its
- *  legs. Every motorised kind has one motor and two positions, and a slip's
- *  legs are not named for them, so the library says which is which. */
+ *  legs. Every motorised kind has one motor and two positions, and no kind's
+ *  legs are named for them, so the library says which is which. */
 export const POSITIONS = {{
 {rows}}} as const;
 
