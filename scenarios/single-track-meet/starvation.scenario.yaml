@@ -9,10 +9,11 @@
 # front of the reader: "every accepted request completes, PROVIDED every train
 # blocking a pending request eventually receives a request of its own".
 #
-# `waiter` asks at tick 0 for east_1, which `squatter` is sitting in. While
+# `waiter` asks at boundary 0 for east_1, which `squatter` is sitting in. While
 # squatter is idle its block is a permanent obstacle, so waiter is refused at
-# every grant phase — not deadlocked, not wedged, just not served. At tick 6
-# squatter finally gets a request of its own and runs west; the moment it
+# every grant phase — not deadlocked, not wedged, just not served. At
+# boundary 6 squatter finally gets a request of its own and runs west; the
+# moment it
 # clears east_1, waiter launches and completes.
 #
 # The two latencies are the point. Both requests complete — the run drains —

@@ -14,7 +14,7 @@ footprint of [SYSTEM.md](../SYSTEM.md#dispatcher), and the dispatcher holds no
 collaborators: it reads its layout and stock snapshot at startup and
 thereafter only consumes and publishes events. Its state is the
 pending-request queue, the lock table, the set of active routes, and the
-sensor events buffered since the last tick.
+sensor events buffered since the last grant boundary.
 
 `Request`, `Route`, `Move` and friends are internal dataclasses, the in-memory
 forms of what travels the bus as JSON. The wire vocabulary is the event

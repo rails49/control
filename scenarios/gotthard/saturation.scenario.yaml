@@ -1,14 +1,14 @@
 # gotthard/saturation — the headline workload (docs/BENCHMARKS.md, #31).
 #
-# Five trains, three workings each, every request at tick 0. Batch arrivals make
-# makespan the drain time and contention maximal, which is where the two locking
-# strategies are supposed to separate.
+# Five trains, three workings each, every request at boundary 0. Batch arrivals
+# make makespan the drain time and contention maximal, which is where the two
+# locking strategies are supposed to separate.
 #
 # Five is the ceiling, per BENCHMARKS.md's axis note: Gotthard has six station
-# tracks, and at six every arrival block would be a permanent obstacle at tick 0.
-# At five there is exactly one free track, so the whole workload is a rotation —
-# each train moves into the slot the train ahead of it has just vacated, and the
-# free slot travels round the six tracks three times. Nothing drains except by
+# tracks, and at six every arrival block would be a permanent obstacle at
+# boundary 0. At five there is exactly one free track, so the whole workload is
+# a rotation — each train moves into the slot the train ahead of it has just
+# vacated, and the free slot travels round the six tracks three times. Nothing drains except by
 # rotation, which is what makes this saturation rather than merely traffic.
 #
 # The workings are line workings, claro <-> airolo, chained: request n+1 departs
@@ -20,7 +20,7 @@
 # congestion-aware costing (#33) it was also what kept the run alive at the
 # default `k = 2`: at `|dest| = 6` every train tried claro_1 then claro_2 and
 # nothing else — the lexicographic bias BENCHMARKS.md predicted — and the run
-# stalled outright at tick 1. Costing removed that bias and carried the
+# stalled outright at boundary 1. Costing removed that bias and carried the
 # rotation to 11 of 15 workings; the aging rule (#34) removed the residue
 # (older trains parking on the last free airolo tracks for good), and the
 # widened workload now drains fully (test_benchmarks.py). The committed
@@ -44,7 +44,7 @@ trains:
   t4: { length: 900, at: airolo_1, facing: A }
   t5: { length: 900, at: airolo_2, facing: B }
 
-# airolo_3 is the one free track at tick 0, so t1 is the only train that can
+# airolo_3 is the one free track at boundary 0, so t1 is the only train that can
 # launch; every other request is waiting on the slot t1 is about to vacate.
 requests:
   - { train: t1, from: claro_1.B, to: [airolo_3], at: 0 } # blue 2

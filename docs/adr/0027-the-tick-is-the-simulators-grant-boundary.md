@@ -8,19 +8,27 @@ grant makes the railroad's behaviour depend on wire timing. That is a
 correctness defect on hardware, and determinism in the tests is its consequence
 rather than its reason. The decision itself is unchanged.)*
 
-The layout interface always publishes a **grant-boundary** event, and the
-dispatcher always runs its grant phase over the sensor events buffered since
-the last one. What generates the boundary is the binding. The simulator's is
-the **tick**: one transit per beat, published when the bus is quiescent, and
-deterministic. A hardware adapter derives its own from a real clock at whatever
-period suits it, with transit times varying freely underneath — a long return
-loop takes longer than a station ladder, and a train creeping under `approach`
-takes longer through a block than one running `clear`.
+*(Amended for #118: the event is `tc49/layout/boundary` carrying a field
+`boundary`. It was first published as `tc49/layout/tick` carrying `tick`,
+which put the subordinate binding's word on a contract every binding has to
+speak — the containment rule's clearest violation. **Tick** keeps the meaning
+this page gives it, and keeps it on the simulator alone.)*
 
-`tick` therefore names the simulator's boundary, not a unit of time the model
-believes in. [ADR-0009](0009-layout-interface-owns-time.md) stands unchanged:
-the layout interface owns time, whatever time is made of behind it, and the
-dispatcher never reads a clock.
+The layout interface always publishes a **grant-boundary** event
+(`tc49/layout/boundary`), and the dispatcher always runs its grant phase over
+the sensor events buffered since the last one. What generates the boundary is
+the binding. The simulator's is the **tick**: one transit per beat, published
+when the bus is quiescent, and deterministic. A hardware adapter derives its
+own from a real clock at whatever period suits it, with transit times varying
+freely underneath: a long return loop takes longer than a station ladder, and
+a train creeping under `approach` takes longer through a block than one
+running `clear`.
+
+`tick` therefore names the simulator's beat behind the boundary, not a unit of
+time the model believes in.
+[ADR-0009](0009-layout-interface-owns-time.md) stands unchanged: the layout
+interface owns time, whatever time is made of behind it, and the dispatcher
+never reads a clock.
 
 ## What the boundary is for
 

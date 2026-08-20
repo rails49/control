@@ -28,7 +28,7 @@ and its three line sections are what give the `k` sweep anything to measure.
 
 ## Workloads
 
-**Batch arrivals** — every request at tick 0. Makespan is then drain time,
+**Batch arrivals** — every request at boundary 0. Makespan is then drain time,
 density collapses to trains × workings with no arrival rate to tune, and
 contention is maximal, which is exactly where `FullRoute` and `Incremental`
 separate. Latency degenerates to completion time, but max latency still does
@@ -91,7 +91,7 @@ against.
 Working trains start on station tracks, of which Gotthard has six. **The axis
 stops at 5 for that reason**: at six, every station track holds an idle train,
 every arrival block is therefore a permanent obstacle at every `|dest|`,
-`safe()` refuses every launch, and the run quiesces `stalled` at tick 0 on
+`safe()` refuses every launch, and the run quiesces `stalled` at boundary 0 on
 every seed. That point measures the stall detector, not throughput, so it is
 excluded rather than swept. At five a free station track always exists, and it
 helps because the generator redraws until every train's first request can
@@ -113,13 +113,14 @@ Everything below is drawn from a single seeded RNG, in this order, so a
    arrival ends are drawn at the swept `|dest|`: at 6, all three tracks of the
    *other* station; at 2, one track uniform over the three; at 1, one track
    uniform and then one of its two ends uniform.
-3. **Arrival** — every request at tick 0.
+3. **Arrival** — every request at boundary 0.
 4. **Redraw** — while any train's first request is one no dispatcher could
    launch, redraw each such request: end first, then arrival ends. A train
    can launch once one of its arrival blocks is free, and a block frees once
    its occupant launches; the fixed point of that rule must cover every
    train, or the draw contains a head-on swap: trains whose arrival blocks
-   are each other's standing locks, stalling the run at tick 0 with track to
+   are each other's standing locks, stalling the run at boundary 0 with track
+   to
    spare ([ADR-0011](../adr/0011-the-sweep-generator-redraws-unsatisfiable-draws.md)).
 
 Only first requests are checked. Where a later working departs from is the
@@ -216,9 +217,9 @@ fourth path between the stations; this railroad has none.
 ## Termination
 
 **Quiescence, exactly detected — not a timeout.** The simulator stops
-advancing ticks when the scheduler's `exhausted` state is set and a tick's
-cascade produced no commands ([SYSTEM.md](../SYSTEM.md#layout-interface)). That
-is exact, not heuristic: under batch arrivals no request arrives after tick 0,
+advancing when the scheduler's `exhausted` state is set and a tick's cascade
+produced no commands ([SYSTEM.md](../SYSTEM.md#layout-interface)). That is
+exact, not heuristic: under batch arrivals no request arrives after boundary 0,
 so a commandless tick leaves the state byte-identical next tick — the
 dispatcher is deterministic and event-driven; no events means no change,
 forever. The stop rule is milestone-1 pacing, not bus contract; a hardware
@@ -237,8 +238,8 @@ makespan aggregates.
 This turns the conditional-liveness proviso of SAFETY.md from a paragraph into
 a visible, tested output. The same detector powers property 2 in
 [ARCHITECTURE.md](../ARCHITECTURE.md#tests): any *other* cause of quiescence is a
-policy bug. A tick budget survives only as a backstop against a live-lock bug,
-never as the normal stop condition.
+policy bug. The simulator's tick budget survives only as a backstop against a
+live-lock bug, never as the normal stop condition.
 
 ## Named scenarios
 
@@ -274,7 +275,7 @@ reviewed by the owner before the goldens are committed, and any later
 intentional change to a golden states its reason in the commit.
 
 **Golden numbers are viable here**, which they usually are not, for a specific
-reason: every metric is in **ticks**, not wall-clock, and the determinism
+reason: every metric is in **boundaries**, not wall-clock, and the determinism
 property already guarantees byte-identical traces. A makespan is exactly
 reproducible on any machine, so a throughput regression fails CI with a readable
 diff instead of going unnoticed. Sweep output is deliberately *not* committed —

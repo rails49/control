@@ -185,8 +185,8 @@ converts pixels into squares, paints, and sends.
 
 The header is two rows (#84). The top one is the band the editor also wears
 (`tc-header`, [EDITOR.md](EDITOR.md#the-band)): the railroad's name, the mode,
-and the status that is nobody's mistake — the bridge link, the tick, and the
-trouble message. The row below keeps the things you press. The editor's menu
+and the status that is nobody's mistake — the bridge link, the boundary, and
+the trouble message. The row below keeps the things you press. The editor's menu
 bar (#85) is not repeated here; the panel has no File to fill.
 
 The mode is the half of the band only the panel has. Replay and live are

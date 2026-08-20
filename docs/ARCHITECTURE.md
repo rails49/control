@@ -57,9 +57,9 @@ src/tc49/
                             (ui/EDITOR.md)
                 symbols.py  render() — the symbol library as the TypeScript
                             the editor draws against
-  scheduler/    Scheduler — releases scenario requests at their `at` ticks,
-                mechanical arrival-end expansion, deterministic ids,
-                exhausted state topic
+  scheduler/    Scheduler — releases scenario requests at their `at`
+                boundaries, mechanical arrival-end expansion, deterministic
+                ids, exhausted state topic
   dispatcher/   dispatch.py   Dispatcher — admission, queue, lock table,
                               buffered sensors, grant phase, align
                 locking.py    LockingStrategy, FullRoute, Incremental
@@ -70,7 +70,7 @@ src/tc49/
                 safety.py     safe()
   driver/       Driver — move_granted → cross
   simulator/    Simulator — the milestone-1 layout interface: applies
-                commands, emits sensors, publishes the tick, owns pacing
+                commands, emits sensors, publishes the boundary, owns pacing
                 and termination
 
   bench/        runner.py   assemble the apps on one bus and run a scenario
@@ -221,15 +221,15 @@ Four properties:
    obstacle rather than a wedge.
 
    This property was first stated as "`Incremental` completes every request set
-   `FullRoute` completes, in no more ticks", and **that is false** — the suite
-   found it out, which is what the suite is for. Every form of the dominance
+   `FullRoute` completes, in no more boundaries", and **that is false** — the
+   suite found it out, which is what the suite is for. Every form of the dominance
    claim falls to adversarial search: the completed sets can be incomparable,
    the counts can favour either side, and even when both strategies complete
    exactly the same set `Incremental` can be slower. The shrunk counterexample
    is committed as
    [`crossover-yard/route-blindness`](../scenarios/crossover-yard/route-blindness.scenario.yaml)
    and asserted exactly in `tests/dispatcher/test_incremental.py`: two trains,
-   no idle obstacle, no starvation, and `FullRoute` a tick faster.
+   no idle obstacle, no starvation, and `FullRoute` a boundary faster.
 
    The mechanism was that locking a whole route up front is not merely
    conservative but **informative**, and route selection is what consumes the

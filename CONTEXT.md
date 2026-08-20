@@ -228,20 +228,24 @@ _Avoid_: running/stopped, busy/free
 The beat the layout interface publishes and the dispatcher grants on: each one
 triggers a grant phase over the sensor events buffered since the last, so
 grants are a function of that set and not of arrival order
-([ADR-0009](docs/adr/0009-layout-interface-owns-time.md)). What generates it is
-the binding — the simulator's tick, a clock on a physical railroad — and the
-dispatcher never reads a clock either way.
+([ADR-0009](docs/adr/0009-layout-interface-owns-time.md)). Every binding
+publishes it as `tc49/layout/boundary` carrying a `boundary` count, numbered
+rather than bare so that a redelivery cannot double-advance anything counting
+it. What generates the beat is the binding — the simulator's tick, a clock on
+a physical railroad — and the dispatcher never reads a clock either way.
 _Avoid_: beat, round, cycle
 
 **Tick**:
-The **simulator's** grant boundary, carrying a deterministic counter: each
-tick a moving train completes one transit, and travel time within blocks and
-transit length are ignored. That is a property of the simulator, not of the
-model — on a physical railroad a transit takes as long as it takes
+The **simulator's** beat, published as its grant boundary and carrying a
+deterministic counter: each tick a moving train completes one transit, and
+travel time within blocks and transit length are ignored. That is a property
+of the simulator, not of the model — on a physical railroad a transit takes as
+long as it takes
 ([ADR-0027](docs/adr/0027-the-tick-is-the-simulators-grant-boundary.md)). The
-dispatcher never learns the tick number.
+dispatcher never learns the boundary number.
 _Avoid_: step, cycle. Not a synonym for *grant boundary*: say that where any
-binding's beat would do
+binding's beat would do, and never on the contract, which every binding
+speaks
 
 ### Bus
 

@@ -20,7 +20,7 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
 - **No reversal** — routes are strict pass-throughs; terminal blocks occur
   only as endpoints ([ADR-0001](../adr/0001-no-reversal-within-a-route.md)).
 - **Event-driven** — the dispatcher reacts to bus events and never reads a
-  clock — it never even learns the tick number
+  clock — it never even learns the boundary number
   ([SYSTEM.md](../SYSTEM.md#time)) — so a simulator and a physical layout drive
   it the same way.
 - **Signalled** — how far the dispatcher has locked ahead of a train is what
@@ -33,7 +33,8 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
 
 ### Requests
 
-A request is `(train, departure end, arrival ends, arrival tick)`. The train is
+A request is `(train, departure end, arrival ends, arrival boundary)`. The
+train is
 named explicitly — its origin block follows from where it stands — and the
 departure end fixes the first transit. The **arrival ends** are a set, and any
 one of them satisfies the request; the dispatcher commits to one when it
@@ -84,7 +85,8 @@ need different information:
 Either stage rejects the request if it empties the set. The admission stage
 records what it dropped, with reasons, on `request_admitted`
 ([SYSTEM.md](../SYSTEM.md#event-inventory)) — that is where an authoring
-slip shows up, so a mistyped end is visible at a known tick instead of silently
+slip shows up, so a mistyped end is visible at a known boundary instead of
+silently
 narrowing the experiment. The launch stage records nothing unless it rejects,
 because a prune that leaves candidates standing changes nothing observable: the
 chooser simply has fewer routes to order, and `route_chosen`'s `k_tried`
@@ -96,7 +98,7 @@ at the **first launch attempt**, alongside reachability — it depends on the
 origin block, which for a chained working is unknown until the predecessor
 completes. The launch commits an empty route and completes in the same grant
 phase, moving nothing and locking nothing, so the request's latency is the
-one-tick admission-to-scan skew every request pays. An empty route has no
+one-boundary admission-to-scan skew every request pays. An empty route has no
 final transit for the end to constrain, and the dispatcher holds no facing to
 check it against — facing is scheduler state it never sees
 ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)) — so this is the one
@@ -116,8 +118,8 @@ topology ordering; #33 made it congestion-aware. The chooser:
    The arrival ends are unordered and equally acceptable, so the ordering below
    decides between them; the request states no preference among them.
 2. Consider only routes whose every block fits the train.
-3. Order by transit count — which is tick count, since every transit costs one
-   tick regardless of length.
+3. Order by transit count — which under the simulator is boundary count, since
+   every transit costs one tick regardless of length.
 4. Break ties on congestion: the number of route blocks beyond the origin that
    are locked by another train — idle holders included — or lie on the
    committed remaining route of another active train.
@@ -197,9 +199,9 @@ what keeps the avoidance layer the single place deadlock is reasoned about.
 With a set of arrival ends the refusal is rarer but unchanged in kind: the
 launch waits only when *every* candidate is refused, not merely the first.
 
-A request completes on the tick its final transit finishes: the trailing
+A request completes on the boundary its final transit finishes: the trailing
 transit and origin block release, and the train parks holding only its standing
-lock. Latency is completion tick − arrival tick.
+lock. Latency is completion boundary − arrival boundary.
 
 ## Time model
 
@@ -211,25 +213,25 @@ is transit length — the long return loop and a station ladder both cost one
 tick. That is the simulator's behaviour rather than the model's time
 ([ADR-0027](../adr/0027-the-tick-is-the-simulators-grant-boundary.md)); on a
 physical railroad a clock sets the cadence and a transit takes as long as it
-takes. Either way the dispatcher never reads a clock and never learns the tick
-number, and the boundary's ownership and mechanics belong to
+takes. Either way the dispatcher never reads a clock and never learns the
+boundary number, and the boundary's ownership and mechanics belong to
 [SYSTEM.md](../SYSTEM.md#time).
 
 **Buffer until the boundary.** Sensor events arrive as atomic facts and are
-buffered; the tick event triggers the grant phase, which treats everything
-buffered since the previous tick as a **set**. Grants are a pure function of
+buffered; the boundary event triggers the grant phase, which treats everything
+buffered since the previous boundary as a **set**. Grants are a pure function of
 that set, never of the order events happened to arrive — and under a future
 MQTT transport a straggling sensor is simply processed at the next boundary:
 a deferred grant, conservative and safe, never an unsafe one.
 
-**One tick still produces the three phases**, now as the cascade the tick
-event causes rather than a loop written out: the layout executes the previous
+**One boundary still produces the three phases**, now as the cascade the
+boundary event causes rather than a loop written out: the layout executes the previous
 grant phase's commands and reports the moves (`block_occupied(new)`,
 `block_vacated(old)` — the origin block and transit release atomically); the
 scheduler's due requests arrive and are admitted on receipt; the grant phase
-runs over the buffered set. Everything published in reaction to one tick is
-handled at the next, so grants take effect one tick after the releases that
-enabled them.
+runs over the buffered set. Everything published in reaction to one boundary
+is handled at the next, so grants take effect one boundary after the releases
+that enabled them.
 
 **Lock footprint.** A train moving from `X` through `T` into `Y` holds
 `{X, T, Y}` for the move and releases `X` and `T` atomically on arrival. `T`
@@ -237,7 +239,7 @@ and `Y` are granted together, which is what makes a transit never held across a
 wait — the premise the whole deadlock argument rests on.
 
 **Grant order** — within the grant phase, active trains first (by request
-arrival tick, tie-break train id), then pending launches in the aging order
+arrival boundary, tie-break train id), then pending launches in the aging order
 of the queue discipline above.
 Draining work in progress before admitting new holders favours makespan and
 mirrors the progress argument of [SAFETY.md](SAFETY.md): advancing the head of
@@ -245,12 +247,13 @@ the witness ordering is always safe, while launching adds a resource holder.
 Because the grant phase takes the whole buffered set, this order never depends
 on the order sensors happen to fire.
 
-**No same-tick handoff.** A lock released by the moves reported at tick `n` is
-grantable in tick `n`'s grant phase, but the grantee's cross command executes
-at tick `n+1`. A convoy
-therefore starts with a one-tick stagger and then flows at one block per train
-per tick — the backward-propagating start wave real trains have. Minimum
-latency is the one-tick admission-to-scan skew plus one tick per transit;
+**No same-boundary handoff.** A lock released by the moves reported at
+boundary `n` is grantable in boundary `n`'s grant phase, but the grantee's
+cross command executes at `n+1`. A convoy
+therefore starts with a one-boundary stagger and then flows at one block per
+train per boundary — the backward-propagating start wave real trains have.
+Minimum latency is the one-boundary admission-to-scan skew plus one boundary
+per transit;
 the degenerate request's launch-and-complete is the zero-transit case.
 
 **Sensors are anonymous.** The layout interface reports only
@@ -314,10 +317,11 @@ metrics below; the suite that produces them is [BENCHMARKS.md](../bench/BENCHMAR
 and each metric is computed as a pure function of the event trace
 ([bench/METRICS.md](../bench/METRICS.md)).
 
-- **Makespan** (headline) — ticks from first arrival until the last request
-  completes.
+- **Makespan** (headline) — boundaries from the first arrival until the last
+  request completes.
 - **Per-request latency** — completion − arrival; mean and max (catches
   starvation).
-- **Resource utilization** — fraction of ticks each block/transit is occupied
-  or locked, over the whole run (tick 0 through the trace's final tick).
-- **Cross commands per tick** — instantaneous parallelism.
+- **Resource utilization** — fraction of boundaries each block/transit is
+  occupied or locked, over the whole run (boundary 0 through the trace's
+  last).
+- **Cross commands per boundary** — instantaneous parallelism.

@@ -30,7 +30,7 @@ reading another component's internals. Terminology follows
 ```
 
 - **Scheduler** — turns the scenario's request list into request events,
-  released at their `at` ticks.
+  released at their `at` boundaries.
 - **Dispatcher** — admits requests, chooses routes, grants moves
   deadlock-free; the research core ([DISPATCH.md](dispatcher/DISPATCH.md),
   [SAFETY.md](dispatcher/SAFETY.md)).
@@ -38,7 +38,8 @@ reading another component's internals. Terminology follows
   in the end state it reads the aspect it is handed and decides how fast
   ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 - **Layout interface** — the boundary to whatever runs the track: sensor
-  readings and the tick come out, turnout and throttle commands go in. A
+  readings and the grant boundary come out, turnout and throttle commands go
+  in. A
   simulator implements it in milestone 1, a hardware adapter later.
 - **Asset store** — serves the layout and scenario documents; the one
   contract that is not the bus, because it answers queries and the bus
@@ -53,13 +54,13 @@ implementer can stand behind unchanged: the simulator and a hardware adapter
 publish the same layout topics, and a future scheduling UI or freight
 generator publishes the same schedule topics the milestone-1 scheduler does.
 
-One cycle of the machine: the layout interface publishes the tick; the
+One cycle of the machine: the layout interface publishes the boundary; the
 scheduler releases the requests that have come due; the dispatcher runs its
-grant phase over everything buffered since the previous tick and publishes
+grant phase over everything buffered since the previous one and publishes
 granted moves, publishing `align` for each so the route is set before anything
 moves; the driver turns the grant it sees into a `cross`; the layout interface
 executes both and reports occupancy, which the dispatcher buffers for the next
-tick. The trace tap watches all of it.
+boundary. The trace tap watches all of it.
 
 ## The bus
 
@@ -118,7 +119,7 @@ delivering each event to subscribers in subscription order; publishes made
 inside a handler join the back of the queue. Delivery order is then a pure
 function of publish and subscribe order — the byte-identical replay the test
 suite requires ([ARCHITECTURE.md](ARCHITECTURE.md#tests)) — and the
-breadth-first shape forecloses the same-tick-causality habit the contract
+breadth-first shape forecloses the same-boundary-causality habit the contract
 refuses, since nested synchronous delivery would grant exactly what MQTT
 never will.
 
@@ -158,7 +159,7 @@ names the role that writes there — `layout`, `schedule`, `dispatch`, `drive`,
 meaning when hardware replaces the simulator, and a future UI gets
 `tc49/dispatch/#` for free. Leaves are past-tense facts, with two exceptions:
 the two commands are imperative (`align`, `cross` — past tense would
-be a lie, the command precedes the crossing), and `tick` is the sole noun
+be a lie, the command precedes the crossing), and `boundary` is the sole noun
 leaf, naming a beat rather than a change. `align` sits under `dispatch`
 because the dispatcher writes it: setting the route is its responsibility, and
 the driver moves locomotives
@@ -166,7 +167,7 @@ the driver moves locomotives
 
 | Topic | Kind | Publisher | Payload gist |
 | --- | --- | --- | --- |
-| `tc49/layout/tick` | event | layout | deterministic counter |
+| `tc49/layout/boundary` | event | layout | deterministic counter |
 | `tc49/layout/block_occupied` | event | layout | block |
 | `tc49/layout/block_vacated` | event | layout | block |
 | `tc49/schedule/request_submitted` | event | scheduler | id, train, depart, dest ends |
@@ -188,7 +189,7 @@ the driver moves locomotives
 
 | Consumer | Filter(s) |
 | --- | --- |
-| Scheduler | `tc49/layout/tick`, `tc49/dispatch/#` **and** `tc49/ui/#` |
+| Scheduler | `tc49/layout/boundary`, `tc49/dispatch/#` **and** `tc49/ui/#` |
 | Dispatcher | `tc49/layout/+` **and** `tc49/schedule/request_submitted` |
 | Driver | `tc49/dispatch/move_granted` |
 | Layout interface | `tc49/drive/+` **and** `tc49/dispatch/align` |
@@ -209,7 +210,7 @@ keeps surviving ends and `pruned` because those are new facts.
 `lock_granted`/`lock_released` carry `train` rather than the id, since the
 utilization metric groups by resource. `request_completed` carries no
 latency — the dispatcher has no clock to compute one with; metrics derives
-it from the trace's tick stamps. `grant_refused` carries one
+it from the trace's boundary stamps. `grant_refused` carries one
 `{resource, holder}` entry per candidate route blocked — one entry when
 advancing a fixed route, up to `k` at a launch — which is what lets the
 stall report of [BENCHMARKS.md](bench/BENCHMARKS.md#termination) be derived rather
@@ -222,44 +223,40 @@ until a second consumer exists.
 
 **The layout interface owns time**
 ([ADR-0009](adr/0009-layout-interface-owns-time.md)). It publishes
-`tc49/layout/tick`; the four app components only ever subscribe, which keeps
-every one of them clock-free — the dispatcher never learns what tick it is.
-In milestone 1 the simulator advances the tick only when the bus is quiescent
-(queue drained); that is loop-owner pacing, not a bus-contract promise.
-Advancing means: execute the pending commands, publish their sensor events,
-**then** publish the tick — a tick's sensors precede the tick itself, so the
-grant phase the tick triggers finds them in its buffered set. Publishing the
-tick first would slip every grant by a tick. A
-hardware adapter later picks its own cadence behind the same event: the
-publisher swaps, the contract doesn't. What the contract needs is the
-**boundary**; `tick` is the simulator's name for it, and "one transit per beat"
-is the simulator's behaviour rather than the model's time
+`tc49/layout/boundary`; the four app components only ever subscribe, which
+keeps every one of them clock-free — the dispatcher never learns which
+boundary it is on. In milestone 1 the simulator advances only when the bus is
+quiescent (queue drained); that is loop-owner pacing, not a bus-contract
+promise. Advancing means: execute the pending commands, publish their sensor
+events, **then** publish the boundary — a beat's sensors precede the boundary
+itself, so the grant phase the boundary triggers finds them in its buffered
+set. Publishing the boundary first would slip every grant by one. A hardware
+adapter later picks its own cadence behind the same event: the publisher
+swaps, the contract doesn't. The contract is named for what it needs, the
+**boundary**; `tick` is the simulator's name for its own beat, and "one
+transit per beat" is the simulator's behaviour rather than the model's time
 ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
 
-The topic and payload field are named for a binding rather than for the
-contract, which is backwards: a hardware adapter has to publish
-`tc49/layout/tick` carrying a field called `tick`, and CONTEXT.md's entry for
-*tick* reserves the word for the simulator's beat. Read `tc49/layout/tick` as
-the milestone-1 name of the grant-boundary event. Renaming it is #118.
+**The boundary event is what the dispatcher grants on.** There is no second
+event. On each boundary the scheduler releases requests that have come due,
+the dispatcher runs its grant phase over the sensor events buffered since the
+previous one ([DISPATCH.md](dispatcher/DISPATCH.md#time-model)), and the
+driver takes granted moves forward. Under queued-FIFO delivery, everything
+published in reaction to boundary `N` lands after the dispatcher has already
+handled boundary `N`, so it is granted at `N+1` — the one-boundary skew the
+dispatch model's no-same-boundary-handoff rule describes.
 
-**The tick event is the grant boundary.** There is no separate boundary
-event. On each tick the scheduler releases requests that have come due, the
-dispatcher runs its grant phase over the sensor events buffered since the
-previous tick ([DISPATCH.md](dispatcher/DISPATCH.md#time-model)), and the driver takes
-granted moves forward. Under queued-FIFO delivery, everything published in
-reaction to tick `N` lands after the dispatcher has already handled tick `N`,
-so it is granted at tick `N+1` — the one-tick skew the dispatch model's
-no-same-tick-handoff rule describes.
-
-**The tick carries its number; nothing else does.** The payload is a plain
-deterministic counter minted by the topic's single writer — required by the
-at-least-once mindset, since a bare tick consumed by counting would
+**The boundary carries its number; nothing else does.** The payload is a
+plain deterministic counter minted by the topic's single writer — required by
+the at-least-once mindset, since a bare boundary consumed by counting would
 double-advance on a duplicate, while a numbered one makes duplicates
-trivially ignorable. No other event carries a tick field: the trace tap
-stamps each recorded event with the latest tick number it has observed,
-deterministic in milestone 1 because the tap sees everything in delivery
-order. The scheduler consumes the number (it is how requests come due at
-their `at` tick); counting a bus event is not reading a clock.
+trivially ignorable. That argument is not the simulator's: every binding
+numbers its boundary, a hardware adapter included. No other event carries a
+boundary field: the trace tap stamps each recorded event with the latest
+boundary number it has observed, deterministic in milestone 1 because the tap
+sees everything in delivery order. The scheduler consumes the number (it is
+how requests come due at their `at` boundary); counting a bus event is not
+reading a clock.
 
 ## Asset store
 
@@ -309,21 +306,22 @@ justifies exactly that footprint.
 
 ### Scheduler
 
-*Reads* the scenario and the layout. *Subscribes* `tc49/layout/tick`,
+*Reads* the scenario and the layout. *Subscribes* `tc49/layout/boundary`,
 `tc49/dispatch/#` and `tc49/ui/#`. *Publishes* `request_submitted` and the
 `state/exhausted` and `state/facing` last-value topics.
 
 The scheduler is the **one writer of requests**, and its sources are three: a
-timetable released at its `at` ticks, a person gesturing on the panel, and a
+timetable released at its `at` boundaries, a person gesturing on the panel,
+and a
 generator inventing traffic later — "three sources inside one scheduler, not
 three publishers"
 ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md),
 [GOALS.md](GOALS.md#scheduling)). Which of them a session has is
 configuration, not a rule: `tc49 live` runs with the timetable off while `at`
-is still a tick number
+is still a boundary count
 ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 
-A tick number is the milestone binding of "at a stated time" and not the
+A boundary count is the milestone binding of "at a stated time" and not the
 model's answer, since a boundary count means nothing to a timetable once a
 hardware adapter is picking the cadence
 ([MILESTONE-1.md](MILESTONE-1.md#scope)). From a scenario request the
@@ -393,7 +391,7 @@ stating a departure block its train is not standing in is one of those
 fates, answered `wrong_origin` rather than raised, because the submitter
 may be a browser
 ([ADR-0021](adr/0021-a-bad-request-is-answered-not-raised.md)). Sensor events
-are **buffered until the tick**, then treated as a set with the canonical
+are **buffered until the boundary**, then treated as a set with the canonical
 grant order applied to the whole of it, so grants are a pure function of the
 buffered set, never of delivery order — and under MQTT a straggling sensor
 is processed at the next boundary: a deferred grant, conservative and safe.
@@ -427,7 +425,7 @@ transits to take time, which milestone 1 defers
 ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md),
 [MILESTONE-1.md](MILESTONE-1.md)). The move payload carries every field `cross` needs,
 so the driver holds no state and reads no assets. It does
-not subscribe to the tick — the tick+1 skew is the boundary's property, and
+not subscribe to the boundary — the N+1 skew is the boundary's property, and
 duplicating it here would land grants at N+2. The boundary stays real by
 footprint, not thickness: a **human driver** drops in by consuming grants as
 a display and publishing nothing (sensors remain the sole truth), and a
@@ -436,12 +434,13 @@ future realistic-driving component fattens the driver behind the same topic.
 ### Layout interface
 
 *Reads* the layout and the scenario (initial train placement). *Subscribes*
-`tc49/drive/+` and `tc49/dispatch/align`. *Publishes* the tick and the sensor
-events.
+`tc49/drive/+` and `tc49/dispatch/align`. *Publishes* the boundary and the
+sensor events.
 
 The layout interface is the app's edge: **commands in, observations out**,
 plus ownership of time. Its outbound vocabulary is exactly what hardware can
-implement — anonymous occupancy sensors and the tick; it never asserts train
+implement — anonymous occupancy sensors and the boundary; it never asserts
+train
 identity, which detectors cannot honestly report (the dispatcher recovers
 identity from its own lock table). Commands are **transit-level**: an `align`
 names a connection and a transit, and carries the points that transit needs as
@@ -457,11 +456,11 @@ two publishers, and the bus refuses cross-topic ordering, so nothing upstream
 can promise the route is set before the train moves — but a train started onto
 points that have not thrown is a collision, so the duty has to sit somewhere
 and this is the only component that sees both. How it is held is the binding's
-own business: the simulator gets it free by batching commands to the tick, a
+own business: the simulator gets it free by batching commands to its tick, a
 hardware adapter pairs them. What stays private hardware configuration is the
 control loop that executes a `cross` (throttle up, watch the detector, stop). The milestone-1 **simulator** applies `align` and
 `cross` directly at the next tick, and owns pacing and termination: it stops
-advancing ticks when the scheduler is `exhausted` and a tick's cascade
+advancing when the scheduler is `exhausted` and a tick's cascade
 produced no commands ([BENCHMARKS.md](bench/BENCHMARKS.md#termination)). That stop
 rule is milestone-1 pacing, not bus contract — a hardware adapter never
 terminates. Sensor events report moves only: initial occupancy is never
@@ -488,7 +487,7 @@ generator ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 | --- | --- | --- |
 | `cross` carries a **speed** | the driver decides how fast; the layout interface keeps throttle-up-watch-the-detector-stop, where the braking curve and detector geometry live | same |
 | The scheduler **invents traffic** | continual generated traffic has to name an idle train and a reachable destination, which is what it now reads the layout for; the dispatcher stays the single feasibility authority | [ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md) |
-| The boundary event's cadence comes from a **clock**, transits vary in length | `tick` is the simulator's binding of the boundary, not the model's unit of time | [ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md) |
+| The boundary event's cadence comes from a **clock**, transits vary in length | `tick` is the simulator's beat behind the boundary, not the model's unit of time | [ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md) |
 
 None of the three adds a role, a writer, or a query — which is the point.
 Every one lands on a topic that already exists or a state topic under a role
@@ -516,12 +515,12 @@ milestone-1 queued-FIFO bus. There is no bespoke trace channel; the events
 the trace records are the same events the components exchange, so a future
 UI subscribes to exactly what the trace already proves sufficient.
 
-Each line is flat: `{"tick": …, "event": …, …payload}`, with `event` set to
-the topic's leaf (globally unique, per the inventory invariant) and `tick`
-stamped by the tap from the last tick number it observed — `0` for events
-delivered before the first tick event, such as the startup standing locks.
-Key order is
-canonical — `tick`, `event`, then the event's fields in inventory order —
+Each line is flat: `{"boundary": …, "event": …, …payload}`, with `event` set
+to the topic's leaf (globally unique, per the inventory invariant) and
+`boundary` stamped by the tap from the last boundary number it observed —
+`0` for events delivered before the first boundary event, such as the startup
+standing locks. Key order is
+canonical — `boundary`, `event`, then the event's fields in inventory order —
 which is what makes the determinism property a byte compare
 ([ARCHITECTURE.md](ARCHITECTURE.md#tests)). A payload field outside the
 inventory fails loudly, which is a promise about what the **apps** write:
@@ -535,7 +534,7 @@ the dispatcher drops
 **load-bearing**: every metric derives from recorded events — makespan from
 `request_admitted`/`request_completed` stamps, latency likewise,
 utilization from `lock_granted`/`lock_released` spans, parallelism from
-`cross` commands per tick, and the stall report from the last
+`cross` commands per boundary, and the stall report from the last
 `grant_refused` per never-completed request — so an event that stops being
 emitted breaks a metric and fails a test rather than rotting quietly. The
 derivations live in [bench/METRICS.md](bench/METRICS.md).

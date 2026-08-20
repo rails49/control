@@ -1,7 +1,7 @@
 # gotthard/meet — two trains, opposite directions (docs/BENCHMARKS.md, #31).
 #
 # The smallest story the real railroad can tell: one train each way between the
-# stations, launched in the same tick, with three line sections to share out
+# stations, launched on the same boundary, with three line sections to share out
 # between them.
 #
 # The asymmetry BENCHMARKS.md describes is what makes it worth running. `south`
