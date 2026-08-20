@@ -20,16 +20,10 @@ import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import type { Kind } from "../symbols.generated.js";
 import { COMMANDS, type CommandId, type Standing } from "../model/commands.js";
-import { emptyDrawing, nameTrouble, type SymbolSpec } from "../model/drawing.js";
+import { emptyDrawing, type SymbolSpec } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
+import { Filing } from "../model/filing.js";
 import type { Chosen } from "../model/inspect.js";
-import {
-  listDrawings,
-  readDrawing,
-  review,
-  saveDrawing,
-  type Review,
-} from "../model/store.js";
 import { appStyles } from "./tc-editor.styles.js";
 import "./tc-canvas.js";
 import "./tc-header.js";
@@ -57,16 +51,11 @@ export class TcEditor extends LitElement {
 
   private editor = new Editor(emptyDrawing("untitled"));
 
-  @state() private drawings: string[] = [];
-  @state() private opened = "";
-  @state() private reviewed: Review | null = null;
-  /** What the editor could not do — the store not answering, a save that did
-   *  not land, a name no drawing can wear. It reads in the band, none of it
-   *  being a fault of the drawing that the canvas could mark (#84, ADR-0024).
-   *  It lives until the next accepted edit, a refusal outliving what caused it
-   *  being as wrong as one that never shows. */
-  @state() private trouble: string | null = null;
-  @state() private saved = true;
+  /** Everything the store is asked and everything it says back
+   *  (`model/filing.ts`). None of it is `@state`, so it says when it has
+   *  moved and the shell redraws. */
+  private filing = new Filing(() => this.redraw());
+
   @state() private menu: MenuAt | null = null;
   /** Whether a menu on the bar is down. While one is, the keyboard is the
    *  menu's and nothing reaches the canvas. */
@@ -87,7 +76,7 @@ export class TcEditor extends LitElement {
   override connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("keydown", this.key);
-    void this.load();
+    void this.filing.load();
   }
 
   override disconnectedCallback(): void {
@@ -99,15 +88,15 @@ export class TcEditor extends LitElement {
     return html`
       <tc-header
         mode="editor"
-        .drawing=${this.opened === "" ? null : this.opened}
-        .unsaved=${!this.saved}
-        .derives=${this.derives}
-        .trouble=${this.trouble}
+        .drawing=${this.filing.opened === "" ? null : this.filing.opened}
+        .unsaved=${!this.filing.saved}
+        .derives=${this.filing.derives}
+        .trouble=${this.filing.trouble}
       ></tc-header>
 
       <tc-menubar
         .standing=${this.standing}
-        .drawings=${this.drawings}
+        .drawings=${this.filing.drawings}
         @command=${(event: CustomEvent<CommandId>) => this.run(event.detail)}
         @open-drawing=${(event: CustomEvent<string>) => this.discard(event.detail)}
         @menu-open=${(event: CustomEvent<boolean>) => {
@@ -119,7 +108,7 @@ export class TcEditor extends LitElement {
 
       <tc-canvas
         .editor=${this.editor}
-        .review=${this.reviewed}
+        .review=${this.filing.reviewed}
         .chosen=${this.chosen}
         @edit=${this.edited}
         @picked=${() => this.requestUpdate()}
@@ -131,7 +120,7 @@ export class TcEditor extends LitElement {
       ${this.netlist
         ? html`
             <tc-netlist
-              .review=${this.reviewed}
+              .review=${this.filing.reviewed}
               .chosen=${this.chosen}
               .symbol=${this.inspecting}
               @transit-chosen=${(event: CustomEvent<Chosen | null>) => {
@@ -169,7 +158,8 @@ export class TcEditor extends LitElement {
   private question(open: string | null) {
     // Nothing is open until a drawing is chosen, and what is drawn on the
     // canvas before that is still an evening's work.
-    const losing = this.opened === "" ? "The canvas" : `'${this.opened}'`;
+    const losing =
+      this.filing.opened === "" ? "The canvas" : `'${this.filing.opened}'`;
     const instead =
       open === null ? "Starting a new drawing" : `Opening '${open}'`;
     return html`
@@ -184,16 +174,6 @@ export class TcEditor extends LitElement {
         </sl-button>
       </sl-dialog>
     `;
-  }
-
-  /** Whether the drawing derives, which is the whole of what the band says
-   *  about the drawing itself (ADR-0024). Off the store's refusal and nothing
-   *  else: an overlap and a symbol still lacking an address derive, and a
-   *  drawing nothing has been asked about yet has nothing against it. A store
-   *  that stops answering leaves the last review standing, so the mark neither
-   *  appears nor clears on a fault that is not the author's. */
-  private get derives(): boolean {
-    return this.reviewed === null || this.reviewed.refused === null;
   }
 
   /** The one symbol the netlist pane inspects, where exactly one is selected.
@@ -211,9 +191,9 @@ export class TcEditor extends LitElement {
     const one = this.inspecting;
     const spec = one === null ? undefined : this.editor.drawing.symbols[one];
     return {
-      opened: this.opened,
-      saved: this.saved,
-      drawings: this.drawings.length,
+      opened: this.filing.opened,
+      saved: this.filing.saved,
+      drawings: this.filing.drawings.length,
       selection: this.editor.selection.size,
       editable: spec !== undefined && editable(spec.kind),
       undo: this.editor.canUndo,
@@ -235,11 +215,13 @@ export class TcEditor extends LitElement {
       case "open":
         return;
       case "save":
-        void this.save();
+        void this.filing.save(this.editor);
         return;
-      case "save-as":
-        void this.saveAs();
+      case "save-as": {
+        const said = this.ask("Save as", this.filing.opened);
+        void this.filing.saveAs(said, this.editor);
         return;
+      }
       case "export-svg":
         this.exportSvg();
         return;
@@ -308,7 +290,7 @@ export class TcEditor extends LitElement {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${this.opened}.svg`;
+    link.download = `${this.filing.opened}.svg`;
     link.click();
     // The click starts the download, which reads the url after this turn ends.
     setTimeout(() => URL.revokeObjectURL(url), 0);
@@ -325,21 +307,12 @@ export class TcEditor extends LitElement {
 
   // --- talking to the store -----------------------------------------------
 
-  private async load(): Promise<void> {
-    try {
-      this.drawings = await listDrawings();
-      this.trouble = null;
-    } catch (failure) {
-      this.trouble = `the store is not answering: ${String(failure)}`;
-    }
-  }
-
   /** Throw the open drawing away for another, or for a new one — the two
    *  things that discard whatever has been drawn since the last save. Edits
    *  the store has not been given are asked about first; with nothing to lose
    *  there is nothing to ask, and the drawing opens as it always did (#101). */
   private discard(open: string | null): void {
-    if (this.saved) void this.opening(open);
+    if (this.filing.saved) void this.opening(open);
     else this.discarding = { open };
   }
 
@@ -357,127 +330,34 @@ export class TcEditor extends LitElement {
     this.discarding = null;
   }
 
-  /** What was asked for, once there is nothing in the way of it. A drawing
-   *  arrives with the netlist shut, whatever the last one left open, and with
-   *  no way lit: both belong to the railroad being replaced, and the netlist
-   *  is opened when something looks wrong rather than kept up (ADR-0024). */
-  private opening(open: string | null): Promise<void> {
+  /**
+   * What was asked for, once there is nothing in the way of it. A drawing
+   * arrives with the netlist shut, whatever the last one left open, and with
+   * no way lit: both belong to the railroad being replaced, and the netlist
+   * is opened when something looks wrong rather than kept up (ADR-0024).
+   *
+   * A new drawing is named here, after the question and not before it: a
+   * prompt answered and then a discard declined would have asked for nothing.
+   * Fitting the canvas is what is left over for the shell — the two DOM
+   * touches `Filing` cannot take with it, and it says whether a drawing
+   * arrived to fit to.
+   */
+  private async opening(open: string | null): Promise<void> {
     this.netlist = false;
     this.chosen = null;
-    return open === null ? this.newDrawing() : this.open(open);
-  }
-
-  private async open(name: string): Promise<void> {
-    try {
-      this.editor.reset(await readDrawing(name));
-      this.opened = name;
-      // Staging is an edit, so a railroad that arrives without placement
-      // opens with something to save rather than something already saved.
-      this.saved = !this.editor.stage();
-      this.trouble = null;
-      await this.updateComplete;
-      this.fit();
-      await this.reviewNow(true);
-    } catch (failure) {
-      this.trouble = String(failure);
-    }
-  }
-
-  /** Saving needs a drawing to save into. Nothing is open until a railroad
-   *  is chosen, and `untitled` is not a file anyone asked for. */
-  private async save(): Promise<void> {
-    if (this.opened === "") return;
-    try {
-      await saveDrawing(this.editor.drawing);
-      this.saved = true;
-      this.trouble = null;
-      // The first save of a new name is what creates the file, so the list
-      // that refuses taken names learns it here.
-      if (!this.drawings.includes(this.opened)) {
-        this.drawings = [...this.drawings, this.opened].sort();
-      }
-    } catch (failure) {
-      this.trouble = String(failure);
-    }
-  }
-
-  /** A named empty canvas, asked for up front: `untitled` is not a file
-   *  anyone asked for, and nothing is written until the first Save, so an
-   *  abandoned start leaves no file behind. */
-  private async newDrawing(): Promise<void> {
-    const name = this.named("New railroad", "");
-    if (name === null) return;
-    this.editor.reset(emptyDrawing(name));
-    this.opened = name;
-    this.saved = false;
+    const arrived =
+      open === null
+        ? await this.filing.create(this.ask("New railroad", ""), this.editor)
+        : await this.filing.open(open, this.editor);
+    if (!arrived) return;
     await this.updateComplete;
     this.fit();
-    await this.reviewNow();
-  }
-
-  /** The fork: the open drawing, unsaved edits and all, written at once under
-   *  a new name. The file under the old name keeps its last-saved state. */
-  private async saveAs(): Promise<void> {
-    if (this.opened === "") return;
-    const name = this.named("Save as", this.opened);
-    if (name === null) return;
-    this.editor.rename(name);
-    this.opened = name;
-    await this.save();
-  }
-
-  /** One drawing name, asked for and checked. A refusal reads in the band
-   *  rather than re-prompting: the prompt is gone by then, nothing on the
-   *  canvas is wrong, and asking again is one click away (ADR-0024). */
-  private named(what: string, was: string): string | null {
-    const said = this.ask(what, was);
-    if (said === null) return null;
-    const trouble = nameTrouble(said, this.drawings);
-    if (trouble === null) return said;
-    this.trouble = trouble;
-    return null;
-  }
-
-  /**
-   * A drawing mid-edit is normally not derivable, so a refusal comes back
-   * inside a 200 and is shown; only a document that will not load at all is
-   * an error worth reporting as one.
-   *
-   * A junction always has a valid name, so the names the drawing has not
-   * settled are minted the moment the store says which junctions exist. The
-   * write folds into the edit that caused it, and asking again with the names
-   * in place is what makes the pane agree with the drawing. `opening` is the
-   * one review that also replaces the names a person typed (ADR-0023), which
-   * happens once, before anything is drawn from the answer.
-   */
-  private async reviewNow(opening = false): Promise<void> {
-    try {
-      const at = this.editor.revision;
-      const first = await review(this.editor.drawing);
-      this.trouble = null;
-      const named = opening
-        ? this.editor.remint(first, at)
-        : this.editor.settle(first, at);
-      if (named) {
-        // Opening a hand-written railroad has edits to save, because the names
-        // it was written with are not the ones it now holds.
-        this.saved = false;
-        this.reviewed = await review(this.editor.drawing);
-      } else {
-        this.reviewed = first;
-      }
-      this.redraw();
-    } catch (failure) {
-      this.trouble = String(failure);
-    }
   }
 
   // --- edits ---------------------------------------------------------------
 
   private edited(): void {
-    this.saved = false;
-    this.redraw();
-    void this.reviewNow();
+    this.filing.edited(this.editor);
   }
 
   /** The canvas holds the same `Editor` across an edit, so Lit sees no
