@@ -24,7 +24,7 @@ has never moved having no other source for one.
 from collections import Counter
 
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.layout import Layout
+from tc49.lib.layout import Layout, block_of, opposite_end
 from tc49.lib.payload import gesture
 from tc49.lib.scenario import Scenario
 
@@ -125,7 +125,7 @@ class Scheduler:
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "move_granted":
             entered = _end_on(self._layout, payload["transit"], payload["into"])
-            self._facing[payload["train"]] = _opposite(entered)
+            self._facing[payload["train"]] = opposite_end(entered)
         elif leaf == "route_chosen":
             train = self._train_of.get(payload["id"])
             route = payload["route"]
@@ -160,10 +160,4 @@ def _end_on(layout: Layout, transit: str, block: str) -> str:
     block, and `route_chosen` names the route."""
     connection, _, name = transit.partition(".")
     first, second = layout.connections[connection].transits[name]
-    return first if first.rpartition(".")[0] == block else second
-
-
-def _opposite(end: str) -> str:
-    """The other end of the same block: a block has exactly A and B."""
-    block, _, letter = end.rpartition(".")
-    return f"{block}.{'B' if letter == 'A' else 'A'}"
+    return first if block_of(first) == block else second
