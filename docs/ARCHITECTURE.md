@@ -80,15 +80,15 @@ src/tc49/
                             arguments — the grid of BENCHMARKS.md is the
                             fixed research design; `tc49 layout show`;
                             `tc49 serve` runs the store's HTTP face;
-                            `tc49 symbols` regenerates the editor's
-                            TypeScript view of the symbol library
+                            `tc49 generate` rewrites every TypeScript
+                            file the UI is handed rather than keeps by hand
                 sweep.py    the seeded workload generator and the fixed grid
                 metrics.py  metrics(trace) -> Metrics
 
 ui/                         the layout editor: TypeScript, pnpm, Lit
                             (ADR-0014). Outside src/tc49/, which is Python.
                             src/symbols.generated.ts is written by
-                            `tc49 symbols` from store/drawing.py's symbol
+                            `tc49 generate` from store/drawing.py's symbol
                             library, and a test asserts it is current
               src/model/    the document, the geometry, the editing session,
                             connection naming and the store client — no DOM,

@@ -1,5 +1,5 @@
 """`tc49 bench`: the comparison table, the k flag, the trace dump (#30),
-`tc49 layout show` (#45), and `tc49 symbols` (#52)."""
+`tc49 layout show` (#45), and `tc49 generate` (#52)."""
 
 import io
 import json
@@ -7,10 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from tc49.bench.cli import main
+from tc49.bench.cli import GENERATED, main
 from tc49.bench.metrics import metrics
 from tc49.bench.runner import find_root
-from tc49.store.symbols import GENERATED
 from tests.harness import ROOT
 
 
@@ -97,13 +96,15 @@ def test_layout_show_prints_the_derived_topology() -> None:
     ]
 
 
-def test_symbols_writes_the_generated_typescript(tmp_path: Path) -> None:
-    # Written somewhere else on purpose. Writing the committed file here would
-    # repair a stale one before `tests/store/test_symbols.py` — the test whose
-    # whole job is to notice — ever looked at it.
-    out = tmp_path / "nested" / "symbols.generated.ts"
-    assert run_cli("symbols", "--out", str(out)) == f"wrote {out}\n"
-    assert out.read_text() == (ROOT / GENERATED).read_text()
+def test_generate_writes_every_generated_file(tmp_path: Path) -> None:
+    # Written into another checkout on purpose. Writing the committed files
+    # here would repair a stale one before the test whose whole job is to
+    # notice — tests/store/test_symbols.py — ever looked at it.
+    written = run_cli("generate", "--out", str(tmp_path))
+    assert GENERATED, "the command would write nothing"
+    for generated in GENERATED:
+        assert f"wrote {tmp_path / generated}\n" in written
+        assert (tmp_path / generated).read_text() == (ROOT / generated).read_text()
 
 
 def test_find_root_locates_the_railroads_from_anywhere_and_says_so_if_not() -> None:

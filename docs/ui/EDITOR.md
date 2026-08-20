@@ -844,7 +844,7 @@ The panel later adds a bus bridge alongside it
 ([PANEL.md](PANEL.md#implementation)).
 
 Symbol pins and transits are generated into `ui/src/symbols.generated.ts` from
-the library in `drawing.py` by `tc49 symbols`, with a test asserting the
+the library in `drawing.py` by `tc49 generate`, with a test asserting the
 committed file is current, so a renamed pin is a TypeScript compile error
 rather than a wrong drawing. Alongside them go the palette, the rotations, and
 the leg-to-position table a motorised kind declares

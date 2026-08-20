@@ -1,5 +1,5 @@
 """`tc49 bench <scenario>`, `tc49 sweep`, `tc49 live <scenario>`,
-`tc49 layout show <layout>`, `tc49 serve`, `tc49 symbols`.
+`tc49 layout show <layout>`, `tc49 serve`, `tc49 generate`.
 
 `bench` runs one named scenario under both locking strategies and prints the
 comparison. `live` runs a session an outside client can join: wall-clock
@@ -9,12 +9,14 @@ over HTTP, and the scheduler's timetable off while `at` is a boundary count
 research design, not a knob, and that page is its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
 review that a committed layout file used to give in a diff (ADR-0015).
-`symbols` regenerates the editor's TypeScript view of the symbol library.
+`generate` rewrites every TypeScript file the UI is handed rather than
+keeps by hand, the symbol library being the first of them.
 """
 
 import argparse
 import sys
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import TextIO
 
@@ -32,9 +34,15 @@ from tc49.lib.layout import Layout
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 from tc49.store.server import make_server
-from tc49.store.symbols import GENERATED, render
+from tc49.store.symbols import GENERATED as SYMBOLS
+from tc49.store.symbols import render as render_symbols
 
 ROOT = find_root()
+
+GENERATED: dict[str, Callable[[], str]] = {SYMBOLS: render_symbols}
+"""Every file the UI is handed rather than keeps by hand, and what writes it.
+Keyed by the path each takes inside a checkout, so one command writes them
+all and one flag says which checkout (ADR-0022)."""
 
 
 def load(store: AssetStore, scenario_id: str) -> tuple[Layout, Scenario]:
@@ -181,14 +189,14 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
     )
     serve_parser.add_argument("--port", type=int, default=8765)
 
-    symbols_parser = commands.add_parser(
-        "symbols", help=f"write {GENERATED} from the symbol library"
+    generate_parser = commands.add_parser(
+        "generate", help="write the UI's generated TypeScript from its Python source"
     )
-    symbols_parser.add_argument(
+    generate_parser.add_argument(
         "--out",
         type=Path,
-        default=ROOT / GENERATED,
-        help=f"where to write it (default {GENERATED} in the checkout)",
+        default=ROOT,
+        help="the checkout to write into (default this one)",
     )
 
     layout_parser = commands.add_parser("layout", help="inspect a drawn railroad")
@@ -241,11 +249,13 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         server.serve_forever()
         return 0
 
-    if args.command == "symbols":
-        path: Path = args.out
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(render())
-        out.write(f"wrote {path}\n")
+    if args.command == "generate":
+        root: Path = args.out
+        for generated, render in GENERATED.items():
+            path = root / generated
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(render())
+            out.write(f"wrote {path}\n")
         return 0
 
     if args.command == "layout":

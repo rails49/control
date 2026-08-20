@@ -1,4 +1,4 @@
-// Generated from src/tc49/store/drawing.py. Run `tc49 symbols` to update.
+// Generated from src/tc49/store/drawing.py. Run `tc49 generate` to update.
 //
 // The symbol library: what pins each kind has, what transits run between
 // them, and which position each leg of a motorised kind wants. Artwork is

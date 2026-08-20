@@ -4,7 +4,7 @@
 authority for each kind's pins, its transits and the position each leg of a
 motorised one wants, and the editor needs the same names to draw a symbol and
 attach a wire to the right pin. Written twice the two would drift, so the
-TypeScript is generated: `tc49 symbols` writes it and a test asserts the
+TypeScript is generated: `tc49 generate` writes it and a test asserts the
 committed file is current. The names become union types, so a renamed pin is a
 compile error rather than a wrong drawing.
 
@@ -17,7 +17,7 @@ from tc49.store.drawing import BEND, LIBRARY, PINS, POSITIONS, ROTATIONS
 GENERATED = "ui/src/symbols.generated.ts"
 
 _HEADER = """\
-// Generated from src/tc49/store/drawing.py. Run `tc49 symbols` to update.
+// Generated from src/tc49/store/drawing.py. Run `tc49 generate` to update.
 //
 // The symbol library: what pins each kind has, what transits run between
 // them, and which position each leg of a motorised kind wants. Artwork is

@@ -11,7 +11,7 @@ from tests.harness import ROOT
 
 
 def test_the_committed_file_is_current() -> None:
-    assert (ROOT / GENERATED).read_text() == render(), "run `tc49 symbols`"
+    assert (ROOT / GENERATED).read_text() == render(), "run `tc49 generate`"
 
 
 def test_every_kind_is_rendered_with_its_own_pins() -> None:
