@@ -134,7 +134,7 @@ export class TcMenubar extends LitElement {
                 ${this.drawings.map(
                   (name) => html`
                     <li>
-                      <button @click=${() => this.opening(name)}>
+                      <button @click=${() => this.wanting(name)}>
                         <span class="tick"
                           >${name === this.standing.opened ? "✓" : ""}</span
                         >
@@ -192,11 +192,15 @@ export class TcMenubar extends LitElement {
     );
   }
 
-  /** One of the drawings `Open` lists. The tick says which one is open, and
-   *  that is all it says: choosing it asks for nothing, the menu closing
-   *  being the whole of what a click on it does (#101). Re-reading the open
-   *  drawing would throw away whatever has been drawn since. */
-  private opening(name: string): void {
+  /** One of the drawings `Open` lists was clicked. The bar announces which
+   *  drawing is wanted and stops there — the shell is what opens it, and the
+   *  two are not the same method (#137).
+   *
+   *  The tick says which one is open, and that is all it says: choosing it
+   *  asks for nothing, the menu closing being the whole of what a click on it
+   *  does (#101). Re-reading the open drawing would throw away whatever has
+   *  been drawn since. */
+  private wanting(name: string): void {
     this.show(null);
     if (name === this.standing.opened) return;
     this.dispatchEvent(
