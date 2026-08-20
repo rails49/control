@@ -18,8 +18,8 @@
  * there is no cold start to seed and nothing two tabs can disagree about.
  */
 
-import type { Aspect } from "../render/artwork.js";
 import type { Reason } from "../rejection.generated.js";
+import type { Aspect } from "../render/artwork.js";
 import type { Position } from "../symbols.generated.js";
 import { WHOLE } from "./inspect.js";
 import type { Explained, Layout } from "./store.js";

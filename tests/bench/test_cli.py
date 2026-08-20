@@ -1,5 +1,5 @@
 """`tc49 bench`: the comparison table, the k flag, the trace dump (#30),
-`tc49 layout show` (#45), and `tc49 generate` (#52)."""
+`tc49 layout show` (#45), and `tc49 generate` (#52, #126)."""
 
 import io
 import json

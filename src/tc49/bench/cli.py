@@ -47,7 +47,7 @@ GENERATED: dict[str, Callable[[], str]] = {
 }
 """Every file the UI is handed rather than keeps by hand, and what writes it.
 Keyed by the path each takes inside a checkout, so one command writes them
-all and one flag says which checkout (ADR-0022)."""
+all and one flag says which checkout (ADR-0014)."""
 
 
 def load(store: AssetStore, scenario_id: str) -> tuple[Layout, Scenario]:
