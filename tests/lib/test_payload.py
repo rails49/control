@@ -1,6 +1,6 @@
 """Reading a payload from outside, in the one place both apps read one (#127)."""
 
-from tc49.lib.payload import Gesture, gesture
+from tc49.lib.payload import Gesture, gesture, reversal
 
 
 def test_a_well_formed_payload_reads_as_the_gesture_it_names() -> None:
@@ -25,3 +25,22 @@ def test_a_payload_naming_no_gesture_reads_as_none() -> None:
     ]
     for payload in refused:
         assert gesture(payload) is None, payload
+
+
+def test_a_reversal_reads_as_the_train_it_names() -> None:
+    """A train is the whole payload: turning around at rest moves nothing, so
+    there is no destination and no departure end to state (#124)."""
+    assert reversal({"train": "freight_1"}) == "freight_1"
+    assert reversal({"train": "freight_1", "dest": ["yard_e.A"]}) == "freight_1"
+
+
+def test_a_payload_naming_no_reversal_reads_as_none() -> None:
+    refused: list[object] = [
+        "freight_1",  # not an object at all
+        ["freight_1"],  # nor a list of its fields
+        {},  # no train
+        {"train": None},  # a train that is not a name
+        {"train": 7},
+    ]
+    for payload in refused:
+        assert reversal(payload) is None, payload

@@ -26,6 +26,7 @@ from tc49.lib.bus import Payload
 from tests.harness import events, load
 
 WANTED = "tc49/ui/request_wanted"
+REVERSAL = "tc49/ui/reversal_wanted"
 
 TIMEOUT = 5.0
 
@@ -247,3 +248,43 @@ def test_a_reloaded_page_is_served_the_picture_and_answered_again(
         if line["event"] in ("request_admitted", "request_rejected")
     ]
     assert answered, "the drag got no answer at all"
+
+
+def test_a_reversal_turns_the_arrow_and_asks_the_dispatcher_for_nothing(
+    assembly: Assembly, client: ClientConnection
+) -> None:
+    """The other leaf a page may write, over the same socket (#124): the
+    frame names a train, the scheduler flips its facing and republishes, and
+    the panel's arrow turns. No request is composed and no `tc49/dispatch`
+    topic carries anything, nothing having moved."""
+    assembly.bus.drain()  # the startup cascade, so what follows is the answer
+    dispatched = len([one for one in events(assembly.trace) if "id" in one])
+    client.send(json.dumps({"topic": REVERSAL, "payload": {"train": "freight_1"}}))
+
+    deadline = time.monotonic() + TIMEOUT
+    while len(events(assembly.trace, "facing")) < 2:
+        assert time.monotonic() < deadline, "the reversal turned nothing"
+        assembly.bus.drain()
+        time.sleep(0.01)
+
+    turned = events(assembly.trace, "facing")[-1]
+    assert turned["facing"] == {"express_2": "up_e.A", "freight_1": "yard_w.A"}
+    assert events(assembly.trace, "request_submitted") == []
+    assert len([one for one in events(assembly.trace) if "id" in one]) == dispatched
+
+
+def test_a_reversal_naming_a_train_the_session_lacks_is_dropped(
+    assembly: Assembly, client: ClientConnection
+) -> None:
+    """Every shape the scheduler drops, in silence and to the trace: the
+    frame is a line by virtue of having been published, and nothing answers
+    it — a gesture carries no id to address an answer to (ADR-0034)."""
+    assembly.bus.drain()
+    before = len(events(assembly.trace))
+    dropped: list[object] = ["freight_1", {}, {"train": 7}, {"train": "ghost"}]
+    for payload in dropped:
+        assembly.bus.publish(REVERSAL, cast(Payload, payload))
+        assembly.bus.drain()
+
+    assert len(events(assembly.trace)) == before + len(dropped)
+    assert len(events(assembly.trace, "facing")) == 1  # the placement, unturned

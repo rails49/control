@@ -270,3 +270,87 @@ def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
 
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
     assert [p["id"] for _, p in seen] == ["freight_1-1"]
+
+
+REVERSAL = "tc49/ui/reversal_wanted"
+
+
+def reversal(bus: Bus, payload: object) -> None:
+    bus.publish(REVERSAL, cast(Payload, payload))
+    bus.drain()
+
+
+def test_a_reversal_turns_the_train_around_where_it_stands() -> None:
+    """The whole of the gesture is the little arrow in the block the train
+    stands in (#124): facing goes to the other end of the same block, which
+    ADR-0019 named as the one change routes do not account for."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+
+    reversal(bus, {"train": "freight_1"})
+    assert seen[-1][1]["facing"] == {"express_2": "up_e.A", "freight_1": "yard_w.A"}
+
+
+def test_a_reversal_composes_no_request_and_tells_the_dispatcher_nothing() -> None:
+    """Nothing moves, so there is nothing to ask for: the dispatcher never
+    learns the gesture happened."""
+    bus = Bus()
+    seen = collect(bus, "tc49/schedule/request_submitted")
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+
+    reversal(bus, {"train": "freight_1"})
+    assert seen == []
+
+
+def test_a_reversal_is_dropped_while_the_train_has_a_request_in_flight() -> None:
+    """Flipping the arrow under a queued request produces a lie: the request
+    still departs the old end, and `route_chosen` flips the arrow back when it
+    launches. So the rule is any request from submit to completion."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    published = len(seen)
+
+    reversal(bus, {"train": "freight_1"})
+    assert len(seen) == published
+    assert seen[-1][1]["facing"]["freight_1"] == "yard_w.B"
+
+
+def test_a_reversal_lands_once_the_request_is_answered() -> None:
+    """A rejected request leaves the train idle — its marker is still on
+    screen but the scheduler has dropped it — and that is precisely when you
+    want to turn around."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    bus.publish(
+        "tc49/dispatch/request_rejected",
+        {"id": "freight_1-1", "reason": "no_entry"},
+    )
+    bus.drain()
+
+    reversal(bus, {"train": "freight_1"})
+    assert seen[-1][1]["facing"]["freight_1"] == "yard_w.A"
+
+
+def test_a_reversal_that_cannot_be_read_is_dropped() -> None:
+    """A gesture carries no id, so there is nothing to address an answer to
+    and a broadcast refusal would be uncorrelatable (ADR-0034): what cannot
+    be read leaves nothing behind, and the trace is its only record."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    bus.drain()  # the placement facing, so what follows is the answer
+    published = len(seen)
+
+    for payload in [
+        "freight_1",  # not an object at all
+        {},  # no train
+        {"train": 7},  # a train that is not a name
+        {"train": "ghost"},  # a train this session holds no facing for
+    ]:
+        reversal(bus, payload)
+    assert len(seen) == published
