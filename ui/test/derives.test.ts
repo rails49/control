@@ -4,10 +4,11 @@
  * What the band says about the drawing itself: it derives, or it does not
  * (#91, ADR-0024).
  *
- * The canvas is where you find out where, so the shell's whole job here is to
- * hand the band one fact off the review and to stop handing it the moment the
- * drawing derives again. A DOM test of the shell, mounted the way
- * `refusals.test.ts` mounts it, because the fact crosses two components.
+ * The rule is `Filing`'s and `filing.test.ts` drives it — off the store's
+ * refusal and nothing else, an overlap and a missing address deriving fine, a
+ * store that goes quiet leaving the last answer standing. What is left here is
+ * the one thing a DOM test can say that the module's cannot: the mark the
+ * operator sees is the fact the module holds, carried across two components.
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
@@ -99,59 +100,5 @@ describe("what the band says about the drawing", () => {
     await settled(shell);
 
     expect(indicator(shell)).toBe("does not derive");
-  });
-
-  it("clears as soon as an edit derives again", async () => {
-    const shell = await mounted(APART);
-    answer = () => Promise.resolve(REFUSED);
-    edit(shell);
-    await settled(shell);
-
-    answer = () => Promise.resolve(CLEAN);
-    edit(shell);
-    await settled(shell);
-
-    expect(indicator(shell)).toBeNull();
-  });
-
-  /** An overlap is cosmetic and derives fine, so it wears the quieter mark on
-   *  the canvas (#92) and leaves the band clean. */
-  it("stays clean where two symbols share a square", async () => {
-    const shell = await mounted({
-      sw1: { kind: "turnout", at: [0, 0] },
-      sw2: { kind: "turnout", at: [0, 0] },
-    });
-
-    edit(shell);
-    await settled(shell);
-
-    expect(indicator(shell)).toBeNull();
-  });
-
-  /** A turnout with no address derives as well: a valid layout nobody can
-   *  drive yet, marked on the canvas in that same quiet weight (#96). */
-  it("stays clean where a turnout carries no address", async () => {
-    const shell = await mounted({ sw1: { kind: "turnout", at: [0, 0] } });
-
-    edit(shell);
-    await settled(shell);
-
-    expect(indicator(shell)).toBeNull();
-  });
-
-  /** One is the author's to fix and the other is not, so the store going quiet
-   *  neither raises the indicator nor takes it down. */
-  it("shows beside a store that stops answering", async () => {
-    const shell = await mounted(APART);
-    answer = () => Promise.resolve(REFUSED);
-    edit(shell);
-    await settled(shell);
-
-    answer = () => Promise.reject(new Error("no store"));
-    edit(shell);
-    await settled(shell);
-
-    expect(indicator(shell)).toBe("does not derive");
-    expect(band(shell).trouble).toContain("no store");
   });
 });

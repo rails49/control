@@ -6,9 +6,10 @@
  * Every other fault is marked on the drawing (ADR-0024), so a name is the one
  * thing left that has to be said in words — and which of the two places says
  * it is behaviour, not layout: a symbol's name is refused in the dialog it was
- * typed in, and a drawing's own name in the band. A DOM test because each of
- * them crosses two components; the shell mounts under happy-dom the way
- * `keys.test.ts` mounts it.
+ * typed in, and a drawing's own name in the band. This is the first of the
+ * two; a drawing's name is `Filing`'s and is refused in `filing.test.ts`. A
+ * DOM test because it crosses two components; the shell mounts under happy-dom
+ * the way `keys.test.ts` mounts it.
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
@@ -72,14 +73,6 @@ async function mounted() {
  *  do. */
 function band(shell: TcEditor): TcHeader {
   return shell.renderRoot.querySelector("tc-header")!;
-}
-
-/** A command asked for on the menu bar, and everything it sets in motion. */
-async function asked(shell: TcEditor, command: string): Promise<void> {
-  shell.renderRoot
-    .querySelector("tc-menubar")!
-    .dispatchEvent(new CustomEvent("command", { detail: command }));
-  await settled(shell);
 }
 
 /** Let the review in flight settle, then let Lit paint what it said. */
@@ -214,47 +207,5 @@ describe("a name the drawing will not take", () => {
       "claro_1",
       "sw1",
     ]);
-  });
-});
-
-/**
- * A drawing's own name is asked for with a prompt, which has nowhere of its
- * own to hold a refusal: no symbol on the canvas is wrong, and there is no
- * dialog to stay open the way the properties dialog does. So it reads in the
- * band, which is where the editor says what it could not do (ADR-0024).
- */
-describe("a name no drawing can wear", () => {
-  it("reads in the band", async () => {
-    const { shell } = await mounted();
-    window.prompt = () => "a/b";
-
-    await asked(shell, "new");
-
-    expect(band(shell).trouble).toBe("'a/b' cannot name a file");
-  });
-
-  /** `Save As…` types a name the same way and is refused the same way. */
-  it("reads there for Save As too", async () => {
-    const { shell } = await mounted();
-    window.prompt = () => "gotthard";
-    await asked(shell, "new");
-
-    window.prompt = () => "gotthard/2";
-    await asked(shell, "save-as");
-
-    expect(band(shell).trouble).toBe("'gotthard/2' cannot name a file");
-  });
-
-  /** The refusal does not outlive what caused it: the next accepted edit
-   *  reviews, and a review that answers clears the band. */
-  it("clears on the next accepted edit", async () => {
-    const { shell } = await mounted();
-    window.prompt = () => "a/b";
-    await asked(shell, "new");
-
-    shell.renderRoot.querySelector("tc-canvas")!.dispatchEvent(new CustomEvent("edit"));
-    await settled(shell);
-
-    expect(band(shell).trouble).toBeNull();
   });
 });
