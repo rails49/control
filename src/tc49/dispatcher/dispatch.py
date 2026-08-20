@@ -7,10 +7,17 @@ buffered until the tick and treated as a set, so grants are a pure
 function of the buffered set, never of delivery order (DISPATCH.md, time
 model). Standing locks are seeded from the scenario and published at
 startup. The locking discipline is the pluggable strategy of locking.py.
+
+It is also the sole payload authority (SYSTEM.md, dispatcher footprint):
+anything at all may be published on the inbound topic, so admission reads a
+payload rather than trusting one and never raises on what it finds — an
+unreadable request is an answer where it can be addressed and a drop where
+it cannot (ADR-0034).
 """
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import cast
 
 from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route
@@ -158,6 +165,48 @@ def allocation(state: State, pending: Sequence[Request]) -> Payload:
     }
 
 
+@dataclass
+class Submission:
+    """A payload read as the request it claims to be: the fields of
+    `request_submitted` with the shapes the inventory promises (SYSTEM.md).
+
+    Anything at all can be published on that topic, so reading it is a step
+    of its own rather than four subscripts that raise (ADR-0034).
+    """
+
+    id: str
+    train: str
+    depart: str
+    dest: tuple[str, ...]
+
+
+def readable_id(payload: object) -> str | None:
+    """The id an answer would be addressed to, or None where there is none.
+
+    Every rejection is addressed by id and broadcast, so a frame carrying no
+    readable one is answered to nobody; it is dropped instead, and the trace
+    line it already has is what keeps a client bug diagnosable (ADR-0034).
+    """
+    if not isinstance(payload, dict):
+        return None
+    rid = cast(Payload, payload).get("id")
+    return rid if isinstance(rid, str) and rid else None
+
+
+def submission(payload: Payload, rid: str) -> Submission | None:
+    """The request the payload states, or None where it states none —
+    `malformed`, the one structural reason."""
+    train, depart, dest = (payload.get(key) for key in ("train", "depart", "dest"))
+    if not isinstance(train, str) or not isinstance(depart, str):
+        return None
+    if not isinstance(dest, list):
+        return None
+    ends = cast(list[object], dest)
+    if not all(isinstance(end, str) for end in ends):
+        return None
+    return Submission(rid, train, depart, tuple(cast(list[str], ends)))
+
+
 class Dispatcher:
     def __init__(
         self, bus: Bus, layout: Layout, scenario: Scenario, strategy: LockingStrategy
@@ -201,46 +250,63 @@ class Dispatcher:
     # -- admission ---------------------------------------------------------
 
     def _on_request(self, topic: str, payload: Payload) -> None:
-        rid = payload["id"]
+        """The one place a payload from outside is read, and nothing in it
+        raises: the submitter may be a browser, and once the relay is deleted
+        nothing stands in front of the dispatcher at all (ADR-0034)."""
+        rid = readable_id(payload)
+        if rid is None:  # nothing to address an answer to; the trace has it
+            return
         if rid in self._seen_ids:  # idempotency: duplicates are dropped
             return
         self._seen_ids.add(rid)
-        train = payload["train"]
-        expected = self._expected_block(train)
-        if self._departs_elsewhere(payload["depart"], expected):
-            self._bus.publish(
-                "tc49/dispatch/request_rejected", {"id": rid, "reason": "wrong_origin"}
-            )
+        request = submission(payload, rid)
+        if request is None:
+            self._reject(rid, "malformed")
+            return
+        if request.train not in self._state.train_lengths:
+            self._reject(rid, "unknown_train")
+            return
+        if self._names_no_such_block(request):
+            self._reject(rid, "unknown_block")
+            return
+        expected = self._expected_block(request.train)
+        if self._departs_elsewhere(request.depart, expected):
+            self._reject(rid, "wrong_origin")
             return
 
         surviving: list[str] = []
         pruned: list[dict[str, str]] = []
-        for end in payload["dest"]:
+        for end in request.dest:
             block = end.rpartition(".")[0]
             if block == expected:
                 # Possibly degenerate — the request names the block the train
                 # stands in, accepted whichever end it names (DISPATCH.md);
                 # the first launch attempt decides.
                 surviving.append(end)
-            elif self._state.train_lengths[train] > self._state.layout.blocks[block]:
+            elif (
+                self._state.train_lengths[request.train]
+                > self._state.layout.blocks[block]
+            ):
                 pruned.append({"end": end, "reason": "no_fit"})
             elif end not in self._state.layout.end_connection:
                 pruned.append({"end": end, "reason": "no_entry"})
             else:
                 surviving.append(end)
         if not surviving:
-            reason = (
-                "no_fit" if any(p["reason"] == "no_fit" for p in pruned) else "no_entry"
-            )
-            self._bus.publish(
-                "tc49/dispatch/request_rejected", {"id": rid, "reason": reason}
+            self._reject(
+                rid,
+                (
+                    "no_fit"
+                    if any(p["reason"] == "no_fit" for p in pruned)
+                    else "no_entry"
+                ),
             )
             return
         self._pending.append(
             Request(
                 rid,
-                train,
-                payload["depart"],
+                request.train,
+                request.depart,
                 tuple(surviving),
                 self._next_seq,
                 self._phases,
@@ -252,6 +318,20 @@ class Dispatcher:
             {"id": rid, "dest": surviving, "pruned": pruned},
         )
         self._publish_allocation()
+
+    def _reject(self, rid: str, reason: str) -> None:
+        self._publish("request_rejected", {"id": rid, "reason": reason})
+
+    def _names_no_such_block(self, request: Submission) -> bool:
+        """Whether the request names track the layout does not have — its
+        arrival blocks, and the departure block where it states one. A fact
+        only the dispatcher holds, so it is answered rather than raised, and
+        it is not `wrong_origin`: the train is not standing there, but
+        neither is anything else."""
+        blocks = [end.rpartition(".")[0] for end in request.dest]
+        if "." in request.depart:
+            blocks.append(request.depart.rpartition(".")[0])
+        return any(block not in self._state.layout.blocks for block in blocks)
 
     def _expected_block(self, train: str) -> str | None:
         """Where the train stands, active route or not (#99) — None when an
