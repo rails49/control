@@ -23,6 +23,7 @@ from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import Layout
+from tc49.lib.rejection import Reason
 from tc49.lib.scenario import Scenario
 
 
@@ -262,17 +263,17 @@ class Dispatcher:
         self._seen_ids.add(rid)
         request = submission(payload, rid)
         if request is None:
-            self._reject(rid, "malformed")
+            self._reject(rid, Reason.MALFORMED)
             return
         if request.train not in self._state.train_lengths:
-            self._reject(rid, "unknown_train")
+            self._reject(rid, Reason.UNKNOWN_TRAIN)
             return
         if self._names_no_such_block(request):
-            self._reject(rid, "unknown_block")
+            self._reject(rid, Reason.UNKNOWN_BLOCK)
             return
         expected = self._expected_block(request.train)
         if self._departs_elsewhere(request.depart, expected):
-            self._reject(rid, "wrong_origin")
+            self._reject(rid, Reason.WRONG_ORIGIN)
             return
 
         surviving: list[str] = []
@@ -288,18 +289,18 @@ class Dispatcher:
                 self._state.train_lengths[request.train]
                 > self._state.layout.blocks[block]
             ):
-                pruned.append({"end": end, "reason": "no_fit"})
+                pruned.append({"end": end, "reason": Reason.NO_FIT})
             elif end not in self._state.layout.end_connection:
-                pruned.append({"end": end, "reason": "no_entry"})
+                pruned.append({"end": end, "reason": Reason.NO_ENTRY})
             else:
                 surviving.append(end)
         if not surviving:
             self._reject(
                 rid,
                 (
-                    "no_fit"
-                    if any(p["reason"] == "no_fit" for p in pruned)
-                    else "no_entry"
+                    Reason.NO_FIT
+                    if any(p["reason"] == Reason.NO_FIT for p in pruned)
+                    else Reason.NO_ENTRY
                 ),
             )
             return
@@ -320,7 +321,7 @@ class Dispatcher:
         )
         self._publish_allocation()
 
-    def _reject(self, rid: str, reason: str) -> None:
+    def _reject(self, rid: str, reason: Reason) -> None:
         self._publish("request_rejected", {"id": rid, "reason": reason})
 
     def _names_no_such_block(self, request: Submission) -> bool:
@@ -396,9 +397,7 @@ class Dispatcher:
             result = self._strategy.launch(req, origin, state)
             if result is None:
                 self._pending.remove(req)
-                self._publish(
-                    "request_rejected", {"id": req.id, "reason": "unreachable"}
-                )
+                self._reject(req.id, Reason.UNREACHABLE)
             elif isinstance(result, Refused):
                 waiting.add(req.train)
                 req.refusals += 1
