@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from tc49.lib.layout import Layout
+from tc49.lib.layout import Layout, Point
 from tc49.store import AssetStore
 from tests.harness import ROOT
 
@@ -94,4 +94,37 @@ def test_unknown_keys_are_rejected() -> None:
     doc = minimal_layout()
     doc["bloks"] = {}
     with pytest.raises(ValueError, match="bloks"):
+        Layout.from_document(doc)
+
+
+def test_a_transit_carries_the_points_its_way_needs() -> None:
+    doc = minimal_layout()
+    doc["connections"]["j"]["points"] = {
+        "ab": [
+            {"addr": "12", "position": "thrown"},
+            {"addr": "13", "position": "closed"},
+        ]
+    }
+    layout = Layout.from_document(doc)
+    assert layout.connections["j"].points == {
+        "ab": (Point("12", "thrown"), Point("13", "closed"))
+    }
+
+
+def test_a_connection_with_nothing_to_throw_has_no_points() -> None:
+    layout = Layout.from_document(minimal_layout())
+    assert layout.connections["j"].points == {}
+
+
+def test_points_must_name_a_transit_the_connection_has() -> None:
+    doc = minimal_layout()
+    doc["connections"]["j"]["points"] = {"ba": [{"addr": "12", "position": "thrown"}]}
+    with pytest.raises(ValueError, match="ba"):
+        Layout.from_document(doc)
+
+
+def test_a_position_is_one_of_the_two_a_motor_answers_to() -> None:
+    doc = minimal_layout()
+    doc["connections"]["j"]["points"] = {"ab": [{"addr": "12", "position": "curved"}]}
+    with pytest.raises(ValueError, match="curved"):
         Layout.from_document(doc)

@@ -5,8 +5,10 @@ happens at construction — a mistyped end is a load-time error naming the
 fault, never a ``KeyError`` mid-run. The conflict matrix is expanded from
 ``concurrent`` by inversion (ADR-0006): every pair of transits at a
 connection conflicts unless declared, and transits are self-exclusive.
-Terminal blocks are derived, never declared. Routing stays outside —
-Layout is a data structure, not a policy.
+Terminal blocks are derived, never declared. A connection also carries the
+``points`` each of its transits needs thrown (ADR-0031), an appendix to the
+transits and the whole of the hardware the layout knows about. Routing stays
+outside — Layout is a data structure, not a policy.
 
 The ``check_*`` helpers are shared with the scenario validation in
 ``store.py``.
@@ -18,10 +20,24 @@ from typing import Any, cast
 
 
 @dataclass(frozen=True)
+class Point:
+    """An address and the position a way wants the point wearing it in.
+
+    The whole of the hardware the layout knows about (ADR-0031): never a
+    shape, a place on the canvas, or a switching time. Two points may share
+    an address and then move together, so a way can name one address twice.
+    """
+
+    addr: str
+    position: str
+
+
+@dataclass(frozen=True)
 class Connection:
     name: str
     transits: dict[str, tuple[str, str]]  # transit name -> unordered end pair
     concurrent: frozenset[frozenset[str]]  # declared exceptions, by transit name
+    points: dict[str, tuple[Point, ...]]  # transit name -> the points its way needs
 
 
 @dataclass(frozen=True)
@@ -57,7 +73,7 @@ class Layout:
         ).items():
             check_name(conn, f"layout '{name}': connection")
             where = f"layout '{name}': connection '{conn}'"
-            check_keys(spec, where, {"transits"}, {"concurrent"})
+            check_keys(spec, where, {"transits"}, {"concurrent", "points"})
 
             transits: dict[str, tuple[str, str]] = {}
             for transit, raw_ends in as_mapping(
@@ -95,6 +111,7 @@ class Layout:
                 conn,
                 transits,
                 check_concurrent(spec.get("concurrent"), transits, where),
+                check_points(spec.get("points"), transits, where),
             )
 
         terminals = frozenset(
@@ -189,6 +206,40 @@ def check_concurrent(
                 )
         concurrent.add(frozenset(pair))
     return frozenset(concurrent)
+
+
+def check_points(
+    spec: Any, transits: Container[str], where: str
+) -> dict[str, tuple[Point, ...]]:
+    """Validate a `points` declaration against the transits it may name.
+
+    It is an appendix to the transits, not a second level of description, so
+    every key is a transit of the same connection and a transit with nothing
+    to throw is absent rather than empty (ADR-0031).
+    """
+    points: dict[str, tuple[Point, ...]] = {}
+    for transit, raw in as_mapping(spec or {}, f"{where}: points").items():
+        if transit not in transits:
+            raise ValueError(f"{where}: points names unknown transit '{transit}'")
+        entries: list[Point] = []
+        for entry in cast(list[Any], raw if isinstance(raw, list) else []):
+            check_keys(
+                entry, f"{where}: transit '{transit}': point", {"addr", "position"}
+            )
+            position = entry["position"]
+            if position not in ("closed", "thrown"):
+                raise ValueError(
+                    f"{where}: transit '{transit}': position must be 'closed' or"
+                    f" 'thrown', got {position!r}"
+                )
+            entries.append(Point(str(entry["addr"]), position))
+        if not entries:
+            raise ValueError(
+                f"{where}: transit '{transit}' lists no point — a transit with"
+                f" nothing to throw is left out of points"
+            )
+        points[transit] = tuple(entries)
+    return points
 
 
 def check_end(end: Any, blocks: dict[str, int], where: str) -> str:
