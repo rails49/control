@@ -57,7 +57,7 @@ export class TcMenubar extends LitElement {
     return html`
       ${this.showing === null
         ? nothing
-        : html`<div class="sheet" @pointerdown=${() => this.show(null)}></div>`}
+        : html`<div class="dismiss" @pointerdown=${() => this.show(null)}></div>`}
       ${MENUS.map((menu) => this.dropdown(menu))}
       <span class="spacer"></span>
       ${TOOLS.map((id) => this.tool(id))}

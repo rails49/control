@@ -345,8 +345,8 @@ describe("sliding along the bar", () => {
     const menubar = await click(await bar(), "File");
     await onto(menubar, "Edit");
 
-    const sheet = menubar.renderRoot.querySelector(".sheet")!;
-    sheet.dispatchEvent(new Event("pointerdown"));
+    const overlay = menubar.renderRoot.querySelector(".dismiss")!;
+    overlay.dispatchEvent(new Event("pointerdown"));
     await menubar.updateComplete;
 
     expect(showing(menubar)).toBeNull();

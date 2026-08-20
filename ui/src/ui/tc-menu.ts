@@ -42,7 +42,7 @@ export class TcMenu extends LitElement {
     // ordinary way to land here now that neither has a name to offer.
     if (at === null || !applies(at)) return nothing;
     return html`
-      <div class="sheet" @pointerdown=${this.dismiss}></div>
+      <div class="dismiss" @pointerdown=${this.dismiss}></div>
       <menu style=${`left: ${at.x}px; top: ${at.y}px`}>
         ${at.wire === null ? nothing : this.item("delete-wire", "Delete wire")}
         ${at.symbol === null

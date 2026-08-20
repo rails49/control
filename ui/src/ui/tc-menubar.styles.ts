@@ -19,7 +19,7 @@ export const menubarStyles = css`
     flex: 1;
   }
 
-  /* Everything on the bar sits above the sheet that dismisses a menu, so a
+  /* Everything on the bar sits above the overlay that dismisses a menu, so a
      click on the title that is down closes it instead of being swallowed. */
   .menu,
   .tool {
@@ -27,7 +27,7 @@ export const menubarStyles = css`
     z-index: 12;
   }
 
-  .sheet {
+  .dismiss {
     position: fixed;
     inset: 0;
     z-index: 10;
