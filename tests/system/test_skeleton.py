@@ -185,6 +185,33 @@ def test_a_mid_route_drag_before_the_train_has_moved_states_its_origin() -> None
             assert reason == Reason.WRONG_ORIGIN, depart
 
 
+def test_an_arrival_end_in_the_routes_arrival_block_is_still_checked() -> None:
+    """The block a destination is compared against is the degenerate test of
+    the pruning loop, and #99 repointed it at where the train stands (#134).
+    So an arrival end in the block the active route arrives at — yard_e,
+    while freight is still standing in yard_w — no longer bypasses: it is
+    pruned for fit and entry like any other, where it used to be waved
+    through on the grounds that the train was already there.
+
+    Entry is the whole of what a case here can show. A route is only
+    committed to a block the train fit at admission, so `no_fit` cannot
+    arise at the block it arrives at; yard_e.B, the end of that block
+    nothing connects to, is the one the loop can refuse. The other
+    direction, an end in the block the train stands in, is the case below.
+    """
+    layout, _ = load("crossover-yard/meet")
+    answer, reason = admission_answer(
+        midroute_drag(layout, "yard_w.B", ("yard_e.B",), 1), "freight-2"
+    )
+    assert (answer, reason) == ("request_rejected", Reason.NO_ENTRY)
+    # Named beside the end that can be entered, it is pruned and the working
+    # lives on the survivor — the ends of that block judged one by one.
+    trace = midroute_drag(layout, "yard_w.B", ("yard_e.A", "yard_e.B"), 1)
+    [admitted] = events(trace, "request_admitted", rid="freight-2")
+    assert admitted["dest"] == ["yard_e.A"]
+    assert admitted["pruned"] == [{"end": "yard_e.B", "reason": Reason.NO_ENTRY}]
+
+
 def test_degenerate_request_completes_without_moving_whichever_end() -> None:
     layout, _ = load("crossover-yard/meet")
     for end in ("yard_w.A", "yard_w.B"):
