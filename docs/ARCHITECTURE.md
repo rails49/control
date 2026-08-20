@@ -170,7 +170,7 @@ tests/
   scheduler/   test_scheduler
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks
-  system/      test_skeleton  test_properties  test_boundaries
+  system/      test_skeleton  test_properties  test_safety_conditions
                test_app_boundaries
 ```
 

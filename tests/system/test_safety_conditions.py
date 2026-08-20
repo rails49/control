@@ -1,4 +1,8 @@
-"""The six boundary conditions closing SAFETY.md, one scenario each (#29).
+"""The six conditions closing SAFETY.md, one scenario each (#29).
+
+That doc gathers them under *Boundary conditions*, its own sense of the
+word rather than the contract's grant boundary (#118), which is why this
+file is not named for them.
 
 Each is scenario-shaped rather than a unit test, so each runs over the bus
 with the real assembly and asserts through the **trace** — the same events a
