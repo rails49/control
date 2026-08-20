@@ -22,7 +22,7 @@ from typing import Any
 
 from tc49.bench.metrics import metrics
 from tc49.bench.runner import STRATEGIES, find_root, run_scenario
-from tc49.lib.layout import Layout
+from tc49.lib.layout import Layout, block_of
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tc49.store import AssetStore
 
@@ -143,7 +143,7 @@ def _stuck_trains(
         for train, ends in arrivals.items():
             if train in launchable:
                 continue
-            blocks = {end.partition(".")[0] for end in ends}
+            blocks = {block_of(end) for end in ends}
             if any(
                 occupant.get(block) is None or occupant[block] in launchable
                 for block in blocks

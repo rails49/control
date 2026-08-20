@@ -12,7 +12,7 @@ from tc49.dispatcher.dispatch import (
     departure_end,
 )
 from tc49.dispatcher.routing import Route, candidates
-from tc49.lib.layout import Layout
+from tc49.lib.layout import Layout, opposite_end
 from tests.harness import events, load, run
 
 
@@ -83,7 +83,7 @@ def test_an_end_no_train_is_leaving_by_shows_stop() -> None:
     shown = aspects(a_state(layout, route, 2))
 
     assert [e for e, a in shown.items() if a != "stop"] == [end]
-    other = f"{route.blocks[0]}." + ("A" if end.endswith(".B") else "B")
+    other = opposite_end(end)
     assert shown.get(other, "stop") == "stop"
 
 

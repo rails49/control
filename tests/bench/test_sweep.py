@@ -19,6 +19,7 @@ from tc49.bench.sweep import (
     generate,
     sweep,
 )
+from tc49.lib.layout import block_of
 from tc49.lib.scenario import Scenario
 from tests.harness import ROOT, load
 
@@ -86,7 +87,7 @@ def test_sidings_never_appear_as_generated_destinations() -> None:
         assert {spec.at for spec in scenario.trains.values()} <= set(STATION_TRACKS)
         for request in scenario.requests:
             for arrival in request.arrivals:
-                assert arrival.partition(".")[0] not in SIDINGS
+                assert block_of(arrival) not in SIDINGS
 
 
 def test_arrival_sets_are_the_swept_dest_size_at_the_other_station() -> None:

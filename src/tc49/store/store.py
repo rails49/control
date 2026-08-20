@@ -22,6 +22,7 @@ import yaml
 from tc49.lib.layout import (
     Layout,
     as_mapping,
+    block_of,
     check_end,
     check_keys,
     check_length,
@@ -170,7 +171,7 @@ class AssetStore:
                 )
             arrivals: list[str] = []
             for entry in (str(e) for e in cast(list[Any], to)):
-                block = entry.partition(".")[0]
+                block = block_of(entry) if "." in entry else entry
                 if block not in layout.blocks:
                     raise ValueError(
                         f"{here}: arrival '{entry}' names unknown block '{block}'"

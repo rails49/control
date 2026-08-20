@@ -29,6 +29,7 @@ from tc49.bench.cli import bench
 from tc49.bench.metrics import Metrics, metrics
 from tc49.bench.runner import DEFAULT_K, STRATEGIES, run_scenario
 from tc49.bench.sweep import STATIONS, station_of
+from tc49.lib.layout import block_of
 from tc49.lib.scenario import RequestSpec, Scenario
 from tests.harness import ROOT, load
 
@@ -169,7 +170,7 @@ def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
             RequestSpec(
                 req.train,
                 req.depart,
-                STATIONS[station_of(req.arrivals[0].partition(".")[0])],
+                STATIONS[station_of(block_of(req.arrivals[0]))],
                 req.at,
             )
             for req in scenario.requests
