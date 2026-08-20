@@ -48,9 +48,6 @@ src/tc49/
                             validate at get
                 drawing.py  Drawing — the authored schematic and the
                             derivation of a layout from it (store/DRAWING.md)
-                convert.py  to_drawing — the conversion of a layout
-                            document into the drawing that derives it,
-                            which is how the railroads were migrated
                 yamlfile.py save — writing a document back without
                             disturbing what is already in the file, which is
                             mostly comments (ADR-0018)
@@ -167,8 +164,7 @@ tests that drive the real assembly over the bus, with `harness.py` and
 tests/
   harness.py  generate.py
   lib/         test_layout  test_bus  test_trace
-  store/       test_store  test_drawing  test_convert  test_server
-               test_symbols
+  store/       test_store  test_drawing  test_server  test_symbols
   scheduler/   test_scheduler
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks

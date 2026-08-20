@@ -414,30 +414,33 @@ symbol keeps the place it was written in and a new one is added at the end,
 which keeps a moved symbol out of the diff at the cost of ignoring a reorder.
 None of the three can change a derived layout.
 
-## Converting a layout into a drawing
+## How the layouts were converted into drawings
 
 Migration was compulsory, since a railroad that has not been drawn cannot be
-loaded, and the generic connection symbol made it mechanical. `to_drawing` in
-`src/tc49/store/convert.py` reads a layout document and writes the drawing that
-derives it:
+loaded, and the generic connection symbol made it mechanical. A `to_drawing`
+tool read a layout document and wrote the drawing that derives it:
 
-- each block becomes a block symbol with its length;
-- each connection becomes one generic connection symbol of the same name,
+- each block became a block symbol with its length;
+- each connection became one generic connection symbol of the same name,
   carrying its transits, their hand-picked names and its `concurrent` verbatim;
-- a block end is a pin on that symbol, named for the end it holds — `up_w.B`
-  wires to `crossover.up_w_B` — so the wire list is one line per block end;
-- a block end no connection holds gets a terminal symbol, which keeps the
-  derived terminal blocks the same.
+- a block end was a pin on that symbol, named for the end it held — `up_w.B`
+  wiring to `crossover.up_w_B` — so the wire list was one line per block end;
+- a block end no connection held got a terminal symbol, which kept the derived
+  terminal blocks the same.
 
-Conversion is lossless by construction, which is what let the four railroads
-migrate with no topology re-typed; their reasoning comments moved into the
-drawings by hand, so no rationale was lost either. The round trip is still
-asserted, now without a hand-written file in it: converting a derived layout
-and deriving the result gives the same layout back, for every committed
-railroad. What conversion cannot supply is geometry — a junction arrives as one
-opaque symbol, and refining it into turnouts and crossings is a separate,
-reviewable step, done for `crossover-yard` in #44, for Gotthard's Airolo and
-Claro west in #46, and for Claro east in #58. Refining is also where a drawing
-can start disagreeing with what was declared, which is what had stopped Claro
-east: drawing it moved three of its five transits and split it into the two
-throats its two lines actually make.
+The conversion was lossless by construction, which is what let the four
+railroads migrate with no topology re-typed; their reasoning comments moved
+into the drawings by hand, so no rationale was lost either. What it could not
+supply is geometry — a junction arrived as one opaque symbol, and refining it
+into turnouts and crossings was a separate, reviewable step, done for
+`crossover-yard` in #44, for Gotthard's Airolo and Claro west in #46, and for
+Claro east in #58. Refining is also where a drawing can start disagreeing with
+what was declared, which is what had stopped Claro east: drawing it moved three
+of its five transits and split it into the two throats its two lines actually
+make.
+
+The tool did its job and has been removed (#121). It had had no caller since
+#45, and no human will hand-author a layout, so the one use that could have
+kept it alive — importing a layout from somewhere else — is not coming; what
+remained was a round-trip test charging every layout schema change for a
+function nothing called.

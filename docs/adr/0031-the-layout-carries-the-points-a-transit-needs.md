@@ -144,10 +144,11 @@ longer true and is reworded: there are still no turnouts, but there are the
 addresses of the points a transit needs thrown. `Connection` grows `points`,
 and `Point` joins `lib/layout.py` as the pair of an address and a position.
 
-The layout-to-drawing conversion loses them. `to_drawing` builds one opaque
+The layout-to-drawing conversion would have lost them: it built one opaque
 generic symbol per connection, which has no turnout detail and so nowhere to
-put an address; its round-trip test compares topology only, and #121 asks
-whether that function should still exist at all.
+put an address, and its round-trip test compared topology only. #121 answered
+the question that raised — the conversion had had no caller since #45 and was
+deleted rather than amended, so this decision pays nothing for it.
 
 What is given up is unchanged from ADR-0022: commanded position is not measured
 position, and a point that fails to throw looks correct.
