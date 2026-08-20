@@ -257,7 +257,9 @@ export class Panel {
         // started, and it has the last word over anything seeded before the
         // socket opened. A train's facing is not in it and stays where this
         // model already had it — facing is scheduler state and on no
-        // dispatcher topic at all (ADR-0019).
+        // dispatcher topic at all (ADR-0019) — and so does a grant the sensor
+        // has not caught up with, the picture being published a phase ahead
+        // of the occupancy that phase's own grants cause.
         const { trains, locks, requests } = event as unknown as {
           trains: Record<string, string>;
           locks: Record<string, string>;
@@ -277,7 +279,6 @@ export class Panel {
           const toward = this.heading.get(train)?.toward;
           if (toward !== undefined) this.heading.set(train, { block, toward });
         }
-        this.granted.clear();
         this.requests = new Map(
           requests.map((request) => [
             request.id,

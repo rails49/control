@@ -383,6 +383,29 @@ describe("the run's picture", () => {
     expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
   });
 
+  it("keeps a grant the sensor has not caught up with", () => {
+    // The picture is published at the end of the grant phase, so it reaches
+    // the page before the occupancy the phase's own grants cause. A train
+    // still faces the end it is leaving through until then, and the facing
+    // the grant promised has to survive the picture that overtakes it.
+    const model = panel();
+    model.place({ t1: { at: "a", facing: "B" } });
+    feed(
+      model,
+      { event: "move_granted", id: "t1-1", train: "t1", transit: "sw.main", into: "b" },
+      {
+        event: "allocation",
+        trains: { t1: "a" },
+        locks: { a: "t1", "sw.main": "t1", b: "t1" },
+        requests: [],
+      },
+      { event: "block_occupied", block: "b" },
+      { event: "block_vacated", block: "a" },
+    );
+    expect(model.blocks().get("b")).toMatchObject({ train: "t1", toward: "B" });
+    expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
+  });
+
   it("forgets a request the picture no longer carries", () => {
     const model = panel();
     feed(model, PICTURE, { ...PICTURE, requests: [] });
