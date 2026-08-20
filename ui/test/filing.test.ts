@@ -14,19 +14,7 @@ import { emptyDrawing, type Drawing } from "../src/model/drawing.js";
 import { Editor } from "../src/model/editor.js";
 import { Filing, type Store } from "../src/model/filing.js";
 import type { Review } from "../src/model/store.js";
-
-/** A drawing the store is happy with: nothing to report. */
-const CLEAN: Review = {
-  red_pins: [],
-  unpaired_portals: [],
-  junctions: [],
-  joints: [],
-  motor_faults: [],
-  layout: null,
-  explain: null,
-  refused: null,
-  offending: [],
-};
+import { CLEAN, quiet } from "./support/shell.js";
 
 /** What derivation came back with over a way it refused (#93). */
 const REFUSED: Review = {
@@ -97,13 +85,6 @@ function made(names: string[] = []) {
   const filing = new Filing(() => told.times++, store);
   const editor = new Editor(emptyDrawing("untitled"));
   return { filing, store, editor, told };
-}
-
-/** Let the review an edit set off settle. `edited` answers at once and asks
- *  the store afterwards, which is what the shell wants: the dot goes up on the
- *  keystroke rather than on the round trip. */
-async function settled(): Promise<void> {
-  for (let turn = 0; turn < 5; turn++) await Promise.resolve();
 }
 
 describe("the drawings there are to open", () => {
@@ -279,7 +260,7 @@ describe("saving", () => {
     const { filing, store, editor } = made(["gotthard"]);
     await filing.open("gotthard", editor);
     filing.edited(editor);
-    await settled();
+    await quiet();
     store.broken = new Error("disk full");
 
     await filing.save(editor);
@@ -336,7 +317,7 @@ describe("an edit", () => {
     store.answer = () => Promise.resolve(REFUSED);
 
     filing.edited(editor);
-    await settled();
+    await quiet();
 
     expect(filing.saved).toBe(false);
     expect(filing.reviewed).toEqual(REFUSED);
@@ -351,7 +332,7 @@ describe("an edit", () => {
     expect(filing.trouble).not.toBeNull();
 
     filing.edited(editor);
-    await settled();
+    await quiet();
 
     expect(filing.trouble).toBeNull();
   });
@@ -375,7 +356,7 @@ describe("whether the drawing derives", () => {
 
     store.answer = () => Promise.resolve(REFUSED);
     filing.edited(editor);
-    await settled();
+    await quiet();
 
     expect(filing.derives).toBe(false);
   });
@@ -385,11 +366,11 @@ describe("whether the drawing derives", () => {
     await filing.open("gotthard", editor);
     store.answer = () => Promise.resolve(REFUSED);
     filing.edited(editor);
-    await settled();
+    await quiet();
 
     store.answer = () => Promise.resolve(CLEAN);
     filing.edited(editor);
-    await settled();
+    await quiet();
 
     expect(filing.derives).toBe(true);
   });
@@ -403,7 +384,7 @@ describe("whether the drawing derives", () => {
 
     editor.place("turnout", [0, 0]);
     filing.edited(editor);
-    await settled();
+    await quiet();
 
     expect(filing.derives).toBe(true);
   });
@@ -415,11 +396,11 @@ describe("whether the drawing derives", () => {
     await filing.open("gotthard", editor);
     store.answer = () => Promise.resolve(REFUSED);
     filing.edited(editor);
-    await settled();
+    await quiet();
 
     store.broken = new Error("no store");
     filing.edited(editor);
-    await settled();
+    await quiet();
 
     expect(filing.derives).toBe(false);
     expect(filing.trouble).toContain("no store");
