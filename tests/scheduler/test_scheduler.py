@@ -247,3 +247,26 @@ def test_a_gesture_departs_from_where_facing_has_moved_to() -> None:
     )
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
     assert seen[-1][1]["depart"] == "dn_w.B"
+
+
+def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
+    """Anything at all can be published where a person's page writes, and
+    none of it raises out of the handler (ADR-0034): what cannot be composed
+    leaves no request behind, and the next honest drag still composes."""
+    bus = Bus()
+    seen = collect(bus, "tc49/schedule/request_submitted")
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+
+    for payload in [
+        "freight_1 to dn_e",  # not an object at all
+        {"dest": ["dn_e.A"]},  # no train
+        {"train": "freight_1"},  # no arrival ends
+        {"train": "freight_1", "dest": "dn_e.A"},  # one end, not a set of them
+        {"train": "freight_1", "dest": ["dn_e.A", 7]},  # not all ends
+        {"train": "ghost", "dest": ["dn_e.A"]},  # a train this session lacks
+    ]:
+        gesture(bus, payload)
+    assert seen == []
+
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    assert [p["id"] for _, p in seen] == ["freight_1-1"]

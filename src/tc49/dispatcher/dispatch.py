@@ -23,6 +23,7 @@ from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import Layout
+from tc49.lib.payload import gesture
 from tc49.lib.rejection import Reason
 from tc49.lib.scenario import Scenario
 
@@ -170,9 +171,7 @@ def allocation(state: State, pending: Sequence[Request]) -> Payload:
 class Submission:
     """A payload read as the request it claims to be: the fields of
     `request_submitted` with the shapes the inventory promises (SYSTEM.md).
-
-    Anything at all can be published on that topic, so reading it is a step
-    of its own rather than four subscripts that raise (ADR-0034).
+    Read rather than trusted, in `lib.payload`'s terms.
     """
 
     id: str
@@ -196,16 +195,16 @@ def readable_id(payload: object) -> str | None:
 
 def submission(payload: Payload, rid: str) -> Submission | None:
     """The request the payload states, or None where it states none —
-    `malformed`, the one structural reason."""
-    train, depart, dest = (payload.get(key) for key in ("train", "depart", "dest"))
-    if not isinstance(train, str) or not isinstance(depart, str):
+    `malformed`, the one structural reason.
+
+    A request is a gesture with an id and a departure end (ADR-0036), so the
+    gesture is read where the scheduler reads one and the departure end,
+    which only a request carries, is read here."""
+    wanted = gesture(payload)
+    depart = payload.get("depart")
+    if wanted is None or not isinstance(depart, str):
         return None
-    if not isinstance(dest, list):
-        return None
-    ends = cast(list[object], dest)
-    if not all(isinstance(end, str) for end in ends):
-        return None
-    return Submission(rid, train, depart, tuple(cast(list[str], ends)))
+    return Submission(rid, wanted.train, depart, wanted.arrivals)
 
 
 class Dispatcher:

@@ -22,10 +22,10 @@ has never moved having no other source for one.
 """
 
 from collections import Counter
-from typing import cast
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import Layout
+from tc49.lib.payload import gesture
 from tc49.lib.scenario import Scenario
 
 
@@ -91,26 +91,24 @@ class Scheduler:
         What it cannot compose it **drops**, in silence and to the trace. A
         gesture carries no id, so there is nothing to address an answer to
         and a broadcast refusal would be uncorrelatable — the dispatcher's
-        own reasoning one component upstream (ADR-0034). Like the dispatcher
-        it never raises on a bus payload: anything at all can be published
-        here, and once the relay is deleted nothing stands in front of it.
+        own reasoning one component upstream (ADR-0034). The reading itself
+        is `lib.payload`'s, which is where nothing raises.
         """
         if topic.rsplit("/", 1)[-1] != "request_wanted":
             return  # a throttle is a second leaf under this role, later
-        gesture = _wanted(payload)
-        if gesture is None:
+        wanted = gesture(payload)
+        if wanted is None:
             return
-        train, dest = gesture
-        depart = self._facing.get(train)
+        depart = self._facing.get(wanted.train)
         if depart is None:  # a train this session does not hold
             return
-        self._counters[train] += 1
+        self._counters[wanted.train] += 1
         self._submit(
             {
-                "id": f"{train}-{self._counters[train]}",
-                "train": train,
+                "id": f"{wanted.train}-{self._counters[wanted.train]}",
+                "train": wanted.train,
                 "depart": depart,
-                "dest": dest,
+                "dest": list(wanted.arrivals),
             }
         )
 
@@ -142,21 +140,6 @@ class Scheduler:
         if facing != self._published:
             self._published = facing
             self._bus.publish("tc49/schedule/state/facing", facing)
-
-
-def _wanted(payload: object) -> tuple[str, list[str]] | None:
-    """The train and arrival ends a gesture names, or None where it names
-    none. Anything at all can be published where a person's page writes, so
-    reading it is a step of its own rather than two subscripts that raise."""
-    if not isinstance(payload, dict):
-        return None
-    train, dest = (cast(Payload, payload).get(key) for key in ("train", "dest"))
-    if not isinstance(train, str) or not isinstance(dest, list):
-        return None
-    ends = cast(list[object], dest)
-    if not all(isinstance(end, str) for end in ends):
-        return None
-    return train, cast(list[str], ends)
 
 
 def _expand(arrivals: tuple[str, ...]) -> list[str]:
