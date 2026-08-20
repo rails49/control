@@ -283,11 +283,11 @@ Neither is visible under the simulator, which has no addresses
 neither stops derivation: addresses are dropped from the layout, so a drawing
 with a motor fault reads fine and cannot be driven.
 
-Every motorised kind has one motor and two positions. A turnout's legs are
-already named for them; a slip's are not, so the library declares which leg
-wants which position:
+Every motorised kind has one motor and two positions, `closed` and `thrown`,
+the pair a DCC accessory decoder answers to. No kind's legs are named for
+them, so the library declares which leg wants which position:
 
-| Kind | `straight` | `curved` |
+| Kind | `closed` | `thrown` |
 | --- | --- | --- |
 | `turnout` | `straight` | `diverging` |
 | `single_slip` | `a`, `b` | `slip` |

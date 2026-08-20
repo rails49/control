@@ -5,8 +5,9 @@
 below have changed. "`addr` does not enter the layout document" is reversed:
 the layout carries the points each transit needs, which is how an address
 reaches the dispatcher — the question this ADR left open. And the two positions
-are `closed` and `thrown`, the pair a DCC accessory decoder answers to, rather
-than `straight` and `curved` (#120). Everything else stands.
+are `closed` and `thrown`, the pair a DCC accessory decoder answers to (#120),
+so the table below is keyed by those and no kind's legs are named for its
+positions. Everything else stands.
 
 A turnout and a slip carry `addr`, a string the user types, naming whatever the
 hardware answers to. A block already carried the same thing per end as
@@ -26,18 +27,17 @@ derives but cannot be driven.
 
 ## One motor, two positions
 
-Every motorised kind has one motor. A turnout lies straight or diverging; a
-slip lies straight or curved, both roads together. Derivation already assumes
-no more than this: the library declares nothing concurrent through a crossing
-or a slip, because every route through one takes the shared frog, so two ways
-never run through a slip at once. One address with two positions costs the
-concurrency model nothing.
+Every motorised kind has one motor, lying `closed` or `thrown`; a slip's two
+roads move together. Derivation already assumes no more than this: the library
+declares nothing concurrent through a crossing or a slip, because every route
+through one takes the shared frog, so two ways never run through a slip at
+once. One address with two positions costs the concurrency model nothing.
 
-A turnout's legs are already named for its positions. A slip's are not, so
-`LIBRARY` gains a leg-to-position table beside the transits it declares,
-generated into the editor's TypeScript with the rest:
+No kind's legs are named for its positions, so `LIBRARY` gains a
+leg-to-position table beside the transits it declares, generated into the
+editor's TypeScript with the rest:
 
-| Kind | straight | curved |
+| Kind | closed | thrown |
 | --- | --- | --- |
 | `turnout` | `straight` | `diverging` |
 | `single_slip` | `a`, `b` | `slip` |
