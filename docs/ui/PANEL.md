@@ -49,7 +49,11 @@ nothing, which supersedes the inference
 [ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md) put here.
 It still shows commanded position, not measured position, so a point that
 failed to throw looks fine. Reported position becomes worth adding if hardware
-with point feedback ever exists; the owner's points do not report.
+with point feedback ever exists; the owner's points do not report. Only a
+drawing whose points carry addresses can show any of this, and
+[`beb-gotthard/positions`](../../scenarios/beb-gotthard/positions.scenario.yaml)
+is the scenario that does — one train across two junctions, which is the
+picture to run when the styling is what is being looked at (#130).
 
 **Signals are part of the block symbol.** A block carries a signal at each
 end, always, so there is nothing to place and nothing in the drawing to
