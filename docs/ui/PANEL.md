@@ -111,37 +111,42 @@ store operation and does not live with one. Validation stays in the existing
 Python validator. The MQTT transport switch later changes only what the bridge
 subscribes to. The front end shares the editor's stack and symbol library.
 
-Joining a session needs one thing the bus cannot supply. The placement locks
-were published before any browser connected, and **facing** is on no topic at
-all ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)). The panel
-therefore reads the scenario from the store (`GET /scenarios`,
-`GET /scenarios/<id>`) and seeds stock, placement and facing from it.
-Everything after that is derived from the bus exactly as a replay derives it,
-which is why one panel model serves both. Facing stays determined from there:
-a train faces away from the end it entered through, so the next drag departs
-nose-first with no bookkeeping.
+Joining a session takes everything off the bus. Placement, locks, routes and
+live requests come from the dispatcher's retained picture; **facing**, which
+is scheduler state and on no dispatcher topic at all
+([ADR-0019](../adr/0019-facing-is-scheduler-state.md)), comes from the
+scheduler's own retained topic. The panel still reads the scenario from the
+store (`GET /scenarios`, `GET /scenarios/<id>`) for stock, and for placement
+and facing where a session is starting cold and there is nothing retained to
+prefer. Everything after that is derived from the bus exactly as a replay
+derives it, which is why one panel model serves both. Facing stays determined
+from there: a train faces away from the end it entered through, so the next
+drag departs nose-first with no bookkeeping.
 
 A session ticks on a wall clock, one knob: `tc49 live --period`. The default
 is 2 seconds, picked by watching the panel rather than by argument.
 
-**A panel joins at the start of a session.** The bridge holds no backlog, so a
-browser that connects after a train has moved shows it in its scenario block,
-and a drag then states a departure block the dispatcher knows is wrong. That
-drag comes back rejected, reason `wrong_origin`, spelled out at the request's
-endpoints like any other rejection
-([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)). The session
-survives, but the page does not recover: only the bus can say where that train
-stands, and under exclusive modes the train moves only if this panel moves it.
-The alternative would be the bridge describing the run, which
-[SYSTEM.md](../SYSTEM.md) rules out. Nothing stops the gesture itself, though:
-the panel mints a fresh request id for each drag, so a misplaced train is
-dragged and rejected as often as the operator tries, every time for the same
-reason.
+**A panel may join a session already running.** On connect the bridge sends
+each state topic's last value before any live frame, so the page opens on the
+dispatcher's own picture — standing trains, locks, committed routes, live
+requests off `tc49/dispatch/state/allocation`, aspects off
+`state/aspects`, facing off `tc49/schedule/state/facing` — rather than on
+where the scenario says the railroad started
+([ADR-0032](../adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
+The scenario seeds a cold start only, where there is no retained value to
+prefer. Rejoining is not recovery: nothing was lost, and the dispatcher was
+holding the truth the whole time ([CONTEXT.md](../../CONTEXT.md#interruptions)).
 
-Within one page the panel does hold its ground: leaving and rejoining keeps
-what the bus has shown and re-seeds only trains it knows nothing about, and
-the request ids carry on rather than starting over. Relatedly, nothing tells
-the panel which scenario the session is running, so the operator picks it.
+`wrong_origin` still stands
+([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)) — a drag
+composed while a train is moving can still name a block it has left by the
+time the request lands — but it stops being the ordinary consequence of
+opening the page.
+
+Request ids do not carry on across a reload and no longer need to: the panel
+mints them per page, unique by construction, so a fresh page cannot re-use an
+id the dispatcher has seen
+([ADR-0033](../adr/0033-a-request-id-is-unique-not-meaningful.md)).
 
 The front end keeps the editor's model/component split. `model/panel.ts` turns
 bus payloads into render state and holds the scheduler's own state, meaning

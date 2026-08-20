@@ -27,3 +27,9 @@ train *finishes* expressible in the request; facing settles how it *starts*,
 one level up, in the scheduler that composes the request. Deliberate reversal
 at rest — the one event that changes facing outside a route — is a future
 scheduler gesture, again invisible to the dispatcher.
+
+That last sentence is why facing cannot ride the dispatcher's retained
+picture: a derived entry end is silent about a train that has never moved and
+wrong after any reversal. The scheduler therefore publishes facing on its own
+last-value topic, which keeps this ADR intact rather than amending it
+([ADR-0032](0032-a-joining-client-is-served-the-runs-retained-state.md)).

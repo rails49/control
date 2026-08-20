@@ -37,7 +37,15 @@ The decision covers a request the dispatcher can read and must refuse. A
 payload it cannot read at all, naming a train the session does not have or a
 block the layout does not have, still raises and still ends the run. Whether
 that belongs to the bridge or to admission is a separate question, with its own
-contract change to make.
+contract change to make — since answered by
+[ADR-0034](0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md):
+to admission, in full.
+
+The staleness this ADR answers has also since been attacked at its source.
+[ADR-0032](0032-a-joining-client-is-served-the-runs-retained-state.md) serves a
+joining panel the run's retained state instead of the scenario's opening
+positions, so `wrong_origin` covers a drag composed while a train is moving
+rather than the ordinary consequence of opening the page.
 
 Two alternatives were rejected.
 

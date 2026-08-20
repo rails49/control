@@ -263,11 +263,41 @@ speed). The only imperatives on the bus — everything else is a past-tense fact
 _Avoid_: instruction
 
 **Request id**:
-The scheduler-minted identity of a request, deterministic in scenario order
-(`<train>-1`, `<train>-2`, …) — never clock-derived. Both idempotency key
-(duplicate events are dropped) and correlation key threading a request's
-lifecycle and move events.
+The scheduler-minted identity of a request. Both idempotency key (duplicate
+events are dropped) and correlation key threading a request's lifecycle and
+move events — and **opaque to both**, so uniqueness is the whole contract and
+no consumer reads the shape
+([ADR-0033](docs/adr/0033-a-request-id-is-unique-not-meaningful.md)). A file
+scheduler mints `<train>-1`, `<train>-2`, … deterministically in scenario
+order, which replay needs; a panel mints per-page ids, which it does not.
+Never clock-derived.
 _Avoid_: event id (there is no universal envelope id)
+
+### Interruptions
+
+Three failures look alike and differ in who still holds the truth. Naming
+them apart is what keeps a page reload from being sized like a power cut
+([ADR-0032](docs/adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
+
+**Rejoin**:
+A client reconnecting to a session that never stopped. Nothing was lost: the
+dispatcher is running and holds the truth, and the client is a late subscriber
+that catches up from the run's retained state.
+_Avoid_: reconnect (the socket, not the catching up), recovery
+
+**Restart**:
+The apps coming back up while the rails stayed as they were. What was lost is
+the dispatcher's lock table, which no sensor can return — sensors are
+anonymous — so placement must be seeded before the first sensor event, from a
+scenario or from something persisted.
+_Avoid_: reboot, cold start (which is a restart with nothing to restore)
+
+**Recovery**:
+Coming back after the layout lost power. Everything a restart lost, and what
+was believed is now *suspect*: a train that stalled in a tunnel gets lifted
+out by hand. Ends with a person confirming placement however much was
+persisted; persistence makes that cheaper, never automatic.
+_Avoid_: restart, resync
 
 ### Contracts
 

@@ -120,6 +120,20 @@ The relay adds no topics and no payload fields: the frame is the event, so
 the inventory below is its entire schema. When MQTT arrives the browser
 speaks MQTT-over-WebSocket to the broker and the relay is deleted.
 
+**On connect the relay sends each state topic's last value**, before any live
+frame — the same frames it would have sent had the client been there, in the
+same schema. This is the retained-style delivery the bus already promises a
+late subscriber, and what a broker gives a client the moment it subscribes; a
+relay that dropped it would be weaker than the contract it binds. It is not
+the relay describing the run
+([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
+
+**The relay checks the topic and never the payload.** Topic authorization is
+what a broker enforces with an ACL and so survives the relay's deletion;
+payload validation is not, so it belongs to the dispatcher at admission, which
+never raises on anything arriving from the bus
+([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
+
 ## Event inventory
 
 Topics are `tc49/<role>/<leaf>`, **publisher-first**: the second segment
@@ -141,8 +155,9 @@ the driver moves locomotives
 | `tc49/layout/block_vacated` | event | layout | block |
 | `tc49/schedule/request_submitted` | event | scheduler | id, train, depart, dest ends |
 | `tc49/schedule/state/exhausted` | state | scheduler | last-value flag |
+| `tc49/schedule/state/facing` | state | scheduler | last-value map of train to the end it would depart through |
 | `tc49/dispatch/request_admitted` | event | dispatcher | id, surviving dest ends, pruned |
-| `tc49/dispatch/request_rejected` | event | dispatcher | id, reason (`no_fit`, `no_entry`, `unreachable`, `wrong_origin`) |
+| `tc49/dispatch/request_rejected` | event | dispatcher | id, reason (`no_fit`, `no_entry`, `unreachable`, `wrong_origin`, `unknown_train`, `unknown_block`, `malformed`) |
 | `tc49/dispatch/request_completed` | event | dispatcher | id |
 | `tc49/dispatch/route_chosen` | event | dispatcher | id, route, k_tried |
 | `tc49/dispatch/move_granted` | event | dispatcher | id, train, transit, into, aspect |
@@ -150,6 +165,7 @@ the driver moves locomotives
 | `tc49/dispatch/lock_granted` | event | dispatcher | train, resources |
 | `tc49/dispatch/lock_released` | event | dispatcher | train, resources |
 | `tc49/dispatch/state/aspects` | state | dispatcher | last-value map of signalled block end to aspect |
+| `tc49/dispatch/state/allocation` | state | dispatcher | last-value picture of the run: standing trains, locks and holders, committed routes, live requests |
 | `tc49/dispatch/align` | command | dispatcher | connection, transit, points `[{addr, position}]` |
 | `tc49/drive/cross` | command | driver | train, connection, transit, into |
 
@@ -290,9 +306,17 @@ stated time" and not the model's answer, since a boundary count means nothing
 to a timetable once a hardware adapter is picking the cadence
 ([MILESTONE-1.md](MILESTONE-1.md#scope)) — performing only the *mechanical* arrival-end
 expansion (`to: [yard_e]` → `yard_e.A, yard_e.B` — pure syntax, no layout
-needed), and mints each request's **id deterministically in scenario order**
-(e.g. `<train>-1`, `<train>-2`) — never clock-derived, since byte-identical
-replay forbids clock-derived fields anywhere on the bus. All semantic
+needed), and mints each request's **id**, which is opaque to every consumer
+and need only be unique
+([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)). This
+scheduler mints deterministically in scenario order (`<train>-1`,
+`<train>-2`), which byte-identical replay requires of it; a panel-scheduler
+makes no such claim and mints per page. Never clock-derived, by either. It
+also holds facing, which is scheduler state
+([ADR-0019](adr/0019-facing-is-scheduler-state.md)), and publishes it as a
+last-value topic so a rejoining panel has somewhere to read it back from
+([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
+All semantic
 checking — departure-end consistency, `no_fit`/`no_entry` pruning,
 reachability — belongs to the dispatcher at admission, leaving one
 feasibility authority instead of two. Completions and rejections are noise
@@ -310,7 +334,20 @@ dispatcher recovers identity from must be seeded before the first sensor
 event, and `request_submitted` carries no length. *Subscribes*
 `tc49/layout/+` and
 `tc49/schedule/request_submitted`. *Publishes* the eight `tc49/dispatch/*`
-events.
+events, plus `state/aspects` and `state/allocation` — the latter its picture
+of the run, serialized from the lock table on change, so a client that joins
+an idle railroad can draw it
+([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
+
+It is also the **sole payload authority**: a browser can publish anything on
+the one inbound topic, and after the relay is deleted nothing stands in front
+of it, so the dispatcher never raises on a bus payload. A request naming a
+train or a block that does not exist is answered `unknown_train` or
+`unknown_block`; one carrying a readable id and otherwise not a request is
+answered `malformed`; one with no readable id is dropped, there being nothing
+to address an answer to, and is already in the trace by virtue of having been
+published
+([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 
 The dispatcher is the deep module and the research core; its semantics are
 [DISPATCH.md](dispatcher/DISPATCH.md) and [SAFETY.md](dispatcher/SAFETY.md), its internals
