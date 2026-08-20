@@ -28,13 +28,20 @@ export const menuStyles = css`
     ${menuShortcut}
   }
 
-  button:hover {
+  button:hover:not(:disabled) {
     background: var(--chosen);
     color: #fff;
   }
 
-  button:hover kbd {
+  button:hover:not(:disabled) kbd {
     color: inherit;
     opacity: 0.75;
+  }
+
+  /* Offered and not choosable: greyed says *this does not apply just now*,
+     where leaving the item out says nothing at all. */
+  button:disabled {
+    color: var(--hint);
+    cursor: default;
   }
 `;

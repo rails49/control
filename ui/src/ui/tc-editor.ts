@@ -24,6 +24,7 @@ import { emptyDrawing, type SymbolSpec } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { Filing } from "../model/filing.js";
 import type { Chosen } from "../model/inspect.js";
+import type { Under } from "../model/under.js";
 import { appStyles } from "./tc-editor.styles.js";
 import "./tc-canvas.js";
 import "./tc-header.js";
@@ -33,9 +34,48 @@ import "./tc-netlist.js";
 import "./tc-palette.js";
 import "./tc-properties.js";
 import type { TcCanvas } from "./tc-canvas.js";
-import type { MenuAction, MenuAt } from "./tc-menu.js";
+import type { MenuItem } from "./tc-menu.js";
 import type { TcMenubar } from "./tc-menubar.js";
 import { editable, type Properties } from "./tc-properties.js";
+
+export type MenuAction =
+  | "properties"
+  | "rotate"
+  | "flip"
+  | "delete"
+  | "delete-wire";
+
+/** Where the pointer was, and what was under it. The canvas works out the
+ *  second half (model/under.ts) and the editor only asks what applies to it. */
+export type MenuAt = Under & { x: number; y: number };
+
+/**
+ * What the right-click menu offers for what was clicked.
+ *
+ * A symbol offers its properties, where it has any, and the transforms the key
+ * bindings also do; and a wire offers to be cut, this being the only way to
+ * delete one — a wire has no symbol to select and so no keystroke to take it.
+ *
+ * A junction and a joint offer nothing, so a right-click on one draws no menu
+ * at all. Their names are the editor's own: it mints them, `settle` keeps them
+ * settled through splits and merges, and the netlist pane is where one is read
+ * (EDITOR.md#junctions).
+ */
+export function editorMenu(at: MenuAt): MenuItem[] {
+  const items: MenuItem[] = [];
+  if (at.wire !== null) items.push({ label: "Delete wire", action: "delete-wire" });
+  if (at.symbol !== null) {
+    if (at.kind !== null && editable(at.kind)) {
+      items.push({ label: "Properties…", action: "properties" });
+    }
+    items.push(
+      { label: "Rotate", action: "rotate", key: "R" },
+      { label: "Flip", action: "flip", key: "F" },
+      { label: "Delete", action: "delete", key: "⌫" },
+    );
+  }
+  return items;
+}
 
 /** One press of the zoom-out button, and the reciprocal for zoom in. A quarter
  *  again is about what the wheel gives for a comfortable turn of it. */
@@ -132,7 +172,10 @@ export class TcEditor extends LitElement {
           `
         : nothing}
 
-      <tc-menu .at=${this.menu} @menu-action=${this.chose}
+      <tc-menu
+        .at=${this.menu}
+        .items=${this.menu === null ? [] : editorMenu(this.menu)}
+        @menu-action=${this.chose}
         @menu-dismissed=${() => {
           this.menu = null;
         }}
@@ -381,11 +424,11 @@ export class TcEditor extends LitElement {
 
   // --- the right-click menu, and what it opens -----------------------------
 
-  private chose(event: CustomEvent<MenuAction>): void {
+  private chose(event: CustomEvent<string>): void {
     const at = this.menu;
     this.menu = null;
     if (at === null) return;
-    switch (event.detail) {
+    switch (event.detail as MenuAction) {
       case "properties": {
         const spec = at.symbol === null ? undefined : this.editor.drawing.symbols[at.symbol];
         if (at.symbol !== null && spec !== undefined) {

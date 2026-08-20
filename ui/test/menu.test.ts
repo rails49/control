@@ -5,12 +5,15 @@
  * nothing where nothing does.
  *
  * A DOM test, the whole of the behaviour being what the component renders.
+ * The items are the editor's — `tc-menu` renders a list it is given (#124) —
+ * so the two are exercised together, exactly as the shell wires them.
  */
 
 import { describe, expect, it } from "vitest";
 
 import "../src/ui/tc-menu.js";
-import { applies, type MenuAt } from "../src/ui/tc-menu.js";
+import type { MenuItem } from "../src/ui/tc-menu.js";
+import { editorMenu, type MenuAt } from "../src/ui/tc-editor.js";
 import type { Joint, Junction } from "../src/model/store.js";
 
 const JUNCTION: Junction = { name: "airolo", names: ["airolo"], symbols: ["sw1"] };
@@ -30,15 +33,25 @@ function at(parts: Partial<MenuAt> = {}): MenuAt {
   };
 }
 
-/** The items the menu draws for what was clicked. */
+/** The items the menu draws for what was clicked, as the editor works them
+ *  out and hands them over. */
 async function items(what: MenuAt | null): Promise<string[]> {
+  return (await drawn(what, what === null ? [] : editorMenu(what))).map((button) =>
+    button.querySelector("span")!.textContent!.trim(),
+  );
+}
+
+/** The rows a menu given these items renders. */
+async function drawn(
+  what: { x: number; y: number } | null,
+  offered: MenuItem[],
+): Promise<HTMLButtonElement[]> {
   const menu = document.createElement("tc-menu");
   menu.at = what;
+  menu.items = offered;
   document.body.append(menu);
   await menu.updateComplete;
-  return [...menu.renderRoot.querySelectorAll("li button span:first-child")].map(
-    (span) => span.textContent!.trim(),
-  );
+  return [...menu.renderRoot.querySelectorAll<HTMLButtonElement>("li button")];
 }
 
 describe("what the menu offers", () => {
@@ -119,16 +132,33 @@ describe("nothing under the pointer", () => {
     expect(await items(at())).toEqual([]);
     const menu = document.createElement("tc-menu");
     menu.at = at();
+    menu.items = editorMenu(at());
     document.body.append(menu);
     await menu.updateComplete;
     expect(menu.renderRoot.querySelector("menu")).toBeNull();
   });
 
   it("says so of what was clicked", () => {
-    expect(applies(at())).toBe(false);
-    expect(applies(at({ symbol: "sw1", kind: "turnout" }))).toBe(true);
-    expect(applies(at({ wire: ["b1.A", "b2.B"] }))).toBe(true);
-    expect(applies(at({ junction: JUNCTION }))).toBe(false);
-    expect(applies(at({ joint: JOINT }))).toBe(false);
+    expect(editorMenu(at())).toEqual([]);
+    expect(editorMenu(at({ symbol: "sw1", kind: "turnout" }))).not.toEqual([]);
+    expect(editorMenu(at({ wire: ["b1.A", "b2.B"] }))).not.toEqual([]);
+    expect(editorMenu(at({ junction: JUNCTION }))).toEqual([]);
+    expect(editorMenu(at({ joint: JOINT }))).toEqual([]);
+  });
+});
+
+/**
+ * An item may be offered and not choosable: the panel greys "Turn around"
+ * while the train has a request in flight (#124), which says *this train is
+ * busy* where leaving the item out would say nothing at all.
+ */
+describe("an item that does not apply just now", () => {
+  it("is drawn disabled, and the rest are not", async () => {
+    const [busy, free] = await drawn({ x: 10, y: 10 }, [
+      { label: "Turn around", action: "turn-around", disabled: true },
+      { label: "Something else", action: "else" },
+    ]);
+    expect(busy!.disabled).toBe(true);
+    expect(free!.disabled).toBe(false);
   });
 });
