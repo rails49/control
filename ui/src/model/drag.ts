@@ -12,8 +12,10 @@
  * dispatcher answers. The one refusal here is the train's own block, which is
  * the cancel gesture and not a judgement about feasibility.
  *
- * The departure end is no part of this: it is the train's facing, which the
- * panel model holds and supplies when it composes the request (ADR-0019).
+ * The departure end is no part of this, and neither is a request id: a drop
+ * is a gesture, and both are what the scheduler adds when it composes the
+ * request the gesture asks for
+ * ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
  */
 
 import type { Drawing } from "./drawing.js";

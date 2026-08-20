@@ -1,8 +1,8 @@
 """The bridge, driven by a real WebSocket client over an in-process bus.
 
 The relay's seam is its entire spec (#71): every `tc49/#` event goes out as
-a frame carrying topic and payload, and a `request_submitted` frame comes in
-as the event. The bus stays single-threaded — the test thread drains it, the
+a frame carrying topic and payload, and a `request_wanted` frame comes in as
+the event. The bus stays single-threaded — the test thread drains it, the
 way the simulator's loop does in a live session — so inbound assertions poll
 drain-and-check rather than sleep and hope.
 """
@@ -79,21 +79,21 @@ def test_every_bus_event_arrives_as_a_frame(bus: Bus, client: ClientConnection) 
     }
 
 
-def test_a_request_submitted_frame_becomes_the_event(
+def test_a_request_wanted_frame_becomes_the_event(
     bus: Bus, client: ClientConnection
 ) -> None:
     seen: list[Payload] = []
     bus.subscribe(INBOUND, lambda topic, payload: seen.append(payload))
-    request = {"id": "t1-1", "train": "t1", "depart": "a.B", "dest": ["b.A"]}
-    client.send(json.dumps({"topic": INBOUND, "payload": request}))
+    wanted = {"train": "t1", "dest": ["b.A"]}
+    client.send(json.dumps({"topic": INBOUND, "payload": wanted}))
     drain_until(bus, lambda: bool(seen))
-    assert seen == [request]
+    assert seen == [wanted]
 
 
-def test_the_bridge_refuses_everything_but_request_submitted(
+def test_the_bridge_refuses_everything_but_request_wanted(
     bus: Bus, client: ClientConnection
 ) -> None:
-    """`request_submitted` is the only inbound path (#67): a client that
+    """`request_wanted` is the only inbound path (#67): a client that
     tries to drive a train or fake a sensor gets a refusal frame naming the
     topic, and nothing reaches the bus."""
     seen: list[tuple[str, Payload]] = []
@@ -101,6 +101,26 @@ def test_the_bridge_refuses_everything_but_request_submitted(
     client.send(json.dumps({"topic": "tc49/drive/cross", "payload": {"train": "t1"}}))
     refusal = receive(client)
     assert "tc49/drive/cross" in refusal["error"]
+    bus.drain()
+    assert seen == []
+
+
+def test_a_request_submitted_frame_is_refused_like_any_other(
+    bus: Bus, client: ClientConnection
+) -> None:
+    """The browser writes gestures and never requests (ADR-0036). A page
+    that submitted one directly would be a second minter of ids and a second
+    holder of facing, which is the whole of what moving the scheduler out of
+    the browser removes — so the single-minter claim stops being an intention
+    and becomes something the topic check enforces."""
+    seen: list[tuple[str, Payload]] = []
+    bus.subscribe("tc49/#", lambda topic, payload: seen.append((topic, payload)))
+    request = {"id": "t1-1", "train": "t1", "depart": "a.B", "dest": ["b.A"]}
+    client.send(
+        json.dumps({"topic": "tc49/schedule/request_submitted", "payload": request})
+    )
+    refusal = receive(client)
+    assert "tc49/schedule/request_submitted" in refusal["error"]
     bus.drain()
     assert seen == []
 

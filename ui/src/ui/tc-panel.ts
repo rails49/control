@@ -4,14 +4,14 @@
  * and — live — scheduling by drag.
  *
  * Everything shown is the panel model's answer (model/panel.ts) and everything
- * a gesture means is the drag model's (model/drag.ts). This component loads
- * the documents, converts the pointer's pixels into squares, paints, and sends
- * the one frame the relay accepts. It computes nothing: occupancy, aspects,
+ * a drag means is the drag model's (model/drag.ts). This component loads the
+ * documents, converts the pointer's pixels into squares, paints, and sends the
+ * one frame the relay accepts. It computes nothing: occupancy, aspects,
  * markers, lit legs and arrival ends all arrive as data.
  *
- * The two sources are exclusive, as the modes themselves are (ADR-0016):
- * picking a railroad replays a trace, joining a session runs live, and only a
- * live session can submit — a replay has nobody to submit to.
+ * The two sources are exclusive: picking a railroad replays a trace, joining a
+ * session runs live, and only a live session can gesture — a replay has nobody
+ * to gesture at.
  */
 
 import { LitElement, html, svg, nothing } from "lit";
@@ -45,7 +45,7 @@ import {
   review,
   type Review,
 } from "../model/store.js";
-import { Live, parseTrace, Replay, submission } from "../model/trace.js";
+import { gesture, Live, parseTrace, Replay } from "../model/trace.js";
 import type { Position } from "../symbols.generated.js";
 import { pointOf } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
@@ -114,8 +114,8 @@ export class TcPanel extends LitElement {
    *
    * The railroad already on screen is kept rather than rebuilt. A model built
    * afresh would forget everything the bus has shown it, and only the next
-   * picture would bring any of it back. Callers say what should be forgotten:
-   * `reset` for a replay, `place` for a session.
+   * picture would bring any of it back. Callers say what should be forgotten,
+   * with `reset`.
    */
   private async load(name: string): Promise<boolean> {
     if (this.drawing?.drawing === name && this.panel !== null) return true;
@@ -200,15 +200,14 @@ export class TcPanel extends LitElement {
   // --- joining a live session -----------------------------------------------
 
   /**
-   * Join the session running a scenario: its railroad, then its stock and
-   * facing, then the bridge.
+   * Join the session running a scenario: its railroad, then the bridge.
    *
-   * The scenario is read from the store rather than announced by the bridge,
-   * which relays the bus and describes nothing (SYSTEM.md). Placement comes
-   * off the bus — the relay hands a connecting client the dispatcher's own
-   * picture, which arrives after this and has the last word (ADR-0032) — and
-   * the scenario is left seeding facing, which is on no topic at all
-   * (ADR-0019) and so has nowhere else to come from.
+   * The scenario says one thing only — which drawing to render. Nothing
+   * retained says which railroad a session runs, and a topic that did would
+   * be the bridge describing the run (#67). Everything else comes off the
+   * bus: placement, locks and live requests off the dispatcher's retained
+   * picture, facing off the scheduler's (ADR-0032, ADR-0036), both written by
+   * apps that are always running, so there is no cold start to seed.
    */
   private async join(id: string): Promise<void> {
     // Rejoining the session already on screen keeps what the bus has shown;
@@ -224,7 +223,6 @@ export class TcPanel extends LitElement {
       const scenario = await readScenario(id);
       if (!(await this.load(scenario.layout))) return;
       if (!rejoining) this.panel!.reset();
-      this.panel!.place(scenario.trains);
       this.session = id;
       this.listen();
       this.beat++;
@@ -267,8 +265,8 @@ export class TcPanel extends LitElement {
 
   // --- scheduling by drag ---------------------------------------------------
 
-  /** Whether a gesture can schedule: only a joined session has anywhere to
-   *  submit to. */
+  /** Whether a drag means anything: only a joined session has anywhere to
+   *  gesture at. */
   private get scheduling(): boolean {
     return this.connected && this.drawing !== null && this.panel !== null;
   }
@@ -293,8 +291,9 @@ export class TcPanel extends LitElement {
   }
 
   /**
-   * The drop: one `request_submitted`, filter-free (ui/PANEL.md). The panel
-   * mints the id and takes the departure end from the train's facing; the
+   * The drop: one `request_wanted`, filter-free (ui/PANEL.md). The gesture
+   * names the train and where to put it, and the scheduler composes the
+   * request — the id and the departure end are its (ADR-0036). The
    * dispatcher's answer comes back over the same socket and renders itself.
    */
   private up(event: PointerEvent): void {
@@ -302,12 +301,7 @@ export class TcPanel extends LitElement {
     const drop = this.drag.up(this.drawing!, this.reviewed!, this.gridAt(event));
     this.beat++;
     if (drop === null) return;
-    const request = this.panel!.request(drop.train, drop.dest);
-    if (request === null) {
-      this.trouble = `'${drop.train}' stands nowhere this session knows`;
-      return;
-    }
-    this.socket?.send(submission(request));
+    this.socket?.send(gesture(this.panel!.compose(drop.train, drop.dest)));
   }
 
   private abandon(): void {
@@ -420,9 +414,9 @@ export class TcPanel extends LitElement {
     `;
   }
 
-  /** Which of the two exclusive sources (ADR-0016) is feeding the panel. A
-   *  session wins because joining one drops the replay; with neither, the
-   *  railroad on screen is a drawing nothing is running on. */
+  /** Which of the two exclusive sources is feeding the panel. A session wins
+   *  because joining one drops the replay; with neither, the railroad on
+   *  screen is a drawing nothing is running on. */
   private get mode(): Mode {
     if (this.session !== null) return "live";
     return this.replay === null ? "unjoined" : "replay";

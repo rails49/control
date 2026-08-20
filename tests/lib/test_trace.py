@@ -98,17 +98,17 @@ def test_a_client_frame_outside_the_inventory_is_recorded_rather_than_raised() -
     bus = Bus()
     out = io.StringIO()
     TraceTap(bus, out)
-    bus.publish(INBOUND, {"junk": 1, "id": "t1-1"})
+    bus.publish(INBOUND, {"junk": 1, "train": "t1"})
     bus.drain()
 
     assert out.getvalue() == (
-        '{"tick":0,"event":"request_submitted","id":"t1-1","junk":1}\n'
+        '{"tick":0,"event":"request_wanted","train":"t1","junk":1}\n'
     )
 
 
 def test_a_client_frame_that_is_not_an_object_is_recorded_whole() -> None:
     """Nothing in it can be a field, so all of it is the record — which is
-    what makes a dropped id-less frame verifiable in the trace (#107)."""
+    what makes a dropped gesture verifiable in the trace (#107, ADR-0036)."""
     bus = Bus()
     out = io.StringIO()
     TraceTap(bus, out)
@@ -116,5 +116,5 @@ def test_a_client_frame_that_is_not_an_object_is_recorded_whole() -> None:
     bus.drain()
 
     assert out.getvalue() == (
-        '{"tick":0,"event":"request_submitted","payload":["yard_e.A"]}\n'
+        '{"tick":0,"event":"request_wanted","payload":["yard_e.A"]}\n'
     )

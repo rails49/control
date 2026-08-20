@@ -1,8 +1,13 @@
-"""Tests at the scheduler seam: releases, ids, expansion, exhaustion, facing."""
+"""The scheduler seam: releases, ids, expansion, exhaustion, facing, gestures."""
+
+import io
+import json
+from typing import cast
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
+from tc49.lib.trace import TraceTap
 from tc49.scheduler import Scheduler
 from tests.harness import load
 
@@ -186,3 +191,98 @@ def test_facing_is_published_only_when_it_moves() -> None:
     )
     bus.drain()
     assert len(seen) == 1
+
+
+WANTED = "tc49/ui/request_wanted"
+
+
+def gesture(bus: Bus, payload: object) -> None:
+    bus.publish(WANTED, cast(Payload, payload))
+    bus.drain()
+
+
+def test_a_gesture_is_composed_into_the_request_it_asks_for() -> None:
+    """The two fields a gesture omits are the two the scheduler owns: the id
+    it mints and the departure end it holds as facing (ADR-0036)."""
+    bus = Bus()
+    seen = collect(bus, "tc49/schedule/request_submitted")
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A", "dn_e.B"]})
+    assert [p for _, p in seen] == [
+        {
+            "id": "freight_1-1",
+            "train": "freight_1",
+            "depart": "yard_w.B",
+            "dest": ["dn_e.A", "dn_e.B"],
+        }
+    ]
+
+
+def test_gestures_and_the_timetable_share_one_undivided_counter() -> None:
+    """An id that tells you who minted it is a shape, and no consumer reads
+    the shape (ADR-0033): a person's drag simply takes the next number."""
+    bus = Bus()
+    seen = collect(bus, "tc49/schedule/request_submitted")
+    Scheduler(bus, yard(), two_train_scenario())
+
+    tick(bus, 0)  # freight_1-1 and express_2-1 go out
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    assert seen[-1][1]["id"] == "freight_1-3"  # -2 is the timetable's, at tick 2
+
+
+def test_a_gesture_departs_from_where_facing_has_moved_to() -> None:
+    """Facing is not the scenario's for long: the drag names no departure
+    end, so what the scheduler has carried forward is what the request
+    states."""
+    bus = Bus()
+    seen = collect(bus, "tc49/schedule/request_submitted")
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    bus.publish(
+        "tc49/dispatch/move_granted",
+        {
+            "id": "freight_1-1",
+            "train": "freight_1",
+            "transit": "west_ladder.to_dn",
+            "into": "dn_w",
+            "aspect": "clear",
+        },
+    )
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    assert seen[-1][1]["depart"] == "dn_w.B"
+
+
+UNCOMPOSABLE: list[object] = [
+    "freight_1 to yard_e",  # not an object at all
+    {},  # neither field
+    {"train": None, "dest": ["yard_e.A"]},  # no train
+    {"train": "freight_1", "dest": "yard_e.A"},  # dest a string, not ends
+    {"train": "freight_1", "dest": ["yard_e.A", 7]},  # not all ends
+    {"train": "ghost", "dest": ["yard_e.A"]},  # a train it holds no facing for
+]
+
+
+def test_no_gesture_can_raise_out_of_the_scheduler() -> None:
+    """A gesture carries no id, so there is nothing to address an answer to
+    and every uncomposable one is dropped in silence (ADR-0036). It is a line
+    in the trace by virtue of having been published, which is what keeps a
+    client bug diagnosable — and the session lives, an honest drag after all
+    of it composing exactly as before.
+    """
+    bus = Bus()
+    out = io.StringIO()
+    TraceTap(bus, out)
+    seen = collect(bus, "tc49/schedule/request_submitted")
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+
+    for payload in UNCOMPOSABLE:
+        gesture(bus, payload)
+    assert seen == []
+
+    lines = [json.loads(line) for line in out.getvalue().splitlines()]
+    assert len([line for line in lines if line["event"] == "request_wanted"]) == len(
+        UNCOMPOSABLE
+    )
+
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    assert seen[-1][1]["id"] == "freight_1-1"

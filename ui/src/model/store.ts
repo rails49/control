@@ -110,14 +110,13 @@ export async function review(drawing: Drawing): Promise<Review> {
   return await ask<Review>("POST", "/review", drawing);
 }
 
-/** A live session's stock, placement and facing: the scenario the session was
- *  started from (PANEL.md, ADR-0019). The bridge relays the bus and says
- *  nothing about the run, so the panel reads this to know where the trains
- *  stand and which way they face before the first event arrives. */
+/** The scenario a live session was started from. The panel reads it for one
+ *  thing, which drawing to render: nothing retained says which railroad a
+ *  session runs, and a topic that did would be the bridge describing the run
+ *  (#67, ADR-0036). Stock, placement and facing come off the bus. */
 export interface ScenarioDoc {
   name: string;
   layout: string;
-  trains: Record<string, { length: number; at: string; facing: string }>;
 }
 
 export async function listScenarios(): Promise<string[]> {

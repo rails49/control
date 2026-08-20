@@ -12,10 +12,9 @@
  *
  * One component for both pages, because the two facts every page has — what is
  * open and what is wrong outside the drawing — are the same facts. The editor
- * and the panel stay separate entries (vite.config.ts) and separate apps
- * ([ADR-0016](../../../docs/adr/0016-the-panel-is-a-scheduler.md)); the band
- * names the page it is on and offers a way to the other, which is the whole of
- * the navigation.
+ * and the panel stay separate entries (vite.config.ts) and separate pages; the
+ * band names the page it is on and offers a way to the other, which is the
+ * whole of the navigation.
  *
  * It shows status and nothing else. Everything a person presses stays in the
  * row below — the editor's menu bar, the panel's controls (EDITOR.md,
@@ -29,8 +28,8 @@ import { customElement, property } from "lit/decorators.js";
 
 import { headerStyles } from "./tc-header.styles.js";
 
-/** Which page the band is on and, on the panel, which of ADR-0016's two
- *  exclusive sources is feeding it. */
+/** Which page the band is on and, on the panel, which of the two exclusive
+ *  sources — a recorded run or a running one — is feeding it. */
 export type Mode = "editor" | "replay" | "live" | "unjoined";
 
 /** What each mode is called on screen. */

@@ -1,14 +1,14 @@
 """Admission as the sole payload authority (ADR-0034, #107).
 
-A browser publishes on the one inbound topic and the relay checks the topic
-and nothing else, so anything at all can arrive on the bus — and after the
-relay is deleted nothing stands in front of the dispatcher anyway. It
-therefore never raises on a bus payload: what it can address it answers,
-what it cannot it drops to the trace, and the railroad keeps ticking either
-way.
+Anything at all can arrive on the topic requests are written to — the file
+scheduler is one publisher, and after the relay is deleted nothing stands in
+front of the dispatcher anyway. It therefore never raises on a bus payload:
+what it can address it answers, what it cannot it drops to the trace, and the
+railroad keeps ticking either way. A browser no longer reaches it: the panel
+writes gestures and the scheduler composes (ADR-0036), which hardens the path
+rather than replacing this.
 
-Driven at the bus, which is exactly what the bridge does with a client's
-frame: `publish(INBOUND, payload)` and nothing else.
+Driven at the bus: `publish(REQUESTS, payload)` and nothing else.
 """
 
 from collections.abc import Callable
@@ -16,10 +16,12 @@ from typing import cast
 
 import pytest
 
-from tc49.bench.runner import Assembly, assemble_live
-from tc49.lib.bus import Payload
-from tc49.lib.inventory import INBOUND
+from tc49.bench.runner import DEFAULT_K, Assembly, assemble_live
+from tc49.dispatcher import Dispatcher, FullRoute
+from tc49.lib.bus import Bus, Payload
 from tests.harness import events, load
+
+REQUESTS = "tc49/schedule/request_submitted"
 
 GOOD: Payload = {
     "id": "freight_1-1",
@@ -34,7 +36,6 @@ UNREADABLE: list[Payload] = [
     {**GOOD, "id": "bad-2", "dest": ["siding_9.A"]},  # a block the layout lacks
     {"id": "bad-3", "train": "freight_1", "dest": ["yard_e.A"]},  # no depart
     {**GOOD, "id": "bad-4", "dest": "yard_e.A"},  # dest a string, not ends
-    cast(Payload, "freight_1 to yard_e"),  # not an object at all
 ]
 
 
@@ -45,8 +46,8 @@ def assembly() -> Assembly:
 
 
 def submit(assembly: Assembly, payload: Payload) -> None:
-    """A client's frame as the bridge puts it on the bus, unchanged."""
-    assembly.bus.publish(INBOUND, payload)
+    """A request as a publisher puts it on the bus, unchanged."""
+    assembly.bus.publish(REQUESTS, payload)
     assembly.bus.drain()
 
 
@@ -112,20 +113,25 @@ def test_a_payload_with_no_readable_id_publishes_nothing(assembly: Assembly) -> 
     assembly.bus.drain()  # the startup cascade, so what follows is the answer
     before = len(events(assembly.trace))
     submit(assembly, {"train": "freight_1", "depart": "yard_w.B", "dest": ["yard_e.A"]})
-    submit(assembly, cast(Payload, "freight_1 to yard_e"))
+    submit(assembly, {"id": None, "train": "freight_1", "dest": ["yard_e.A"]})
     assert events(assembly.trace, "request_rejected") == []
     assert len(events(assembly.trace)) == before + 2  # the two frames, no answer
 
 
-def test_a_dropped_payload_is_still_verifiable_in_the_trace(
-    assembly: Assembly,
-) -> None:
-    """Dropping is not losing it: the tap subscribes `tc49/#`, so the frame
-    is a line by virtue of having been published, and a client bug stays
-    diagnosable."""
-    submit(assembly, cast(Payload, ["yard_e.A"]))
-    [dropped] = events(assembly.trace, "request_submitted")
-    assert dropped["payload"] == ["yard_e.A"]
+def test_a_payload_that_is_not_an_object_at_all_is_dropped() -> None:
+    """Read rather than trusted, to the bottom: nothing in admission
+    subscripts a payload it has not read first. Driven without the trace tap,
+    which holds the apps to the inventory and would refuse this line — an
+    honest publisher cannot produce it, and the one that can is a client, on
+    the topic the tap records verbatim."""
+    layout, scenario = load("crossover-yard/meet")
+    bus = Bus()
+    seen: list[Payload] = []
+    bus.subscribe("tc49/dispatch/request_rejected", lambda _, p: seen.append(p))
+    Dispatcher(bus, layout, scenario, FullRoute(layout, DEFAULT_K))
+    bus.publish(REQUESTS, cast(Payload, "freight_1 to yard_e"))
+    bus.drain()
+    assert seen == []
 
 
 def test_the_session_survives_every_unreadable_payload(assembly: Assembly) -> None:

@@ -112,19 +112,30 @@ export class Live {
 }
 
 /** The one topic the browser may write, and the frame that carries it
- *  (SYSTEM.md, the bridge). Anything else inbound the relay refuses. */
-export const INBOUND = "tc49/schedule/request_submitted";
+ *  (SYSTEM.md, the bridge). Anything else inbound the relay refuses,
+ *  `request_submitted` included: the browser writes gestures and never
+ *  requests ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). */
+export const INBOUND = "tc49/ui/request_wanted";
 
-/** A `request_submitted` payload: what the panel-scheduler composes, what the
- *  relay carries, and what comes back as an event. Ends are written
+/** A `request_wanted` payload: what a drag means, and the panel's whole write
+ *  surface. A request minus the two fields the scheduler owns — no `id`,
+ *  because the scheduler is the single minter, and no `depart`, because
+ *  facing is scheduler state and the drag never named a departure end. */
+export interface Gesture {
+  train: string;
+  dest: string[];
+}
+
+export function gesture(wanted: Gesture): string {
+  return JSON.stringify({ topic: INBOUND, payload: wanted });
+}
+
+/** A `request_submitted` payload: what the scheduler composes out of a
+ *  gesture, and what comes back as an event. Ends are written
  *  `<block>.<end>` throughout. */
 export interface Submission {
   id: string;
   train: string;
   depart: string;
   dest: string[];
-}
-
-export function submission(request: Submission): string {
-  return JSON.stringify({ topic: INBOUND, payload: request });
 }

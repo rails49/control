@@ -7,17 +7,22 @@
  * lets the live panel consume this model unchanged.
  *
  * Everything is derived the way the dispatcher derives it: occupancy events
- * are anonymous, so an occupied block's train is the holder of its lock, and
- * direction is the entry end of the last granted move. Nothing here computes
- * topology — which ends a transit joins and which legs its way takes come
+ * are anonymous, so an occupied block's train is the holder of its lock.
+ * Nothing here computes topology — which legs a transit's way takes comes
  * from the store's `/review`, handed in at construction.
+ *
+ * It holds **no scheduler state**
+ * ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)):
+ * facing arrives on `tc49/schedule/state/facing` and ids arrive on
+ * `request_submitted`, both written by an app that is always running, so
+ * there is no cold start to seed and nothing two tabs can disagree about.
  */
 
 import type { Aspect } from "../render/artwork.js";
 import type { Position } from "../symbols.generated.js";
 import { WHOLE } from "./inspect.js";
 import type { Explained, Layout } from "./store.js";
-import type { Submission, TraceEvent } from "./trace.js";
+import type { Gesture, Submission, TraceEvent } from "./trace.js";
 
 /** A block end, written `<block>.<end>` as the bus writes it. */
 export type EndRef = string;
@@ -29,7 +34,7 @@ export interface BlockView {
   state: "free" | "occupied" | "reserved" | "planned";
   /** The train standing, holding or heading here, where one is. */
   train?: string;
-  /** The end the occupying train faces, once a granted move has said. */
+  /** The end the occupying train faces, as the scheduler says. */
   toward?: string;
 }
 
@@ -88,14 +93,6 @@ export function endOf(end: EndRef): string {
   return end.slice(end.lastIndexOf(".") + 1);
 }
 
-/** A page's own share of every id it mints. Not clock-derived, which the bus
- *  contract forbids (SYSTEM.md), and not deterministic either — which costs
- *  nothing, a run carrying a person's drags making no reproducibility claim
- *  (ADR-0033). */
-function nonce(): string {
-  return crypto.randomUUID().slice(0, 8);
-}
-
 export class Panel {
   /** resource → holding train: blocks and transits alike, the lock ledger. */
   private locks = new Map<string, string>();
@@ -106,39 +103,27 @@ export class Panel {
   private lying = new Map<string, Position>();
   /** block → the train standing in it. */
   private standing = new Map<string, string>();
-  /** train → the block it last entered and the end it now faces. */
+  /** train → the block it faces out of and the end it faces, as the
+   *  scheduler last said. Read, never derived: facing is scheduler state
+   *  (ADR-0019), and the topic carries it whole. */
   private heading = new Map<string, { block: string; toward: string }>();
-  /** train → the facing its granted move will give it, held until the train
-   *  is actually in that block. A grant names the next block a tick ahead of
-   *  the sensor, and until the sensor speaks the train is still standing
-   *  where it was, facing the end it is leaving through. */
-  private granted = new Map<string, { block: string; toward: string }>();
   private requests = new Map<string, Request>();
-  /** train → how many requests this page has minted for it, which numbers
-   *  the next. Not cleared by `reset`: rejoining a session does not make the
-   *  ids it already handed out available again. */
-  private minted = new Map<string, number>();
   /** Whether the first tick has passed: a lock on a block before it is the
    *  trace's opening placement, there being no occupancy event for a train
    *  that never moved. */
   private started = false;
 
-  /** transit resource → the two block ends it joins. */
-  private readonly joins = new Map<string, [EndRef, EndRef]>();
   /** transit resource → the symbols and legs its way takes. */
   private readonly ways = new Map<string, [string, string][]>();
 
   constructor(
     private readonly layout: Layout,
     explain: Explained,
-    private readonly page: string = nonce(),
   ) {
     for (const [connection, { transits }] of Object.entries(layout.connections)) {
-      for (const [transit, ends] of Object.entries(transits)) {
-        const resource = `${connection}.${transit}`;
-        this.joins.set(resource, ends);
+      for (const transit of Object.keys(transits)) {
         const way = explain.connections[connection]?.transits[transit]?.way;
-        if (way !== undefined) this.ways.set(resource, way);
+        if (way !== undefined) this.ways.set(`${connection}.${transit}`, way);
       }
     }
   }
@@ -149,63 +134,20 @@ export class Panel {
     this.standing.clear();
     this.heading.clear();
     this.requests.clear();
-    this.granted.clear();
     this.started = false;
   }
 
   /**
-   * The scenario's stock, placement and facing (#72): where a live session's
-   * trains stand before the first event arrives, and which way they face.
+   * What a drag means on the bus: the gesture, and nothing else.
    *
-   * A trace replay reads placement off the opening locks, but a browser joins
-   * a session that was already assembled, so those locks are long gone. What
-   * the run holds arrives on `allocation` and supersedes this (ADR-0032);
-   * what is left to the scenario is facing, which is where it is written down
-   * at all (ADR-0019) and the one thing no event carries. Everything after is
-   * derived from the bus exactly as a replay derives it.
-   *
-   * It seeds only the trains this model knows nothing about. The scenario
-   * says where a railroad *started*, and rejoining does not rewind it: a
-   * train the bus has already shown somewhere keeps that place. Putting it
-   * back would make the next drag state a departure block the dispatcher
-   * knows is wrong.
+   * A gesture is not a request. It names a train and where to put it; the id
+   * and the departure end are the two fields the scheduler owns and supplies
+   * (ADR-0036), so there is nothing here to mint, nothing to look up, and no
+   * drop this can refuse — the panel judging a request is the one thing it
+   * must never do (#67).
    */
-  place(trains: Record<string, { at: string; facing: string }>): void {
-    for (const [train, { at, facing }] of Object.entries(trains)) {
-      if (this.heading.has(train)) continue;
-      this.standing.set(at, train);
-      this.heading.set(train, { block: at, toward: facing });
-    }
-    this.started = true;
-  }
-
-  /**
-   * The `request_submitted` payload a drag composes, or `null` where the train
-   * stands nowhere this model knows.
-   *
-   * The panel is the scheduler (ADR-0016), so it mints the ids and supplies
-   * the departure end from facing: the drag names the destination only, and
-   * the dispatcher sees a request no different from a file scheduler's.
-   *
-   * The id is `<train>-<page>-<n>`, unique by construction rather than by
-   * remembering (ADR-0033). A page that counted from what it had seen started
-   * at one again after a reload and handed the dispatcher an id already in
-   * its seen set, which is dropped at the top of admission before any check
-   * runs — no answer of any kind, and the marker stuck in "requested".
-   */
-  request(train: string, dest: EndRef[]): Submission | null {
-    const facing = this.heading.get(train);
-    if (facing === undefined || this.standing.get(facing.block) !== train) {
-      return null;
-    }
-    const nth = (this.minted.get(train) ?? 0) + 1;
-    this.minted.set(train, nth);
-    return {
-      id: `${train}-${this.page}-${nth}`,
-      train,
-      depart: `${facing.block}.${facing.toward}`,
-      dest,
-    };
+  compose(train: string, dest: EndRef[]): Gesture {
+    return { train, dest };
   }
 
   apply(event: TraceEvent): void {
@@ -241,11 +183,6 @@ export class Panel {
         const holder = this.locks.get(block);
         if (holder === undefined) return;
         this.standing.set(block, holder);
-        const arriving = this.granted.get(holder);
-        if (arriving?.block === block) {
-          this.heading.set(holder, arriving);
-          this.granted.delete(holder);
-        }
         return;
       }
       case "block_vacated": {
@@ -261,14 +198,11 @@ export class Panel {
         return;
       }
       case "allocation": {
-        // The run's picture, as the dispatcher holds it (ADR-0032): the page
-        // opens on this rather than on where the scenario says the railroad
-        // started, and it has the last word over anything seeded before the
-        // socket opened. A train's facing is not in it and stays where this
-        // model already had it — facing is scheduler state and on no
-        // dispatcher topic at all (ADR-0019) — and so does a grant the sensor
-        // has not caught up with, the picture being published a phase ahead
-        // of the occupancy that phase's own grants cause.
+        // The run's picture, as the dispatcher holds it (ADR-0032): standing
+        // trains, the lock table, and every request still alive. A train's
+        // facing is not in it and stays where the scheduler's own topic put
+        // it — facing is scheduler state and on no dispatcher topic at all
+        // (ADR-0019).
         const { trains, locks, requests } = event as unknown as {
           trains: Record<string, string>;
           locks: Record<string, string>;
@@ -284,10 +218,6 @@ export class Panel {
         this.standing = new Map(
           Object.entries(trains).map(([train, block]) => [block, train]),
         );
-        for (const [train, block] of Object.entries(trains)) {
-          const toward = this.heading.get(train)?.toward;
-          if (toward !== undefined) this.heading.set(train, { block, toward });
-        }
         // A rejection is not in the picture — the dispatcher does not hold
         // the request it refused — and stays until the train is dragged
         // again, so the reason does not leave the screen the moment anything
@@ -318,19 +248,19 @@ export class Panel {
         this.shown = new Map(Object.entries(aspects));
         return;
       }
-      case "move_granted": {
-        const { train, transit, into } = event as unknown as {
-          train: string;
-          transit: string;
-          into: string;
-        };
-        const ends = this.joins.get(transit);
-        const entry = ends?.find((end) => blockOf(end) === into);
-        if (entry === undefined) return;
-        this.granted.set(train, {
-          block: into,
-          toward: endOf(entry) === "A" ? "B" : "A",
-        });
+      case "facing": {
+        // The scheduler's whole answer, last-value-wins: which end of which
+        // block each train would depart through nose-first. The panel renders
+        // it as the direction arrow and derives none of it — a train that has
+        // never moved has an arrow for the same reason a moved one does
+        // (ADR-0036).
+        const { facing } = event as unknown as { facing: Record<string, EndRef> };
+        this.heading = new Map(
+          Object.entries(facing).map(([train, end]) => [
+            train,
+            { block: blockOf(end), toward: endOf(end) },
+          ]),
+        );
         return;
       }
       case "request_submitted": {
@@ -377,16 +307,6 @@ export class Panel {
         if (request === undefined) return;
         request.phase = "committed";
         request.route = route;
-        // Direction comes from the chosen route or the entry end of the last
-        // granted transit (ui/PANEL.md): the train will leave nose-first
-        // through the request's departure end, so it faces that end now.
-        const from = blockOf(request.depart);
-        if (this.standing.get(from) === request.train) {
-          this.heading.set(request.train, {
-            block: from,
-            toward: endOf(request.depart),
-          });
-        }
         return;
       }
       case "request_completed": {

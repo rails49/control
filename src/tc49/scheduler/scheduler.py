@@ -1,13 +1,14 @@
 """Scheduler: the one writer of requests, and the holder of facing.
 
 Its sources are configuration rather than a rule (ADR-0036): a timetable
-released at its `at` ticks, and a person gesturing on the panel. `tc49 bench`
-runs with the timetable on, `tc49 live` with it off while `at` is still a tick
-number. Ids are minted deterministically in scenario order (`<train>-1`,
-`<train>-2`, ...) from one undivided counter, the arrival-end expansion is
-purely mechanical (a bare block becomes both of its ends), and when the last
-timetable request is out the `exhausted` state topic is set — the milestone-1
-termination signal.
+released at its `at` ticks, and a person gesturing on `tc49/ui/request_wanted`.
+`tc49 bench` runs with the timetable on, `tc49 live` with it off while `at` is
+still a tick number. A gesture is not a request — it names a train and where
+to put it, and the id and the departure end are what the scheduler adds. Ids
+are minted deterministically in scenario order (`<train>-1`, `<train>-2`, ...)
+from one undivided counter, the arrival-end expansion is purely mechanical (a
+bare block becomes both of its ends), and when the last timetable request is
+out the `exhausted` state topic is set — the milestone-1 termination signal.
 
 It **holds facing** (ADR-0019), seeded from the scenario's placement and
 carried forward from the bus: a train faces away from the end it entered
@@ -20,6 +21,7 @@ has never moved having no other source for one.
 """
 
 from collections import Counter
+from typing import cast
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import Layout
@@ -37,16 +39,16 @@ class Scheduler:
             for train, spec in sorted(scenario.trains.items())
         }
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
-        counters: Counter[str] = Counter()
+        self._counters: Counter[str] = Counter()  # one undivided minter
         self._pending: list[tuple[int, Payload]] = []
         if timetable:
             for request in scenario.requests:
-                counters[request.train] += 1
+                self._counters[request.train] += 1
                 self._pending.append(
                     (
                         request.at,
                         {
-                            "id": f"{request.train}-{counters[request.train]}",
+                            "id": f"{request.train}-{self._counters[request.train]}",
                             "train": request.train,
                             "depart": request.depart,
                             "dest": _expand(request.arrivals),
@@ -58,6 +60,7 @@ class Scheduler:
         self._publish_facing()
         bus.subscribe("tc49/layout/tick", self._on_tick)
         bus.subscribe("tc49/dispatch/#", self._on_dispatch)
+        bus.subscribe("tc49/ui/#", self._on_gesture)
 
     def _on_tick(self, topic: str, payload: Payload) -> None:
         now = payload["tick"]
@@ -72,6 +75,43 @@ class Scheduler:
     def _submit(self, event: Payload) -> None:
         self._train_of[event["id"]] = event["train"]
         self._bus.publish("tc49/schedule/request_submitted", event)
+
+    # -- gestures ----------------------------------------------------------
+
+    def _on_gesture(self, topic: str, payload: Payload) -> None:
+        """A person's drag, composed into the request it asks for.
+
+        A gesture names a train and where to put it; the two fields it omits
+        are the two the scheduler owns — the id it mints and the departure
+        end it holds as facing (ADR-0036). It judges nothing else: a train
+        that is not idle is composed and submitted like any other, and
+        answered `wrong_origin` or queued.
+
+        What it cannot compose it **drops**, in silence and to the trace. A
+        gesture carries no id, so there is nothing to address an answer to
+        and a broadcast refusal would be uncorrelatable — the dispatcher's
+        own reasoning one component upstream (ADR-0034). Like the dispatcher
+        it never raises on a bus payload: anything at all can be published
+        here, and once the relay is deleted nothing stands in front of it.
+        """
+        if topic.rsplit("/", 1)[-1] != "request_wanted":
+            return  # a throttle is a second leaf under this role, later
+        gesture = _wanted(payload)
+        if gesture is None:
+            return
+        train, dest = gesture
+        depart = self._facing.get(train)
+        if depart is None:  # a train this session does not hold
+            return
+        self._counters[train] += 1
+        self._submit(
+            {
+                "id": f"{train}-{self._counters[train]}",
+                "train": train,
+                "depart": depart,
+                "dest": dest,
+            }
+        )
 
     # -- facing ------------------------------------------------------------
 
@@ -101,6 +141,21 @@ class Scheduler:
         if facing != self._published:
             self._published = facing
             self._bus.publish("tc49/schedule/state/facing", facing)
+
+
+def _wanted(payload: object) -> tuple[str, list[str]] | None:
+    """The train and arrival ends a gesture names, or None where it names
+    none. Anything at all can be published where a person's page writes, so
+    reading it is a step of its own rather than two subscripts that raise."""
+    if not isinstance(payload, dict):
+        return None
+    train, dest = (cast(Payload, payload).get(key) for key in ("train", "dest"))
+    if not isinstance(train, str) or not isinstance(dest, list):
+        return None
+    ends = cast(list[object], dest)
+    if not all(isinstance(end, str) for end in ends):
+        return None
+    return train, cast(list[str], ends)
 
 
 def _expand(arrivals: tuple[str, ...]) -> list[str]:

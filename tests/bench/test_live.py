@@ -1,16 +1,21 @@
 """The live-session assembly (#71), at the assembly-over-the-bus seam.
 
-`assemble_live` is the wiring `tc49 live` runs: no file scheduler, the
-bridge the only way in. The tests here attach a real bridge and client to
-that assembly and walk the whole loop — a frame in, the dispatcher's answer
-and the run's events back out over the same socket — pacing the simulator
-with an injected time source, never the wall clock.
+`assemble_live` is the wiring `tc49 live` runs: the timetable off, the bridge
+the only way in. The tests here attach a real bridge and client to that
+assembly and walk the whole loop — a gesture in, the request the scheduler
+composes from it, the dispatcher's answer and the run's events back out over
+the same socket — pacing the simulator with an injected time source, never
+the wall clock.
+
+The client sends `{train, dest}` and nothing else: the id and the departure
+end are the scheduler's (ADR-0036), so a test that wants to name a request
+reads the id off the trace rather than choosing one.
 """
 
 import json
 import time
 from collections.abc import Callable, Iterator
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from websockets.sync.client import ClientConnection, connect
@@ -68,17 +73,22 @@ def frames_until(client: ClientConnection, leaf: str) -> list[dict[str, Any]]:
             return received
 
 
-def submit(
-    client: ClientConnection, assembly: Assembly, payload: dict[str, Any]
-) -> None:
-    """Send a request frame and drain until it lands on the bus — the client
+def drag(
+    client: ClientConnection, assembly: Assembly, train: str, dest: list[str]
+) -> str:
+    """Send a gesture frame, drain until the request it composes lands on the
+    bus, and answer with the id the scheduler minted for it — the client
     writes from its own thread, so arrival is a wait, not a given."""
-    client.send(json.dumps({"topic": INBOUND, "payload": payload}))
+    before = len(events(assembly.trace, "request_submitted"))
+    client.send(
+        json.dumps({"topic": INBOUND, "payload": {"train": train, "dest": dest}})
+    )
     deadline = time.monotonic() + TIMEOUT
-    while not events(assembly.trace, "request_submitted", rid=payload["id"]):
-        assert time.monotonic() < deadline, "the frame never reached the bus"
+    while len(events(assembly.trace, "request_submitted")) == before:
+        assert time.monotonic() < deadline, "the gesture composed nothing"
         assembly.bus.drain()
         time.sleep(0.01)
+    return cast(str, events(assembly.trace, "request_submitted")[-1]["id"])
 
 
 def test_the_timetable_is_off_and_facing_is_still_published(
@@ -97,90 +107,64 @@ def test_the_timetable_is_off_and_facing_is_still_published(
     assert placed["facing"] == {"express_2": "up_e.A", "freight_1": "yard_w.B"}
 
 
-def test_a_submitted_frame_is_answered_and_run_over_the_same_socket(
+def test_a_gesture_is_composed_answered_and_run_over_the_same_socket(
     assembly: Assembly, client: ClientConnection
 ) -> None:
-    submit(
-        client,
-        assembly,
-        {
-            "id": "freight_1-1",
-            "train": "freight_1",
-            "depart": "yard_w.B",
-            "dest": ["yard_e.A", "yard_e.B"],
-        },
-    )
+    """The whole loop from a drag: the frame names a train and a block's two
+    ends, the scheduler supplies the id and the departure end off facing, and
+    everything the dispatcher then says comes back over the same socket."""
+    rid = drag(client, assembly, "freight_1", ["yard_e.A", "yard_e.B"])
+    assert rid == "freight_1-1"
+    [composed] = events(assembly.trace, "request_submitted", rid=rid)
+    assert composed["depart"] == "yard_w.B"  # facing, which the drag never named
+
     tick_until(
-        assembly,
-        lambda: bool(events(assembly.trace, "request_completed", rid="freight_1-1")),
+        assembly, lambda: bool(events(assembly.trace, "request_completed", rid=rid))
     )
     received = frames_until(client, "request_completed")
     leaves = [frame["topic"].rsplit("/", 1)[-1] for frame in received]
+    assert "request_submitted" in leaves  # what the gesture became
     assert "request_admitted" in leaves  # the dispatcher's answer
     assert "route_chosen" in leaves  # then the committed route
-    assert received[-1]["payload"] == {"id": "freight_1-1"}
+    assert received[-1]["payload"] == {"id": rid}
 
 
 def test_a_rejection_comes_back_with_its_reason(
     assembly: Assembly, client: ClientConnection
 ) -> None:
-    """Departing through yard_w.A, the terminal's outer end: no route can
-    exist, and the panel's filter-free drag (#67) relies on this answer
-    arriving rather than on the panel pre-judging it."""
-    submit(
-        client,
-        assembly,
-        {
-            "id": "freight_1-1",
-            "train": "freight_1",
-            "depart": "yard_w.A",
-            "dest": ["dn_e.A"],
-        },
-    )
+    """Dropped on the outer third of a terminal block's blind end: yard_e.B
+    is an end nothing connects to, so no train can enter through it. The
+    filter-free drag (#67) relies on this answer arriving rather than on the
+    panel pre-judging it, and the scheduler judges nothing either."""
+    rid = drag(client, assembly, "freight_1", ["yard_e.B"])
     tick_until(
-        assembly,
-        lambda: bool(events(assembly.trace, "request_rejected", rid="freight_1-1")),
+        assembly, lambda: bool(events(assembly.trace, "request_rejected", rid=rid))
     )
     [rejection] = [
         frame
         for frame in frames_until(client, "request_rejected")
         if frame["topic"].rsplit("/", 1)[-1] == "request_rejected"
     ]
-    assert rejection["payload"]["reason"] == "unreachable"
+    assert rejection["payload"]["reason"] == "no_entry"
 
 
-def test_a_stale_departure_is_answered_and_the_session_lives(
+def test_a_drag_on_a_moving_train_is_answered_and_the_session_lives(
     assembly: Assembly, client: ClientConnection
 ) -> None:
-    """A drag composed while a train is moving can still name a block it has
-    left by the time the request lands (ADR-0021), and a client is untrusted
-    besides. That is an ordinary bad request: the dispatcher answers it and
-    the railroad keeps ticking (#73)."""
-    submit(
-        client,
-        assembly,
-        {
-            "id": "freight_1-1",
-            "train": "freight_1",
-            "depart": "yard_w.B",
-            "dest": ["yard_e.A"],
-        },
-    )
+    """`wrong_origin` still stands (ADR-0021). A grant names the next block a
+    tick before the sensor does, and facing follows the grant, so a drag on a
+    train that is not idle composes a departure end in a block the dispatcher
+    does not yet have it in. The scheduler judges none of that — it composes
+    and submits like any other gesture — and the dispatcher answers, the
+    railroad ticking on around it (#73)."""
+    first = drag(client, assembly, "freight_1", ["yard_e.A"])
     tick_until(
-        assembly,
-        lambda: bool(events(assembly.trace, "request_completed", rid="freight_1-1")),
+        assembly, lambda: bool(events(assembly.trace, "move_granted", rid=first))
     )
-    submit(  # the stale drag: freight_1 stands in yard_e now, not yard_w
-        client,
-        assembly,
-        {
-            "id": "freight_1-2",
-            "train": "freight_1",
-            "depart": "yard_w.B",
-            "dest": ["dn_w.A"],
-        },
-    )
-    [rejected] = events(assembly.trace, "request_rejected", rid="freight_1-2")
+    second = drag(client, assembly, "freight_1", ["dn_w.A"])
+    [composed] = events(assembly.trace, "request_submitted", rid=second)
+    assert composed["depart"] == "dn_w.B"  # where the grant is taking it
+    [rejected] = events(assembly.trace, "request_rejected", rid=second)
     assert rejected["reason"] == "wrong_origin"
     ticks = len(events(assembly.trace, "tick"))
     tick_until(assembly, lambda: False, limit=3)
@@ -192,27 +176,15 @@ def test_a_reloaded_page_is_served_the_picture_and_answered_again(
 ) -> None:
     """#106's own reproduction, over the socket.
 
-    A page submits and goes away. The page that replaces it joins a session
+    A page drags and goes away. The page that replaces it joins a session
     already running, so it is served the run's picture — where the train
     stands and what it is running — instead of nothing, and its own drag is
-    answered. The id it mints is its own (ADR-0033): the same one again would
-    be dropped at the top of admission, which is what left the marker stuck in
-    "requested" for good.
+    answered. Ids are no longer the page's business at all (ADR-0036): a
+    reload cannot re-use one the dispatcher has seen because it mints none,
+    which is what left the marker stuck in "requested" for good.
     """
-    submit(
-        client,
-        assembly,
-        {
-            "id": "freight_1-1",
-            "train": "freight_1",
-            "depart": "yard_w.B",
-            "dest": ["yard_e.A"],
-        },
-    )
-    tick_until(
-        assembly,
-        lambda: bool(events(assembly.trace, "route_chosen", rid="freight_1-1")),
-    )
+    rid = drag(client, assembly, "freight_1", ["yard_e.A"])
+    tick_until(assembly, lambda: bool(events(assembly.trace, "route_chosen", rid=rid)))
     client.close()  # the tab is reloaded: no close handshake, just gone
 
     with connect(f"ws://127.0.0.1:{bridge.port}") as reloaded:
@@ -226,21 +198,13 @@ def test_a_reloaded_page_is_served_the_picture_and_answered_again(
             if frame["topic"].rsplit("/", 1)[-1] == "allocation"
         ]
         assert picture["trains"]["freight_1"]  # somewhere, and the page knows it
-        assert [request["id"] for request in picture["requests"]] == ["freight_1-1"]
+        assert [request["id"] for request in picture["requests"]] == [rid]
 
-        submit(  # the same train, dragged again from a page that minted afresh
-            reloaded,
-            assembly,
-            {
-                "id": "freight_1-9f31c0a2-1",
-                "train": "freight_1",
-                "depart": f"{picture['trains']['freight_1']}.B",
-                "dest": ["dn_w.A"],
-            },
-        )
+        again = drag(reloaded, assembly, "freight_1", ["dn_w.A"])
+    assert again != rid  # the counter is the scheduler's and never rewinds
     answered = [
         line["event"]
-        for line in events(assembly.trace, rid="freight_1-9f31c0a2-1")
+        for line in events(assembly.trace, rid=again)
         if line["event"] in ("request_admitted", "request_rejected")
     ]
     assert answered, "the drag got no answer at all"

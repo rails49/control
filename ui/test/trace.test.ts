@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { INBOUND, Live, parseTrace, Replay, submission } from "../src/model/trace.js";
+import { gesture, INBOUND, Live, parseTrace, Replay } from "../src/model/trace.js";
 
 const SAMPLE = `
 {"tick":0,"event":"lock_granted","train":"t1","resources":["a"]}
@@ -94,12 +94,18 @@ describe("Live", () => {
   });
 });
 
-describe("submission", () => {
-  it("wraps a request in the one frame the relay accepts", () => {
-    const request = { id: "t1-1", train: "t1", depart: "a.B", dest: ["b.A"] };
-    expect(JSON.parse(submission(request))).toEqual({
-      topic: INBOUND,
-      payload: request,
+describe("gesture", () => {
+  it("wraps a drag in the one frame the relay accepts", () => {
+    const wanted = { train: "t1", dest: ["b.A"] };
+    expect(JSON.parse(gesture(wanted))).toEqual({
+      topic: "tc49/ui/request_wanted",
+      payload: wanted,
     });
+    expect(INBOUND).toBe("tc49/ui/request_wanted");
+  });
+
+  it("carries no id and no departure end, those being the scheduler's", () => {
+    const payload = JSON.parse(gesture({ train: "t1", dest: ["b.A"] })).payload;
+    expect(Object.keys(payload).sort()).toEqual(["dest", "train"]);
   });
 });

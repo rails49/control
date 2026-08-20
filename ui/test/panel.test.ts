@@ -45,8 +45,18 @@ const EXPLAIN: Explained = {
   },
 };
 
-function panel(page = "p1"): Panel {
-  return new Panel(LAYOUT, EXPLAIN, page);
+function panel(): Panel {
+  return new Panel(LAYOUT, EXPLAIN);
+}
+
+/** The scheduler's facing topic, which is where every arrow comes from. */
+function facing(...ends: string[]): Partial<TraceEvent> {
+  return {
+    event: "facing",
+    facing: Object.fromEntries(
+      ends.map((end, at) => [`t${at + 1}`, end] as const),
+    ),
+  };
 }
 
 function feed(model: Panel, ...events: Partial<TraceEvent>[]): void {
@@ -111,7 +121,10 @@ describe("occupancy", () => {
     expect(model.blocks().get("a")).toMatchObject({ state: "free" });
   });
 
-  it("points the arrow away from the entry end of a granted move", () => {
+  it("derives no direction of its own from a granted move", () => {
+    // The move below would have turned the arrow under the old derivation.
+    // Facing is the scheduler's, on its own topic (ADR-0036), and a second
+    // party working it out is a second authority to disagree with.
     const model = panel();
     placed(model);
     feed(
@@ -121,33 +134,8 @@ describe("occupancy", () => {
       { event: "block_occupied", block: "b" },
       { event: "block_vacated", block: "a" },
     );
-    // sw.main joins a.B to b.A, so t1 entered b through A and faces B.
-    expect(model.blocks().get("b")).toMatchObject({
-      state: "occupied",
-      train: "t1",
-      toward: "B",
-    });
-  });
-
-  it("faces a standing train down its chosen route before any move", () => {
-    const model = panel();
-    placed(model);
-    feed(
-      model,
-      {
-        event: "request_submitted",
-        id: "t1-1",
-        train: "t1",
-        depart: "a.B",
-        dest: ["b.A"],
-      },
-      { event: "route_chosen", id: "t1-1", route: ["a", "sw.main", "b"] },
-    );
-    expect(model.blocks().get("a")).toMatchObject({
-      state: "occupied",
-      train: "t1",
-      toward: "B",
-    });
+    expect(model.blocks().get("b")).toMatchObject({ state: "occupied", train: "t1" });
+    expect(model.blocks().get("b")?.toward).toBeUndefined();
   });
 });
 
@@ -391,39 +379,18 @@ describe("the run's picture", () => {
     ]);
   });
 
-  it("supersedes the scenario, which says where the railroad started", () => {
-    // The page reads the scenario before the socket opens, so the picture
-    // arrives second and has the last word: a train the run has moved is
-    // drawn where it now stands, and a drag departs from there.
+  it("is where a joining page opens, whatever order the two topics arrive", () => {
+    // Both are last values the relay hands a connecting client before any
+    // live frame (ADR-0032), and neither writes the other's half: the
+    // picture stands the trains, the scheduler's topic turns them.
     const model = panel();
-    model.place({ t1: { at: "a", facing: "B" } });
-    feed(model, PICTURE);
+    feed(model, facing("b.B"), PICTURE);
     expect(model.blocks().get("a")).toMatchObject({ state: "free" });
     expect(model.blocks().get("b")).toMatchObject({ train: "t1", toward: "B" });
-    expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
-  });
 
-  it("keeps a grant the sensor has not caught up with", () => {
-    // The picture is published at the end of the grant phase, so it reaches
-    // the page before the occupancy the phase's own grants cause. A train
-    // still faces the end it is leaving through until then, and the facing
-    // the grant promised has to survive the picture that overtakes it.
-    const model = panel();
-    model.place({ t1: { at: "a", facing: "B" } });
-    feed(
-      model,
-      { event: "move_granted", id: "t1-1", train: "t1", transit: "sw.main", into: "b" },
-      {
-        event: "allocation",
-        trains: { t1: "a" },
-        locks: { a: "t1", "sw.main": "t1", b: "t1" },
-        requests: [],
-      },
-      { event: "block_occupied", block: "b" },
-      { event: "block_vacated", block: "a" },
-    );
-    expect(model.blocks().get("b")).toMatchObject({ train: "t1", toward: "B" });
-    expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
+    const other = panel();
+    feed(other, PICTURE, facing("b.B"));
+    expect(other.blocks().get("b")).toMatchObject({ train: "t1", toward: "B" });
   });
 
   it("leaves a rejection standing, the picture never carrying one", () => {
@@ -477,153 +444,97 @@ describe("reset", () => {
 });
 
 /**
- * The scheduler half (#72): a live session's placement and facing come from
- * the scenario, since the bridge relays the bus and the placement locks were
- * published before any browser connected. Facing is then fully determined —
- * a train faces away from the end it entered through (ADR-0019).
+ * Facing, which the panel reads and never derives (ADR-0036). The scheduler
+ * holds it and publishes the whole map on a last-value topic, so a train that
+ * has never moved has an arrow for the same reason a moved one does — and two
+ * tabs cannot disagree about one, neither of them holding it.
  */
 describe("facing", () => {
-  const STOCK = {
-    t1: { length: 900, at: "a", facing: "B" },
-    t2: { length: 900, at: "c", facing: "B" },
-  };
-
-  it("stands the scenario's trains where it places them, facing as it says", () => {
+  it("turns each train where the topic says, on the block it names", () => {
     const model = panel();
-    model.place(STOCK);
+    placed(model);
+    feed(model, facing("a.B"));
     expect(model.blocks().get("a")).toMatchObject({
       state: "occupied",
       train: "t1",
       toward: "B",
     });
-    expect(model.blocks().get("c")).toMatchObject({ train: "t2", toward: "B" });
   });
 
-  it("does not read a later lock as a second placement", () => {
+  it("replaces the whole map, the topic being last-value", () => {
     const model = panel();
-    model.place(STOCK);
-    feed(model, { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] });
-    expect(model.blocks().get("b")).toMatchObject({ state: "reserved" });
-  });
-
-  it("composes a request departing through the train's facing end", () => {
-    const model = panel();
-    model.place(STOCK);
-    expect(model.request("t1", ["b.A", "b.B"])).toEqual({
-      id: "t1-p1-1",
-      train: "t1",
-      depart: "a.B",
-      dest: ["b.A", "b.B"],
-    });
-    expect(model.request("t1", ["c.A"])?.id).toBe("t1-p1-2");
-    expect(model.request("t2", ["b.A"])?.id).toBe("t2-p1-1");
-  });
-
-  it("has nothing to submit for a train that stands nowhere it knows", () => {
-    expect(panel().request("ghost", ["b.A"])).toBeNull();
-  });
-
-  it("still departs from the block it stands in while a route runs", () => {
-    // A grant names the next block a tick before the train is in it. Facing
-    // has to keep naming the block the train actually stands in, or a drag
-    // mid-route composes nothing and the drop is silently swallowed — which
-    // is the panel judging a request, the one thing it must never do (#67).
-    const model = panel();
-    model.place(STOCK);
     feed(
       model,
-      { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
-      { event: "move_granted", id: "t1-1", train: "t1", transit: "sw.main", into: "b" },
+      { event: "allocation", trains: { t1: "a", t2: "c" }, locks: {}, requests: [] },
+      facing("a.B", "c.B"),
+      { event: "facing", facing: { t1: "a.A" } },
     );
-    expect(model.blocks().get("a")).toMatchObject({ train: "t1", toward: "B" });
-    expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "a.B" });
+    expect(model.blocks().get("a")).toMatchObject({ train: "t1", toward: "A" });
+    expect(model.blocks().get("c")?.toward).toBeUndefined();
   });
 
-  it("never overwrites what the bus has shown with what the scenario says", () => {
-    // Rejoining re-reads the scenario, but the railroad has moved on since it
-    // was written. Re-seeding would put the train back where it started, and
-    // a drag would then state a departure block the dispatcher knows is
-    // wrong — rejected as `wrong_origin` (#73), so the train would be
-    // undraggable until the bus showed it moving again.
+  it("draws no arrow while facing names a block the train is not in yet", () => {
+    // A grant names the next block a tick before the sensor does, and the
+    // scheduler follows the grant. Until the sensor speaks the train is drawn
+    // where it stands, with no arrow — rather than with the next block's
+    // arrow on this one.
     const model = panel();
-    model.place(STOCK);
+    placed(model);
+    feed(model, facing("b.B"));
+    expect(model.blocks().get("a")).toMatchObject({ state: "occupied", train: "t1" });
+    expect(model.blocks().get("a")?.toward).toBeUndefined();
     feed(
       model,
       { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
-      { event: "move_granted", id: "t1-1", train: "t1", transit: "sw.main", into: "b" },
       { event: "block_occupied", block: "b" },
       { event: "block_vacated", block: "a" },
     );
-    model.place(STOCK);
     expect(model.blocks().get("b")).toMatchObject({ train: "t1", toward: "B" });
-    expect(model.blocks().get("a")).toMatchObject({ state: "free" });
-    expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
   });
 
-  it("flips facing away from the entry end once a route has run", () => {
+  it("forgets it on reset, as it forgets everything else", () => {
     const model = panel();
-    model.place(STOCK);
-    feed(
-      model,
-      { event: "request_submitted", id: "t1-1", train: "t1", depart: "a.B", dest: ["b.B"] },
-      { event: "route_chosen", id: "t1-1", route: ["a", "sw.main", "b"] },
-      { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
-      { event: "move_granted", id: "t1-1", train: "t1", transit: "sw.main", into: "b" },
-      { event: "block_occupied", block: "b" },
-      { event: "block_vacated", block: "a" },
-      { event: "request_completed", id: "t1-1" },
-    );
-    // sw.main joins a.B to b.A: t1 entered b through A, so it now faces B and
-    // its next drag departs nose-first from there.
-    expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
+    placed(model);
+    feed(model, facing("a.B"));
+    model.reset();
+    feed(model, { event: "lock_granted", train: "t1", resources: ["a"] });
+    expect(model.blocks().get("a")?.toward).toBeUndefined();
   });
 });
 
 /**
- * Request ids (ADR-0033). Uniqueness is the whole contract: both readers use
- * the id as a key and neither reads it, so what a page mints has only to be
- * its own.
+ * What a drag puts on the bus (ADR-0036). A gesture is not a request: it
+ * names a train and where to put it, and the scheduler adds the id it mints
+ * and the departure end it holds. The panel keeps neither, so there is
+ * nothing here a reload could re-use and nothing a second tab could diverge
+ * from.
  */
-describe("request ids", () => {
-  const STOCK = { t1: { at: "a", facing: "B" } };
-
-  it("mints from the page's own nonce, counting per train", () => {
-    const model = panel("7fa2");
-    model.place(STOCK);
-    expect(model.request("t1", ["b.A"])?.id).toBe("t1-7fa2-1");
-    expect(model.request("t1", ["c.A"])?.id).toBe("t1-7fa2-2");
+describe("gestures", () => {
+  it("names the train and the ends, and carries nothing else", () => {
+    const model = panel();
+    placed(model);
+    expect(model.compose("t1", ["b.A", "b.B"])).toEqual({
+      train: "t1",
+      dest: ["b.A", "b.B"],
+    });
   });
 
-  it("mints nothing a reloaded page could mint again", () => {
-    // #73's own reproduction: submit, reload, drag the same train. The
-    // counter lived in the page, so a reload started it at one, the
-    // dispatcher dropped the duplicate at the top of admission before any
-    // check ran, and no answer of any kind came back — the marker sat in
-    // "requested" for good. A fresh page is a fresh nonce, so there is
-    // nothing left to re-use.
-    const first = panel();
-    first.place(STOCK);
-    const before = first.request("t1", ["b.A"])!.id;
-
-    const reloaded = new Panel(LAYOUT, EXPLAIN);
-    reloaded.place(STOCK);
-    expect(reloaded.request("t1", ["b.A"])!.id).not.toBe(before);
-  });
-
-  it("gives two pages of one session different ids", () => {
-    const one = new Panel(LAYOUT, EXPLAIN);
-    const other = new Panel(LAYOUT, EXPLAIN);
-    one.place(STOCK);
-    other.place(STOCK);
-    expect(one.request("t1", ["b.A"])!.id).not.toBe(other.request("t1", ["b.A"])!.id);
+  it("composes for a train it has been shown nothing about", () => {
+    // Filter-free to the end (#67): the panel refusing a drop would be the
+    // panel judging a request, and the scheduler drops what it cannot
+    // compose — in silence, and to the trace.
+    expect(panel().compose("ghost", ["b.A"])).toEqual({
+      train: "ghost",
+      dest: ["b.A"],
+    });
   });
 
   it("does not read an id off the bus, whatever shape it has", () => {
-    // The relay echoes every request back, the file scheduler's included.
-    // Parsing an ordinal out of one was the third reader the shape never
-    // promised to have, and the page's own count is unaffected by it.
-    const model = panel("7fa2");
-    model.place(STOCK);
+    // The relay echoes every request back. Parsing an ordinal out of one was
+    // a third reader the shape never promised to have (ADR-0033), and there
+    // is no counter left here for it to move.
+    const model = panel();
+    placed(model);
     feed(model, {
       event: "request_submitted",
       id: "t1-4",
@@ -631,7 +542,7 @@ describe("request ids", () => {
       depart: "a.B",
       dest: ["b.A"],
     });
-    expect(model.request("t1", ["b.A"])?.id).toBe("t1-7fa2-1");
+    expect(model.compose("t1", ["b.A"])).toEqual({ train: "t1", dest: ["b.A"] });
   });
 });
 
