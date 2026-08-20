@@ -62,9 +62,10 @@ export class TcEditor extends LitElement {
   @state() private barMenu = false;
   @state() private editing: { name: string; spec: SymbolSpec } | null = null;
   /** What is waiting on the operator's word before the open drawing is thrown
-   *  away: the drawing to open, or `null` for a new one. `null` while nothing
+   *  away: the drawing wanted, or `null` for a new one, `null` being a choice
+   *  and not the absence of one. `discarding` itself is `null` while nothing
    *  is waiting, which is the ordinary state. */
-  @state() private discarding: { open: string | null } | null = null;
+  @state() private discarding: { wanted: string | null } | null = null;
   @state() private chosen: Chosen | null = null;
   /** Whether the netlist pane is open. Shut on load and shut again whenever a
    *  drawing is opened, the netlist being a debugging view consulted when
@@ -146,7 +147,9 @@ export class TcEditor extends LitElement {
         }}
       ></tc-properties>
 
-      ${this.discarding === null ? nothing : this.question(this.discarding.open)}
+      ${this.discarding === null
+        ? nothing
+        : this.question(this.discarding.wanted)}
     `;
   }
 
@@ -155,13 +158,13 @@ export class TcEditor extends LitElement {
    *  an evening's drawing to (#101), so what would discard them says so and
    *  waits. It is the dialog the properties are edited in, not a native
    *  `confirm`, which the page cannot style and a browser may suppress. */
-  private question(open: string | null) {
+  private question(wanted: string | null) {
     // Nothing is open until a drawing is chosen, and what is drawn on the
     // canvas before that is still an evening's work.
     const losing =
       this.filing.opened === "" ? "The canvas" : `'${this.filing.opened}'`;
     const instead =
-      open === null ? "Starting a new drawing" : `Opening '${open}'`;
+      wanted === null ? "Starting a new drawing" : `Opening '${wanted}'`;
     return html`
       <sl-dialog open label="Discard unsaved edits?" @sl-after-hide=${this.kept}>
         <p>
@@ -314,16 +317,16 @@ export class TcEditor extends LitElement {
    *  (#101). What is asked about is `edits` and not `saved`: a canvas just
    *  started is unsaved and has nothing on it, and there is nothing to ask
    *  about (#136). */
-  private discard(open: string | null): void {
-    if (this.filing.edits) this.discarding = { open };
-    else void this.opening(open);
+  private discard(wanted: string | null): void {
+    if (this.filing.edits) this.discarding = { wanted };
+    else void this.opening(wanted);
   }
 
   /** The operator said the edits can go. */
   private discarded(): void {
     const pending = this.discarding;
     this.discarding = null;
-    if (pending !== null) void this.opening(pending.open);
+    if (pending !== null) void this.opening(pending.wanted);
   }
 
   /** The operator said they cannot — by the Cancel button, by Escape, or by
@@ -345,13 +348,13 @@ export class TcEditor extends LitElement {
    * touches `Filing` cannot take with it, and it says whether a drawing
    * arrived to fit to.
    */
-  private async opening(open: string | null): Promise<void> {
+  private async opening(wanted: string | null): Promise<void> {
     this.netlist = false;
     this.chosen = null;
     const arrived =
-      open === null
+      wanted === null
         ? await this.filing.create(this.ask("New railroad", ""), this.editor)
-        : await this.filing.open(open, this.editor);
+        : await this.filing.open(wanted, this.editor);
     if (!arrived) return;
     await this.updateComplete;
     this.fit();
