@@ -1,11 +1,12 @@
 """Tests at the trace-tap seam: JSONL bytes per SYSTEM.md "The trace"."""
 
 import io
+from typing import cast
 
 import pytest
 
-from tc49.lib.bus import Bus
-from tc49.lib.inventory import TOPICS, leaf
+from tc49.lib.bus import Bus, Payload
+from tc49.lib.inventory import INBOUND, TOPICS, leaf
 from tc49.lib.trace import TraceTap
 
 
@@ -88,3 +89,32 @@ def test_payload_field_outside_the_inventory_fails_loudly() -> None:
 def test_leaf_names_are_globally_unique_across_the_inventory() -> None:
     leaves = [leaf(topic) for topic in TOPICS]
     assert len(leaves) == len(set(leaves))
+
+
+def test_a_client_frame_outside_the_inventory_is_recorded_rather_than_raised() -> None:
+    """A browser may publish anything on the inbound topic (ADR-0034), and
+    the frame's only record is its trace line — so the tap writes what it was
+    given: the fields it knows in canonical order, then the rest."""
+    bus = Bus()
+    out = io.StringIO()
+    TraceTap(bus, out)
+    bus.publish(INBOUND, {"junk": 1, "id": "t1-1"})
+    bus.drain()
+
+    assert out.getvalue() == (
+        '{"tick":0,"event":"request_submitted","id":"t1-1","junk":1}\n'
+    )
+
+
+def test_a_client_frame_that_is_not_an_object_is_recorded_whole() -> None:
+    """Nothing in it can be a field, so all of it is the record — which is
+    what makes a dropped id-less frame verifiable in the trace (#107)."""
+    bus = Bus()
+    out = io.StringIO()
+    TraceTap(bus, out)
+    bus.publish(INBOUND, cast(Payload, ["yard_e.A"]))
+    bus.drain()
+
+    assert out.getvalue() == (
+        '{"tick":0,"event":"request_submitted","payload":["yard_e.A"]}\n'
+    )
