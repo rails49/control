@@ -175,9 +175,13 @@ packet, a locomotive stalls, or someone lifts a train off the track by hand.
 Collision safety is the property that matters when these happen, and it is the
 one the current argument does not cover.
 
-**This is an open subject.** No answer is proposed here. Its shape depends on
-what the hardware can report, whether that is point position, detector
-redundancy, a plausibility check of sensor events against the lock table, or an
-emergency stop, and none of that is known until there is a layout to learn it
-from. It is written down, and listed in #119, so a hardware effort starts from
-a list.
+**Hardware is assumed perfect**, and that is a decision rather than an
+oversight. Every one of these failures has answers — reported point position,
+detector redundancy, a plausibility check of sensor events against the lock
+table, a watchdog on a transit that takes too long, an emergency stop — and
+every answer costs. Which of them earns its cost depends on which failures
+actually bite, that is not knowable until there is a layout to learn it from,
+and no hardware is running yet, so the set worth working on is empty. The
+failures are written down here rather than worked on, so the day hardware
+appears the effort starts from a list instead of from a surprise under a
+running train.

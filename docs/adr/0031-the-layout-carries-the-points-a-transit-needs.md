@@ -85,8 +85,9 @@ unaddressed point derives a `points` list with a single entry, which is
 indistinguishable from a transit that genuinely needs one point thrown. The
 layout under-reports rather than visibly gapping, and the failure mode is a
 route the dispatcher believes it set on a railroad where one point never moved.
-That belongs to the class of failure #119 is opened for, and the day that gets
-an answer this is one of the places it will have to look.
+That belongs to the class of failure [GOALS.md](../GOALS.md#hardware-that-lies)
+assumes away until hardware runs, and the day that assumption is paid off this
+is one of the places it will have to look.
 
 ## One address, two points
 
