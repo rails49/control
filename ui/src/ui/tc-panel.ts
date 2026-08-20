@@ -36,7 +36,7 @@ import {
   type BlockView,
   type Marker,
 } from "../model/panel.js";
-import { anchorAt, arrowPose, fitBox, lying } from "../model/scene.js";
+import { anchorAt, arrowPose, fitBox, positionsBySymbol } from "../model/scene.js";
 import {
   listDrawings,
   listScenarios,
@@ -437,7 +437,10 @@ export class TcPanel extends LitElement {
     const aspects = this.panel.aspects();
     // Where each point lies: the addresses the alignment command carried, read
     // back as the symbols wearing them (ui/PANEL.md).
-    const lies = lying(this.drawing, this.panel.positions());
+    const positions = positionsBySymbol(
+      this.drawing,
+      this.panel.positionsByAddress(),
+    );
     return svg`
       <svg
         viewBox=${`${x} ${y} ${w} ${h}`}
@@ -449,7 +452,7 @@ export class TcPanel extends LitElement {
       >
         <defs>${DEFS}</defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
-        ${this.wires()} ${this.symbols(blocks, lit, aspects, lies)}
+        ${this.wires()} ${this.symbols(blocks, lit, aspects, positions)}
         ${this.labels(blocks)} ${this.arrows(blocks)} ${this.markers()}
         ${this.gesture()}
       </svg>
@@ -472,7 +475,7 @@ export class TcPanel extends LitElement {
     blocks: Map<string, BlockView>,
     lit: Map<string, Set<string>>,
     aspects: ReadonlyMap<string, Aspect>,
-    lies: ReadonlyMap<string, Position>,
+    positions: ReadonlyMap<string, Position>,
   ) {
     const target = this.drag.drop?.block;
     const blind = dark(this.reviewed!);
@@ -491,7 +494,7 @@ export class TcPanel extends LitElement {
         .join(" ");
       return svg`
         <g class=${classes} transform=${transformOf(spec)}>
-          ${artwork(spec, lit.get(name), blind.get(name), showing, lies.get(name))}
+          ${artwork(spec, lit.get(name), blind.get(name), showing, positions.get(name))}
         </g>
       `;
     });

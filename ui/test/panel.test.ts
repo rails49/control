@@ -589,7 +589,7 @@ describe("point positions", () => {
         { addr: "13", position: "closed" },
       ],
     });
-    expect(model.positions()).toEqual(
+    expect(model.positionsByAddress()).toEqual(
       new Map([
         ["12", "thrown"],
         ["13", "closed"],
@@ -622,7 +622,7 @@ describe("point positions", () => {
         points: [{ addr: "12", position: "closed" }],
       },
     );
-    expect(model.positions()).toEqual(
+    expect(model.positionsByAddress()).toEqual(
       new Map([
         ["12", "closed"],
         ["13", "closed"],
@@ -641,7 +641,7 @@ describe("point positions", () => {
       points: [{ addr: "12", position: "thrown" }],
     });
     model.reset();
-    expect(model.positions()).toEqual(new Map());
+    expect(model.positionsByAddress()).toEqual(new Map());
   });
 
   it("takes a transit needing nothing thrown as saying nothing", () => {
@@ -656,6 +656,6 @@ describe("point positions", () => {
       },
       { event: "align", connection: "jt", transit: "back", points: [] },
     );
-    expect(model.positions()).toEqual(new Map([["12", "thrown"]]));
+    expect(model.positionsByAddress()).toEqual(new Map([["12", "thrown"]]));
   });
 });

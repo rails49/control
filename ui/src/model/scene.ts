@@ -75,8 +75,8 @@ export function anchorAt(drawing: Drawing, end: EndRef): Point | null {
 }
 
 /**
- * Where each point on the sheet lies, from the positions the alignment
- * command commanded by address (ui/PANEL.md, #98).
+ * Where each point on the sheet lies, keyed by symbol, from the positions the
+ * alignment command commanded by address (ui/PANEL.md, #98).
  *
  * A point is addressed rather than named
  * ([ADR-0022](../../../docs/adr/0022-a-symbol-carries-its-hardware-address.md)),
@@ -88,7 +88,7 @@ export function anchorAt(drawing: Drawing, end: EndRef): Point | null {
  * the drawing is edited by hand, so the two can disagree; that is one point
  * the panel cannot show rather than a panel that cannot draw.
  */
-export function lying(
+export function positionsBySymbol(
   drawing: Drawing,
   commanded: ReadonlyMap<string, Position>,
 ): Map<string, Position> {

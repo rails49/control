@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Drawing } from "../src/model/drawing.js";
 import type { Position } from "../src/symbols.generated.js";
-import { arrowPose, fitBox, lying } from "../src/model/scene.js";
+import { arrowPose, fitBox, positionsBySymbol } from "../src/model/scene.js";
 
 describe("fitBox", () => {
   it("frames every pin with a margin and headroom for notes", () => {
@@ -48,7 +48,7 @@ describe("arrowPose", () => {
  * Where each point on the sheet lies: the alignment command's addresses read
  * back as the symbols wearing them (#98).
  */
-describe("lying", () => {
+describe("positionsBySymbol", () => {
   const drawing: Drawing = {
     drawing: "yard",
     symbols: {
@@ -70,7 +70,7 @@ describe("lying", () => {
   it("puts an address on every symbol wearing it", () => {
     // Two points on one address answer to one accessory output and move
     // together (ADR-0022), so both lie the way it was commanded.
-    expect(lying(drawing, commanded)).toEqual(
+    expect(positionsBySymbol(drawing, commanded)).toEqual(
       new Map([
         ["sw1", "thrown"],
         ["sw2", "thrown"],
@@ -83,10 +83,12 @@ describe("lying", () => {
     // The railroad is wired by hand and the drawing is edited by hand, so a
     // command can name an address this drawing knows nothing about. It is
     // one point the panel cannot show, not a panel that cannot draw.
-    expect(lying(drawing, new Map([["99", "thrown"]]))).toEqual(new Map());
+    expect(positionsBySymbol(drawing, new Map([["99", "thrown"]]))).toEqual(
+      new Map(),
+    );
   });
 
   it("says nothing about a point no command has named", () => {
-    expect(lying(drawing, new Map()).size).toBe(0);
+    expect(positionsBySymbol(drawing, new Map()).size).toBe(0);
   });
 });

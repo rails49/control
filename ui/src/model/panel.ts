@@ -110,7 +110,7 @@ export class Panel {
   private shown = new Map<EndRef, Aspect>();
   /** address → the position the last `align` naming it commanded. Commanded,
    *  not measured: nothing on the bus reports where a point actually lies. */
-  private lying = new Map<string, Position>();
+  private lyingByAddress = new Map<string, Position>();
   /** block → the train standing in it. */
   private standing = new Map<string, string>();
   /** train → the block it faces out of and the end it faces, as the
@@ -140,7 +140,7 @@ export class Panel {
 
   reset(): void {
     this.locks.clear();
-    this.lying.clear();
+    this.lyingByAddress.clear();
     this.standing.clear();
     this.heading.clear();
     this.requests.clear();
@@ -204,7 +204,8 @@ export class Panel {
         const { points } = event as unknown as {
           points: { addr: string; position: Position }[];
         };
-        for (const { addr, position } of points) this.lying.set(addr, position);
+        for (const { addr, position } of points)
+          this.lyingByAddress.set(addr, position);
         return;
       }
       case "allocation": {
@@ -396,8 +397,8 @@ export class Panel {
    * naming it left it — `align` speaks for one transit and says nothing about
    * the rest of the railroad.
    */
-  positions(): ReadonlyMap<string, Position> {
-    return this.lying;
+  positionsByAddress(): ReadonlyMap<string, Position> {
+    return this.lyingByAddress;
   }
 
   /** The legs of every committed route's way, symbol by symbol, in the shape
