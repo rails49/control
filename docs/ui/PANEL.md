@@ -36,15 +36,20 @@ each granted transit and from a committed route's departure end
 ([ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). A
 train that has never moved has an arrow for the same reason a moved one does.
 
-**Turnout positions are read off `align`.** The command carries the points it
+**Point positions are read off `align`.** The command carries the points it
 needs as address-and-position pairs
 ([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), and the
-panel holds the drawing, so an address maps back to the symbol wearing it. The
-panel infers nothing, which supersedes the inference
+panel holds the drawing, so an address maps back to the symbol wearing it.
+Two points wearing one address lie the same way, and an address no symbol
+wears is ignored. A point stays where the last command naming it left it,
+`align` speaking for one transit only. Each is drawn in its position, the road
+the other position offers faint, so a turnout shows its straight road or its
+diverging one and a slip's tick says which road it has. The panel infers
+nothing, which supersedes the inference
 [ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md) put here.
 It still shows commanded position, not measured position, so a point that
 failed to throw looks fine. Reported position becomes worth adding if hardware
-with point feedback ever exists; the owner's turnouts do not report.
+with point feedback ever exists; the owner's points do not report.
 
 **Signals are part of the block symbol.** A block carries a signal at each
 end, always, so there is nothing to place and nothing in the drawing to
@@ -171,7 +176,9 @@ The front end keeps the editor's model/component split. `model/panel.ts` turns
 bus payloads into render state and holds no scheduler state: facing arrives on
 its topic and ids arrive on `request_submitted`. `model/drag.ts` turns pointer positions
 into an arrival-end set or a cancel, DOM-free and tested the way the editor's
-gesture model is. `tc-panel` converts pixels into squares, paints, and sends.
+gesture model is. `model/scene.ts` is what the drawing alone answers: the
+viewBox, an arrow's pose, and which symbol an address is worn by. `tc-panel`
+converts pixels into squares, paints, and sends.
 
 The header is two rows (#84). The top one is the band the editor also wears
 (`tc-header`, [EDITOR.md](EDITOR.md#the-band)): the railroad's name, the mode,
