@@ -6,8 +6,11 @@ from typing import cast
 import pytest
 
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.inventory import INBOUND, TOPICS, leaf
+from tc49.lib.inventory import TOPICS, leaf
 from tc49.lib.trace import TraceTap
+
+WANTED = "tc49/ui/request_wanted"
+REVERSAL = "tc49/ui/reversal_wanted"
 
 
 def test_line_is_flat_with_canonical_key_order() -> None:
@@ -98,11 +101,25 @@ def test_a_client_frame_outside_the_inventory_is_recorded_rather_than_raised() -
     bus = Bus()
     out = io.StringIO()
     TraceTap(bus, out)
-    bus.publish(INBOUND, {"junk": 1, "train": "t1"})
+    bus.publish(WANTED, {"junk": 1, "train": "t1"})
     bus.drain()
 
     assert out.getvalue() == (
         '{"boundary":0,"event":"request_wanted","train":"t1","junk":1}\n'
+    )
+
+
+def test_every_inbound_topic_is_recorded_as_given() -> None:
+    """A client's frame is recorded as-given whichever leaf it came on: both
+    inbound topics carry whatever a browser published (#124, ADR-0034)."""
+    bus = Bus()
+    out = io.StringIO()
+    TraceTap(bus, out)
+    bus.publish(REVERSAL, {"junk": 1, "train": "t1"})
+    bus.drain()
+
+    assert out.getvalue() == (
+        '{"boundary":0,"event":"reversal_wanted","train":"t1","junk":1}\n'
     )
 
 
@@ -112,7 +129,7 @@ def test_a_client_frame_that_is_not_an_object_is_recorded_whole() -> None:
     bus = Bus()
     out = io.StringIO()
     TraceTap(bus, out)
-    bus.publish(INBOUND, cast(Payload, ["yard_e.A"]))
+    bus.publish(WANTED, cast(Payload, ["yard_e.A"]))
     bus.drain()
 
     assert out.getvalue() == (

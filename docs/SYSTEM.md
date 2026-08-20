@@ -125,9 +125,12 @@ never will.
 **Milestone-1 bridge.** Until the bus is a real broker, a browser reaches it
 over a WebSocket relay ([ui/PANEL.md](ui/PANEL.md#implementation)): every
 `tc49/#` event goes out to every client as one JSON frame,
-`{"topic": …, "payload": …}`, and the one inbound topic is
-`tc49/ui/request_wanted`, whose frame is published as the event it
-names. `tc49/schedule/request_submitted` is refused inbound like any other
+`{"topic": …, "payload": …}`, and the inbound topics are the `tc49/ui`
+leaves — `request_wanted` and `reversal_wanted` — whose frames are published
+as the events they name. That set is the `ui` role's own, which is what a
+broker's ACL will grant a page once the relay is gone, so it is read off the
+inventory rather than listed a second time.
+`tc49/schedule/request_submitted` is refused inbound like any other
 topic: the browser writes gestures and never requests, which is what makes the
 single-minter claim something the topic check enforces rather than an intention
 ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). Any other inbound frame — another topic, or not `{topic, payload}`
@@ -173,6 +176,7 @@ the driver moves locomotives
 | `tc49/schedule/state/exhausted` | state | scheduler | last-value flag |
 | `tc49/schedule/state/facing` | state | scheduler | last-value map of train to the end it would depart through |
 | `tc49/ui/request_wanted` | event | UI | train, dest ends — a request minus the id and depart the scheduler owns |
+| `tc49/ui/reversal_wanted` | event | UI | train — turn it around where it stands, the scheduler flipping its facing and composing nothing |
 | `tc49/dispatch/request_admitted` | event | dispatcher | id, surviving dest ends, pruned |
 | `tc49/dispatch/request_rejected` | event | dispatcher | id, reason (`no_fit`, `no_entry`, `unreachable`, `wrong_origin`, `unknown_train`, `unknown_block`, `malformed` — the set is `tc49.lib.rejection`, and the UI's copy of it is generated) |
 | `tc49/dispatch/request_completed` | event | dispatcher | id |

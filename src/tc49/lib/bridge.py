@@ -2,12 +2,12 @@
 
 A relay and nothing more (ui/PANEL.md, #71): every `tc49/#` event goes out
 to every connected client as one JSON frame, ``{"topic": …, "payload": …}``,
-and a frame on the one inbound topic — ``request_wanted``, the panel's whole
-write surface — is published as the event it names. Anything else inbound is
-refused with an error frame, ``request_submitted`` included: the browser
-writes gestures and never requests, so the scheduler stays the single minter
-and the dispatcher the sole feasibility authority precisely because nothing
-else can reach the bus (ADR-0036).
+and a frame on an inbound topic — the ``tc49/ui`` leaves, which are the
+panel's whole write surface — is published as the event it names. Anything
+else inbound is refused with an error frame, ``request_submitted`` included:
+the browser writes gestures and never requests, so the scheduler stays the
+single minter and the dispatcher the sole feasibility authority precisely
+because nothing else can reach the bus (ADR-0036).
 
 On connect a client is sent each state topic's last value, before any live
 frame and in the same schema — the frames it would have had were it already
@@ -25,7 +25,7 @@ whatever thread drains the bus — one sender per connection, which is what
 the sync connection allows. Inbound, each client's handler thread calls
 ``publish``, which is one queue append; the event is delivered when the
 session's loop next drains, exactly as a scheduler's would be. Restricting
-inbound to an event topic keeps that cross-thread surface to the append —
+inbound to event topics keeps that cross-thread surface to the append —
 a state topic would also write the last-value map.
 """
 
@@ -105,9 +105,13 @@ class Bridge:
         except (ValueError, TypeError, KeyError):
             connection.send(json.dumps({"error": "expected {topic, payload} JSON"}))
             return
-        if topic != INBOUND:
+        # A refusal names what is allowed instead, so a client told no learns
+        # the whole of its write surface. The type check is not pedantry: a
+        # topic that is not a string may not even be hashable.
+        if not isinstance(topic, str) or topic not in INBOUND:
+            allowed = " and ".join(f"'{one}'" for one in sorted(INBOUND))
             connection.send(
-                json.dumps({"error": f"'{topic}' is not inbound; only '{INBOUND}' is"})
+                json.dumps({"error": f"'{topic}' is not inbound; only {allowed} are"})
             )
             return
-        self._bus.publish(INBOUND, payload)
+        self._bus.publish(topic, payload)

@@ -5,7 +5,14 @@
 
 import { describe, expect, it } from "vitest";
 
-import { gesture, INBOUND, Live, parseTrace, Replay } from "../src/model/trace.js";
+import {
+  gesture,
+  INBOUND,
+  Live,
+  parseTrace,
+  Replay,
+  reversal,
+} from "../src/model/trace.js";
 
 const SAMPLE = `
 {"boundary":0,"event":"lock_granted","train":"t1","resources":["a"]}
@@ -101,11 +108,24 @@ describe("gesture", () => {
       topic: "tc49/ui/request_wanted",
       payload: wanted,
     });
-    expect(INBOUND).toBe("tc49/ui/request_wanted");
+    expect(INBOUND).toContain("tc49/ui/request_wanted");
   });
 
   it("carries no id and no departure end, those being the scheduler's", () => {
     const payload = JSON.parse(gesture({ train: "t1", dest: ["b.A"] })).payload;
     expect(Object.keys(payload).sort()).toEqual(["dest", "train"]);
+  });
+});
+
+/** Turning a train around at rest (#124): the second thing the page may
+ *  write, and the train is the whole of it — no destination, because nothing
+ *  moves, and no id, because a gesture carries none. */
+describe("reversal", () => {
+  it("names the train and nothing else", () => {
+    expect(JSON.parse(reversal("t1"))).toEqual({
+      topic: "tc49/ui/reversal_wanted",
+      payload: { train: "t1" },
+    });
+    expect(INBOUND).toContain("tc49/ui/reversal_wanted");
   });
 });

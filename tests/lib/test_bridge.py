@@ -1,10 +1,10 @@
 """The bridge, driven by a real WebSocket client over an in-process bus.
 
 The relay's seam is its entire spec (#71): every `tc49/#` event goes out as
-a frame carrying topic and payload, and a `request_wanted` frame comes in as
-the event. The bus stays single-threaded — the test thread drains it, the
-way the simulator's loop does in a live session — so inbound assertions poll
-drain-and-check rather than sleep and hope.
+a frame carrying topic and payload, and a frame on one of the inbound topics
+comes in as the event. The bus stays single-threaded — the test thread drains
+it, the way the simulator's loop does in a live session — so inbound
+assertions poll drain-and-check rather than sleep and hope.
 """
 
 import json
@@ -19,6 +19,9 @@ from websockets.sync.client import ClientConnection, connect
 from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import INBOUND
+
+WANTED = "tc49/ui/request_wanted"
+REVERSAL = "tc49/ui/reversal_wanted"
 
 TIMEOUT = 5.0  # generous: a loaded CI box, not a slow relay
 
@@ -86,24 +89,58 @@ def test_a_request_wanted_frame_becomes_the_event(
     bus: Bus, client: ClientConnection
 ) -> None:
     seen: list[Payload] = []
-    bus.subscribe(INBOUND, lambda topic, payload: seen.append(payload))
+    bus.subscribe(WANTED, lambda topic, payload: seen.append(payload))
     wanted = {"train": "t1", "dest": ["b.A"]}
-    client.send(json.dumps({"topic": INBOUND, "payload": wanted}))
+    client.send(json.dumps({"topic": WANTED, "payload": wanted}))
     drain_until(bus, lambda: bool(seen))
     assert seen == [wanted]
 
 
-def test_the_bridge_refuses_everything_but_request_wanted(
+def test_a_reversal_wanted_frame_becomes_the_event(
     bus: Bus, client: ClientConnection
 ) -> None:
-    """`request_wanted` is the only inbound path (#67): a client that
+    """The second leaf a page may write (#124): the relay publishes the topic
+    the frame names rather than the one topic it used to know."""
+    seen: list[Payload] = []
+    bus.subscribe(REVERSAL, lambda topic, payload: seen.append(payload))
+    client.send(json.dumps({"topic": REVERSAL, "payload": {"train": "t1"}}))
+    drain_until(bus, lambda: bool(seen))
+    assert seen == [{"train": "t1"}]
+
+
+def test_the_inbound_topics_are_the_ui_roles_own(bus: Bus) -> None:
+    """What a broker's ACL would grant a page is `tc49/ui/#`, and the role is
+    what says so (ADR-0035): the set is read off the inventory rather than
+    listed, so a leaf added there is inbound without a second edit."""
+    assert INBOUND == {WANTED, REVERSAL}
+
+
+def test_the_bridge_refuses_every_topic_outside_the_ui_role(
+    bus: Bus, client: ClientConnection
+) -> None:
+    """The `tc49/ui` leaves are the only inbound path (#67): a client that
     tries to drive a train or fake a sensor gets a refusal frame naming the
-    topic, and nothing reaches the bus."""
+    topic and what it may write instead, and nothing reaches the bus."""
     seen: list[tuple[str, Payload]] = []
     bus.subscribe("tc49/#", lambda topic, payload: seen.append((topic, payload)))
     client.send(json.dumps({"topic": "tc49/drive/cross", "payload": {"train": "t1"}}))
     refusal = receive(client)
     assert "tc49/drive/cross" in refusal["error"]
+    assert WANTED in refusal["error"] and REVERSAL in refusal["error"]
+    bus.drain()
+    assert seen == []
+
+
+def test_a_topic_that_is_not_a_string_is_refused_rather_than_raised(
+    bus: Bus, client: ClientConnection
+) -> None:
+    """A browser may send anything, and a membership test against a set is
+    not total: an unhashable topic would raise in the handler thread instead
+    of answering the client."""
+    seen: list[tuple[str, Payload]] = []
+    bus.subscribe("tc49/#", lambda topic, payload: seen.append((topic, payload)))
+    client.send(json.dumps({"topic": ["tc49/ui/request_wanted"], "payload": {}}))
+    assert "error" in receive(client)
     bus.drain()
     assert seen == []
 

@@ -23,8 +23,9 @@ from websockets.sync.client import ClientConnection, connect
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Payload
-from tc49.lib.inventory import INBOUND
 from tests.harness import events, load
+
+WANTED = "tc49/ui/request_wanted"
 
 TIMEOUT = 5.0
 
@@ -82,7 +83,7 @@ def drag(
     writes from its own thread, so arrival is a wait, not a given."""
     before = len(events(assembly.trace, "request_submitted"))
     client.send(
-        json.dumps({"topic": INBOUND, "payload": {"train": train, "dest": dest}})
+        json.dumps({"topic": WANTED, "payload": {"train": train, "dest": dest}})
     )
     deadline = time.monotonic() + TIMEOUT
     while len(events(assembly.trace, "request_submitted")) == before:
@@ -131,12 +132,12 @@ def test_the_session_survives_every_gesture_it_cannot_compose(
     assembly.bus.drain()  # the startup cascade, so what follows is the answer
     before = len(events(assembly.trace))
     for payload in UNCOMPOSABLE:
-        assembly.bus.publish(INBOUND, cast(Payload, payload))
+        assembly.bus.publish(WANTED, cast(Payload, payload))
         assembly.bus.drain()
     assert events(assembly.trace, "request_submitted") == []
     assert len(events(assembly.trace)) == before + len(UNCOMPOSABLE)
 
-    assembly.bus.publish(INBOUND, {"train": "freight_1", "dest": ["yard_e.A"]})
+    assembly.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
     assembly.bus.drain()
     tick_until(
         assembly,

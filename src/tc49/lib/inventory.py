@@ -13,6 +13,7 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "tc49/schedule/state/exhausted": ("exhausted",),
     "tc49/schedule/state/facing": ("facing",),
     "tc49/ui/request_wanted": ("train", "dest"),
+    "tc49/ui/reversal_wanted": ("train",),
     "tc49/dispatch/request_admitted": ("id", "dest", "pruned"),
     "tc49/dispatch/request_rejected": ("id", "reason"),
     "tc49/dispatch/request_completed": ("id",),
@@ -28,12 +29,15 @@ TOPICS: dict[str, tuple[str, ...]] = {
 }
 
 
-INBOUND = "tc49/ui/request_wanted"
-"""The one topic a client writes: the panel's whole write surface, and what
-a broker's ACL will grant it once the bridge is gone (ADR-0034). Named here
-rather than in the bridge because the fact outlives the relay.
+INBOUND = frozenset(topic for topic in TOPICS if topic.startswith("tc49/ui/"))
+"""The topics a client writes: the panel's write surface, and what a broker's
+ACL will grant it once the bridge is gone (ADR-0034). Named here rather than
+in the bridge because the fact outlives the relay, and read off the role
+rather than listed, `tc49/ui/*` being exactly what the ACL would name — a
+topic under `ui` is one a person's page writes, that being what the role
+means (ADR-0035).
 
-A gesture, never a request: `tc49/schedule/request_submitted` is refused
+Gestures, never requests: `tc49/schedule/request_submitted` is refused
 inbound like any other topic, which is what makes the scheduler's
 single-minter claim something the topic check enforces (ADR-0036)."""
 

@@ -111,23 +111,33 @@ export class Live {
   }
 }
 
-/** The one topic the browser may write, and the frame that carries it
+/** The topics the browser may write, and the frames that carry them
  *  (SYSTEM.md, the bridge). Anything else inbound the relay refuses,
  *  `request_submitted` included: the browser writes gestures and never
  *  requests ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). */
-export const INBOUND = "tc49/ui/request_wanted";
+export const REQUEST_WANTED = "tc49/ui/request_wanted";
+export const REVERSAL_WANTED = "tc49/ui/reversal_wanted";
+export const INBOUND: readonly string[] = [REQUEST_WANTED, REVERSAL_WANTED];
 
-/** A `request_wanted` payload: what a drag means, and the panel's whole write
- *  surface. A request minus the two fields the scheduler owns — no `id`,
- *  because the scheduler is the single minter, and no `depart`, because
- *  facing is scheduler state and the drag never named a departure end. */
+/** A `request_wanted` payload: what a drag means. A request minus the two
+ *  fields the scheduler owns — no `id`, because the scheduler is the single
+ *  minter, and no `depart`, because facing is scheduler state and the drag
+ *  never named a departure end. */
 export interface Gesture {
   train: string;
   dest: string[];
 }
 
 export function gesture(wanted: Gesture): string {
-  return JSON.stringify({ topic: INBOUND, payload: wanted });
+  return JSON.stringify({ topic: REQUEST_WANTED, payload: wanted });
+}
+
+/** A `reversal_wanted` frame: turn this train around where it stands. The
+ *  train is the whole payload — the gesture asks for the little arrow in its
+ *  block to point the other way, and composes no request at all
+ *  ([ADR-0019](../../../docs/adr/0019-facing-is-scheduler-state.md)). */
+export function reversal(train: string): string {
+  return JSON.stringify({ topic: REVERSAL_WANTED, payload: { train } });
 }
 
 /** A `request_submitted` payload: what the scheduler composes out of a
