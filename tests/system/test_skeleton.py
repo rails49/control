@@ -5,6 +5,7 @@ import json
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import Layout
+from tc49.lib.rejection import Reason
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tests.harness import events, load, run
 
@@ -100,6 +101,39 @@ def test_a_stated_departure_the_train_is_not_at_is_rejected() -> None:
     assert events(trace, "request_completed", rid="express-1")
 
 
+def midroute_drag(layout: Layout, depart: str, dest: tuple[str, ...], at: int) -> str:
+    """The trace of freight — placed in yard_w, routed to yard_e at boundary
+    0, and dragged again at boundary `at` by a second working `freight-2`
+    departing `depart` for `dest`. #99's repro, with the boundary of the
+    second drag and the ends it names left to the caller."""
+    scenario = Scenario(
+        "midroute",
+        "crossover-yard",
+        {"freight": TrainSpec(600, "yard_w", "B")},
+        (
+            RequestSpec("freight", "yard_w.B", ("yard_e.A",), 0),
+            RequestSpec("freight", depart, dest, at),
+        ),
+    )
+    return run(layout, scenario)
+
+
+def admission_answer(trace: str, rid: str) -> tuple[str, str | None]:
+    """Admission's answer to a working, with the reason where it rejected.
+
+    The first of the two events that answer a submission and no more: a
+    working admitted mid-route is launched only once the active route
+    completes, and the launch stage judges it again from the origin the train
+    has by then (DISPATCH.md), so anything later is that second stage's.
+    """
+    [answer, *_] = [
+        line
+        for line in events(trace, rid=rid)
+        if line["event"] in ("request_admitted", "request_rejected")
+    ]
+    return answer["event"], answer.get("reason")
+
+
 def test_a_mid_route_drag_is_judged_against_where_the_train_stands() -> None:
     """The departure block is checked against where the train stands, active
     route or not (#99). freight launches at boundary 1 and is standing in dn_w
@@ -115,28 +149,12 @@ def test_a_mid_route_drag_is_judged_against_where_the_train_stands() -> None:
         "yard_e.A": "request_rejected",  # where the route arrives
     }
     for depart, fate in fates.items():
-        scenario = Scenario(
-            "midroute",
-            "crossover-yard",
-            {"freight": TrainSpec(600, "yard_w", "B")},
-            (
-                RequestSpec("freight", "yard_w.B", ("yard_e.A",), 0),
-                RequestSpec("freight", depart, ("dn_w.A",), 2),
-            ),
+        answer, reason = admission_answer(
+            midroute_drag(layout, depart, ("dn_w.A",), 2), "freight-2"
         )
-        trace = run(layout, scenario)
-        # The admission answer only: a working admitted here is launched once
-        # the active route completes, and the launch stage judges it again
-        # from the origin the train has by then (DISPATCH.md).
-        answers = [
-            line["event"]
-            for line in events(trace, rid="freight-2")
-            if line["event"] in ("request_admitted", "request_rejected")
-        ]
-        assert answers[:1] == [fate], depart
+        assert answer == fate, depart
         if fate == "request_rejected":
-            [rejected] = events(trace, "request_rejected", rid="freight-2")
-            assert rejected["reason"] == "wrong_origin", depart
+            assert reason == Reason.WRONG_ORIGIN, depart
 
 
 def test_degenerate_request_completes_without_moving_whichever_end() -> None:
