@@ -170,6 +170,11 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
     live_parser.add_argument(
         "--store-port", type=int, default=8765, help="the store's HTTP port"
     )
+    live_parser.add_argument(
+        "--no-store",
+        action="store_true",
+        help="leave the store to a `tc49 serve` already running (scripts/dev.sh)",
+    )
 
     serve_parser = commands.add_parser(
         "serve", help="serve the asset store over HTTP, for the layout editor"
@@ -205,14 +210,20 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         layout, scenario = load(AssetStore(ROOT), args.scenario)
         assembly = assemble_live(layout, scenario)
         bridge = Bridge(assembly.bus, args.port)
-        store_server = make_server(ROOT, args.store_port)
-        threading.Thread(
-            target=store_server.serve_forever, name="store", daemon=True
-        ).start()
+        # A session carries a store so that one command is all a browser
+        # needs. Where one is already serving — scripts/dev.sh, whose store
+        # outlives any session — a second would only fail to bind the port.
+        store_line = ""
+        if not args.no_store:
+            store_server = make_server(ROOT, args.store_port)
+            threading.Thread(
+                target=store_server.serve_forever, name="store", daemon=True
+            ).start()
+            store_line = f"  store   http://127.0.0.1:{args.store_port}\n"
         out.write(
             f"live: {args.scenario} at {args.period}s per boundary\n"
             f"  bridge  ws://127.0.0.1:{bridge.port}\n"
-            f"  store   http://127.0.0.1:{args.store_port}\n"
+            f"{store_line}"
             "the timetable is off; Ctrl-C ends the session, and a restart"
             " comes up fresh from the scenario\n"
         )
