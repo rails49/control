@@ -8,7 +8,6 @@ each.
 """
 
 from collections.abc import Callable
-from copy import deepcopy
 from itertools import pairwise
 from pathlib import Path
 from random import Random
@@ -17,7 +16,7 @@ from typing import Any, cast
 import pytest
 import yaml
 
-from tc49.lib.layout import Layout
+from tc49.lib.layout import Layout, Point
 from tc49.store import AssetStore
 from tc49.store.drawing import LIBRARY, POSITIONS, Drawing
 from tests.store.railroads import RAILROADS, derive, read
@@ -1291,7 +1290,7 @@ _SCHEMA_ERRORS: list[tuple[Mutate, str]] = [
 ]
 
 
-def test_hardware_ids_load_and_are_dropped_by_derivation() -> None:
+def test_sensor_ids_load_and_are_dropped_by_derivation() -> None:
     doc = spanned()
     doc["symbols"]["west"]["sensors"] = {"A": "s1", "B": "s2"}
     assert derive(doc)["blocks"]["west"] == {"length": 1000}
@@ -1329,13 +1328,12 @@ def test_an_address_written_as_digits_is_read_as_the_string_it_names() -> None:
     assert Drawing.from_document(doc).symbols["points"].addr == "31"
 
 
-def test_an_address_is_dropped_by_derivation() -> None:
-    """The layout carries no hardware id, so a drawing derives the same one
-    addressed and unaddressed."""
+def throat(**spec: Any) -> dict[str, Any]:
+    """`west` reaching `east` straight or `north` diverging, over one point."""
     doc = two_blocks(
         north=block(),
         north_stop={"kind": "terminal"},
-        points={"kind": "turnout"},
+        points={"kind": "turnout", **spec},
     )
     doc["wires"] += [
         ["west.B", "points.toe"],
@@ -1343,9 +1341,65 @@ def test_an_address_is_dropped_by_derivation() -> None:
         ["points.diverging", "north.A"],
         ["north.B", "north_stop.P"],
     ]
-    addressed = deepcopy(doc)
-    addressed["symbols"]["points"]["addr"] = "31"
-    assert derive(addressed) == derive(doc)
+    return doc
+
+
+def test_an_address_changes_nothing_in_the_layout_but_the_points() -> None:
+    """The derived layout's shape does not depend on an address being there
+    (#94) — everything except the `points` key itself (ADR-0031)."""
+    addressed = derive(throat(addr="31"))
+    bare = derive(throat())
+    assert "points" in addressed["connections"]["points"]
+    del addressed["connections"]["points"]["points"]
+    assert addressed == bare
+
+
+def test_a_way_names_every_point_it_crosses_and_the_position_it_wants() -> None:
+    """The layout's whole knowledge of hardware: an address and a position,
+    per way, in the position the leg that way takes wants (ADR-0031)."""
+    assert derive(throat(addr="31"))["connections"]["points"]["points"] == {
+        "east_A__west_B": [{"addr": "31", "position": "closed"}],
+        "north_A__west_B": [{"addr": "31", "position": "thrown"}],
+    }
+
+
+def test_a_point_wearing_no_address_is_left_out() -> None:
+    """A drawing may be finished as topology and unfinished as wiring: it
+    derives, and the layout carries only what can be thrown. The connection
+    then has nothing to say and says nothing, as `concurrent` does."""
+    assert "points" not in derive(throat())["connections"]["points"]
+
+
+def test_one_address_wanted_in_both_positions_is_emitted_verbatim() -> None:
+    """The way cannot be thrown at all, and the layout says so rather than
+    dropping the transit: derivation's topology never depends on an address
+    (#94), and `motor_faults` is where the fault is reported."""
+    assert derive(ganged_in_series())["connections"]["throat"]["points"] == {
+        "east_A__west_B": [
+            {"addr": "1", "position": "closed"},
+            {"addr": "1", "position": "thrown"},
+        ]
+    }
+
+
+def test_beb_gotthards_ganged_points_come_out_one_entry_each() -> None:
+    """The railroad that gangs points, worked through by hand from its wires.
+
+    `A1.A` reaches `A4.B` over `sw2` alone, lying straight, and `sw2` shares
+    address `5` with `sw1`, so one entry is the whole of it. `A2.A` reaches
+    `CE1.B` over five points: `sw1` straight (`5`), `sw3` diverging (`6`),
+    then `sw8` and `sw7` both straight — which are two of the four on address
+    `1`, wanting the same position, so they collapse to one — and `sw10`
+    diverging (`2`). Sorted by address, four entries for five points.
+    """
+    points = committed("beb-gotthard").connections["j1"].points
+    assert points["A1_A__A4_B"] == (Point("5", "closed"),)
+    assert points["A2_A__CE1_B"] == (
+        Point("1", "closed"),
+        Point("2", "thrown"),
+        Point("5", "closed"),
+        Point("6", "thrown"),
+    )
 
 
 def test_placement_loads_and_derives_to_the_same_layout() -> None:

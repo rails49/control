@@ -725,10 +725,36 @@ class Drawing:
             for two in sorted(named)[i + 1 :]
             if self._concurrent(named[one][1], named[two][1])
         ]
+        points = {
+            name: needed
+            for name in sorted(named)
+            if (needed := self._points(named[name][1]))
+        }
         return {
             "transits": {name: list(named[name][0]) for name in sorted(named)},
             **({"concurrent": sorted(concurrent)} if concurrent else {}),
+            **({"points": points} if points else {}),
         }
+
+    def _points(self, used: tuple[Use, ...]) -> list[dict[str, str]]:
+        """The points a way must have thrown, as address-and-position pairs.
+
+        A point wearing no address is omitted — the layout carries only what
+        can be thrown, and an unaddressed one is reported at the drawing, in
+        front of the person who knows the address (ADR-0031). Sorted by
+        address and identical pairs collapsed: two points on one address move
+        together, and one accessory output commanded twice the same way is
+        noise. Where they want opposite positions both survive, and
+        `motor_faults` is what reports it.
+        """
+        wanted: set[tuple[str, str]] = set()
+        for symbol, local in used:
+            points = self.symbols[symbol]
+            if points.addr and points.kind in POSITIONS:
+                wanted.add((points.addr, POSITIONS[points.kind][local]))
+        return [
+            {"addr": addr, "position": position} for addr, position in sorted(wanted)
+        ]
 
     def _transit_name(
         self, where: str, ends: tuple[str, str], used: tuple[Use, ...]

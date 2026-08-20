@@ -252,13 +252,16 @@ auto-layout.
 ## Hardware ids
 
 The drawing holds hardware identities as optional symbol properties: `sensors`
-on a block's ends, and `addr` on a turnout or a slip. Derivation drops them, so
-the layout is unchanged and [LAYOUT.md](LAYOUT.md#layout-schema)'s "there are no
-turnouts in the layout" stands. The transit-to-turnout table is built from the
-drawing, and each `align` carries the points it names
-([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), so an
-adapter throws what it is told. A drawing with no hardware ids is valid; the
-simulator needs none.
+on a block's ends, and `addr` on a turnout or a slip. Derivation drops the
+sensors and keeps the addresses, as the `points` each transit needs
+([ADR-0031](../adr/0031-the-layout-carries-the-points-a-transit-needs.md)) —
+still no turnouts in the layout, but their addresses
+([LAYOUT.md](LAYOUT.md#the-derived-layout)). The dispatcher publishes them on
+each `align` ([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)),
+so an adapter throws what it is told and holds no table of its own. A point
+wearing no address is left out rather than stopping derivation: the drawing is
+where an unaddressed point is reported. A drawing with no hardware ids is
+valid; the simulator needs none.
 
 `addr` is a plain string and nothing checks it for shape. A DCC accessory
 number is a string that happens to be digits, and what a physical point answers
