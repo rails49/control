@@ -16,7 +16,8 @@ import pytest
 from websockets.sync.client import ClientConnection, connect
 
 from tc49.bench.runner import Assembly, assemble_live
-from tc49.lib.bridge import INBOUND, Bridge
+from tc49.lib.bridge import Bridge
+from tc49.lib.inventory import INBOUND
 from tests.harness import events, load
 
 TIMEOUT = 5.0

@@ -34,8 +34,7 @@ from websockets.exceptions import ConnectionClosed
 from websockets.sync.server import Server, ServerConnection, serve
 
 from tc49.lib.bus import Bus, Payload
-
-INBOUND = "tc49/schedule/request_submitted"
+from tc49.lib.inventory import INBOUND
 
 
 class Bridge:

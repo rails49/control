@@ -26,6 +26,12 @@ TOPICS: dict[str, tuple[str, ...]] = {
 }
 
 
+INBOUND = "tc49/schedule/request_submitted"
+"""The one topic a client writes: the panel's whole write surface, and what
+a broker's ACL will grant it once the bridge is gone (ADR-0034). Named here
+rather than in the bridge because the fact outlives the relay."""
+
+
 def leaf(topic: str) -> str:
     return topic.rsplit("/", 1)[-1]
 

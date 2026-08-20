@@ -16,8 +16,9 @@ from typing import Any
 import pytest
 from websockets.sync.client import ClientConnection, connect
 
-from tc49.lib.bridge import INBOUND, Bridge
+from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.inventory import INBOUND
 
 TIMEOUT = 5.0  # generous: a loaded CI box, not a slow relay
 
