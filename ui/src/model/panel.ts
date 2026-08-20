@@ -231,7 +231,12 @@ export class Panel {
             request.id,
             {
               ...request,
-              pruned: [],
+              // Which ends were pruned is an admission-time fact the
+              // dispatcher does not keep, so it is in no picture and this
+              // page's own copy is the only one there is. A client that
+              // joined later has none and shows none, which is what ADR-0032
+              // means by rejoining not being recovery.
+              pruned: this.requests.get(request.id)?.pruned ?? [],
               // A request the dispatcher still holds has passed admission;
               // one it has given a route is running it.
               phase: request.route === undefined ? "admitted" : "committed",

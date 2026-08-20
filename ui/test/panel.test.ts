@@ -178,6 +178,31 @@ describe("request layers", () => {
     expect(model.litLegs().size).toBe(0);
   });
 
+  it("keeps a pruned end's reason when the picture is republished", () => {
+    const model = panel();
+    placed(model);
+    feed(model, submitted, {
+      event: "request_admitted",
+      id: "t1-1",
+      dest: ["b.A"],
+      pruned: [{ end: "c.A", reason: "no_entry" }],
+    });
+    // The dispatcher publishes the picture in the same boundary it admits, and
+    // does not hold the pruning — an admission-time fact. The panel does, so a
+    // republish must not wipe the note off the end it marks.
+    feed(model, {
+      event: "allocation",
+      trains: { t1: "a" },
+      locks: { a: "t1" },
+      requests: [{ id: "t1-1", train: "t1", depart: "a.B", dest: ["b.A"] }],
+    });
+    expect(model.markers()).toEqual([
+      { id: "t1-1", train: "t1", at: "a.B", role: "depart" },
+      { id: "t1-1", train: "t1", at: "b.A", role: "arrival" },
+      { id: "t1-1", train: "t1", at: "c.A", role: "pruned", note: "not enterable" },
+    ]);
+  });
+
   it("lights the chosen route and drops the endpoint markers", () => {
     const model = panel();
     placed(model);
