@@ -82,6 +82,39 @@ pairs are `concurrent` — the shape of a connection, one level down. Blocks,
 terminals, turnouts, crossings, slips, and portals are symbols.
 _Avoid_: element, tile, stencil
 
+**Point**:
+A motorised symbol — a turnout, a single slip or a double slip. One motor, two
+positions, one address. A fixed crossing has no motor and is not one. The
+plural also names the set a transit's way must have thrown to be traversable.
+_Avoid_: switch, turnout (a turnout is one kind of point, not the category)
+
+**Address**:
+The string a point's motor answers to on the hardware, written `addr` and typed
+by whoever wired it. Nothing checks it — a DCC accessory number is a string
+that happens to be digits, and only the railroad knows what is true. Two points
+may share one, and then they move together
+([ADR-0022](docs/adr/0022-a-symbol-carries-its-hardware-address.md)).
+_Avoid_: id, number, dcc address
+
+**Position**:
+What a point's motor is set to: `closed` or `thrown`, the pair a DCC accessory
+decoder answers to. Not a **leg** — a leg is one way through the symbol, and
+the library declares which leg wants which position.
+_Avoid_: state, straight/curved, normal/reversed
+
+**Leg**:
+One of a symbol's own transits, named on its kind: a turnout's `straight` and
+`diverging`, a slip's `a`, `b` and `slip`. The library declares which position
+each leg of a point wants, a turnout's legs being named for its positions and a
+slip's not.
+_Avoid_: symbol transit, branch
+
+**Way**:
+The path a transit takes through a connection: the symbols it crosses and the
+leg it takes through each. Derivation composes it and the layout keeps only its
+two ends and the points along it — a way itself is the drawing's knowledge.
+_Avoid_: path, walk, route (reserved for the request-level path)
+
 **Pin**:
 A connection point holding exactly two connections. A symbol pin accepts one
 wire, the symbol being its other connection; a free-standing pin joins two

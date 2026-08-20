@@ -1,5 +1,13 @@
 # A symbol carries its hardware address
 
+**Partly superseded by
+[ADR-0031](0031-the-layout-carries-the-points-a-transit-needs.md).** Two things
+below have changed. "`addr` does not enter the layout document" is reversed:
+the layout carries the points each transit needs, which is how an address
+reaches the dispatcher — the question this ADR left open. And the two positions
+are `closed` and `thrown`, the pair a DCC accessory decoder answers to, rather
+than `straight` and `curved` (#120). Everything else stands.
+
 A turnout and a slip carry `addr`, a string the user types, naming whatever the
 hardware answers to. A block already carried the same thing per end as
 `sensors`. A route is set by commanding each point by its address and the

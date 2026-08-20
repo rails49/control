@@ -376,9 +376,19 @@ identity, which detectors cannot honestly report (the dispatcher recovers
 identity from its own lock table). Commands are **transit-level**: an `align`
 names a connection and a transit, and carries the points that transit needs as
 address-and-position pairs, so an adapter throws what it is told and holds no
-table of its own. The transit-to-turnout-positions table is built from the
-drawing ([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)) rather
-than kept by an adapter. What stays private hardware configuration is the
+table of its own. Those pairs are carried by the layout, derived from the
+drawing's addresses
+([ADR-0031](adr/0031-the-layout-carries-the-points-a-transit-needs.md)), rather
+than kept by an adapter.
+
+One **obligation** comes with them: the layout interface must not act on a
+`cross` before the `align` naming the same transit. The two commands now have
+two publishers, and the bus refuses cross-topic ordering, so nothing upstream
+can promise the route is set before the train moves — but a train started onto
+points that have not thrown is a collision, so the duty has to sit somewhere
+and this is the only component that sees both. How it is held is the binding's
+own business: the simulator gets it free by batching commands to the tick, a
+hardware adapter pairs them. What stays private hardware configuration is the
 control loop that executes a `cross` (throttle up, watch the detector, stop). The milestone-1 **simulator** applies `align` and
 `cross` directly at the next tick, and owns pacing and termination: it stops
 advancing ticks when the scheduler is `exhausted` and a tick's cascade

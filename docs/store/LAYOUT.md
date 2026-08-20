@@ -55,6 +55,9 @@ connections:
       dn_to_up:    [dn_w.B, up_e.A]
     concurrent:
       - [up_straight, dn_straight]
+    points:                          # only where the drawing gives addresses
+      up_to_dn:
+        - { addr: "12", position: thrown }
 ```
 
 - **Block ends** are written `<block>.A` / `<block>.B`. A block has exactly two
@@ -78,15 +81,26 @@ connections:
 - **Lengths** are load-bearing only for the admission fit check — does the train
   fit the blocks it may arrive in. Transit length is not modelled at all: every
   transit costs one tick ([DISPATCH.md](../dispatcher/DISPATCH.md#time-model)).
-- **There are no turnouts in the layout.** A connection is abstract; the
-  turnouts it is realized by live in the drawing and are dropped by derivation,
-  so turnout switching time is not merely ignored but inexpressible here. Their
-  hardware addresses live in the drawing too and are dropped with them
-  ([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)): the driver
-  reads the drawing for those, never the layout.
+- **There are still no turnouts in the layout, but there are their addresses.**
+  A connection is abstract; the turnouts it is realized by live in the drawing
+  and are dropped by derivation, so turnout switching time is not merely
+  ignored but inexpressible here. What derivation keeps is `points`: for each
+  transit that needs any, the address of every point along its way and the
+  position that way wants it in
+  ([ADR-0031](../adr/0031-the-layout-carries-the-points-a-transit-needs.md)).
+  That is what the dispatcher publishes on `align`, and it is the whole of the
+  hardware the layout knows about — a point has an address and a position here,
+  never a shape, a position on the canvas, or a switching time.
   Connection *length* is likewise absent — a connection can be metres of track,
   as the Gotthard return loop is, but a train transits it and can never stop in
   it.
+- **`points` names transits, and only some of them.** Every key under it is a
+  transit of the same connection, checked at load. A transit whose way crosses
+  no point is absent rather than empty, as is the whole `points` key where a
+  connection has none, the same way `concurrent` and `units` are absent when
+  they have nothing to say. A point wearing no address is omitted too: the
+  drawing is where an unaddressed point is reported, and the layout carries
+  only what can be thrown.
 
 ## Scenario schema
 
