@@ -45,9 +45,6 @@ export interface Answers {
   /** A failure every route rejects with instead of answering, which is what a
    *  store that is not running looks like from here. */
   broken: Error | null;
-  /** What was saved, in the order it was written: the only way to see that a
-   *  save happened at all. */
-  written: Drawing[];
 }
 
 /** How often the store has been asked anything. `quiet` watches this instead
@@ -64,13 +61,12 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     },
     review: () => Promise.resolve(CLEAN),
     broken: null,
-    written: [],
     ...answers,
   };
-  globalThis.fetch = ((path: string, sent: RequestInit = {}) => {
+  globalThis.fetch = ((path: string) => {
     asked += 1;
     if (store.broken !== null) return Promise.reject(store.broken);
-    return answered(store, path, sent).then(
+    return answered(store, path).then(
       (body) =>
         ({ ok: true, json: () => Promise.resolve(body) }) as unknown as Response,
     );
@@ -78,19 +74,13 @@ export function serving(answers: Partial<Answers> = {}): Answers {
   return store;
 }
 
-/** The store's side of one call (EDITOR.md#implementation). */
-function answered(
-  store: Answers,
-  path: string,
-  sent: RequestInit,
-): Promise<unknown> {
+/** The store's side of one call, over the routes the editor asks
+ *  (EDITOR.md#implementation). */
+function answered(store: Answers, path: string): Promise<unknown> {
   if (path === "/review") return store.review();
   if (path === "/drawings") return Promise.resolve({ drawings: [...store.drawings] });
-  if (sent.method === "PUT") {
-    store.written.push(JSON.parse(sent.body as string) as Drawing);
-    return Promise.resolve({});
-  }
-  return Promise.resolve(store.read(decodeURIComponent(path.slice("/drawings/".length))));
+  const name = decodeURIComponent(path.slice("/drawings/".length));
+  return Promise.resolve(store.read(name));
 }
 
 /** Turns to keep the queue moving after the last ask: enough for the longest
@@ -98,8 +88,8 @@ function answered(
  *  nothing. */
 const QUIET = 20;
 
-/** The one bound there is, so a shell that asks forever fails the run rather
- *  than hanging it. */
+/** The one bound there is: a shell that never stops asking gives the wait up
+ *  and fails on its assertion, rather than hanging the run. */
 const BOUND = 500;
 
 /** Turn the microtask queue until the store has been left alone: every answer
