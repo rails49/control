@@ -1,0 +1,11 @@
+scenario: test1
+layout: beb-gotthard
+
+trains:
+  short: { length: 300, at: C1, facing: A }
+  med: { length: 800, at: C2, facing: B }
+  long: { length: 1000, at: A3, facing: A }
+  too_long: { length: 1500, at: A2, facing: A }
+
+requests:
+  - { train: short, from: C1.A, to: [A1, A2, A3], at: 0 }
