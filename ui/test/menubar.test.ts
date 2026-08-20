@@ -42,17 +42,12 @@ function title(menubar: TcMenubar, name: string): HTMLElement {
   return titles.find((one) => one.textContent!.trim() === name) as HTMLElement;
 }
 
-/** Click one of the bar's titles. */
+/** Click one of the bar's titles, which puts its menu down where the title was
+ *  closed and takes it up again where it was down. */
 async function click(menubar: TcMenubar, name: string): Promise<TcMenubar> {
   title(menubar, name).click();
   await menubar.updateComplete;
   return menubar;
-}
-
-/** Put one of the bar's menus down, which is what a click on a closed title
- *  does. */
-async function down(menubar: TcMenubar, name: string): Promise<TcMenubar> {
-  return click(menubar, name);
 }
 
 /** Slide the pointer onto one of the bar's titles. */
@@ -65,7 +60,7 @@ async function onto(menubar: TcMenubar, name: string): Promise<TcMenubar> {
 /** Put `File` down and its drawings out beside it, which is where a drawing is
  *  chosen. */
 async function listing(menubar: TcMenubar): Promise<TcMenubar> {
-  await down(menubar, "File");
+  await click(menubar, "File");
   (menubar.renderRoot.querySelector("li.submenu button") as HTMLElement).click();
   await menubar.updateComplete;
   return menubar;
@@ -119,7 +114,7 @@ describe("what each menu carries", () => {
    *  conventionally learnt, which is what makes a menu bar the thing
    *  EDITOR.md#editing endorses rather than the button it refuses. */
   it("names the file commands and the keys that do the same thing", async () => {
-    expect(reads(await down(await bar(), "File"))).toEqual([
+    expect(reads(await click(await bar(), "File"))).toEqual([
       "New…",
       "Open",
       "Save ⌘S",
@@ -130,7 +125,7 @@ describe("what each menu carries", () => {
   });
 
   it("names the edit commands", async () => {
-    expect(reads(await down(await bar(), "Edit"))).toEqual([
+    expect(reads(await click(await bar(), "Edit"))).toEqual([
       "Undo ⌘Z",
       "Redo ⇧⌘Z",
       "──",
@@ -143,7 +138,7 @@ describe("what each menu carries", () => {
   });
 
   it("names the view commands", async () => {
-    expect(reads(await down(await bar(), "View"))).toEqual([
+    expect(reads(await click(await bar(), "View"))).toEqual([
       "Zoom in +",
       "Zoom out −",
       "Fit 0",
@@ -156,7 +151,7 @@ describe("what each menu carries", () => {
    *  is unreliable for the same reason. A blank is better than a binding the
    *  browser eats. */
   it("shows no key for the two the browser would eat", async () => {
-    const menu = (await down(await bar(), "File")).renderRoot.querySelector("menu")!;
+    const menu = (await click(await bar(), "File")).renderRoot.querySelector("menu")!;
     for (const label of ["New…", "Open"]) {
       const item = [...menu.children].find(
         (one) => one.querySelector(".label")?.textContent!.trim() === label,
@@ -166,8 +161,8 @@ describe("what each menu carries", () => {
   });
 
   it("puts one menu down at a time", async () => {
-    const menubar = await down(await bar(), "File");
-    await down(menubar, "Edit");
+    const menubar = await click(await bar(), "File");
+    await click(menubar, "Edit");
     expect(reads(menubar)[0]).toBe("Undo ⌘Z");
   });
 });
@@ -176,7 +171,7 @@ describe("opening a drawing", () => {
   /** A submenu rather than a dialog: layouts are edited rarely, so the list is
    *  short and stays short. */
   it("lists the drawings and marks the one that is open", async () => {
-    const menubar = await down(await bar(), "File");
+    const menubar = await click(await bar(), "File");
     const open = menubar.renderRoot.querySelector("li.submenu button")!;
     (open as HTMLElement).click();
     await menubar.updateComplete;
@@ -240,7 +235,7 @@ describe("opening a drawing", () => {
 
 describe("what a dead item does", () => {
   it("draws it disabled", async () => {
-    const menubar = await down(await bar(NOTHING), "File");
+    const menubar = await click(await bar(NOTHING), "File");
     const dead = [...menubar.renderRoot.querySelectorAll("menu > li button")]
       .filter((one) => (one as HTMLButtonElement).disabled)
       .map((one) => one.querySelector(".label")!.textContent!.trim());
@@ -250,7 +245,7 @@ describe("what a dead item does", () => {
   /** The zoom commands are the canvas's own and stay alive on an empty page;
    *  the netlist is of a drawing, and there is none. */
   it("draws the netlist dead while the zoom commands stay alive", async () => {
-    const menubar = await down(await bar(NOTHING), "View");
+    const menubar = await click(await bar(NOTHING), "View");
     const items = [...menubar.renderRoot.querySelectorAll("menu > li button")];
     const dead = items
       .filter((one) => (one as HTMLButtonElement).disabled)
@@ -259,7 +254,7 @@ describe("what a dead item does", () => {
   });
 
   it("asks for nothing when it is clicked", async () => {
-    const menubar = await down(await bar(NOTHING), "File");
+    const menubar = await click(await bar(NOTHING), "File");
     const save = [...menubar.renderRoot.querySelectorAll("menu > li button")].find(
       (one) => one.querySelector(".label")!.textContent!.trim() === "Save",
     )!;
@@ -301,14 +296,14 @@ describe("what the editor is told", () => {
       heard.push((event as CustomEvent<boolean>).detail);
     });
 
-    await down(menubar, "File");
-    await down(menubar, "File");
+    await click(menubar, "File");
+    await click(menubar, "File");
 
     expect(heard).toEqual([true, false]);
   });
 
   it("puts the menu up and says so when an item is chosen", async () => {
-    const menubar = await down(await bar(), "Edit");
+    const menubar = await click(await bar(), "Edit");
     const heard = await asked(menubar, () => {
       const undo = menubar.renderRoot.querySelector("menu > li button")!;
       (undo as HTMLElement).click();
@@ -324,7 +319,7 @@ describe("sliding along the bar", () => {
    *  click that catches up with the hand must not undo what the hand did
    *  (#100). */
   it("opens the neighbour hovered onto, and the click that follows leaves it", async () => {
-    const menubar = await down(await bar(), "File");
+    const menubar = await click(await bar(), "File");
 
     await onto(menubar, "Edit");
     expect(showing(menubar)).toBe("Edit");
@@ -347,7 +342,7 @@ describe("sliding along the bar", () => {
   /** A click away from the bar takes the menu up however it went down: the
    *  absorbed click is the one on the title, not the next one anywhere. */
   it("puts the menu up when the click lands outside it", async () => {
-    const menubar = await down(await bar(), "File");
+    const menubar = await click(await bar(), "File");
     await onto(menubar, "Edit");
 
     const sheet = menubar.renderRoot.querySelector(".sheet")!;
@@ -358,7 +353,7 @@ describe("sliding along the bar", () => {
   });
 
   it("closes on the second click after a hover", async () => {
-    const menubar = await down(await bar(), "File");
+    const menubar = await click(await bar(), "File");
     await onto(menubar, "Edit");
 
     await click(menubar, "Edit");
