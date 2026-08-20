@@ -39,8 +39,7 @@ reading another component's internals. Terminology follows
   ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 - **Layout interface** — the boundary to whatever runs the track: sensor
   readings and the grant boundary come out, turnout and throttle commands go
-  in. A
-  simulator implements it in milestone 1, a hardware adapter later.
+  in. A simulator implements it in milestone 1, a hardware adapter later.
 - **Asset store** — serves the layout and scenario documents; the one
   contract that is not the bus, because it answers queries and the bus
   refuses to.
@@ -312,9 +311,8 @@ justifies exactly that footprint.
 
 The scheduler is the **one writer of requests**, and its sources are three: a
 timetable released at its `at` boundaries, a person gesturing on the panel,
-and a
-generator inventing traffic later — "three sources inside one scheduler, not
-three publishers"
+and a generator inventing traffic later — "three sources inside one
+scheduler, not three publishers"
 ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md),
 [GOALS.md](GOALS.md#scheduling)). Which of them a session has is
 configuration, not a rule: `tc49 live` runs with the timetable off while `at`
@@ -440,15 +438,14 @@ sensor events.
 The layout interface is the app's edge: **commands in, observations out**,
 plus ownership of time. Its outbound vocabulary is exactly what hardware can
 implement — anonymous occupancy sensors and the boundary; it never asserts
-train
-identity, which detectors cannot honestly report (the dispatcher recovers
-identity from its own lock table). Commands are **transit-level**: an `align`
-names a connection and a transit, and carries the points that transit needs as
-address-and-position pairs, so an adapter throws what it is told and holds no
-table of its own. Those pairs are carried by the layout, derived from the
-drawing's addresses
-([ADR-0031](adr/0031-the-layout-carries-the-points-a-transit-needs.md)), rather
-than kept by an adapter.
+train identity, which detectors cannot honestly report (the dispatcher
+recovers identity from its own lock table). Commands are **transit-level**: an
+`align` names a connection and a transit, and carries the points that transit
+needs as address-and-position pairs, so an adapter throws what it is told and
+holds no table of its own. Those pairs are carried by the layout, derived from
+the drawing's addresses
+([ADR-0031](adr/0031-the-layout-carries-the-points-a-transit-needs.md)),
+rather than kept by an adapter.
 
 One **obligation** comes with them: the layout interface must not act on a
 `cross` before the `align` naming the same transit. The two commands now have
@@ -517,11 +514,11 @@ UI subscribes to exactly what the trace already proves sufficient.
 
 Each line is flat: `{"boundary": …, "event": …, …payload}`, with `event` set
 to the topic's leaf (globally unique, per the inventory invariant) and
-`boundary` stamped by the tap from the last boundary number it observed —
-`0` for events delivered before the first boundary event, such as the startup
-standing locks. Key order is
-canonical — `boundary`, `event`, then the event's fields in inventory order —
-which is what makes the determinism property a byte compare
+`boundary` stamped by the tap from the last boundary number it observed — `0`
+for events delivered before the first boundary event, such as the startup
+standing locks. Key order is canonical — `boundary`, `event`, then the event's
+fields in inventory order — which is what makes the determinism property a
+byte compare
 ([ARCHITECTURE.md](ARCHITECTURE.md#tests)). A payload field outside the
 inventory fails loudly, which is a promise about what the **apps** write:
 on the one topic a client writes the tap records what it was given — the
