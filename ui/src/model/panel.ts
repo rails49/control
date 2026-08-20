@@ -79,6 +79,14 @@ export function endOf(end: EndRef): string {
   return end.slice(end.lastIndexOf(".") + 1);
 }
 
+/** A page's own share of every id it mints. Not clock-derived, which the bus
+ *  contract forbids (SYSTEM.md), and not deterministic either — which costs
+ *  nothing, a run carrying a person's drags making no reproducibility claim
+ *  (ADR-0033). */
+function nonce(): string {
+  return crypto.randomUUID().slice(0, 8);
+}
+
 export class Panel {
   /** resource → holding train: blocks and transits alike, the lock ledger. */
   private locks = new Map<string, string>();
@@ -97,10 +105,9 @@ export class Panel {
    *  where it was, facing the end it is leaving through. */
   private granted = new Map<string, { block: string; toward: string }>();
   private requests = new Map<string, Request>();
-  /** train → the highest id number it has been given, which is what numbers
-   *  the next one the way the file scheduler numbers its own (`<train>-1`,
-   *  `<train>-2`, …). Not cleared by `reset`: rejoining a session does not
-   *  make the ids it already handed out available again. */
+  /** train → how many requests this page has minted for it, which numbers
+   *  the next. Not cleared by `reset`: rejoining a session does not make the
+   *  ids it already handed out available again. */
   private minted = new Map<string, number>();
   /** Whether the first tick has passed: a lock on a block before it is the
    *  trace's opening placement, there being no occupancy event for a train
@@ -115,6 +122,7 @@ export class Panel {
   constructor(
     private readonly layout: Layout,
     explain: Explained,
+    private readonly page: string = nonce(),
   ) {
     for (const [connection, { transits }] of Object.entries(layout.connections)) {
       for (const [transit, ends] of Object.entries(transits)) {
@@ -169,6 +177,12 @@ export class Panel {
    * The panel is the scheduler (ADR-0016), so it mints the ids and supplies
    * the departure end from facing: the drag names the destination only, and
    * the dispatcher sees a request no different from a file scheduler's.
+   *
+   * The id is `<train>-<page>-<n>`, unique by construction rather than by
+   * remembering (ADR-0033). A page that counted from what it had seen started
+   * at one again after a reload and handed the dispatcher an id already in
+   * its seen set, which is dropped at the top of admission before any check
+   * runs — no answer of any kind, and the marker stuck in "requested".
    */
   request(train: string, dest: EndRef[]): Submission | null {
     const facing = this.heading.get(train);
@@ -178,7 +192,7 @@ export class Panel {
     const nth = (this.minted.get(train) ?? 0) + 1;
     this.minted.set(train, nth);
     return {
-      id: `${train}-${nth}`,
+      id: `${train}-${this.page}-${nth}`,
       train,
       depart: `${facing.block}.${facing.toward}`,
       dest,
@@ -303,7 +317,6 @@ export class Panel {
       }
       case "request_submitted": {
         const { id, train, depart, dest } = event as unknown as Submission;
-        this.counted(id, train);
         for (const [old, request] of this.requests) {
           if (request.train === train && request.phase === "rejected") {
             this.requests.delete(old);
@@ -366,15 +379,6 @@ export class Panel {
       default:
         return; // ticks aside, the panel reads a subset of the bus
     }
-  }
-
-  /** Take an id's number into account, whoever minted it. The relay echoes
-   *  the panel's own requests back, so this covers a second panel and a
-   *  rejoined one alike. */
-  private counted(id: string, train: string): void {
-    const nth = Number(id.slice(id.lastIndexOf("-") + 1));
-    if (!Number.isInteger(nth)) return;
-    this.minted.set(train, Math.max(this.minted.get(train) ?? 0, nth));
   }
 
   /** Every block of the layout, at the strongest state that holds for it:

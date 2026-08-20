@@ -45,8 +45,8 @@ const EXPLAIN: Explained = {
   },
 };
 
-function panel(): Panel {
-  return new Panel(LAYOUT, EXPLAIN);
+function panel(page = "p1"): Panel {
+  return new Panel(LAYOUT, EXPLAIN, page);
 }
 
 function feed(model: Panel, ...events: Partial<TraceEvent>[]): void {
@@ -449,13 +449,13 @@ describe("facing", () => {
     const model = panel();
     model.place(STOCK);
     expect(model.request("t1", ["b.A", "b.B"])).toEqual({
-      id: "t1-1",
+      id: "t1-p1-1",
       train: "t1",
       depart: "a.B",
       dest: ["b.A", "b.B"],
     });
-    expect(model.request("t1", ["c.A"])?.id).toBe("t1-2");
-    expect(model.request("t2", ["b.A"])?.id).toBe("t2-1");
+    expect(model.request("t1", ["c.A"])?.id).toBe("t1-p1-2");
+    expect(model.request("t2", ["b.A"])?.id).toBe("t2-p1-1");
   });
 
   it("has nothing to submit for a train that stands nowhere it knows", () => {
@@ -499,30 +499,6 @@ describe("facing", () => {
     expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
   });
 
-  it("numbers a rejoined session's ids on from the ones it has seen", () => {
-    // Leaving and rejoining re-places the trains, but the session on the
-    // other side of the bridge is the same one and remembers the ids it was
-    // given. Minting `t1-1` twice would hand it a duplicate.
-    const model = panel();
-    model.place(STOCK);
-    expect(model.request("t1", ["b.A"])?.id).toBe("t1-1");
-    model.place(STOCK);
-    expect(model.request("t1", ["b.A"])?.id).toBe("t1-2");
-  });
-
-  it("counts an id it merely overheard, so a second panel does not clash", () => {
-    const model = panel();
-    model.place(STOCK);
-    feed(model, {
-      event: "request_submitted",
-      id: "t1-4",
-      train: "t1",
-      depart: "a.B",
-      dest: ["b.A"],
-    });
-    expect(model.request("t1", ["b.A"])?.id).toBe("t1-5");
-  });
-
   it("flips facing away from the entry end once a route has run", () => {
     const model = panel();
     model.place(STOCK);
@@ -539,6 +515,62 @@ describe("facing", () => {
     // sw.main joins a.B to b.A: t1 entered b through A, so it now faces B and
     // its next drag departs nose-first from there.
     expect(model.request("t1", ["c.A"])).toMatchObject({ depart: "b.B" });
+  });
+});
+
+/**
+ * Request ids (ADR-0033). Uniqueness is the whole contract: both readers use
+ * the id as a key and neither reads it, so what a page mints has only to be
+ * its own.
+ */
+describe("request ids", () => {
+  const STOCK = { t1: { at: "a", facing: "B" } };
+
+  it("mints from the page's own nonce, counting per train", () => {
+    const model = panel("7fa2");
+    model.place(STOCK);
+    expect(model.request("t1", ["b.A"])?.id).toBe("t1-7fa2-1");
+    expect(model.request("t1", ["c.A"])?.id).toBe("t1-7fa2-2");
+  });
+
+  it("mints nothing a reloaded page could mint again", () => {
+    // #73's own reproduction: submit, reload, drag the same train. The
+    // counter lived in the page, so a reload started it at one, the
+    // dispatcher dropped the duplicate at the top of admission before any
+    // check ran, and no answer of any kind came back — the marker sat in
+    // "requested" for good. A fresh page is a fresh nonce, so there is
+    // nothing left to re-use.
+    const first = panel();
+    first.place(STOCK);
+    const before = first.request("t1", ["b.A"])!.id;
+
+    const reloaded = new Panel(LAYOUT, EXPLAIN);
+    reloaded.place(STOCK);
+    expect(reloaded.request("t1", ["b.A"])!.id).not.toBe(before);
+  });
+
+  it("gives two pages of one session different ids", () => {
+    const one = new Panel(LAYOUT, EXPLAIN);
+    const other = new Panel(LAYOUT, EXPLAIN);
+    one.place(STOCK);
+    other.place(STOCK);
+    expect(one.request("t1", ["b.A"])!.id).not.toBe(other.request("t1", ["b.A"])!.id);
+  });
+
+  it("does not read an id off the bus, whatever shape it has", () => {
+    // The relay echoes every request back, the file scheduler's included.
+    // Parsing an ordinal out of one was the third reader the shape never
+    // promised to have, and the page's own count is unaffected by it.
+    const model = panel("7fa2");
+    model.place(STOCK);
+    feed(model, {
+      event: "request_submitted",
+      id: "t1-4",
+      train: "t1",
+      depart: "a.B",
+      dest: ["b.A"],
+    });
+    expect(model.request("t1", ["b.A"])?.id).toBe("t1-7fa2-1");
   });
 });
 

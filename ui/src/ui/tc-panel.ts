@@ -113,10 +113,9 @@ export class TcPanel extends LitElement {
    * a drawing the store refuses to derive is trouble, not a canvas.
    *
    * The railroad already on screen is kept rather than rebuilt. A model built
-   * afresh would forget the request ids it has minted, and leaving and
-   * rejoining a session does not make the ids it already handed out available
-   * again. Callers say what should be forgotten: `reset` for a replay,
-   * `place` for a session.
+   * afresh would forget everything the bus has shown it, and only the next
+   * picture would bring any of it back. Callers say what should be forgotten:
+   * `reset` for a replay, `place` for a session.
    */
   private async load(name: string): Promise<boolean> {
     if (this.drawing?.drawing === name && this.panel !== null) return true;
