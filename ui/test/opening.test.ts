@@ -56,6 +56,25 @@ async function choose(shell: TcEditor, name: string): Promise<void> {
   await settled(shell);
 }
 
+/** Choose a drawing the way the operator does: the bar's `File` menu, the
+ *  drawings `Open` lists, and a click on the entry. `choose` hands the shell
+ *  the event the bar would have sent, which is past the bar's own guard on the
+ *  ticked entry; this goes through it. */
+async function picked(shell: TcEditor, name: string): Promise<void> {
+  const bar = shell.renderRoot.querySelector("tc-menubar")!;
+  const titles = [...bar.renderRoot.querySelectorAll("button.title")];
+  (titles.find((one) => one.textContent!.trim() === "File") as HTMLElement).click();
+  await settled(shell);
+  (bar.renderRoot.querySelector("li.submenu button") as HTMLElement).click();
+  await settled(shell);
+  const entries = [...bar.renderRoot.querySelectorAll("menu.drawings li button")];
+  const entry = entries.find(
+    (one) => one.querySelector(".label")!.textContent!.trim() === name,
+  ) as HTMLElement;
+  entry.click();
+  await settled(shell);
+}
+
 /** Ask for a new drawing, which is the other way the open one is thrown
  *  away. */
 async function fresh(shell: TcEditor): Promise<void> {
@@ -282,5 +301,34 @@ describe("a new drawing nothing has been drawn on", () => {
 
     expect(asked(shell)).not.toBeNull();
     expect(open(shell)).toBe(NAMED);
+  });
+});
+
+/**
+ * The tick says which drawing is open and nothing more. The bar asks for
+ * nothing when it is clicked (`menubar.test.ts`), and this is what that buys
+ * at the editor: the assertion that survives the guard moving (#136).
+ */
+describe("choosing the drawing already open", () => {
+  it("leaves the edits, the dot and the undo history untouched", async () => {
+    const shell = await opened();
+    await drawn(shell);
+
+    await picked(shell, "gotthard");
+
+    expect(asked(shell)).toBeNull();
+    expect(unsaved(shell)).toBe(true);
+    expect(session(shell).canUndo).toBe(true);
+    expect(Object.keys(session(shell).drawing.symbols).sort()).toEqual(["b1", "e1"]);
+  });
+
+  /** The same click on the entry beside it does open, so what is asserted
+   *  above is the tick's doing and not the click going nowhere. */
+  it("opens one that is not the drawing already open", async () => {
+    const shell = await opened();
+
+    await picked(shell, "otira");
+
+    expect(open(shell)).toBe("otira");
   });
 });
