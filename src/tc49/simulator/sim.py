@@ -5,15 +5,18 @@ interface; ADR-0009). The commands have two publishers — `align` is the
 dispatcher's, `cross` the driver's — so it subscribes to both, and the
 obligation that comes with the split is satisfied for free: batching to the
 tick is why it can never act on a `cross` before the `align` naming the same
-transit (ADR-0031). Each advance executes the buffered commands, publishes
-their sensor events, then the tick — a tick's sensors precede the tick
-itself. Batch mode (``run``) stops when the scheduler was already exhausted
-at the start of a tick and that tick's cascade produced no commands
-(BENCHMARKS.md, termination); the tick budget is a backstop against
-live-lock bugs only. Live mode (``run_live``, #69) paces the same advance on
-a wall clock and never terminates on quiescence — an idle railroad keeps
-ticking until the session is stopped. The dispatcher cannot tell the modes
-apart: ADR-0009 stands, and the tick counter stays a deterministic integer.
+transit (ADR-0031). The **tick** is this binding's word for its beat; what
+goes on the bus is the grant boundary every binding publishes
+(`tc49/layout/boundary`, ADR-0027). Each advance executes the buffered
+commands, publishes their sensor events, then the boundary — a tick's
+sensors precede the boundary itself. Batch mode (``run``) stops when the
+scheduler was already exhausted at the start of a tick and that tick's
+cascade produced no commands (BENCHMARKS.md, termination); the tick budget
+is a backstop against live-lock bugs only. Live mode (``run_live``, #69)
+paces the same advance on a wall clock and never terminates on quiescence —
+an idle railroad keeps ticking until the session is stopped. The dispatcher
+cannot tell the modes apart: ADR-0009 stands, and the boundary counter stays
+a deterministic integer.
 """
 
 import time
@@ -54,7 +57,7 @@ class Simulator:
                 self._position[train] = into
                 self._bus.publish("tc49/layout/block_vacated", {"block": origin})
                 self._bus.publish("tc49/layout/block_occupied", {"block": into})
-            self._bus.publish("tc49/layout/tick", {"tick": now})
+            self._bus.publish("tc49/layout/boundary", {"boundary": now})
             self._bus.drain()
             if exhausted_at_start and not self._saw_command:
                 return
@@ -81,6 +84,6 @@ class Simulator:
                 self._position[train] = into
                 self._bus.publish("tc49/layout/block_vacated", {"block": origin})
                 self._bus.publish("tc49/layout/block_occupied", {"block": into})
-            self._bus.publish("tc49/layout/tick", {"tick": now})
+            self._bus.publish("tc49/layout/boundary", {"boundary": now})
             self._bus.drain()
             now += 1

@@ -38,14 +38,14 @@ class Stall:
 
 @dataclass(frozen=True)
 class Metrics:
-    ticks: int  # the trace's final tick; the run spans ticks 0..ticks
+    boundaries: int  # the trace's last boundary; the run spans 0..boundaries
     completed: tuple[str, ...]
     rejected: tuple[str, ...]  # work the run never even attempted to do
     makespan: int | None  # None when the run stalled — never aggregated
     mean_latency: float | None
     max_latency: int | None
     utilization: dict[str, float]  # resource -> fraction of the run held
-    crosses_per_tick: dict[int, int]
+    crosses_per_boundary: dict[int, int]
     stalls: tuple[Stall, ...]
 
     @property
@@ -74,7 +74,7 @@ class Metrics:
 
     @property
     def mean_parallelism(self) -> float:
-        return sum(self.crosses_per_tick.values()) / (self.ticks + 1)
+        return sum(self.crosses_per_boundary.values()) / (self.boundaries + 1)
 
 
 def parse(trace: str) -> list[Payload]:
@@ -83,8 +83,8 @@ def parse(trace: str) -> list[Payload]:
 
 def metrics(trace: str) -> Metrics:
     lines = parse(trace)
-    ticks = max((line["tick"] for line in lines), default=0)
-    duration = ticks + 1  # the run occupies ticks 0..ticks inclusive
+    boundaries = max((line["boundary"] for line in lines), default=0)
+    duration = boundaries + 1  # the run occupies boundaries 0..boundaries
 
     released = _stamps(lines, "request_submitted")
     admitted = _stamps(lines, "request_admitted")
@@ -102,7 +102,7 @@ def metrics(trace: str) -> Metrics:
 
     stalls = _stalls(lines, set(admitted) - set(completed) - set(rejected))
     return Metrics(
-        ticks=ticks,
+        boundaries=boundaries,
         completed=tuple(completed),
         rejected=tuple(rejected),
         makespan=(
@@ -115,19 +115,19 @@ def metrics(trace: str) -> Metrics:
         mean_latency=float(mean(latencies.values())) if latencies else None,
         max_latency=max(latencies.values()) if latencies else None,
         utilization=_utilization(lines, duration),
-        crosses_per_tick=Counter(
-            line["tick"] for line in lines if line["event"] == "cross"
+        crosses_per_boundary=Counter(
+            line["boundary"] for line in lines if line["event"] == "cross"
         ),
         stalls=stalls,
     )
 
 
 def _stamps(lines: list[Payload], event: str) -> dict[str, int]:
-    """Request id -> the tick that event was recorded on, first wins."""
+    """Request id -> the boundary that event was recorded on, first wins."""
     stamps: dict[str, int] = {}
     for line in lines:
         if line["event"] == event:
-            stamps.setdefault(line["id"], line["tick"])
+            stamps.setdefault(line["id"], line["boundary"])
     return stamps
 
 
@@ -157,9 +157,9 @@ def _stalls(lines: list[Payload], ids: set[str]) -> tuple[Stall, ...]:
 
 
 def _utilization(lines: list[Payload], duration: int) -> dict[str, float]:
-    """Locked-ticks per resource over the whole run, as a fraction.
+    """Locked boundaries per resource over the whole run, as a fraction.
 
-    A grant at tick g and its release at tick r cover [g, r); a resource
+    A grant at boundary g and its release at r cover [g, r); a resource
     still held when the trace ends covers [g, duration) — which is how the
     startup standing locks make idle trains count.
     """
@@ -168,16 +168,17 @@ def _utilization(lines: list[Payload], duration: int) -> dict[str, float]:
     for line in lines:
         if line["event"] == "lock_granted":
             for resource in line["resources"]:
-                held_since.setdefault(resource, line["tick"])
+                held_since.setdefault(resource, line["boundary"])
         elif line["event"] == "lock_released":
             for resource in line["resources"]:
                 if resource not in held_since:
                     raise ValueError(
-                        f"trace releases '{resource}' at tick {line['tick']}"
+                        f"trace releases '{resource}' at"
+                        f" boundary {line['boundary']}"
                         f" without a matching 'lock_granted': utilization"
                         f" cannot be derived"
                     )
-                locked[resource] += line["tick"] - held_since.pop(resource)
+                locked[resource] += line["boundary"] - held_since.pop(resource)
     for resource, since in held_since.items():
         locked[resource] += duration - since
     return {resource: held / duration for resource, held in sorted(locked.items())}

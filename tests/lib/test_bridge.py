@@ -69,10 +69,13 @@ def drain_until(bus: Bus, done: Callable[[], bool]) -> None:
 
 
 def test_every_bus_event_arrives_as_a_frame(bus: Bus, client: ClientConnection) -> None:
-    bus.publish("tc49/layout/tick", {"tick": 3})
+    bus.publish("tc49/layout/boundary", {"boundary": 3})
     bus.publish("tc49/dispatch/lock_granted", {"train": "t1", "resources": ["a"]})
     bus.drain()
-    assert receive(client) == {"topic": "tc49/layout/tick", "payload": {"tick": 3}}
+    assert receive(client) == {
+        "topic": "tc49/layout/boundary",
+        "payload": {"boundary": 3},
+    }
     assert receive(client) == {
         "topic": "tc49/dispatch/lock_granted",
         "payload": {"train": "t1", "resources": ["a"]},
@@ -137,7 +140,7 @@ def test_a_second_client_hears_the_same_events(
 ) -> None:
     with connect(f"ws://127.0.0.1:{bridge.port}") as second:
         settled(bridge, 2)
-        bus.publish("tc49/layout/tick", {"tick": 0})
+        bus.publish("tc49/layout/boundary", {"boundary": 0})
         bus.drain()
         assert receive(client) == receive(second)
 
@@ -171,10 +174,10 @@ def test_the_last_values_come_before_any_live_frame(bus: Bus, bridge: Bridge) ->
     bus.drain()
     with connect(f"ws://127.0.0.1:{bridge.port}") as late:
         settled(bridge, 1)
-        bus.publish("tc49/layout/tick", {"tick": 7})
+        bus.publish("tc49/layout/boundary", {"boundary": 7})
         bus.drain()
         assert receive(late)["topic"] == "tc49/dispatch/state/aspects"
-        assert receive(late)["payload"] == {"tick": 7}
+        assert receive(late)["payload"] == {"boundary": 7}
 
 
 def test_an_event_topic_is_not_replayed_to_a_joining_client(
@@ -183,15 +186,15 @@ def test_an_event_topic_is_not_replayed_to_a_joining_client(
     """State topics excepted, there is no replay for a late subscriber
     (SYSTEM.md): the relay forwards frames it would have forwarded had the
     client been there, and holds no backlog."""
-    bus.publish("tc49/layout/tick", {"tick": 1})
+    bus.publish("tc49/layout/boundary", {"boundary": 1})
     bus.publish("tc49/dispatch/state/aspects", {"aspects": {}})
     bus.drain()
     with connect(f"ws://127.0.0.1:{bridge.port}") as late:
         settled(bridge, 1)
         assert receive(late)["topic"] == "tc49/dispatch/state/aspects"
-        bus.publish("tc49/layout/tick", {"tick": 2})
+        bus.publish("tc49/layout/boundary", {"boundary": 2})
         bus.drain()
-        assert receive(late)["payload"] == {"tick": 2}
+        assert receive(late)["payload"] == {"boundary": 2}
 
 
 def test_a_client_that_vanishes_leaves_quietly(
@@ -220,6 +223,6 @@ def test_a_departed_client_does_not_take_the_bridge_down(
     settled(bridge, 0)
     with connect(f"ws://127.0.0.1:{bridge.port}") as survivor:
         settled(bridge, 1)
-        bus.publish("tc49/layout/tick", {"tick": 1})
+        bus.publish("tc49/layout/boundary", {"boundary": 1})
         bus.drain()  # the gone client is skipped, the live one served
-        assert receive(survivor)["payload"] == {"tick": 1}
+        assert receive(survivor)["payload"] == {"boundary": 1}

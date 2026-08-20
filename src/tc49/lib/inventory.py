@@ -6,7 +6,7 @@ depends on this module; leaf names are globally unique across all topics
 """
 
 TOPICS: dict[str, tuple[str, ...]] = {
-    "tc49/layout/tick": ("tick",),
+    "tc49/layout/boundary": ("boundary",),
     "tc49/layout/block_occupied": ("block",),
     "tc49/layout/block_vacated": ("block",),
     "tc49/schedule/request_submitted": ("id", "train", "depart", "dest"),

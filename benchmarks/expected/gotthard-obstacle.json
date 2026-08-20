@@ -5,7 +5,7 @@
     "FullRoute": {
       "status": "stalled",
       "makespan": null,
-      "ticks": 1,
+      "boundaries": 1,
       "completed": 0,
       "rejected": 0,
       "mean_latency": null,
@@ -25,7 +25,7 @@
     "Incremental": {
       "status": "stalled",
       "makespan": null,
-      "ticks": 1,
+      "boundaries": 1,
       "completed": 0,
       "rejected": 0,
       "mean_latency": null,

@@ -161,7 +161,7 @@ class AssetStore:
                 raise ValueError(f"{here}: unknown train '{train}'")
             if not isinstance(at, int) or at < 0:
                 raise ValueError(
-                    f"{here}: 'at' must be a non-negative tick, got {at!r}"
+                    f"{here}: 'at' must be a non-negative boundary, got {at!r}"
                 )
             _check_departure_end(depart, layout, here)
             if not isinstance(to, list) or not to:

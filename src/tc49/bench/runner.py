@@ -3,8 +3,8 @@
 The wiring the CLI and the test suite share, so there is exactly one of it.
 Nothing here is a contract — the components find each other by topic, not by
 this module — but the order matters for the trace: the tap subscribes first,
-so it sees every event, and the simulator last, so a tick's cascade is fully
-processed before it decides whether to advance (SYSTEM.md, the bus).
+so it sees every event, and the simulator last, so a boundary's cascade is
+fully processed before it decides whether to advance (SYSTEM.md, the bus).
 """
 
 import io
@@ -90,7 +90,7 @@ def assemble_live(
 ) -> Assembly:
     """The live-session wiring (#71): the batch assembly with the timetable
     off. Which sources a session has is configuration rather than a rule
-    (ADR-0036) — a scenario's `at` is still a tick number, so releasing it
+    (ADR-0036) — a scenario's `at` is still a boundary count, so releasing it
     into a two-second wall clock would dump a timetable on an operator in the
     first minute. The scenario contributes stock, placement, and facing; the
     bridge a caller attaches to the bus is the only inbound path."""

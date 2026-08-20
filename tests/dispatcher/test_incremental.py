@@ -10,20 +10,20 @@ from tc49.store import AssetStore
 from tests.harness import ROOT, events, load, run
 
 
-def final_tick(trace: str) -> int:
-    return events(trace)[-1]["tick"]
+def final_boundary(trace: str) -> int:
+    return events(trace)[-1]["boundary"]
 
 
 def held_spans(trace: str, resource: str) -> list[tuple[int, int]]:
-    """[start, end) tick spans during which `resource` was locked."""
+    """[start, end) boundary spans during which `resource` was locked."""
     spans: list[tuple[int, int]] = []
     start: int | None = None
     for line in events(trace):
         if line["event"] == "lock_granted" and resource in line["resources"]:
-            start = line["tick"]
+            start = line["boundary"]
         if line["event"] == "lock_released" and resource in line["resources"]:
             assert start is not None
-            spans.append((start, line["tick"]))
+            spans.append((start, line["boundary"]))
             start = None
     return spans
 
@@ -70,13 +70,13 @@ def test_facing_pair_refuses_a_launch_and_quiesces() -> None:
     assert {"resource": "east", "holder": "t_east"} in refusals[0]["obstacles"]
 
 
-def test_meet_completes_under_incremental_in_no_more_ticks() -> None:
+def test_meet_completes_under_incremental_in_no_more_boundaries() -> None:
     layout, scenario = load("crossover-yard/meet")
     full = run(layout, scenario)
     incremental = run(layout, scenario, Incremental)
     completed = {line["id"] for line in events(incremental, "request_completed")}
     assert completed == {"freight_1-1", "express_2-1", "freight_1-2"}
-    assert final_tick(incremental) <= final_tick(full)
+    assert final_boundary(incremental) <= final_boundary(full)
 
 
 def test_concurrent_pair_held_simultaneously_and_undeclared_pairs_never() -> None:
@@ -157,7 +157,7 @@ def test_shared_destination_refusal_names_the_committed_train() -> None:
 def test_route_blindness_is_fixed_by_congestion_aware_costing() -> None:
     # The differential's committed counterexample (#28, property 3), shrunk by
     # Hypothesis: before congestion-aware costing (#33), `Incremental` was a
-    # tick SLOWER here, because only `FullRoute`'s up-front locks let t2's
+    # boundary SLOWER here, because only `FullRoute`'s up-front locks let t2's
     # launch see t1 across its first candidate. Costing restores that signal
     # from committed routes, so both strategies now steer t2 to the up line
     # at the first candidate and finish together. See the scenario file.
@@ -176,8 +176,8 @@ def test_route_blindness_is_fixed_by_congestion_aware_costing() -> None:
     # Incremental — so t2's candidate over the up line sorts first for both.
     assert [line["k_tried"] for line in events(full, "route_chosen")] == [1, 1]
     assert [line["k_tried"] for line in events(incremental, "route_chosen")] == [1, 1]
-    assert final_tick(full) == 3
-    assert final_tick(incremental) == 3
+    assert final_boundary(full) == 3
+    assert final_boundary(incremental) == 3
 
 
 def test_transits_are_never_held_across_a_wait() -> None:
@@ -188,7 +188,7 @@ def test_transits_are_never_held_across_a_wait() -> None:
     trace = run(layout, scenario, Incremental)
     for line in events(trace, "lock_granted"):
         resources = line["resources"]
-        if line["tick"] == 0 and len(resources) == 1:
+        if line["boundary"] == 0 and len(resources) == 1:
             continue  # a standing lock seeded from the scenario
         assert len(resources) == 2
         assert "." in resources[0] and "." not in resources[1]

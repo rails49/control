@@ -54,7 +54,7 @@ def scenario_documents(
 
     Draw order mirrors the sweep generator of BENCHMARKS.md — placements
     first, then per train in id order a chain in which only the first
-    working states a departure block. Every request arrives at tick 0, so
+    working states a departure block. Every request arrives at boundary 0, so
     contention is maximal and makespan is drain time.
     """
     layout_id = draw(st.sampled_from(LIBRARY))

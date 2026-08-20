@@ -23,7 +23,7 @@ def test_meet_trace_carries_each_lifecycle_correlated_by_id() -> None:
         assert leaves[1] == "request_admitted"
         assert leaves.index("route_chosen") < leaves.index("move_granted")
         assert leaves[-1] == "request_completed"
-    startup = [line for line in events(trace, "lock_granted") if line["tick"] == 0]
+    startup = [line for line in events(trace, "lock_granted") if line["boundary"] == 0]
     assert {line["train"] for line in startup} >= {"freight_1", "express_2"}
 
 
@@ -102,8 +102,8 @@ def test_a_stated_departure_the_train_is_not_at_is_rejected() -> None:
 
 def test_a_mid_route_drag_is_judged_against_where_the_train_stands() -> None:
     """The departure block is checked against where the train stands, active
-    route or not (#99). freight launches at tick 1 and is standing in dn_w
-    when the second working is released at tick 2, so dn_w is the one block
+    route or not (#99). freight launches at boundary 1 and is standing in dn_w
+    when the second working is released at boundary 2, so dn_w is the one block
     that working may state: not the block the train has left, not a block
     further along its route, and not the block the route arrives at.
     """
@@ -207,12 +207,12 @@ def test_grants_are_a_pure_function_of_the_buffered_sensor_set() -> None:
             },
         ):
             bus.publish("tc49/schedule/request_submitted", dict(submitted))
-        bus.publish("tc49/layout/tick", {"tick": 0})
-        bus.publish("tc49/layout/tick", {"tick": 1})  # freight launches
+        bus.publish("tc49/layout/boundary", {"boundary": 0})
+        bus.publish("tc49/layout/boundary", {"boundary": 1})  # freight launches
         bus.publish("tc49/layout/block_vacated", {"block": "yard_w"})
         bus.publish("tc49/layout/block_occupied", {"block": "dn_w"})
-        bus.publish("tc49/layout/tick", {"tick": 2})  # express launches too
-        # Both trains move this tick: four sensors, delivered in any order.
+        bus.publish("tc49/layout/boundary", {"boundary": 2})  # express too
+        # Both trains move this boundary: four sensors, in any order.
         sensors: list[tuple[str, Payload]] = [
             ("tc49/layout/block_vacated", {"block": "dn_w"}),
             ("tc49/layout/block_occupied", {"block": "dn_e"}),
@@ -221,7 +221,7 @@ def test_grants_are_a_pure_function_of_the_buffered_sensor_set() -> None:
         ]
         for i in order:
             bus.publish(*sensors[i])
-        bus.publish("tc49/layout/tick", {"tick": 3})
+        bus.publish("tc49/layout/boundary", {"boundary": 3})
         bus.drain()
         return seen
 

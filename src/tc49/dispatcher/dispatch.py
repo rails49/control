@@ -3,7 +3,7 @@
 Fully asynchronous at the bus boundary (SYSTEM.md, dispatcher footprint):
 requests arrive as events, every fate is announced as an event, and the
 request id is both correlation and idempotency key. Sensor events are
-buffered until the tick and treated as a set, so grants are a pure
+buffered until the boundary and treated as a set, so grants are a pure
 function of the buffered set, never of delivery order (DISPATCH.md, time
 model). Standing locks are seeded from the scenario and published at
 startup. The locking discipline is the pluggable strategy of locking.py.
@@ -230,7 +230,8 @@ class Dispatcher:
         self._seen_ids: set[str] = set()
         self._next_seq = 0
         self._phases = 0  # grant phases run; stamps admissions for grant order
-        self._buffered: list[tuple[str, str]] = []  # (leaf, block) since last tick
+        # (leaf, block) sensor events buffered since the last grant boundary.
+        self._buffered: list[tuple[str, str]] = []
         self._aspects: dict[str, str] = {}  # last published, so only changes go
         self._allocation: Payload = {}  # likewise: the picture, when it moves
         self._publish_allocation()
@@ -353,7 +354,7 @@ class Dispatcher:
 
     def _on_layout(self, topic: str, payload: Payload) -> None:
         leaf = topic.rsplit("/", 1)[-1]
-        if leaf == "tick":
+        if leaf == "boundary":
             self._grant_phase()
         else:
             self._buffered.append((leaf, payload["block"]))

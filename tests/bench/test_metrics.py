@@ -21,31 +21,35 @@ def trace(*lines: dict[str, Any]) -> str:
     return "".join(json.dumps(line, separators=(",", ":")) + "\n" for line in lines)
 
 
-def submitted(rid: str, tick: int) -> dict[str, Any]:
-    return {"tick": tick, "event": "request_submitted", "id": rid}
+def submitted(rid: str, boundary: int) -> dict[str, Any]:
+    return {"boundary": boundary, "event": "request_submitted", "id": rid}
 
 
-def admitted(rid: str, tick: int) -> dict[str, Any]:
-    return {"tick": tick, "event": "request_admitted", "id": rid}
+def admitted(rid: str, boundary: int) -> dict[str, Any]:
+    return {"boundary": boundary, "event": "request_admitted", "id": rid}
 
 
-def completed(rid: str, tick: int) -> dict[str, Any]:
-    return {"tick": tick, "event": "request_completed", "id": rid}
+def completed(rid: str, boundary: int) -> dict[str, Any]:
+    return {"boundary": boundary, "event": "request_completed", "id": rid}
 
 
-def granted(tick: int, *resources: str) -> dict[str, Any]:
-    return {"tick": tick, "event": "lock_granted", "resources": list(resources)}
+def granted(boundary: int, *resources: str) -> dict[str, Any]:
+    return {"boundary": boundary, "event": "lock_granted", "resources": list(resources)}
 
 
-def released(tick: int, *resources: str) -> dict[str, Any]:
-    return {"tick": tick, "event": "lock_released", "resources": list(resources)}
+def released(boundary: int, *resources: str) -> dict[str, Any]:
+    return {
+        "boundary": boundary,
+        "event": "lock_released",
+        "resources": list(resources),
+    }
 
 
 def refused(
-    rid: str, tick: int, reason: str, *pairs: tuple[str, str]
+    rid: str, boundary: int, reason: str, *pairs: tuple[str, str]
 ) -> dict[str, Any]:
     return {
-        "tick": tick,
+        "boundary": boundary,
         "event": "grant_refused",
         "id": rid,
         "reason": reason,
@@ -69,7 +73,7 @@ def test_makespan_is_first_admission_to_last_completion() -> None:
     assert m.status == "ok"
 
 
-def test_latency_is_completion_minus_the_tick_the_request_arrived() -> None:
+def test_latency_is_completion_minus_the_boundary_the_request_arrived() -> None:
     m = metrics(
         trace(
             submitted("a-1", 0),
@@ -90,7 +94,7 @@ def test_latency_without_the_submission_stamp_is_a_loud_error() -> None:
 
 
 def test_utilization_counts_spans_over_the_whole_run() -> None:
-    # The run is ticks 0..3, four ticks long. `held` is locked for two of them
+    # The run is boundaries 0..3, four boundaries long. `held` is locked for two of them
     # and `standing` — a startup standing lock, never released — for all four.
     m = metrics(
         trace(
@@ -102,21 +106,21 @@ def test_utilization_counts_spans_over_the_whole_run() -> None:
             completed("a-1", 3),
         )
     )
-    assert m.ticks == 3
+    assert m.boundaries == 3
     assert m.utilization == {"held": 0.5, "standing": 1.0}
     assert m.mean_utilization == 0.75
 
 
-def test_parallelism_is_cross_commands_per_tick() -> None:
+def test_parallelism_is_cross_commands_per_boundary() -> None:
     m = metrics(
         trace(
-            {"tick": 0, "event": "cross", "train": "a", "into": "x"},
-            {"tick": 0, "event": "cross", "train": "b", "into": "y"},
-            {"tick": 1, "event": "cross", "train": "a", "into": "z"},
+            {"boundary": 0, "event": "cross", "train": "a", "into": "x"},
+            {"boundary": 0, "event": "cross", "train": "b", "into": "y"},
+            {"boundary": 1, "event": "cross", "train": "a", "into": "z"},
         )
     )
-    assert m.crosses_per_tick == {0: 2, 1: 1}
-    assert m.mean_parallelism == 1.5  # three crosses over ticks 0..1
+    assert m.crosses_per_boundary == {0: 2, 1: 1}
+    assert m.mean_parallelism == 1.5  # three crosses over boundaries 0..1
 
 
 def test_a_stall_is_diagnosed_from_the_last_refusal_and_kills_the_makespan() -> None:
@@ -150,7 +154,7 @@ def test_a_rejected_request_is_not_a_stall() -> None:
             submitted("a-1", 0),
             admitted("a-1", 0),
             {
-                "tick": 1,
+                "boundary": 1,
                 "event": "request_rejected",
                 "id": "a-1",
                 "reason": "unreachable",
@@ -171,7 +175,12 @@ def test_a_rejected_request_is_visible_in_the_status() -> None:
             admitted("a-1", 0),
             submitted("b-1", 0),
             admitted("b-1", 0),
-            {"tick": 1, "event": "request_rejected", "id": "b-1", "reason": "no_entry"},
+            {
+                "boundary": 1,
+                "event": "request_rejected",
+                "id": "b-1",
+                "reason": "no_entry",
+            },
             completed("a-1", 3),
         )
     )
@@ -199,9 +208,9 @@ def test_mean_latency_is_a_float_even_when_the_mean_is_exact() -> None:
     assert isinstance(m.mean_latency, float)
 
 
-# The events every metric derives from (bench/METRICS.md). `tick` is
+# The events every metric derives from (bench/METRICS.md). `boundary` is
 # deliberately absent: the tap stamps its number onto every other line, so the
-# tick event is what makes the trace timed rather than a line any metric reads.
+# boundary event is what makes the trace timed rather than a line any metric reads.
 METRIC_FEEDING_EVENTS = [
     "request_submitted",
     "request_admitted",
@@ -245,7 +254,7 @@ def test_metrics_over_a_real_run_agree_with_the_trace() -> None:
         line["id"] for line in events(trace_text, "request_completed")
     }
     assert m.makespan == max(
-        line["tick"] for line in events(trace_text, "request_completed")
+        line["boundary"] for line in events(trace_text, "request_completed")
     )
     # Every train's standing lock is in the trace from startup, so every
     # starting block shows utilization even before anything moves.

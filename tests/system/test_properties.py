@@ -131,8 +131,8 @@ def test_differential_against_the_baseline(
 
     ARCHITECTURE.md states this property with a second, stronger half —
     "`Incremental` completes every request set `FullRoute` completes, in no
-    more ticks" — and that half is **false**, which is what this suite exists
-    to find out. Every form of it falls to adversarial search: the completed
+    more boundaries" — and that half is **false**, which is what this suite
+    exists to find out. Every form of it falls to adversarial search: the completed
     sets can be incomparable, the counts can favour either side, and even
     when both strategies complete exactly the same set `Incremental` can be
     slower. `scenarios/crossover-yard/route-blindness.scenario.yaml` is the

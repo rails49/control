@@ -127,7 +127,7 @@ def test_a_trace_line_keeps_the_inventory_field_order() -> None:
     trace = run(layout, scenario, Incremental)
     granted = next(line for line in trace.splitlines() if '"move_granted"' in line)
     assert list(json.loads(granted)) == [
-        "tick",
+        "boundary",
         "event",
         "id",
         "train",

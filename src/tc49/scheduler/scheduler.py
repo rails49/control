@@ -1,14 +1,15 @@
 """Scheduler: the one writer of requests, and the holder of facing.
 
 Its sources are configuration rather than a rule (ADR-0036): a timetable
-released at its `at` ticks, and a person gesturing on `tc49/ui/request_wanted`.
-`tc49 bench` runs with the timetable on, `tc49 live` with it off while `at` is
-still a tick number. A gesture is not a request — it names a train and where
-to put it, and the id and the departure end are what the scheduler adds. Ids
-are minted deterministically in scenario order (`<train>-1`, `<train>-2`, ...)
-from one undivided counter, the arrival-end expansion is purely mechanical (a
-bare block becomes both of its ends), and when the last timetable request is
-out the `exhausted` state topic is set — the milestone-1 termination signal.
+released at its `at` boundaries, and a person gesturing on
+`tc49/ui/request_wanted`. `tc49 bench` runs with the timetable on, `tc49 live`
+with it off while `at` is still a boundary count. A gesture is not a request —
+it names a train and where to put it, and the id and the departure end are
+what the scheduler adds. Ids are minted deterministically in scenario order
+(`<train>-1`, `<train>-2`, ...) from one undivided counter, the arrival-end
+expansion is purely mechanical (a bare block becomes both of its ends), and
+when the last timetable request is out the `exhausted` state topic is set —
+the milestone-1 termination signal.
 
 It **holds facing** (ADR-0019), seeded from the scenario's placement and
 carried forward from the bus: a train faces away from the end it entered
@@ -58,12 +59,12 @@ class Scheduler:
         self._exhausted = False
         self._published: Payload = {}  # the facing last sent, so only changes go
         self._publish_facing()
-        bus.subscribe("tc49/layout/tick", self._on_tick)
+        bus.subscribe("tc49/layout/boundary", self._on_boundary)
         bus.subscribe("tc49/dispatch/#", self._on_dispatch)
         bus.subscribe("tc49/ui/#", self._on_gesture)
 
-    def _on_tick(self, topic: str, payload: Payload) -> None:
-        now = payload["tick"]
+    def _on_boundary(self, topic: str, payload: Payload) -> None:
+        now = payload["boundary"]
         due = [event for at, event in self._pending if at <= now]
         self._pending = [(at, event) for at, event in self._pending if at > now]
         for event in due:

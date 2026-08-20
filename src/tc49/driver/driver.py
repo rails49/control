@@ -3,7 +3,7 @@
 Per granted move it immediately publishes `cross`, the move itself,
 mirrored. Setting the route is the dispatcher's, which publishes `align`
 (ADR-0022), so a grant is the driver's green signal. It holds no state,
-reads no assets, and does not subscribe to the tick (SYSTEM.md, driver
+reads no assets, and does not subscribe to the boundary (SYSTEM.md, driver
 footprint).
 """
 

@@ -1,10 +1,10 @@
 """The trace tap: a bus subscriber that writes one JSONL line per event.
 
 Per SYSTEM.md "The trace": subscribes ``tc49/#`` and writes each delivered
-event flat, in canonical key order — ``tick``, ``event`` (the topic's
-leaf), then the payload fields in inventory order — with ``tick`` stamped
-from the last tick event observed, ``0`` before the first. A topic or
-payload field outside the inventory fails loudly: the trace is
+event flat, in canonical key order — ``boundary``, ``event`` (the topic's
+leaf), then the payload fields in inventory order — with ``boundary``
+stamped from the last boundary event observed, ``0`` before the first. A
+topic or payload field outside the inventory fails loudly: the trace is
 load-bearing, and a stray field must break a test, not rot quietly.
 
 That is a promise about what the *apps* write. The one topic a client
@@ -24,14 +24,14 @@ from tc49.lib.inventory import INBOUND, LEAF_FIELDS, leaf
 class TraceTap:
     def __init__(self, bus: Bus, out: TextIO) -> None:
         self._out = out
-        self._tick = 0
+        self._boundary = 0
         bus.subscribe("tc49/#", self._record)
 
     def _record(self, topic: str, payload: Payload) -> None:
         event = leaf(topic)
-        if event == "tick":
-            self._tick = payload["tick"]
-        line: Payload = {"tick": self._tick, "event": event}
+        if event == "boundary":
+            self._boundary = payload["boundary"]
+        line: Payload = {"boundary": self._boundary, "event": event}
         fields = LEAF_FIELDS[event]
         if topic == INBOUND:
             line.update(_as_given(payload, fields))

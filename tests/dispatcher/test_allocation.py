@@ -34,7 +34,7 @@ def test_the_picture_opens_on_the_scenario_placement() -> None:
     placement is standing locks, and the first picture carries them."""
     trace = run(*load("crossover-yard/meet"))
     first = pictures(trace)[0]
-    assert first["tick"] == 0
+    assert first["boundary"] == 0
     assert first["trains"] == {"express_2": "up_e", "freight_1": "yard_w"}
     assert first["locks"] == {"up_e": "express_2", "yard_w": "freight_1"}
     assert first["requests"] == []
@@ -77,7 +77,7 @@ def test_the_picture_is_republished_only_when_it_changes() -> None:
     is a line in every trace and a frame to every client, for no news."""
     trace = run(*load("crossover-yard/meet"), Incremental)
     said = [
-        json.dumps({key: value for key, value in picture.items() if key != "tick"})
+        json.dumps({key: value for key, value in picture.items() if key != "boundary"})
         for picture in pictures(trace)
     ]
     assert said and all(before != after for before, after in pairwise(said))

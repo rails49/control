@@ -26,7 +26,7 @@ def test_bench_prints_the_metrics_for_both_strategies() -> None:
     assert "FullRoute" in printed and "Incremental" in printed
     for metric in ("status", "makespan", "latency mean", "latency max"):
         assert metric in printed
-    assert "utilization" in printed and "crosses/tick" in printed
+    assert "utilization" in printed and "crosses/boundary" in printed
     assert "stalled" not in printed
 
 
@@ -61,7 +61,7 @@ def test_the_trace_flag_dumps_the_jsonl_events() -> None:
     assert lines, "the trace should be dumped as JSONL"
     assert metrics("".join(json.dumps(line) + "\n" for line in lines)).status == "ok"
     assert {line["event"] for line in lines} >= {
-        "tick",
+        "boundary",
         "request_admitted",
         "route_chosen",
         "cross",

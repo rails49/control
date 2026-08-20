@@ -38,17 +38,17 @@ def collect(bus: Bus, topic_filter: str) -> list[tuple[str, Payload]]:
     return seen
 
 
-def tick(bus: Bus, n: int) -> None:
-    bus.publish("tc49/layout/tick", {"tick": n})
+def boundary(bus: Bus, n: int) -> None:
+    bus.publish("tc49/layout/boundary", {"boundary": n})
     bus.drain()
 
 
-def test_releases_at_due_ticks_with_deterministic_ids_and_expansion() -> None:
+def test_releases_at_due_boundaries_with_deterministic_ids_and_expansion() -> None:
     bus = Bus()
     seen = collect(bus, "tc49/schedule/request_submitted")
     Scheduler(bus, yard(), two_train_scenario())
 
-    tick(bus, 0)
+    boundary(bus, 0)
     assert [p for _, p in seen] == [
         {
             "id": "freight_1-1",
@@ -64,10 +64,10 @@ def test_releases_at_due_ticks_with_deterministic_ids_and_expansion() -> None:
         },
     ]
 
-    tick(bus, 1)
-    assert len(seen) == 2  # nothing due at tick 1
+    boundary(bus, 1)
+    assert len(seen) == 2  # nothing due at boundary 1
 
-    tick(bus, 2)
+    boundary(bus, 2)
     assert [p for _, p in seen[2:]] == [
         {
             "id": "freight_1-2",
@@ -83,15 +83,15 @@ def test_exhausted_set_when_the_last_request_is_out() -> None:
     seen = collect(bus, "tc49/schedule/state/exhausted")
     Scheduler(bus, yard(), two_train_scenario())
 
-    tick(bus, 0)
+    boundary(bus, 0)
     assert seen == []
-    tick(bus, 2)
+    boundary(bus, 2)
     assert [p for _, p in seen] == [{"exhausted": True}]
-    tick(bus, 3)
+    boundary(bus, 3)
     assert len(seen) == 1  # set once, not republished
 
 
-def test_empty_scenario_is_exhausted_at_the_first_tick() -> None:
+def test_empty_scenario_is_exhausted_at_the_first_boundary() -> None:
     bus = Bus()
     seen = collect(bus, "tc49/schedule/state/exhausted")
     scenario = two_train_scenario()
@@ -99,20 +99,20 @@ def test_empty_scenario_is_exhausted_at_the_first_tick() -> None:
         bus, yard(), Scenario(scenario.name, scenario.layout, scenario.trains, ())
     )
 
-    tick(bus, 0)
+    boundary(bus, 0)
     assert [p for _, p in seen] == [{"exhausted": True}]
 
 
 def test_the_timetable_is_off_when_the_session_says_so() -> None:
     """Which sources a session has is configuration (ADR-0036): `tc49 live`
-    runs the same scheduler with nothing released, while `at` is a tick
+    runs the same scheduler with nothing released, while `at` is a boundary
     number, and the first gesture's id is still `<train>-1`."""
     bus = Bus()
     seen = collect(bus, "tc49/schedule/request_submitted")
     Scheduler(bus, yard(), two_train_scenario(), timetable=False)
 
-    tick(bus, 0)
-    tick(bus, 2)
+    boundary(bus, 0)
+    boundary(bus, 2)
     assert seen == []
 
 
@@ -161,7 +161,7 @@ def test_a_committed_route_faces_the_train_at_its_departure_end() -> None:
     bus = Bus()
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), two_train_scenario())
-    tick(bus, 0)  # express_2-1 goes out, so the scheduler knows whose route it is
+    boundary(bus, 0)  # express_2-1 goes out, so the scheduler knows whose route it is
     bus.publish(
         "tc49/dispatch/route_chosen",
         {
@@ -180,7 +180,7 @@ def test_facing_is_published_only_when_it_moves() -> None:
     bus = Bus()
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), two_train_scenario())
-    tick(bus, 0)
+    boundary(bus, 0)
     bus.publish("tc49/dispatch/request_admitted", {"id": "freight_1-1", "dest": []})
     bus.publish(
         "tc49/dispatch/route_chosen",
@@ -223,9 +223,9 @@ def test_gestures_and_the_timetable_share_one_undivided_counter() -> None:
     seen = collect(bus, "tc49/schedule/request_submitted")
     Scheduler(bus, yard(), two_train_scenario())
 
-    tick(bus, 0)  # freight_1-1 and express_2-1 go out
+    boundary(bus, 0)  # freight_1-1 and express_2-1 go out
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
-    assert seen[-1][1]["id"] == "freight_1-3"  # -2 is the timetable's, at tick 2
+    assert seen[-1][1]["id"] == "freight_1-3"  # -2 is the timetable's, at boundary 2
 
 
 def test_a_gesture_departs_from_where_facing_has_moved_to() -> None:

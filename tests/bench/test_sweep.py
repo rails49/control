@@ -103,7 +103,7 @@ def test_arrival_sets_are_the_swept_dest_size_at_the_other_station() -> None:
                 assert set(request.arrivals) == set(STATIONS[station])
 
 
-def test_no_drawn_workload_is_dead_at_tick_zero() -> None:
+def test_no_drawn_workload_is_dead_at_boundary_zero() -> None:
     # #36: a draw where every train's arrival blocks are held by trains that
     # are themselves stuck (a head-on swap at its smallest) is unsatisfiable
     # by any dispatcher, so the generator must redraw it. Run at k = |dest|,
@@ -119,10 +119,10 @@ def test_no_drawn_workload_is_dead_at_tick_zero() -> None:
             m = metrics(trace)
             assert (
                 m.completed or not m.stalled
-            ), f"{scenario.name} under {locking} is dead at tick 0"
+            ), f"{scenario.name} under {locking} is dead at boundary 0"
 
 
-def test_every_request_arrives_at_tick_zero() -> None:
+def test_every_request_arrives_at_boundary_zero() -> None:
     for workload in every_workload():
         assert all(r.at == 0 for r in generate(workload).requests)
 
@@ -177,7 +177,7 @@ def test_sweep_writes_one_jsonl_row_per_run(tmp_path: Path) -> None:
             "locking",
             "status",
             "makespan",
-            "ticks",
+            "boundaries",
             "completed",
             "rejected",
             "mean_latency",

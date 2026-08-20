@@ -26,7 +26,7 @@ def run_live_for(ticks: int, period_s: float = 0.5) -> tuple[str, list[float]]:
 def test_ticks_arrive_on_the_timer_and_stay_deterministic_integers() -> None:
     trace, slept = run_live_for(5, period_s=0.25)
     assert slept == [0.25] * 5  # one sleep of the period before every tick
-    assert [line["tick"] for line in events(trace, "tick")] == [0, 1, 2, 3, 4]
+    assert [line["boundary"] for line in events(trace, "boundary")] == [0, 1, 2, 3, 4]
 
 
 def test_a_live_session_survives_quiescence() -> None:
@@ -35,14 +35,14 @@ def test_a_live_session_survives_quiescence() -> None:
     layout, scenario = load("crossover-yard/meet")
     batch = build(layout, scenario)
     batch.simulator.run()
-    quiescent_at = events(batch.trace, "tick")[-1]["tick"]
+    quiescent_at = events(batch.trace, "boundary")[-1]["boundary"]
 
     trace, _ = run_live_for(quiescent_at + 20)
     completed = {line["id"] for line in events(trace, "request_completed")}
     assert completed == {
         line["id"] for line in events(batch.trace, "request_completed")
     }
-    assert events(trace, "tick")[-1]["tick"] == quiescent_at + 19
+    assert events(trace, "boundary")[-1]["boundary"] == quiescent_at + 19
 
 
 def test_the_railroad_runs_in_live_mode_as_it_does_in_batch() -> None:
@@ -53,5 +53,5 @@ def test_the_railroad_runs_in_live_mode_as_it_does_in_batch() -> None:
     batch = build(layout, scenario)
     batch.simulator.run()
 
-    trace, _ = run_live_for(len(events(batch.trace, "tick")))
+    trace, _ = run_live_for(len(events(batch.trace, "boundary")))
     assert trace == batch.trace

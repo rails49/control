@@ -1,8 +1,8 @@
 """Golden numbers for the named scenarios (#31, docs/bench/BENCHMARKS.md).
 
 Golden numbers are viable here, which they usually are not, for a specific
-reason: every metric is in **ticks**, not wall-clock, and the determinism
-property already guarantees byte-identical traces. A makespan is exactly
+reason: every metric is in **boundaries**, not wall-clock, and the
+determinism property already guarantees byte-identical traces. A makespan is exactly
 reproducible on any machine, so a throughput regression fails CI with a
 readable diff instead of going unnoticed.
 
@@ -52,7 +52,7 @@ def summary(m: Metrics) -> dict[str, object]:
     return {
         "status": m.status,
         "makespan": m.makespan,
-        "ticks": m.ticks,
+        "boundaries": m.boundaries,
         "completed": len(m.completed),
         "rejected": len(m.rejected),
         "mean_latency": None if m.mean_latency is None else round(m.mean_latency, 4),
@@ -115,7 +115,7 @@ def test_a_two_block_route_leaves_incremental_nothing_to_withhold() -> None:
     Its routes are two blocks long, and an increment plus the one asked for
     ahead of it (ADR-0029) is exactly two blocks — so `Incremental` locks the
     whole route at the first grant and *is* `FullRoute` here. `south` takes
-    the airolo transit at tick 1 and holds it until it crosses, `north` is
+    the airolo transit at boundary 1 and holds it until it crosses, `north` is
     refused `transit_conflict` twice, and only then falls through to the
     yellow. That is the cost ADR-0026 named as holding track speculatively,
     seen at the smallest scale that can show it.
@@ -134,7 +134,7 @@ def test_a_two_block_route_leaves_incremental_nothing_to_withhold() -> None:
 
 def test_incremental_drains_gotthard_saturation_faster() -> None:
     """The headline makespan gap: both strategies complete all fifteen
-    workings, and `Incremental` does it in materially fewer ticks."""
+    workings, and `Incremental` does it in materially fewer boundaries."""
     results = {name: m for name, (_, m) in bench("gotthard/saturation").items()}
     for m in results.values():
         assert m.status == "ok"
@@ -151,7 +151,7 @@ def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
 
     Before congestion-aware costing (#33) the widened workload stalled
     outright — every train tried `claro_1` then `claro_2`, both occupied,
-    and the rotation never started (0 of 15 workings, dead at tick 1).
+    and the rotation never started (0 of 15 workings, dead at boundary 1).
     Costing started the rotation but left it at 11 of 15: the last airolo
     slots went to older trains parking there for good, because no candidate
     ordering can stop an older pending request from taking a free slot.

@@ -100,14 +100,14 @@ def generate(workload: Workload) -> Scenario:
                     # previous working's arrival ends.
                     f"{placement}.{end}" if working == 0 else end,
                     arrivals,
-                    0,  # 3. Arrival — batch, every request at tick 0.
+                    0,  # 3. Arrival — batch, every request at boundary 0.
                 )
             )
             here = STATIONS[target][0]  # only the station matters from here on
 
     # 4. Redraw — until every train's first request can eventually launch.
     # A head-on swap makes each train's arrival blocks the other's standing
-    # lock and the run dead at tick 0 (#36); redraw each stuck request, end
+    # lock and the run dead at boundary 0 (#36); redraw each stuck request, end
     # first then arrival ends, keeping the workings count (BENCHMARKS.md).
     placement_of = dict(zip(trains, placements))
     first = {requests[i].train: i for i in range(0, len(requests), workload.workings)}
@@ -199,7 +199,7 @@ def row(workload: Workload, k: int, locking: str, trace: str) -> dict[str, Any]:
         "locking": locking,
         "status": m.status,
         "makespan": m.makespan,
-        "ticks": m.ticks,
+        "boundaries": m.boundaries,
         "completed": len(m.completed),
         "rejected": len(m.rejected),
         "mean_latency": m.mean_latency,

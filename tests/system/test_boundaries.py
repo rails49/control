@@ -22,10 +22,12 @@ def trace_of(scenario_id: str) -> str:
 
 
 def latencies(trace: str) -> dict[str, int]:
-    """Request id -> completion stamp minus the tick it was released on."""
-    released = {line["id"]: line["tick"] for line in events(trace, "request_submitted")}
+    """Request id -> completion stamp minus the boundary it was released on."""
+    released = {
+        line["id"]: line["boundary"] for line in events(trace, "request_submitted")
+    }
     return {
-        line["id"]: line["tick"] - released[line["id"]]
+        line["id"]: line["boundary"] - released[line["id"]]
         for line in events(trace, "request_completed")
     }
 
@@ -75,7 +77,7 @@ def test_pessimism_about_idle_trains_refuses_the_launch_outright() -> None:
 def test_an_obstructed_arrival_block_holds_back_only_the_request_that_needs_it() -> (
     None
 ):
-    # Boundary condition 2. Same obstruction, same layout, same tick: what
+    # Boundary condition 2. Same obstruction, same layout, same boundary: what
     # separates the two requests is only how many arrival blocks each names.
     trace = trace_of("single-track-meet/arrival-obstruction")
     completed = {line["id"] for line in events(trace, "request_completed")}
@@ -128,7 +130,7 @@ def test_a_completed_train_obstructs_exactly_as_a_parked_one_does() -> None:
     # The latecomer's request arrives after that completion and meets an
     # ordinary held block, named for the train standing in it.
     [admitted] = events(trace, "request_admitted", rid="latecomer-1")
-    assert admitted["tick"] > done["tick"]
+    assert admitted["boundary"] > done["boundary"]
     refusals = events(trace, "grant_refused", rid="latecomer-1")
     assert refusals[-1]["reason"] == "held"
     assert refusals[-1]["obstacles"] == [{"resource": "dn_e", "holder": "arriver"}]
@@ -152,7 +154,7 @@ def test_a_train_may_re_enter_blocks_its_previous_working_released() -> None:
     released = {
         resource
         for line in events(trace, "lock_released")
-        if line["tick"] <= done["tick"]
+        if line["boundary"] <= done["boundary"]
         for resource in line["resources"]
     }
     assert set(back["route"][1:]) <= released
@@ -172,7 +174,7 @@ def test_starvation_shows_up_in_max_latency_and_the_run_still_drains() -> None:
     latency = latencies(trace)
     assert latency["waiter-1"] > latency["squatter-1"]
 
-    # The wait, not the journey: waiter's route is four transits, so four ticks
+    # The wait, not the journey: waiter's route is four transits, so four boundaries
     # of it are travel and the rest is refusals it accumulated while pending.
     [chosen] = events(trace, "route_chosen", rid="waiter-1")
     transits = len([step for step in chosen["route"] if "." in step])
@@ -181,6 +183,6 @@ def test_starvation_shows_up_in_max_latency_and_the_run_still_drains() -> None:
 
     # Refused at every phase from admission until squatter cleared the block.
     refused_at = [
-        line["tick"] for line in events(trace, "grant_refused", rid="waiter-1")
+        line["boundary"] for line in events(trace, "grant_refused", rid="waiter-1")
     ]
-    assert refused_at == list(range(1, chosen["tick"]))
+    assert refused_at == list(range(1, chosen["boundary"]))

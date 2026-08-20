@@ -107,13 +107,13 @@ UNCOMPOSABLE: list[object] = [
 def test_the_timetable_is_off_and_facing_is_still_published(
     assembly: Assembly,
 ) -> None:
-    """crossover-yard/meet schedules three workings from tick 0; a live
+    """crossover-yard/meet schedules three workings from boundary 0; a live
     session runs the same scheduler with the timetable off (ADR-0036), so
     nothing is submitted and the railroad just ticks. Facing is not off with
     it: it is the scenario's placement, and a joining page has no other
     source for a direction arrow."""
     tick_until(assembly, lambda: False, limit=10)
-    assert events(assembly.trace, "tick")
+    assert events(assembly.trace, "boundary")
     assert events(assembly.trace, "request_submitted") == []
     assert events(assembly.trace, "route_chosen") == []
     [placed] = events(assembly.trace, "facing")
@@ -190,7 +190,7 @@ def test_a_drag_on_a_moving_train_is_answered_and_the_session_lives(
     assembly: Assembly, client: ClientConnection
 ) -> None:
     """`wrong_origin` still stands (ADR-0021). A grant names the next block a
-    tick before the sensor does, and facing follows the grant, so a drag on a
+    boundary before the sensor does, and facing follows the grant, so a drag on
     train that is not idle composes a departure end in a block the dispatcher
     does not yet have it in. The scheduler judges none of that — it composes
     and submits like any other gesture — and the dispatcher answers, the
@@ -204,9 +204,9 @@ def test_a_drag_on_a_moving_train_is_answered_and_the_session_lives(
     assert composed["depart"] == "dn_w.B"  # where the grant is taking it
     [rejected] = events(assembly.trace, "request_rejected", rid=second)
     assert rejected["reason"] == "wrong_origin"
-    ticks = len(events(assembly.trace, "tick"))
+    boundaries = len(events(assembly.trace, "boundary"))
     tick_until(assembly, lambda: False, limit=3)
-    assert len(events(assembly.trace, "tick")) > ticks
+    assert len(events(assembly.trace, "boundary")) > boundaries
 
 
 def test_a_reloaded_page_is_served_the_picture_and_answered_again(

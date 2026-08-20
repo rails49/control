@@ -3,8 +3,8 @@
 
 `bench` runs one named scenario under both locking strategies and prints the
 comparison. `live` runs a session an outside client can join: wall-clock
-ticks, the bridge relaying `tc49/#` out and gestures in, the store served
-over HTTP, and the scheduler's timetable off while `at` is a tick number
+boundaries, the bridge relaying `tc49/#` out and gestures in, the store served
+over HTTP, and the scheduler's timetable off while `at` is a boundary count
 (ADR-0036). `sweep` takes no arguments: the grid of BENCHMARKS.md is the
 research design, not a knob, and that page is its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
@@ -68,10 +68,10 @@ def format_comparison(
         ("latency mean", [_ratio(results[n][1].mean_latency) for n in names]),
         ("latency max", [_whole(results[n][1].max_latency) for n in names]),
         ("utilization", [_ratio(results[n][1].mean_utilization) for n in names]),
-        ("crosses/tick", [_ratio(results[n][1].mean_parallelism) for n in names]),
+        ("crosses/boundary", [_ratio(results[n][1].mean_parallelism) for n in names]),
         ("completed", [str(len(results[n][1].completed)) for n in names]),
         ("rejected", [str(len(results[n][1].rejected)) for n in names]),
-        ("ticks", [str(results[n][1].ticks) for n in names]),
+        ("boundaries", [str(results[n][1].boundaries) for n in names]),
     ]
     width = max(len(label) for label, _ in rows) + 2
     column = max(max(len(n) for n in names), 11) + 2
@@ -162,7 +162,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         "--period",
         type=float,
         default=2.0,
-        help="seconds per tick (default 2.0, picked by watching the panel)",
+        help="seconds per boundary (default 2.0, picked by watching the panel)",
     )
     live_parser.add_argument(
         "--port", type=int, default=8766, help="the bridge's WebSocket port"
@@ -210,7 +210,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
             target=store_server.serve_forever, name="store", daemon=True
         ).start()
         out.write(
-            f"live: {args.scenario} at {args.period}s per tick\n"
+            f"live: {args.scenario} at {args.period}s per boundary\n"
             f"  bridge  ws://127.0.0.1:{bridge.port}\n"
             f"  store   http://127.0.0.1:{args.store_port}\n"
             "the timetable is off; Ctrl-C ends the session, and a restart"
