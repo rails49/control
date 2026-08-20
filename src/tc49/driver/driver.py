@@ -1,7 +1,8 @@
-"""Driver: the stateless translator from granted moves to layout commands.
+"""Driver: the stateless translator from granted moves to the crossing.
 
-Per granted move it immediately publishes `align` (set the connection to
-the transit) and `cross` (the move itself, mirrored). It holds no state,
+Per granted move it immediately publishes `cross`, the move itself,
+mirrored. Setting the route is the dispatcher's, which publishes `align`
+(ADR-0022), so a grant is the driver's green signal. It holds no state,
 reads no assets, and does not subscribe to the tick (SYSTEM.md, driver
 footprint).
 """
@@ -16,9 +17,6 @@ class Driver:
 
     def _on_move(self, topic: str, payload: Payload) -> None:
         connection, _, transit = payload["transit"].partition(".")
-        self._bus.publish(
-            "tc49/drive/align", {"connection": connection, "transit": transit}
-        )
         self._bus.publish(
             "tc49/drive/cross",
             {

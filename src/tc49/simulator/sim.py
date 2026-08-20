@@ -1,7 +1,11 @@
 """Simulator: the milestone-1 layout interface.
 
 Commands in, observations out, plus ownership of time (SYSTEM.md, layout
-interface; ADR-0009). Each advance executes the buffered commands, publishes
+interface; ADR-0009). The commands have two publishers — `align` is the
+dispatcher's, `cross` the driver's — so it subscribes to both, and the
+obligation that comes with the split is satisfied for free: batching to the
+tick is why it can never act on a `cross` before the `align` naming the same
+transit (ADR-0031). Each advance executes the buffered commands, publishes
 their sensor events, then the tick — a tick's sensors precede the tick
 itself. Batch mode (``run``) stops when the scheduler was already exhausted
 at the start of a tick and that tick's cascade produced no commands
@@ -27,6 +31,7 @@ class Simulator:
         self._saw_command = False
         self._exhausted = False
         bus.subscribe("tc49/drive/+", self._on_command)
+        bus.subscribe("tc49/dispatch/align", self._on_command)
         bus.subscribe("tc49/schedule/state/exhausted", self._on_exhausted)
 
     def _on_command(self, topic: str, payload: Payload) -> None:

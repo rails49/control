@@ -354,6 +354,7 @@ class Dispatcher:
                     "lock_granted",
                     {"train": active.request.train, "resources": resources},
                 )
+        self._align(result.transit)
         self._publish(
             "move_granted",
             {
@@ -375,6 +376,29 @@ class Dispatcher:
         )
         active.outstanding = result
         active.cur_index += 1
+
+    def _align(self, transit_id: str) -> None:
+        """Set the connection to the transit, before the move that takes it.
+
+        Setting the route is the dispatcher's responsibility — it answers for
+        the route being free and correctly set up — so `align` is its command
+        and not the driver's (ADR-0022). It carries the points the transit
+        needs, read off the layout (ADR-0031), so the layout interface throws
+        what it is told and holds no table of its own. Always `points`, `[]`
+        where nothing needs throwing: the document is quiet, the wire explicit.
+        """
+        connection, _, transit = transit_id.partition(".")
+        needed = self._state.layout.connections[connection].points.get(transit, ())
+        self._publish(
+            "align",
+            {
+                "connection": connection,
+                "transit": transit,
+                "points": [
+                    {"addr": point.addr, "position": point.position} for point in needed
+                ],
+            },
+        )
 
     def _publish_aspects(self) -> None:
         """The signalled ends, on a last-value topic, when any of them has

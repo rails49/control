@@ -61,14 +61,14 @@ src/tc49/
                 mechanical arrival-end expansion, deterministic ids,
                 exhausted state topic
   dispatcher/   dispatch.py   Dispatcher — admission, queue, lock table,
-                              buffered sensors, grant phase
+                              buffered sensors, grant phase, align
                 locking.py    LockingStrategy, FullRoute, Incremental
                 routing.py    candidates(layout, origin, depart_end,
                               arrivals, train_length, k) — k-shortest over
                               every arrival end merged, DISPATCH.md's
                               ordering
                 safety.py     safe()
-  driver/       Driver — move_granted → align + cross
+  driver/       Driver — move_granted → cross
   simulator/    Simulator — the milestone-1 layout interface: applies
                 commands, emits sensors, publishes the tick, owns pacing
                 and termination

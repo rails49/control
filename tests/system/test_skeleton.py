@@ -228,3 +228,56 @@ def test_grants_are_a_pure_function_of_the_buffered_sensor_set() -> None:
     baseline = drive([0, 1, 2, 3])
     for order in ([3, 2, 1, 0], [1, 3, 0, 2], [2, 0, 3, 1]):
         assert drive(order) == baseline
+
+
+def points_layout(*points: dict[str, str]) -> Layout:
+    """Two blocks joined by one transit, whose way crosses `points`."""
+    return Layout.from_document(
+        {
+            "layout": "mini",
+            "blocks": {"a": {"length": 1000}, "b": {"length": 1000}},
+            "connections": {
+                "j": {
+                    "transits": {"ab": ["a.B", "b.A"]},
+                    **({"points": {"ab": list(points)}} if points else {}),
+                }
+            },
+        }
+    )
+
+
+def one_crossing(layout: Layout) -> str:
+    scenario = Scenario(
+        "cross",
+        layout.name,
+        {"t1": TrainSpec(500, "a", "B")},
+        (RequestSpec("t1", "a.B", ("b.A",), 0),),
+    )
+    return run(layout, scenario)
+
+
+def test_the_dispatcher_aligns_the_route_and_carries_its_points() -> None:
+    """Setting the route is the dispatcher's, so `align` is its command, and
+    it carries the points the transit needs as address-and-position pairs
+    (ADR-0031)."""
+    thrown = {"addr": "12", "position": "thrown"}
+    [align] = events(one_crossing(points_layout(thrown)), "align")
+    assert (align["connection"], align["transit"]) == ("j", "ab")
+    assert align["points"] == [thrown]
+
+
+def test_a_transit_with_nothing_to_throw_still_says_so_on_the_wire() -> None:
+    """Quiet in the document, explicit on the wire: the key is absent where a
+    connection has none, and the payload always carries one."""
+    [align] = events(one_crossing(points_layout()), "align")
+    assert align["points"] == []
+
+
+def test_the_route_is_set_before_the_train_is_moved() -> None:
+    """Two publishers on two topics promise nothing under MQTT, so the layout
+    interface must not act on a `cross` before the `align` naming the same
+    transit. The simulator holds that by batching commands to the tick; under
+    the milestone binding the `align` is in the queue first as well."""
+    trace = one_crossing(points_layout({"addr": "12", "position": "thrown"}))
+    leaves = [line["event"] for line in events(trace)]
+    assert leaves.index("align") < leaves.index("cross")
