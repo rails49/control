@@ -896,6 +896,14 @@ takes the editor per call as `Gesture` does. The prompt stays in the component,
 a modal question being the DOM's; the component asks and `Filing` vets what
 came back.
 
+The suites that still mount the shell stand it up from one place,
+`ui/test/support/shell.ts` (#131): the store behind `fetch`, parameterised per
+suite, and the wait. The wait counts no turns for its caller. Five suites each
+carried a loop count tuned to the render depth that suite happened to need, so
+a component gaining one await turn would have broken whichever had guessed
+lowest; it turns the microtask queue until the store has been left alone
+instead, under one bound.
+
 On the Python side: the endpoints, `explain()`, and a round trip asserting a
 loaded and saved drawing keeps its comments.
 
