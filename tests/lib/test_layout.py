@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from tc49.lib.layout import Layout, Point
+from tc49.lib.layout import Layout, Point, block_of, end_letter, opposite_end
 from tc49.store import AssetStore
 from tests.harness import ROOT
 
@@ -128,3 +128,13 @@ def test_a_position_is_one_of_the_two_a_motor_answers_to() -> None:
     doc["connections"]["j"]["points"] = {"ab": [{"addr": "12", "position": "sideways"}]}
     with pytest.raises(ValueError, match="sideways"):
         Layout.from_document(doc)
+
+
+def test_an_end_is_taken_apart_into_its_block_and_its_letter() -> None:
+    assert block_of("yard_w.B") == "yard_w"
+    assert end_letter("yard_w.B") == "B"
+
+
+def test_the_opposite_end_is_the_other_end_of_the_same_block() -> None:
+    assert opposite_end("yard_w.A") == "yard_w.B"
+    assert opposite_end("yard_w.B") == "yard_w.A"

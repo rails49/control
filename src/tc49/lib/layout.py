@@ -11,7 +11,9 @@ transits and the whole of the hardware the layout knows about. Routing stays
 outside — Layout is a data structure, not a policy.
 
 The ``check_*`` helpers are shared with the scenario validation in
-``store.py``.
+``store.py``. The ``<block>.<A|B>`` end form is parsed here and nowhere else:
+``check_end`` validates one, ``block_of``, ``end_letter`` and ``opposite_end``
+take one apart.
 """
 
 from collections.abc import Container
@@ -250,3 +252,18 @@ def check_end(end: Any, blocks: dict[str, int], where: str) -> str:
     if block not in blocks:
         raise ValueError(f"{where}: end '{end}' names unknown block '{block}'")
     return str(end)
+
+
+def block_of(end: str) -> str:
+    """The block a validated '<block>.<A|B>' end reference belongs to."""
+    return end.partition(".")[0]
+
+
+def end_letter(end: str) -> str:
+    """The 'A' or 'B' of a validated '<block>.<A|B>' end reference."""
+    return end.partition(".")[2]
+
+
+def opposite_end(end: str) -> str:
+    """The other end of the same block: a block has exactly A and B."""
+    return f"{block_of(end)}.{'B' if end_letter(end) == 'A' else 'A'}"
