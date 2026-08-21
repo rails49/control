@@ -1,6 +1,6 @@
 import { css } from "lit";
 
-import { menuBox, menuRow, menuShortcut } from "./shared.styles.js";
+import { dismiss, menuBox, menuRow, menuShortcut } from "./shared.styles.js";
 
 /**
  * The menu bar (`tc-menubar`): three titles at the left, the three commands
@@ -27,11 +27,7 @@ export const menubarStyles = css`
     z-index: 12;
   }
 
-  .dismiss {
-    position: fixed;
-    inset: 0;
-    z-index: 10;
-  }
+  ${dismiss}
 
   .title {
     padding: 0.2rem 0.55rem;

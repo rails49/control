@@ -1,14 +1,10 @@
 import { css } from "lit";
 
-import { menuBox, menuRow, menuShortcut } from "./shared.styles.js";
+import { dismiss, menuBox, menuRow, menuShortcut } from "./shared.styles.js";
 
 /** The right-click menu (`tc-menu`). */
 export const menuStyles = css`
-  .dismiss {
-    position: fixed;
-    inset: 0;
-    z-index: 10;
-  }
+  ${dismiss}
 
   menu {
     position: fixed;

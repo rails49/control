@@ -175,6 +175,21 @@ export const symbols = css`
 `;
 
 /**
+ * Whole rule set. The overlay a menu drops over the page: a press anywhere
+ * outside the menu lands here and dismisses it, and nothing under it is
+ * clicked by the same press. Worn by both menu systems, which is why it has
+ * to be one block — the two z-indices have to agree with each other and with
+ * everything the bar lifts above it.
+ */
+export const dismiss = css`
+  .dismiss {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+  }
+`;
+
+/**
  * Whole rule sets. Track that is not a symbol, and the lit way: shared by the editor's canvas
  * and the panel, which paint the same drawing.
  */
