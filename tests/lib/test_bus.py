@@ -260,3 +260,36 @@ def test_a_path_with_no_file_yet_starts_empty(tmp_path: Path) -> None:
     bus.drain()
 
     assert seen == []
+
+
+def test_a_file_naming_an_event_topic_replays_nothing(tmp_path: Path) -> None:
+    """Filtered on the way out as `publish` filters on the way in: whatever
+    wrote the file, an event topic is never replayed and keeping that promise
+    is the bus's own business."""
+    path = tmp_path / "session.json"
+    path.write_text(
+        json.dumps(
+            {
+                "tc49/layout/block_occupied": {"block": "yard_w"},
+                "tc49/schedule/state/exhausted": {"exhausted": True},
+            }
+        )
+    )
+    seen: list[str] = []
+    bus = Bus(path)
+    bus.subscribe("tc49/#", lambda topic, payload: seen.append(topic))
+    bus.drain()
+
+    assert seen == ["tc49/schedule/state/exhausted"]
+
+
+def test_the_directory_the_session_named_is_made(tmp_path: Path) -> None:
+    """`--state runs/today.json` is an ordinary thing to type, and the first
+    write is what has to make the directory: dying there would kill a session
+    that had already printed its banner."""
+    bus = Bus(tmp_path / "runs" / "today" / "session.json")
+    bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
+
+    assert json.loads((tmp_path / "runs" / "today" / "session.json").read_text()) == {
+        "tc49/schedule/state/exhausted": {"exhausted": True}
+    }

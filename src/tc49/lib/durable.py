@@ -26,7 +26,13 @@ def write(path: Path, document: Document) -> None:
     and renamed over it. Rename within a directory is atomic, so a process cut
     mid-write leaves the previous good copy in place and a partial file that
     nothing ever reads — `read` opens the target and no other name.
+
+    The directory is made if it is not there. A session names where it wants
+    its file kept and the first write is the one that has to make it, which
+    is not error handling: `--state runs/today.json` is an ordinary thing to
+    type, and it must not die after the banner has printed.
     """
+    path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
     temporary.write_text(json.dumps(document))
     temporary.replace(path)
