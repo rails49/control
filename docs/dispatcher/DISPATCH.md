@@ -9,11 +9,12 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
 ## Semantics
 
 - **Admission** — a request is rejected if no arrival end survives: none
-  is a block the train fits, none is an end any route can enter through, or —
-  settled at the first launch attempt, from the origin — none is reachable. A
-  request stating a departure block its train is not standing in is rejected
-  too, as is a payload the dispatcher cannot read as a request at all. All
-  other requests are accepted and queued.
+  is a block the train fits, none is an end any route can enter through, or
+  none is reachable from the origin — settled where the request arrives, or,
+  where a working of the same train is still pending, at the first launch
+  attempt. A request stating a departure block its train is not standing in
+  is rejected too, as is a payload the dispatcher cannot read as a request at
+  all. All other requests are accepted and queued.
 - **Fixed routes** — a route is chosen when the train starts moving and never
   changed; only its locks are incremental
   ([ADR-0002](../adr/0002-fixed-route-per-request.md)).
@@ -67,6 +68,9 @@ need different information:
   raising, since the submitter may be a stale browser
   ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)). A request
   naming no block, as a chained working does, can state no disagreement.
+  The stated block is no longer a routing input — what a working leaves by is
+  settled below — so this check now does one thing only: it is a **staleness
+  assertion**, catching a panel that composed against an out-of-date position.
   This stage is also where the payload is **read**, rather than trusted:
   anything at all can be published on the inbound topic and after the relay
   is deleted nothing stands in front of the dispatcher, so a train the
@@ -76,15 +80,25 @@ need different information:
   readable id is dropped — every rejection is addressed by id, and the frame
   is a line in the trace by virtue of having been published
   ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
-- At the first launch attempt, arrival ends not reachable from the origin are
-  pruned. This needs the origin block, which for a chained working is not known
-  until its predecessor completes — so `request_rejected` can also be
+- Arrival ends not reachable from the origin are pruned wherever the origin
+  is known, which is everywhere except behind a working of the same train
+  that is **still pending**. Behind an **active** route the origin is known:
+  a route is fixed once chosen
+  ([ADR-0002](../adr/0002-fixed-route-per-request.md)), so the block it
+  arrives at and the end it leaves the train facing are both settled and a
+  drag on a moving train is answered at the boundary it is asked. That is
+  sound because reachability is a pure function of layout, origin, departure
+  end, arrival ends and train length: route selection prunes only on fit and
+  on the simple-path rule, congestion enters solely as a sort key and `k`
+  only caps the list, so nothing between admission and the launch can change
+  the answer. **Reachability waits for the launch attempt only when a
+  predecessor is still pending** — so `request_rejected` can also be
   published at the first launch attempt, and rejection is not purely an
-  admission-time answer. The departure block is re-checked here for the same
+  admission-time answer. The departure block is re-checked there for the same
   reason, so `wrong_origin` is not an admission-only answer either: a working
-  queued behind another departs from a block that was a future dispatcher
-  choice when it arrived, and one that has gone stale while it waited is
-  refused rather than routed from.
+  whose train ran no route at all — its work ahead having been degenerate, or
+  refused — has only the block it stated, and one that has gone stale while
+  it waited is refused rather than routed from.
 
 Either stage rejects the request if it empties the set. The admission stage
 records what it dropped, with reasons, on `request_admitted`
@@ -96,11 +110,32 @@ because a prune that leaves candidates standing changes nothing observable: the
 chooser simply has fewer routes to order, and `route_chosen`'s `k_tried`
 already says how many it examined.
 
+**A working queued behind another does not state its own departure end.** It
+was composed against the block its train stood in at the time of asking, and
+where the train will really depart from is a choice the dispatcher had not
+yet made — so a stated block that turns out not to be the origin is not an
+authoring slip to refuse but an end to replace. The dispatcher reads the
+replacement off the route the train arrives on: routes are strict
+pass-throughs ([ADR-0001](../adr/0001-no-reversal-within-a-route.md)), so a
+train that entered through one end leaves by the other, or by a terminal
+block's one connected end where that would be a wall — `lib`'s rule, the same
+one the scheduler asks of facing. A bare end letter states no block, cannot
+go stale, and keeps resolving against whatever origin the launch finds.
+
+This is not the dispatcher holding facing, which
+[ADR-0019](../adr/0019-facing-is-scheduler-state.md) declined. It is the
+dispatcher applying its own no-reversal rule to a route it chose itself: for
+a train that arrived on a dispatcher route the departure end is a fact about
+**the route**, not about **the train**. A train that has never moved is idle
+and states a real end, and a reversal at rest cannot slip in between the two
+— the pending scan runs in the same grant phase that applies the completion.
+
 A request naming the train's current block is accepted with an empty route,
 whichever end that arrival names. Whether a request is degenerate is decided
-at the **first launch attempt**, alongside reachability — it depends on the
-origin block, which for a chained working is unknown until the predecessor
-completes. The launch commits an empty route and completes in the same grant
+at the **first launch attempt** — it depends on the origin block, which for a
+working queued behind a pending one is unknown until the predecessor
+completes, and an end in the origin block is therefore never pruned for
+reachability. The launch commits an empty route and completes in the same grant
 phase, moving nothing and locking nothing, so the request's latency is the
 one-boundary admission-to-scan skew every request pays. An empty route has no
 final transit for the end to constrain, and the dispatcher holds no facing to
