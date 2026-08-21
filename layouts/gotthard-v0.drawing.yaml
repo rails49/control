@@ -21,6 +21,10 @@
 # goldens are frozen rather than corrected. `gotthard/…` in those three ADRs
 # means `gotthard-v0/…`. The railroad on the bench is `gotthard.drawing.yaml`.
 #
+# Its header below cites `gotthard-rocrail.xml`, deleted in #161. The drawing on
+# the bench carries the decoder addresses now, and Rocrail's ganging had gone
+# stale against the rewired layout. Git history still has the file.
+#
 # Everything below this line is the file as it stood, and stays that way —
 # including `meet`'s claim that blue 2 reaches tracks 1 and 2, which is wrong
 # (blue 1 reaches 2 and 3; blue 2 reaches 1). A record is not patched.

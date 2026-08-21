@@ -184,21 +184,26 @@ Two structural facts fall out of the model and surprise people:
 
 | File | Shape | Role |
 | --- | --- | --- |
-| [`layouts/gotthard.drawing.yaml`](../../layouts/gotthard.drawing.yaml) | 14 blocks, 4 connections, 29 transits, 5 terminal blocks | the real railroad, headline benchmark; drawn from real symbols throughout, Claro east last (#58), which is what found its east end to be two throats |
+| [`layouts/gotthard.drawing.yaml`](../../layouts/gotthard.drawing.yaml) | 15 blocks, 5 connections, 30 transits, 5 terminal blocks | the railroad on the bench, headline benchmark; drawn in the editor from the track itself, turnouts carrying their real decoder addresses |
+| [`layouts/gotthard-v0.drawing.yaml`](../../layouts/gotthard-v0.drawing.yaml) | 14 blocks, 4 connections, 29 transits, 5 terminal blocks | **superseded**, frozen; wrong about Claro track 3 and the west throat, kept only so ADR-0006, ADR-0012 and ADR-0029 can be re-run (#161) |
 | [`layouts/crossover-yard.drawing.yaml`](../../layouts/crossover-yard.drawing.yaml) | 6 blocks, 3 connections, 8 transits | small, fast, drawn from real symbols throughout |
 
 `facing-pair` and `single-track-meet` are property-test railroads and are
 described in [ARCHITECTURE.md](../ARCHITECTURE.md#tests); they are small enough to
 read from those descriptions.
 
-Gotthard's topology is checked against the owner's Rocrail netlist,
-[`layouts/gotthard-rocrail.xml`](../../layouts/gotthard-rocrail.xml) (rendered as
-`gotthard-rocrail.png`), which is authoritative for what connects to what;
-`Gotthard.pdf` remains the source for block lengths. Two cautions when reading
-the netlist directly: its `<stlist>` routes are **stale** — they still name the
-deleted block `c4` and call `bk1` by its old id `rw` — and the block list, not
-the route list, is the current record. Block ids map 1:1 onto ours, and the
-mapping is recorded at the top of `gotthard.drawing.yaml`.
+Gotthard is drawn from the track itself, in the editor, and that drawing is the
+record — there is no second netlist it is checked against. `Gotthard.layout` and
+`Gotthard.pdf` (WinTrack) are the source for block lengths, which are measured
+rather than assumed. Its turnouts carry the decoder addresses the hardware
+answers to, and which of them are *identical* is the part that matters: an
+address shared between two symbols means one decoder throws both, and the
+derivation composes the concurrency from that.
 
-The remaining assumptions marked inline in that drawing are the block lengths,
-which the netlist does not settle. Each is correctable in place.
+The owner's Rocrail netlist was that second record until #161. It is deleted:
+the drawing already carries the addresses, and Rocrail's ganging no longer
+agrees with the railroad — it puts five switches on address 20 where the
+drawing puts four on `'1'` — because the layout was rewired after that file was
+written. Where the two disagree the track decides
+([ADR-0030](../adr/0030-the-physical-railroad-is-the-normative-binding.md)),
+and keeping a stale copy invites checking the wrong one.
