@@ -14,6 +14,8 @@ from collections import deque
 from collections.abc import Callable
 from typing import Any
 
+from tc49.lib.inventory import is_state_topic
+
 Payload = dict[str, Any]
 Handler = Callable[[str, Payload], None]
 
@@ -43,7 +45,7 @@ class Bus:
                 self._queue.append((topic, payload, subscription))
 
     def publish(self, topic: str, payload: Payload) -> None:
-        if _is_state_topic(topic):
+        if is_state_topic(topic):
             self._last_values[topic] = payload
         self._queue.append((topic, payload, None))
 
@@ -54,11 +56,6 @@ class Bus:
             for topic_filter, handler in targets:
                 if _matches(topic_filter, topic):
                     handler(topic, payload)
-
-
-def _is_state_topic(topic: str) -> bool:
-    levels = topic.split("/")
-    return len(levels) >= 2 and levels[-2] == "state"
 
 
 def _validate_filter(topic_filter: str) -> None:

@@ -46,6 +46,14 @@ def leaf(topic: str) -> str:
     return topic.rsplit("/", 1)[-1]
 
 
+def is_state_topic(topic: str) -> bool:
+    """Whether a topic is a state topic, read off the path: state is marked
+    structurally by a ``state`` segment before the leaf, so the split is a
+    property of the name and not a list to keep (SYSTEM.md, rule 2)."""
+    levels = topic.split("/")
+    return len(levels) >= 2 and levels[-2] == "state"
+
+
 LEAF_FIELDS: dict[str, tuple[str, ...]] = {
     leaf(topic): fields for topic, fields in TOPICS.items()
 }
