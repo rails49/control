@@ -175,7 +175,7 @@ by the same line whichever of its tracks the train ends on — and before #33
 the lexicographic tie-break alone decided which `k` got tried, so every train
 tried the same smallest-id tracks first. That bias was measured twice: as the
 `route-blindness` counterexample (ARCHITECTURE.md, property 3) and as an
-outright stall of `gotthard/saturation` authored at `|dest| = 6`
+outright stall of `gotthard-v0/saturation` authored at `|dest| = 6`
 ([BENCHMARKS.md](../bench/BENCHMARKS.md#the-k-axis)).
 
 The congestion count is a function of the dispatcher's live state, so the

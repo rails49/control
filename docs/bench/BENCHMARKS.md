@@ -210,7 +210,7 @@ so at `|dest| = 6` a train has all three to choose between.
 at two transits, so before congestion-aware costing (#33) the lexicographic
 tie-break alone ordered them and every train tried `C1`, then `C2`,
 first. The predicted cost was real and worse than predicted: authoring
-`gotthard/saturation` (#31) at `|dest| = 6` and running it at the default
+`gotthard-v0/saturation` (#31) at `|dest| = 6` and running it at the default
 `k = 2` did not merely cost throughput. The run **stalled outright**, under
 both locking strategies, because both tracks every train tried first were
 occupied and the rotation never started.
