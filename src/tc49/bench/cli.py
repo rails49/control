@@ -1,11 +1,12 @@
-"""`tc49 bench <scenario>`, `tc49 sweep`, `tc49 live <scenario>`,
+"""`tc49 bench <scenario>`, `tc49 sweep`, `tc49 live [scenario]`,
 `tc49 layout show <layout>`, `tc49 serve`, `tc49 generate`.
 
 `bench` runs one named scenario under both locking strategies and prints the
 comparison. `live` runs a session an outside client can join: wall-clock
 boundaries, the bridge relaying `tc49/#` out and gestures in, the store served
 over HTTP, and the scheduler's timetable off while `at` is a boundary count
-(ADR-0036). `sweep` takes no arguments: the grid of BENCHMARKS.md is the
+(ADR-0036). Its scenario is an argument the panel may override, the socket
+path naming the railroad a client wants (#148). `sweep` takes no arguments: the grid of BENCHMARKS.md is the
 research design, not a knob, and that page is its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
 review that a committed layout file used to give in a diff (ADR-0015).
@@ -21,17 +22,10 @@ from pathlib import Path
 from typing import TextIO
 
 from tc49.bench.metrics import Metrics, Stall, metrics
-from tc49.bench.runner import (
-    DEFAULT_K,
-    STRATEGIES,
-    assemble_live,
-    find_root,
-    load,
-    run_scenario,
-)
+from tc49.bench.runner import DEFAULT_K, STRATEGIES, find_root, load, run_scenario
+from tc49.bench.session import Session
 from tc49.bench.sweep import sweep
 from tc49.lib import rejection
-from tc49.lib.bridge import Bridge
 from tc49.lib.layout import Layout
 from tc49.store import AssetStore, symbols
 from tc49.store.server import make_server
@@ -168,7 +162,10 @@ def command_line() -> argparse.ArgumentParser:
         "live", help="run a live session an outside client can join (ui/PANEL.md)"
     )
     live_parser.add_argument(
-        "scenario", help="stock, placement, and facing, e.g. gotthard/meet"
+        "scenario",
+        nargs="?",
+        help="the railroad to come up running, e.g. gotthard/meet; with none"
+        " the session waits to be told, and either way the panel may switch it",
     )
     live_parser.add_argument(
         "--period",
@@ -223,9 +220,12 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         return 0
 
     if args.command == "live":
-        layout, scenario = load(AssetStore(ROOT), args.scenario)
-        assembly = assemble_live(layout, scenario)
-        bridge = Bridge(assembly.bus, args.port)
+        session = Session(ROOT, args.period, args.port)
+        if args.scenario is not None:
+            refusal = session.wants(args.scenario)
+            if refusal is not None:
+                out.write(f"{refusal}\n")
+                return 2
         # A session carries a store so that one command is all a browser
         # needs. Where one is already serving — scripts/dev.sh, whose store
         # outlives any session — a second would only fail to bind the port.
@@ -237,15 +237,16 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
             ).start()
             store_line = f"  store   http://127.0.0.1:{args.store_port}\n"
         out.write(
-            f"live: {args.scenario} at {args.period}s per boundary\n"
-            f"  bridge  ws://127.0.0.1:{bridge.port}\n"
+            f"live: {args.period}s per boundary\n"
+            f"  bridge  ws://127.0.0.1:{session.bridge.port}/<scenario>\n"
             f"{store_line}"
-            "the timetable is off; Ctrl-C ends the session, and a restart"
-            " comes up fresh from the scenario\n"
+            "the panel names the railroad and may switch it; the timetable is"
+            " off; Ctrl-C ends the session, and a restart comes up fresh from"
+            " the scenario\n"
         )
         out.flush()
         try:
-            assembly.simulator.run_live(args.period)
+            session.run(out)
         except KeyboardInterrupt:
             pass
         return 0

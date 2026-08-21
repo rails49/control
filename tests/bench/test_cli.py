@@ -125,6 +125,15 @@ def test_a_live_session_paces_itself_slowly_enough_to_watch() -> None:
     assert args.period == 10.0
 
 
+def test_a_live_session_may_come_up_with_no_scenario_at_all() -> None:
+    """The panel names the session (#148). `tc49 live` comes up idle on its
+    port waiting to be told, and a scenario on the command line is the
+    railroad it comes up running rather than the one it is fixed to."""
+    assert command_line().parse_args(["live"]).scenario is None
+    named = command_line().parse_args(["live", "gotthard/meet"])
+    assert named.scenario == "gotthard/meet"
+
+
 def test_the_period_flag_still_sets_the_period_and_says_the_default(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

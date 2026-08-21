@@ -10,25 +10,39 @@ the wall clock.
 The client sends `{train, dest}` and nothing else: the id and the departure
 end are the scheduler's (ADR-0036), so a test that wants to name a request
 reads the id off the trace rather than choosing one.
+
+The last section is `Session`, the loop `tc49 live` actually runs (#148): a
+whole session on a port, its railroad named by whoever joins and swapped by
+whoever names another. That one is paced by a real, very short period,
+because the loop under test is the one that owns the clock.
 """
 
+import io
 import json
+import threading
 import time
 from collections.abc import Callable, Iterator
 from typing import Any, cast
 
 import pytest
+from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import ClientConnection, connect
 
 from tc49.bench.runner import Assembly, assemble_live
+from tc49.bench.session import Session
 from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Payload
-from tests.harness import events, load
+from tests.harness import ROOT, events, load
 
 WANTED = "tc49/ui/request_wanted"
 REVERSAL = "tc49/ui/reversal_wanted"
 
 TIMEOUT = 5.0
+
+PERIOD_S = 0.02
+"""A session's boundary, for a test that has to watch one go by. Short enough
+that a handful pass in no time, long enough that a swap is a swap and not a
+race against the very first tick."""
 
 
 @pytest.fixture
@@ -288,3 +302,93 @@ def test_a_reversal_naming_a_train_the_session_lacks_is_dropped(
 
     assert len(events(assembly.trace)) == before + len(dropped)
     assert len(events(assembly.trace, "facing")) == 1  # the placement, unturned
+
+
+# --- the session: one railroad at a time, named by whoever joins -------------
+
+
+@pytest.fixture
+def session() -> Iterator[Session]:
+    """A whole session, idle, its loop on a thread of its own — which is what
+    `tc49 live` with no scenario is."""
+    live = Session(ROOT, PERIOD_S)
+    thread = threading.Thread(target=live.run, args=(io.StringIO(),), daemon=True)
+    thread.start()
+    yield live
+    live.stop()
+    thread.join(TIMEOUT)
+    live.bridge.close()
+
+
+def joining(live: Session, scenario_id: str) -> ClientConnection:
+    """A client naming the railroad it wants, the way the panel does."""
+    return connect(f"ws://127.0.0.1:{live.bridge.port}/{scenario_id}")
+
+
+def payload_of(client: ClientConnection, leaf: str) -> dict[str, Any]:
+    """The payload of the first frame with that event leaf."""
+    return frames_until(client, leaf)[-1]["payload"]
+
+
+def test_a_client_names_the_railroad_and_the_session_builds_it(
+    session: Session,
+) -> None:
+    """An idle session runs nothing until a path names a scenario. What comes
+    back first is the new assembly's opening drain — the startup cascade — so
+    placement and facing arrive as live frames and there is nothing to seed
+    (ADR-0032)."""
+    with joining(session, "crossover-yard/meet") as client:
+        assert payload_of(client, "facing")["facing"] == {
+            "express_2": "up_e.A",
+            "freight_1": "yard_w.B",
+        }
+        assert payload_of(client, "boundary")["boundary"] == 0
+
+
+def test_the_same_path_rejoins_the_run_already_going(session: Session) -> None:
+    """A reloaded tab restarts nothing: the path is the one already running,
+    so the client is served the picture and drops into the run where it is,
+    the boundary counter never rewinding to zero."""
+    with joining(session, "crossover-yard/meet") as client:
+        while payload_of(client, "boundary")["boundary"] < 2:
+            pass
+        with joining(session, "crossover-yard/meet") as rejoined:
+            assert payload_of(rejoined, "allocation")["trains"]["freight_1"]
+            assert payload_of(rejoined, "boundary")["boundary"] >= 2
+        # And the first client is still being served the same run.
+        assert payload_of(client, "boundary")["boundary"] >= 2
+
+
+def test_naming_another_railroad_swaps_the_assembly_and_closes_the_old_client(
+    session: Session,
+) -> None:
+    """One operator, one railroad. The session tears the assembly down and
+    builds a fresh one from the scenario named, so the counter starts again;
+    the client left on the old path is closed rather than fed another
+    railroad's events."""
+    with joining(session, "crossover-yard/meet") as first:
+        assert payload_of(first, "boundary")["boundary"] == 0
+        with joining(session, "gotthard/meet") as second:
+            assert set(payload_of(second, "facing")["facing"]) == {"north", "south"}
+            assert payload_of(second, "boundary")["boundary"] == 0
+            with pytest.raises(ConnectionClosed):
+                while True:
+                    first.recv(timeout=TIMEOUT)
+
+
+def test_a_path_naming_no_scenario_is_refused_and_the_run_lives(
+    session: Session,
+) -> None:
+    """A typo must not take down a live railroad: the client is answered with
+    an error frame and closed, and the run it never named ticks on."""
+    with joining(session, "crossover-yard/meet") as client:
+        assert payload_of(client, "boundary")["boundary"] == 0
+        with joining(session, "crossover-yard/nonesuch") as mistaken:
+            assert json.loads(mistaken.recv(timeout=TIMEOUT)) == {
+                "error": "no scenario 'crossover-yard/nonesuch'"
+            }
+            with pytest.raises(ConnectionClosed):
+                mistaken.recv(timeout=TIMEOUT)
+        before = payload_of(client, "boundary")["boundary"]
+        while payload_of(client, "boundary")["boundary"] <= before:
+            pass

@@ -9,6 +9,18 @@ writes gestures and never requests, so the scheduler stays the single minter
 and the dispatcher the sole feasibility authority precisely because nothing
 else can reach the bus (ADR-0036).
 
+**A client names the scenario it wants in the socket path** —
+``ws://127.0.0.1:8766/beb-gotthard/test1`` — and hears that railroad or
+none. The relay outlives the assembly it relays: ``rebind`` points it at a
+freshly built bus and settles every client on the swap, whoever named the
+new scenario starting to hear it and whoever was on the old one being closed
+so it re-picks rather than rendering one railroad fed by another's events
+(#148). A client that names a scenario other than the running one is asked
+for by ``wants`` and waits out of earshot until the swap lands; naming one
+that does not exist is an error frame and a close, the running railroad
+untouched. No inbound topic carries any of this: the set stays exactly the
+``tc49/ui`` leaves, which is what ADR-0034's broker ACL will grant.
+
 On connect a client is sent each state topic's last value, before any live
 frame and in the same schema — the frames it would have had were it already
 there. That is not the relay describing the run (#67): the bus promises a
@@ -26,11 +38,14 @@ the sync connection allows. Inbound, each client's handler thread calls
 ``publish``, which is one queue append; the event is delivered when the
 session's loop next drains, exactly as a scheduler's would be. Restricting
 inbound to event topics keeps that cross-thread surface to the append —
-a state topic would also write the last-value map.
+a state topic would also write the last-value map. ``wants`` is the second
+and last such handoff, and the same size: the handler thread says which
+scenario, and the thread that owns the assembly does the building.
 """
 
 import json
 import threading
+from collections.abc import Callable
 
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.server import Server, ServerConnection, serve
@@ -38,13 +53,25 @@ from websockets.sync.server import Server, ServerConnection, serve
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import INBOUND
 
+Wants = Callable[[str], str | None]
+"""Asked for a scenario a client named, on that client's own handler thread:
+a refusal in words, or ``None`` to accept, the swap arriving later as a
+``rebind``. A bridge given none runs one railroad and can switch to no
+other."""
+
 
 class Bridge:
     """Serving from construction; `port` says where, `close()` stops it."""
 
-    def __init__(self, bus: Bus, port: int = 0) -> None:
+    def __init__(self, bus: Bus, port: int = 0, wants: Wants | None = None) -> None:
         self._bus = bus
-        self._clients: set[ServerConnection] = set()
+        self._wants = wants
+        # The scenario the bus being relayed is running, and what each client
+        # named in its path; `''` is nothing named, which is what a client
+        # reaching a bridge with no session behind it says.
+        self._running = ""
+        self._clients: dict[ServerConnection, str] = {}
+        self._waiting: dict[ServerConnection, str] = {}
         self._clients_lock = threading.Lock()
         bus.subscribe("tc49/#", self._relay)
         self._server: Server = serve(self._serve_client, "127.0.0.1", port)
@@ -67,6 +94,30 @@ class Bridge:
     def close(self) -> None:
         self._server.shutdown()
 
+    def rebind(self, bus: Bus, scenario: str) -> None:
+        """Relay a freshly assembled railroad, and settle every client on it.
+
+        One operator, one railroad: whoever named this scenario is registered
+        here — before the assembly's opening drain, so the startup cascade is
+        their first frames and there is nothing to seed — and whoever is
+        still on the one it replaces is closed, to re-pick rather than render
+        the wrong railroad. A client waiting on some third scenario keeps
+        waiting: its swap is still to come.
+        """
+        self._bus = bus
+        bus.subscribe("tc49/#", self._relay)
+        with self._clients_lock:
+            self._running = scenario
+            parting = [one for one, named in self._clients.items() if named != scenario]
+            joining = [one for one, named in self._waiting.items() if named == scenario]
+            for one in parting:
+                del self._clients[one]
+            for one in joining:
+                del self._waiting[one]
+                self._clients[one] = scenario
+        for one in parting:
+            one.close()
+
     def _relay(self, topic: str, payload: Payload) -> None:
         frame = json.dumps({"topic": topic, "payload": payload})
         with self._clients_lock:
@@ -78,15 +129,14 @@ class Bridge:
                 pass  # its handler thread is already on the way out
 
     def _serve_client(self, connection: ServerConnection) -> None:
+        # The scenario the client named, off the socket path. A handler runs
+        # only once the handshake has produced a request; naming nothing is
+        # what a client reaching a bridge with no session behind it does.
+        request = connection.request
+        named = "" if request is None else request.path.strip("/")
         try:
-            with self._clients_lock:
-                # Under the same lock the relay takes, so a frame published
-                # while this runs either lands in the last values sent here or
-                # is relayed after: a client is never served a picture that
-                # has already been overtaken by the events it sits behind.
-                for topic, payload in self._bus.last_values.items():
-                    connection.send(json.dumps({"topic": topic, "payload": payload}))
-                self._clients.add(connection)
+            if not self._join(connection, named):
+                return
             for message in connection:
                 self._receive(connection, message)
         except ConnectionClosed:
@@ -96,7 +146,36 @@ class Bridge:
             pass
         finally:
             with self._clients_lock:
-                self._clients.discard(connection)
+                self._clients.pop(connection, None)
+                self._waiting.pop(connection, None)
+
+    def _join(self, connection: ServerConnection, named: str) -> bool:
+        """Register the client for the railroad it named, or refuse it.
+
+        Everything here is under the lock the relay takes. For the running
+        scenario that is what orders the last values against live frames: a
+        frame published while this runs either lands in the picture sent here
+        or is relayed after, so a client is never served one that has already
+        been overtaken by the events it sits behind. For any other it is what
+        keeps `wants` from being answered by a swap that lands before the
+        client is on the list to be woken by it.
+        """
+        with self._clients_lock:
+            if named == self._running:
+                for topic, payload in self._bus.last_values.items():
+                    connection.send(json.dumps({"topic": topic, "payload": payload}))
+                self._clients[connection] = named
+                return True
+            refusal = (
+                self._wants(named)
+                if self._wants is not None
+                else f"this session is not running '{named}'"
+            )
+            if refusal is None:
+                self._waiting[connection] = named
+                return True
+        connection.send(json.dumps({"error": refusal}))
+        return False
 
     def _receive(self, connection: ServerConnection, message: str | bytes) -> None:
         try:
