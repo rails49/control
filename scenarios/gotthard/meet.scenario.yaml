@@ -1,0 +1,31 @@
+# gotthard/meet — two trains, opposite directions (docs/BENCHMARKS.md, #31).
+#
+# The smallest story the real railroad can tell: one train each way between the
+# stations, launched on the same boundary, with three line sections to share out
+# between them.
+#
+# The asymmetry BENCHMARKS.md describes is what makes it worth running. `south`
+# leaves Claro by the east end of track 2, and at Claro each end of each track
+# is served by exactly one line — blue 1 (`CE1`) reaches tracks 2 and 3, blue 2
+# (`CE2`) reaches track 1 — so its line is fixed by the departure end alone.
+# `north` leaves Airolo, where all three lines meet at one junction and reach
+# both ends of every track, so it has a genuine choice and is the train that has
+# to make it.
+#
+# Both name a single arrival track, either way round, so `|dest| = 2`: the
+# continuity point, the request this model had before arrival ends existed.
+#
+# Ported from `gotthard-v0/meet` in #161. Claro's end letters are the other way
+# round on the drawn railroad, so `claro_2.B` is `C2.A`. The v0 file said blue 2
+# reached tracks 1 and 2; it does not, and never did.
+
+scenario: meet
+layout: gotthard
+
+trains:
+  south: { length: 450, at: C2, facing: A }
+  north: { length: 450, at: A1, facing: A }
+
+requests:
+  - { train: south, from: C2.A, to: [A2], at: 0 }
+  - { train: north, from: A1.A, to: [C1], at: 0 }

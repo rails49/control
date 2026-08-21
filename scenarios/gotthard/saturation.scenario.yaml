@@ -1,0 +1,92 @@
+# gotthard/saturation — the headline workload (docs/BENCHMARKS.md, #31).
+#
+# Six trains, three workings each, every request at boundary 0. Batch arrivals
+# make makespan the drain time and contention maximal, which is where the two
+# locking strategies are supposed to separate.
+#
+# Six is the ceiling, per BENCHMARKS.md's axis note: Gotthard has seven station
+# tracks, and at seven every arrival block would be a permanent obstacle at
+# boundary 0. At six there is exactly one free track, so the whole workload is
+# a rotation — each train moves into the slot the train ahead of it has just
+# vacated, and the free slot travels round the seven tracks. Nothing drains
+# except by rotation, which is what makes this saturation rather than merely
+# traffic.
+#
+# ## One hop in seven is a shunt, and it has to be
+#
+# The rotation is a single cycle through every station track:
+#
+#   A3 <- C1 <- A1 <- C2 <- A2 <- C3a <- C3b <- A3
+#
+# Claro has four station tracks and Airolo three, so a cycle through all seven
+# cannot alternate stations — that needs equal counts, which is what the
+# superseded `gotthard-v0` had. Exactly one hop per lap is therefore
+# Claro-to-Claro, and there is only one it can sensibly be: `C3b` to `C3a`,
+# the two halves of track 3, through `sw16` which stands between them. It is a
+# real move on the railroad and a short one. `t6` opens with it and `t1` closes
+# with it; the other sixteen workings are line workings.
+#
+# This is a property of the track, not a choice: splitting track 3 made the
+# station counts unequal, and an odd cycle has to absorb that somewhere.
+#
+# ## |dest| is not 2 throughout, and cannot be
+#
+# The five whole-track destinations are `|dest| = 2` — one track, either way
+# round — which is BENCHMARKS.md's continuity point. The two track-3
+# destinations are `|dest| = 1`: each half has exactly one end that faces a
+# line (`C3a.B` to the yellow, `C3b.A` to blue 1), and the other end faces only
+# the other half, so a working into a half names one end or the wrong one.
+# `gotthard-v0` could say `|dest| = 2` throughout because its track 3 was one
+# block with two line-facing ends.
+#
+# ## Departure ends
+#
+# Departure ends alternate deliberately rather than uniformly. At Claro the
+# east end of a track is served by a blue line and the west end by the yellow,
+# so a workload that always departs the same way never touches one of the three
+# line sections; departing both ways is what puts all three under load. `C1.A`
+# and `C2.A` take blue 2 and blue 1, `C3a.B` and the `.B` departures take the
+# yellow, `C3b.A` takes blue 1. Departing Airolo the choice is real either way,
+# since all three lines reach both ends of every track — and that is where
+# `k = 2` earns its keep, choosing between two lines rather than two ends of
+# one track.
+#
+# Ported from `gotthard-v0/saturation` in #161, and re-derived rather than
+# renamed: the old workload was five trains on six tracks, and neither number
+# survives the split.
+
+scenario: saturation
+layout: gotthard
+
+trains:
+  t1: { length: 450, at: C1, facing: A }
+  t2: { length: 450, at: A1, facing: A }
+  t3: { length: 450, at: C2, facing: A }
+  t4: { length: 450, at: A2, facing: B }
+  t5: { length: 450, at: C3a, facing: B }
+  t6: { length: 450, at: C3b, facing: B }
+
+requests:
+  - { train: t1, from: C1.A, to: [A3], at: 0 }
+  - { train: t1, from: A, to: [C3b.A], at: 0 }
+  - { train: t1, from: B, to: [C3a.A], at: 0 }
+
+  - { train: t2, from: A1.A, to: [C1], at: 0 }
+  - { train: t2, from: B, to: [A3], at: 0 }
+  - { train: t2, from: A, to: [C3b.A], at: 0 }
+
+  - { train: t3, from: C2.A, to: [A1], at: 0 }
+  - { train: t3, from: B, to: [C1], at: 0 }
+  - { train: t3, from: A, to: [A3], at: 0 }
+
+  - { train: t4, from: A2.B, to: [C2], at: 0 }
+  - { train: t4, from: B, to: [A1], at: 0 }
+  - { train: t4, from: A, to: [C1], at: 0 }
+
+  - { train: t5, from: C3a.B, to: [A2], at: 0 }
+  - { train: t5, from: B, to: [C2], at: 0 }
+  - { train: t5, from: A, to: [A1], at: 0 }
+
+  - { train: t6, from: C3b.B, to: [C3a.A], at: 0 }
+  - { train: t6, from: B, to: [A2], at: 0 }
+  - { train: t6, from: B, to: [C2], at: 0 }

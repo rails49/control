@@ -1,0 +1,44 @@
+# gotthard/flexibility — the |dest| contrast as a story (docs/BENCHMARKS.md, #31).
+#
+# The same working written twice, once at `|dest| = 1` and once at `|dest| = 6`,
+# run side by side against the same obstruction:
+#
+#   fixed     to: [C2.A]                          one track, one way round
+#   flexible  to: the six line-facing Claro ends  any track, either way round
+#
+# Both are Airolo -> Claro workings, both launched at boundary 0, and `resident`
+# sits in C2 with no request of its own, so the one track `fixed` names is
+# permanently unavailable. `fixed` stalls; `flexible` names the same obstructed
+# track among five other ends and finishes on one of them.
+#
+# Strictly the two workings cannot be identical — two trains cannot stand on one
+# Airolo track — so they depart adjacent tracks into the same junction. At
+# Airolo all three lines meet at one junction and every one reaches every Claro
+# track, so the departure track does not fix the line and the two workings
+# really do face the same choice.
+#
+# This is the sweep's flexibility axis with the sweep taken out: `|dest|` is a
+# property of the request, and here it is the whole difference between a
+# request that completes and one that does not.
+#
+# Ported from `gotthard-v0/flexibility` in #161. `|dest| = 6` is the six ends
+# that face a line, which is still six after track 3 was split: `C3a.A` faces
+# only `C3b` and `C3b.B` only `C3a`/`C6`/`C7`, so neither is a station-to-
+# station arrival end.
+
+scenario: flexibility
+layout: gotthard
+
+trains:
+  fixed: { length: 450, at: A1, facing: A }
+  flexible: { length: 450, at: A2, facing: A }
+  resident: { length: 450, at: C2, facing: A } # idle: no request names it
+
+requests:
+  - { train: fixed, from: A1.A, to: [C2.A], at: 0 }
+  - {
+      train: flexible,
+      from: A2.A,
+      to: [C1.A, C1.B, C2.A, C2.B, C3a.B, C3b.A],
+      at: 0,
+    }
