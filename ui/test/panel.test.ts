@@ -625,6 +625,24 @@ describe("a request in flight", () => {
     expect(model.markers().map((marker) => marker.role)).toContain("rejected");
   });
 
+  it("says whether a train still stands where it was clicked", () => {
+    // A menu opened over a parked train outlives the train: the request it
+    // was greyed for completes, and the train is somewhere else by the time
+    // the item ungreys.
+    const model = panel();
+    placed(model);
+    expect(model.standsIn("t1", "a")).toBe(true);
+    feed(
+      model,
+      { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
+      { event: "block_occupied", block: "b" },
+      { event: "block_vacated", block: "a" },
+    );
+    expect(model.standsIn("t1", "a")).toBe(false);
+    expect(model.standsIn("t1", "b")).toBe(true);
+    expect(model.standsIn("t2", "b")).toBe(false);
+  });
+
   it("is asked of one train and answered for that one", () => {
     const model = panel();
     placed(model);

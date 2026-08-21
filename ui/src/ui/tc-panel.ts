@@ -79,9 +79,14 @@ export class TcPanel extends LitElement {
   /** Bumped after each step: the model mutates in place, so rendering is
    *  asked for rather than observed. */
   @state() private beat = 0;
-  /** The open right-click menu: where it hangs and whose train it is about,
-   *  `null` for none. */
-  @state() private menu: { x: number; y: number; train: string } | null = null;
+  /** The open right-click menu: where it hangs, and the block and train it
+   *  is about, `null` for none. */
+  @state() private menu: {
+    x: number;
+    y: number;
+    block: string;
+    train: string;
+  } | null = null;
 
   private panel: Panel | null = null;
   private reviewed: Review | null = null;
@@ -340,27 +345,36 @@ export class TcPanel extends LitElement {
       this.gridAt(event),
     );
     if (standing === null) return;
-    this.menu = { x: event.clientX, y: event.clientY, train: standing.train };
+    this.menu = { x: event.clientX, y: event.clientY, ...standing };
   }
 
-  /** The one item the panel offers, greyed while that train has a request in
-   *  flight: the panel's only pre-judgement of a gesture, against the
-   *  filter-free drag where every drop submits (ui/PANEL.md). "Turn around"
-   *  and not "Reverse", which is the throttle's word — this moves nothing. */
+  /**
+   * The one item the panel offers, greyed while that train has a request in
+   * flight: the panel's only pre-judgement of a gesture, against the
+   * filter-free drag where every drop submits (ui/PANEL.md). "Turn around"
+   * and not "Reverse", which is the throttle's word, this moving nothing.
+   *
+   * Worked out afresh on every event, so the item ungreys the moment the
+   * request is answered — and offers nothing at all once the train has left
+   * the block it was opened over, which takes the menu down with it. A menu
+   * left standing over an empty block would turn a train around somewhere
+   * else entirely.
+   */
   private get offered(): MenuItem[] {
-    const train = this.menu?.train;
-    if (train === undefined) return [];
+    const at = this.menu;
+    if (at === null) return [];
+    if (this.panel === null || !this.panel.standsIn(at.train, at.block)) return [];
     return [
       {
         label: "Turn around",
         action: "turn-around",
-        disabled: this.panel!.inFlight(train),
+        disabled: this.panel.inFlight(at.train),
       },
     ];
   }
 
   /** Chosen: one `reversal_wanted` naming the train. The scheduler flips its
-   *  facing and the arrow follows — the whole of the feedback. */
+   *  facing and the arrow follows, which is the whole of the feedback. */
   private chose(): void {
     const train = this.menu?.train;
     this.menu = null;

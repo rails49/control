@@ -419,6 +419,14 @@ export class Panel {
     return lit;
   }
 
+  /** Whether that train still stands in that block. The right-click menu is
+   *  about one train in one block, and a menu left open outlives both: a
+   *  train that has moved on is turned around somewhere else entirely
+   *  (ui/PANEL.md). */
+  standsIn(train: string, block: string): boolean {
+    return this.standing.get(block) === train;
+  }
+
   /**
    * Whether the train has a request in flight: submitted, admitted or
    * committed, but not one already answered with a rejection.
