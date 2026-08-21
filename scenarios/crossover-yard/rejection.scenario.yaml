@@ -8,9 +8,11 @@
 # comparison table names every dropped request.
 #
 # `shunter` asks to leave through yard_w.A — the outer end of a terminal block,
-# which appears in no connection, so no route out of it can exist. The request
-# is admitted (the arrival end is fine) and then rejected `unreachable` at the
-# first launch attempt, which is where reachability is settled.
+# which appears in no connection, so no route out of it can exist. The arrival
+# end is fine, so the request survives fit and entry and dies on reachability:
+# the train is idle, nothing of its own is queued ahead of it, so the origin is
+# known where the request arrives and it is rejected `unreachable` there (#135)
+# rather than a boundary later at the first launch attempt.
 #
 # It is placed facing B, the one end it could leave by, because a placement
 # facing a wall is refused at load (#145). The request states its own

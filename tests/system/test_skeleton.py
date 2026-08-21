@@ -53,7 +53,10 @@ def test_no_fit_pruning_rejects_at_admission() -> None:
     assert rejected["id"] == "leviathan-1" and rejected["reason"] == "no_fit"
 
 
-def test_unreachable_rejection_at_first_launch_attempt() -> None:
+def test_unreachable_rejection_where_the_origin_is_known_at_admission() -> None:
+    """An idle train has no queue of its own ahead of it, so the block it
+    departs from is not a future dispatcher choice and reachability is
+    settled where the request arrives (#135) rather than a boundary later."""
     layout = Layout.from_document(
         {
             "layout": "mini",
@@ -70,7 +73,7 @@ def test_unreachable_rejection_at_first_launch_attempt() -> None:
     )
     trace = run(layout, scenario)
     leaves = [line["event"] for line in events(trace, rid="t1-1")]
-    assert leaves == ["request_submitted", "request_admitted", "request_rejected"]
+    assert leaves == ["request_submitted", "request_rejected"]
     [rejected] = events(trace, "request_rejected")
     assert rejected["reason"] == "unreachable"
 
@@ -141,6 +144,9 @@ def test_a_mid_route_drag_is_judged_against_where_the_train_stands() -> None:
     when the second working is released at boundary 2, so dn_w is the one block
     that working may state: not the block the train has left, not a block
     further along its route, and not the block the route arrives at.
+
+    The arrival end is one reachable from yard_e, where the working would
+    launch from, so the departure block is the only thing under test here.
     """
     layout, _ = load("crossover-yard/meet")
     fates = {
@@ -151,7 +157,7 @@ def test_a_mid_route_drag_is_judged_against_where_the_train_stands() -> None:
     }
     for depart, fate in fates.items():
         answer, reason = admission_answer(
-            second_working(layout, depart, ("dn_w.A",), 2), "freight-2"
+            second_working(layout, depart, ("up_w.B",), 2), "freight-2"
         )
         assert answer == fate, depart
         if fate == "request_rejected":
@@ -179,7 +185,7 @@ def test_a_mid_route_drag_before_the_train_has_moved_states_its_origin() -> None
     }
     for depart, fate in fates.items():
         answer, reason = admission_answer(
-            second_working(layout, depart, ("dn_w.A",), 1), "freight-2"
+            second_working(layout, depart, ("up_w.B",), 1), "freight-2"
         )
         assert answer == fate, depart
         if fate == "request_rejected":
@@ -273,6 +279,24 @@ def test_a_drag_mid_route_runs_from_the_block_its_train_arrives_in() -> None:
         "yard_w",
     ]
     assert events(trace, "request_completed", rid="freight-2")
+    assert_routes_leave_by_their_departure_end(layout, trace)
+
+
+def test_a_drag_mid_route_to_an_end_out_of_reach_is_answered_at_admission() -> None:
+    """The same drag to up_w.A instead. Behind an **active** route the origin
+    is not a future choice at all — a route is fixed once chosen (ADR-0002) —
+    so admission derives yard_e, derives the end, and finds no route: the
+    operator is answered at the boundary the request arrives at rather than
+    several boundaries later, when the train has finished a working nobody
+    can now redirect.
+    """
+    layout, _ = load("crossover-yard/meet")
+    trace = second_working(layout, "dn_w.B", ("up_w.A",), 2)
+    assert admission_answer(trace, "freight-2") == (
+        "request_rejected",
+        Reason.UNREACHABLE,
+    )
+    assert events(trace, "route_chosen", rid="freight-2") == []
     assert_routes_leave_by_their_departure_end(layout, trace)
 
 

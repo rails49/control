@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import cast
 
 from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
-from tc49.dispatcher.routing import Route
+from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import Layout, block_of, end_on, leaving_end, opposite_end
 from tc49.lib.payload import gesture
@@ -352,6 +352,25 @@ class Dispatcher:
                 ),
             )
             return
+
+        launch = self._launch_to_come(request)
+        if launch is not None:
+            origin, depart = launch
+            reachable: list[str] = []
+            for end in surviving:
+                # An end in the origin block is the degenerate case: it has no
+                # route to look for, and the launch stage decides it.
+                if block_of(end) == origin or self._reaches(
+                    origin, depart, end, request.train
+                ):
+                    reachable.append(end)
+                else:
+                    pruned.append({"end": end, "reason": Reason.UNREACHABLE})
+            surviving = reachable
+            if not surviving:
+                self._reject(rid, Reason.UNREACHABLE)
+                return
+
         self._pending.append(
             Request(
                 rid,
@@ -383,12 +402,60 @@ class Dispatcher:
             blocks.append(block_of(request.depart))
         return any(block not in self._state.layout.blocks for block in blocks)
 
+    def _has_pending(self, train: str) -> bool:
+        """Whether a working of the train's own is still queued, which is
+        what makes both where it will stand and where it will depart from a
+        future dispatcher choice."""
+        return any(req.train == train for req in self._pending)
+
     def _expected_block(self, train: str) -> str | None:
         """Where the train stands, active route or not (#99) — None when an
         earlier pending request makes that a future dispatcher choice."""
-        if any(req.train == train for req in self._pending):
+        return None if self._has_pending(train) else self._state.block_of[train]
+
+    def _launch_to_come(self, request: Submission) -> tuple[str, str] | None:
+        """The origin and departure end the working will launch from, or None
+        where an earlier working of its own train leaves them a future
+        dispatcher choice.
+
+        Behind an **active** route both are already settled: a route is fixed
+        once chosen (ADR-0002), so the block it arrives at is known and the
+        end it leaves the train facing with it. Behind a still **pending**
+        one nothing is, which is the only case DISPATCH.md's deferral to the
+        launch stage was ever about (#135).
+        """
+        if self._has_pending(request.train):
             return None
-        return self._state.block_of[train]
+        active = self._state.active.get(request.train)
+        origin = (
+            active.route.arrival_block
+            if active
+            else self._state.block_of[request.train]
+        )
+        depart = departure(
+            origin, request.depart, self._state.leaving.get(request.train)
+        )
+        return None if depart is None else (origin, depart)
+
+    def _reaches(self, origin: str, depart: str, end: str, train: str) -> bool:
+        """Whether any route out of `origin` by `depart` arrives at `end`.
+
+        A pure function of layout, origin, departure end, arrival end and
+        train length: `candidates` prunes only on fit and on the simple-path
+        rule, congestion enters solely as a sort key and `k` only caps the
+        list, so one route is all this has to find and nothing between here
+        and the launch can change the answer.
+        """
+        return bool(
+            candidates(
+                self._state.layout,
+                origin,
+                depart,
+                (end,),
+                self._state.train_lengths[train],
+                1,
+            )
+        )
 
     # -- the grant phase ---------------------------------------------------
 

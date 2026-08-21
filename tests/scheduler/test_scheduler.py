@@ -255,9 +255,8 @@ def test_a_gesture_is_composed_into_the_request_it_asks_for() -> None:
 
 def test_a_drag_out_of_a_terminal_block_departs_by_its_connected_end() -> None:
     """What the whole fix is for: the drag names no departure end, so a train
-    facing a wall composed a request admitted and then rejected `unreachable`
-    at the first launch attempt, over and over for the rest of the session
-    (#145)."""
+    facing a wall composed a request rejected `unreachable`, over and over for
+    the rest of the session (#145)."""
     bus = Bus()
     seen = collect(bus, "tc49/schedule/request_submitted")
     scenario = two_train_scenario()

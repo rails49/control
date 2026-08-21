@@ -292,7 +292,7 @@ def test_facing_must_name_an_end_a_connection_holds(
 ) -> None:
     """`yard_w` is a terminal block and `yard_w.A` its wall, so a train
     placed facing it could never leave: every drag would compose a request
-    admitted and then rejected `unreachable` (#145). A file request keeps the
+    rejected `unreachable` (#145). A file request keeps the
     freedom to state that end — facing is a discipline, not an invariant
     (ADR-0019) — but a placement is what every later request is composed
     from, so it is checked at load."""

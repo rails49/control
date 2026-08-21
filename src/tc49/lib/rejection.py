@@ -27,8 +27,9 @@ class Reason(StrEnum):
     in the order admission reaches them: the payload could not be read as a
     request at all, it names stock or track the railroad does not have, it
     departs from where the train is not standing, no arrival end survives
-    pruning — none fits, or none can be entered — and, at the first launch
-    attempt, no route to a surviving one exists. A grant refused mid-run is a
+    pruning — none fits, none can be entered, or no route to one exists from
+    the origin, which for a working queued behind a pending one is settled at
+    the first launch attempt instead. A grant refused mid-run is a
     different event with its own reasons (`grant_refused`)."""
 
     MALFORMED = "malformed"
