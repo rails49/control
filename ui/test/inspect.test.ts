@@ -455,8 +455,10 @@ describe("the order a drawing's wires are drawn in", () => {
   });
 
   it("leaves the wires the caller gave it alone", () => {
+    // With a predicate that reorders: a rule that sorted in place would pass
+    // against one that lights everything, every comparison there being a tie.
     const given = [...wires];
-    litLast(given, () => true);
+    litLast(given, (wire) => wirePins(wire)[0] === "a.B");
     expect(given).toEqual(wires);
   });
 });
