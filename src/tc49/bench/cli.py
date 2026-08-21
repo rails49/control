@@ -144,7 +144,9 @@ def _ratio(value: float | None) -> str:
     return "—" if value is None else f"{value:.3f}"
 
 
-def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
+def command_line() -> argparse.ArgumentParser:
+    """Every command and flag `tc49` takes. Apart from `main` so that a
+    default can be read without running the command that carries it."""
     parser = argparse.ArgumentParser(prog="tc49")
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -210,8 +212,11 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         "show", help="print the layout derived from a drawing"
     )
     show_parser.add_argument("layout", help="e.g. crossover-yard")
+    return parser
 
-    args = parser.parse_args(argv)
+
+def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
+    args = command_line().parse_args(argv)
     if args.command == "bench":
         results = bench(args.scenario, args.k)
         out.write(format_comparison(args.scenario, args.k, results))
