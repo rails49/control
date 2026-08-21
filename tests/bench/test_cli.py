@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tc49.bench.cli import GENERATED, command_line, main
+from tc49.bench.cli import GENERATORS, command_line, main
 from tc49.bench.metrics import metrics
 from tc49.bench.runner import find_root
 from tests.harness import ROOT
@@ -101,8 +101,8 @@ def test_generate_writes_every_generated_file(tmp_path: Path) -> None:
     # here would repair a stale one before the test whose whole job is to
     # notice — tests/store/test_symbols.py — ever looked at it.
     written = run_cli("generate", "--out", str(tmp_path))
-    assert GENERATED, "the command would write nothing"
-    for generated in GENERATED:
+    assert GENERATORS, "the command would write nothing"
+    for generated in GENERATORS:
         assert f"wrote {tmp_path / generated}\n" in written
         assert (tmp_path / generated).read_text() == (ROOT / generated).read_text()
 

@@ -19,7 +19,7 @@ name and a browser reads a plain string (ADR-0008).
 
 from enum import StrEnum
 
-GENERATED = "ui/src/rejection.generated.ts"
+GENERATED_PATH = "ui/src/rejection.generated.ts"
 
 
 class Reason(StrEnum):

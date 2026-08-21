@@ -14,7 +14,7 @@ them are hand-written TypeScript against these names (ui/EDITOR.md).
 
 from tc49.store.drawing import BEND, LIBRARY, PINS, POSITIONS, ROTATIONS
 
-GENERATED = "ui/src/symbols.generated.ts"
+GENERATED_PATH = "ui/src/symbols.generated.ts"
 
 _HEADER = """\
 // Generated from src/tc49/store/drawing.py. Run `tc49 generate` to update.

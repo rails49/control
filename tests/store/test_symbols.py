@@ -6,12 +6,12 @@ and a stale file would draw the wrong symbol without failing anywhere.
 """
 
 from tc49.store.drawing import LIBRARY, PINS, POSITIONS
-from tc49.store.symbols import GENERATED, render
+from tc49.store.symbols import GENERATED_PATH, render
 from tests.harness import ROOT
 
 
 def test_the_committed_file_is_current() -> None:
-    assert (ROOT / GENERATED).read_text() == render(), "run `tc49 generate`"
+    assert (ROOT / GENERATED_PATH).read_text() == render(), "run `tc49 generate`"
 
 
 def test_every_kind_is_rendered_with_its_own_pins() -> None:

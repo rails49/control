@@ -29,15 +29,12 @@ from tc49.bench.runner import (
     run_scenario,
 )
 from tc49.bench.sweep import sweep
+from tc49.lib import rejection
 from tc49.lib.bridge import Bridge
 from tc49.lib.layout import Layout
-from tc49.lib.rejection import GENERATED as REJECTION
-from tc49.lib.rejection import render as render_rejection
 from tc49.lib.scenario import Scenario
-from tc49.store import AssetStore
+from tc49.store import AssetStore, symbols
 from tc49.store.server import make_server
-from tc49.store.symbols import GENERATED as SYMBOLS
-from tc49.store.symbols import render as render_symbols
 
 ROOT = find_root()
 
@@ -49,9 +46,9 @@ points and changes aspects, and at two the next one landed before a person
 had finished reading the last (ui/PANEL.md). Not the replay transport's
 number, which is a rate in boundaries per second and stays where it is."""
 
-GENERATED: dict[str, Callable[[], str]] = {
-    SYMBOLS: render_symbols,
-    REJECTION: render_rejection,
+GENERATORS: dict[str, Callable[[], str]] = {
+    symbols.GENERATED_PATH: symbols.render,
+    rejection.GENERATED_PATH: rejection.render,
 }
 """Every file the UI is handed rather than keeps by hand, and what writes it.
 Keyed by the path each takes inside a checkout, so one command writes them
@@ -270,7 +267,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
 
     if args.command == "generate":
         root: Path = args.out
-        for generated, render in GENERATED.items():
+        for generated, render in GENERATORS.items():
             path = root / generated
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(render())
