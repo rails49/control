@@ -342,6 +342,13 @@ class Dispatcher:
         self._buffered: list[tuple[str, str]] = []
         self._aspects: dict[str, str] = {}  # last published, so only changes go
         self._allocation: Payload = {}  # likewise: the picture, when it moves
+        # The opening statement is the whole of what the dispatcher holds, in
+        # the order a grant phase says it. Aspects are in it because a restart
+        # has a previous value on that topic too: the last session's
+        # `approach` for a route this one did not restore would stand until
+        # the first grant phase, and a panel joining in that window draws a
+        # clear road nothing holds a lock on.
+        self._publish_aspects()
         self._publish_allocation()
         bus.subscribe("tc49/layout/+", self._on_layout)
         bus.subscribe("tc49/schedule/request_submitted", self._on_request)

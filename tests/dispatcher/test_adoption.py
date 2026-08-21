@@ -24,6 +24,7 @@ from tc49.lib.bus import Bus, Payload
 from tests.harness import load
 
 ALLOCATION = "tc49/dispatch/state/allocation"
+ASPECTS = "tc49/dispatch/state/aspects"
 REQUESTS = "tc49/schedule/request_submitted"
 
 MOVED: dict[str, Any] = {
@@ -36,12 +37,16 @@ MOVED: dict[str, Any] = {
 
 
 def restarted(
-    tmp_path: Path, picture: dict[str, Any]
+    tmp_path: Path, picture: dict[str, Any], aspects: dict[str, str] | None = None
 ) -> tuple[Bus, Dispatcher, list[Payload]]:
-    """A dispatcher on a bus whose file already holds that picture, with
+    """A dispatcher on a bus whose file already holds that picture — and the
+    aspects the last session left showing, where a test wants them — with
     everything published on it collected as it goes."""
     path = tmp_path / "session.json"
-    path.write_text(json.dumps({ALLOCATION: picture}))
+    kept: dict[str, Any] = {ALLOCATION: picture}
+    if aspects is not None:
+        kept[ASPECTS] = {"aspects": aspects}
+    path.write_text(json.dumps(kept))
     layout, scenario = load("crossover-yard/meet")
     bus = Bus(path)
     dispatcher = Dispatcher(bus, layout, scenario, FullRoute(layout, DEFAULT_K))
@@ -190,3 +195,21 @@ def test_a_refused_placement_takes_its_crossing_hints_with_it(tmp_path: Path) ->
     _, dispatcher, _ = restarted(tmp_path, stacked)
 
     assert dispatcher.state.crossing == {}
+
+
+def test_the_opening_statement_corrects_a_stale_aspect(tmp_path: Path) -> None:
+    """Every state topic the dispatcher writes now has a previous value on
+    it, and aspects is one of them.
+
+    The last session was cut off mid-route, so the file shows a signal at
+    `approach` for a route no longer restored. Left alone that value stands
+    until the first grant phase — a whole boundary, ten seconds of a session
+    the operator is reconnecting into — and the panel joining draws a train a
+    clear road it has no lock on. So the opening statement says the aspects
+    too, beside the standing locks and the picture.
+    """
+    _, _, said = restarted(tmp_path, MOVED, aspects={"dn_e.B": "approach"})
+
+    shown = [line for line in said if line["event"] == ASPECTS]
+    assert shown, "the opening statement said nothing about the signals"
+    assert all(set(line["aspects"].values()) == {"stop"} for line in shown)
