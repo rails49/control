@@ -12,7 +12,7 @@ import yaml
 from hypothesis import given, note, settings
 
 from tc49.dispatcher import FullRoute, Incremental
-from tc49.dispatcher.dispatch import Request, State, resolve_depart
+from tc49.dispatcher.dispatch import Request, State, departure
 from tc49.dispatcher.locking import congested, safety_view
 from tc49.dispatcher.routing import candidates
 from tc49.dispatcher.safety import safe
@@ -91,10 +91,12 @@ def assert_quiescence_is_a_permanent_obstacle(assembly: Assembly) -> None:
             assembly.trace, "grant_refused", rid=req.id
         ), f"{req.id} is pending but was never refused"
         origin = state.block_of[req.train]
+        depart = departure(origin, req.depart, state.leaving.get(req.train))
+        assert depart is not None, f"{req.id} is pending though its end is stale"
         routes = candidates(
             assembly.layout,
             origin,
-            resolve_depart(req.depart, origin),
+            depart,
             req.arrivals,
             state.train_lengths[req.train],
             assembly.k,

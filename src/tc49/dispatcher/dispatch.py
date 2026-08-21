@@ -16,13 +16,13 @@ it cannot (ADR-0034).
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import cast
 
 from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.layout import Layout, block_of, end_on
+from tc49.lib.layout import Layout, block_of, end_on, leaving_end, opposite_end
 from tc49.lib.payload import gesture
 from tc49.lib.rejection import Reason
 from tc49.lib.scenario import Scenario
@@ -37,6 +37,19 @@ class Request:
     seq: int  # admission order; the pending queue's tie-break key
     phase: int  # grant phases run when admitted; the arrival-order key
     refusals: int = 0  # launch refusals so far; the aging key (#34)
+
+
+def departure_end(layout: Layout, route: Route) -> str:
+    """The end a train that has run `route` leaves its arrival block by: the
+    other end of the one it entered through, or a terminal block's single
+    connected end.
+
+    `lib`'s rule, asked here by its second caller — the scheduler asks it of
+    a train's facing (#145), the dispatcher of a route it chose itself.
+    """
+    return leaving_end(
+        layout, opposite_end(end_on(layout, route.arrival_block, route.transits[-1]))
+    )
 
 
 def resolve_depart(depart: str, origin: str) -> str:
@@ -78,6 +91,10 @@ class State:
     locks: dict[str, str]  # resource -> holding train
     block_of: dict[str, str]  # train -> block it stands in (or last parked)
     active: dict[str, Active]
+    # train -> the end it will leave by once the last route committed for it
+    # is done. Written when a route is chosen, since a route is fixed from
+    # then on (ADR-0002), and so already true of a train still running one.
+    leaving: dict[str, str] = field(default_factory=dict[str, str])
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None:
         """Why `train` cannot lock `resource`: (reason, resource, holder),
@@ -95,6 +112,29 @@ class State:
                 ):
                     return ("transit_conflict", locked, by)
         return None
+
+
+def departure(origin: str, depart: str, leaving: str | None) -> str | None:
+    """The end a working leaves `origin` by, or None where the end it states
+    is one the dispatcher can neither use nor correct.
+
+    Normally the end the request states, resolved against `origin` where it
+    states only a letter — the device a chained working already has for a
+    block it could not know (LAYOUT.md). Where it states another block
+    altogether it was composed against the block its train stood in at the
+    time of asking, and the origin was then a future dispatcher choice; the
+    dispatcher replaces it with `leaving`, the end the route it chose itself
+    leaves the train facing (#135). Routes are strict pass-throughs
+    (ADR-0001), so that end is a fact about the route and not about the
+    stock, and facing stays the scheduler's (ADR-0019).
+
+    Where the train ran no route there is nothing to replace it with — the
+    work ahead of it was degenerate, or was itself refused — and the working
+    is refused rather than routed from a block the train is not in (#146).
+    """
+    if not departs_elsewhere(depart, origin):
+        return resolve_depart(depart, origin)
+    return leaving
 
 
 def locked_ahead(state: State, train: str, route: Route, standing: int) -> int:
@@ -384,16 +424,16 @@ class Dispatcher:
             if req.train in waiting:
                 continue
             origin = state.block_of[req.train]
-            if departs_elsewhere(req.depart, origin):
-                # Admission skipped this one — a working queued behind
-                # another departs from a block that was still a future
-                # dispatcher choice — and it is asked here, before the
-                # strategy sees it: the enumerator walks from the departure
-                # end while recording the origin as the route's first block,
-                # so an end off the origin returns a route claiming to start
+            depart = departure(origin, req.depart, state.leaving.get(req.train))
+            if depart is None:
+                # The stated end names a block the train is not in and no
+                # route of its own supplies a better one, so there is nothing
+                # to route from: the enumerator walks from the departure end
+                # while recording the origin as the route's first block, and
+                # an end off the origin returns a route claiming to start
                 # where the train stands and leave somewhere else (#146).
-                # Checked ahead of the degenerate arrival below, as admission
-                # checks it ahead of pruning: a stale working is refused, not
+                # Asked ahead of the degenerate arrival below, as admission
+                # asks it ahead of pruning: a stale working is refused, not
                 # completed because the train happens to be there already.
                 self._pending.remove(req)
                 self._reject(req.id, Reason.WRONG_ORIGIN)
@@ -407,9 +447,7 @@ class Dispatcher:
                 )
                 self._publish("request_completed", {"id": req.id})
                 continue
-            result = self._strategy.launch(
-                req, origin, resolve_depart(req.depart, origin), state
-            )
+            result = self._strategy.launch(req, origin, depart, state)
             if result is None:
                 self._pending.remove(req)
                 self._reject(req.id, Reason.UNREACHABLE)
@@ -468,6 +506,12 @@ class Dispatcher:
             "lock_granted", {"train": req.train, "resources": launched.locked}
         )
         self._state.active[req.train] = Active(req, launched.route, 0, None)
+        # A route is fixed once chosen (ADR-0002), so the end it leaves the
+        # train facing is settled here rather than on arrival — which is what
+        # lets a working dragged in mid-route be answered while it is asked.
+        self._state.leaving[req.train] = departure_end(
+            self._state.layout, launched.route
+        )
         move = self._strategy.grant(req.train, self._state)
         assert isinstance(move, Move)  # the launch just granted the first increment
         self._apply_move(self._state.active[req.train], move)
