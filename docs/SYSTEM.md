@@ -378,6 +378,9 @@ nothing to address an answer to and the frame is already a line in the trace
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 Like the dispatcher, it never raises on a bus payload. When the last timetable
 request is out it sets `exhausted`, the milestone-1 termination signal.
+Where a **retained `state/facing` survived a restart** it adopts that in
+place of the scenario's placement, a train the retained value does not name
+falling back to it.
 
 ### Dispatcher
 
@@ -385,7 +388,12 @@ request is out it sets `exhausted`, the milestone-1 termination signal.
 admission fit check, initial placement to seed the standing locks. Neither
 fact can come off the bus: sensors are anonymous, so the lock table the
 dispatcher recovers identity from must be seeded before the first sensor
-event, and `request_submitted` carries no length. *Subscribes*
+event, and `request_submitted` carries no length. Where a **retained
+`state/allocation` survived a restart** the placement comes from it instead —
+its `trains` and `crossing`, adopted before the standing locks are published;
+lengths stay the scenario's, and `locks` and `requests` are not adopted at
+all, so the lock table is rebuilt one block per train and the queue comes
+back empty. *Subscribes*
 `tc49/layout/+` and
 `tc49/schedule/request_submitted`. *Publishes* the eight `tc49/dispatch/*`
 events, plus `state/aspects` and `state/allocation` — the latter its picture

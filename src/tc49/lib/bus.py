@@ -52,7 +52,9 @@ class Bus:
         """Every state topic's last value, in the order each was first
         published. What a late subscriber is owed, for a subscriber that
         cannot use ``subscribe`` — the bridge relaying to a client that
-        connects mid-run (ADR-0032)."""
+        connects mid-run (ADR-0032), and an app adopting its own value at
+        construction, which has to settle before it publishes anything and so
+        cannot wait for a drain (#123)."""
         return dict(self._last_values)
 
     def subscribe(self, topic_filter: str, handler: Handler) -> None:

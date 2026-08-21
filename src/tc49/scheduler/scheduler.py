@@ -19,7 +19,10 @@ block entered, not the end entered through — and why the scheduler subscribes
 there is no end to face away towards, so seeding and arrival both go through
 `leaving_end`, which names the one end a train can leave by (#145). The
 last-value topic it publishes is what every view reads to draw a direction
-arrow, a train that has never moved having no other source for one.
+arrow, a train that has never moved having no other source for one. Where
+the bus binding has kept that topic across a restart the scheduler adopts
+what it finds there instead of the placement, which is what a broker that
+outlived it would have delivered (#123).
 Deliberate reversal at rest is the one change routes do not account for, and
 it arrives as its own gesture on `tc49/ui/reversal_wanted` (#124).
 """
@@ -31,6 +34,8 @@ from tc49.lib.layout import Layout, end_on, leaving_end, opposite_end
 from tc49.lib.payload import gesture, reversal
 from tc49.lib.scenario import Scenario
 
+FACING = "tc49/schedule/state/facing"
+
 
 class Scheduler:
     def __init__(
@@ -38,8 +43,15 @@ class Scheduler:
     ) -> None:
         self._bus = bus
         self._layout = layout
-        self._facing = {
-            train: leaving_end(layout, f"{spec.at}.{spec.facing}")
+        # Facing as the last session left it, where the bus binding kept it
+        # across the process: the scheduler's own state topic, found waiting
+        # exactly as it would be against a broker that outlived the app
+        # (#123). The scenario's placement is what seeds a cold start, and a
+        # train the file does not name — one added since — is a cold start of
+        # one.
+        restored = bus.last_values.get(FACING, {}).get("facing", {})
+        self._facing: dict[str, str] = {
+            train: restored.get(train, leaving_end(layout, f"{spec.at}.{spec.facing}"))
             for train, spec in sorted(scenario.trains.items())
         }
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
@@ -190,7 +202,7 @@ class Scheduler:
         facing = {"facing": dict(sorted(self._facing.items()))}
         if facing != self._published:
             self._published = facing
-            self._bus.publish("tc49/schedule/state/facing", facing)
+            self._bus.publish(FACING, facing)
 
 
 def _expand(arrivals: tuple[str, ...]) -> list[str]:

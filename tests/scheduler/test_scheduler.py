@@ -1,5 +1,7 @@
 """The scheduler seam: releases, ids, expansion, exhaustion, facing, gestures."""
 
+import json
+from pathlib import Path
 from typing import cast
 
 from tc49.lib.bus import Bus, Payload
@@ -130,6 +132,24 @@ def test_the_scenarios_placement_is_the_first_facing() -> None:
     assert [p["facing"] for _, p in seen] == [
         {"express_2": "up_e.A", "freight_1": "yard_w.B"}
     ]
+
+
+def test_a_retained_facing_is_adopted_in_place_of_the_placement(
+    tmp_path: Path,
+) -> None:
+    """A restart: the scheduler finds its own state topic already carrying
+    facing, kept across the process by the bus binding, and takes it (#123).
+    The scenario's placement is the cold start's seed and nothing more."""
+    path = tmp_path / "session.json"
+    path.write_text(json.dumps({FACING: {"facing": {"freight_1": "dn_e.A"}}}))
+    bus = Bus(path)
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario())
+    bus.drain()
+
+    # `express_2` is not in the file, so it falls back to its placement: a
+    # train added to the scenario since the last run is a cold start of one.
+    assert seen[-1][1]["facing"] == {"express_2": "up_e.A", "freight_1": "dn_e.A"}
 
 
 def test_a_granted_move_turns_the_train_away_from_the_end_it_entered() -> None:

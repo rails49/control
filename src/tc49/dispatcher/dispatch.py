@@ -5,8 +5,10 @@ requests arrive as events, every fate is announced as an event, and the
 request id is both correlation and idempotency key. Sensor events are
 buffered until the boundary and treated as a set, so grants are a pure
 function of the buffered set, never of delivery order (DISPATCH.md, time
-model). Standing locks are seeded from the scenario and published at
-startup. The locking discipline is the pluggable strategy of locking.py.
+model). Standing locks are seeded and published at startup — from the last
+picture where the bus binding has kept one across a restart, and from the
+scenario where it has not (#123). The locking discipline is the pluggable
+strategy of locking.py.
 
 It is also the sole payload authority (SYSTEM.md, dispatcher footprint):
 anything at all may be published on the inbound topic, so admission reads a
@@ -26,6 +28,8 @@ from tc49.lib.layout import Layout, block_of, end_on, leaving_end, opposite_end
 from tc49.lib.payload import gesture
 from tc49.lib.rejection import Reason
 from tc49.lib.scenario import Scenario
+
+ALLOCATION = "tc49/dispatch/state/allocation"
 
 
 @dataclass
@@ -276,18 +280,38 @@ class Dispatcher:
     ) -> None:
         self._bus = bus
         self._strategy = strategy
+        # The last picture, where the bus binding held one across a restart:
+        # the dispatcher's own state topic, found waiting exactly as it would
+        # be against a broker that outlived the app (#123). Read here rather
+        # than through `subscribe`, because placement has to be settled before
+        # the standing locks below are published, and a subscription delivers
+        # at the drain.
+        picture = bus.last_values.get(ALLOCATION, {})
+        placed, crossing = picture.get("trains", {}), picture.get("crossing", {})
         self._state = State(
             layout,
             {train: spec.length for train, spec in scenario.trains.items()},
             {},
             {},
             {},
+            # Adoption is selective: `locks` and `requests` are left behind,
+            # the lock table below being rebuilt one block per train exactly
+            # as a cold start builds it, the queue coming back empty and no
+            # request id resuming (ADR-0033). Stock stays the scenario's, so
+            # a train it does not carry is not one this session has and the
+            # picture's word for it is dropped.
+            crossing={
+                train: transit
+                for train, transit in crossing.items()
+                if train in scenario.trains
+            },
         )
         for train, spec in scenario.trains.items():
-            self._state.locks[spec.at] = train
-            self._state.block_of[train] = spec.at
+            at = placed.get(train, spec.at)
+            self._state.locks[at] = train
+            self._state.block_of[train] = at
             bus.publish(
-                "tc49/dispatch/lock_granted", {"train": train, "resources": [spec.at]}
+                "tc49/dispatch/lock_granted", {"train": train, "resources": [at]}
             )
         self._pending: list[Request] = []
         self._seen_ids: set[str] = set()
