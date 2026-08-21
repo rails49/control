@@ -37,6 +37,7 @@ import {
   chosenWay,
   dark,
   lit,
+  litLast,
   litWires,
   unpaired,
   type Chosen,
@@ -274,15 +275,11 @@ export class TcCanvas extends LitElement {
     };
   }
 
-  /** Every wire, the lit ones last: a lit wire drawn under an unlit one it
-   *  crosses would be half hidden, which is the ordering the artwork already
-   *  applies to lit legs. */
+  /** Every wire, in the order `inspect.litLast` puts them in, lit where the
+   *  shown way runs over it. */
   private wires(shown: Shown): unknown {
     const alight = (wire: Wire) => shown.wires.has(wireKey(wire));
-    const drawn = [...this.editor.drawing.wires].sort(
-      (one, two) => Number(alight(one)) - Number(alight(two)),
-    );
-    return drawn.map((wire) => {
+    return litLast(this.editor.drawing.wires, alight).map((wire) => {
       const [a, b] = wirePins(wire);
       const from = this.point(a);
       const to = this.point(b);

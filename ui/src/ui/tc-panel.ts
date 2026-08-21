@@ -22,8 +22,13 @@ import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import { Drag, trainAt } from "../model/drag.js";
-import { wireKey, wirePins, type Drawing } from "../model/drawing.js";
-import { dark } from "../model/inspect.js";
+import {
+  wireKey,
+  wirePins,
+  type Drawing,
+  type Wire,
+} from "../model/drawing.js";
+import { dark, litLast } from "../model/inspect.js";
 import {
   centreOf,
   labelTurn,
@@ -567,16 +572,12 @@ export class TcPanel extends LitElement {
     `;
   }
 
-  /** Every wire, the lit ones last: a lit wire drawn under an unlit one it
-   *  crosses would be half hidden, which is the ordering the artwork already
-   *  applies to lit legs. */
+  /** Every wire, in the order `inspect.litLast` puts them in, each lit one
+   *  carrying the state of the transit it is on. */
   private wires(lit: LitRoute) {
     const drawing = this.drawing!;
-    const drawn = [...drawing.wires].sort(
-      (one, two) =>
-        Number(lit.wires.has(wireKey(one))) - Number(lit.wires.has(wireKey(two))),
-    );
-    return drawn.map((wire) => {
+    const alight = (wire: Wire) => lit.wires.has(wireKey(wire));
+    return litLast(drawing.wires, alight).map((wire) => {
       const [a, b] = wirePins(wire);
       const from = pointOf(drawing, a);
       const to = pointOf(drawing, b);

@@ -310,9 +310,10 @@ describe("the way a refusal is about", () => {
  * The wires a lit way runs over (#142).
  *
  * A DOM test because what is being checked is the picture: which lines carry
- * the lit class, and the order they are emitted in — a lit wire drawn under
- * an unlit one it crosses is half hidden, and no model answer can see that.
- * Which wires are on a way is `inspect.wiresOn`, tested at its own seam.
+ * the lit class, and that the canvas emits them in the order the model gives.
+ * The two rules behind it are `inspect.wiresOn` and `inspect.litLast`, each
+ * tested at its own seam; what no model answer can see is whether this
+ * component asked.
  */
 describe("the wires a lit way runs over", () => {
   /** `west` faces a turnout whose straight road leads to `east` and whose

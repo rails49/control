@@ -7,13 +7,14 @@ import {
   chosenWay,
   dark,
   lit,
+  litLast,
   litWires,
   routes,
   through,
   unpaired,
   wiresOn,
 } from "../src/model/inspect.js";
-import type { Wire } from "../src/model/drawing.js";
+import { wirePins, type Wire } from "../src/model/drawing.js";
 import type { Review, Transit } from "../src/model/store.js";
 
 /**
@@ -415,5 +416,47 @@ describe("the portals wearing a label that does not pair", () => {
 
   it("names nothing where every label pairs", () => {
     expect(unpaired(scissors()).size).toBe(0);
+  });
+});
+
+/**
+ * The order the wires are emitted in (#155).
+ *
+ * Two pages draw a drawing's wires — the editor's canvas and the panel — and
+ * both need the lit ones last. What "lit" means differs between them, so the
+ * rule takes a predicate; that it is one rule is what this suite pins.
+ */
+describe("the order a drawing's wires are drawn in", () => {
+  const wires: Wire[] = [
+    ["a.B", "sw1.toe"],
+    ["sw1.straight", "b.A"],
+    ["sw1.diverging", "c.A"],
+    { pins: ["b.B", "c.B"], connection: "jt" },
+  ];
+
+  it("emits the lit wires after the unlit ones", () => {
+    const alight = (wire: Wire) => wirePins(wire)[0] === "a.B";
+    expect(litLast(wires, alight)).toEqual([
+      wires[1],
+      wires[2],
+      wires[3],
+      wires[0],
+    ]);
+  });
+
+  it("keeps the drawing's own order within each of the two", () => {
+    const alight = (wire: Wire) => wirePins(wire)[0]!.startsWith("sw1");
+    expect(litLast(wires, alight)).toEqual([
+      wires[0],
+      wires[3],
+      wires[1],
+      wires[2],
+    ]);
+  });
+
+  it("leaves the wires the caller gave it alone", () => {
+    const given = [...wires];
+    litLast(given, () => true);
+    expect(given).toEqual(wires);
   });
 });

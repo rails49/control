@@ -88,6 +88,28 @@ export function litWires(
   return new Set(ways.flatMap((way) => wiresOn(way, wires)));
 }
 
+/**
+ * A drawing's wires in the order they are drawn, the lit ones last.
+ *
+ * A lit wire drawn under an unlit one it crosses is half hidden, and SVG has
+ * no z beyond the order the lines are emitted in — the ordering the artwork
+ * already applies to lit legs, applied to the wires between symbols.
+ *
+ * The caller says what lit means, since the editor's canvas lights the way a
+ * refusal or a netlist choice is about and the panel lights a route in two
+ * colours. The wires are all this needs: where the two ends of a line are is
+ * the caller's own lookup, and the ordering does not depend on it. The given
+ * array is left alone.
+ */
+export function litLast(
+  wires: readonly Wire[],
+  alight: (wire: Wire) => boolean,
+): Wire[] {
+  return [...wires].sort(
+    (one, two) => Number(alight(one)) - Number(alight(two)),
+  );
+}
+
 /** The way a transit chosen in the netlist pane takes, as the one way to
  *  light. Empty where nothing is chosen, and where the choice is stale —
  *  every edit re-reviews, and a transit can go with the wire that made it. */
