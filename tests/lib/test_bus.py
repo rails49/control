@@ -1,5 +1,8 @@
 """Tests at the Bus seam: publish/subscribe/drain per SYSTEM.md "The bus"."""
 
+import json
+from pathlib import Path
+
 import pytest
 
 from tc49.lib.bus import Bus, Handler, Payload
@@ -167,3 +170,93 @@ def test_delivery_order_is_a_pure_function_of_publish_and_subscribe_order() -> N
         return log
 
     assert run() == run()
+
+
+# --- durability: the retained values outlive the process (#151) --------------
+
+
+def test_no_file_is_opened_without_a_path(tmp_path: Path) -> None:
+    """The default bus persists nothing, so `bench` and `sweep` are untouched
+    by construction rather than by a branch."""
+    bus = Bus()
+    bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
+    bus.drain()
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_retained_value_outlives_the_bus_that_held_it(tmp_path: Path) -> None:
+    """What a broker's retained message does: the value is waiting on the
+    topic when a process that was not there comes up and subscribes."""
+    path = tmp_path / "session.json"
+    first = Bus(path)
+    first.publish("tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.B"}})
+    first.drain()
+
+    seen: list[tuple[str, Payload]] = []
+    restored = Bus(path)
+    restored.subscribe("tc49/#", lambda topic, payload: seen.append((topic, payload)))
+    restored.drain()
+
+    assert seen == [
+        ("tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.B"}})
+    ]
+
+
+def test_an_event_topic_is_not_persisted(tmp_path: Path) -> None:
+    """Only what is retained survives: an event topic is never replayed, and
+    a file that held one would replay it."""
+    path = tmp_path / "session.json"
+    bus = Bus(path)
+    bus.publish("tc49/layout/block_occupied", {"block": "yard_w"})
+    bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
+    bus.drain()
+
+    assert json.loads(path.read_text()) == {
+        "tc49/schedule/state/exhausted": {"exhausted": True}
+    }
+
+
+def test_every_change_rewrites_the_whole_file(tmp_path: Path) -> None:
+    """One value moving rewrites all of them, so the file is always a whole
+    picture and never a log to replay."""
+    path = tmp_path / "session.json"
+    bus = Bus(path)
+    bus.publish("tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.A"}})
+    bus.publish("tc49/schedule/state/exhausted", {"exhausted": False})
+    bus.publish("tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.B"}})
+
+    assert json.loads(path.read_text()) == {
+        "tc49/schedule/state/facing": {"facing": {"freight_1": "yard_w.B"}},
+        "tc49/schedule/state/exhausted": {"exhausted": False},
+    }
+
+
+def test_a_cut_mid_write_leaves_the_previous_copy_to_load(tmp_path: Path) -> None:
+    """The write goes to a temporary file in the same directory and is
+    renamed over the target, so a process cut mid-write leaves a partial file
+    the loader never looks at and the last good copy in place."""
+    path = tmp_path / "session.json"
+    bus = Bus(path)
+    bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
+    good = path.read_text()
+    partial = path.with_name(path.name + ".tmp")
+    partial.write_text('{"tc49/schedule/state/exha')
+
+    assert path.read_text() == good
+    seen: list[Payload] = []
+    restored = Bus(path)
+    restored.subscribe("tc49/#", lambda topic, payload: seen.append(payload))
+    restored.drain()
+    assert seen == [{"exhausted": True}]
+
+
+def test_a_path_with_no_file_yet_starts_empty(tmp_path: Path) -> None:
+    """The first session of all: a path names where the picture will go, not
+    a file that has to be there."""
+    seen: list[Payload] = []
+    bus = Bus(tmp_path / "session.json")
+    bus.subscribe("tc49/#", lambda topic, payload: seen.append(payload))
+    bus.drain()
+
+    assert seen == []

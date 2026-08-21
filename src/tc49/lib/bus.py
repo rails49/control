@@ -8,11 +8,22 @@ delivery order is a pure function of publish and subscribe order.
 State topics — marked structurally by a ``state`` path segment before the
 leaf — are last-value-wins: the last value is delivered to a late
 subscriber. Event topics are never replayed.
+
+Given a file, the binding makes those retained values **durable** (#123): it
+loads them at startup and rewrites the whole file on every retained change,
+so a process that comes back up finds them waiting on their topics exactly
+as a broker that outlived it would have held them. Durability belongs here
+rather than to an app because that is where MQTT already puts it, and
+milestone 2 inherits the behaviour instead of deleting a crutch. Without a
+file the bus opens none, which is what leaves ``bench`` and ``sweep``
+untouched by construction rather than by a branch.
 """
 
+import json
 from collections import deque
 from collections.abc import Callable
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
 from tc49.lib.inventory import is_state_topic
 
@@ -23,10 +34,18 @@ _Subscription = tuple[str, Handler]
 
 
 class Bus:
-    def __init__(self) -> None:
+    def __init__(self, state: Path | None = None) -> None:
+        """`state`: where the retained values live between sessions, or None
+        to keep them in memory alone. A path naming no file yet is the first
+        session of all, and starts empty."""
         self._subscriptions: list[_Subscription] = []
         self._queue: deque[tuple[str, Payload, _Subscription | None]] = deque()
-        self._last_values: dict[str, Payload] = {}
+        self._state = state
+        self._last_values: dict[str, Payload] = (
+            cast(dict[str, Payload], json.loads(state.read_text()))
+            if state is not None and state.exists()
+            else {}
+        )
 
     @property
     def last_values(self) -> dict[str, Payload]:
@@ -47,7 +66,20 @@ class Bus:
     def publish(self, topic: str, payload: Payload) -> None:
         if is_state_topic(topic):
             self._last_values[topic] = payload
+            self._persist()
         self._queue.append((topic, payload, None))
+
+    def _persist(self) -> None:
+        """The whole picture, written to a temporary file in the target's own
+        directory and renamed over it. Rename within a directory is atomic,
+        so a cut mid-write leaves the previous good copy in place and a
+        partial file nothing ever reads. Whole file every time, because a
+        railroad is slow and a state topic only republishes when it moves."""
+        if self._state is None:
+            return
+        temporary = self._state.with_name(self._state.name + ".tmp")
+        temporary.write_text(json.dumps(self._last_values))
+        temporary.replace(self._state)
 
     def drain(self) -> None:
         while self._queue:
