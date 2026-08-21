@@ -3,11 +3,11 @@
 A relay and nothing more (ui/PANEL.md, #71): every `tc49/#` event goes out
 to every connected client as one JSON frame, ``{"topic": …, "payload": …}``,
 and a frame on an inbound topic — a ``tc49/ui`` leaf, those being the panel's
-write surface — is published as the event it names. Anything
-else inbound is refused with an error frame, ``request_submitted`` included:
-the browser writes gestures and never requests, so the scheduler stays the
-single minter and the dispatcher the sole feasibility authority precisely
-because nothing else can reach the bus (ADR-0036).
+write surface — is published as the event it names. Anything else inbound is
+refused with an error frame, ``request_submitted`` included: the browser
+writes gestures and never requests, so the scheduler stays the single minter
+and the dispatcher the sole feasibility authority precisely because nothing
+else can reach the bus (ADR-0036).
 
 On connect a client is sent each state topic's last value, before any live
 frame and in the same schema — the frames it would have had were it already

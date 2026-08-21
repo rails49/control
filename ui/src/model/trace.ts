@@ -117,7 +117,6 @@ export class Live {
  *  requests ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). */
 export const REQUEST_WANTED = "tc49/ui/request_wanted";
 export const REVERSAL_WANTED = "tc49/ui/reversal_wanted";
-export const INBOUND: readonly string[] = [REQUEST_WANTED, REVERSAL_WANTED];
 
 /** A `request_wanted` payload: what a drag means. A request minus the two
  *  fields the scheduler owns — no `id`, because the scheduler is the single

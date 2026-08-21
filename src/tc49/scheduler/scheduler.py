@@ -2,10 +2,9 @@
 
 Its sources are configuration rather than a rule (ADR-0036): a timetable
 released at its `at` boundaries, and a person gesturing on `tc49/ui/*`.
-`tc49 bench` runs with the timetable on, `tc49 live` with it off while `at`
-is still a boundary count. A gesture is not a request —
-it names a train and where to put it, and the id and the departure end are
-what the scheduler adds. Ids are minted deterministically in scenario order
+`tc49 bench` runs with the timetable on, `tc49 live` with it off while `at` is
+still a boundary count. A gesture is not a request — it names a train and
+where to put it, and the id and the departure end are what the scheduler adds. Ids are minted deterministically in scenario order
 (`<train>-1`, `<train>-2`, ...) from one undivided counter, the arrival-end
 expansion is purely mechanical (a bare block becomes both of its ends), and
 when the last timetable request is out the `exhausted` state topic is set —

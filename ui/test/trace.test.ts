@@ -7,11 +7,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   gesture,
-  INBOUND,
   Live,
   parseTrace,
   Replay,
+  REQUEST_WANTED,
   reversal,
+  REVERSAL_WANTED,
 } from "../src/model/trace.js";
 
 const SAMPLE = `
@@ -108,7 +109,7 @@ describe("gesture", () => {
       topic: "tc49/ui/request_wanted",
       payload: wanted,
     });
-    expect(INBOUND).toContain("tc49/ui/request_wanted");
+    expect(REQUEST_WANTED).toBe("tc49/ui/request_wanted");
   });
 
   it("carries no id and no departure end, those being the scheduler's", () => {
@@ -126,6 +127,6 @@ describe("reversal", () => {
       topic: "tc49/ui/reversal_wanted",
       payload: { train: "t1" },
     });
-    expect(INBOUND).toContain("tc49/ui/reversal_wanted");
+    expect(REVERSAL_WANTED).toBe("tc49/ui/reversal_wanted");
   });
 });
