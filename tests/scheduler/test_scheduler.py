@@ -154,6 +154,43 @@ def test_a_granted_move_turns_the_train_away_from_the_end_it_entered() -> None:
     assert seen[-1][1]["facing"]["freight_1"] == "dn_w.B"
 
 
+def test_a_train_seeded_into_a_terminal_block_faces_its_connected_end() -> None:
+    """`yard_w.A` is a wall — no connection holds it — so a train placed
+    there could never leave, and every drag would compose a request rejected
+    `unreachable`. A terminal block has one end a train can leave by and the
+    document does not get to choose otherwise (#145): a scheduler fed a
+    document from anywhere is still right."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    scenario = two_train_scenario()
+    scenario.trains["freight_1"] = TrainSpec(1100, "yard_w", "A")
+    Scheduler(bus, yard(), scenario, timetable=False)
+    bus.drain()
+    assert seen[-1][1]["facing"]["freight_1"] == "yard_w.B"
+
+
+def test_a_granted_move_into_a_terminal_block_faces_its_connected_end() -> None:
+    """The pass-through rule was incomplete rather than wrong: `to_dn` joins
+    dn_w.A to yard_w.B, so a train granted into yard_w comes in through B and
+    would face A — the end no connection holds. It faces B, the one end it
+    can leave by, and the physical railroad is what settles it (#145)."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    bus.publish(
+        "tc49/dispatch/move_granted",
+        {
+            "id": "express_2-1",
+            "train": "express_2",
+            "transit": "west_ladder.to_dn",
+            "into": "yard_w",
+            "aspect": "clear",
+        },
+    )
+    bus.drain()
+    assert seen[-1][1]["facing"]["express_2"] == "yard_w.B"
+
+
 def test_a_committed_route_faces_the_train_at_its_departure_end() -> None:
     """A request may depart against facing — ADR-0019 makes facing a
     scheduler discipline, not a system invariant — so the route the
@@ -214,6 +251,21 @@ def test_a_gesture_is_composed_into_the_request_it_asks_for() -> None:
             "dest": ["dn_e.A", "dn_e.B"],
         }
     ]
+
+
+def test_a_drag_out_of_a_terminal_block_departs_by_its_connected_end() -> None:
+    """What the whole fix is for: the drag names no departure end, so a train
+    facing a wall composed a request admitted and then rejected `unreachable`
+    at the first launch attempt, over and over for the rest of the session
+    (#145)."""
+    bus = Bus()
+    seen = collect(bus, "tc49/schedule/request_submitted")
+    scenario = two_train_scenario()
+    scenario.trains["freight_1"] = TrainSpec(1100, "yard_w", "A")
+    Scheduler(bus, yard(), scenario, timetable=False)
+
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    assert seen[-1][1]["depart"] == "yard_w.B"
 
 
 def test_gestures_and_the_timetable_share_one_undivided_counter() -> None:

@@ -15,17 +15,19 @@ carried forward from the bus: a train faces away from the end it entered
 through, and a committed route's departure end is the end it will leave by.
 That is what the layout read is for — `move_granted` names a transit and the
 block entered, not the end entered through — and why the scheduler subscribes
-`tc49/dispatch/#` (ADR-0028's growth, spent on facing). The last-value topic
-it publishes is what every view reads to draw a direction arrow, a train that
-has never moved having no other source for one. Deliberate reversal at rest
-is the one change routes do not account for, and it arrives as its own
-gesture on `tc49/ui/reversal_wanted` (#124).
+`tc49/dispatch/#` (ADR-0028's growth, spent on facing). Into a terminal block
+there is no end to face away towards, so seeding and arrival both go through
+`leaving_end`, which names the one end a train can leave by (#145). The
+last-value topic it publishes is what every view reads to draw a direction
+arrow, a train that has never moved having no other source for one.
+Deliberate reversal at rest is the one change routes do not account for, and
+it arrives as its own gesture on `tc49/ui/reversal_wanted` (#124).
 """
 
 from collections import Counter
 
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.layout import Layout, end_on, opposite_end
+from tc49.lib.layout import Layout, end_on, leaving_end, opposite_end
 from tc49.lib.payload import gesture, reversal
 from tc49.lib.scenario import Scenario
 
@@ -37,7 +39,7 @@ class Scheduler:
         self._bus = bus
         self._layout = layout
         self._facing = {
-            train: f"{spec.at}.{spec.facing}"
+            train: leaving_end(layout, f"{spec.at}.{spec.facing}")
             for train, spec in sorted(scenario.trains.items())
         }
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
@@ -158,11 +160,16 @@ class Scheduler:
         it entered through; and a committed route's departure end is the end
         it will leave by, which a request departing against facing is allowed
         to state (ADR-0019 makes facing a discipline, not an invariant).
+
+        Into a terminal block there is no end to face away towards, and
+        `leaving_end` gives back the one end the train can leave by (#145).
+        A route's departure end is a transit's end and so always connected.
         """
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "move_granted":
             entered = end_on(self._layout, payload["into"], payload["transit"])
-            self._facing[payload["train"]] = opposite_end(entered)
+            away = opposite_end(entered)
+            self._facing[payload["train"]] = leaving_end(self._layout, away)
         elif leaf == "route_chosen":
             train = self._train_of.get(payload["id"])
             route = payload["route"]
