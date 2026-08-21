@@ -245,8 +245,11 @@ export class Filing {
         : editor.settle(first, at);
       if (named) {
         // Opening a hand-written railroad has edits to save, because the names
-        // it was written with are not the ones it now holds.
+        // it was written with are not the ones it now holds. Minting them is
+        // an edit like any other, so it clears `untouched` with the dot it
+        // puts up (#147).
         this.clean = false;
+        this.untouched = false;
         this.said = await this.store.review(editor.drawing);
       } else {
         this.said = first;

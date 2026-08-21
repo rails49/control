@@ -410,6 +410,26 @@ describe("whether there are edits to lose", () => {
     expect(filing.edits).toBe(true);
   });
 
+  /**
+   * Every place that records an edit clears the flag, not two of the three:
+   * `edited`, `open`, and the review that mints names the drawing did not
+   * hold. The store cannot say this about a canvas nothing is on — which is
+   * why nothing is lost today — so the fake says it, and what is guarded is
+   * the invariant rather than the reachable path to it (#147).
+   */
+  it("has edits to lose once a review named a junction for it", async () => {
+    const { filing, store, editor } = made();
+    store.answer = () =>
+      Promise.resolve({
+        ...CLEAN,
+        junctions: [{ name: null, names: [], symbols: ["sw1"] }],
+      });
+
+    await filing.create("arth-goldau", editor);
+
+    expect(filing.edits).toBe(true);
+  });
+
   it("has nothing to lose again once the drawing is saved", async () => {
     const { filing, editor } = made(["gotthard"]);
     await filing.open("gotthard", editor);
