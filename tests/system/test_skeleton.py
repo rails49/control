@@ -101,11 +101,12 @@ def test_a_stated_departure_the_train_is_not_at_is_rejected() -> None:
     assert events(trace, "request_completed", rid="express-1")
 
 
-def midroute_drag(layout: Layout, depart: str, dest: tuple[str, ...], at: int) -> str:
+def second_working(layout: Layout, depart: str, dest: tuple[str, ...], at: int) -> str:
     """The trace of freight — placed in yard_w, routed to yard_e at boundary
-    0, and dragged again at boundary `at` by a second working `freight-2`
-    departing `depart` for `dest`. #99's repro, with the boundary of the
-    second drag and the ends it names left to the caller."""
+    0, and given a second working `freight-2` at boundary `at`, departing
+    `depart` for `dest`. #99's repro, with the boundary of that second
+    working and the ends it names left to the caller: at 0 it is queued
+    behind one still pending, later it is a drag on a train under way."""
     scenario = Scenario(
         "midroute",
         "crossover-yard",
@@ -150,7 +151,7 @@ def test_a_mid_route_drag_is_judged_against_where_the_train_stands() -> None:
     }
     for depart, fate in fates.items():
         answer, reason = admission_answer(
-            midroute_drag(layout, depart, ("dn_w.A",), 2), "freight-2"
+            second_working(layout, depart, ("dn_w.A",), 2), "freight-2"
         )
         assert answer == fate, depart
         if fate == "request_rejected":
@@ -178,7 +179,7 @@ def test_a_mid_route_drag_before_the_train_has_moved_states_its_origin() -> None
     }
     for depart, fate in fates.items():
         answer, reason = admission_answer(
-            midroute_drag(layout, depart, ("dn_w.A",), 1), "freight-2"
+            second_working(layout, depart, ("dn_w.A",), 1), "freight-2"
         )
         assert answer == fate, depart
         if fate == "request_rejected":
@@ -201,12 +202,12 @@ def test_an_arrival_end_in_the_routes_arrival_block_is_still_checked() -> None:
     """
     layout, _ = load("crossover-yard/meet")
     answer, reason = admission_answer(
-        midroute_drag(layout, "yard_w.B", ("yard_e.B",), 1), "freight-2"
+        second_working(layout, "yard_w.B", ("yard_e.B",), 1), "freight-2"
     )
     assert (answer, reason) == ("request_rejected", Reason.NO_ENTRY)
     # Named beside the end that can be entered, it is pruned and the working
     # lives on the survivor — the ends of that block judged one by one.
-    trace = midroute_drag(layout, "yard_w.B", ("yard_e.A", "yard_e.B"), 1)
+    trace = second_working(layout, "yard_w.B", ("yard_e.A", "yard_e.B"), 1)
     [admitted] = events(trace, "request_admitted", rid="freight-2")
     assert admitted["dest"] == ["yard_e.A"]
     assert admitted["pruned"] == [{"end": "yard_e.B", "reason": Reason.NO_ENTRY}]
