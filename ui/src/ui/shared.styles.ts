@@ -51,6 +51,25 @@ export const palette = unsafeCSS(
 );
 
 /**
+ * Declaration body. The shell both pages lay themselves out on: a band, a bar,
+ * and the surface under them, on the paper and the ink the palette names.
+ *
+ * The palette comes with it, a page being the host every component inherits it
+ * through. It stays a separate export all the same — an exported drawing has
+ * no page above its svg to inherit from (#86).
+ */
+export const page = css`
+  ${palette}
+
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  font: 13px/1.4 system-ui, sans-serif;
+`;
+
+/**
  * Declaration body. The box a menu drops into, shared by the right-click menu and the bar's, so
  * that the editor's two menu systems read as one. Position is the caller's:
  * one is pinned to the pointer and the other hangs off its title. Named for

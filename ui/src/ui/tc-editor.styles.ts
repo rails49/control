@@ -1,6 +1,6 @@
 import { css } from "lit";
 
-import { palette } from "./shared.styles.js";
+import { page } from "./shared.styles.js";
 
 /** The shell (`tc-editor`): the page it lays its panes out on.
  *
@@ -12,19 +12,13 @@ import { palette } from "./shared.styles.js";
  * read. */
 export const appStyles = css`
   :host {
-    ${palette}
+    ${page}
 
-    display: grid;
-    grid-template-rows: auto auto 1fr;
     grid-template-columns: 12rem 1fr;
     grid-template-areas:
       "band band"
       "bar bar"
       "palette canvas";
-    height: 100vh;
-    background: var(--paper);
-    color: var(--ink);
-    font: 13px/1.4 system-ui, sans-serif;
   }
 
   :host([netlist]) {

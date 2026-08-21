@@ -1,19 +1,12 @@
 import { css } from "lit";
 
 import { NOTE, W } from "../render/units.js";
-import { palette, symbols, way } from "./shared.styles.js";
+import { page, symbols, way } from "./shared.styles.js";
 
 /** The dispatch panel (`tc-panel`): trace replay painted over the drawing. */
 export const panelStyles = css`
   :host {
-    ${palette}
-
-    display: grid;
-    grid-template-rows: auto auto 1fr;
-    height: 100vh;
-    background: var(--paper);
-    color: var(--ink);
-    font: 13px/1.4 system-ui, sans-serif;
+    ${page}
   }
 
   header {
