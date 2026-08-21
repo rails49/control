@@ -18,15 +18,26 @@
  * saying the wrong thing about a drawing is as silent a fault as a sheet
  * painted in the browser's defaults, so which weight each fault is marked in
  * is checked here too.
+ *
+ * The shared module's limit is checked here as well, and in the other
+ * direction: nothing lives in it that fewer than two component stylesheets
+ * wear (#132). That one is mechanical, over every export the module has, so
+ * that a block added there for a single component fails rather than passing
+ * unnoticed until the module has grown back into the file it came out of.
  */
 
+import type { CSSResult } from "lit";
 import { describe, expect, it } from "vitest";
 
 import { COLOURS } from "../src/render/units.js";
+import * as shared from "../src/ui/shared.styles.js";
 import {
+  dismiss,
   menuBox,
   menuRow,
+  menuRowChosen,
   menuShortcut,
+  page,
   palette,
   symbols,
   way,
@@ -39,11 +50,51 @@ import { menubarStyles } from "../src/ui/tc-menubar.styles.js";
 import { paletteStyles } from "../src/ui/tc-palette.styles.js";
 import { panelStyles } from "../src/ui/tc-panel.styles.js";
 
+/**
+ * The component stylesheets, hand-listed: the imports above, named, so that a
+ * sheet is counted as a wearer only once someone has said it is one.
+ */
+const sheets: Record<string, CSSResult> = {
+  appStyles,
+  canvasStyles,
+  exportStyles,
+  headerStyles,
+  menuStyles,
+  menubarStyles,
+  paletteStyles,
+  panelStyles,
+};
+
+/**
+ * The limit, executable (#132): a block only one component wears is that
+ * component's own and does not belong in the shared module. Mechanical and
+ * over every export, because the point is to catch the block nobody thought
+ * to write an assertion for.
+ */
+describe("everything the shared module holds", () => {
+  it.each(Object.entries(shared) as [string, CSSResult][])(
+    "%s is worn by at least two component stylesheets",
+    (name, block) => {
+      const wearers = Object.entries(sheets)
+        .filter(([, sheet]) => sheet.cssText.includes(block.cssText))
+        .map(([sheet]) => sheet);
+      expect(
+        wearers.length,
+        `${name} is worn by ${wearers.join(", ") || "nothing"}`,
+      ).toBeGreaterThanOrEqual(2);
+    },
+  );
+});
+
 describe("the palette", () => {
-  /** The two pages' hosts, from which every component inherits it. */
-  it("is declared by the editor's shell and by the panel", () => {
-    expect(appStyles.cssText).toContain(palette.cssText);
-    expect(panelStyles.cssText).toContain(palette.cssText);
+  /** The two pages' hosts, from which every component inherits it — and it
+   *  reaches them inside `page`, which is what the assertion says. Asserting
+   *  it of the two sheets directly would pass on textual containment alone
+   *  and read as the stronger claim that each declares the palette itself. */
+  it("rides in on the page the shell and the panel lay out on", () => {
+    expect(page.cssText).toContain(palette.cssText);
+    expect(appStyles.cssText).toContain(page.cssText);
+    expect(panelStyles.cssText).toContain(page.cssText);
   });
 
   /** An exported file has no host above the svg to inherit from (#86). */
@@ -72,6 +123,17 @@ describe("what a menu is made of", () => {
    *  editor's two menu systems stop reading as one. */
   it("is the same for the right-click menu and the bar's", () => {
     for (const part of [menuBox, menuRow, menuShortcut]) {
+      expect(menuStyles.cssText).toContain(part.cssText);
+      expect(menubarStyles.cssText).toContain(part.cssText);
+    }
+  });
+
+  /** The overlay a press outside lands on and the row under the pointer, both
+   *  whole rule sets. Which two sheets wear them is the claim: the mechanical
+   *  test above counts wearers and would take any two, and a menu is only one
+   *  thing if these are the two. */
+  it("dismisses and paints the chosen row the same way in both", () => {
+    for (const part of [dismiss, menuRowChosen]) {
       expect(menuStyles.cssText).toContain(part.cssText);
       expect(menubarStyles.cssText).toContain(part.cssText);
     }
