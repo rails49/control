@@ -7,6 +7,7 @@ hand-built documents, kept small enough to read as a statement about one pass
 each.
 """
 
+from collections import defaultdict
 from collections.abc import Callable
 from itertools import pairwise
 from pathlib import Path
@@ -18,7 +19,7 @@ import yaml
 
 from tc49.lib.layout import Layout, Point
 from tc49.store import AssetStore
-from tc49.store.drawing import LIBRARY, POSITIONS, Drawing
+from tc49.store.drawing import BEND, LIBRARY, POSITIONS, Drawing, Use
 from tests.store.railroads import RAILROADS, derive, read
 
 
@@ -885,6 +886,146 @@ def test_a_way_through_a_junction_is_not_a_joint() -> None:
     offered a name of their own."""
     assert Drawing.from_document(spanned()).joints() == []
     assert committed_drawing("crossover-yard").joints() == []
+
+
+# --- the wire rule, proven exact -------------------------------------------
+
+
+Wire = tuple[str, str]  # a wire, as the sorted pair of pins naming it
+Edge = tuple[str, Wire | None, Use | None]
+
+
+def hops(drawing: Drawing, ends: tuple[str, str], used: tuple[Use, ...]) -> set[Wire]:
+    """The wires a way is actually drawn over, found by re-walking it pin by
+    pin rather than by asking the rule.
+
+    Derivation records a way as its two block ends and the symbol legs it
+    took, and keeps no wires; the hops are recovered by walking the pin graph
+    — wires, the leg of each symbol the way crosses, and the pairing a portal
+    wears — for the one simple path between the ends that crosses exactly
+    those legs. A pairing joins two pins and is not a wire, so it carries no
+    key and contributes none.
+
+    A second algorithm on purpose. Comparing the rule against a copy of
+    itself would prove nothing about either.
+    """
+    joins: dict[str, list[Edge]] = defaultdict(list)
+    for wire in drawing.wires:
+        key = cast(Wire, tuple(sorted(wire)))
+        joins[wire[0]].append((wire[1], key, None))
+        joins[wire[1]].append((wire[0], key, None))
+    for symbol, leg in used:
+        if not leg:
+            continue  # a joiner takes no leg of its own; it is passed through
+        a, b = drawing.symbols[symbol].transits[leg]
+        joins[f"{symbol}.{a}"].append((f"{symbol}.{b}", None, (symbol, leg)))
+        joins[f"{symbol}.{b}"].append((f"{symbol}.{a}", None, (symbol, leg)))
+    portals = [name for name, _ in used if drawing.symbols[name].kind == "portal"]
+    for one in portals:
+        for two in portals:
+            if one != two and drawing.symbols[one].label == drawing.symbols[two].label:
+                joins[f"{one}.P"].append((f"{two}.P", None, None))
+
+    walked: list[frozenset[Wire]] = []
+
+    def step(
+        node: str,
+        seen: frozenset[str],
+        wires: frozenset[Wire],
+        crossed: frozenset[Use],
+    ) -> None:
+        name = node.partition(".")[0]
+        kind = drawing.symbols[name].kind
+        if kind == "block" and node != ends[0]:
+            if node == ends[1] and crossed == frozenset(used):
+                walked.append(wires)
+            return  # any other block end stops the way, as the walk does
+        if kind in {BEND, "portal"}:
+            crossed |= {(name, "")}
+        for other, wire, use in joins[node]:
+            if other in seen:
+                continue
+            step(
+                other,
+                seen | {other},
+                wires if wire is None else wires | {wire},
+                crossed if use is None else crossed | {use},
+            )
+
+    step(ends[0], frozenset({ends[0]}), frozenset(), frozenset())
+    assert len(walked) == 1, f"{ends} through {used} walks {len(walked)} ways"
+    return set(walked[0])
+
+
+def ways(drawing: Drawing) -> list[tuple[tuple[str, str], tuple[Use, ...]]]:
+    """Every way of a drawing, as the explanation states it."""
+    return [
+        (
+            cast(tuple[str, str], tuple(transit["ends"])),
+            tuple(cast(Use, tuple(use)) for use in transit["way"]),
+        )
+        for connection in drawing.explain()["connections"].values()
+        for transit in connection["transits"].values()
+    ]
+
+
+@pytest.mark.parametrize("name", RAILROADS)
+def test_the_wire_rule_is_exact_on_every_way_of_every_railroad(name: str) -> None:
+    """The rule that decides which wires a way is drawn over holds no more and
+    no less than the hops the walk takes.
+
+    The rule is cheap — a subset test per wire — and the front end transcribes
+    it to light a committed route and a chosen transit (#140, #142). It could
+    in theory over-light: a wire between two pins of one crossed symbol is in
+    the set whether the way runs over it or not. This says the case does not
+    arise on any drawing that exists, in the store, where the rule lives,
+    rather than in a browser painting a route over a wire no train will take.
+    """
+    drawing = committed_drawing(name)
+    walked = ways(drawing)
+    assert walked, f"{name} has no ways to check"
+    for ends, used in walked:
+        assert set(drawing.wires_on(ends, used)) == hops(drawing, ends, used)
+
+
+def test_the_wire_rule_is_exact_on_the_shapes_no_railroad_is_drawn_with() -> None:
+    """A joint chained through bend pins, and a joint whose chain crosses a
+    portal pair. Neither is on a committed railroad — the parametrised test
+    above covers what is — and both are exactly the shapes the front end's
+    copy of the rule has to get right, a joint lighting nothing at all today.
+    """
+    for doc in (joint("b1", "b2"), portal_joint()):
+        drawing = Drawing.from_document(doc)
+        for ends, used in ways(drawing):
+            assert set(drawing.wires_on(ends, used)) == hops(drawing, ends, used)
+
+
+def portal_joint() -> dict[str, Any]:
+    """`west` and `east` joined by a wire each into a portal pair: one joint,
+    crossing the canvas rather than a corner. The pairing joins the two
+    portals and is not a wire, so the chain is two."""
+    doc = two_blocks(
+        here={"kind": "portal", "label": "hop"},
+        there={"kind": "portal", "label": "hop"},
+    )
+    doc["wires"] += [
+        {"pins": ["west.B", "here.P"], "connection": "gap"},
+        ["there.P", "east.A"],
+    ]
+    return doc
+
+
+def test_a_joint_through_a_portal_pair_is_the_two_wires_and_not_the_pairing() -> None:
+    """The pairing is how a joint's chain crosses the canvas, not a wire on
+    it (CONTEXT.md), so nothing downstream has one to draw."""
+    assert Drawing.from_document(portal_joint()).joints() == [
+        {
+            "ends": ["east.A", "west.B"],
+            "wires": [["here.P", "west.B"], ["east.A", "there.P"]],
+            "name": "gap",
+            "names": ["gap"],
+        }
+    ]
 
 
 def with_portals(*labels: str) -> dict[str, Any]:

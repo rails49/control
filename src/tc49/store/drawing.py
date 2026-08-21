@@ -363,7 +363,7 @@ class Drawing:
         for ends, used in self._walks(self._loose_joins()):
             if any(self.symbols[symbol].transits for symbol, _ in used):
                 continue
-            chain = self._chain(ends, used)
+            chain = self.wires_on(ends, used)
             named = sorted(
                 {
                     self.wire_connections[key]
@@ -466,7 +466,7 @@ class Drawing:
         sit on any one of them, so the whole chain is searched. Two names on
         one chain are refused rather than resolved by order, the same as two
         symbol transits naming one way."""
-        chain = self._chain(ends, used)
+        chain = self.wires_on(ends, used)
         named = sorted(
             {
                 self.wire_connections[key]
@@ -489,12 +489,22 @@ class Drawing:
         spent.update(key for key in chain if key in self.wire_connections)
         return named[0]
 
-    def _chain(
+    def wires_on(
         self, ends: tuple[str, str], used: tuple[Use, ...]
     ) -> list[tuple[str, str]]:
-        """The wires one way is drawn from, as sorted pin pairs. Routed around
-        a corner a joint is several wires through bend pins, and it is the
-        chain rather than any one wire that is the connection."""
+        """The wires one way is drawn over, as sorted pin pairs.
+
+        The rule: a wire is on a way when **both** of its pins are in the
+        way's two ends together with every pin of every symbol the way
+        crosses. Routed around a corner a joint is several wires through bend
+        pins, and it is the chain rather than any one wire that is the
+        connection.
+
+        Public because it is the rule the front end transcribes to light a
+        way's wires, in the editor and on the panel (ui/PANEL.md, #140) —
+        whoever changes it here changes it there. `test_drawing.py` proves it
+        exact against the hops the walk takes, on every committed railroad.
+        """
         held = {ends[0], ends[1]} | {
             f"{symbol}.{pin}" for symbol, _ in used for pin in self.symbols[symbol].pins
         }
