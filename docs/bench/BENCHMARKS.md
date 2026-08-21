@@ -14,7 +14,8 @@ research finding rather than a contract.
 
 | Layout | Role |
 | --- | --- |
-| `gotthard` | headline benchmark — 14 blocks, two stations, three line sections between them |
+| `gotthard` | headline benchmark — 15 blocks, two stations, three line sections between them |
+| `gotthard-v0` | superseded, frozen; the netlist the ADRs measured, kept reproducible (#161) |
 | `crossover-yard` | fast smoke benchmark — 6 blocks |
 | `facing-pair`, `single-track-meet` | property tests only |
 
@@ -36,7 +37,7 @@ the starvation job [SAFETY.md](../dispatcher/SAFETY.md) assigns it. Named scenar
 to stagger `at:` for storytelling.
 
 **Line workings** — generated requests run station to station,
-`claro_{1,2,3} ↔ airolo_{1,2,3}`, chained into a connected walk per train:
+`{C1, C2, C3a, C3b} ↔ {A1, A2, A3}`, chained into a connected walk per train:
 request *n+1* departs from wherever request *n* parked the train. The departure
 end is a free choice, since ADR-0001 permits reversal at rest between requests.
 
@@ -80,20 +81,22 @@ four-track stations sweeps `{1, 2, 8}` for the same three intents:
 
 | `\|dest\|` | What the request says | Written |
 | --- | --- | --- |
-| 1 | one track, one way round | `to: [claro_2.B]` |
-| 2 | one track, either way round — **the old semantics** | `to: [claro_2]` |
-| 6 | any track at the other station, either way round | `to: [claro_1, claro_2, claro_3]` |
+| 1 | one track, one way round | `to: [C2.A]` |
+| 2 | one track, either way round — **the old semantics** | `to: [C2.A, C2.B]` |
+| 6 | any track at the other station, either way round | `to:` the six line-facing Claro ends |
 
 `|dest| = 2` is the continuity point: it is exactly the request this model had
 before arrival ends existed, so it is the column every other column is read
 against.
 
-Working trains start on station tracks, of which Gotthard has six. **The axis
-stops at 5 for that reason**: at six, every station track holds an idle train,
-every arrival block is therefore a permanent obstacle at every `|dest|`,
-`safe()` refuses every launch, and the run quiesces `stalled` at boundary 0 on
-every seed. That point measures the stall detector, not throughput, so it is
-excluded rather than swept. At five a free station track always exists, and it
+Working trains start on station tracks, of which Gotthard has seven — `sw16`
+stands in Claro track 3 and splits it, so Claro has four and Airolo three.
+**The axis stops at 6 for that reason**: at seven, every station track holds an
+idle train, every arrival block is therefore a permanent obstacle at every
+`|dest|`, `safe()` refuses every launch, and the run quiesces `stalled` at
+boundary 0 on every seed. That point measures the stall detector, not
+throughput, so it is excluded rather than swept. At six a free station track
+always exists, and it
 helps because the generator redraws until every train's first request can
 eventually reach one (step 4 below); a free track no pending request can name
 would be unreachable to the workload
@@ -104,15 +107,22 @@ would be unreachable to the workload
 Everything below is drawn from a single seeded RNG, in this order, so a
 `(layout, trains, workings, |dest|, seed)` tuple names one exact workload:
 
-1. **Placement** — sample `trains` distinct station tracks from the six, one
-   train each. Train lengths are fixed per train id so the fit check is
-   deterministic; any length that fits every station track will do.
+1. **Placement** — sample `trains` distinct station tracks from the seven, one
+   train each. Train length is a constant 450 mm so the fit check is
+   deterministic: it has to fit every station track, and `C3a` at 500 mm is
+   the tightest. The railroad is smaller than the drawing it replaced, whose
+   Airolo tracks were a flat 1200 mm against a measured 980 to 1350.
 2. **Workings** — for each train in id order, chain `workings` requests. The
    first departs from its placement and states that block; each later one
-   states only its end. The departure end is uniform over `A`/`B`, and the
-   arrival ends are drawn at the swept `|dest|`: at 6, all three tracks of the
-   *other* station; at 2, one track uniform over the three; at 1, one track
-   uniform and then one of its two ends uniform.
+   states only its end. The departure end is uniform over `A`/`B`, except where
+   a track has only one end that faces a line — which is each half of track 3,
+   since leaving `C3a` by its `A` end means running the length of `C3b` to get
+   out, and that is a shunt rather than a working. The arrival ends are drawn
+   at the swept `|dest|`, in *line-facing ends* rather than block names, since
+   track 3's two line-facing ends sit on two different blocks and no block
+   name can say "track 3": at 6, all six ends of the *other* station; at 2,
+   one track uniform over its three; at 1, one track uniform and then one of
+   its two ends uniform.
 3. **Arrival** — every request at boundary 0.
 4. **Redraw** — while any train's first request is one no dispatcher could
    launch, redraw each such request: end first, then arrival ends. A train
@@ -134,9 +144,17 @@ to one made without the rule.
 origin block, which for a chained working is not known when the file is
 written, so the generator cannot check it — it is settled at the first launch
 attempt ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)). What makes this safe here is a
-property of the railroad, verified against the encoding: every one of the six
-station-to-station arrival ends is reachable from every origin track by either
-departure end, so no draw can be unroutable at any `|dest|`. A layout without
+property of the railroad, verified against the encoding: all 72 combinations
+of a line-facing departure end and a line-facing arrival end at the other
+station are reachable, so no draw can be unroutable at any `|dest|`. It is
+"line-facing" that carries this. `C3a.A` faces only `C3b` and `C3b.B` only
+`C3a` and the sidings, so neither is a station-to-station end at all, and a
+*departure* by one of them is the single case that makes a route run through a
+third station track. That case is also invisible to step 4, which reasons about
+arrival blocks alone: two trains in the halves of track 3, each departing into
+the other, are a head-on swap the fixed point below cannot see (#161). Keeping
+departures line-facing is what keeps step 4 sound as well as the routes
+short. A layout without
 that property extends step 4's redraw to unroutable requests too, since the
 workings-per-train count is a sweep axis and must hold. Occupancy is the case
 reachability cannot cover — it is per-origin and silent about an arrival block
@@ -151,8 +169,10 @@ finish-somewhere-else. That contrast is the headline measurement.
 
 **`k` and `|dest|` are not independent axes.** Enumerated on the finished
 encoding, Gotthard yields **exactly one minimal route per arrival end** — every
-station-to-station route is two transits, so the candidate count a launch has
-to work with is `|dest|` itself:
+station-to-station route is two transits, station to line to station, so the
+candidate count a launch has to work with is `|dest|` itself. That still holds
+with track 3 split, and holds *because* departures are line-facing: it is the
+one rule that keeps a route from running through a third station track.
 
 | `\|dest\|` | Direction | Minimal routes | Distinct lines | `k` |
 | --- | --- | --- | --- | --- |
@@ -182,12 +202,13 @@ The line asymmetry itself is structural and unchanged. At Claro each track's
 east end is served by exactly one blue line (blue 1 reaches tracks 2 and 3;
 blue 2 reaches track 1) and its west end by the yellow, so the departure end
 and arrival end together fix the line. Departing Airolo, all three lines meet
-at the single WX310 connection and every one of them reaches every Claro track,
+at the single `j1` connection, reaching both ends of every Airolo track, and
+every one of them reaches every Claro track,
 so at `|dest| = 6` a train has all three to choose between.
 
 **The lexicographic bias at `k < |dest|`, and its fix.** Every candidate ties
 at two transits, so before congestion-aware costing (#33) the lexicographic
-tie-break alone ordered them and every train tried `claro_1`, then `claro_2`,
+tie-break alone ordered them and every train tried `C1`, then `C2`,
 first. The predicted cost was real and worse than predicted: authoring
 `gotthard/saturation` (#31) at `|dest| = 6` and running it at the default
 `k = 2` did not merely cost throughput. The run **stalled outright**, under
@@ -246,9 +267,9 @@ live-lock bug, never as the normal stop condition.
 | Scenario | What it shows |
 | --- | --- |
 | `gotthard/meet` | two trains, opposite directions — `FullRoute` serialises, `Incremental` should split them across two lines |
-| `gotthard/saturation` | 5 trains × 3 workings, batch — the headline makespan gap; five is the ceiling, per the axis note above |
-| `gotthard/obstacle` | an idle train parked on the one line a pending request can use — stock left on `line_blue_1` while a request departs `claro_3.B`, which is served by blue 1 alone. The departure end fixes the line by itself, so the request stalls however many arrival ends it names. Expected status `stalled`, with the obstacle named |
-| `gotthard/flexibility` | the same working twice, once as `to: [claro_2.B]` and once as `to: [claro_1, claro_2, claro_3]` — the `\|dest\|` contrast as a story rather than a sweep row |
+| `gotthard/saturation` | 6 trains × 3 workings, batch — the headline makespan gap; six is the ceiling, per the axis note above. Its rotation runs through all seven station tracks, so one hop per lap is the track-3 shunt: Claro has four tracks and Airolo three, and a cycle only alternates stations if the counts are equal |
+| `gotthard/obstacle` | an idle train parked on the one line a pending request can use — stock left on `CE1` while a request departs `C3b.A`, track 3's only east end, which blue 1 alone serves. The departure end fixes the line by itself, so the request stalls however many arrival ends it names. Expected status `stalled`, with the obstacle named |
+| `gotthard/flexibility` | the same working twice, once as `to: [C2.A]` and once as `to:` the six line-facing Claro ends — the `\|dest\|` contrast as a story rather than a sweep row |
 | `crossover-yard/meet` | small and fast; one `concurrent` pair, composed from a scissors crossover |
 
 ## Output
