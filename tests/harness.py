@@ -15,6 +15,7 @@ from tc49.bench.runner import (
     find_root,
     run_scenario,
 )
+from tc49.bench.runner import load as load_scenario
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
@@ -28,12 +29,8 @@ run = run_scenario
 
 
 def load(scenario_id: str) -> tuple[Layout, Scenario]:
-    store = AssetStore(ROOT)
-    scenario = store.get(scenario_id)
-    assert isinstance(scenario, Scenario)
-    layout = store.get(scenario.layout)
-    assert isinstance(layout, Layout)
-    return layout, scenario
+    """The wiring module's loader against the one root the suite uses."""
+    return load_scenario(AssetStore(ROOT), scenario_id)
 
 
 def events(

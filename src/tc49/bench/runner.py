@@ -20,6 +20,7 @@ from tc49.lib.scenario import Scenario
 from tc49.lib.trace import TraceTap
 from tc49.scheduler import Scheduler
 from tc49.simulator import Simulator
+from tc49.store import AssetStore
 
 StrategyFactory = Callable[[Layout, int], LockingStrategy]
 
@@ -48,6 +49,15 @@ def find_root(start: Path | None = None) -> Path:
         " read the railroads and scenarios from a checkout of the repository,"
         " and are not usable from an installed wheel"
     )
+
+
+def load(store: AssetStore, scenario_id: str) -> tuple[Layout, Scenario]:
+    """A scenario and the layout it names, which is what assembling wants."""
+    scenario = store.get(scenario_id)
+    assert isinstance(scenario, Scenario)
+    layout = store.get(scenario.layout)
+    assert isinstance(layout, Layout)
+    return layout, scenario
 
 
 @dataclass

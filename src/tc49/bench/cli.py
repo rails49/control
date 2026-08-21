@@ -26,13 +26,13 @@ from tc49.bench.runner import (
     STRATEGIES,
     assemble_live,
     find_root,
+    load,
     run_scenario,
 )
 from tc49.bench.sweep import sweep
 from tc49.lib import rejection
 from tc49.lib.bridge import Bridge
 from tc49.lib.layout import Layout
-from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore, symbols
 from tc49.store.server import make_server
 
@@ -53,14 +53,6 @@ GENERATORS: dict[str, Callable[[], str]] = {
 """Every file the UI is handed rather than keeps by hand, and what writes it.
 Keyed by the path each takes inside a checkout, so one command writes them
 all and one flag says which checkout (ADR-0014)."""
-
-
-def load(store: AssetStore, scenario_id: str) -> tuple[Layout, Scenario]:
-    scenario = store.get(scenario_id)
-    assert isinstance(scenario, Scenario)
-    layout = store.get(scenario.layout)
-    assert isinstance(layout, Layout)
-    return layout, scenario
 
 
 def bench(
