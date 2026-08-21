@@ -17,10 +17,11 @@ and before anything is recorded, so a typo cannot take down a live railroad.
 A run outlives its clients: closing the browser leaves the railroad running,
 and it is the process ending that ends the session.
 
-This is milestone-1 wiring and stays small. There is no session registry, no
-run manager and nothing persisted: when the bus becomes a real broker the
-bridge is deleted, the panel subscribes to the broker, and there is no
-scenario to pick (ADR-0013 wiring note).
+This is milestone-1 wiring and stays small. There is no session registry and
+no run manager; what persists is the bus's own retained state, where the
+session was given a file to keep it in (#123). When the bus becomes a real
+broker the bridge is deleted, the panel subscribes to the broker, and there
+is no scenario to pick (ADR-0013 wiring note).
 """
 
 import threading
@@ -38,9 +39,20 @@ from tc49.store import AssetStore
 class Session:
     """Serving from construction; `run` works it until `stop`."""
 
-    def __init__(self, root: Path, period_s: float, port: int = 0) -> None:
+    def __init__(
+        self,
+        root: Path,
+        period_s: float,
+        port: int = 0,
+        state: Path | None = None,
+    ) -> None:
         self._store = AssetStore(root)
         self._period_s = period_s
+        # Where the run's picture lives between processes, or None to forget
+        # it with the process. One file for the session: switching railroads
+        # rebuilds against it, and a picture whose trains this scenario does
+        # not carry is simply not adopted (#123).
+        self._state = state
         self._lock = threading.Lock()
         # Set while a scenario is waiting to be built, and again by `stop`,
         # which is what cuts a boundary's sleep short: picking a railroad in
@@ -94,7 +106,7 @@ class Session:
             if wanted is None:
                 return
             scenario_id, layout, scenario = wanted
-            assembly = assemble_live(layout, scenario)
+            assembly = assemble_live(layout, scenario, state=self._state)
             self.bridge.rebind(assembly.bus, scenario_id)
             out.write(f"  running {scenario_id}\n")
             out.flush()

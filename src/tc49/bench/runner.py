@@ -19,7 +19,7 @@ from tc49.lib.layout import Layout
 from tc49.lib.scenario import Scenario
 from tc49.lib.trace import TraceTap
 from tc49.scheduler import Scheduler
-from tc49.simulator import Simulator
+from tc49.simulator import Simulator, placement_file
 from tc49.store import AssetStore
 
 StrategyFactory = Callable[[Layout, int], LockingStrategy]
@@ -97,20 +97,31 @@ def assemble_live(
     scenario: Scenario,
     make_strategy: StrategyFactory = FullRoute,
     k: int = DEFAULT_K,
+    state: Path | None = None,
 ) -> Assembly:
     """The live-session wiring (#71): the batch assembly with the timetable
     off. Which sources a session has is configuration rather than a rule
     (ADR-0036) — a scenario's `at` is still a boundary count, so releasing it
     into a two-second wall clock would dump a timetable on an operator in the
     first minute. The scenario contributes stock, placement, and facing; the
-    bridge a caller attaches to the bus is the only inbound path."""
-    bus = Bus()
+    bridge a caller attaches to the bus is the only inbound path.
+
+    `state` makes the session outlive the process (#123): the bus keeps its
+    retained values there and each app adopts its own coming up, so placement
+    and facing are the last session's rather than the scenario's. The
+    simulator keeps the steel's own memory beside it, which is its business
+    and on no topic (ADR-0030).
+    """
+    bus = Bus(state)
     out = io.StringIO()
     TraceTap(bus, out)
     Scheduler(bus, layout, scenario, timetable=False)
     dispatcher = Dispatcher(bus, layout, scenario, make_strategy(layout, k))
     Driver(bus)
-    return Assembly(bus, dispatcher, Simulator(bus, scenario), layout, scenario, k, out)
+    placement = None if state is None else placement_file(state)
+    return Assembly(
+        bus, dispatcher, Simulator(bus, scenario, placement), layout, scenario, k, out
+    )
 
 
 def run_scenario(

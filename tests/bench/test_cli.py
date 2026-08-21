@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tc49.bench.cli import GENERATORS, command_line, main
+from tc49.bench.cli import GENERATORS, command_line, main, restart_note
 from tc49.bench.metrics import metrics
 from tc49.bench.runner import find_root
 from tests.harness import ROOT
@@ -144,3 +144,21 @@ def test_the_period_flag_still_sets_the_period_and_says_the_default(
     with pytest.raises(SystemExit):
         command_line().parse_args(["live", "--help"])
     assert "default 10.0" in capsys.readouterr().out
+
+
+def test_a_session_is_told_where_to_keep_the_run(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`--state` is what makes a session outlive its process (#151), and the
+    banner stops promising the opposite the moment it is given."""
+    assert command_line().parse_args(["live"]).state is None
+    kept = command_line().parse_args(["live", "--state", "run.json"])
+    assert kept.state == Path("run.json")
+
+    assert "fresh from the scenario" in restart_note(None)
+    assert restart_note(Path("run.json")) == (
+        "a restart adopts the placement and facing kept in run.json"
+    )
+    with pytest.raises(SystemExit):
+        command_line().parse_args(["live", "--help"])
+    assert "--state" in capsys.readouterr().out

@@ -310,6 +310,18 @@ The scenario seeds a cold start only, where there is no retained value to
 prefer. Rejoining is not recovery: nothing was lost, and the dispatcher was
 holding the truth the whole time ([CONTEXT.md](../../CONTEXT.md#interruptions)).
 
+**A session may outlive its process**, `tc49 live --state <file>`. The bus
+keeps its retained values there and each app adopts its own coming up, so a
+restart opens on the placement and facing the last session left rather than
+on the scenario's (SYSTEM.md, the bus). The panel reads nothing new for it:
+placement arrives on `state/allocation` and facing on `state/facing` exactly
+as they do on a rejoin. What the picture gains is `crossing`, train → the
+transit it was crossing when everything stopped — a placement hint with no
+route behind it, for the panel to draw on the connection and send a person to
+look, which is [#154](https://github.com/rails49/control/issues/154). Restart
+is not rejoin and neither is recovery
+([CONTEXT.md](../../CONTEXT.md#interruptions)).
+
 The relay's `{"error": …}` frames reach the band as trouble rather than being
 dropped: a refused inbound frame and a path naming no scenario are the only
 answers a page ever gets when a session says no.

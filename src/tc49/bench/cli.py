@@ -179,6 +179,12 @@ def command_line() -> argparse.ArgumentParser:
         "--port", type=int, default=8766, help="the bridge's WebSocket port"
     )
     live_parser.add_argument(
+        "--state",
+        type=Path,
+        help="keep the run's picture in this file, so a restart comes up where"
+        " the railroad stopped rather than where the scenario starts it",
+    )
+    live_parser.add_argument(
         "--store-port", type=int, default=8765, help="the store's HTTP port"
     )
     live_parser.add_argument(
@@ -211,6 +217,16 @@ def command_line() -> argparse.ArgumentParser:
     return parser
 
 
+def restart_note(state: Path | None) -> str:
+    """What the live banner promises about coming back up. With no file the
+    session forgets the railroad when the process ends, and the banner has
+    said so since #71; with one it comes up where the railroad stopped, and
+    the banner must stop promising the other thing (#151)."""
+    if state is None:
+        return "a restart comes up fresh from the scenario"
+    return f"a restart adopts the placement and facing kept in {state}"
+
+
 def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
     args = command_line().parse_args(argv)
     if args.command == "bench":
@@ -221,7 +237,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         return 0
 
     if args.command == "live":
-        session = Session(ROOT, args.period, args.port)
+        session = Session(ROOT, args.period, args.port, args.state)
         if args.scenario is not None:
             refusal = session.wants(args.scenario)
             if refusal is not None:
@@ -242,8 +258,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
             f"  bridge  ws://127.0.0.1:{session.bridge.port}/<scenario>\n"
             f"{store_line}"
             "the panel names the railroad and may switch it; the timetable is"
-            " off; Ctrl-C ends the session, and a restart comes up fresh from"
-            " the scenario\n"
+            f" off; Ctrl-C ends the session, and {restart_note(args.state)}\n"
         )
         out.flush()
         try:
