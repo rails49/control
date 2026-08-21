@@ -373,7 +373,7 @@ def test_naming_another_railroad_swaps_the_assembly_and_closes_the_old_client(
     railroad's events."""
     with joining(session, "crossover-yard/meet") as first:
         assert payload_of(first, "boundary")["boundary"] == 0
-        with joining(session, "gotthard/meet") as second:
+        with joining(session, "gotthard-v0/meet") as second:
             assert set(payload_of(second, "facing")["facing"]) == {"north", "south"}
             assert payload_of(second, "boundary")["boundary"] == 0
             with pytest.raises(ConnectionClosed):
@@ -418,7 +418,7 @@ def test_each_railroad_the_session_runs_keeps_its_own_picture(
     try:
         with joining(live, "crossover-yard/meet") as client:
             assert payload_of(client, "allocation")["trains"]["freight_1"]
-        with joining(live, "gotthard/meet") as other:
+        with joining(live, "gotthard-v0/meet") as other:
             assert payload_of(other, "allocation")["trains"]["north"]
     finally:
         live.stop()
@@ -429,16 +429,16 @@ def test_each_railroad_the_session_runs_keeps_its_own_picture(
         layout: json.loads(state_for(kept, layout).read_text())[
             "tc49/dispatch/state/allocation"
         ]
-        for layout in ("crossover-yard", "gotthard")
+        for layout in ("crossover-yard", "gotthard-v0")
     }
     assert set(pictures["crossover-yard"]["trains"]) == {"express_2", "freight_1"}
-    assert set(pictures["gotthard"]["trains"]) == {"north", "south"}
+    assert set(pictures["gotthard-v0"]["trains"]) == {"north", "south"}
 
 
 def test_a_railroads_file_is_named_beside_the_session_path() -> None:
     """Beside it and never it: two railroads must not be able to collide on
     one name, and the path the operator typed is the stem they share."""
     kept = Path("runs/tonight.json")
-    assert state_for(kept, "gotthard") == Path("runs/tonight.gotthard.json")
-    assert state_for(kept, "crossover-yard") != state_for(kept, "gotthard")
-    assert state_for(kept, "gotthard").parent == kept.parent
+    assert state_for(kept, "gotthard-v0") == Path("runs/tonight.gotthard-v0.json")
+    assert state_for(kept, "crossover-yard") != state_for(kept, "gotthard-v0")
+    assert state_for(kept, "gotthard-v0").parent == kept.parent

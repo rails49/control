@@ -1,5 +1,5 @@
 {
-  "scenario": "gotthard/saturation",
+  "scenario": "gotthard-v0/saturation",
   "k": 2,
   "strategies": {
     "FullRoute": {

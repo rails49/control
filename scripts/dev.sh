@@ -9,14 +9,14 @@
 #
 #   scripts/dev.sh                     all three; pick the railroad in the
 #                                      panel
-#   scripts/dev.sh gotthard/meet       and the session comes up running that
+#   scripts/dev.sh gotthard-v0/meet       and the session comes up running that
 #                                      one
-#   scripts/dev.sh gotthard/meet --period 1
+#   scripts/dev.sh gotthard-v0/meet --period 1
 #                                      anything further is the session's
 #   scripts/dev.sh stop                every one of them down again
 #
 # `start` is the word for what it does without one, and may be said —
-# `scripts/dev.sh start gotthard/meet`. A scenario is `folder/name`, so a
+# `scripts/dev.sh start gotthard-v0/meet`. A scenario is `folder/name`, so a
 # first word that is bare `start` or `stop` is never one.
 #
 # The panel names the session, so the bridge always comes up: a scenario here

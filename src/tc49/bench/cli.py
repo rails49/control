@@ -165,7 +165,7 @@ def command_line() -> argparse.ArgumentParser:
     live_parser.add_argument(
         "scenario",
         nargs="?",
-        help="the railroad to come up running, e.g. gotthard/meet; with none"
+        help="the railroad to come up running, e.g. gotthard-v0/meet; with none"
         " the session waits to be told, and either way the panel may switch it",
     )
     live_parser.add_argument(

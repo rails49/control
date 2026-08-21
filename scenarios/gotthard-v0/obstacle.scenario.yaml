@@ -1,4 +1,4 @@
-# gotthard/obstacle — a permanent obstacle, named (docs/BENCHMARKS.md, #31).
+# gotthard-v0/obstacle — a permanent obstacle, named (docs/BENCHMARKS.md, #31).
 #
 # Stock left standing on `line_blue_1` and a request departing `claro_3.B`.
 # Per the Rocrail netlist, blue 1 reaches Claro track 3 alone, so the departure
@@ -16,7 +16,7 @@
 # unavailable — turned from a paragraph into a visible, tested output.
 
 scenario: obstacle
-layout: gotthard
+layout: gotthard-v0
 
 trains:
   stranded: { length: 900, at: claro_3, facing: B }

@@ -26,7 +26,7 @@ from tc49.lib.layout import Layout, block_of
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tc49.store import AssetStore
 
-LAYOUT = "gotthard"
+LAYOUT = "gotthard-v0"
 
 # The two stations' through tracks. Sidings are deliberately absent: every
 # generated request stays a long run that faces the line choice, and a

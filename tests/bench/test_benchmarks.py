@@ -37,10 +37,10 @@ EXPECTED = ROOT / "benchmarks" / "expected"
 
 NAMED_SCENARIOS = [
     "crossover-yard/meet",
-    "gotthard/meet",
-    "gotthard/saturation",
-    "gotthard/obstacle",
-    "gotthard/flexibility",
+    "gotthard-v0/meet",
+    "gotthard-v0/saturation",
+    "gotthard-v0/obstacle",
+    "gotthard-v0/flexibility",
 ]
 
 
@@ -111,7 +111,7 @@ def test_batch_trace_is_pinned_byte_identical() -> None:
 
 
 def test_a_two_block_route_leaves_incremental_nothing_to_withhold() -> None:
-    """`gotthard/meet` no longer splits, and the reason is worth pinning.
+    """`gotthard-v0/meet` no longer splits, and the reason is worth pinning.
 
     Its routes are two blocks long, and an increment plus the one asked for
     ahead of it (ADR-0029) is exactly two blocks — so `Incremental` locks the
@@ -122,21 +122,21 @@ def test_a_two_block_route_leaves_incremental_nothing_to_withhold() -> None:
     seen at the smallest scale that can show it.
 
     The strategies part company again as soon as a route is longer than the
-    lookahead; `gotthard/saturation` below is where that is asserted. If this
+    lookahead; `gotthard-v0/saturation` below is where that is asserted. If this
     test ever fails, the lookahead or the route length changed, and the two
     should be compared afresh rather than the numbers simply re-recorded.
     """
-    results = {name: m for name, (_, m) in bench("gotthard/meet").items()}
+    results = {name: m for name, (_, m) in bench("gotthard-v0/meet").items()}
     baseline, incremental = results["FullRoute"], results["Incremental"]
     assert incremental.makespan is not None and baseline.makespan is not None
     assert incremental.makespan == baseline.makespan
     assert incremental.mean_parallelism == baseline.mean_parallelism
 
 
-def test_incremental_drains_gotthard_saturation_faster() -> None:
+def test_incremental_drains_gotthard_v0_saturation_faster() -> None:
     """The headline makespan gap: both strategies complete all fifteen
     workings, and `Incremental` does it in materially fewer boundaries."""
-    results = {name: m for name, (_, m) in bench("gotthard/saturation").items()}
+    results = {name: m for name, (_, m) in bench("gotthard-v0/saturation").items()}
     for m in results.values():
         assert m.status == "ok"
         assert len(m.completed) == 15
@@ -161,7 +161,7 @@ def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
     refusals accumulate, and the workload drains under both strategies.
     The committed scenario stays at `|dest| = 2`, the column the sweep
     reads every other against."""
-    layout, scenario = load("gotthard/saturation")
+    layout, scenario = load("gotthard-v0/saturation")
     widened = Scenario(
         scenario.name,
         scenario.layout,
@@ -188,7 +188,7 @@ def test_the_obstacle_scenario_stalls_and_names_the_obstacle() -> None:
     departure end fixes the line and the widest arrival set on the layout
     changes nothing. Both strategies stall, and both name the same block and
     the same train."""
-    for _, m in bench("gotthard/obstacle").values():
+    for _, m in bench("gotthard-v0/obstacle").values():
         assert m.status == "stalled"
         assert m.makespan is None  # excluded from makespan aggregates
         [stall] = m.stalls
@@ -199,7 +199,7 @@ def test_the_obstacle_scenario_stalls_and_names_the_obstacle() -> None:
 def test_flexibility_is_the_difference_between_stalling_and_finishing() -> None:
     """Two Airolo -> Claro workings against one obstruction, differing only in
     how many arrival ends each names."""
-    for _, m in bench("gotthard/flexibility").values():
+    for _, m in bench("gotthard-v0/flexibility").values():
         assert m.status == "stalled"
         assert m.completed == ("flexible-1",)  # |dest| = 6 finishes
         [stall] = m.stalls

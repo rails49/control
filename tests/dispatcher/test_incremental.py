@@ -130,14 +130,14 @@ def test_shared_destination_refusal_names_the_committed_train() -> None:
     # SAFETY.md boundary condition: two active trains committed to the same
     # block can never both appear in a witness ordering, so the second
     # launch is refused unsafe — naming the block and the train already
-    # committed to it, though nothing there is locked yet. On gotthard the
+    # committed to it, though nothing there is locked yet. On gotthard-v0 the
     # two trains approach airolo_1 over different connections (blue 2 and
     # the yellow), so nothing else refuses first.
-    layout = AssetStore(ROOT).get("gotthard")
+    layout = AssetStore(ROOT).get("gotthard-v0")
     assert isinstance(layout, Layout)
     scenario = Scenario(
         "collide",
-        "gotthard",
+        "gotthard-v0",
         {
             "t_blue": TrainSpec(900, "claro_1", "B"),
             "t_yellow": TrainSpec(900, "claro_3", "A"),
@@ -237,7 +237,7 @@ def test_a_grant_reaches_one_increment_past_what_it_needs() -> None:
     """Depth two: the grant locks the increment it needs and then the one
     after it, so the train stands with two blocks locked ahead rather than
     one — which is the difference between `approach` and `clear`."""
-    layout, _ = load("gotthard/saturation")
+    layout, _ = load("gotthard-v0/saturation")
     route = a_route(layout, "t")
     state = a_state(layout, route, {route.blocks[0]: "t"})
 
@@ -253,7 +253,7 @@ def test_an_unavailable_second_increment_refuses_nothing() -> None:
     another train the move is granted exactly as before, reporting nothing
     ahead — and reporting nothing ahead is what `approach` means, not an
     error the train has to wait on."""
-    layout, _ = load("gotthard/saturation")
+    layout, _ = load("gotthard-v0/saturation")
     route = a_route(layout, "t")
     state = a_state(layout, route, {route.blocks[0]: "t", route.blocks[2]: "other"})
 
@@ -267,7 +267,7 @@ def test_an_unavailable_second_increment_refuses_nothing() -> None:
 def test_a_route_with_nothing_two_blocks_ahead_reaches_for_nothing() -> None:
     """The last grant of a route has no second increment to ask for, and
     that is not a failure either."""
-    layout, _ = load("gotthard/saturation")
+    layout, _ = load("gotthard-v0/saturation")
     route = a_route(layout, "t")
     short = Route(route.blocks[:2], route.transits[:1])
     state = a_state(layout, short, {short.blocks[0]: "t"})

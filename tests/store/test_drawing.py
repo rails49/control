@@ -104,8 +104,8 @@ def test_single_track_meet_derives_a_throat_and_a_switch_at_each_end() -> None:
     assert all(not c.concurrent for c in layout.connections.values())
 
 
-def test_gotthard_derives_one_junction_at_airolo_and_three_at_claro() -> None:
-    layout = committed("gotthard")
+def test_gotthard_v0_derives_one_junction_at_airolo_and_three_at_claro() -> None:
+    layout = committed("gotthard-v0")
     assert len(layout.blocks) == 14
     # Claro's east end is two throats, not one: blue 1's lead and blue 2's
     # share no track, which is what drawing it from turnouts showed (#58).
@@ -131,7 +131,7 @@ def test_airolo_composes_the_concurrency_the_wx310_allows() -> None:
     trains, one per leg: blue 2 to the A ends while the yellow or blue 1 works
     the B ends. Set crossed it passes one. Nothing in the drawing declares
     that — it is composed from four turnouts and a crossing."""
-    airolo = committed("gotthard").connections["airolo"]
+    airolo = committed("gotthard-v0").connections["airolo"]
     # Say it in block ends, the thing the geometry is about, so the assertion
     # holds whatever the transits end up called.
     ends = {name: frozenset(pair) for name, pair in airolo.transits.items()}
@@ -163,7 +163,7 @@ def test_claro_east_is_two_throats_serving_one_line_each() -> None:
 
     Said in block ends, which is what the tiles settle; the names are the
     layout's and are asserted separately."""
-    layout = committed("gotthard")
+    layout = committed("gotthard-v0")
     b1, b2 = layout.connections["claro_east_b1"], layout.connections["claro_east_b2"]
     assert {name: frozenset(pair) for name, pair in b1.transits.items()} == {
         "blue_1_2": frozenset(("line_blue_1.A", "claro_2.B")),
@@ -186,7 +186,7 @@ def test_claro_west_keeps_its_names_and_gains_the_pairs_its_ladder_allows() -> N
     the hand-written layout picked survive being drawn. What is new is the
     concurrency: shunting track 3's sidings shares no switch with the yellow
     reaching track 1 or track 2."""
-    claro_west = committed("gotthard").connections["claro_west"]
+    claro_west = committed("gotthard-v0").connections["claro_west"]
     assert sorted(claro_west.transits) == [
         "siding_6",
         "siding_7",
@@ -685,7 +685,7 @@ def test_the_scissors_crossover_says_which_frog_excludes_a_pair() -> None:
 
 
 def test_airolo_says_the_wx310_is_what_a_crossed_pair_shares() -> None:
-    airolo = committed_drawing("gotthard").explain()["connections"]["airolo"]
+    airolo = committed_drawing("gotthard-v0").explain()["connections"]["airolo"]
     shared = {
         symbol
         for pair in airolo["exclusive"]
@@ -836,7 +836,7 @@ def test_a_terminal_is_not_a_junction() -> None:
     """Every non-block symbol is a component of its own, but a terminal
     declares no transit and derives no connection, so tinting it as a region
     would say something untrue."""
-    junctions = committed_drawing("gotthard").review()["junctions"]
+    junctions = committed_drawing("gotthard-v0").review()["junctions"]
     tinted = {symbol for junction in junctions for symbol in junction["symbols"]}
     assert not [symbol for symbol in tinted if symbol.endswith("_stop")]
     assert sorted(j["name"] for j in junctions) == [

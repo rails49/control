@@ -1,4 +1,4 @@
-# gotthard/saturation — the headline workload (docs/BENCHMARKS.md, #31).
+# gotthard-v0/saturation — the headline workload (docs/BENCHMARKS.md, #31).
 #
 # Five trains, three workings each, every request at boundary 0. Batch arrivals
 # make makespan the drain time and contention maximal, which is where the two
@@ -35,7 +35,7 @@
 # than two ends of one track.
 
 scenario: saturation
-layout: gotthard
+layout: gotthard-v0
 
 trains:
   t1: { length: 900, at: claro_1, facing: B }

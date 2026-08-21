@@ -1,5 +1,5 @@
 {
-  "scenario": "gotthard/flexibility",
+  "scenario": "gotthard-v0/flexibility",
   "k": 2,
   "strategies": {
     "FullRoute": {

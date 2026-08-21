@@ -1,4 +1,4 @@
-# gotthard/meet — two trains, opposite directions (docs/BENCHMARKS.md, #31).
+# gotthard-v0/meet — two trains, opposite directions (docs/BENCHMARKS.md, #31).
 #
 # The smallest story the real railroad can tell: one train each way between the
 # stations, launched on the same boundary, with three line sections to share out
@@ -15,7 +15,7 @@
 # continuity point, the request this model had before arrival ends existed.
 
 scenario: meet
-layout: gotthard
+layout: gotthard-v0
 
 trains:
   south: { length: 900, at: claro_2, facing: B }

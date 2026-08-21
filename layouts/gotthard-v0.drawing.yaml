@@ -52,7 +52,7 @@
 # itself has — Rocrail hops one over the other on connector tiles rather than
 # joining them — so it is drawn rather than routed around.
 
-drawing: gotthard
+drawing: gotthard-v0
 units: mm
 
 symbols:

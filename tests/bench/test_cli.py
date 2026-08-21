@@ -43,8 +43,8 @@ def test_k_is_overridable_and_changes_what_a_launch_may_try() -> None:
     # k = 1 no longer stalls the flexible request here — what k still caps is
     # how many candidates a refused launch tries, visible in the stall
     # diagnosis of the genuinely blocked one.
-    at_two = run_cli("bench", "gotthard/flexibility")
-    at_one = run_cli("bench", "-k", "1", "gotthard/flexibility")
+    at_two = run_cli("bench", "gotthard-v0/flexibility")
+    at_one = run_cli("bench", "-k", "1", "gotthard-v0/flexibility")
     assert "(k = 1)" in at_one
     assert "fixed-1 stalled — 'claro_2' held by 'resident' (held, 1" in at_one
     assert "fixed-1 stalled — 'claro_2' held by 'resident' (held, 2" in at_two
@@ -112,7 +112,7 @@ def test_find_root_locates_the_railroads_from_anywhere_and_says_so_if_not() -> N
     # ships src/tc49 alone — so the benchmark commands only work inside a
     # checkout, and must say that rather than raising on an invented path.
     assert (find_root(ROOT / "src" / "tc49" / "cli.py") / "layouts").is_dir()
-    assert find_root(ROOT / "scenarios" / "gotthard") == ROOT
+    assert find_root(ROOT / "scenarios" / "gotthard-v0") == ROOT
     with pytest.raises(FileNotFoundError, match="not usable from an installed wheel"):
         find_root(Path("/"))
 
@@ -121,7 +121,7 @@ def test_a_live_session_paces_itself_slowly_enough_to_watch() -> None:
     """Ten seconds a boundary, not two: each one moves trains, grants and
     releases locks, realigns points and changes aspects, and at two the next
     landed before a person had read the last (#144)."""
-    args = command_line().parse_args(["live", "gotthard/meet"])
+    args = command_line().parse_args(["live", "gotthard-v0/meet"])
     assert args.period == 10.0
 
 
@@ -130,8 +130,8 @@ def test_a_live_session_may_come_up_with_no_scenario_at_all() -> None:
     port waiting to be told, and a scenario on the command line is the
     railroad it comes up running rather than the one it is fixed to."""
     assert command_line().parse_args(["live"]).scenario is None
-    named = command_line().parse_args(["live", "gotthard/meet"])
-    assert named.scenario == "gotthard/meet"
+    named = command_line().parse_args(["live", "gotthard-v0/meet"])
+    assert named.scenario == "gotthard-v0/meet"
 
 
 def test_the_period_flag_still_sets_the_period_and_says_the_default(
@@ -139,7 +139,7 @@ def test_the_period_flag_still_sets_the_period_and_says_the_default(
 ) -> None:
     """A faster session stays one flag away, and the help says what it is
     faster than."""
-    args = command_line().parse_args(["live", "gotthard/meet", "--period", "0.5"])
+    args = command_line().parse_args(["live", "gotthard-v0/meet", "--period", "0.5"])
     assert args.period == 0.5
     with pytest.raises(SystemExit):
         command_line().parse_args(["live", "--help"])

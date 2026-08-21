@@ -1,4 +1,4 @@
-# gotthard/flexibility — the |dest| contrast as a story (docs/BENCHMARKS.md, #31).
+# gotthard-v0/flexibility — the |dest| contrast as a story (docs/BENCHMARKS.md, #31).
 #
 # The same working written twice, once at `|dest| = 1` and once at `|dest| = 6`,
 # run side by side against the same obstruction:
@@ -22,7 +22,7 @@
 # request that completes and one that does not.
 
 scenario: flexibility
-layout: gotthard
+layout: gotthard-v0
 
 trains:
   fixed: { length: 900, at: airolo_1, facing: A }

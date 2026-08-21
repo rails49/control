@@ -1,5 +1,5 @@
 {
-  "scenario": "gotthard/obstacle",
+  "scenario": "gotthard-v0/obstacle",
   "k": 2,
   "strategies": {
     "FullRoute": {
