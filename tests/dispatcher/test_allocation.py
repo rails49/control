@@ -97,3 +97,36 @@ def test_the_locks_are_the_lock_table_as_the_dispatcher_holds_it() -> None:
                 held.pop(resource, None)
         elif line["event"] == "allocation":
             assert line["locks"] == dict(sorted(held.items()))
+
+
+def test_a_standing_train_is_crossing_nothing() -> None:
+    """`crossing` is the picture's answer to "which trains are between two
+    blocks": empty while everything is parked, so an idle railroad draws no
+    train on a connection (#151)."""
+    trace = run(*load("crossover-yard/meet"))
+    assert pictures(trace)[0]["crossing"] == {}
+    assert pictures(trace)[-1]["crossing"] == {}
+
+
+def test_a_crossing_train_is_named_by_the_transit_it_is_on() -> None:
+    """A train with a granted move is in the picture twice over: standing in
+    the block it has yet to leave, and crossing the transit that takes it out
+    of it. The transit is the whole of what marks it as being between blocks
+    — a restarted session draws it on the connection and sends a person to
+    look (#123) — and `trains` goes on naming the block the sensors last
+    confirmed, which is what the dispatcher's own lock table says.
+    """
+    trace = run(*load("crossover-yard/meet"))
+    granted: dict[str, Any] | None = None
+    standing: dict[str, str] = {}
+    for line in events(trace):
+        if line["event"] == "allocation" and granted is None:
+            standing = line["trains"]
+        elif line["event"] == "move_granted" and granted is None:
+            granted = line
+        elif line["event"] == "allocation" and granted is not None:
+            train = granted["train"]
+            assert line["crossing"][train] == granted["transit"]
+            assert line["trains"][train] == standing[train] != granted["into"]
+            return
+    raise AssertionError("no picture followed a granted move")

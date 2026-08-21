@@ -95,6 +95,13 @@ class State:
     # is done. Written when a route is chosen, since a route is fixed from
     # then on (ADR-0002), and so already true of a train still running one.
     leaving: dict[str, str] = field(default_factory=dict[str, str])
+    # train -> the transit it is crossing: written at the grant, dropped when
+    # the sensor says it arrived. `block_of` already names the far block,
+    # `cur_index` having advanced at the grant, so the transit is the whole of
+    # what says a train is between two blocks rather than standing in one
+    # (#123). It restores across a restart with no route behind it, which is
+    # what makes it a placement hint and not a resumed move.
+    crossing: dict[str, str] = field(default_factory=dict[str, str])
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None:
         """Why `train` cannot lock `resource`: (reason, resource, holder),
@@ -180,9 +187,15 @@ def aspects(state: State) -> dict[str, str]:
 
 
 def allocation(state: State, pending: Sequence[Request]) -> Payload:
-    """The run's picture: where every train stands, the lock table with its
-    holders, and every request still alive — carrying the route a committed
-    one is running.
+    """The run's picture: where every train stands and which of them are
+    crossing a transit, the lock table with its holders, and every request
+    still alive — carrying the route a committed one is running.
+
+    A crossing train appears in both maps: `trains` goes on naming the block
+    the sensors last confirmed it in, and `crossing` names the transit that
+    is taking it out of there. The transit is the whole of the mark — there
+    is no suspect flag — and it is what a restarted session restores as a
+    placement hint, with no route and no request behind it (#123).
 
     A projection of the lock table and the queue, published beside its source
     exactly as `aspects` is (ADR-0032). Everything a joining client draws is
@@ -198,6 +211,7 @@ def allocation(state: State, pending: Sequence[Request]) -> Payload:
     )
     return {
         "trains": dict(sorted(state.block_of.items())),
+        "crossing": dict(sorted(state.crossing.items())),
         "locks": dict(sorted(state.locks.items())),
         "requests": [
             {
@@ -554,6 +568,7 @@ class Dispatcher:
             train = state.locks[block]
             active = state.active[train]
             active.outstanding = None
+            del state.crossing[train]
             state.block_of[train] = block
             if active.cur_index == len(active.route.blocks) - 1:
                 del state.active[train]
@@ -623,6 +638,7 @@ class Dispatcher:
             },
         )
         active.outstanding = result
+        self._state.crossing[active.request.train] = result.transit
         active.cur_index += 1
 
     def _align(self, transit_id: str) -> None:

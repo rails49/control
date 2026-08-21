@@ -193,7 +193,7 @@ the driver moves locomotives
 | `tc49/dispatch/lock_granted` | event | dispatcher | train, resources |
 | `tc49/dispatch/lock_released` | event | dispatcher | train, resources |
 | `tc49/dispatch/state/aspects` | state | dispatcher | last-value map of signalled block end to aspect |
-| `tc49/dispatch/state/allocation` | state | dispatcher | last-value picture of the run: standing trains, locks and holders, committed routes, live requests |
+| `tc49/dispatch/state/allocation` | state | dispatcher | last-value picture of the run: standing trains, the transit each crossing train is on, locks and holders, committed routes, live requests |
 | `tc49/dispatch/align` | command | dispatcher | connection, transit, points `[{addr, position}]` |
 | `tc49/drive/cross` | command | driver | train, connection, transit, into |
 
