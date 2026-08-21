@@ -141,6 +141,79 @@ describe("what a menu is made of", () => {
 });
 
 /**
+ * The two colours a committed route wears on the panel (#143).
+ *
+ * Green where the dispatcher holds the lock and the train may move, cyan
+ * where the route is chosen and the claim has not been made yet. Both are
+ * palette entries, so the owner moves either in one place, and every rule
+ * that paints part of a route asks for the entry rather than for a hex that
+ * happens to match — a stroke left behind is a route that reads as two.
+ */
+describe("the two colours a route's state is read in", () => {
+  /** The panel's rules without the palette it carries, so that the entries'
+   *  own declarations are not mistaken for a rule hardcoding one. */
+  const panel = panelStyles.cssText.replace(palette.cssText, "");
+
+  it("are two named entries, and neither is the signal lamp's green", () => {
+    expect(COLOURS["--locked"]).toBeDefined();
+    expect(COLOURS["--planned"]).toBeDefined();
+    expect(COLOURS["--locked"]).not.toBe(COLOURS["--green"]);
+    expect(COLOURS["--planned"]).not.toBe(COLOURS["--chosen"]);
+  });
+
+  it("are never written as a hex in a rule", () => {
+    for (const entry of ["--locked", "--planned"] as const) {
+      expect(panel).not.toContain(COLOURS[entry]!);
+    }
+  });
+
+  it("paint the block body, the track, the tick, the bend and the wire", () => {
+    for (const state of ["locked", "planned"]) {
+      for (const selector of [
+        `.symbol.${state} .block-body`,
+        `.symbol.${state} .track.lit`,
+        `.symbol.${state} .tick.lit`,
+        `.symbol.${state} .bend.lit`,
+        `.wire.lit.${state}`,
+      ]) {
+        expect(panel, `no rule for ${selector}`).toContain(selector);
+      }
+      expect(panel).toContain(`var(--${state})`);
+    }
+  });
+
+  /** One value moves a colour and its wash together, so the two cannot end up
+   *  disagreeing about which state a block is in. */
+  it("derive a block's pale fill from its own stroke", () => {
+    for (const state of ["locked", "planned"]) {
+      const body = panel.slice(panel.indexOf(`.symbol.${state} .block-body`));
+      const fill = body.slice(body.indexOf("fill:"), body.indexOf(";"));
+      expect(fill).toContain("color-mix");
+      expect(fill).toContain(`var(--${state})`);
+    }
+  });
+
+  /** The channel that is not hue, which is what survives red-green colour
+   *  deficiency: whether the train may move here. Track and wires stay solid,
+   *  a dash's spacing varying with a wire's angle. */
+  it("dash a committed block body and leave a locked one solid", () => {
+    const locked = panel.slice(panel.indexOf(".symbol.locked .block-body"));
+    expect(locked.slice(0, locked.indexOf("}"))).not.toContain("dasharray");
+    const planned = panel.slice(panel.indexOf(".symbol.planned .block-body"));
+    expect(planned.slice(0, planned.indexOf("}"))).toContain("dasharray");
+    const wire = panel.slice(panel.indexOf(".wire.lit.locked"));
+    expect(wire.slice(0, wire.indexOf("}"))).not.toContain("dasharray");
+  });
+
+  /** The editor is not in this: only the panel gets two colours, and a way
+   *  chosen in the netlist pane keeps the one it has. */
+  it("leave the editor's chosen way and refused way as they were", () => {
+    expect(canvasStyles.cssText).not.toContain("var(--locked)");
+    expect(canvasStyles.cssText).not.toContain("var(--planned)");
+  });
+});
+
+/**
  * The two weights a fault is marked in (#92).
  *
  * Red is what stops derivation; the quieter mark is what derives but is

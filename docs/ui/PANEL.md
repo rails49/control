@@ -14,29 +14,75 @@ Terminology follows [CONTEXT.md](../../CONTEXT.md).
 
 The panel renders the drawing ([DRAWING.md](../store/DRAWING.md)) with live
 state on top. Blocks show colour for state, a label for the train, an arrow
-for direction. Reserved-but-empty blocks get a distinct fill, so a committed
+for direction. A locked but empty block gets a fill of its own, so a committed
 route reads as a lit path.
 
 A request renders in three layers, each appearing when the bus first makes it
 true. **Requested** (from `request_submitted`): the train, its departure end,
-and the candidate arrival ends — endpoints only, since no route exists yet
-and drawing a predicted one would be a second pathfinder that lies whenever
-the dispatcher disagrees. **Committed** (from `route_chosen`): the chosen
-route as a lit path in a planned tint. **Held** (from `lock_granted` /
-`lock_released`): the locked-block shading and signals described below.
+and the candidate arrival ends, endpoints only, since no route exists yet and
+drawing a predicted one would be a second pathfinder that lies whenever the
+dispatcher disagrees. **Committed** (from `route_chosen`): the whole route
+lit in the committed colour. **Held** (from `lock_granted` /
+`lock_released`): the locked stretch of that route in the locked colour, and
+the signals described below.
 
-A committed route lights **whole**: its blocks, the legs of the symbols its
-transits cross, and the wires those transits are drawn over. Without the
-wires a route through a junction reads as scattered lit frogs, and a route
-across a joint — a way crossing no symbol that declares a transit — lights
-nothing at all between its two blocks. Which wires a transit runs over is the
-store's own rule (`Drawing.wires_on`), transcribed into `model/inspect.ts` and
-applied one transit at a time, never over a union of everything lit: a wire
-between two non-block symbols is what merges them into one junction, so a
-union has no transit to attribute a wire to. The store proves the rule exact
-against every railroad it holds, which is what the front end's cheaper copy
-rests on. Lit wires are emitted after unlit ones, as the artwork already emits
-lit legs last, so a crossing unlit wire cannot half hide one.
+**A committed route lights whole.** Its blocks, the legs of the symbols its
+transits cross, and the wires those transits are drawn over all light, so the
+route reads from the block the train stands in to the arrival end it is
+committed to. Without the wires a route through a junction reads as scattered
+lit frogs, and a route across a joint (a way crossing no symbol that declares
+a transit) lights nothing at all between its two blocks.
+
+Which wires a transit runs over is the store's own rule, `Drawing.wires_on`,
+transcribed into `model/inspect.ts`. It is applied one transit at a time and
+never over a union of everything lit: a wire between two non-block symbols is
+what merges them into one junction, so a union has no transit to attribute a
+wire to, and each wire has to take its own transit's colour. The store proves
+the rule exact against every railroad it holds, which is what the front end's
+cheaper copy rests on. Lit wires are emitted after unlit ones, as the artwork
+already emits lit legs last, so a crossing unlit wire cannot half hide one.
+
+**It lights in two colours**, keyed to what the dispatcher is doing:
+
+- **Green** where the dispatcher holds a **lock**. The train may move here.
+- **Cyan** where the resource is on a committed route and is **not** locked.
+  The route is chosen; the claim has not been made yet.
+
+Locking is incremental
+([ADR-0026](../adr/0026-two-blocks-ahead-is-full-speed.md)), so green creeps
+forward along a cyan path as the train advances, and the length of the green
+says how far the train may go. It agrees with the signal at the block end,
+which the dispatcher reads off the same locks.
+
+Green is read from the lock ledger alone, not from the committed route
+intersected with it, which is how the block view already works. A lock the
+dispatcher still holds after its request completes therefore stays green
+until it is released: it really is still held, and the picture must never
+claim the railroad is freer than it is.
+
+Three precedence rules, written down rather than left to the rendering order:
+
+- **Occupancy outranks both.** The block a train stands in keeps its
+  occupancy colour and the route's green begins at the first block beyond the
+  train. A standing train holds a lock too, so this is a choice rather than
+  an oversight.
+- **Locked wins on a shared symbol.** A throat symbol carried by a locked
+  transit and a committed one at the same time shows the locked colour. That
+  overstates the committed route's leg on that symbol, which is the price of
+  never hiding the stronger claim behind the weaker.
+- **Nothing is predicted.** A request with no committed route still renders
+  as endpoints only.
+
+Committed block bodies are dashed and locked ones solid. Cyan against green is
+a hard pair for red-green colour deficiency, and whether the train may move is
+the distinction worth a channel that is not hue. Track and wires stay solid: a
+dash's spacing would vary with a wire's angle, which is why track is never
+patterned. A throat has no block body, so it is the part of the route left
+with hue alone, and also the part where which way is locked matters most.
+
+Both colours are palette entries in `render/units.ts`. The pale ground a block
+body wears is mixed from its own stroke in the stylesheet rather than named a
+second time, so a colour and its wash cannot drift apart.
 
 There are no sensor dots at block ends. `block_occupied` and `block_vacated`
 carry a block, and the layout interface publishes anonymous occupancy and

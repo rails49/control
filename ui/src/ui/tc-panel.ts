@@ -567,7 +567,10 @@ export class TcPanel extends LitElement {
       const from = pointOf(drawing, a);
       const to = pointOf(drawing, b);
       if (from === null || to === null) return nothing;
-      return svg`<line class=${lit.wires.has(wireKey(wire)) ? "wire lit" : "wire"}
+      // A wire sits outside every symbol's group, so the state rides on the
+      // line itself rather than being inherited from one.
+      const held = lit.wires.get(wireKey(wire));
+      return svg`<line class=${held === undefined ? "wire" : `wire lit ${held}`}
                        x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />`;
     });
   }
@@ -590,7 +593,12 @@ export class TcPanel extends LitElement {
           return shown === undefined ? [] : [[end, shown] as const];
         }),
       );
-      const classes = ["symbol", block?.state ?? "", name === target ? "target" : ""]
+      // A block wears its own state and a junction symbol the strongest claim
+      // any transit through it carries; a block is on no transit's way, so
+      // the two never meet on one symbol. Occupancy outranks both all the
+      // same, which is what reading the block's state first says.
+      const state = block?.state ?? lit.state.get(name) ?? "";
+      const classes = ["symbol", state, name === target ? "target" : ""]
         .filter((one) => one !== "" && one !== "free")
         .join(" ");
       return svg`

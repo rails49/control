@@ -202,6 +202,22 @@ export const COLOURS: Record<string, string> = {
   "--amber": "#e8a021",
   "--lit": "#a55b12",
   "--lit-body": "#f4e3cd",
+  // The two colours a committed route wears on the panel (ui/PANEL.md): green
+  // where the dispatcher holds a lock and the train may move, cyan where the
+  // route is chosen and the claim has not been made yet.
+  //
+  // Both were picked around a collision. The obvious green is the signal lamp
+  // green above, on a panel that draws signal lamps, so this one stays in the
+  // same family — the aspect and the route say the same thing and should look
+  // it — and sits a step yellower and lighter, which a thick stroke can carry
+  // and a lamp the size of a full stop cannot. The obvious cyan sits on top of
+  // `--chosen`, which marks request endpoints and the drag reach, so this one
+  // is pulled well round towards green, away from that blue.
+  //
+  // The pale ground a block body wears is mixed from these in the stylesheet
+  // rather than named here, so a colour and its wash cannot drift apart.
+  "--locked": "#3f9c35",
+  "--planned": "#0d9bb8",
   // A way lit because derivation refused over it wears the red every other
   // stopping fault wears, and a block on it takes the pale ground of that red
   // as a chosen transit takes the pale ground of `--lit`.

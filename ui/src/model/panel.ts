@@ -30,15 +30,27 @@ import type { Gesture, Submission, TraceEvent } from "./trace.js";
 /** A block end, written `<block>.<end>` as the bus writes it. */
 export type EndRef = string;
 
+/**
+ * How strong a claim the dispatcher has on a resource a route runs over:
+ * `locked` where it holds the lock and the train may move, `planned` where
+ * the route is chosen and the claim has not been made yet. The same two words
+ * a block view uses, so blocks, transits and wires take their colour from one
+ * rule (ui/PANEL.md).
+ */
+export type Held = "locked" | "planned";
+
 /** What a committed route lights: the legs of each symbol its transits cross,
- *  and the wires those transits are drawn over. One answer, because a route
- *  reads as one run and the component paints it as one. */
+ *  the wires those transits are drawn over, and how strong a claim each
+ *  carries. One answer, because a route reads as one run and the component
+ *  paints it as one. */
 export interface LitRoute {
   /** symbol → the legs of it the route takes, `WHOLE` for a symbol with no
    *  legs of its own. */
   legs: Map<string, Set<string>>;
-  /** The wires the route is drawn over, as `wireKey` names them. */
-  wires: Set<string>;
+  /** symbol → the strongest claim any transit through it carries. */
+  state: Map<string, Held>;
+  /** wire, as `wireKey` names it → the claim its transit carries. */
+  wires: Map<string, Held>;
 }
 
 export type { Aspect };
@@ -361,7 +373,9 @@ export class Panel {
 
   /** Every block of the layout, at the strongest state that holds for it:
    *  a train standing there, a lock holding it, a committed route heading
-   *  through it, or nothing. */
+   *  through it, or nothing. Occupancy outranks both route states — a
+   *  standing train is still a lock, and the picture must never lose which
+   *  block a train is actually in (ui/PANEL.md). */
   blocks(): Map<string, BlockView> {
     const planned = new Map<string, string>();
     for (const request of this.requests.values()) {
@@ -425,28 +439,46 @@ export class Panel {
     return this.lyingByAddress;
   }
 
-  /** What every committed route lights: the legs of the symbols its transits
-   *  cross, in the shape `inspect.lit` gives the canvas — `""` from the store
-   *  means the symbol has no legs of its own and lights whole — and the wires
-   *  those transits are drawn over, so a route reads from the train to its
-   *  arrival end rather than as scattered lit frogs. */
+  /**
+   * What the committed routes light: the legs of the symbols their transits
+   * cross, in the shape `inspect.lit` gives the canvas — `""` from the store
+   * means the symbol has no legs of its own and lights whole — the wires
+   * those transits are drawn over, and how strong a claim each carries.
+   *
+   * `locked` is read from the lock ledger alone, not from a route intersected
+   * with it, which is how the block view already works. Its consequence is
+   * intended: a lock the dispatcher still holds after the request completes
+   * stays locked until it is released, because the dispatcher really does
+   * still hold it.
+   *
+   * Where a throat symbol is carried by a locked transit and a committed one
+   * at the same time, locked wins — the strongest claim that holds, as the
+   * block view rules it. That slightly overstates the committed route's leg
+   * on a shared symbol (ui/PANEL.md).
+   */
   lit(): LitRoute {
     const legs = new Map<string, Set<string>>();
-    const wires = new Set<string>();
+    const state = new Map<string, Held>();
+    const wires = new Map<string, Held>();
+    const light = (resource: string, held: Held) => {
+      const way = this.ways.get(resource);
+      if (way === undefined) return; // a block, or a transit off this drawing
+      for (const [symbol, leg] of way.legs) {
+        const taken = legs.get(symbol) ?? new Set<string>();
+        taken.add(leg === "" ? WHOLE : leg);
+        legs.set(symbol, taken);
+        if (held === "locked" || !state.has(symbol)) state.set(symbol, held);
+      }
+      for (const wire of way.wires) {
+        if (held === "locked" || !wires.has(wire)) wires.set(wire, held);
+      }
+    };
+    for (const resource of this.locks.keys()) light(resource, "locked");
     for (const request of this.requests.values()) {
       if (request.phase !== "committed") continue;
-      for (const resource of request.route ?? []) {
-        const way = this.ways.get(resource);
-        if (way === undefined) continue;
-        for (const [symbol, leg] of way.legs) {
-          const taken = legs.get(symbol) ?? new Set<string>();
-          taken.add(leg === "" ? WHOLE : leg);
-          legs.set(symbol, taken);
-        }
-        for (const wire of way.wires) wires.add(wire);
-      }
+      for (const resource of request.route ?? []) light(resource, "planned");
     }
-    return { legs, wires };
+    return { legs, state, wires };
   }
 
   /** Whether that train still stands in that block. The right-click menu is

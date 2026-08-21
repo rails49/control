@@ -247,12 +247,12 @@ describe("request layers", () => {
       id: "t1-1",
       route: ["a", "sw.side", "c"],
     });
-    expect(model.lit().wires).toEqual(
-      new Set([
+    expect([...model.lit().wires.keys()].sort()).toEqual(
+      [
         wire("a.B", "sw1.toe"),
         wire("sw1.diverging", "p1.P"),
         wire("p1.P", "c.A"),
-      ]),
+      ].sort(),
     );
   });
 
@@ -267,8 +267,8 @@ describe("request layers", () => {
       id: "t1-1",
       route: ["b", "jt.back", "c"],
     });
-    expect(model.lit().wires).toEqual(
-      new Set([wire("b.B", "p2.P"), wire("p2.P", "c.B")]),
+    expect([...model.lit().wires.keys()].sort()).toEqual(
+      [wire("b.B", "p2.P"), wire("p2.P", "c.B")].sort(),
     );
   });
 
@@ -280,9 +280,115 @@ describe("request layers", () => {
       id: "t1-1",
       route: ["a", "sw.main", "b"],
     });
-    expect(model.lit().wires).toEqual(
-      new Set([wire("a.B", "sw1.toe"), wire("sw1.straight", "b.A")]),
+    expect([...model.lit().wires.keys()].sort()).toEqual(
+      [wire("a.B", "sw1.toe"), wire("sw1.straight", "b.A")].sort(),
     );
+  });
+
+  /**
+   * The two colours (#143): green where the dispatcher holds the lock and the
+   * train may move, cyan where the route is chosen and the claim has not been
+   * made yet. Both are read off resources the model already holds — the lock
+   * ledger and the committed route — so nothing here is derived twice.
+   */
+  it("locks what the ledger holds and plans the rest of the route", () => {
+    const model = panel();
+    placed(model);
+    feed(
+      model,
+      submitted,
+      { event: "route_chosen", id: "t1-1", route: ["a", "sw.side", "c"] },
+      { event: "lock_granted", train: "t1", resources: ["sw.side"] },
+    );
+    const lit = model.lit();
+    expect(lit.state.get("sw1")).toBe("locked");
+    expect(lit.state.get("p1")).toBe("locked");
+    expect(lit.wires.get(wire("a.B", "sw1.toe"))).toBe("locked");
+    expect(model.blocks().get("c")).toMatchObject({ state: "planned" });
+  });
+
+  it("plans a committed route the dispatcher has not claimed yet", () => {
+    const model = panel();
+    placed(model);
+    feed(model, submitted, {
+      event: "route_chosen",
+      id: "t1-1",
+      route: ["a", "sw.side", "c"],
+    });
+    const lit = model.lit();
+    expect(lit.state.get("sw1")).toBe("planned");
+    expect([...lit.wires.values()]).toEqual(["planned", "planned", "planned"]);
+  });
+
+  it("advances the lock along the route, and drops it when released", () => {
+    // Locking is incremental (ADR-0026), so the locked stretch creeping
+    // forward along a planned one is a reading of how far the train may go.
+    const model = panel();
+    placed(model);
+    feed(model, submitted, {
+      event: "route_chosen",
+      id: "t1-1",
+      route: ["a", "sw.side", "c"],
+    });
+    expect(model.lit().state.get("sw1")).toBe("planned");
+    feed(model, { event: "lock_granted", train: "t1", resources: ["sw.side"] });
+    expect(model.lit().state.get("sw1")).toBe("locked");
+    feed(model, { event: "lock_released", train: "t1", resources: ["sw.side"] });
+    expect(model.lit().state.get("sw1")).toBe("planned");
+  });
+
+  it("keeps a lock the dispatcher still holds after its request completes", () => {
+    // Green is the ledger's answer, not the route's intersected with it, so
+    // the picture never claims the railroad is freer than it is.
+    const model = panel();
+    placed(model);
+    feed(
+      model,
+      submitted,
+      { event: "route_chosen", id: "t1-1", route: ["a", "sw.side", "c"] },
+      { event: "lock_granted", train: "t1", resources: ["sw.side"] },
+      { event: "request_completed", id: "t1-1" },
+    );
+    expect(model.lit().state.get("sw1")).toBe("locked");
+    feed(model, { event: "lock_released", train: "t1", resources: ["sw.side"] });
+    expect(model.lit().legs.size).toBe(0);
+  });
+
+  it("reports a symbol two transits cross at the stronger of the two", () => {
+    // The turnout is on both ways out of `a`. One train holds its lock and
+    // the other only has it committed; the stronger claim is the true one.
+    const model = panel();
+    placed(model);
+    feed(
+      model,
+      submitted,
+      { event: "route_chosen", id: "t1-1", route: ["a", "sw.side", "c"] },
+      { event: "request_submitted", id: "t2-1", train: "t2", depart: "a.B", dest: ["b.A"] },
+      { event: "route_chosen", id: "t2-1", route: ["a", "sw.main", "b"] },
+      { event: "lock_granted", train: "t2", resources: ["sw.main"] },
+    );
+    expect(model.lit().state.get("sw1")).toBe("locked");
+    expect(model.lit().wires.get(wire("a.B", "sw1.toe"))).toBe("locked");
+    // The leg the planned way takes is still lit; only the colour is shared.
+    expect(model.lit().legs.get("sw1")).toEqual(
+      new Set(["diverging", "straight"]),
+    );
+  });
+
+  it("keeps the block a train stands in occupied while its route runs", () => {
+    const model = panel();
+    placed(model);
+    feed(
+      model,
+      submitted,
+      { event: "route_chosen", id: "t1-1", route: ["a", "sw.side", "c"] },
+      { event: "lock_granted", train: "t1", resources: ["sw.side", "c"] },
+    );
+    expect(model.blocks().get("a")).toMatchObject({
+      state: "occupied",
+      train: "t1",
+    });
+    expect(model.blocks().get("c")).toMatchObject({ state: "locked" });
   });
 
   it("clears the route's lighting when the request completes", () => {
@@ -459,6 +565,26 @@ describe("the run's picture", () => {
     expect(model.lit().legs).toEqual(new Map([["p2", new Set([WHOLE])]]));
   });
 
+  /** A joining page is served the same picture a replay would have built, so
+   *  it must open on the same two colours (ADR-0032). The picture holds the
+   *  joint's lock, so the whole of this route is locked. */
+  it("opens on the colours the events that built it would have given", () => {
+    const model = panel();
+    feed(model, PICTURE);
+    expect(model.lit().state.get("p2")).toBe("locked");
+    expect([...model.lit().wires.values()]).toEqual(["locked", "locked"]);
+
+    const replayed = panel();
+    placed(replayed);
+    feed(
+      replayed,
+      { event: "request_submitted", id: "t1-7", train: "t1", depart: "b.B", dest: ["c.B"] },
+      { event: "route_chosen", id: "t1-7", route: ["b", "jt.back", "c"] },
+      { event: "lock_granted", train: "t1", resources: ["jt.back", "c"] },
+    );
+    expect(replayed.lit()).toEqual(model.lit());
+  });
+
   it("marks a live request that has not been committed", () => {
     const model = panel();
     feed(model, {
@@ -510,7 +636,12 @@ describe("the run's picture", () => {
     const model = panel();
     feed(model, PICTURE, { ...PICTURE, requests: [] });
     expect(model.markers()).toEqual([]);
+    // What the picture still holds keeps its colour: green is read from the
+    // ledger, and the dispatcher really does still hold these locks.
+    expect(model.lit().state.get("p2")).toBe("locked");
+    feed(model, { ...PICTURE, requests: [], locks: { b: "t1" } });
     expect(model.lit().legs.size).toBe(0);
+    expect(model.lit().wires.size).toBe(0);
   });
 
   it("does not read a lock after it as a placement", () => {

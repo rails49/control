@@ -46,24 +46,62 @@ export const panelStyles = css`
 
   ${way}
 
-  /* Block state, strongest first: a train standing there, a lock holding the
-     empty block ahead of it, a committed route not yet locked this far. The
-     locked fill is the lit tint, so a committed route reads as one lit path
-     whether a stretch is locked yet or merely chosen. */
+  /* A committed route in two colours (ui/PANEL.md): green where the
+     dispatcher holds the lock and the train may move, cyan where the route is
+     chosen and the claim has not been made yet. The state rides on the
+     symbol's group and on the wire, and the rules descend from there onto the
+     lit classes that already exist, so what is lit stays one answer with one
+     shape.
+
+     Block state, strongest first: a train standing there, a lock holding the
+     empty block ahead of it, a committed route not yet locked this far. A
+     block is on no transit's way, so it takes its state from the block view
+     and a junction symbol takes its from the route; occupancy outranks both.
+
+     The pale ground a block body wears is mixed from its own stroke rather
+     than named a second time, so one value moves a colour and its wash
+     together and they cannot disagree. */
   .symbol.occupied .block-body {
     fill: #f6d3cb;
     stroke: var(--wrong);
   }
 
   .symbol.locked .block-body {
-    fill: var(--lit-body);
-    stroke: var(--lit);
+    fill: color-mix(in srgb, var(--locked) 18%, white);
+    stroke: var(--locked);
   }
 
+  /* Dashed against solid: cyan beside green is a hard pair for red-green
+     deficiency, and whether the train may move is the distinction worth a
+     channel that is not hue. Track and wires stay solid — a dash's spacing
+     would vary with a wire's angle, which is why track is never patterned. */
   .symbol.planned .block-body {
-    fill: var(--lit-body);
-    stroke: var(--lit);
+    fill: color-mix(in srgb, var(--planned) 18%, white);
+    stroke: var(--planned);
     stroke-dasharray: ${2 * W} ${W};
+  }
+
+  /* A throat has no block body, so it is the part of the route left with hue
+     alone — and the part where which way is locked matters most. Recorded
+     rather than hidden (ui/PANEL.md). */
+  .symbol.locked .track.lit,
+  .symbol.locked .tick.lit,
+  .wire.lit.locked {
+    stroke: var(--locked);
+  }
+
+  .symbol.locked .bend.lit {
+    fill: var(--locked);
+  }
+
+  .symbol.planned .track.lit,
+  .symbol.planned .tick.lit,
+  .wire.lit.planned {
+    stroke: var(--planned);
+  }
+
+  .symbol.planned .bend.lit {
+    fill: var(--planned);
   }
 
   /* Where a point lies (CONTEXT.md): the road its position does not offer is
