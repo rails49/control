@@ -1,5 +1,11 @@
 # The pending scan ages by refusal count
 
+*(Amended for #161: `gotthard/saturation` on this page means
+`gotthard-v0/saturation`. The netlist it was measured on is wrong about Claro
+track 3 and the west throat, and is frozen as `gotthard-v0` so these numbers
+stay reproducible. The railroad on the bench is a different workload — seven
+station tracks rather than six — and is deliberately not re-measured here.)*
+
 The pending queue was scanned strictly oldest-first by admission order
 (`Request.seq`). That sounds fair but is not: the oldest request keeps being
 *tried* and *refused* while younger requests with clear routes launch past

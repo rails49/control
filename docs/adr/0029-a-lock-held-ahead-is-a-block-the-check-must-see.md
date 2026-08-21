@@ -1,5 +1,11 @@
 # A lock held ahead is a block the check must see
 
+*(Amended for #161: every `gotthard/…` figure on this page means
+`gotthard-v0/…`, measured on a netlist that models Claro track 3 as one block
+and bundles the west throat. It is frozen under that name so the table below
+reproduces. The two-block route argument in particular is a fact about that
+railroad's geometry, not a general one.)*
+
 Depth two ([ADR-0026](0026-two-blocks-ahead-is-full-speed.md)) is built here.
 Building it takes two decisions: how the second increment is asked for, and
 what the safety check has to be told about it. Asking for something the train
