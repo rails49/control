@@ -144,6 +144,15 @@ class AssetStore:
                     f"{where}: train '{train}' facing must be 'A' or 'B',"
                     f" got {facing!r}"
                 )
+            # A placement is what every later request is composed from, so an
+            # end no connection holds is a train that can never leave (#145).
+            # A *request* may still state one — facing is a discipline, not an
+            # invariant (ADR-0019), and file scenarios keep that freedom.
+            if f"{at}.{facing}" not in layout.end_connection:
+                raise ValueError(
+                    f"{where}: train '{train}' faces end '{at}.{facing}',"
+                    f" which no connection holds"
+                )
             trains[train] = TrainSpec(length, at, facing)
 
         requests: list[RequestSpec] = []
