@@ -181,8 +181,9 @@ def command_line() -> argparse.ArgumentParser:
     live_parser.add_argument(
         "--state",
         type=Path,
-        help="keep the run's picture in this file, so a restart comes up where"
-        " the railroad stopped rather than where the scenario starts it",
+        help="keep the runs' pictures beside this path, one file per railroad,"
+        " so a restart comes up where each railroad stopped rather than where"
+        " its scenario starts it",
     )
     live_parser.add_argument(
         "--store-port", type=int, default=8765, help="the store's HTTP port"
@@ -224,7 +225,7 @@ def restart_note(state: Path | None) -> str:
     the banner must stop promising the other thing (#151)."""
     if state is None:
         return "a restart comes up fresh from the scenario"
-    return f"a restart adopts the placement and facing kept in {state}"
+    return f"a restart adopts the placement and facing kept beside {state}"
 
 
 def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:

@@ -157,7 +157,7 @@ def test_a_session_is_told_where_to_keep_the_run(
 
     assert "fresh from the scenario" in restart_note(None)
     assert restart_note(Path("run.json")) == (
-        "a restart adopts the placement and facing kept in run.json"
+        "a restart adopts the placement and facing kept beside run.json"
     )
     with pytest.raises(SystemExit):
         command_line().parse_args(["live", "--help"])

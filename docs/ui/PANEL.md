@@ -313,7 +313,10 @@ holding the truth the whole time ([CONTEXT.md](../../CONTEXT.md#interruptions)).
 **A session may outlive its process**, `tc49 live --state <file>`. The bus
 keeps its retained values there and each app adopts its own coming up, so a
 restart opens on the placement and facing the last session left rather than
-on the scenario's (SYSTEM.md, the bus). The panel reads nothing new for it:
+on the scenario's (SYSTEM.md, the bus). The path names **one file per
+railroad**: a picture belongs to the railroad it is a picture of, and an
+operator switching railroads all evening must not be handed the last one's
+placement — train names do not tell two layouts apart. The panel reads nothing new for it:
 placement arrives on `state/allocation` and facing on `state/facing` exactly
 as they do on a rejoin. What the picture gains is `crossing`, train → the
 transit it was crossing when everything stopped — a placement hint with no

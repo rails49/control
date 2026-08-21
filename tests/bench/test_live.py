@@ -22,6 +22,7 @@ import json
 import threading
 import time
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -29,7 +30,7 @@ from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import ClientConnection, connect
 
 from tc49.bench.runner import Assembly, assemble_live
-from tc49.bench.session import Session
+from tc49.bench.session import Session, state_for
 from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Payload
 from tests.harness import ROOT, events, load
@@ -396,3 +397,48 @@ def test_a_path_naming_no_scenario_is_refused_and_the_run_lives(
         before = payload_of(client, "boundary")["boundary"]
         while payload_of(client, "boundary")["boundary"] <= before:
             pass
+
+
+def test_each_railroad_the_session_runs_keeps_its_own_picture(
+    tmp_path: Path,
+) -> None:
+    """A picture belongs to the railroad it is a picture of (#151).
+
+    One operator may switch railroads all evening, and a session keeps one
+    path. A single file behind it would hand the next railroad the last one's
+    placement — and the train names do not tell them apart, `fixed` and
+    `flexible` standing on two different layouts in the scenarios shipped
+    here, so a block of the wrong layout would be adopted and no gesture on
+    this one could clear it. So the path names one file per railroad.
+    """
+    kept = tmp_path / "run.json"
+    live = Session(ROOT, PERIOD_S, state=kept)
+    thread = threading.Thread(target=live.run, args=(io.StringIO(),), daemon=True)
+    thread.start()
+    try:
+        with joining(live, "crossover-yard/meet") as client:
+            assert payload_of(client, "allocation")["trains"]["freight_1"]
+        with joining(live, "gotthard/meet") as other:
+            assert payload_of(other, "allocation")["trains"]["north"]
+    finally:
+        live.stop()
+        thread.join(TIMEOUT)
+        live.bridge.close()
+
+    pictures = {
+        layout: json.loads(state_for(kept, layout).read_text())[
+            "tc49/dispatch/state/allocation"
+        ]
+        for layout in ("crossover-yard", "gotthard")
+    }
+    assert set(pictures["crossover-yard"]["trains"]) == {"express_2", "freight_1"}
+    assert set(pictures["gotthard"]["trains"]) == {"north", "south"}
+
+
+def test_a_railroads_file_is_named_beside_the_session_path() -> None:
+    """Beside it and never it: two railroads must not be able to collide on
+    one name, and the path the operator typed is the stem they share."""
+    kept = Path("runs/tonight.json")
+    assert state_for(kept, "gotthard") == Path("runs/tonight.gotthard.json")
+    assert state_for(kept, "crossover-yard") != state_for(kept, "gotthard")
+    assert state_for(kept, "gotthard").parent == kept.parent

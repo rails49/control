@@ -36,6 +36,19 @@ from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 
 
+def state_for(state: Path, layout: str) -> Path:
+    """One railroad's own state file, beside the one the session was given.
+
+    A picture belongs to the railroad it is a picture of. The panel may switch
+    railroads (#148) and a session keeps one path, so a single file would
+    offer a gotthard picture to single-track-meet — and train names do not
+    tell them apart, `fixed` and `flexible` standing on both of those layouts
+    in the scenarios shipped here. Adopting across would place a train in a
+    block of another layout, which no gesture on this one can clear.
+    """
+    return state.with_name(f"{state.stem}.{layout}{state.suffix}")
+
+
 class Session:
     """Serving from construction; `run` works it until `stop`."""
 
@@ -48,10 +61,10 @@ class Session:
     ) -> None:
         self._store = AssetStore(root)
         self._period_s = period_s
-        # Where the run's picture lives between processes, or None to forget
-        # it with the process. One file for the session: switching railroads
-        # rebuilds against it, and a picture whose trains this scenario does
-        # not carry is simply not adopted (#123).
+        # Where the runs' pictures live between processes, or None to forget
+        # them with the process. The path names one file per railroad, since
+        # switching railroads is the panel's to do and a picture belongs to
+        # the railroad it is of (#123).
         self._state = state
         self._lock = threading.Lock()
         # Set while a scenario is waiting to be built, and again by `stop`,
@@ -106,7 +119,15 @@ class Session:
             if wanted is None:
                 return
             scenario_id, layout, scenario = wanted
-            assembly = assemble_live(layout, scenario, state=self._state)
+            assembly = assemble_live(
+                layout,
+                scenario,
+                state=(
+                    None
+                    if self._state is None
+                    else state_for(self._state, scenario.layout)
+                ),
+            )
             self.bridge.rebind(assembly.bus, scenario_id)
             out.write(f"  running {scenario_id}\n")
             out.flush()
