@@ -1,8 +1,8 @@
 /**
  * What more than one component wears: the palette, the page the two shells lay
  * out on, the symbol rules, the lit way, and what a menu is made of — its box,
- * its rows, the key set beside a label, the row under the pointer, and the
- * overlay that dismisses the whole thing.
+ * its rows, the key set beside a label, the overlay a press outside lands on,
+ * and the row under the pointer.
  *
  * Nothing lives here that fewer than two component stylesheets wear. Without
  * that limit *what more than one component wears* admits every duplication
@@ -70,10 +70,11 @@ export const page = css`
 `;
 
 /**
- * Declaration body. The box a menu drops into, shared by the right-click menu and the bar's, so
- * that the editor's two menu systems read as one. Position is the caller's:
- * one is pinned to the pointer and the other hangs off its title. Named for
- * the menu it belongs to, `tc-panel` being another thing entirely.
+ * Declaration body. The box a menu drops into, shared by the right-click menu
+ * and the bar's, so that the editor's two menu systems read as one. Position
+ * is the caller's: one is pinned to the pointer and the other hangs off its
+ * title. Named for the menu it belongs to, `tc-panel` being another thing
+ * entirely.
  */
 export const menuBox = css`
   margin: 0;
@@ -115,11 +116,11 @@ export const menuShortcut = css`
 // Interpolated at the top level of a sheet, selectors and all: `${symbols}`.
 
 /**
- * Whole rule sets. The symbols themselves, drawn the same on the canvas and on a palette tile:
- * both are the symbol's own coordinates, one grid square to one user unit, so
- * one set of rules serves both and a tile shows what will be placed. Track is
- * solid and round-capped, never patterned — wires run at any angle, and a
- * pattern's spacing would vary with direction.
+ * Whole rule sets. The symbols themselves, drawn the same on the canvas and
+ * on a palette tile: both are the symbol's own coordinates, one grid square to
+ * one user unit, so one set of rules serves both and a tile shows what will be
+ * placed. Track is solid and round-capped, never patterned — wires run at any
+ * angle, and a pattern's spacing would vary with direction.
  */
 export const symbols = css`
   .track {
@@ -194,50 +195,10 @@ export const symbols = css`
   }
 `;
 
-/**
- * Whole rule sets. The row under the pointer, in both menu systems: the one
- * item a press would choose, painted in the chosen colour so that a menu says
- * what it is about to do.
- *
- * The selector is `li` deep because the bar's rows are, and both menus wrap
- * every button in one; at (0,2,2) it still beats the `menuRow` the row wears
- * underneath, which every caller writes at (0,0,1). A disabled row is left
- * out — an item that does not apply is not about to be chosen.
- */
-export const menuRowChosen = css`
-  li button:hover:not(:disabled) {
-    background: var(--chosen);
-    color: #fff;
-  }
-
-  /* Whatever sits beside the label goes with it: the key set, and the .more
-     glyph, which is the bar's own — tc-menu renders no such element and that
-     half of the selector matches nothing there. */
-  li button:hover:not(:disabled) kbd,
-  li button:hover:not(:disabled) .more {
-    color: inherit;
-    opacity: 0.75;
-  }
-`;
 
 /**
- * Whole rule set. The overlay a menu drops over the page: a press anywhere
- * outside the menu lands here and dismisses it, and nothing under it is
- * clicked by the same press. Worn by both menu systems, which is why it has
- * to be one block — the two z-indices have to agree with each other and with
- * everything the bar lifts above it.
- */
-export const dismiss = css`
-  .dismiss {
-    position: fixed;
-    inset: 0;
-    z-index: 10;
-  }
-`;
-
-/**
- * Whole rule sets. Track that is not a symbol, and the lit way: shared by the editor's canvas
- * and the panel, which paint the same drawing.
+ * Whole rule sets. Track that is not a symbol, and the lit way: shared by the
+ * editor's canvas and the panel, which paint the same drawing.
  */
 export const way = css`
   /* A wire is track: same width, same round cap, so it joins a symbol's leg
@@ -283,5 +244,46 @@ export const way = css`
   .symbol .opaque.lit {
     fill: var(--lit-body);
     stroke: var(--lit);
+  }
+`;
+
+/**
+ * Whole rule set. The overlay a menu drops over the page: a press anywhere
+ * outside the menu lands here and dismisses it, and nothing under it is
+ * clicked by the same press. Worn by both menu systems, which is why it has
+ * to be one block — the two z-indices have to agree with each other and with
+ * everything the bar lifts above it.
+ */
+export const dismiss = css`
+  .dismiss {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+  }
+`;
+
+/**
+ * Whole rule sets. The row under the pointer, in both menu systems: the one
+ * item a press would choose, painted in the chosen colour so that a menu says
+ * what it is about to do.
+ *
+ * The selector is `li` deep because the bar's rows are, and both menus wrap
+ * every button in one; at (0,2,2) it still beats the `menuRow` the row wears
+ * underneath, which the two callers write at (0,0,1) and (0,0,2). A disabled
+ * row is left out — an item that does not apply is not about to be chosen.
+ */
+export const menuRowChosen = css`
+  li button:hover:not(:disabled) {
+    background: var(--chosen);
+    color: #fff;
+  }
+
+  /* Whatever sits beside the label goes with it: the key set, and the .more
+     glyph, which is the bar's own — tc-menu renders no such element and that
+     half of the selector matches nothing there. */
+  li button:hover:not(:disabled) kbd,
+  li button:hover:not(:disabled) .more {
+    color: inherit;
+    opacity: 0.75;
   }
 `;

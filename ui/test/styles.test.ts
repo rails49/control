@@ -72,7 +72,7 @@ const sheets: Record<string, CSSResult> = {
  * to write an assertion for.
  */
 describe("everything the shared module holds", () => {
-  it.each(Object.entries(shared) as [string, CSSResult][])(
+  it.each(Object.entries(shared))(
     "%s is worn by at least two component stylesheets",
     (name, block) => {
       const wearers = Object.entries(sheets)
