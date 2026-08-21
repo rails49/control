@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="1 0 43 17" width="1892" height="748">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4.5 0 32 23" width="1408" height="1012">
 <style>
 
   svg {
@@ -11,11 +11,16 @@
     --chosen: #1f6feb;
     --good: #22c55e;
     --wrong: #cc2936;
+    --unfinished: #5b6472;
     --hint: #7c8087;
-    --clear: #17a24a;
-    --danger: #e0332a;
+    --green: #17a24a;
+    --red: #e0332a;
+    --amber: #e8a021;
     --lit: #a55b12;
     --lit-body: #f4e3cd;
+    --locked: #3f9c35;
+    --planned: #0d9bb8;
+    --wrong-body: #f7dcdf;
     --tint-1: #14866d;
     --tint-2: #a55b12;
   }
@@ -48,24 +53,31 @@
   }
 
   /* A square two symbols both cover, marked over the artwork so the overlap a
-     rotate or a flip made is visible where it is. */
+     rotate or a flip made is visible where it is. In the quieter weight: an
+     overlap is cosmetic and the drawing derives regardless, so marking it in
+     the red a pin short of a wire wears would overstate it (ADR-0024). Heavier
+     than the red mark to make up for the slate, which reads fainter over paper
+     at the same opacity. */
   .stacked {
-    fill: var(--wrong);
-    opacity: 0.22;
+    fill: var(--unfinished);
+    opacity: 0.3;
     pointer-events: none;
   }
 
-  /* A junction wearing a name another connection also wears, or two its own
-     symbols disagree about: shown where it is rather than only in the panel.
-     It is the only tint left on the canvas, so colour here means something is
-     wrong rather than merely that a junction is a junction. */
-  .junction {
-    pointer-events: none;
-  }
+  /* A turnout or a slip carrying no address, ringed on the squares it covers.
+     The drawing derives without one and cannot be driven, which is what the
+     quieter of the two weights says (ADR-0024); it is the same slate an
+     overlap wears, since there are two weights and not three.
 
-  .junction rect {
-    fill: var(--wrong);
-    opacity: 0.14;
+     A ring rather than a wash: a tinted square is already what an overlap
+     looks like, and a wash over the symbol would hide the very artwork the
+     mark is about. Drawn under the pins the way the artwork is. */
+  .unaddressed {
+    fill: none;
+    stroke: var(--unfinished);
+    stroke-width: 0.06;
+    stroke-dasharray: 0.16 0.12;
+    pointer-events: none;
   }
 
   
@@ -94,17 +106,25 @@
     fill: var(--track);
   }
 
-  /* Both aspects are drawn, and edit mode shows both lit. Run mode, out of
-     scope for now, dims the one the signal is not showing. */
-  .lamp.clear {
-    fill: var(--clear);
+  /* Every lamp is drawn, and edit mode shows every one lit. Run mode dims the
+     lamps the aspect does not light; a lamp is named for its colour, an
+     aspect being a set of lamps rather than one. */
+  .lamp.green {
+    fill: var(--green);
   }
 
-  .lamp.danger {
-    fill: var(--danger);
+  .lamp.red {
+    fill: var(--red);
   }
 
-  .stop,
+  .lamp.amber {
+    fill: var(--amber);
+  }
+
+  /* Named buffer and not stop: stop is an aspect a signal shows (CONTEXT.md),
+     and a class of that name here would be inherited by the lamps of every
+     signal at stop, which sit inside a group carrying the aspect's name. */
+  .buffer,
   .mark,
   .portal-mouth,
   .tick {
@@ -119,7 +139,7 @@
     stroke-width: 0.045;
   }
 
-  .stop {
+  .buffer {
     stroke-width: 0.18;
   }
 
@@ -182,6 +202,15 @@
     stroke-width: 0.24;
   }
 
+  /* The wires between those legs, at the same weight, so a way reads as one
+     continuous run rather than as scattered lit frogs — and so a way across a
+     joint, which crosses no symbol declaring a transit, lights at all. Which
+     wires those are is model/inspect.ts, per way. */
+  .wire.lit {
+    stroke: var(--lit);
+    stroke-width: 0.24;
+  }
+
   .symbol .bend.lit {
     fill: var(--lit);
   }
@@ -203,6 +232,36 @@
   }
 
 
+  /* The way a refusal is about, lit in the red that means derivation stopped
+     rather than in the colour a chosen transit wears (ADR-0024). It reads as
+     one run for the same reason a chosen transit does — every leg of it and
+     both its block ends — and the rules ride on the lit classes so that what
+     is lit stays one answer with one shape. */
+  .symbol.offending .track.lit {
+    stroke: var(--wrong);
+  }
+
+  .symbol.offending .tick.lit {
+    stroke: var(--wrong);
+  }
+
+  .symbol.offending .bend.lit {
+    fill: var(--wrong);
+  }
+
+  .symbol.offending .block-body.lit,
+  .symbol.offending .opaque.lit {
+    fill: var(--wrong-body);
+    stroke: var(--wrong);
+  }
+
+  /* A wire is not inside a symbol's group, so it carries the mark itself
+     rather than inheriting it from one. Same rule, same red: a refusal about
+     a route points at the whole route, wires included. */
+  .wire.lit.offending {
+    stroke: var(--wrong);
+  }
+
   /* A block's label, the only text on a symbol: centred in its rectangle rather
      than sitting on a point. The size is set per label rather than here, being
      the size that name fits the rectangle at (render/units.ts). */
@@ -220,7 +279,7 @@
      (EDITOR.md#symbol-geometry).
 
      It is not a name rule, though it is drawn like one: a name is what a symbol
-     carries and this is a finding, and which end of it sits on the point is
+     carries and this is a fault mark, and which end of it sits on the point is
      the mark's own direction speaking, through the attribute a rule here would
      beat. */
   .unpaired {
@@ -246,8 +305,8 @@
 
   /* The symbol on its way out of the palette, drawn where a drop would put it.
      Faint, so what is already on the sheet reads through it and the ghost is
-     plainly not placed yet; the squares it cannot have are marked as any other
-     overlap is. */
+     plainly not placed yet; the squares it cannot have are marked where they
+     are, as an overlap is. */
   .ghost {
     opacity: 0.45;
     pointer-events: none;
@@ -255,6 +314,15 @@
 
   .ghost.blocked {
     opacity: 0.3;
+  }
+
+  /* Under the ghost the same square is a refusal rather than an overlap: the
+     drop places nothing (EDITOR.md#canvas), and what stops something is red.
+     The rule sits on the ancestor rather than on a class of its own, so the
+     mark cannot be renamed on one side and left on the other. */
+  .ghost.blocked .stacked {
+    fill: var(--wrong);
+    opacity: 0.22;
   }
 
   .band {
@@ -267,7 +335,7 @@
   }
 
 
-svg { width: 1892px; height: 748px; }
+svg { width: 1408px; height: 1012px; }
 </style>
 
         <defs>
@@ -284,595 +352,913 @@ svg { width: 1892px; height: 748px; }
   </clipPath>
 
         </defs>
-        <rect class="sheet" x="1" y="0" width="43" height="17"></rect>
-          <line class="wire" x1="17.5" y1="5" x2="18" y2="1.5"></line><line class="wire" x1="19" y1="1.5" x2="19" y2="1.5"></line><line class="wire" x1="18.5" y1="2" x2="18.5" y2="2"></line><line class="wire" x1="19.5" y1="3" x2="20.5" y2="4"></line><line class="wire" x1="19.5" y1="4" x2="18.5" y2="3"></line><line class="wire" x1="19.5" y1="2" x2="19.5" y2="2"></line><line class="wire" x1="20" y1="1.5" x2="20" y2="1.5"></line><line class="wire" x1="21" y1="1.5" x2="21" y2="1.5"></line><line class="wire" x1="20.5" y1="2" x2="21" y2="2.5"></line><line class="wire" x1="22" y1="2.5" x2="22" y2="2.5"></line><line class="wire" x1="21.5" y1="3" x2="22" y2="3.5"></line><line class="wire" x1="5.5" y1="5" x2="18" y2="4.5"></line><line class="wire" x1="18.5" y1="5" x2="18.5" y2="5"></line><line class="wire" x1="19" y1="4.5" x2="19" y2="4.5"></line><line class="wire" x1="20" y1="4.5" x2="20" y2="4.5"></line><line class="wire" x1="21" y1="4.5" x2="43" y2="4.5"></line><line class="wire" x1="43" y1="4.5" x2="30" y2="1.5"></line><line class="wire" x1="29" y1="1.5" x2="27" y2="1.5"></line><line class="wire" x1="29.5" y1="2" x2="29" y2="2.5"></line><line class="wire" x1="28" y1="2.5" x2="28" y2="2.5"></line><line class="wire" x1="28.5" y1="3" x2="28.5" y2="3"></line><line class="wire" x1="28" y1="3.5" x2="28" y2="3.5"></line><line class="wire" x1="29" y1="3.5" x2="29" y2="3.5"></line><line class="wire" x1="5.5" y1="11" x2="6" y2="11.5"></line><line class="wire" x1="7" y1="11.5" x2="7" y2="11.5"></line><line class="wire" x1="6.5" y1="12" x2="7" y2="12.5"></line><line class="wire" x1="8" y1="12.5" x2="8" y2="12.5"></line><line class="wire" x1="7.5" y1="13" x2="8" y2="13.5"></line><line class="wire" x1="9" y1="13.5" x2="9" y2="13.5"></line><line class="wire" x1="8.5" y1="14" x2="9" y2="14.5"></line><line class="wire" x1="8" y1="14.5" x2="8" y2="14.5"></line><line class="wire" x1="8.5" y1="15" x2="8" y2="15.5"></line><line class="wire" x1="18.5" y1="11" x2="16" y2="12.5"></line><line class="wire" x1="15" y1="12.5" x2="14" y2="12.5"></line><line class="wire" x1="15.5" y1="13" x2="15" y2="13.5"></line><line class="wire" x1="17.5" y1="11" x2="17" y2="11.5"></line><line class="wire" x1="17" y1="11.5" x2="14" y2="11.5"></line><line class="wire" x1="13" y1="11.5" x2="13" y2="11.5"></line><line class="wire" x1="13.5" y1="11" x2="14" y2="9.5"></line><line class="wire" x1="13" y1="9.5" x2="13" y2="9.5"></line><line class="wire" x1="13.5" y1="10" x2="13" y2="10.5"></line><line class="wire" x1="7" y1="10.5" x2="7" y2="10.5"></line><line class="wire" x1="7" y1="9.5" x2="7" y2="9.5"></line><line class="wire" x1="2" y1="14.5" x2="2" y2="14.5"></line><line class="wire" x1="2" y1="15.5" x2="2" y2="15.5"></line><line class="wire" x1="35" y1="3.5" x2="35" y2="3.5"></line> 
-        <g class="symbol" data-symbol="claro_1" transform="translate(0 0)">
-          <g transform="translate(7 11)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="10" y="11.5" font-size="0.5" transform="rotate(0 10 11.5)">claro_1</text>
-        </g>
-      
-        <g class="symbol" data-symbol="claro_2" transform="translate(0 0)">
-          <g transform="translate(8 12)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="11" y="12.5" font-size="0.5" transform="rotate(0 11 12.5)">claro_2</text>
-        </g>
-      
-        <g class="symbol" data-symbol="claro_3" transform="translate(0 0)">
-          <g transform="translate(9 13)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="12" y="13.5" font-size="0.5" transform="rotate(0 12 13.5)">claro_3</text>
-        </g>
-      
-        <g class="symbol" data-symbol="claro_4" transform="translate(0 0)">
-          <g transform="translate(7 10) translate(6 0) rotate(90) translate(1 0) rotate(90)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="10" y="10.5" font-size="0.5" transform="rotate(0 10 10.5)">claro_4</text>
-        </g>
-      
-        <g class="symbol" data-symbol="claro_5" transform="translate(0 0)">
-          <g transform="translate(7 9) translate(6 0) rotate(90) translate(1 0) rotate(90)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="10" y="9.5" font-size="0.5" transform="rotate(0 10 9.5)">claro_5</text>
-        </g>
-      
-        <g class="symbol" data-symbol="claro_6" transform="translate(0 0)">
-          <g transform="translate(2 14) translate(6 0) rotate(90) translate(1 0) rotate(90)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="5" y="14.5" font-size="0.5" transform="rotate(0 5 14.5)">claro_6</text>
-        </g>
-      
-        <g class="symbol" data-symbol="claro_7" transform="translate(0 0)">
-          <g transform="translate(2 15) translate(6 0) rotate(90) translate(1 0) rotate(90)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="5" y="15.5" font-size="0.5" transform="rotate(0 5 15.5)">claro_7</text>
-        </g>
-      
-        <g class="symbol" data-symbol="airolo_1" transform="translate(0 0)">
-          <g transform="translate(21 1)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="24" y="1.5" font-size="0.5" transform="rotate(0 24 1.5)">airolo_1</text>
-        </g>
-      
-        <g class="symbol" data-symbol="airolo_2" transform="translate(0 0)">
-          <g transform="translate(22 2)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="25" y="2.5" font-size="0.5" transform="rotate(0 25 2.5)">airolo_2</text>
-        </g>
-      
-        <g class="symbol" data-symbol="airolo_3" transform="translate(0 0)">
-          <g transform="translate(22 3)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="25" y="3.5" font-size="0.5" transform="rotate(0 25 3.5)">airolo_3</text>
-        </g>
-      
-        <g class="symbol" data-symbol="airolo_4" transform="translate(0 0)">
-          <g transform="translate(29 3)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="32" y="3.5" font-size="0.5" transform="rotate(0 32 3.5)">airolo_4</text>
-        </g>
-      
-        <g class="symbol" data-symbol="line_blue_1" transform="translate(0 0)">
-          <g transform="translate(18 5) translate(1 0) rotate(90) translate(6 0) rotate(90) translate(1 0) rotate(90)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="18.5" y="8" font-size="0.5" transform="rotate(-90 18.5 8)">line_blue_1</text>
-        </g>
-      
-        <g class="symbol" data-symbol="line_blue_2" transform="translate(0 0)">
-          <g transform="translate(17 5) translate(1 0) rotate(90) translate(6 0) rotate(90) translate(1 0) rotate(90)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="17.5" y="8" font-size="0.5" transform="rotate(-90 17.5 8)">line_blue_2</text>
-        </g>
-      
-        <g class="symbol" data-symbol="line_yellow" transform="translate(0 0)">
-          <g transform="translate(5 5) translate(1 0) rotate(90)">
-            
-    <path class="track" d="M0 0.5 L1 0.5"></path>
-    <path class="track" d="M5 0.5 L6 0.5"></path>
-    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
-    <g class="signal end-A">
-    <path class="plaque" d="M0.235 0.755 L0.325 0.665
-      H0.675 L0.765 0.755 V0.795 L0.675 0.885
-      H0.325 L0.235 0.795 Z"></path>
-    <circle class="lamp clear" cx="0.61" cy="0.775" r="0.055"></circle>
-    <circle class="lamp danger" cx="0.39" cy="0.775" r="0.055"></circle>
-  </g>
-    <g class="signal end-B">
-    <path class="plaque" d="M5.235 0.205 L5.325 0.115
-      H5.675 L5.765 0.205 V0.245 L5.675 0.335
-      H5.325 L5.235 0.245 Z"></path>
-    <circle class="lamp clear" cx="5.39" cy="0.225" r="0.055"></circle>
-    <circle class="lamp danger" cx="5.61" cy="0.225" r="0.055"></circle>
-  </g>
-    <path class="mark" d="M1.088 0.72
-      h0.225 M1.2 0.607
-      v0.225"></path>
-  
-          </g>
-          <text class="name" x="5.5" y="8" font-size="0.5" transform="rotate(-90 5.5 8)">line_yellow</text>
-        </g>
-      
-        <g class="symbol" data-symbol="sw17" transform="translate(0 0)">
-          <g transform="translate(18 1) translate(1 0) rotate(90) translate(1 0) rotate(90) translate(1 0) scale(-1 1)">
+        <rect class="sheet" x="-4.5" y="0" width="32" height="23"></rect>
+         <line class="wire" x1="15.5" y1="4" x2="15.5" y2="4"></line><line class="wire" x1="14" y1="3.5" x2="15" y2="3.5"></line><line class="wire" x1="16" y1="3.5" x2="17" y2="3.5"></line><line class="wire" x1="16" y1="4.5" x2="17" y2="4.5"></line><line class="wire" x1="15" y1="5.5" x2="17" y2="5.5"></line><line class="wire" x1="14.5" y1="5" x2="15" y2="4.5"></line><line class="wire" x1="23" y1="3.5" x2="25" y2="3.5"></line><line class="wire" x1="23" y1="4.5" x2="24" y2="4.5"></line><line class="wire" x1="24.5" y1="5" x2="24" y2="5.5"></line><line class="wire" x1="24" y1="5.5" x2="23" y2="5.5"></line><line class="wire" x1="25" y1="4.5" x2="25.5" y2="4"></line><line class="wire" x1="8" y1="3.5" x2="8" y2="3.5"></line><line class="wire" x1="5.5" y1="2" x2="4.5" y2="3"></line><line class="wire" x1="2.5" y1="5" x2="3.5" y2="4"></line><line class="wire" x1="5" y1="5.5" x2="3" y2="5.5"></line><line class="wire" x1="5.5" y1="5" x2="4.5" y2="4"></line><line class="wire" x1="3" y1="1.5" x2="5" y2="1.5"></line><line class="wire" x1="2.5" y1="2" x2="3.5" y2="3"></line><line class="wire" x1="6" y1="5.5" x2="14" y2="5.5"></line><line class="wire" x1="6" y1="1.5" x2="26" y2="1.5"></line><line class="wire" x1="2" y1="5.5" x2="1" y2="5.5"></line><line class="wire" x1="2" y1="8.5" x2="9" y2="8.5"></line><line class="wire" x1="2" y1="1.5" x2="0" y2="1.5"></line><line class="wire" x1="1" y1="9.5" x2="9" y2="9.5"></line><line class="wire" x1="1" y1="5.5" x2="1" y2="5.5"></line><line class="wire" x1="0" y1="1.5" x2="-1.5" y2="3"></line><line class="wire" x1="-1.5" y1="3" x2="-1.5" y2="7"></line><line class="wire" x1="0" y1="5.5" x2="0" y2="5.5"></line><line class="wire" x1="0.5" y1="6" x2="0.5" y2="7"></line><line class="wire" x1="0.5" y1="7" x2="2" y2="8.5"></line><line class="wire" x1="-1.5" y1="7" x2="1" y2="9.5"></line><line class="wire" x1="-3.5" y1="14" x2="-3.5" y2="13"></line><line class="wire" x1="-3.5" y1="15" x2="-2" y2="16.5"></line><line class="wire" x1="-2" y1="16.5" x2="-1" y2="16.5"></line><line class="wire" x1="0" y1="16.5" x2="6" y2="16.5"></line><line class="wire" x1="-0.5" y1="17" x2="1" y2="18.5"></line><line class="wire" x1="1" y1="18.5" x2="3" y2="18.5"></line><line class="wire" x1="3" y1="20.5" x2="3" y2="20.5"></line><line class="wire" x1="3" y1="21.5" x2="3" y2="21.5"></line><line class="wire" x1="11" y1="12.5" x2="11" y2="12.5"></line><line class="wire" x1="11" y1="13.5" x2="11" y2="13.5"></line><line class="wire" x1="21" y1="13.5" x2="22.5" y2="15"></line><line class="wire" x1="20" y1="13.5" x2="17" y2="13.5"></line><line class="wire" x1="20.5" y1="13" x2="20" y2="12.5"></line><line class="wire" x1="20" y1="12.5" x2="17" y2="12.5"></line><line class="wire" x1="23" y1="15.5" x2="24" y2="15.5"></line><line class="wire" x1="24" y1="15.5" x2="25" y2="14.5"></line><line class="wire" x1="25" y1="14.5" x2="25" y2="10.5"></line><line class="wire" x1="25" y1="10.5" x2="24" y2="9.5"></line><line class="wire" x1="24" y1="9.5" x2="15" y2="9.5"></line><line class="wire" x1="22.5" y1="17" x2="21" y2="18.5"></line><line class="wire" x1="21" y1="18.5" x2="19" y2="18.5"></line><line class="wire" x1="13" y1="18.5" x2="13" y2="18.5"></line><line class="wire" x1="9" y1="18.5" x2="12" y2="18.5"></line><line class="wire" x1="11" y1="20.5" x2="12.5" y2="19"></line><line class="wire" x1="10" y1="20.5" x2="9" y2="20.5"></line><line class="wire" x1="10.5" y1="21" x2="10" y2="21.5"></line><line class="wire" x1="10" y1="21.5" x2="9" y2="21.5"></line><line class="wire" x1="23" y1="16.5" x2="25" y2="16.5"></line><line class="wire" x1="25" y1="16.5" x2="26.5" y2="15"></line><line class="wire" x1="12" y1="15.5" x2="22" y2="15.5"></line><line class="wire" x1="22" y1="16.5" x2="12" y2="16.5"></line><line class="wire" x1="26.5" y1="15" x2="26.5" y2="10"></line><line class="wire" x1="26.5" y1="10" x2="25" y2="8.5"></line><line class="wire" x1="25" y1="8.5" x2="15" y2="8.5"></line><line class="wire" x1="26" y1="3.5" x2="26.5" y2="3"></line><line class="wire" x1="26.5" y1="3" x2="26.5" y2="2"></line><line class="wire" x1="26.5" y1="2" x2="26" y2="1.5"></line><line class="wire" x1="-2" y1="15.5" x2="-3" y2="14.5"></line><line class="wire" x1="-3.5" y1="15" x2="-3.5" y2="15"></line><line class="wire" x1="-3" y1="14.5" x2="-3" y2="14.5"></line><line class="wire" x1="-3" y1="5.5" x2="-3.5" y2="6"></line><line class="wire" x1="-3.5" y1="6" x2="-3.5" y2="7"></line><line class="wire" x1="-2" y1="15.5" x2="6" y2="15.5"></line> 
+        <g class="symbol" data-symbol="sw1" transform="translate(0 0)">
+          <g transform="translate(15 4)">
             <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
           </g>
           
-        </g>
-      
-        <g class="symbol" data-symbol="sw18" transform="translate(0 0)">
-          <g transform="translate(19 1) translate(1 0) rotate(90) translate(1 0) rotate(90)">
-            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
-          </g>
           
         </g>
       
-        <g class="symbol" data-symbol="sw19" transform="translate(0 0)">
-          <g transform="translate(19 4)">
+        <g class="symbol" data-symbol="sw2" transform="translate(0 0)">
+          <g transform="translate(15 3) translate(1 0) rotate(90) translate(1 0) rotate(90)">
             <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
           </g>
           
+          
         </g>
       
-        <g class="symbol" data-symbol="sw20" transform="translate(0 0)">
-          <g transform="translate(20 4) translate(1 0) scale(-1 1)">
+        <g class="symbol" data-symbol="sw3" transform="translate(0 0)">
+          <g transform="translate(14 5)">
             <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
           </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="sw4" transform="translate(0 0)">
+          <g transform="translate(24 4) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="sw5" transform="translate(0 0)">
+          <g transform="translate(25 3) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n1" transform="translate(0 0)">
+          <g transform="translate(24 5)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="x90d1" transform="translate(0 0)">
+          <g transform="translate(3 3) translate(2 0) rotate(90) translate(1 0) rotate(90)">
+            <path class="track" d="M0.5 1 L1 0.5"></path><path class="track" d="M1.5 0 L1 0.5"></path><path class="track" d="M0.5 0 L1 0.5"></path><path class="track" d="M1.5 1 L1 0.5"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="end1" transform="translate(0 0)">
+          <g transform="translate(7 3) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+            
+    <path class="track cut" d="M0 0.5 L0.6 0.5"></path>
+    <path class="buffer" d="M0.6 0.2
+      V0.8"></path>
+  
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="sw6" transform="translate(0 0)">
+          <g transform="translate(5 1) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="sw7" transform="translate(0 0)">
+          <g transform="translate(2 5)">
+            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="sw8" transform="translate(0 0)">
+          <g transform="translate(5 5) translate(1 0) scale(-1 1)">
+            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="sw9" transform="translate(0 0)">
+          <g transform="translate(2 1) translate(1 0) rotate(90) translate(1 0) rotate(90) translate(1 0) scale(-1 1)">
+            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n2" transform="translate(0 0)">
+          <g transform="translate(26 1)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="p1" transform="translate(0 0)">
+          <g transform="translate(-1 5) translate(1 0) scale(-1 1)">
+            
+    <path class="track" clip-path="url(#portal-cut)" d="M0 0.5 L0.84 0.5"></path>
+    <path class="portal-mouth" d="M0.811 0.23 L0.589 0.77"></path><path class="portal-mouth" d="M0.901 0.23 L0.679 0.77"></path>
+  
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="p2" transform="translate(0 0)">
+          <g transform="translate(-3 5) translate(1 0) rotate(90) translate(1 0) rotate(90) translate(1 0) scale(-1 1)">
+            
+    <path class="track" clip-path="url(#portal-cut)" d="M0 0.5 L0.84 0.5"></path>
+    <path class="portal-mouth" d="M0.811 0.23 L0.589 0.77"></path><path class="portal-mouth" d="M0.901 0.23 L0.679 0.77"></path>
+  
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n4" transform="translate(0 0)">
+          <g transform="translate(1 5)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n5" transform="translate(0 0)">
+          <g transform="translate(2 8)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n6" transform="translate(0 0)">
+          <g transform="translate(0 1)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n9" transform="translate(0 0)">
+          <g transform="translate(1 9)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="sw10" transform="translate(0 0)">
+          <g transform="translate(0 5) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n10" transform="translate(0 0)">
+          <g transform="translate(-2 3) translate(1 0) rotate(90)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n11" transform="translate(0 0)">
+          <g transform="translate(-2 7) translate(1 0) rotate(90)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n12" transform="translate(0 0)">
+          <g transform="translate(0 7) translate(1 0) rotate(90)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="sw11" transform="translate(0 0)">
+          <g transform="translate(-4 14) translate(1 0) rotate(90)">
+            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="sw12" transform="translate(0 0)">
+          <g transform="translate(-1 16) translate(1 0) rotate(90) translate(1 0) rotate(90) translate(1 0) scale(-1 1)">
+            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n14" transform="translate(0 0)">
+          <g transform="translate(-4 15) translate(1 0) rotate(90)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n15" transform="translate(0 0)">
+          <g transform="translate(-2 16)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n16" transform="translate(0 0)">
+          <g transform="translate(1 18)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="e1" transform="translate(0 0)">
+          <g transform="translate(2 20) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+            
+    <path class="track cut" d="M0 0.5 L0.6 0.5"></path>
+    <path class="buffer" d="M0.6 0.2
+      V0.8"></path>
+  
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="e2" transform="translate(0 0)">
+          <g transform="translate(2 21) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+            
+    <path class="track cut" d="M0 0.5 L0.6 0.5"></path>
+    <path class="buffer" d="M0.6 0.2
+      V0.8"></path>
+  
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="e3" transform="translate(0 0)">
+          <g transform="translate(10 12) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+            
+    <path class="track cut" d="M0 0.5 L0.6 0.5"></path>
+    <path class="buffer" d="M0.6 0.2
+      V0.8"></path>
+  
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="e4" transform="translate(0 0)">
+          <g transform="translate(10 13) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+            
+    <path class="track cut" d="M0 0.5 L0.6 0.5"></path>
+    <path class="buffer" d="M0.6 0.2
+      V0.8"></path>
+  
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="sw13" transform="translate(0 0)">
+          <g transform="translate(22 16) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="sw14" transform="translate(0 0)">
+          <g transform="translate(22 15) translate(1 0) scale(-1 1)">
+            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="sw15" transform="translate(0 0)">
+          <g transform="translate(20 13) translate(1 0) scale(-1 1)">
+            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n19" transform="translate(0 0)">
+          <g transform="translate(20 12)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n20" transform="translate(0 0)">
+          <g transform="translate(24 15)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n21" transform="translate(0 0)">
+          <g transform="translate(25 14)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n22" transform="translate(0 0)">
+          <g transform="translate(25 10)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n23" transform="translate(0 0)">
+          <g transform="translate(24 9)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n26" transform="translate(0 0)">
+          <g transform="translate(25 8)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n27" transform="translate(0 0)">
+          <g transform="translate(26 10) translate(1 0) rotate(90)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n29" transform="translate(0 0)">
+          <g transform="translate(21 18)">
+            
+          </g>
+          
           
         </g>
       
         <g class="symbol" data-symbol="sw16" transform="translate(0 0)">
-          <g transform="translate(18 2)">
-            <path class="track" d="M0.5 1 L1 0.5"></path><path class="track" d="M1.5 0 L1 0.5"></path><path class="track" d="M0.5 0 L1 0.5"></path><path class="track" d="M1.5 1 L1 0.5"></path>
-          </g>
-          
-        </g>
-      
-        <g class="symbol" data-symbol="sw51" transform="translate(0 0)">
-          <g transform="translate(18 4) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+          <g transform="translate(12 18) translate(1 0) rotate(90) translate(1 0) rotate(90)">
             <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
           </g>
           
-        </g>
-      
-        <g class="symbol" data-symbol="sw41" transform="translate(0 0)">
-          <g transform="translate(20 1) translate(1 0) rotate(90) translate(1 0) rotate(90) translate(1 0) scale(-1 1)">
-            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
-          </g>
           
         </g>
       
-        <g class="symbol" data-symbol="sw42" transform="translate(0 0)">
-          <g transform="translate(21 2) translate(1 0) rotate(90) translate(1 0) rotate(90) translate(1 0) scale(-1 1)">
+        <g class="symbol" data-symbol="sw17" transform="translate(0 0)">
+          <g transform="translate(10 20) translate(1 0) rotate(90) translate(1 0) rotate(90)">
             <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
           </g>
           
+          
         </g>
       
-        <g class="symbol" data-symbol="return_loop" transform="translate(0 0)">
-          <g transform="translate(43 4)">
+        <g class="symbol" data-symbol="n30" transform="translate(0 0)">
+          <g transform="translate(10 21)">
             
           </g>
           
-        </g>
-      
-        <g class="symbol" data-symbol="sw35" transform="translate(0 0)">
-          <g transform="translate(29 1) translate(1 0) rotate(90) translate(1 0) rotate(90)">
-            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
-          </g>
           
         </g>
       
-        <g class="symbol" data-symbol="sw36" transform="translate(0 0)">
-          <g transform="translate(28 2) translate(1 0) rotate(90) translate(1 0) rotate(90)">
-            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
-          </g>
-          
-        </g>
-      
-        <g class="symbol" data-symbol="sw39" transform="translate(0 0)">
-          <g transform="translate(28 3)">
-            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
-          </g>
-          
-        </g>
-      
-        <g class="symbol" data-symbol="sw24" transform="translate(0 0)">
-          <g transform="translate(6 11) translate(1 0) rotate(90) translate(1 0) rotate(90) translate(1 0) scale(-1 1)">
-            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
-          </g>
-          
-        </g>
-      
-        <g class="symbol" data-symbol="sw46" transform="translate(0 0)">
-          <g transform="translate(7 12) translate(1 0) rotate(90) translate(1 0) rotate(90) translate(1 0) scale(-1 1)">
-            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
-          </g>
-          
-        </g>
-      
-        <g class="symbol" data-symbol="sw44" transform="translate(0 0)">
-          <g transform="translate(8 13) translate(1 0) rotate(90) translate(1 0) rotate(90)">
-            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
-          </g>
-          
-        </g>
-      
-        <g class="symbol" data-symbol="sw45" transform="translate(0 0)">
-          <g transform="translate(8 14) translate(1 0) rotate(90) translate(1 0) rotate(90)">
-            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
-          </g>
-          
-        </g>
-      
-        <g class="symbol" data-symbol="sw50" transform="translate(0 0)">
-          <g transform="translate(15 12) translate(1 0) rotate(90) translate(1 0) rotate(90)">
-            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
-          </g>
-          
-        </g>
-      
-        <g class="symbol" data-symbol="sw49" transform="translate(0 0)">
-          <g transform="translate(13 11) translate(1 0) scale(-1 1)">
-            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
-          </g>
-          
-        </g>
-      
-        <g class="symbol" data-symbol="sw48" transform="translate(0 0)">
-          <g transform="translate(13 9) translate(1 0) rotate(90) translate(1 0) rotate(90)">
-            <path class="track" d="M0 0.5 L1 0.5"></path><path class="track" d="M0 0.5 L0.5 0"></path>
-          </g>
-          
-        </g>
-      
-        <g class="symbol" data-symbol="claro_4_B_stop" transform="translate(0 0)">
-          <g transform="translate(6 10) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+        <g class="symbol" data-symbol="n31" transform="translate(0 0)">
+          <g transform="translate(25 16)">
             
-    <path class="track cut" d="M0 0.5 L0.6 0.5"></path>
-    <path class="stop" d="M0.6 0.2
-      V0.8"></path>
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n32" transform="translate(0 0)">
+          <g transform="translate(26 15) translate(1 0) rotate(90)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n33" transform="translate(0 0)">
+          <g transform="translate(26 3) translate(1 0) rotate(90)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n34" transform="translate(0 0)">
+          <g transform="translate(26 2) translate(1 0) rotate(90)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n35" transform="translate(0 0)">
+          <g transform="translate(-2 15)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n36" transform="translate(0 0)">
+          <g transform="translate(-3 14)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="n37" transform="translate(0 0)">
+          <g transform="translate(-4 6) translate(1 0) rotate(90)">
+            
+          </g>
+          
+          
+        </g>
+      
+        <g class="symbol" data-symbol="CE1" transform="translate(0 0)">
+          <g transform="translate(9 8) translate(6 0) rotate(90) translate(1 0) rotate(90)">
+            
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    <g class="signal end-B">
+          
+    <path class="plaque" d="M5.125 0.205 L5.215 0.115
+      H5.785 L5.875 0.205 V0.245 L5.785 0.335
+      H5.215 L5.125 0.245 Z"></path>
+    <circle class="lamp green" cx="5.72" cy="0.225" r="0.055"></circle>
+    <circle class="lamp red" cx="5.5" cy="0.225" r="0.055"></circle>
+    <circle class="lamp amber" cx="5.28" cy="0.225" r="0.055"></circle>
+  </g>
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
   
           </g>
+          <text class="name" x="12" y="8.5" font-size="0.5" transform="rotate(0 12 8.5)">CE1</text>
           
         </g>
       
-        <g class="symbol" data-symbol="claro_5_B_stop" transform="translate(0 0)">
-          <g transform="translate(6 9) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+        <g class="symbol" data-symbol="CE2" transform="translate(0 0)">
+          <g transform="translate(9 9) translate(6 0) rotate(90) translate(1 0) rotate(90)">
             
-    <path class="track cut" d="M0 0.5 L0.6 0.5"></path>
-    <path class="stop" d="M0.6 0.2
-      V0.8"></path>
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    <g class="signal end-B">
+          
+    <path class="plaque" d="M5.125 0.205 L5.215 0.115
+      H5.785 L5.875 0.205 V0.245 L5.785 0.335
+      H5.215 L5.125 0.245 Z"></path>
+    <circle class="lamp green" cx="5.72" cy="0.225" r="0.055"></circle>
+    <circle class="lamp red" cx="5.5" cy="0.225" r="0.055"></circle>
+    <circle class="lamp amber" cx="5.28" cy="0.225" r="0.055"></circle>
+  </g>
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
   
           </g>
+          <text class="name" x="12" y="9.5" font-size="0.5" transform="rotate(0 12 9.5)">CE2</text>
           
         </g>
       
-        <g class="symbol" data-symbol="claro_6_B_stop" transform="translate(0 0)">
-          <g transform="translate(1 14) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+        <g class="symbol" data-symbol="C4" transform="translate(0 0)">
+          <g transform="translate(11 12) translate(6 0) rotate(90) translate(1 0) rotate(90)">
             
-    <path class="track cut" d="M0 0.5 L0.6 0.5"></path>
-    <path class="stop" d="M0.6 0.2
-      V0.8"></path>
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
   
           </g>
+          <text class="name" x="14" y="12.5" font-size="0.5" transform="rotate(0 14 12.5)">C4</text>
           
         </g>
       
-        <g class="symbol" data-symbol="claro_7_B_stop" transform="translate(0 0)">
-          <g transform="translate(1 15) translate(1 0) rotate(90) translate(1 0) rotate(90)">
+        <g class="symbol" data-symbol="C5" transform="translate(0 0)">
+          <g transform="translate(11 13) translate(6 0) rotate(90) translate(1 0) rotate(90)">
             
-    <path class="track cut" d="M0 0.5 L0.6 0.5"></path>
-    <path class="stop" d="M0.6 0.2
-      V0.8"></path>
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
   
           </g>
+          <text class="name" x="14" y="13.5" font-size="0.5" transform="rotate(0 14 13.5)">C5</text>
           
         </g>
       
-        <g class="symbol" data-symbol="airolo_4_B_stop" transform="translate(0 0)">
-          <g transform="translate(35 3)">
+        <g class="symbol" data-symbol="C1" transform="translate(0 0)">
+          <g transform="translate(6 15) translate(6 0) rotate(90) translate(1 0) rotate(90)">
             
-    <path class="track cut" d="M0 0.5 L0.6 0.5"></path>
-    <path class="stop" d="M0.6 0.2
-      V0.8"></path>
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    <g class="signal end-B">
+          
+    <path class="plaque" d="M5.125 0.205 L5.215 0.115
+      H5.785 L5.875 0.205 V0.245 L5.785 0.335
+      H5.215 L5.125 0.245 Z"></path>
+    <circle class="lamp green" cx="5.72" cy="0.225" r="0.055"></circle>
+    <circle class="lamp red" cx="5.5" cy="0.225" r="0.055"></circle>
+    <circle class="lamp amber" cx="5.28" cy="0.225" r="0.055"></circle>
+  </g>
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
   
           </g>
+          <text class="name" x="9" y="15.5" font-size="0.5" transform="rotate(0 9 15.5)">C1</text>
           
         </g>
       
-        <g class="symbol" data-symbol="blue_2_bend" transform="translate(0 0)">
-          <g transform="translate(17 11)">
+        <g class="symbol" data-symbol="A1" transform="translate(0 0)">
+          <g transform="translate(17 3)">
             
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    <g class="signal end-B">
+          
+    <path class="plaque" d="M5.125 0.205 L5.215 0.115
+      H5.785 L5.875 0.205 V0.245 L5.785 0.335
+      H5.215 L5.125 0.245 Z"></path>
+    <circle class="lamp green" cx="5.72" cy="0.225" r="0.055"></circle>
+    <circle class="lamp red" cx="5.5" cy="0.225" r="0.055"></circle>
+    <circle class="lamp amber" cx="5.28" cy="0.225" r="0.055"></circle>
+  </g>
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
+  
           </g>
+          <text class="name" x="20" y="3.5" font-size="0.5" transform="rotate(0 20 3.5)">A1</text>
           
         </g>
-       <circle class="pin" data-pin="claro_1.A" cx="7" cy="11.5" r="0.075"></circle><circle class="pin" data-pin="claro_1.B" cx="13" cy="11.5" r="0.075"></circle><circle class="pin" data-pin="claro_2.A" cx="8" cy="12.5" r="0.075"></circle><circle class="pin" data-pin="claro_2.B" cx="14" cy="12.5" r="0.075"></circle><circle class="pin" data-pin="claro_3.A" cx="9" cy="13.5" r="0.075"></circle><circle class="pin" data-pin="claro_3.B" cx="15" cy="13.5" r="0.075"></circle><circle class="pin" data-pin="claro_4.A" cx="13" cy="10.5" r="0.075"></circle><circle class="pin" data-pin="claro_4.B" cx="7" cy="10.5" r="0.075"></circle><circle class="pin" data-pin="claro_5.A" cx="13" cy="9.5" r="0.075"></circle><circle class="pin" data-pin="claro_5.B" cx="7" cy="9.5" r="0.075"></circle><circle class="pin" data-pin="claro_6.A" cx="8" cy="14.5" r="0.075"></circle><circle class="pin" data-pin="claro_6.B" cx="2" cy="14.5" r="0.075"></circle><circle class="pin" data-pin="claro_7.A" cx="8" cy="15.5" r="0.075"></circle><circle class="pin" data-pin="claro_7.B" cx="2" cy="15.5" r="0.075"></circle><circle class="pin" data-pin="airolo_1.A" cx="21" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="airolo_1.B" cx="27" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="airolo_2.A" cx="22" cy="2.5" r="0.075"></circle><circle class="pin" data-pin="airolo_2.B" cx="28" cy="2.5" r="0.075"></circle><circle class="pin" data-pin="airolo_3.A" cx="22" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="airolo_3.B" cx="28" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="airolo_4.A" cx="29" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="airolo_4.B" cx="35" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="line_blue_1.A" cx="18.5" cy="11" r="0.075"></circle><circle class="pin" data-pin="line_blue_1.B" cx="18.5" cy="5" r="0.075"></circle><circle class="pin" data-pin="line_blue_2.A" cx="17.5" cy="11" r="0.075"></circle><circle class="pin" data-pin="line_blue_2.B" cx="17.5" cy="5" r="0.075"></circle><circle class="pin" data-pin="line_yellow.A" cx="5.5" cy="5" r="0.075"></circle><circle class="pin" data-pin="line_yellow.B" cx="5.5" cy="11" r="0.075"></circle><circle class="pin" data-pin="sw17.toe" cx="18" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="sw17.straight" cx="19" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="sw17.diverging" cx="18.5" cy="2" r="0.075"></circle><circle class="pin" data-pin="sw18.toe" cx="20" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="sw18.straight" cx="19" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="sw18.diverging" cx="19.5" cy="2" r="0.075"></circle><circle class="pin" data-pin="sw19.toe" cx="19" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="sw19.straight" cx="20" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="sw19.diverging" cx="19.5" cy="4" r="0.075"></circle><circle class="pin" data-pin="sw20.toe" cx="21" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="sw20.straight" cx="20" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="sw20.diverging" cx="20.5" cy="4" r="0.075"></circle><circle class="pin" data-pin="sw16.a1" cx="18.5" cy="3" r="0.075"></circle><circle class="pin" data-pin="sw16.a2" cx="19.5" cy="2" r="0.075"></circle><circle class="pin" data-pin="sw16.b1" cx="18.5" cy="2" r="0.075"></circle><circle class="pin" data-pin="sw16.b2" cx="19.5" cy="3" r="0.075"></circle><circle class="pin" data-pin="sw51.toe" cx="19" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="sw51.straight" cx="18" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="sw51.diverging" cx="18.5" cy="5" r="0.075"></circle><circle class="pin" data-pin="sw41.toe" cx="20" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="sw41.straight" cx="21" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="sw41.diverging" cx="20.5" cy="2" r="0.075"></circle><circle class="pin" data-pin="sw42.toe" cx="21" cy="2.5" r="0.075"></circle><circle class="pin" data-pin="sw42.straight" cx="22" cy="2.5" r="0.075"></circle><circle class="pin" data-pin="sw42.diverging" cx="21.5" cy="3" r="0.075"></circle><circle class="pin" data-pin="return_loop.P" cx="43" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="sw35.toe" cx="30" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="sw35.straight" cx="29" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="sw35.diverging" cx="29.5" cy="2" r="0.075"></circle><circle class="pin" data-pin="sw36.toe" cx="29" cy="2.5" r="0.075"></circle><circle class="pin" data-pin="sw36.straight" cx="28" cy="2.5" r="0.075"></circle><circle class="pin" data-pin="sw36.diverging" cx="28.5" cy="3" r="0.075"></circle><circle class="pin" data-pin="sw39.toe" cx="28" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="sw39.straight" cx="29" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="sw39.diverging" cx="28.5" cy="3" r="0.075"></circle><circle class="pin" data-pin="sw24.toe" cx="6" cy="11.5" r="0.075"></circle><circle class="pin" data-pin="sw24.straight" cx="7" cy="11.5" r="0.075"></circle><circle class="pin" data-pin="sw24.diverging" cx="6.5" cy="12" r="0.075"></circle><circle class="pin" data-pin="sw46.toe" cx="7" cy="12.5" r="0.075"></circle><circle class="pin" data-pin="sw46.straight" cx="8" cy="12.5" r="0.075"></circle><circle class="pin" data-pin="sw46.diverging" cx="7.5" cy="13" r="0.075"></circle><circle class="pin" data-pin="sw44.toe" cx="9" cy="13.5" r="0.075"></circle><circle class="pin" data-pin="sw44.straight" cx="8" cy="13.5" r="0.075"></circle><circle class="pin" data-pin="sw44.diverging" cx="8.5" cy="14" r="0.075"></circle><circle class="pin" data-pin="sw45.toe" cx="9" cy="14.5" r="0.075"></circle><circle class="pin" data-pin="sw45.straight" cx="8" cy="14.5" r="0.075"></circle><circle class="pin" data-pin="sw45.diverging" cx="8.5" cy="15" r="0.075"></circle><circle class="pin" data-pin="sw50.toe" cx="16" cy="12.5" r="0.075"></circle><circle class="pin" data-pin="sw50.straight" cx="15" cy="12.5" r="0.075"></circle><circle class="pin" data-pin="sw50.diverging" cx="15.5" cy="13" r="0.075"></circle><circle class="pin" data-pin="sw49.toe" cx="14" cy="11.5" r="0.075"></circle><circle class="pin" data-pin="sw49.straight" cx="13" cy="11.5" r="0.075"></circle><circle class="pin" data-pin="sw49.diverging" cx="13.5" cy="11" r="0.075"></circle><circle class="pin" data-pin="sw48.toe" cx="14" cy="9.5" r="0.075"></circle><circle class="pin" data-pin="sw48.straight" cx="13" cy="9.5" r="0.075"></circle><circle class="pin" data-pin="sw48.diverging" cx="13.5" cy="10" r="0.075"></circle><circle class="pin" data-pin="claro_4_B_stop.P" cx="7" cy="10.5" r="0.075"></circle><circle class="pin" data-pin="claro_5_B_stop.P" cx="7" cy="9.5" r="0.075"></circle><circle class="pin" data-pin="claro_6_B_stop.P" cx="2" cy="14.5" r="0.075"></circle><circle class="pin" data-pin="claro_7_B_stop.P" cx="2" cy="15.5" r="0.075"></circle><circle class="pin" data-pin="airolo_4_B_stop.P" cx="35" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="blue_2_bend.P" cx="17" cy="11.5" r="0.075"></circle>
+      
+        <g class="symbol" data-symbol="A2" transform="translate(0 0)">
+          <g transform="translate(17 4)">
+            
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    <g class="signal end-B">
+          
+    <path class="plaque" d="M5.125 0.205 L5.215 0.115
+      H5.785 L5.875 0.205 V0.245 L5.785 0.335
+      H5.215 L5.125 0.245 Z"></path>
+    <circle class="lamp green" cx="5.72" cy="0.225" r="0.055"></circle>
+    <circle class="lamp red" cx="5.5" cy="0.225" r="0.055"></circle>
+    <circle class="lamp amber" cx="5.28" cy="0.225" r="0.055"></circle>
+  </g>
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
+  
+          </g>
+          <text class="name" x="20" y="4.5" font-size="0.5" transform="rotate(0 20 4.5)">A2</text>
+          
+        </g>
+      
+        <g class="symbol" data-symbol="A3" transform="translate(0 0)">
+          <g transform="translate(17 5)">
+            
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    <g class="signal end-B">
+          
+    <path class="plaque" d="M5.125 0.205 L5.215 0.115
+      H5.785 L5.875 0.205 V0.245 L5.785 0.335
+      H5.215 L5.125 0.245 Z"></path>
+    <circle class="lamp green" cx="5.72" cy="0.225" r="0.055"></circle>
+    <circle class="lamp red" cx="5.5" cy="0.225" r="0.055"></circle>
+    <circle class="lamp amber" cx="5.28" cy="0.225" r="0.055"></circle>
+  </g>
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
+  
+          </g>
+          <text class="name" x="20" y="5.5" font-size="0.5" transform="rotate(0 20 5.5)">A3</text>
+          
+        </g>
+      
+        <g class="symbol" data-symbol="A4" transform="translate(0 0)">
+          <g transform="translate(8 3)">
+            
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    
+    <g class="signal end-B">
+          
+    <path class="plaque" d="M5.125 0.205 L5.215 0.115
+      H5.785 L5.875 0.205 V0.245 L5.785 0.335
+      H5.215 L5.125 0.245 Z"></path>
+    <circle class="lamp green" cx="5.72" cy="0.225" r="0.055"></circle>
+    <circle class="lamp red" cx="5.5" cy="0.225" r="0.055"></circle>
+    <circle class="lamp amber" cx="5.28" cy="0.225" r="0.055"></circle>
+  </g>
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
+  
+          </g>
+          <text class="name" x="11" y="3.5" font-size="0.5" transform="rotate(0 11 3.5)">A4</text>
+          
+        </g>
+      
+        <g class="symbol" data-symbol="CW" transform="translate(0 0)">
+          <g transform="translate(-4 7) translate(1 0) rotate(90) translate(6 0) rotate(90) translate(1 0) rotate(90) translate(6 0) scale(-1 1)">
+            
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    <g class="signal end-B">
+          
+    <path class="plaque" d="M5.125 0.205 L5.215 0.115
+      H5.785 L5.875 0.205 V0.245 L5.785 0.335
+      H5.215 L5.125 0.245 Z"></path>
+    <circle class="lamp green" cx="5.72" cy="0.225" r="0.055"></circle>
+    <circle class="lamp red" cx="5.5" cy="0.225" r="0.055"></circle>
+    <circle class="lamp amber" cx="5.28" cy="0.225" r="0.055"></circle>
+  </g>
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
+  
+          </g>
+          <text class="name" x="-3.5" y="10" font-size="0.5" transform="rotate(-90 -3.5 10)">CW</text>
+          
+        </g>
+      
+        <g class="symbol" data-symbol="C2" transform="translate(0 0)">
+          <g transform="translate(6 16) translate(6 0) rotate(90) translate(1 0) rotate(90)">
+            
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    <g class="signal end-B">
+          
+    <path class="plaque" d="M5.125 0.205 L5.215 0.115
+      H5.785 L5.875 0.205 V0.245 L5.785 0.335
+      H5.215 L5.125 0.245 Z"></path>
+    <circle class="lamp green" cx="5.72" cy="0.225" r="0.055"></circle>
+    <circle class="lamp red" cx="5.5" cy="0.225" r="0.055"></circle>
+    <circle class="lamp amber" cx="5.28" cy="0.225" r="0.055"></circle>
+  </g>
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
+  
+          </g>
+          <text class="name" x="9" y="16.5" font-size="0.5" transform="rotate(0 9 16.5)">C2</text>
+          
+        </g>
+      
+        <g class="symbol" data-symbol="C3b" transform="translate(0 0)">
+          <g transform="translate(13 18) translate(6 0) rotate(90) translate(1 0) rotate(90)">
+            
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    <g class="signal end-B">
+          
+    <path class="plaque" d="M5.125 0.205 L5.215 0.115
+      H5.785 L5.875 0.205 V0.245 L5.785 0.335
+      H5.215 L5.125 0.245 Z"></path>
+    <circle class="lamp green" cx="5.72" cy="0.225" r="0.055"></circle>
+    <circle class="lamp red" cx="5.5" cy="0.225" r="0.055"></circle>
+    <circle class="lamp amber" cx="5.28" cy="0.225" r="0.055"></circle>
+  </g>
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
+  
+          </g>
+          <text class="name" x="16" y="18.5" font-size="0.5" transform="rotate(0 16 18.5)">C3b</text>
+          
+        </g>
+      
+        <g class="symbol" data-symbol="C3a" transform="translate(0 0)">
+          <g transform="translate(3 18) translate(6 0) rotate(90) translate(1 0) rotate(90)">
+            
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    <g class="signal end-B">
+          
+    <path class="plaque" d="M5.125 0.205 L5.215 0.115
+      H5.785 L5.875 0.205 V0.245 L5.785 0.335
+      H5.215 L5.125 0.245 Z"></path>
+    <circle class="lamp green" cx="5.72" cy="0.225" r="0.055"></circle>
+    <circle class="lamp red" cx="5.5" cy="0.225" r="0.055"></circle>
+    <circle class="lamp amber" cx="5.28" cy="0.225" r="0.055"></circle>
+  </g>
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
+  
+          </g>
+          <text class="name" x="6" y="18.5" font-size="0.5" transform="rotate(0 6 18.5)">C3a</text>
+          
+        </g>
+      
+        <g class="symbol" data-symbol="C6" transform="translate(0 0)">
+          <g transform="translate(3 20) translate(6 0) rotate(90) translate(1 0) rotate(90)">
+            
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
+  
+          </g>
+          <text class="name" x="6" y="20.5" font-size="0.5" transform="rotate(0 6 20.5)">C6</text>
+          
+        </g>
+      
+        <g class="symbol" data-symbol="C7" transform="translate(0 0)">
+          <g transform="translate(3 21) translate(6 0) rotate(90) translate(1 0) rotate(90)">
+            
+    <path class="track" d="M0 0.5 L1 0.5"></path>
+    <path class="track" d="M5 0.5 L6 0.5"></path>
+    <rect class="block-body" x="1" y="0.09999999999999998" width="4" height="0.8"></rect>
+    <g class="signal end-A">
+          
+    <path class="plaque" d="M0.125 0.755 L0.215 0.665
+      H0.785 L0.875 0.755 V0.795 L0.785 0.885
+      H0.215 L0.125 0.795 Z"></path>
+    <circle class="lamp green" cx="0.28" cy="0.775" r="0.055"></circle>
+    <circle class="lamp red" cx="0.5" cy="0.775" r="0.055"></circle>
+    <circle class="lamp amber" cx="0.72" cy="0.775" r="0.055"></circle>
+  </g>
+    
+    <path class="mark" d="M1.088 0.72
+      h0.225 M1.2 0.607
+      v0.225"></path>
+  
+          </g>
+          <text class="name" x="6" y="21.5" font-size="0.5" transform="rotate(0 6 21.5)">C7</text>
+          
+        </g>
+       <circle class="pin" data-pin="sw1.toe" cx="15" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="sw1.straight" cx="16" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="sw1.diverging" cx="15.5" cy="4" r="0.075"></circle><circle class="pin" data-pin="sw2.toe" cx="16" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="sw2.straight" cx="15" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="sw2.diverging" cx="15.5" cy="4" r="0.075"></circle><circle class="pin" data-pin="sw3.toe" cx="14" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="sw3.straight" cx="15" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="sw3.diverging" cx="14.5" cy="5" r="0.075"></circle><circle class="pin" data-pin="sw4.toe" cx="25" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="sw4.straight" cx="24" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="sw4.diverging" cx="24.5" cy="5" r="0.075"></circle><circle class="pin" data-pin="sw5.toe" cx="26" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="sw5.straight" cx="25" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="sw5.diverging" cx="25.5" cy="4" r="0.075"></circle><circle class="pin" data-pin="n1.P" cx="24" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="x90d1.a1" cx="4.5" cy="3" r="0.075"></circle><circle class="pin" data-pin="x90d1.a2" cx="3.5" cy="4" r="0.075"></circle><circle class="pin" data-pin="x90d1.b1" cx="4.5" cy="4" r="0.075"></circle><circle class="pin" data-pin="x90d1.b2" cx="3.5" cy="3" r="0.075"></circle><circle class="pin" data-pin="end1.P" cx="8" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="sw6.toe" cx="6" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="sw6.straight" cx="5" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="sw6.diverging" cx="5.5" cy="2" r="0.075"></circle><circle class="pin" data-pin="sw7.toe" cx="2" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="sw7.straight" cx="3" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="sw7.diverging" cx="2.5" cy="5" r="0.075"></circle><circle class="pin" data-pin="sw8.toe" cx="6" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="sw8.straight" cx="5" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="sw8.diverging" cx="5.5" cy="5" r="0.075"></circle><circle class="pin" data-pin="sw9.toe" cx="2" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="sw9.straight" cx="3" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="sw9.diverging" cx="2.5" cy="2" r="0.075"></circle><circle class="pin" data-pin="n2.P" cx="26" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="p1.P" cx="0" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="p2.P" cx="-3" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="n4.P" cx="1" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="n5.P" cx="2" cy="8.5" r="0.075"></circle><circle class="pin" data-pin="n6.P" cx="0" cy="1.5" r="0.075"></circle><circle class="pin" data-pin="n9.P" cx="1" cy="9.5" r="0.075"></circle><circle class="pin" data-pin="sw10.toe" cx="1" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="sw10.straight" cx="0" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="sw10.diverging" cx="0.5" cy="6" r="0.075"></circle><circle class="pin" data-pin="n10.P" cx="-1.5" cy="3" r="0.075"></circle><circle class="pin" data-pin="n11.P" cx="-1.5" cy="7" r="0.075"></circle><circle class="pin" data-pin="n12.P" cx="0.5" cy="7" r="0.075"></circle><circle class="pin" data-pin="sw11.toe" cx="-3.5" cy="14" r="0.075"></circle><circle class="pin" data-pin="sw11.straight" cx="-3.5" cy="15" r="0.075"></circle><circle class="pin" data-pin="sw11.diverging" cx="-3" cy="14.5" r="0.075"></circle><circle class="pin" data-pin="sw12.toe" cx="-1" cy="16.5" r="0.075"></circle><circle class="pin" data-pin="sw12.straight" cx="0" cy="16.5" r="0.075"></circle><circle class="pin" data-pin="sw12.diverging" cx="-0.5" cy="17" r="0.075"></circle><circle class="pin" data-pin="n14.P" cx="-3.5" cy="15" r="0.075"></circle><circle class="pin" data-pin="n15.P" cx="-2" cy="16.5" r="0.075"></circle><circle class="pin" data-pin="n16.P" cx="1" cy="18.5" r="0.075"></circle><circle class="pin" data-pin="e1.P" cx="3" cy="20.5" r="0.075"></circle><circle class="pin" data-pin="e2.P" cx="3" cy="21.5" r="0.075"></circle><circle class="pin" data-pin="e3.P" cx="11" cy="12.5" r="0.075"></circle><circle class="pin" data-pin="e4.P" cx="11" cy="13.5" r="0.075"></circle><circle class="pin" data-pin="sw13.toe" cx="23" cy="16.5" r="0.075"></circle><circle class="pin" data-pin="sw13.straight" cx="22" cy="16.5" r="0.075"></circle><circle class="pin" data-pin="sw13.diverging" cx="22.5" cy="17" r="0.075"></circle><circle class="pin" data-pin="sw14.toe" cx="23" cy="15.5" r="0.075"></circle><circle class="pin" data-pin="sw14.straight" cx="22" cy="15.5" r="0.075"></circle><circle class="pin" data-pin="sw14.diverging" cx="22.5" cy="15" r="0.075"></circle><circle class="pin" data-pin="sw15.toe" cx="21" cy="13.5" r="0.075"></circle><circle class="pin" data-pin="sw15.straight" cx="20" cy="13.5" r="0.075"></circle><circle class="pin" data-pin="sw15.diverging" cx="20.5" cy="13" r="0.075"></circle><circle class="pin" data-pin="n19.P" cx="20" cy="12.5" r="0.075"></circle><circle class="pin" data-pin="n20.P" cx="24" cy="15.5" r="0.075"></circle><circle class="pin" data-pin="n21.P" cx="25" cy="14.5" r="0.075"></circle><circle class="pin" data-pin="n22.P" cx="25" cy="10.5" r="0.075"></circle><circle class="pin" data-pin="n23.P" cx="24" cy="9.5" r="0.075"></circle><circle class="pin" data-pin="n26.P" cx="25" cy="8.5" r="0.075"></circle><circle class="pin" data-pin="n27.P" cx="26.5" cy="10" r="0.075"></circle><circle class="pin" data-pin="n29.P" cx="21" cy="18.5" r="0.075"></circle><circle class="pin" data-pin="sw16.toe" cx="13" cy="18.5" r="0.075"></circle><circle class="pin" data-pin="sw16.straight" cx="12" cy="18.5" r="0.075"></circle><circle class="pin" data-pin="sw16.diverging" cx="12.5" cy="19" r="0.075"></circle><circle class="pin" data-pin="sw17.toe" cx="11" cy="20.5" r="0.075"></circle><circle class="pin" data-pin="sw17.straight" cx="10" cy="20.5" r="0.075"></circle><circle class="pin" data-pin="sw17.diverging" cx="10.5" cy="21" r="0.075"></circle><circle class="pin" data-pin="n30.P" cx="10" cy="21.5" r="0.075"></circle><circle class="pin" data-pin="n31.P" cx="25" cy="16.5" r="0.075"></circle><circle class="pin" data-pin="n32.P" cx="26.5" cy="15" r="0.075"></circle><circle class="pin" data-pin="n33.P" cx="26.5" cy="3" r="0.075"></circle><circle class="pin" data-pin="n34.P" cx="26.5" cy="2" r="0.075"></circle><circle class="pin" data-pin="n35.P" cx="-2" cy="15.5" r="0.075"></circle><circle class="pin" data-pin="n36.P" cx="-3" cy="14.5" r="0.075"></circle><circle class="pin" data-pin="n37.P" cx="-3.5" cy="6" r="0.075"></circle><circle class="pin" data-pin="CE1.A" cx="15" cy="8.5" r="0.075"></circle><circle class="pin" data-pin="CE1.B" cx="9" cy="8.5" r="0.075"></circle><circle class="pin" data-pin="CE2.A" cx="15" cy="9.5" r="0.075"></circle><circle class="pin" data-pin="CE2.B" cx="9" cy="9.5" r="0.075"></circle><circle class="pin" data-pin="C4.A" cx="17" cy="12.5" r="0.075"></circle><circle class="pin" data-pin="C4.B" cx="11" cy="12.5" r="0.075"></circle><circle class="pin" data-pin="C5.A" cx="17" cy="13.5" r="0.075"></circle><circle class="pin" data-pin="C5.B" cx="11" cy="13.5" r="0.075"></circle><circle class="pin" data-pin="C1.A" cx="12" cy="15.5" r="0.075"></circle><circle class="pin" data-pin="C1.B" cx="6" cy="15.5" r="0.075"></circle><circle class="pin" data-pin="A1.A" cx="17" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="A1.B" cx="23" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="A2.A" cx="17" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="A2.B" cx="23" cy="4.5" r="0.075"></circle><circle class="pin" data-pin="A3.A" cx="17" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="A3.B" cx="23" cy="5.5" r="0.075"></circle><circle class="pin" data-pin="A4.A" cx="8" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="A4.B" cx="14" cy="3.5" r="0.075"></circle><circle class="pin" data-pin="CW.A" cx="-3.5" cy="7" r="0.075"></circle><circle class="pin" data-pin="CW.B" cx="-3.5" cy="13" r="0.075"></circle><circle class="pin" data-pin="C2.A" cx="12" cy="16.5" r="0.075"></circle><circle class="pin" data-pin="C2.B" cx="6" cy="16.5" r="0.075"></circle><circle class="pin" data-pin="C3b.A" cx="19" cy="18.5" r="0.075"></circle><circle class="pin" data-pin="C3b.B" cx="13" cy="18.5" r="0.075"></circle><circle class="pin" data-pin="C3a.A" cx="9" cy="18.5" r="0.075"></circle><circle class="pin" data-pin="C3a.B" cx="3" cy="18.5" r="0.075"></circle><circle class="pin" data-pin="C6.A" cx="9" cy="20.5" r="0.075"></circle><circle class="pin" data-pin="C6.B" cx="3" cy="20.5" r="0.075"></circle><circle class="pin" data-pin="C7.A" cx="9" cy="21.5" r="0.075"></circle><circle class="pin" data-pin="C7.B" cx="3" cy="21.5" r="0.075"></circle>
            
       
 </svg>
