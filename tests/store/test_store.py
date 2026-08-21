@@ -312,7 +312,17 @@ def test_request_train_must_be_declared(scratch_store: AssetStore) -> None:
 def test_arrival_blocks_must_exist(scratch_store: AssetStore) -> None:
     doc = meet_document()
     doc["requests"][0]["to"] = ["yard_x.A"]
-    with pytest.raises(ValueError, match="yard_x"):
+    with pytest.raises(ValueError, match="arrival 'yard_x.A' names unknown block"):
+        scratch_store.put(doc)
+
+
+def test_a_bare_arrival_block_must_exist_too(scratch_store: AssetStore) -> None:
+    """An arrival entry may name a whole block rather than an end — the meet
+    scenario's first request does — and the block is read off the entry the
+    same way either way, so an unknown one is refused in the same words."""
+    doc = meet_document()
+    doc["requests"][0]["to"] = ["yard_x"]
+    with pytest.raises(ValueError, match="arrival 'yard_x' names unknown block"):
         scratch_store.put(doc)
 
 

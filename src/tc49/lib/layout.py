@@ -256,7 +256,9 @@ def check_end(end: Any, blocks: dict[str, int], where: str) -> str:
 
 
 def block_of(end: str) -> str:
-    """The block a validated '<block>.<A|B>' end reference belongs to."""
+    """The block a validated '<block>.<A|B>' end reference belongs to, and a
+    bare block name unchanged: partitioning on a dot that is not there gives
+    the whole string back, so a caller reading either says it the one way."""
     return end.partition(".")[0]
 
 

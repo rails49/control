@@ -180,7 +180,7 @@ class AssetStore:
                 )
             arrivals: list[str] = []
             for entry in (str(e) for e in cast(list[Any], to)):
-                block = block_of(entry) if "." in entry else entry
+                block = block_of(entry)
                 if block not in layout.blocks:
                     raise ValueError(
                         f"{here}: arrival '{entry}' names unknown block '{block}'"
