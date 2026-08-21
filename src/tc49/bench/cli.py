@@ -41,6 +41,14 @@ from tc49.store.symbols import render as render_symbols
 
 ROOT = find_root()
 
+LIVE_PERIOD_S = 10.0
+"""Seconds a live session spends on each grant boundary, unless `--period`
+says otherwise. Picked by watching the panel, the way the two seconds before
+it were: each boundary moves trains, grants and releases locks, realigns
+points and changes aspects, and at two the next one landed before a person
+had finished reading the last (ui/PANEL.md). Not the replay transport's
+number, which is a rate in boundaries per second and stays where it is."""
+
 GENERATED: dict[str, Callable[[], str]] = {
     SYMBOLS: render_symbols,
     REJECTION: render_rejection,
@@ -176,8 +184,9 @@ def command_line() -> argparse.ArgumentParser:
     live_parser.add_argument(
         "--period",
         type=float,
-        default=2.0,
-        help="seconds per boundary (default 2.0, picked by watching the panel)",
+        default=LIVE_PERIOD_S,
+        help=f"seconds per boundary (default {LIVE_PERIOD_S}, picked by watching"
+        " the panel — as much as a boundary's worth of change takes to read)",
     )
     live_parser.add_argument(
         "--port", type=int, default=8766, help="the bridge's WebSocket port"

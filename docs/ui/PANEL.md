@@ -203,7 +203,11 @@ model serves both — a trace carries the state topics too, so a replay gets
 facing from the same place a live session does.
 
 A session ticks on a wall clock, one knob: `tc49 live --period`. The default
-is 2 seconds, picked by watching the panel rather than by argument.
+is 10 seconds, picked by watching the panel rather than by argument: a
+boundary moves trains, grants and releases locks, realigns points and changes
+aspects, and at the 2 seconds this started out as the next one landed before
+a person had finished reading the last. The replay transport is a different
+number — a rate in boundaries per second — and keeps its own.
 
 **A panel may join a session already running.** On connect the bridge sends
 each state topic's last value before any live frame, so the page opens on the

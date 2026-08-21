@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tc49.bench.cli import GENERATED, main
+from tc49.bench.cli import GENERATED, command_line, main
 from tc49.bench.metrics import metrics
 from tc49.bench.runner import find_root
 from tests.harness import ROOT
@@ -115,3 +115,23 @@ def test_find_root_locates_the_railroads_from_anywhere_and_says_so_if_not() -> N
     assert find_root(ROOT / "scenarios" / "gotthard") == ROOT
     with pytest.raises(FileNotFoundError, match="not usable from an installed wheel"):
         find_root(Path("/"))
+
+
+def test_a_live_session_paces_itself_slowly_enough_to_watch() -> None:
+    """Ten seconds a boundary, not two: each one moves trains, grants and
+    releases locks, realigns points and changes aspects, and at two the next
+    landed before a person had read the last (#144)."""
+    args = command_line().parse_args(["live", "gotthard/meet"])
+    assert args.period == 10.0
+
+
+def test_the_period_flag_still_sets_the_period_and_says_the_default(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A faster session stays one flag away, and the help says what it is
+    faster than."""
+    args = command_line().parse_args(["live", "gotthard/meet", "--period", "0.5"])
+    assert args.period == 0.5
+    with pytest.raises(SystemExit):
+        command_line().parse_args(["live", "--help"])
+    assert "default 10.0" in capsys.readouterr().out
