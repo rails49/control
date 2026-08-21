@@ -158,3 +158,35 @@ def test_a_train_the_scenario_does_not_carry_is_not_adopted(tmp_path: Path) -> N
     _, dispatcher, _ = restarted(tmp_path, stranger)
 
     assert dispatcher.state.block_of == {"express_2": "up_e", "freight_1": "dn_e"}
+
+
+def test_a_picture_that_would_stack_two_trains_is_not_adopted(tmp_path: Path) -> None:
+    """Where the picture and the scenario contradict each other, the document
+    wins whole.
+
+    A train the file does not name falls back to its placement — a train
+    added to the scenario since the last run is a cold start of one — and
+    that placement can be the very block the picture stands another train in.
+    Adopting anyway would write one lock for two trains and leave the second
+    standing in a block nothing holds, which is the standing lock CONTEXT.md
+    says every parked train always has. Half a placement is worse than the
+    document's, so none of it is taken.
+    """
+    stacked = {**MOVED, "trains": {"freight_1": "up_e"}}  # express_2's own block
+    _, dispatcher, _ = restarted(tmp_path, stacked)
+
+    assert dispatcher.state.block_of == {"freight_1": "yard_w", "express_2": "up_e"}
+    assert dispatcher.state.locks == {"yard_w": "freight_1", "up_e": "express_2"}
+
+
+def test_a_refused_placement_takes_its_crossing_hints_with_it(tmp_path: Path) -> None:
+    """The hint belongs to the picture: refuse the placement and the transit
+    it named is not a fact about this railroad either."""
+    stacked = {
+        **MOVED,
+        "trains": {"freight_1": "up_e"},
+        "crossing": {"freight_1": "crossover.dn_straight"},
+    }
+    _, dispatcher, _ = restarted(tmp_path, stacked)
+
+    assert dispatcher.state.crossing == {}

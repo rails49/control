@@ -235,6 +235,38 @@ def allocation(state: State, pending: Sequence[Request]) -> Payload:
     }
 
 
+def restored(picture: Payload, scenario: Scenario) -> tuple[dict[str, str], Payload]:
+    """Placement and crossing hints off the last picture the bus kept across
+    a restart, or the scenario's own placement where there is none (#123).
+
+    Adoption is **selective**: `trains` and `crossing` are taken, `locks` and
+    `requests` left behind — the lock table is rebuilt one block per train
+    exactly as a cold start builds it, the queue comes back empty and no
+    request id resumes (ADR-0033). Stock stays the scenario's, so a train it
+    does not carry is not one this session has and the picture's word for it
+    is dropped, and a train the picture does not name falls back to its
+    placement: one added since the last run is a cold start of one.
+
+    Where the two **contradict** each other the document wins whole. That
+    fallback can put a new train in the very block the picture stands another
+    in, and adopting then would write one lock for two trains and leave the
+    second standing in a block nothing holds — the standing lock every parked
+    train always has (CONTEXT.md). Half a placement is worse than the
+    document's, so none of it is taken and the hints go with it.
+    """
+    cold = {train: spec.at for train, spec in scenario.trains.items()}
+    standing = {
+        train: picture.get("trains", {}).get(train, at) for train, at in cold.items()
+    }
+    if len(set(standing.values())) != len(standing):
+        return cold, {}
+    return standing, {
+        train: transit
+        for train, transit in picture.get("crossing", {}).items()
+        if train in scenario.trains
+    }
+
+
 @dataclass
 class Submission:
     """A payload read as the request it claims to be: the fields of
@@ -287,29 +319,16 @@ class Dispatcher:
         # than through `subscribe`, because placement has to be settled before
         # the standing locks below are published, and a subscription delivers
         # at the drain.
-        #
-        # Adoption is selective: `trains` and `crossing` are taken, `locks`
-        # and `requests` left behind — the lock table is rebuilt one block per
-        # train exactly as a cold start builds it, the queue comes back empty
-        # and no request id resumes (ADR-0033). Stock stays the scenario's, so
-        # a train it does not carry is not one this session has and the
-        # picture's word for it is dropped.
-        picture = bus.last_values.get(ALLOCATION, {})
-        placed, crossing = picture.get("trains", {}), picture.get("crossing", {})
+        standing, crossing = restored(bus.last_values.get(ALLOCATION, {}), scenario)
         self._state = State(
             layout,
             {train: spec.length for train, spec in scenario.trains.items()},
             {},
             {},
             {},
-            crossing={
-                train: transit
-                for train, transit in crossing.items()
-                if train in scenario.trains
-            },
+            crossing=crossing,
         )
-        for train, spec in scenario.trains.items():
-            at = placed.get(train, spec.at)
+        for train, at in standing.items():
             self._state.locks[at] = train
             self._state.block_of[train] = at
             bus.publish(
