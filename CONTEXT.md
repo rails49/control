@@ -189,6 +189,17 @@ bus, never an exception, since the submitter may be a browser
 ([ADR-0021](docs/adr/0021-a-bad-request-is-answered-not-raised.md)).
 _Avoid_: order, job, working
 
+**Departure end**:
+The end of its block a train **leaves through** on a request, written
+`<block>.A` / `<block>.B` as an arrival end is. A request states one, and a
+chained request may state only the letter, the block it will depart from being
+a dispatcher choice not yet made. Where the stated end is one no train can
+leave by — the wall of a **terminal block** — the one connected end is the
+answer, that being all a stub has. A request's departure end, not **facing**,
+is what the dispatcher routes from, and the two may disagree
+([ADR-0019](docs/adr/0019-facing-is-scheduler-state.md)).
+_Avoid_: leaving end, origin end, exit
+
 **Arrival end**:
 One acceptable ending for a request: a block together with the end the train
 **enters through**, written `<block>.A` / `<block>.B` exactly as a departure end
@@ -217,6 +228,14 @@ is enough to move, two is what buys full speed, and a third is never asked for
 locking claims every resource up front. Occupancy is a **standing lock**: every train, moving or
 parked, requested or not, always holds the lock on the block it stands in.
 _Avoid_: reservation, allocation
+
+**Committed**:
+Of a resource: on a route the dispatcher has chosen, with no lock on it yet —
+the weaker of the two claims a route carries, and what the stretch ahead of the
+locks is. Of a route: chosen, and so fixed
+([ADR-0002](docs/adr/0002-fixed-route-per-request.md)). A resource can be
+committed and locked at once, and the lock is then what it shows.
+_Avoid_: planned, plan, pending (a request pends, a resource does not)
 
 **Active / idle train**:
 A train is **active** while it has a committed route — launched, not yet
