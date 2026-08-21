@@ -13,7 +13,8 @@ outside — Layout is a data structure, not a policy.
 The ``check_*`` helpers are shared with the scenario validation in
 ``store.py``. The ``<block>.<A|B>`` end form is parsed here and nowhere else:
 ``check_end`` validates one, ``block_of``, ``end_letter`` and ``opposite_end``
-take one apart, and ``end_on`` reads one off a transit.
+take one apart, ``end_on`` reads one off a transit, and ``leaving_end`` says
+which end of a block a train can leave by.
 """
 
 from collections.abc import Container
@@ -267,6 +268,24 @@ def end_letter(end: str) -> str:
 def opposite_end(end: str) -> str:
     """The other end of the same block: a block has exactly A and B."""
     return f"{block_of(end)}.{'B' if end_letter(end) == 'A' else 'A'}"
+
+
+def leaving_end(layout: Layout, end: str) -> str:
+    """The end of `end`'s block a train can leave by, given `end` as the
+    candidate: `end` itself where a connection holds it, the block's other
+    end where none does.
+
+    A terminal block is the only block where the candidate can be a wall and
+    an end a train can leave by still exists, and it has exactly one of
+    those, so the answer is never a second wall. It is the physical railroad
+    settling what the pass-through rule leaves open: a train that entered a
+    stub faces away from its entry end, there is no such end, and one end is
+    all it can leave by (#145). Both the scheduler, which
+    holds facing, and the dispatcher, which supplies a departure end for a
+    working queued behind a route it has yet to choose (#135), ask the same
+    question, so it is answered once here.
+    """
+    return end if end in layout.end_connection else opposite_end(end)
 
 
 def end_on(layout: Layout, block: str, transit: str) -> str:

@@ -4,7 +4,15 @@ from typing import Any
 
 import pytest
 
-from tc49.lib.layout import Layout, Point, block_of, end_letter, end_on, opposite_end
+from tc49.lib.layout import (
+    Layout,
+    Point,
+    block_of,
+    end_letter,
+    end_on,
+    leaving_end,
+    opposite_end,
+)
 from tc49.store import AssetStore
 from tests.harness import ROOT, load
 
@@ -153,3 +161,26 @@ def test_a_transit_names_one_end_of_each_block_it_joins() -> None:
 
     assert end_on(layout, block_of(first), transit_id) == first
     assert end_on(layout, block_of(second), transit_id) == second
+
+
+def test_the_end_a_train_can_leave_by_is_the_candidate_where_it_is_connected(
+    store: AssetStore,
+) -> None:
+    """On any block with both ends connected the candidate stands: the
+    question only has a second answer on a terminal block (#145)."""
+    layout = store.get("crossover-yard")
+    assert isinstance(layout, Layout)
+    assert leaving_end(layout, "dn_w.A") == "dn_w.A"
+    assert leaving_end(layout, "dn_w.B") == "dn_w.B"
+    assert leaving_end(layout, "yard_w.B") == "yard_w.B"
+
+
+def test_the_end_a_train_can_leave_a_terminal_block_by_is_its_connected_one(
+    store: AssetStore,
+) -> None:
+    """A terminal block has exactly one connected end, so a candidate naming
+    the wall is answered with the one end a train can leave by."""
+    layout = store.get("crossover-yard")
+    assert isinstance(layout, Layout)
+    assert leaving_end(layout, "yard_w.A") == "yard_w.B"
+    assert leaving_end(layout, "yard_e.B") == "yard_e.A"
