@@ -7,7 +7,10 @@
  * the render depth its own suite happened to need, so a component gaining one
  * await turn broke whichever suite had guessed lowest. Nothing here counts
  * turns for a caller: `quiet` turns the queue until the store has been left
- * alone, under one bound generous enough for every suite.
+ * alone, under one bound generous enough for every suite. It is private to
+ * `settled`, the wait being a DOM suite's alone (#149): a suite driving a
+ * model against a fake dependency has the call itself to await, and watching
+ * this counter would be waiting on a store nothing put behind `fetch`.
  *
  * Tests only — nothing under `src` imports this, and it defines no element
  * either. A suite's own `import "../src/ui/tc-editor.js"` is what registers
@@ -94,7 +97,7 @@ const BOUND = 500;
 
 /** Turn the microtask queue until the store has been left alone: every answer
  *  in flight delivered, and every ask an answer set off answered in turn. */
-export async function quiet(): Promise<void> {
+async function quiet(): Promise<void> {
   let idle = 0;
   for (let turn = 0; idle < QUIET && turn < BOUND; turn++) {
     const was = asked;

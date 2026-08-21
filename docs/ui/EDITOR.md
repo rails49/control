@@ -920,6 +920,12 @@ a component gaining one await turn would have broken whichever had guessed
 lowest; it turns the microtask queue until the store has been left alone
 instead, under one bound.
 
+That wait is the DOM suites' alone, and it is private to them. The suite
+driving `Filing` against a fake store forges no HTTP answer, so there is no
+store falling silent for a wait to watch: it awaits the review instead.
+`edited` answers with the one it sets off, the shell discarding it because a
+DOM handler has nowhere to wait into (#149).
+
 On the Python side: the endpoints, `explain()`, and a round trip asserting a
 loaded and saved drawing keeps its comments.
 
