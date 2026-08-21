@@ -6,8 +6,9 @@ comparison. `live` runs a session an outside client can join: wall-clock
 boundaries, the bridge relaying `tc49/#` out and gestures in, the store served
 over HTTP, and the scheduler's timetable off while `at` is a boundary count
 (ADR-0036). Its scenario is an argument the panel may override, the socket
-path naming the railroad a client wants (#148). `sweep` takes no arguments: the grid of BENCHMARKS.md is the
-research design, not a knob, and that page is its single source of truth.
+path naming the railroad a client wants (#148). `sweep` takes no arguments:
+the grid of BENCHMARKS.md is the research design, not a knob, and that page is
+its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
 review that a committed layout file used to give in a diff (ADR-0015).
 `generate` rewrites every TypeScript file the UI is handed rather than

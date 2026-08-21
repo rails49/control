@@ -80,7 +80,12 @@ class Session:
         """Railroad after railroad, until `stop`. Each one is handed to the
         bridge before it is run, so its opening drain — the startup cascade,
         placement, facing and aspects — reaches whoever named it as live
-        frames, in order, with nothing to seed."""
+        frames, in order, with nothing to seed.
+
+        `rebind` is called with this lock released, and has to be: a handler
+        thread takes the bridge's lock and then this one, so a thread holding
+        this one and reaching for the bridge's would close the cycle.
+        """
         while True:
             self._swap.wait()
             with self._lock:

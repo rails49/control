@@ -16,7 +16,7 @@ freshly built bus and settles every client on the swap, whoever named the
 new scenario starting to hear it and whoever was on the old one being closed
 so it re-picks rather than rendering one railroad fed by another's events
 (#148). A client that names a scenario other than the running one is asked
-for by ``wants`` and waits out of earshot until the swap lands; naming one
+for by ``wants`` and waits out of earshot until its swap lands; naming one
 that does not exist is an error frame and a close, the running railroad
 untouched. No inbound topic carries any of this: the set stays exactly the
 ``tc49/ui`` leaves, which is what ADR-0034's broker ACL will grant.
@@ -97,24 +97,26 @@ class Bridge:
     def rebind(self, bus: Bus, scenario: str) -> None:
         """Relay a freshly assembled railroad, and settle every client on it.
 
-        One operator, one railroad: whoever named this scenario is registered
-        here — before the assembly's opening drain, so the startup cascade is
-        their first frames and there is nothing to seed — and whoever is
-        still on the one it replaces is closed, to re-pick rather than render
-        the wrong railroad. A client waiting on some third scenario keeps
-        waiting: its swap is still to come.
+        One operator, one railroad, and afterwards that is exactly true:
+        whoever named this scenario is registered here — before the assembly's
+        opening drain, so the startup cascade is their first frames and there
+        is nothing to seed — and every other client, on the railroad this one
+        replaces or waiting on a third, is closed. Closing is what has them
+        re-pick, rather than render the wrong railroad or wait out a swap that
+        somebody else's has overtaken.
         """
         self._bus = bus
         bus.subscribe("tc49/#", self._relay)
         with self._clients_lock:
             self._running = scenario
-            parting = [one for one, named in self._clients.items() if named != scenario]
-            joining = [one for one, named in self._waiting.items() if named == scenario]
-            for one in parting:
-                del self._clients[one]
-            for one in joining:
-                del self._waiting[one]
-                self._clients[one] = scenario
+            # Registered and waiting settle by the same rule, which is what
+            # makes the rule one sentence: named this scenario, or gone.
+            settling = self._clients | self._waiting
+            self._clients = {
+                one: scenario for one in settling if settling[one] == scenario
+            }
+            self._waiting = {}
+            parting = [one for one in settling if settling[one] != scenario]
         for one in parting:
             one.close()
 
@@ -158,7 +160,9 @@ class Bridge:
         or is relayed after, so a client is never served one that has already
         been overtaken by the events it sits behind. For any other it is what
         keeps `wants` from being answered by a swap that lands before the
-        client is on the list to be woken by it.
+        client is on the list to be woken by it. The relay waits for the
+        length of the callback, so `wants` reads a scenario and does not build
+        a railroad — a fraction of one boundary, once per join.
         """
         with self._clients_lock:
             if named == self._running:
