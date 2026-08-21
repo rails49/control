@@ -17,19 +17,44 @@ paces the same advance on a wall clock and never terminates on quiescence —
 an idle railroad keeps ticking until the session is stopped. The dispatcher
 cannot tell the modes apart: ADR-0009 stands, and the boundary counter stays
 a deterministic integer.
+
+Given a path it keeps its **own placement file** (#123): where each train
+stands, written when one moves and read at startup. On a real railroad the
+steel is the persistence — the trains are simply still there in the morning —
+and the simulator stands in for the steel, so this stays inside the app. No
+bus topic, no inventory entry, and nothing about simulation in the contract
+(ADR-0030).
 """
 
 import time
 from collections.abc import Callable
+from pathlib import Path
 
+from tc49.lib import durable
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.scenario import Scenario
 
 
+def placement_file(state: Path) -> Path:
+    """Where the simulator keeps its placement, beside the session's state
+    file: a sibling and never the same file, the bus's holding the contract's
+    retained values and this one the steel."""
+    return state.with_name(f"{state.stem}.placement{state.suffix}")
+
+
 class Simulator:
-    def __init__(self, bus: Bus, scenario: Scenario) -> None:
+    def __init__(
+        self, bus: Bus, scenario: Scenario, placement: Path | None = None
+    ) -> None:
+        """`placement`: the file this railroad's steel stands in for, or None
+        to forget everything when the process ends. A train the file does not
+        name — one added to the scenario since — starts where it places it."""
         self._bus = bus
-        self._position = {train: spec.at for train, spec in scenario.trains.items()}
+        self._placement = placement
+        stood = durable.read(placement) if placement is not None else {}
+        self._position = {
+            train: stood.get(train, spec.at) for train, spec in scenario.trains.items()
+        }
         self._crosses: list[Payload] = []
         self._saw_command = False
         self._exhausted = False
@@ -45,18 +70,27 @@ class Simulator:
     def _on_exhausted(self, topic: str, payload: Payload) -> None:
         self._exhausted = payload["exhausted"]
 
+    def _advance(self) -> None:
+        """Execute the crosses buffered since the last tick: each train
+        reaches the block it was told to cross into, and its sensors say so.
+        The only thing that moves a train, and so the only thing that has to
+        write the placement file."""
+        crosses, self._crosses = self._crosses, []
+        for cross in crosses:
+            train, into = cross["train"], cross["into"]
+            origin = self._position[train]
+            self._position[train] = into
+            self._bus.publish("tc49/layout/block_vacated", {"block": origin})
+            self._bus.publish("tc49/layout/block_occupied", {"block": into})
+        if crosses and self._placement is not None:
+            durable.write(self._placement, self._position)
+
     def run(self, tick_limit: int = 10_000) -> None:
         self._bus.drain()  # the startup cascade: standing locks reach the trace
         for now in range(tick_limit):
             exhausted_at_start = self._exhausted
             self._saw_command = False
-            crosses, self._crosses = self._crosses, []
-            for cross in crosses:
-                train, into = cross["train"], cross["into"]
-                origin = self._position[train]
-                self._position[train] = into
-                self._bus.publish("tc49/layout/block_vacated", {"block": origin})
-                self._bus.publish("tc49/layout/block_occupied", {"block": into})
+            self._advance()
             self._bus.publish("tc49/layout/boundary", {"boundary": now})
             self._bus.drain()
             if exhausted_at_start and not self._saw_command:
@@ -77,13 +111,7 @@ class Simulator:
         now = 0
         while not stop():
             sleep(period_s)
-            crosses, self._crosses = self._crosses, []
-            for cross in crosses:
-                train, into = cross["train"], cross["into"]
-                origin = self._position[train]
-                self._position[train] = into
-                self._bus.publish("tc49/layout/block_vacated", {"block": origin})
-                self._bus.publish("tc49/layout/block_occupied", {"block": into})
+            self._advance()
             self._bus.publish("tc49/layout/boundary", {"boundary": now})
             self._bus.drain()
             now += 1

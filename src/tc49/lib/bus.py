@@ -19,12 +19,12 @@ file the bus opens none, which is what leaves ``bench`` and ``sweep``
 untouched by construction rather than by a branch.
 """
 
-import json
 from collections import deque
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
+from tc49.lib import durable
 from tc49.lib.inventory import is_state_topic
 
 Payload = dict[str, Any]
@@ -42,9 +42,7 @@ class Bus:
         self._queue: deque[tuple[str, Payload, _Subscription | None]] = deque()
         self._state = state
         self._last_values: dict[str, Payload] = (
-            cast(dict[str, Payload], json.loads(state.read_text()))
-            if state is not None and state.exists()
-            else {}
+            durable.read(state) if state is not None else {}
         )
 
     @property
@@ -72,16 +70,11 @@ class Bus:
         self._queue.append((topic, payload, None))
 
     def _persist(self) -> None:
-        """The whole picture, written to a temporary file in the target's own
-        directory and renamed over it. Rename within a directory is atomic,
-        so a cut mid-write leaves the previous good copy in place and a
-        partial file nothing ever reads. Whole file every time, because a
-        railroad is slow and a state topic only republishes when it moves."""
-        if self._state is None:
-            return
-        temporary = self._state.with_name(self._state.name + ".tmp")
-        temporary.write_text(json.dumps(self._last_values))
-        temporary.replace(self._state)
+        """The whole picture on every retained change, which a railroad can
+        afford: it is slow, and a state topic only republishes when it moves.
+        `durable` is where the cut mid-write is answered."""
+        if self._state is not None:
+            durable.write(self._state, self._last_values)
 
     def drain(self) -> None:
         while self._queue:

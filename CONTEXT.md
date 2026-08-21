@@ -187,7 +187,7 @@ the train, or none is reachable — or if it states a departure block the train 
 not standing in; otherwise accepted and queued. A rejection is an answer on the
 bus, never an exception, since the submitter may be a browser
 ([ADR-0021](docs/adr/0021-a-bad-request-is-answered-not-raised.md)).
-_Avoid_: order, job
+_Avoid_: order, job, working
 
 **Arrival end**:
 One acceptable ending for a request: a block together with the end the train
