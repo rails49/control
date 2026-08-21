@@ -1,10 +1,11 @@
 """The locking seam: LockingStrategy and the FullRoute baseline (ADR-0005).
 
 A strategy answers two questions against the dispatcher's live state:
-``launch`` — commit a route for a pending request, locking whatever the
-strategy's discipline requires; ``grant`` — advance an active train by one
-move. Both mutate ``state.locks`` and report what they newly locked so the
-dispatcher can publish the lock ledger.
+``launch`` — commit a route for a pending request from the origin and
+departure end the dispatcher hands it, locking whatever the strategy's
+discipline requires; ``grant`` — advance an active train by one move. Both
+mutate ``state.locks`` and report what they newly locked so the dispatcher
+can publish the lock ledger.
 """
 
 from __future__ import annotations
@@ -49,19 +50,18 @@ class Move:
 
 class LockingStrategy(Protocol):
     def launch(
-        self, req: Request, origin: str, state: State
+        self, req: Request, origin: str, depart: str, state: State
     ) -> Launched | Refused | None:
-        """Try to launch; None means no candidate routes exist (unreachable)."""
+        """Try to launch; None means no candidate routes exist (unreachable).
+
+        The departure end comes from the dispatcher rather than off the
+        request: which end a working leaves by is admission's question and
+        not the strategy's."""
         ...
 
     def grant(self, train: str, state: State) -> Move | Refused:
         """The active train's next move, or why it must wait."""
         ...
-
-
-def resolve_depart(depart: str, origin: str) -> str:
-    """A bare end letter (chained request) resolves against the origin."""
-    return depart if "." in depart else f"{origin}.{depart}"
 
 
 def congested(state: State, train: str) -> frozenset[str]:
@@ -91,12 +91,12 @@ class FullRoute:
         self._k = k
 
     def launch(
-        self, req: Request, origin: str, state: State
+        self, req: Request, origin: str, depart: str, state: State
     ) -> Launched | Refused | None:
         routes = candidates(
             self._layout,
             origin,
-            resolve_depart(req.depart, origin),
+            depart,
             req.arrivals,
             state.train_lengths[req.train],
             self._k,
@@ -154,12 +154,12 @@ class Incremental:
         self._k = k
 
     def launch(
-        self, req: Request, origin: str, state: State
+        self, req: Request, origin: str, depart: str, state: State
     ) -> Launched | Refused | None:
         routes = candidates(
             self._layout,
             origin,
-            resolve_depart(req.depart, origin),
+            depart,
             req.arrivals,
             state.train_lengths[req.train],
             self._k,

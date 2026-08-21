@@ -25,10 +25,13 @@ is why field-level schemas could be deferred.
 
 ```python
 class LockingStrategy(Protocol):
-    def launch(self, req: Request, origin: str, state: State) -> Launched | Refused | None: ...
+    def launch(self, req: Request, origin: str, depart: str, state: State) -> Launched | Refused | None: ...
     def grant(self, train: str, state: State) -> Move | Refused: ...
 ```
 
+`launch` is handed the origin and the departure end to route from rather than
+reading either off the request: which end a working leaves by is the
+dispatcher's answer, not the strategy's (DISPATCH.md, requests).
 `Launched` carries the committed route, `k_tried`, and the resources newly
 locked; `Refused` carries the reason and one `{resource, holder}` obstacle
 per blocked candidate, the payload of `grant_refused`. `None` from `launch`

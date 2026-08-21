@@ -39,6 +39,23 @@ class Request:
     refusals: int = 0  # launch refusals so far; the aging key (#34)
 
 
+def resolve_depart(depart: str, origin: str) -> str:
+    """A bare end letter (chained request) resolves against the origin."""
+    return depart if "." in depart else f"{origin}.{depart}"
+
+
+def departs_elsewhere(depart: str, expected: str | None) -> bool:
+    """Whether a stated departure block disagrees with the block the train
+    departs from. A bare end letter states no block and so cannot disagree,
+    and neither can anything while an earlier pending request leaves that
+    block a future dispatcher choice (`expected` is None). Admission and the
+    launch stage both ask it, of the origin each by then has, so one rule
+    serves both (#146)."""
+    if "." not in depart or expected is None:
+        return False
+    return block_of(depart) != expected
+
+
 def aging_order(req: Request) -> tuple[int, int]:
     """The pending scan's key: most-refused first, admission order among
     equals. Refusal count is dispatcher state, never wall-clock, so the
@@ -263,7 +280,7 @@ class Dispatcher:
             self._reject(rid, Reason.UNKNOWN_BLOCK)
             return
         expected = self._expected_block(request.train)
-        if self._departs_elsewhere(request.depart, expected):
+        if departs_elsewhere(request.depart, expected):
             self._reject(rid, Reason.WRONG_ORIGIN)
             return
 
@@ -333,17 +350,6 @@ class Dispatcher:
             return None
         return self._state.block_of[train]
 
-    def _departs_elsewhere(self, depart: str, expected: str | None) -> bool:
-        """Whether a stated departure block disagrees with the block the
-        train departs from. A bare end letter states no block and so cannot
-        disagree, and neither can anything at admission while an earlier
-        pending request leaves that block a future dispatcher choice
-        (`expected` is None). The launch stage asks the same question again,
-        of the origin it by then has, so one rule serves both (#146)."""
-        if "." not in depart or expected is None:
-            return False
-        return block_of(depart) != expected
-
     # -- the grant phase ---------------------------------------------------
 
     def _on_layout(self, topic: str, payload: Payload) -> None:
@@ -378,7 +384,7 @@ class Dispatcher:
             if req.train in waiting:
                 continue
             origin = state.block_of[req.train]
-            if self._departs_elsewhere(req.depart, origin):
+            if departs_elsewhere(req.depart, origin):
                 # Admission skipped this one — a working queued behind
                 # another departs from a block that was still a future
                 # dispatcher choice — and it is asked here, before the
@@ -401,7 +407,9 @@ class Dispatcher:
                 )
                 self._publish("request_completed", {"id": req.id})
                 continue
-            result = self._strategy.launch(req, origin, state)
+            result = self._strategy.launch(
+                req, origin, resolve_depart(req.depart, origin), state
+            )
             if result is None:
                 self._pending.remove(req)
                 self._reject(req.id, Reason.UNREACHABLE)

@@ -12,8 +12,8 @@ import yaml
 from hypothesis import given, note, settings
 
 from tc49.dispatcher import FullRoute, Incremental
-from tc49.dispatcher.dispatch import Request, State
-from tc49.dispatcher.locking import congested, resolve_depart, safety_view
+from tc49.dispatcher.dispatch import Request, State, resolve_depart
+from tc49.dispatcher.locking import congested, safety_view
 from tc49.dispatcher.routing import candidates
 from tc49.dispatcher.safety import safe
 from tc49.lib.bus import Payload
