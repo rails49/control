@@ -334,10 +334,12 @@ class Dispatcher:
         return self._state.block_of[train]
 
     def _departs_elsewhere(self, depart: str, expected: str | None) -> bool:
-        """Whether a stated departure block disagrees with where the train
-        stands. A bare end letter states no block, and an earlier pending
-        request makes the block a future dispatcher choice; neither can
-        disagree."""
+        """Whether a stated departure block disagrees with the block the
+        train departs from. A bare end letter states no block and so cannot
+        disagree, and neither can anything at admission while an earlier
+        pending request leaves that block a future dispatcher choice
+        (`expected` is None). The launch stage asks the same question again,
+        of the origin it by then has, so one rule serves both (#146)."""
         if "." not in depart or expected is None:
             return False
         return block_of(depart) != expected
@@ -376,6 +378,18 @@ class Dispatcher:
             if req.train in waiting:
                 continue
             origin = state.block_of[req.train]
+            if self._departs_elsewhere(req.depart, origin):
+                # The same disagreement admission answers, asked again where
+                # the origin is finally known (#146). Admission could only
+                # skip it: a working queued behind another departs from a
+                # block that was still a future dispatcher choice. Refused
+                # before the strategy sees it, because the enumerator walks
+                # from the departure end while recording the origin as the
+                # route's first block, and would return a route claiming to
+                # start where the train stands and leave somewhere else.
+                self._pending.remove(req)
+                self._reject(req.id, Reason.WRONG_ORIGIN)
+                continue
             if any(block_of(end) == origin for end in req.arrivals):
                 # Degenerate: already standing in an arrival block, whichever
                 # end that arrival names. Empty route, complete in this phase.
