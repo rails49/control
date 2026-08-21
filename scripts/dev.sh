@@ -7,9 +7,10 @@
 #   ui      http://localhost:5173   vite, which proxies the store's routes
 #   bridge  ws://127.0.0.1:8766     `tc49 live`, the session the panel joins
 #
-#   scripts/dev.sh                     the editor, and a panel with nothing
-#                                      to join
-#   scripts/dev.sh gotthard/meet       and a session running that scenario
+#   scripts/dev.sh                     all three; pick the railroad in the
+#                                      panel
+#   scripts/dev.sh gotthard/meet       and the session comes up running that
+#                                      one
 #   scripts/dev.sh gotthard/meet --period 1
 #                                      anything further is the session's
 #   scripts/dev.sh stop                every one of them down again
@@ -18,8 +19,9 @@
 # `scripts/dev.sh start gotthard/meet`. A scenario is `folder/name`, so a
 # first word that is bare `start` or `stop` is never one.
 #
-# A session names a scenario, so the bridge comes up only when this script is
-# given one — the panel's `no session at ws://…` is that and nothing worse.
+# The panel names the session, so the bridge always comes up: a scenario here
+# is the railroad it starts on and not the one it is fixed to, and the panel
+# may switch it at any time (#148).
 #
 # The store is always this script's, never a session's. `tc49 live` carries
 # one, which would find the port taken, so the session is started with
@@ -171,26 +173,18 @@ fi
 echo "servers:"
 serve store "$STORE" "$STORE_URL" uv run tc49 serve
 serve ui "$UI" "$UI_URL" pnpm --dir ui dev
-if [ -n "$SCENARIO" ]; then
-  serve bridge "$BRIDGE" "$BRIDGE_URL" \
-    uv run tc49 live "$SCENARIO" --port "$BRIDGE" --no-store "$@"
-elif alive "$BRIDGE_URL"; then
-  # Left from an earlier run: still a session, still joinable.
-  report bridge "$BRIDGE_URL" "already running"
-fi
+# An empty scenario is no scenario at all, not the empty string: `tc49 live`
+# takes it as optional, and comes up idle waiting to be told.
+serve bridge "$BRIDGE" "$BRIDGE_URL" \
+  uv run tc49 live ${SCENARIO:+"$SCENARIO"} --port "$BRIDGE" --no-store "$@"
 
 cat <<EOF
 
   editor  http://localhost:$UI/
   panel   http://localhost:$UI/panel.html
-EOF
 
-alive "$BRIDGE_URL" || cat <<EOF
-          nothing to join yet — name a scenario, e.g.
-          scripts/dev.sh gotthard/meet
-EOF
-
-cat <<EOF
+          pick a railroad in the panel's live session menu; the session runs
+          whichever one is picked
 
 logs in out/dev; stop them with: scripts/dev.sh stop
 EOF
