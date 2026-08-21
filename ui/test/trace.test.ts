@@ -77,9 +77,7 @@ describe("Live", () => {
   it("reads a relayed frame as the event its topic leaf names", () => {
     const live = new Live();
     expect(live.read(frame("tc49/dispatch/lock_granted", { train: "t1" }))).toEqual({
-      boundary: 0,
-      event: "lock_granted",
-      train: "t1",
+      event: { boundary: 0, event: "lock_granted", train: "t1" },
     });
   });
 
@@ -89,16 +87,32 @@ describe("Live", () => {
     live.read(frame("tc49/layout/boundary", { boundary: 7 }));
     expect(live.boundary).toBe(7);
     expect(live.read(frame("tc49/layout/block_occupied", { block: "b" }))).toEqual({
-      boundary: 7,
-      event: "block_occupied",
-      block: "b",
+      event: { boundary: 7, event: "block_occupied", block: "b" },
     });
   });
 
-  it("ignores what is not a frame, an error one included", () => {
+  /** The relay's `{error}` is the whole of what a session says about itself
+   *  going wrong — a refused frame, or a path naming no scenario (#148) — and
+   *  the panel shows it as trouble. Dropping it left a refusal invisible. */
+  it("hands back the relay's refusal rather than dropping it", () => {
+    const live = new Live();
+    expect(live.read(JSON.stringify({ error: "no scenario 'gotthard/nope'" }))).toEqual(
+      { error: "no scenario 'gotthard/nope'" },
+    );
+  });
+
+  it("ignores what is not a frame at all", () => {
     const live = new Live();
     expect(live.read("not json")).toBeNull();
-    expect(live.read(JSON.stringify({ error: "no" }))).toBeNull();
+    expect(live.read(JSON.stringify({ topic: 7, payload: {} }))).toBeNull();
+    expect(live.read(JSON.stringify({ error: 7 }))).toBeNull();
+  });
+
+  it("leaves the boundary where it was when a refusal arrives", () => {
+    const live = new Live();
+    live.read(frame("tc49/layout/boundary", { boundary: 3 }));
+    live.read(JSON.stringify({ error: "no" }));
+    expect(live.boundary).toBe(3);
   });
 });
 

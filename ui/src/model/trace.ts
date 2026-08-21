@@ -69,6 +69,10 @@ export class Replay {
   }
 }
 
+/** What a frame from the relay turned out to be: an event to apply, or the
+ *  relay's refusal to show. */
+export type Heard = { event: TraceEvent } | { error: string };
+
 /**
  * The live feed: the bridge's frames read as the same events a trace holds
  * (ui/PANEL.md, #72).
@@ -79,9 +83,11 @@ export class Replay {
  * live session from a replay. Frames are stamped with the latest boundary
  * seen, which is what the bench tap does when it writes a trace.
  *
- * A frame that is not one is dropped rather than thrown: the bridge answers a
- * refused frame with an `{error}` of its own, and a session must not end
- * because one arrived.
+ * The relay's one other frame is `{error}`: a refused inbound frame, or a
+ * socket path naming no scenario (#148). It is the whole of what a session
+ * says about itself going wrong, so it comes back to be shown as trouble
+ * rather than being dropped. A frame that is neither is dropped rather than
+ * thrown — a session must not end because a stray one arrived.
  */
 export class Live {
   private at: number | null = null;
@@ -91,22 +97,25 @@ export class Live {
     return this.at;
   }
 
-  read(message: string): TraceEvent | null {
-    let frame: { topic?: unknown; payload?: unknown };
+  read(message: string): Heard | null {
+    let frame: { topic?: unknown; payload?: unknown; error?: unknown };
     try {
-      frame = JSON.parse(message) as { topic?: unknown; payload?: unknown };
+      frame = JSON.parse(message) as typeof frame;
     } catch {
       return null;
     }
+    if (typeof frame?.error === "string") return { error: frame.error };
     if (typeof frame?.topic !== "string" || typeof frame?.payload !== "object") {
       return null;
     }
     const payload = (frame.payload ?? {}) as Record<string, unknown>;
     if (typeof payload.boundary === "number") this.at = payload.boundary;
     return {
-      boundary: this.at ?? 0,
-      event: frame.topic.slice(frame.topic.lastIndexOf("/") + 1),
-      ...payload,
+      event: {
+        boundary: this.at ?? 0,
+        event: frame.topic.slice(frame.topic.lastIndexOf("/") + 1),
+        ...payload,
+      },
     };
   }
 }

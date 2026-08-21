@@ -62,7 +62,8 @@ import type { MenuItem } from "./tc-menu.js";
 const TURN_AROUND = "turn-around";
 
 /** Where `tc49 live` puts the bridge. Overridable for a session somewhere
- *  else, which is the whole of the browser's configuration. */
+ *  else, which is the whole of the browser's configuration — the railroad is
+ *  not part of it, the panel naming that in the socket path (#148). */
 const BRIDGE =
   new URLSearchParams(location.search).get("bridge") ??
   `ws://${location.hostname || "127.0.0.1"}:8766`;
@@ -215,14 +216,16 @@ export class TcPanel extends LitElement {
   // --- joining a live session -----------------------------------------------
 
   /**
-   * Join the session running a scenario: its railroad, then the bridge.
+   * Join the session on a scenario: its railroad, then the bridge on the path
+   * that names it.
    *
-   * The scenario says one thing only — which drawing to render. Nothing
-   * retained says which railroad a session runs, and a topic that did would
-   * be the bridge describing the run (#67). Everything else comes off the
-   * bus: placement, locks and live requests off the dispatcher's retained
-   * picture, facing off the scheduler's (ADR-0032, ADR-0036), both written by
-   * apps that are always running, so there is no cold start to seed.
+   * The panel names the session (#148). The scenario says which drawing to
+   * render *and* which railroad to be fed, those being one choice: a socket
+   * opened without it would render one railroad on another's events.
+   * Everything else comes off the bus: placement, locks and live requests off
+   * the dispatcher's retained picture, facing off the scheduler's (ADR-0032,
+   * ADR-0036), both written by apps that are always running, so there is no
+   * cold start to seed.
    */
   private async join(id: string): Promise<void> {
     // Rejoining the session already on screen keeps what the bus has shown;
@@ -246,9 +249,13 @@ export class TcPanel extends LitElement {
     }
   }
 
+  /** Open the socket on the scenario's own path: the session runs the
+   *  railroad named there, building it if it is running another, and
+   *  switching is the `leave` and `listen` `join` already does. */
   private listen(): void {
     this.live = new Live();
-    const socket = new WebSocket(BRIDGE);
+    const at = `${BRIDGE}/${this.session}`;
+    const socket = new WebSocket(at);
     socket.addEventListener("open", () => {
       this.connected = true;
       this.trouble = null;
@@ -259,16 +266,23 @@ export class TcPanel extends LitElement {
       this.menu = null; // nowhere left to send what it offers
     });
     socket.addEventListener("error", () => {
-      this.trouble = `no session at ${BRIDGE} — run \`tc49 live ${this.session}\``;
+      this.trouble = `no session at ${at} — run \`tc49 live\``;
     });
     this.socket = socket;
   }
 
   private heard(message: string): void {
     if (this.live === null || this.panel === null) return;
-    const event = this.live.read(message);
-    if (event === null) return;
-    this.panel.apply(event);
+    const heard = this.live.read(message);
+    if (heard === null) return;
+    // The session refusing something — a scenario it does not have, a frame
+    // it will not relay — is shown rather than swallowed: it is the only
+    // answer a gesture or a join ever gets when it goes wrong.
+    if ("error" in heard) {
+      this.trouble = heard.error;
+      return;
+    }
+    this.panel.apply(heard.event);
     // An open menu is about one train in one block, and the run can end
     // both. It is taken down rather than hidden: a menu merely filtered out
     // of the render leaves nothing to dismiss and springs back the next time
