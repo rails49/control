@@ -168,12 +168,14 @@ _Avoid_: consist
 
 **Facing**:
 The end of its block through which a parked train would depart nose-first.
-Declared with initial placement, thereafter fully determined: routes are
-strict pass-throughs, so a train faces away from the end it entered through,
-and deliberate reversal at rest is the only other change. Held by the
-scheduler and published on its own state topic, which every view reads to draw
-a train's direction. Not dispatcher state — a request's departure end carries
-everything the dispatcher needs.
+Declared with initial placement and thereafter determined by three rules:
+routes are strict pass-throughs, so a train faces away from the end it
+entered through; on a **terminal block** there is no such end, and facing is
+its one connected end whatever a placement or a route would say; and
+deliberate reversal at rest is the one change routes do not account for. Held
+by the scheduler and published on its own state topic, which every view reads
+to draw a train's direction. Not dispatcher state — a request's departure end
+carries everything the dispatcher needs, and may contradict facing.
 _Avoid_: direction (ambiguous with travel direction), heading, orientation
 
 ### Dispatch

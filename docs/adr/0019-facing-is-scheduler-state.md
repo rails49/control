@@ -10,6 +10,15 @@ panel-scheduler holds that state and submits `depart` accordingly. The
 dispatcher never learns facing exists: requests carry `depart` exactly as
 before, and no bus payload changes.
 
+*(Amended for #145: "fully determined" was one case short. A train entering a
+terminal block faces away from the end it came in through and there is no such
+end, so the pass-through rule named a wall and every request the scheduler
+then composed was rejected `unreachable`. Facing on a terminal block is its
+one connected end, whatever the pass-through rule or the scenario says, and
+the store refuses a placement declaring otherwise. This is a third rule for
+what facing **is**, not a third event that changes it: nothing new happens on
+the bus, and the dispatcher still learns nothing.)*
+
 The alternative was dispatcher-enforced facing — reject a request whose
 departure end contradicts which way the train stands. The dispatcher could
 maintain it (it chooses the routes facing is derived from), but doing so adds

@@ -134,7 +134,9 @@ requests:
   preferred track first has no effect.
 - **`facing` is declared, then derived.** It is the end of `at` the train
   would depart through nose-first ([CONTEXT.md](../../CONTEXT.md#stock)) —
-  `A` or `B`, required at placement. Routes are strict pass-throughs
+  `A` or `B`, required at placement, and refused at load where no connection
+  holds the end it names — a train facing a wall could never leave. Routes are
+  strict pass-throughs
   ([ADR-0001](../adr/0001-no-reversal-within-a-route.md)), so after placement
   facing follows from the routes run and only a scheduler tracks it: the
   dispatcher never reads it, and a file scenario's `from` is free to
