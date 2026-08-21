@@ -21,10 +21,12 @@ fails rather than moving to 5174, leaving an open tab talking to a server that
 has gone. Vite binds `[::1]`, so the pages are reached as `localhost` rather
 than `127.0.0.1`.
 
-Given a scenario it also brings up the session the panel joins —
-`../scripts/dev.sh gotthard/meet` — a `tc49 live` on `ws://127.0.0.1:8766`,
-started `--no-store` because the store is already up and outlives any one
-session. Without a scenario there is no session, and the panel says so.
+It also brings up the session the panel joins — a `tc49 live` on
+`ws://127.0.0.1:8766`, started `--no-store` because the store is already up
+and outlives any one session. The panel names the railroad, picking it from
+the live session menu, and the session runs whichever is picked; a scenario
+given to the script — `../scripts/dev.sh gotthard/meet` — is the one it comes
+up running rather than the one it is stuck with.
 
 `../scripts/dev.sh stop` puts down everything the script started and leaves
 alone anything it did not.

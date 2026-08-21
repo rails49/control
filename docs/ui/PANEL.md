@@ -248,36 +248,68 @@ store operation and does not live with one. Validation stays in the existing
 Python validator. The MQTT transport switch later changes only what the bridge
 subscribes to. The front end shares the editor's stack and symbol library.
 
-Joining a session takes everything off the bus. Placement, locks, routes and
-live requests come from the dispatcher's retained picture; **facing**, which
-is scheduler state and on no dispatcher topic at all
+**The panel names the session.** The scenario picked there rides in the
+socket path — `ws://127.0.0.1:8766/beb-gotthard/test1` — so the one choice
+says both which drawing to render and which railroad feeds it. A socket
+opened without it would render one railroad on another's events, which is
+what a session whose scenario was fixed at launch allowed (#148). Switching
+is a reconnect, which is what joining already was. No inbound topic carries
+any of it: the set stays exactly the `tc49/ui` leaves that ADR-0034's broker
+ACL will grant, and that is what keeps ADR-0036's single-minter argument
+holding.
+
+`tc49 live` takes the scenario as an optional argument. With none it comes up
+idle on its port waiting to be told; with one it starts running that railroad
+and the panel may still switch it. Naming the running scenario joins it
+mid-run. Naming another tears the assembly down, builds a fresh one from that
+scenario, and closes any client still on the old path so it re-picks — one
+operator, one railroad. Naming a scenario that does not exist gets an
+`{"error": …}` frame and a close, with the running railroad untouched: a typo
+must not take a live session down. A run outlives its clients, so closing the
+browser leaves the railroad running and Ctrl-C ends the session.
+
+Beyond the name, joining takes everything off the bus. Placement, locks,
+routes and live requests come from the dispatcher's retained picture;
+**facing**, which is scheduler state and on no dispatcher topic at all
 ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)), comes from the
 scheduler's own retained topic. Both are written by apps that are always
 running, so there is no cold start to seed: the panel reads the scenario from
 the store (`GET /scenarios`, `GET /scenarios/<id>`) for one thing only, which
-drawing to render, nothing retained saying which railroad a session runs and a
-topic that did being the bridge describing the run (#67). Everything else is
-derived from the bus exactly as a replay derives it, which is why one panel
-model serves both — a trace carries the state topics too, so a replay gets
-facing from the same place a live session does.
+drawing to render, and no topic describes the run, a topic that did being the
+bridge describing itself (#67). Everything else is derived from the bus
+exactly as a replay derives it, which is why one panel model serves both — a
+trace carries the state topics too, so a replay gets facing from the same
+place a live session does.
 
-A session ticks on a wall clock, one knob: `tc49 live --period`. The default
-is 10 seconds, picked by watching the panel rather than by argument: a
-boundary moves trains, grants and releases locks, realigns points and changes
-aspects, and at the 2 seconds this started out as the next one landed before
-a person had finished reading the last. The replay transport is a different
-number — a rate in boundaries per second — and keeps its own.
+A railroad the session has just built needs no handshake either. Its
+`last_values` are empty, so there is nothing to seed: the client is
+registered, the swap requested, and the new run's opening drain delivers
+placement, facing and aspects as live frames, in order.
 
-**A panel may join a session already running.** On connect the bridge sends
-each state topic's last value before any live frame, so the page opens on the
-dispatcher's own picture — standing trains, locks, committed routes, live
-requests off `tc49/dispatch/state/allocation`, aspects off
-`state/aspects`, facing off `tc49/schedule/state/facing` — rather than on
+A session ticks on a wall clock, one knob: `tc49 live --period`. The knob is
+the session's and applies to every railroad it runs, so the panel names the
+scenario and nothing else and the rate control stays off while it is joined.
+The default is 10 seconds, picked by watching the panel rather than by
+argument: a boundary moves trains, grants and releases locks, realigns points
+and changes aspects, and at the 2 seconds this started out as the next one
+landed before a person had finished reading the last. The replay transport is
+a different number — a rate in boundaries per second — and keeps its own.
+
+**A panel may join a session already running.** On connect, the path naming
+the scenario that is running, the bridge sends each state topic's last value
+before any live frame, so the page opens on the dispatcher's own picture —
+standing trains, locks, committed routes, live requests off
+`tc49/dispatch/state/allocation`, aspects off `state/aspects`, facing off
+`tc49/schedule/state/facing` — rather than on
 where the scenario says the railroad started
 ([ADR-0032](../adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
 The scenario seeds a cold start only, where there is no retained value to
 prefer. Rejoining is not recovery: nothing was lost, and the dispatcher was
 holding the truth the whole time ([CONTEXT.md](../../CONTEXT.md#interruptions)).
+
+The relay's `{"error": …}` frames reach the band as trouble rather than being
+dropped: a refused inbound frame and a path naming no scenario are the only
+answers a page ever gets when a session says no.
 
 `wrong_origin` still stands
 ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)) — a drag
