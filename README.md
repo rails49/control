@@ -28,4 +28,4 @@ Each app's implementation details live beside it:
 - [Bench](docs/bench) — the [benchmark suite](docs/bench/BENCHMARKS.md) and
   the [metrics derivations](docs/bench/METRICS.md).
 - [UI](docs/ui) — the [layout editor](docs/ui/EDITOR.md) and the [dispatch
-  panel](docs/ui/PANEL.md), both design pages for the app to come.
+  panel](docs/ui/PANEL.md), both built and living in [ui/](ui).
