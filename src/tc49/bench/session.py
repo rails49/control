@@ -119,15 +119,10 @@ class Session:
             if wanted is None:
                 return
             scenario_id, layout, scenario = wanted
-            assembly = assemble_live(
-                layout,
-                scenario,
-                state=(
-                    None
-                    if self._state is None
-                    else state_for(self._state, scenario.layout)
-                ),
+            kept = (
+                None if self._state is None else state_for(self._state, scenario.layout)
             )
+            assembly = assemble_live(layout, scenario, state=kept)
             self.bridge.rebind(assembly.bus, scenario_id)
             out.write(f"  running {scenario_id}\n")
             out.flush()

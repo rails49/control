@@ -235,7 +235,9 @@ def allocation(state: State, pending: Sequence[Request]) -> Payload:
     }
 
 
-def restored(picture: Payload, scenario: Scenario) -> tuple[dict[str, str], Payload]:
+def restored(
+    picture: Payload, scenario: Scenario
+) -> tuple[dict[str, str], dict[str, str]]:
     """Placement and crossing hints off the last picture the bus kept across
     a restart, or the scenario's own placement where there is none (#123).
 

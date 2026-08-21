@@ -45,12 +45,9 @@ class Bus:
         # naming an event topic would replay it to every subscriber, and
         # event topics are never replayed (SYSTEM.md, the bus). The promise
         # is the bus's to keep, whatever wrote the file.
+        kept = durable.read(state) if state is not None else {}
         self._last_values: dict[str, Payload] = {
-            topic: value
-            for topic, value in (
-                durable.read(state) if state is not None else {}
-            ).items()
-            if is_state_topic(topic)
+            topic: value for topic, value in kept.items() if is_state_topic(topic)
         }
 
     @property
