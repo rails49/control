@@ -1,3 +1,76 @@
+# Gotthard — the railroad on the bench. Ticket #10, drawn in the editor (#161).
+#
+# This is the track as it stands, drawn symbol by symbol from the railroad
+# itself. There is no second netlist behind it: the drawing is the record
+# (LAYOUT.md). `Gotthard.layout` and `Gotthard.pdf` (WinTrack) are the source
+# for block lengths, which are measured — 200 mm for the `A4` stub up to 1500
+# for the three line sections — and not assumed.
+#
+# Comments cannot live in `wires:`; a save deletes them (DRAWING.md). So the
+# whole account of the railroad is here, and the list below is only pins.
+#
+# ## The decoder addresses are real
+#
+# Every turnout carries the address the hardware answers to. What the
+# derivation uses is not the value but which values are *shared*: one address
+# on two symbols means one decoder throws both, so they cannot be set
+# independently, and the concurrency of a throat is composed from that rather
+# than declared.
+#
+#   addr '1'   sw6, sw7, sw8, sw9   — four, the Airolo ladder
+#   addr '5'   sw1, sw2             — two
+#   everything else is one turnout: '2' sw10, '3' sw5, '6' sw3, '7' sw4,
+#   '9' sw11, '10' sw12, '11' sw17, '12' sw16, '13' sw13, '14' sw14,
+#   '15' sw15
+#
+# Seventeen turnouts, one 90-degree crossing, thirteen addresses.
+#
+# ## Junction by junction
+#
+# Five connections. `j1` is the whole of Airolo; the other four are Claro,
+# where the station has four throats rather than one.
+#
+#   j1  Airolo — ten turnouts and the crossing `x90d1`, 19 transits, 33
+#       concurrent pairs. Every one of the three lines (`CE1`, `CE2`, `CW`)
+#       reaches every Airolo track, and reaches *both ends* of each: `CW.A`
+#       joins `A1.A` and `A1.B` alike. That is a reversing loop's signature —
+#       out through one end and back in through the other — and it is why a
+#       train leaving Airolo has a genuine choice of line while one leaving
+#       Claro often does not. `A4` is a stub off `A1.A`, 200 mm, no line.
+#
+#   j2  Claro east, blue 2 — `CE2.A` to `C1.A`, and to the short sidings
+#       `C4.A` and `C5.A`. Two turnouts in a row, so nothing within it runs
+#       together.
+#
+#   j5  Claro east, blue 1 — `CE1.A` to `C2.A` and `C3b.A`. One turnout.
+#       Claro's east end is two throats, not one: blue 1's lead and blue 2's
+#       share no track, so their transits never conflict.
+#
+#   j4  Claro west, the yellow — `CW.B` to `C1.B`, `C2.B`, `C3a.B`.
+#
+#   j3  Claro west, track 3 and its sidings — `C3a.A` to `C3b.B`, and `C3b.B`
+#       to `C6.A` and `C7.A`.
+#
+# ## Why track 3 is two blocks
+#
+# `sw16` stands *in* track 3, and the road to sidings 6 and 7 leaves from
+# there — `C3a.A` to `sw16.straight`, `sw16.toe` to `C3b.B`. Modelling track 3
+# as one block would put the sidings beyond its end, which is not where they
+# are. So track 3 is `C3a` (500 mm) and `C3b` (550 mm), two ordinary station
+# blocks that happen to be one physical track.
+#
+# The consequence worth knowing when writing a scenario: each half faces one
+# line only. `C3a` reaches `CW` and nothing else; `C3b` reaches `CE1` and
+# nothing else. Their other ends face each other. A working into the far half
+# is a route through the near one.
+#
+# ## Why the west throat is two connections
+#
+# `j4` and `j3` are separate because they share no switch. A shunt into siding
+# 6 uses `sw17` and `sw16`; the yellow reaching track 1 uses `sw11`. Bundling
+# them into one connection — which is what the superseded `gotthard-v0` does —
+# makes the two conflict when on the track they do not.
+#
 drawing: gotthard
 symbols:
   sw1: {kind: turnout, at: [15, 4], connection: j1, addr: '5'}

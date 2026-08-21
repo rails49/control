@@ -400,9 +400,9 @@ The editor needs the document `get` throws away, so the store also reads a
 drawing back unchanged. `get` is left alone: every other caller wants the
 layout.
 
-`put` merges rather than dumps. Comments are most of what a hand-written
-drawing says: 107 of Gotthard's 237 lines, including the Rocrail id mapping
-and which lengths are assumed. Writing placement onto every symbol with
+`put` merges rather than dumps. Comments are most of what a drawing says about
+itself: 73 of Gotthard's 218 lines, including the junction-by-junction account
+of the railroad and which decoder addresses are ganged. Writing placement onto every symbol with
 `yaml.safe_dump` would delete all of it, so `put` applies the incoming
 document into the existing one key by key, in `store/yamlfile.py`. Reading a
 drawing and saving it back unchanged returns the file byte for byte; a symbol
