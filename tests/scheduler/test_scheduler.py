@@ -334,13 +334,34 @@ def reversal(bus: Bus, payload: object) -> None:
 def test_a_reversal_turns_the_train_around_where_it_stands() -> None:
     """The whole of the gesture is the little arrow in the block the train
     stands in (#124): facing goes to the other end of the same block, which
-    ADR-0019 named as the one change routes do not account for."""
+    ADR-0019 named as the one change routes do not account for.
+
+    `express_2` stands in `up_e`, a through block, which is where the flip
+    has two ends to choose between at all."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+
+    reversal(bus, {"train": "express_2"})
+    assert seen[-1][1]["facing"] == {"express_2": "up_e.B", "freight_1": "yard_w.B"}
+
+
+def test_a_reversal_on_a_terminal_block_leaves_the_arrow_alone() -> None:
+    """`freight_1` stands in `yard_w`, whose `A` end no connection holds. The
+    other end of the block is the wall, so the flip goes through
+    `leaving_end` and gives back the end it started on: one end is all the
+    train can leave by, whichever way it is pointed (#145).
+
+    Turned around with a bare `opposite_end` it faced `yard_w.A`, which is
+    the placement the store refuses at load, and the next drag departed by
+    the wall and was rejected `unreachable` — the train stuck for the rest of
+    the session."""
     bus = Bus()
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), two_train_scenario(), timetable=False)
 
     reversal(bus, {"train": "freight_1"})
-    assert seen[-1][1]["facing"] == {"express_2": "up_e.A", "freight_1": "yard_w.A"}
+    assert seen[-1][1]["facing"] == {"express_2": "up_e.A", "freight_1": "yard_w.B"}
 
 
 def test_a_reversal_composes_no_request_and_tells_the_dispatcher_nothing() -> None:
@@ -357,34 +378,41 @@ def test_a_reversal_composes_no_request_and_tells_the_dispatcher_nothing() -> No
 def test_a_reversal_is_dropped_while_the_train_has_a_request_in_flight() -> None:
     """Flipping the arrow under a queued request produces a lie: the request
     still departs the old end, and `route_chosen` flips the arrow back when it
-    launches. So the rule is any request from submit to completion."""
+    launches. So the rule is any request from submit to completion.
+
+    Asked of `express_2` in the through block `up_e`, where the flip has an
+    end to move to: in a terminal block the gesture is a no-op anyway and the
+    drop would not be what held the arrow still (#145)."""
     bus = Bus()
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), two_train_scenario(), timetable=False)
-    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
     published = len(seen)
 
-    reversal(bus, {"train": "freight_1"})
+    reversal(bus, {"train": "express_2"})
     assert len(seen) == published
-    assert seen[-1][1]["facing"]["freight_1"] == "yard_w.B"
+    assert seen[-1][1]["facing"]["express_2"] == "up_e.A"
 
 
 def test_a_reversal_lands_once_the_request_is_answered() -> None:
     """A rejected request leaves the train idle — its marker is still on
     screen but the scheduler has dropped it — and that is precisely when you
-    want to turn around."""
+    want to turn around.
+
+    `express_2` again, so the arrow has somewhere to go and the assertion is
+    about the rejection rather than about the block (#145)."""
     bus = Bus()
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), two_train_scenario(), timetable=False)
-    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
     bus.publish(
         "tc49/dispatch/request_rejected",
-        {"id": "freight_1-1", "reason": "no_entry"},
+        {"id": "express_2-1", "reason": "no_entry"},
     )
     bus.drain()
 
-    reversal(bus, {"train": "freight_1"})
-    assert seen[-1][1]["facing"]["freight_1"] == "yard_w.A"
+    reversal(bus, {"train": "express_2"})
+    assert seen[-1][1]["facing"]["express_2"] == "up_e.B"
 
 
 def test_a_reversal_that_cannot_be_read_is_dropped() -> None:

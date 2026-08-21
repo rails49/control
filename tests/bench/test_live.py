@@ -270,10 +270,14 @@ def test_a_reversal_turns_the_arrow_and_asks_the_dispatcher_for_nothing(
     """The other leaf a page may write, over the same socket (#124): the
     frame names a train, the scheduler flips its facing and republishes, and
     the panel's arrow turns. No request is composed and no `tc49/dispatch`
-    topic carries anything, nothing having moved."""
+    topic carries anything, nothing having moved.
+
+    `express_2` stands in `up_e`, a through block: `freight_1`'s `yard_w` is
+    terminal, where the gesture is a no-op and the arrow would not move to be
+    watched (#145)."""
     assembly.bus.drain()  # the startup cascade, so what follows is the answer
     dispatched = len([one for one in events(assembly.trace) if "id" in one])
-    client.send(json.dumps({"topic": REVERSAL, "payload": {"train": "freight_1"}}))
+    client.send(json.dumps({"topic": REVERSAL, "payload": {"train": "express_2"}}))
 
     deadline = time.monotonic() + TIMEOUT
     while len(events(assembly.trace, "facing")) < 2:
@@ -282,7 +286,7 @@ def test_a_reversal_turns_the_arrow_and_asks_the_dispatcher_for_nothing(
         time.sleep(0.01)
 
     turned = events(assembly.trace, "facing")[-1]
-    assert turned["facing"] == {"express_2": "up_e.A", "freight_1": "yard_w.A"}
+    assert turned["facing"] == {"express_2": "up_e.B", "freight_1": "yard_w.B"}
     assert events(assembly.trace, "request_submitted") == []
     assert len([one for one in events(assembly.trace) if "id" in one]) == dispatched
 

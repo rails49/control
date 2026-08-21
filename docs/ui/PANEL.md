@@ -190,9 +190,12 @@ one ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-pay
 
 **Right-clicking** the block a train stands in opens a menu with one item,
 **Turn around**, which publishes `tc49/ui/reversal_wanted` (`{train}`). The
-scheduler flips that train's **facing** to the other end of the same block and
-the arrow turns. That is the whole of the feedback: nothing moves, no request
-is composed, and no `tc49/dispatch` topic carries anything. Facing is
+scheduler flips that train's **facing** to the other end it can leave the
+block by, and the arrow turns. That is the whole of the feedback: nothing
+moves, no request is composed, and no `tc49/dispatch` topic carries anything.
+On a **terminal block** the gesture is a no-op — one end is all the train can
+leave by whichever way it is pointed, and facing never names an end that
+leads nowhere ([#145](https://github.com/rails49/control/issues/145)). Facing is
 otherwise fully determined once placed, routes being strict pass-throughs, and
 deliberate reversal at rest is the one exception
 ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)). It is what a train

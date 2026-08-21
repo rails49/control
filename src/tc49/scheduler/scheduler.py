@@ -139,6 +139,13 @@ class Scheduler:
         back when it launches, undoing the operator's gesture minutes later.
         A **rejected** request leaves the train idle — `_train_of` has dropped
         it — and that is precisely when you want to turn around.
+
+        The flip goes through `leaving_end` like every other facing site, so
+        a terminal block is a no-op rather than a train pointed at the wall
+        (#145): there is one end it can leave by either way, and facing never
+        names an end that leads nowhere. Without it the gesture reaches the
+        state `validate_scenario` refuses at load, and the next drag departs
+        by the wall and is rejected `unreachable` for the rest of the session.
         """
         train = reversal(payload)
         if train is None:
@@ -148,7 +155,7 @@ class Scheduler:
             return
         if train in self._train_of.values():  # a request in flight
             return
-        self._facing[train] = opposite_end(facing)
+        self._facing[train] = leaving_end(self._layout, opposite_end(facing))
         self._publish_facing()
 
     # -- facing ------------------------------------------------------------
