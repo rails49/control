@@ -379,14 +379,16 @@ class Dispatcher:
                 continue
             origin = state.block_of[req.train]
             if self._departs_elsewhere(req.depart, origin):
-                # The same disagreement admission answers, asked again where
-                # the origin is finally known (#146). Admission could only
-                # skip it: a working queued behind another departs from a
-                # block that was still a future dispatcher choice. Refused
-                # before the strategy sees it, because the enumerator walks
-                # from the departure end while recording the origin as the
-                # route's first block, and would return a route claiming to
-                # start where the train stands and leave somewhere else.
+                # Admission skipped this one — a working queued behind
+                # another departs from a block that was still a future
+                # dispatcher choice — and it is asked here, before the
+                # strategy sees it: the enumerator walks from the departure
+                # end while recording the origin as the route's first block,
+                # so an end off the origin returns a route claiming to start
+                # where the train stands and leave somewhere else (#146).
+                # Checked ahead of the degenerate arrival below, as admission
+                # checks it ahead of pruning: a stale working is refused, not
+                # completed because the train happens to be there already.
                 self._pending.remove(req)
                 self._reject(req.id, Reason.WRONG_ORIGIN)
                 continue

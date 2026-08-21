@@ -262,6 +262,19 @@ def test_a_chained_working_resolves_its_bare_end_against_the_origin() -> None:
     assert_routes_leave_by_their_departure_end(layout, trace)
 
 
+def test_a_stale_departure_beats_the_degenerate_arrival_it_names() -> None:
+    """Where a stale working also names the block the train ends up in, the
+    order of the two launch-stage tests decides its fate. Admission checks
+    the departure block before it prunes arrival ends and the launch stage
+    keeps that order, so the working is refused rather than completed on the
+    grounds that the train is already standing there."""
+    layout, _ = load("crossover-yard/meet")
+    trace = second_working(layout, "yard_w.B", ("yard_e.A",), 0)
+    [rejected] = events(trace, "request_rejected", rid="freight-2")
+    assert rejected["reason"] == Reason.WRONG_ORIGIN
+    assert events(trace, "route_chosen", rid="freight-2") == []
+
+
 def test_an_arrival_end_in_the_routes_arrival_block_is_still_checked() -> None:
     """The block a destination is compared against is the degenerate test of
     the pruning loop, and #99 repointed it at where the train stands (#134).
