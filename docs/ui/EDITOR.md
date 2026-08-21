@@ -617,8 +617,13 @@ modal over the canvas hides the thing being checked
 ([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
 
 Selecting a transit lights its way on the canvas, symbol by symbol and leg by
-leg, and lists every other transit at that connection as either concurrent or
-excluded, naming the symbol they share. *Exclusive because both take `sw16`*
+leg, **and the wires between those legs**, so a chosen way reads as one
+movement rather than as scattered lit frogs — and a way across a joint, which
+crosses no symbol declaring a transit, lights at all. Which wires a way runs
+over is the store's own rule, transcribed into `model/inspect.ts` and applied
+one way at a time; the store proves it exact against every railroad it holds.
+The pane also lists every other transit at that connection as either
+concurrent or excluded, naming the symbol they share. *Exclusive because both take `sw16`*
 is a claim about the drawing that can be checked by looking at it. Selecting a
 symbol gives the inverse: every transit through it, split into those that can
 run together and those that cannot.
@@ -734,9 +739,9 @@ three restate a mark the canvas already carries, and two are reachable only from
 hand-written yaml. The two left are both statements about a way: the way out of
 a block end leads back into that same block, or two transits at one connection
 derive one name. The editor lights that way in red with the machinery the
-netlist pane already uses to light a transit — every leg of it and both its
-block ends, in the red that means derivation stopped rather than the colour a
-chosen transit wears. Two ways light where two of them derive one name:
+netlist pane already uses to light a transit — every leg of it, the wires
+between them, and both its block ends, in the red that means derivation
+stopped rather than the colour a chosen transit wears. Two ways light where two of them derive one name:
 neither is the offender.
 
 The way is walked where derivation refuses and comes back with the review

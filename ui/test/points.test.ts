@@ -138,7 +138,7 @@ function align(...points: [string, Position][]): Partial<TraceEvent> {
  *  stroke last, so the leg is read off where its stroke ends: every leg runs
  *  from the toe to the pin it is named for. */
 function against(symbol: string, ...commands: Partial<TraceEvent>[]): string[] {
-  const model = new Panel(NOTHING, UNEXPLAINED);
+  const model = new Panel(NOTHING, UNEXPLAINED, []);
   for (const command of commands)
     model.apply({ boundary: 0, ...command } as TraceEvent);
   const position = positionsBySymbol(YARD, model.positionsByAddress()).get(

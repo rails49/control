@@ -226,6 +226,15 @@ export const way = css`
     stroke-width: ${1.6 * W};
   }
 
+  /* The wires between those legs, at the same weight, so a way reads as one
+     continuous run rather than as scattered lit frogs — and so a way across a
+     joint, which crosses no symbol declaring a transit, lights at all. Which
+     wires those are is model/inspect.ts, per way. */
+  .wire.lit {
+    stroke: var(--lit);
+    stroke-width: ${1.6 * W};
+  }
+
   .symbol .bend.lit {
     fill: var(--lit);
   }

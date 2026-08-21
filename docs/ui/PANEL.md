@@ -25,6 +25,19 @@ the dispatcher disagrees. **Committed** (from `route_chosen`): the chosen
 route as a lit path in a planned tint. **Held** (from `lock_granted` /
 `lock_released`): the reserved-block shading and signals described below.
 
+A committed route lights **whole**: its blocks, the legs of the symbols its
+transits cross, and the wires those transits are drawn over. Without the
+wires a route through a junction reads as scattered lit frogs, and a route
+across a joint — a way crossing no symbol that declares a transit — lights
+nothing at all between its two blocks. Which wires a transit runs over is the
+store's own rule (`Drawing.wires_on`), transcribed into `model/inspect.ts` and
+applied one transit at a time, never over a union of everything lit: a wire
+between two non-block symbols is what merges them into one junction, so a
+union has no transit to attribute a wire to. The store proves the rule exact
+against every railroad it holds, which is what the front end's cheaper copy
+rests on. Lit wires are emitted after unlit ones, as the artwork already emits
+lit legs last, so a crossing unlit wire cannot half hide one.
+
 There are no sensor dots at block ends. `block_occupied` and `block_vacated`
 carry a block, and the layout interface publishes anonymous occupancy and
 never asserts train identity. RocRail's two dots depict per-end detection,

@@ -7,11 +7,14 @@ import {
   chosenWay,
   dark,
   lit,
+  litWires,
   routes,
   through,
   unpaired,
+  wiresOn,
 } from "../src/model/inspect.js";
-import type { Review } from "../src/model/store.js";
+import type { Wire } from "../src/model/drawing.js";
+import type { Review, Transit } from "../src/model/store.js";
 
 /**
  * `crossover-yard`'s scissors, as `/review` answers it. Four transits over
@@ -139,6 +142,89 @@ describe("the way a chosen transit takes", () => {
       lit(chosenWay(scissors(), { connection: "crossover", transit: "gone" }))
         .size,
     ).toBe(0);
+  });
+});
+
+/**
+ * The wires a way is drawn over: the store's own rule, transcribed
+ * (store/drawing.py `wires_on`, proven exact there against every railroad).
+ *
+ * Four shapes, because the drawing decides which one a way is: a junction
+ * with wires inside it, a joint that is one bare wire, a joint routed round a
+ * corner through bend pins, and a joint crossing the canvas through a portal
+ * pair. The last is the one with a join that is not a wire.
+ */
+describe("the wires a way is drawn over", () => {
+  const wires: Wire[] = [
+    ["a.B", "sw1.toe"],
+    ["sw1.straight", "b.A"],
+    ["sw1.diverging", "bend.P"],
+    ["bend.P", "c.A"],
+    { pins: ["b.B", "c.B"], connection: "jt" },
+    ["d.A", "here.P"],
+    ["there.P", "e.B"],
+    ["f.A", "g.B"],
+  ];
+  const key = (one: string, two: string) => [one, two].sort().join(" ");
+
+  it("takes a wire when both its pins are the way's ends or on its symbols", () => {
+    const way: Transit = { ends: ["a.B", "b.A"], way: [["sw1", "straight"]] };
+    expect(wiresOn(way, wires)).toEqual([
+      key("a.B", "sw1.toe"),
+      key("sw1.straight", "b.A"),
+    ]);
+  });
+
+  it("takes the wires inside a junction, between the symbols the way crosses", () => {
+    const way: Transit = {
+      ends: ["a.B", "c.A"],
+      way: [
+        ["sw1", "diverging"],
+        ["bend", ""],
+      ],
+    };
+    expect(wiresOn(way, wires)).toEqual([
+      key("a.B", "sw1.toe"),
+      key("sw1.diverging", "bend.P"),
+      key("bend.P", "c.A"),
+    ]);
+  });
+
+  it("takes the one wire a joint is, which crosses no symbol at all", () => {
+    // The case that lights nothing today: no symbol on the way means no leg
+    // to light, so a plain wired connection was dark between its two blocks.
+    const way: Transit = { ends: ["b.B", "c.B"], way: [] };
+    expect(wiresOn(way, wires)).toEqual([key("b.B", "c.B")]);
+  });
+
+  it("takes both sides of a portal pair, the pairing itself being no wire", () => {
+    const way: Transit = {
+      ends: ["d.A", "e.B"],
+      way: [
+        ["here", ""],
+        ["there", ""],
+      ],
+    };
+    expect(wiresOn(way, wires)).toEqual([key("d.A", "here.P"), key("there.P", "e.B")]);
+  });
+
+  it("leaves the rest of the drawing dark", () => {
+    const way: Transit = { ends: ["b.B", "c.B"], way: [] };
+    expect(wiresOn(way, wires)).not.toContain(key("f.A", "g.B"));
+  });
+
+  it("unions the answers of several ways, never the ways themselves", () => {
+    const ways: Transit[] = [
+      { ends: ["a.B", "b.A"], way: [["sw1", "straight"]] },
+      { ends: ["b.B", "c.B"], way: [] },
+    ];
+    expect(litWires(ways, wires)).toEqual(
+      new Set([key("a.B", "sw1.toe"), key("sw1.straight", "b.A"), key("b.B", "c.B")]),
+    );
+  });
+
+  it("lights nothing for no ways at all", () => {
+    expect(litWires([], wires).size).toBe(0);
   });
 });
 

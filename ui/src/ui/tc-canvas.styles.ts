@@ -109,6 +109,13 @@ export const canvasStyles = css`
     stroke: var(--wrong);
   }
 
+  /* A wire is not inside a symbol's group, so it carries the mark itself
+     rather than inheriting it from one. Same rule, same red: a refusal about
+     a route points at the whole route, wires included. */
+  .wire.lit.offending {
+    stroke: var(--wrong);
+  }
+
   /* A block's label, the only text on a symbol: centred in its rectangle rather
      than sitting on a point. The size is set per label rather than here, being
      the size that name fits the rectangle at (render/units.ts). */

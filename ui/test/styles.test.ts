@@ -194,6 +194,15 @@ describe("the two weights a fault is marked in", () => {
     }
   });
 
+  /** And the wires between those legs (#142). A wire sits outside every
+   *  symbol's group, so it wears the mark itself and would have been the one
+   *  stroke of a red run left in the chosen colour. */
+  it("lights the wires of a refused way red as well", () => {
+    expect(rule(canvasStyles.cssText, ".wire.lit.offending")).toContain(
+      "var(--wrong)",
+    );
+  });
+
   /** The band's indicator is the coarse counterpart to the canvas's marks and
    *  shows only for what stopped derivation, so it wears that weight (#91). An
    *  overlap and a missing address leave it clean, and nothing there should

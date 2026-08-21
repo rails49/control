@@ -307,6 +307,95 @@ describe("the way a refusal is about", () => {
 });
 
 /**
+ * The wires a lit way runs over (#142).
+ *
+ * A DOM test because what is being checked is the picture: which lines carry
+ * the lit class, and the order they are emitted in — a lit wire drawn under
+ * an unlit one it crosses is half hidden, and no model answer can see that.
+ * Which wires are on a way is `inspect.wiresOn`, tested at its own seam.
+ */
+describe("the wires a lit way runs over", () => {
+  /** `west` faces a turnout whose straight road leads to `east` and whose
+   *  diverging road leads to `north`, with a buffer stop off west's other
+   *  end — two wires on the straight way and two off it. */
+  const YARD: Drawing = {
+    drawing: "yard",
+    symbols: {
+      west: { kind: "block", at: [0, 0], length: 1000 },
+      points: { kind: "turnout", at: [7, 0] },
+      east: { kind: "block", at: [10, 0], length: 1000 },
+      north: { kind: "block", at: [10, 3], length: 1000 },
+      stop: { kind: "terminal", at: [0, 3] },
+    },
+    wires: [
+      ["west.B", "points.toe"],
+      ["points.straight", "east.A"],
+      ["points.diverging", "north.A"],
+      ["west.A", "stop.P"],
+    ],
+  };
+
+  const STRAIGHT: Transit = {
+    ends: ["east.A", "west.B"],
+    way: [["points", "straight"]],
+  };
+
+  async function lines(review: Partial<Review>, chosen: Chosen | null = null) {
+    const canvas = document.createElement("tc-canvas");
+    canvas.editor = new Editor(structuredClone(YARD));
+    canvas.review = { ...reviewed([]), ...review };
+    canvas.chosen = chosen;
+    document.body.append(canvas);
+    await canvas.updateComplete;
+    const drawn = [...canvas.renderRoot.querySelectorAll("line.wire")].map(
+      (line) => [...line.classList].join(" "),
+    );
+    canvas.remove();
+    return drawn;
+  }
+
+  /** The review a chosen transit is read out of: the netlist pane names the
+   *  connection and the transit, and the way comes from the explanation. */
+  const explained: Partial<Review> = {
+    explain: {
+      layout: "yard",
+      connections: {
+        c: { transits: { t: STRAIGHT }, exclusive: [] },
+      },
+    },
+  };
+
+  it("lights the wires of a transit chosen in the netlist pane", async () => {
+    const drawn = await lines(explained, { connection: "c", transit: "t" });
+    expect(drawn.filter((classes) => classes.includes("lit"))).toHaveLength(2);
+  });
+
+  it("draws the lit wires last, so a crossing unlit one cannot hide one", async () => {
+    const drawn = await lines(explained, { connection: "c", transit: "t" });
+    expect(drawn.map((classes) => classes.includes("lit"))).toEqual([
+      false,
+      false,
+      true,
+      true,
+    ]);
+  });
+
+  it("lights nothing while nothing is chosen and nothing is refused", async () => {
+    const drawn = await lines(explained);
+    expect(drawn.filter((classes) => classes.includes("lit"))).toHaveLength(0);
+  });
+
+  /** A refusal is about a route, so it points at the whole route — wires
+   *  included — in the red that means derivation stopped (ADR-0024). */
+  it("lights the wires of a refused way in the refusal colour", async () => {
+    const drawn = await lines({ offending: [STRAIGHT] });
+    expect(drawn.filter((classes) => classes.includes("offending"))).toHaveLength(
+      2,
+    );
+  });
+});
+
+/**
  * The quiet mark a motorised symbol with no address wears (#96, ADR-0024).
  *
  * A DOM test because the mark is a shape on the canvas rather than an answer

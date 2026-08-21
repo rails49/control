@@ -7,7 +7,7 @@
  * a drag means is the drag model's (model/drag.ts). This component loads the
  * documents, converts the pointer's pixels into squares, paints, and sends the
  * frames the relay accepts. It computes nothing: occupancy, aspects, markers,
- * lit legs, arrival ends and whether a train is busy all arrive as data.
+ * the lit route, arrival ends and whether a train is busy all arrive as data.
  *
  * The two sources are exclusive: picking a railroad replays a trace, joining a
  * session runs live, and only a live session can gesture — a replay has nobody
@@ -22,8 +22,8 @@ import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import { Drag, trainAt } from "../model/drag.js";
+import { wireKey, wirePins, type Drawing } from "../model/drawing.js";
 import { dark } from "../model/inspect.js";
-import { wirePins, type Drawing } from "../model/drawing.js";
 import {
   centreOf,
   labelTurn,
@@ -34,6 +34,7 @@ import {
   Panel,
   type Aspect,
   type BlockView,
+  type LitRoute,
   type Marker,
 } from "../model/panel.js";
 import { anchorAt, arrowPose, fitBox, positionsBySymbol } from "../model/scene.js";
@@ -139,7 +140,7 @@ export class TcPanel extends LitElement {
       this.trouble = reviewed.refused ?? `'${name}' does not derive`;
       return false;
     }
-    this.panel = new Panel(reviewed.layout, reviewed.explain);
+    this.panel = new Panel(reviewed.layout, reviewed.explain, drawing.wires);
     this.reviewed = reviewed;
     this.drawing = drawing;
     this.trouble = null;
@@ -525,7 +526,7 @@ export class TcPanel extends LitElement {
     if (this.drawing === null || this.panel === null) return nothing;
     const { x, y, w, h } = fitBox(this.drawing);
     const blocks = this.panel.blocks();
-    const lit = this.panel.litLegs();
+    const lit = this.panel.lit();
     const aspects = this.panel.aspects();
     // Where each point lies: the addresses the alignment command carried, read
     // back as the symbols wearing them (ui/PANEL.md).
@@ -545,28 +546,35 @@ export class TcPanel extends LitElement {
       >
         <defs>${DEFS}</defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
-        ${this.wires()} ${this.symbols(blocks, lit, aspects, positions)}
+        ${this.wires(lit)} ${this.symbols(blocks, lit, aspects, positions)}
         ${this.labels(blocks)} ${this.arrows(blocks)} ${this.markers()}
         ${this.gesture()}
       </svg>
     `;
   }
 
-  private wires() {
+  /** Every wire, the lit ones last: a lit wire drawn under an unlit one it
+   *  crosses would be half hidden, which is the ordering the artwork already
+   *  applies to lit legs. */
+  private wires(lit: LitRoute) {
     const drawing = this.drawing!;
-    return drawing.wires.map((wire) => {
+    const drawn = [...drawing.wires].sort(
+      (one, two) =>
+        Number(lit.wires.has(wireKey(one))) - Number(lit.wires.has(wireKey(two))),
+    );
+    return drawn.map((wire) => {
       const [a, b] = wirePins(wire);
       const from = pointOf(drawing, a);
       const to = pointOf(drawing, b);
       if (from === null || to === null) return nothing;
-      return svg`<line class="wire" x1=${from.x} y1=${from.y}
-                       x2=${to.x} y2=${to.y} />`;
+      return svg`<line class=${lit.wires.has(wireKey(wire)) ? "wire lit" : "wire"}
+                       x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />`;
     });
   }
 
   private symbols(
     blocks: Map<string, BlockView>,
-    lit: Map<string, Set<string>>,
+    lit: LitRoute,
     aspects: ReadonlyMap<string, Aspect>,
     positions: ReadonlyMap<string, Position>,
   ) {
@@ -587,7 +595,7 @@ export class TcPanel extends LitElement {
         .join(" ");
       return svg`
         <g class=${classes} transform=${transformOf(spec)}>
-          ${artwork(spec, lit.get(name), blind.get(name), showing, positions.get(name))}
+          ${artwork(spec, lit.legs.get(name), blind.get(name), showing, positions.get(name))}
         </g>
       `;
     });

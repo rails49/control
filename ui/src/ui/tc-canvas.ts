@@ -14,6 +14,7 @@ import { customElement, property, state } from "lit/decorators.js";
 
 import {
   symbolOf,
+  wireKey,
   wirePins,
   type PinRef,
   type SymbolSpec,
@@ -35,6 +36,7 @@ import {
   chosenWay,
   dark,
   lit,
+  litWires,
   unpaired,
   type Chosen,
 } from "../model/inspect.js";
@@ -57,6 +59,15 @@ const EMPTY: Review = {
   refused: null,
   offending: [],
 };
+
+/** What the canvas lights, worked out once a render: the legs of the symbols
+ *  on the way, the wires it is drawn over, and whether the way is one a
+ *  refusal is about rather than one chosen. */
+interface Shown {
+  legs: Map<string, Set<string>>;
+  wires: Set<string>;
+  refused: boolean;
+}
 
 interface Box {
   x: number;
@@ -92,6 +103,7 @@ export class TcCanvas extends LitElement {
 
   override render() {
     const { x, y, w, h } = this.view;
+    const shown = this.shown();
     return html`
       <svg
         viewBox=${`${x} ${y} ${w} ${h}`}
@@ -118,7 +130,7 @@ export class TcCanvas extends LitElement {
           ${DEFS}
         </defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
-        ${this.faces()} ${this.wires()} ${this.symbols()} ${this.pins()}
+        ${this.faces()} ${this.wires(shown)} ${this.symbols(shown)} ${this.pins()}
         ${this.stacked()} ${this.wireline()} ${this.rubberBand()} ${this.ghost()}
       </svg>
     `;
@@ -238,20 +250,10 @@ export class TcCanvas extends LitElement {
                      fill="url(#faces)" />`;
   }
 
-  private wires(): unknown {
-    return this.editor.drawing.wires.map((wire) => {
-      const [a, b] = wirePins(wire);
-      const from = this.point(a);
-      const to = this.point(b);
-      if (from === null || to === null) return nothing;
-      return svg`<line class="wire" x1=${from.x} y1=${from.y}
-                       x2=${to.x} y2=${to.y} />`;
-    });
-  }
-
   /**
-   * The way lit on the drawing, symbol by symbol and leg by leg: the transit
-   * chosen in the netlist pane, or the way a refusal is about.
+   * The way lit on the drawing: the transit chosen in the netlist pane, or the
+   * way a refusal is about, as the legs of the symbols it crosses and the
+   * wires it is drawn over.
    *
    * Naming the frog that makes two transits exclusive is a claim about the
    * drawing, and this is where it is checked by looking. A refusal is the same
@@ -260,10 +262,40 @@ export class TcCanvas extends LitElement {
    * derivation stopped (ADR-0024). The two never arrive together: a drawing
    * that refuses has no netlist to choose from.
    */
-  private symbols(): unknown {
+  private shown(): Shown {
     const review = this.review ?? EMPTY;
-    const wrong = lit(review.offending);
-    const way = wrong.size > 0 ? wrong : lit(chosenWay(review, this.chosen));
+    const refused = review.offending.length > 0;
+    const ways = refused ? review.offending : chosenWay(review, this.chosen);
+    return {
+      legs: lit(ways),
+      wires: litWires(ways, this.editor.drawing.wires),
+      refused,
+    };
+  }
+
+  /** Every wire, the lit ones last: a lit wire drawn under an unlit one it
+   *  crosses would be half hidden, which is the ordering the artwork already
+   *  applies to lit legs. */
+  private wires(shown: Shown): unknown {
+    const drawn = [...this.editor.drawing.wires].sort(
+      (one, two) => Number(shown.wires.has(wireKey(one)))
+        - Number(shown.wires.has(wireKey(two))),
+    );
+    return drawn.map((wire) => {
+      const [a, b] = wirePins(wire);
+      const from = this.point(a);
+      const to = this.point(b);
+      if (from === null || to === null) return nothing;
+      const alight = shown.wires.has(wireKey(wire));
+      return svg`<line class=${
+        `wire ${alight ? "lit" : ""} ${alight && shown.refused ? "offending" : ""}`
+      } x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />`;
+    });
+  }
+
+  private symbols(shown: Shown): unknown {
+    const review = this.review ?? EMPTY;
+    const way = shown.legs;
     const blind = dark(review);
     const lone = unpaired(review);
     const unset = new Set(this.editor.unaddressed());
@@ -273,7 +305,7 @@ export class TcCanvas extends LitElement {
       return svg`
         <g
           class=${`symbol ${chosen ? "selected" : ""} ${
-            wrong.has(name) ? "offending" : ""
+            shown.refused && way.has(name) ? "offending" : ""
           }`}
           data-symbol=${name}
           transform=${`translate(${shifted.x} ${shifted.y})`}

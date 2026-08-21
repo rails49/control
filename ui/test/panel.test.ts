@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { Wire } from "../src/model/drawing.js";
 import { WHOLE } from "../src/model/inspect.js";
 import { Panel } from "../src/model/panel.js";
 import type { Explained, Layout } from "../src/model/store.js";
@@ -13,7 +14,9 @@ import type { TraceEvent } from "../src/model/trace.js";
 
 /**
  * A toy railroad: block `a` faces a turnout `sw1` whose two ways lead to `b`
- * and `c`. On the bus its resources are `a`, `b`, `c`, `sw.main`, `sw.side`.
+ * and `c`, and `b` and `c` are joined at their far ends by a joint routed
+ * through a bend. On the bus its resources are `a`, `b`, `c`, `sw.main`,
+ * `sw.side`, `jt.back`.
  */
 const LAYOUT: Layout = {
   layout: "toy",
@@ -45,8 +48,25 @@ const EXPLAIN: Explained = {
   },
 };
 
+/**
+ * The drawing the layout above derives from, as far as its wires go: what
+ * `sw.side` runs over inside the throat, and the two wires of the joint —
+ * which crosses no symbol declaring a transit and so lights nothing but its
+ * wires.
+ */
+const WIRES: Wire[] = [
+  ["a.B", "sw1.toe"],
+  ["sw1.straight", "b.A"],
+  ["sw1.diverging", "p1.P"],
+  ["p1.P", "c.A"],
+  ["b.B", "p2.P"],
+  ["p2.P", "c.B"],
+];
+
+const wire = (one: string, two: string) => [one, two].sort().join(" ");
+
 function panel(): Panel {
-  return new Panel(LAYOUT, EXPLAIN);
+  return new Panel(LAYOUT, EXPLAIN, WIRES);
 }
 
 /** The scheduler's facing topic, which is where every arrow comes from. */
@@ -158,7 +178,7 @@ describe("request layers", () => {
       { id: "t1-1", train: "t1", at: "b.A", role: "arrival" },
       { id: "t1-1", train: "t1", at: "c.A", role: "arrival" },
     ]);
-    expect(model.litLegs().size).toBe(0);
+    expect(model.lit().legs.size).toBe(0);
   });
 
   it("keeps surviving ends and words the pruned ones at admission", () => {
@@ -175,7 +195,7 @@ describe("request layers", () => {
       { id: "t1-1", train: "t1", at: "b.A", role: "arrival" },
       { id: "t1-1", train: "t1", at: "c.A", role: "pruned", note: "not enterable" },
     ]);
-    expect(model.litLegs().size).toBe(0);
+    expect(model.lit().legs.size).toBe(0);
   });
 
   it("keeps a pruned end's reason when the picture is republished", () => {
@@ -212,9 +232,57 @@ describe("request layers", () => {
       route: ["a", "sw.side", "c"],
     });
     expect(model.markers()).toEqual([]);
-    expect(model.litLegs().get("sw1")).toEqual(new Set(["diverging"]));
-    expect(model.litLegs().get("p1")).toEqual(new Set([WHOLE]));
+    expect(model.lit().legs.get("sw1")).toEqual(new Set(["diverging"]));
+    expect(model.lit().legs.get("p1")).toEqual(new Set([WHOLE]));
     expect(model.blocks().get("c")).toMatchObject({ state: "planned", train: "t1" });
+  });
+
+  it("lights the wires the route's transits run over, junction and all", () => {
+    // The wire between the frog and the bend is inside the throat, and it is
+    // what makes the route read as one run rather than as scattered lit frogs.
+    const model = panel();
+    placed(model);
+    feed(model, submitted, {
+      event: "route_chosen",
+      id: "t1-1",
+      route: ["a", "sw.side", "c"],
+    });
+    expect(model.lit().wires).toEqual(
+      new Set([
+        wire("a.B", "sw1.toe"),
+        wire("sw1.diverging", "p1.P"),
+        wire("p1.P", "c.A"),
+      ]),
+    );
+  });
+
+  it("lights every wire of a joint's chain, which lights nothing else", () => {
+    // A joint crosses no symbol declaring a transit, so it has no leg to
+    // light: before the wires it was a dark gap between two lit blocks.
+    // Routed round a corner it is several wires, and all of them are on it.
+    const model = panel();
+    placed(model);
+    feed(model, submitted, {
+      event: "route_chosen",
+      id: "t1-1",
+      route: ["b", "jt.back", "c"],
+    });
+    expect(model.lit().wires).toEqual(
+      new Set([wire("b.B", "p2.P"), wire("p2.P", "c.B")]),
+    );
+  });
+
+  it("leaves the wires of the road not taken dark", () => {
+    const model = panel();
+    placed(model);
+    feed(model, submitted, {
+      event: "route_chosen",
+      id: "t1-1",
+      route: ["a", "sw.main", "b"],
+    });
+    expect(model.lit().wires).toEqual(
+      new Set([wire("a.B", "sw1.toe"), wire("sw1.straight", "b.A")]),
+    );
   });
 
   it("clears the route's lighting when the request completes", () => {
@@ -226,7 +294,8 @@ describe("request layers", () => {
       { event: "route_chosen", id: "t1-1", route: ["a", "sw.main", "b"] },
       { event: "request_completed", id: "t1-1" },
     );
-    expect(model.litLegs().size).toBe(0);
+    expect(model.lit().legs.size).toBe(0);
+    expect(model.lit().wires.size).toBe(0);
   });
 
   it("spells a rejection out at the request's endpoints", () => {
@@ -387,7 +456,7 @@ describe("the run's picture", () => {
   it("draws a committed route from the request that owns it", () => {
     const model = panel();
     feed(model, PICTURE);
-    expect(model.litLegs()).toEqual(new Map([["p2", new Set([WHOLE])]]));
+    expect(model.lit().legs).toEqual(new Map([["p2", new Set([WHOLE])]]));
   });
 
   it("marks a live request that has not been committed", () => {
@@ -441,7 +510,7 @@ describe("the run's picture", () => {
     const model = panel();
     feed(model, PICTURE, { ...PICTURE, requests: [] });
     expect(model.markers()).toEqual([]);
-    expect(model.litLegs().size).toBe(0);
+    expect(model.lit().legs.size).toBe(0);
   });
 
   it("does not read a lock after it as a placement", () => {

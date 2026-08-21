@@ -2,14 +2,15 @@
  * The panel model: bus payloads in, render state out (ui/PANEL.md, #70).
  *
  * No DOM anywhere. The component paints what this class answers — block
- * states, direction arrows, signal aspects, request markers, lit route legs —
+ * states, direction arrows, signal aspects, request markers, the lit route —
  * and a trace replay or the live bridge feed the same `apply`, which is what
  * lets the live panel consume this model unchanged.
  *
  * Everything is derived the way the dispatcher derives it: occupancy events
  * are anonymous, so an occupied block's train is the holder of its lock.
  * Nothing here computes topology — which legs a transit's way takes comes
- * from the store's `/review`, handed in at construction.
+ * from the store's `/review`, handed in at construction, and which wires it
+ * runs over from the rule `inspect.wiresOn` transcribes from the store.
  *
  * It holds **no scheduler state**
  * ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)):
@@ -21,12 +22,24 @@
 import type { Reason } from "../rejection.generated.js";
 import type { Aspect } from "../render/artwork.js";
 import type { Position } from "../symbols.generated.js";
-import { WHOLE } from "./inspect.js";
+import type { Wire } from "./drawing.js";
+import { WHOLE, wiresOn } from "./inspect.js";
 import type { Explained, Layout } from "./store.js";
 import type { Gesture, Submission, TraceEvent } from "./trace.js";
 
 /** A block end, written `<block>.<end>` as the bus writes it. */
 export type EndRef = string;
+
+/** What a committed route lights: the legs of each symbol its transits cross,
+ *  and the wires those transits are drawn over. One answer, because a route
+ *  reads as one run and the component paints it as one. */
+export interface LitRoute {
+  /** symbol → the legs of it the route takes, `WHOLE` for a symbol with no
+   *  legs of its own. */
+  legs: Map<string, Set<string>>;
+  /** The wires the route is drawn over, as `wireKey` names them. */
+  wires: Set<string>;
+}
 
 export type { Aspect };
 
@@ -123,17 +136,28 @@ export class Panel {
    *  train that never moved. */
   private started = false;
 
-  /** transit resource → the symbols and legs its way takes. */
-  private readonly ways = new Map<string, [string, string][]>();
+  /** transit resource → the legs its way takes and the wires it is drawn
+   *  over. Worked out once, at construction: neither answer can change while
+   *  a railroad is on screen, and both are the store's — the wires through
+   *  the rule `inspect.wiresOn` transcribes from it. */
+  private readonly ways = new Map<
+    string,
+    { legs: [string, string][]; wires: string[] }
+  >();
 
   constructor(
     private readonly layout: Layout,
     explain: Explained,
+    wires: readonly Wire[],
   ) {
     for (const [connection, { transits }] of Object.entries(layout.connections)) {
       for (const transit of Object.keys(transits)) {
-        const way = explain.connections[connection]?.transits[transit]?.way;
-        if (way !== undefined) this.ways.set(`${connection}.${transit}`, way);
+        const way = explain.connections[connection]?.transits[transit];
+        if (way === undefined) continue;
+        this.ways.set(`${connection}.${transit}`, {
+          legs: way.way,
+          wires: wiresOn(way, wires),
+        });
       }
     }
   }
@@ -401,22 +425,28 @@ export class Panel {
     return this.lyingByAddress;
   }
 
-  /** The legs of every committed route's way, symbol by symbol, in the shape
-   *  `inspect.lit` gives the canvas: `""` from the store means the symbol has
-   *  no legs of its own and lights whole. */
-  litLegs(): Map<string, Set<string>> {
-    const lit = new Map<string, Set<string>>();
+  /** What every committed route lights: the legs of the symbols its transits
+   *  cross, in the shape `inspect.lit` gives the canvas — `""` from the store
+   *  means the symbol has no legs of its own and lights whole — and the wires
+   *  those transits are drawn over, so a route reads from the train to its
+   *  arrival end rather than as scattered lit frogs. */
+  lit(): LitRoute {
+    const legs = new Map<string, Set<string>>();
+    const wires = new Set<string>();
     for (const request of this.requests.values()) {
       if (request.phase !== "committed") continue;
       for (const resource of request.route ?? []) {
-        for (const [symbol, leg] of this.ways.get(resource) ?? []) {
-          const legs = lit.get(symbol) ?? new Set<string>();
-          legs.add(leg === "" ? WHOLE : leg);
-          lit.set(symbol, legs);
+        const way = this.ways.get(resource);
+        if (way === undefined) continue;
+        for (const [symbol, leg] of way.legs) {
+          const taken = legs.get(symbol) ?? new Set<string>();
+          taken.add(leg === "" ? WHOLE : leg);
+          legs.set(symbol, taken);
         }
+        for (const wire of way.wires) wires.add(wire);
       }
     }
-    return lit;
+    return { legs, wires };
   }
 
   /** Whether that train still stands in that block. The right-click menu is

@@ -13,6 +13,7 @@
  * gave, which is what keeps a second union-find out of the front end.
  */
 
+import { symbolOf, wireKey, wirePins, type Wire } from "./drawing.js";
 import type { Review, Transit } from "./store.js";
 
 /** A symbol lit whole, having no leg of its own the artwork draws: a joiner,
@@ -49,6 +50,42 @@ export function lit(ways: readonly Transit[]): Map<string, Set<string>> {
     for (const end of ends) light(end.split(".")[0]!, WHOLE);
   }
   return found;
+}
+
+/**
+ * The wires one way is drawn over, as the keys `wireKey` gives them.
+ *
+ * The rule: a wire is on a way when **both** of its pins are in the way's two
+ * ends together with every pin of every symbol the way crosses. A pin names
+ * the symbol carrying it, so "a pin of a symbol on the way" is read off the
+ * pin rather than out of a pin list, and the wires are all that is needed.
+ *
+ * A transcription of the store's own rule — `Drawing.wires_on`, which is how
+ * derivation finds a joint's chain and names it — so whoever changes one
+ * changes the other. `tests/store/test_drawing.py` proves it exact against
+ * the hops the walk takes, on every committed railroad, which is what this
+ * cheaper copy rests on.
+ *
+ * Per way, never over a union of everything lit. A wire between two non-block
+ * symbols is what merges them into one junction, so a union has no transit to
+ * attribute a wire to — and the panel colours each wire by the state of the
+ * transit carrying it.
+ */
+export function wiresOn(way: Transit, wires: readonly Wire[]): string[] {
+  const held = new Set<string>(way.ends);
+  const crossed = new Set(way.way.map(([symbol]) => symbol));
+  const on = (pin: string) => held.has(pin) || crossed.has(symbolOf(pin));
+  return wires.filter((wire) => wirePins(wire).every(on)).map(wireKey);
+}
+
+/** The wires a set of ways is drawn over, together: the companion to `lit`,
+ *  for a caller painting every lit way in one colour. Still applied one way
+ *  at a time, the union being taken of the answers rather than of the ways. */
+export function litWires(
+  ways: readonly Transit[],
+  wires: readonly Wire[],
+): Set<string> {
+  return new Set(ways.flatMap((way) => wiresOn(way, wires)));
 }
 
 /** The way a transit chosen in the netlist pane takes, as the one way to
