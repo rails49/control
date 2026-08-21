@@ -988,18 +988,6 @@ def test_the_wire_rule_is_exact_on_every_way_of_every_railroad(name: str) -> Non
         assert set(drawing.wires_on(ends, used)) == hops(drawing, ends, used)
 
 
-def test_the_wire_rule_is_exact_on_the_shapes_no_railroad_is_drawn_with() -> None:
-    """A joint chained through bend pins, and a joint whose chain crosses a
-    portal pair. Neither is on a committed railroad — the parametrised test
-    above covers what is — and both are exactly the shapes the front end's
-    copy of the rule has to get right, a joint lighting nothing at all today.
-    """
-    for doc in (joint("b1", "b2"), portal_joint()):
-        drawing = Drawing.from_document(doc)
-        for ends, used in ways(drawing):
-            assert set(drawing.wires_on(ends, used)) == hops(drawing, ends, used)
-
-
 def portal_joint() -> dict[str, Any]:
     """`west` and `east` joined by a wire each into a portal pair: one joint,
     crossing the canvas rather than a corner. The pairing joins the two
@@ -1013,6 +1001,18 @@ def portal_joint() -> dict[str, Any]:
         ["there.P", "east.A"],
     ]
     return doc
+
+
+def test_the_wire_rule_is_exact_on_the_shapes_no_railroad_is_drawn_with() -> None:
+    """A joint chained through bend pins, and a joint whose chain crosses a
+    portal pair. Neither is on a committed railroad — the parametrised test
+    above covers what is — and both are exactly the shapes the front end's
+    copy of the rule has to get right, a joint lighting nothing at all today.
+    """
+    for doc in (joint("b1", "b2"), portal_joint()):
+        drawing = Drawing.from_document(doc)
+        for ends, used in ways(drawing):
+            assert set(drawing.wires_on(ends, used)) == hops(drawing, ends, used)
 
 
 def test_a_joint_through_a_portal_pair_is_the_two_wires_and_not_the_pairing() -> None:

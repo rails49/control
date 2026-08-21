@@ -18,6 +18,7 @@ import {
   wirePins,
   type PinRef,
   type SymbolSpec,
+  type Wire,
 } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { GESTURING, TRANSIENT, svgFile } from "../model/export.js";
@@ -277,19 +278,20 @@ export class TcCanvas extends LitElement {
    *  crosses would be half hidden, which is the ordering the artwork already
    *  applies to lit legs. */
   private wires(shown: Shown): unknown {
+    const alight = (wire: Wire) => shown.wires.has(wireKey(wire));
     const drawn = [...this.editor.drawing.wires].sort(
-      (one, two) => Number(shown.wires.has(wireKey(one)))
-        - Number(shown.wires.has(wireKey(two))),
+      (one, two) => Number(alight(one)) - Number(alight(two)),
     );
     return drawn.map((wire) => {
       const [a, b] = wirePins(wire);
       const from = this.point(a);
       const to = this.point(b);
       if (from === null || to === null) return nothing;
-      const alight = shown.wires.has(wireKey(wire));
-      return svg`<line class=${
-        `wire ${alight ? "lit" : ""} ${alight && shown.refused ? "offending" : ""}`
-      } x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />`;
+      // A wire sits outside every symbol's group, so a refusal is marked on
+      // the line itself rather than inherited from one.
+      const marked = shown.refused ? "wire lit offending" : "wire lit";
+      return svg`<line class=${alight(wire) ? marked : "wire"}
+                       x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />`;
     });
   }
 

@@ -164,11 +164,11 @@ export class Panel {
   ) {
     for (const [connection, { transits }] of Object.entries(layout.connections)) {
       for (const transit of Object.keys(transits)) {
-        const way = explain.connections[connection]?.transits[transit];
-        if (way === undefined) continue;
+        const crossing = explain.connections[connection]?.transits[transit];
+        if (crossing === undefined) continue;
         this.ways.set(`${connection}.${transit}`, {
-          legs: way.way,
-          wires: wiresOn(way, wires),
+          legs: crossing.way,
+          wires: wiresOn(crossing, wires),
         });
       }
     }
