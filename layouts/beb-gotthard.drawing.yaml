@@ -53,21 +53,21 @@ symbols:
   n35: {kind: pin, at: [-2, 15], rot: 0}
   n36: {kind: pin, at: [-3, 14], rot: 0}
   n37: {kind: pin, at: [-4, 6], rot: 90}
-  CE1: {kind: block, at: [9, 8], rot: 180, length: 1000}
-  CE2: {kind: block, at: [9, 9], rot: 180, length: 1000}
-  C4: {kind: block, at: [11, 12], rot: 180, length: 1000}
-  C5: {kind: block, at: [11, 13], rot: 180, length: 1000}
-  C1: {kind: block, at: [6, 15], rot: 180, length: 1000}
-  A1: {kind: block, at: [17, 3], length: 1000}
-  A2: {kind: block, at: [17, 4], length: 1000}
-  A3: {kind: block, at: [17, 5], length: 1000}
-  A4: {kind: block, at: [8, 3], length: 1000}
-  CW: {kind: block, at: [-4, 7], rot: 270, flip: true, length: 1000}
-  C2: {kind: block, at: [6, 16], rot: 180, length: 1000}
-  C3b: {kind: block, at: [13, 18], rot: 180, length: 1000}
-  C3a: {kind: block, at: [3, 18], rot: 180, length: 1000}
-  C6: {kind: block, at: [3, 20], rot: 180, length: 1000}
-  C7: {kind: block, at: [3, 21], rot: 180, length: 1000}
+  CE1: {kind: block, at: [9, 8], rot: 180, length: 1500}
+  CE2: {kind: block, at: [9, 9], rot: 180, length: 1500}
+  C4: {kind: block, at: [11, 12], rot: 180, length: 300}
+  C5: {kind: block, at: [11, 13], rot: 180, length: 270}
+  C1: {kind: block, at: [6, 15], rot: 180, length: 1400}
+  A1: {kind: block, at: [17, 3], length: 980}
+  A2: {kind: block, at: [17, 4], length: 1100}
+  A3: {kind: block, at: [17, 5], length: 1350}
+  A4: {kind: block, at: [8, 3], length: 200}
+  CW: {kind: block, at: [-4, 7], rot: 270, flip: true, length: 1500}
+  C2: {kind: block, at: [6, 16], rot: 180, length: 1140}
+  C3b: {kind: block, at: [13, 18], rot: 180, length: 550}
+  C3a: {kind: block, at: [3, 18], rot: 180, length: 500}
+  C6: {kind: block, at: [3, 20], rot: 180, length: 580}
+  C7: {kind: block, at: [3, 21], rot: 180, length: 500}
 wires:
   - [sw2.diverging, sw1.diverging]
   - [A4.B, sw2.straight]
