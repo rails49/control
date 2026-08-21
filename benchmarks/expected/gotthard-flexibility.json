@@ -1,0 +1,46 @@
+{
+  "scenario": "gotthard/flexibility",
+  "k": 2,
+  "strategies": {
+    "FullRoute": {
+      "status": "stalled",
+      "makespan": null,
+      "boundaries": 3,
+      "completed": 1,
+      "rejected": 0,
+      "mean_latency": 3.0,
+      "max_latency": 3,
+      "mean_utilization": 0.6429,
+      "mean_parallelism": 0.5,
+      "stalls": [
+        {
+          "id": "fixed-1",
+          "reason": "held",
+          "resource": "C2",
+          "holder": "resident",
+          "candidates_blocked": 2
+        }
+      ]
+    },
+    "Incremental": {
+      "status": "stalled",
+      "makespan": null,
+      "boundaries": 3,
+      "completed": 1,
+      "rejected": 0,
+      "mean_latency": 3.0,
+      "max_latency": 3,
+      "mean_utilization": 0.6429,
+      "mean_parallelism": 0.5,
+      "stalls": [
+        {
+          "id": "fixed-1",
+          "reason": "unsafe",
+          "resource": "C2",
+          "holder": "resident",
+          "candidates_blocked": 2
+        }
+      ]
+    }
+  }
+}

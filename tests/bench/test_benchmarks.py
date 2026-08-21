@@ -28,15 +28,24 @@ import pytest
 from tc49.bench.cli import bench
 from tc49.bench.metrics import Metrics, metrics
 from tc49.bench.runner import DEFAULT_K, STRATEGIES, run_scenario
-from tc49.bench.sweep import STATIONS, station_of
+from tc49.bench.sweep import ARRIVALS, station_of
 from tc49.lib.layout import block_of
 from tc49.lib.scenario import RequestSpec, Scenario
 from tests.harness import ROOT, load
 
 EXPECTED = ROOT / "benchmarks" / "expected"
 
+# Both railroads. `gotthard` is the one on the bench and carries the claims
+# below; `gotthard-v0` is frozen and carries only numbers, so that the evidence
+# ADR-0006, ADR-0012 and ADR-0029 cite stays reproducible rather than merely
+# archived (#161). If a v0 golden ever moves, the dispatcher changed — not the
+# railroad.
 NAMED_SCENARIOS = [
     "crossover-yard/meet",
+    "gotthard/meet",
+    "gotthard/saturation",
+    "gotthard/obstacle",
+    "gotthard/flexibility",
     "gotthard-v0/meet",
     "gotthard-v0/saturation",
     "gotthard-v0/obstacle",
@@ -111,7 +120,7 @@ def test_batch_trace_is_pinned_byte_identical() -> None:
 
 
 def test_a_two_block_route_leaves_incremental_nothing_to_withhold() -> None:
-    """`gotthard-v0/meet` no longer splits, and the reason is worth pinning.
+    """`gotthard/meet` no longer splits, and the reason is worth pinning.
 
     Its routes are two blocks long, and an increment plus the one asked for
     ahead of it (ADR-0029) is exactly two blocks — so `Incremental` locks the
@@ -122,24 +131,30 @@ def test_a_two_block_route_leaves_incremental_nothing_to_withhold() -> None:
     seen at the smallest scale that can show it.
 
     The strategies part company again as soon as a route is longer than the
-    lookahead; `gotthard-v0/saturation` below is where that is asserted. If this
+    lookahead; `gotthard/saturation` below is where that is asserted. If this
     test ever fails, the lookahead or the route length changed, and the two
     should be compared afresh rather than the numbers simply re-recorded.
     """
-    results = {name: m for name, (_, m) in bench("gotthard-v0/meet").items()}
+    results = {name: m for name, (_, m) in bench("gotthard/meet").items()}
     baseline, incremental = results["FullRoute"], results["Incremental"]
     assert incremental.makespan is not None and baseline.makespan is not None
     assert incremental.makespan == baseline.makespan
     assert incremental.mean_parallelism == baseline.mean_parallelism
 
 
-def test_incremental_drains_gotthard_v0_saturation_faster() -> None:
-    """The headline makespan gap: both strategies complete all fifteen
-    workings, and `Incremental` does it in materially fewer boundaries."""
-    results = {name: m for name, (_, m) in bench("gotthard-v0/saturation").items()}
+def test_incremental_drains_gotthard_saturation_faster() -> None:
+    """The headline makespan gap: both strategies complete all eighteen
+    workings, and `Incremental` does it in materially fewer boundaries.
+
+    Re-derived on the railroad on the bench (#161), where the workload is six
+    trains rather than five because the station tracks are seven rather than
+    six. The gap did not merely survive the move — it widened, from 24 vs 20
+    boundaries on `gotthard-v0` to 25 vs 19 here.
+    """
+    results = {name: m for name, (_, m) in bench("gotthard/saturation").items()}
     for m in results.values():
         assert m.status == "ok"
-        assert len(m.completed) == 15
+        assert len(m.completed) == 18
     baseline, incremental = results["FullRoute"], results["Incremental"]
     assert incremental.makespan is not None and baseline.makespan is not None
     assert incremental.makespan < baseline.makespan
@@ -160,48 +175,79 @@ def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
     starved through-traffic outranks the fresher final parks once its
     refusals accumulate, and the workload drains under both strategies.
     The committed scenario stays at `|dest| = 2`, the column the sweep
-    reads every other against."""
-    layout, scenario = load("gotthard-v0/saturation")
+    reads every other against.
+
+    That account is `gotthard-v0`'s history and its counts are v0's. What is
+    asserted is the criterion itself, on the railroad on the bench: widened to
+    every line-facing end, the workload still drains at the default `k`.
+
+    Two of the eighteen workings are the track-3 shunt, `C3b` to `C3a`, which
+    the rotation cannot avoid — Claro has four station tracks and Airolo three,
+    so a cycle through all seven has one Claro-to-Claro hop. A shunt has no
+    `|dest|` axis: it arrives at `C3a.A`, an end that faces only the other half
+    of track 3 and is not a station-to-station arrival end at all. Widening it
+    would replace it with ends it cannot mean, turning the shunt into a line
+    working and dissolving the rotation this test is about. So the sixteen line
+    workings widen and the two shunts are left alone.
+    """
+    layout, scenario = load("gotthard/saturation")
+    line_facing = {end for tracks in ARRIVALS.values() for t in tracks for end in t}
+
+    def widen(req: RequestSpec) -> RequestSpec:
+        resolved = {
+            end
+            for arrival in req.arrivals
+            for end in (
+                (arrival,) if "." in arrival else (f"{arrival}.A", f"{arrival}.B")
+            )
+        }
+        if not resolved <= line_facing:
+            return req  # a shunt; see above
+        station = station_of(block_of(req.arrivals[0]))
+        return RequestSpec(
+            req.train,
+            req.depart,
+            tuple(end for t in ARRIVALS[station] for end in t),
+            req.at,
+        )
+
     widened = Scenario(
         scenario.name,
         scenario.layout,
         scenario.trains,
-        tuple(
-            RequestSpec(
-                req.train,
-                req.depart,
-                STATIONS[station_of(block_of(req.arrivals[0]))],
-                req.at,
-            )
-            for req in scenario.requests
-        ),
+        tuple(widen(req) for req in scenario.requests),
     )
+    assert sum(a is not b for a, b in zip(scenario.requests, widened.requests)) == 16
     for strategy in STRATEGIES.values():
         trace = run_scenario(layout, widened, strategy, DEFAULT_K)
         m = metrics(trace)
         assert m.status == "ok"
-        assert len(m.completed) == 15
+        assert len(m.completed) == 18
 
 
 def test_the_obstacle_scenario_stalls_and_names_the_obstacle() -> None:
-    """`stranded` departs claro_3.B, which blue 1 alone serves, so the
-    departure end fixes the line and the widest arrival set on the layout
-    changes nothing. Both strategies stall, and both name the same block and
-    the same train."""
-    for _, m in bench("gotthard-v0/obstacle").values():
+    """`stranded` departs `C3b.A`, which blue 1 alone serves, so the departure
+    end fixes the line and the widest arrival set on the layout changes
+    nothing. Both strategies stall, and both name the same block and the same
+    train.
+
+    Track 3's east end is `C3b.A` and there is no other: `C3a` has no east end,
+    and from `C3a.B` the yellow is available, which would dissolve the premise.
+    """
+    for _, m in bench("gotthard/obstacle").values():
         assert m.status == "stalled"
         assert m.makespan is None  # excluded from makespan aggregates
         [stall] = m.stalls
         assert stall.id == "stranded-1"
-        assert (stall.resource, stall.holder) == ("line_blue_1", "stock")
+        assert (stall.resource, stall.holder) == ("CE1", "stock")
 
 
 def test_flexibility_is_the_difference_between_stalling_and_finishing() -> None:
     """Two Airolo -> Claro workings against one obstruction, differing only in
     how many arrival ends each names."""
-    for _, m in bench("gotthard-v0/flexibility").values():
+    for _, m in bench("gotthard/flexibility").values():
         assert m.status == "stalled"
         assert m.completed == ("flexible-1",)  # |dest| = 6 finishes
         [stall] = m.stalls
         assert stall.id == "fixed-1"  # |dest| = 1 does not
-        assert (stall.resource, stall.holder) == ("claro_2", "resident")
+        assert (stall.resource, stall.holder) == ("C2", "resident")

@@ -1,0 +1,30 @@
+{
+  "scenario": "gotthard/saturation",
+  "k": 2,
+  "strategies": {
+    "FullRoute": {
+      "status": "ok",
+      "makespan": 25,
+      "boundaries": 25,
+      "completed": 18,
+      "rejected": 0,
+      "mean_latency": 13.8333,
+      "max_latency": 25,
+      "mean_utilization": 0.3787,
+      "mean_parallelism": 1.3077,
+      "stalls": []
+    },
+    "Incremental": {
+      "status": "ok",
+      "makespan": 19,
+      "boundaries": 19,
+      "completed": 18,
+      "rejected": 0,
+      "mean_latency": 10.7778,
+      "max_latency": 19,
+      "mean_utilization": 0.3962,
+      "mean_parallelism": 1.7,
+      "stalls": []
+    }
+  }
+}

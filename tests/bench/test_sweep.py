@@ -6,17 +6,18 @@ from pathlib import Path
 from tc49.bench.metrics import metrics
 from tc49.bench.runner import STRATEGIES, run_scenario
 from tc49.bench.sweep import (
+    ARRIVALS,
     DEST_SIZES,
     K_VALUES,
     LAYOUT,
     SEEDS,
     STATION_TRACKS,
-    STATIONS,
     TRAIN_COUNTS,
     WORKINGS,
     Workload,
     cells,
     generate,
+    station_of,
     sweep,
 )
 from tc49.lib.layout import block_of
@@ -65,9 +66,10 @@ def test_only_a_first_working_states_a_departure_block() -> None:
                 # one parked the train is a dispatcher choice.
                 assert request.depart in ("A", "B"), request
             else:
-                assert request.depart == f"{scenario.trains[request.train].at}.{
-                    request.depart[-1]
-                }"
+                assert (
+                    request.depart
+                    == f"{scenario.trains[request.train].at}.{request.depart[-1]}"
+                )
                 seen.add(request.train)
 
 
@@ -96,12 +98,16 @@ def test_arrival_sets_are_the_swept_dest_size_at_the_other_station() -> None:
         for request in scenario.requests:
             ends = sum(1 if "." in a else 2 for a in request.arrivals)
             assert ends == workload.dest
-            station = request.arrivals[0].partition("_")[0]
             # Every entry names a track of one station, and it is the station
-            # the train is not at — line workings run claro <-> airolo.
-            assert all(a.startswith(station) for a in request.arrivals)
+            # the train is not at — line workings run claro <-> airolo. Read
+            # by lookup: block names are minted and carry no prefix to parse
+            # (ADR-0023), which is what `partition("_")` used to assume.
+            station = station_of(block_of(request.arrivals[0]))
+            assert all(station_of(block_of(a)) == station for a in request.arrivals)
             if workload.dest == 6:
-                assert set(request.arrivals) == set(STATIONS[station])
+                assert set(request.arrivals) == {
+                    end for track in ARRIVALS[station] for end in track
+                }
 
 
 def test_no_drawn_workload_is_dead_at_boundary_zero() -> None:

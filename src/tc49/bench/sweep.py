@@ -26,20 +26,71 @@ from tc49.lib.layout import Layout, block_of
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tc49.store import AssetStore
 
-LAYOUT = "gotthard-v0"
+LAYOUT = "gotthard"
 
-# The two stations' through tracks. Sidings are deliberately absent: every
+# The blocks a train can be placed on. Sidings are deliberately absent: every
 # generated request stays a long run that faces the line choice, and a
 # uniform-over-all-blocks generator would dilute the one signal the sweep
-# exists to find (BENCHMARKS.md, workloads).
+# exists to find (BENCHMARKS.md, workloads). Claro has four because `sw16`
+# stands in track 3 and splits it (#161).
 STATIONS: dict[str, tuple[str, ...]] = {
-    "claro": ("claro_1", "claro_2", "claro_3"),
-    "airolo": ("airolo_1", "airolo_2", "airolo_3"),
+    "claro": ("C1", "C2", "C3a", "C3b"),
+    "airolo": ("A1", "A2", "A3"),
 }
 STATION_TRACKS = tuple(track for tracks in STATIONS.values() for track in tracks)
 
+# Which station a block belongs to, looked up rather than parsed out of the
+# name. Block names are minted and carry no structure to read (ADR-0023);
+# `C1`.partition("_") returns `C1`, which is how the old prefix trick failed
+# silently once the railroad wore short names.
+STATION_OF = {
+    track: station for station, tracks in STATIONS.items() for track in tracks
+}
+
+# Destinations are named in *line-facing* ends: the ends a train arriving from
+# the other station can be given. `C3a.A` faces only `C3b`, and `C3b.B` only
+# `C3a` and the sidings, so neither is a station-to-station arrival end. What
+# is left is three logical tracks of two ends at each station — track 3's two
+# ends living on different blocks — which is what keeps `|dest|` one number
+# for both stations rather than 8 into Claro and 6 into Airolo (#161).
+ARRIVALS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "claro": (("C1.A", "C1.B"), ("C2.A", "C2.B"), ("C3a.B", "C3b.A")),
+    "airolo": (("A1.A", "A1.B"), ("A2.A", "A2.B"), ("A3.A", "A3.B")),
+}
+
+
+# The ends of each block that face a line, read off `ARRIVALS`. Track 3's
+# halves have one each — `C3a.B` to the yellow, `C3b.A` to blue 1 — and every
+# other station track has two.
+#
+# A station-to-station working departs by one of these. Leaving `C3a` by its
+# `A` end to reach Airolo means running the length of `C3b` to get out, which
+# is a shunt rather than a line working, and it is the only thing that makes a
+# station-to-station route longer than station-line-station. The redraw rule
+# below reasons about arrival blocks only, so a route through a third station
+# track is invisible to it: two trains in the halves of track 3, each departing
+# into the other, are a head-on swap it cannot see (#161).
+def _line_ends() -> dict[str, tuple[str, ...]]:
+    ends: dict[str, tuple[str, ...]] = {}
+    for tracks in ARRIVALS.values():
+        for track in tracks:
+            for end in track:
+                block, _, letter = end.partition(".")
+                ends[block] = ends.get(block, ()) + (letter,)
+    return ends
+
+
+LINE_ENDS = _line_ends()
+
+
+def departure_end(block: str, drawn: str) -> str:
+    """The drawn end, unless the block has only one end that faces a line."""
+    ends = LINE_ENDS[block]
+    return drawn if drawn in ends else ends[0]
+
+
 # The sweep axes, exactly as BENCHMARKS.md fixes them.
-TRAIN_COUNTS = (2, 3, 4, 5)
+TRAIN_COUNTS = (2, 3, 4, 5, 6)
 WORKINGS = 3
 SEEDS = tuple(range(10))
 DEST_SIZES = (1, 2, 6)
@@ -47,13 +98,15 @@ K_VALUES = (1, 2, 4, 6)
 
 
 def train_length(index: int) -> int:
-    """Fixed per train id so the fit check is deterministic; any length that
-    fits every station track will do, and Airolo's 1200 is the tightest."""
-    return 600 + 100 * index
+    """Constant, so the fit check is deterministic: any length that fits every
+    station track will do, and `C3a` at 500 mm is the tightest. The railroad
+    is smaller than the model it replaced — the old drawing's 1200 mm Airolo
+    tracks measure 980 to 1350, and track 3's halves 500 and 550."""
+    return 450
 
 
 def station_of(track: str) -> str:
-    return track.partition("_")[0]
+    return STATION_OF[track]
 
 
 def other_station(track: str) -> str:
@@ -90,6 +143,8 @@ def generate(workload: Workload) -> Scenario:
         here = placement
         for working in range(workload.workings):
             end = rng.choice(["A", "B"])  # uniform, never "the end facing the route"
+            if working == 0:
+                end = departure_end(placement, end)
             target = other_station(here)
             arrivals = _arrivals(rng, target, workload.dest)
             requests.append(
@@ -116,7 +171,7 @@ def generate(workload: Workload) -> Scenario:
     ):
         for train in stuck:
             placement = placement_of[train]
-            end = rng.choice(["A", "B"])
+            end = departure_end(placement, rng.choice(["A", "B"]))
             arrivals = _arrivals(rng, other_station(placement), workload.dest)
             requests[first[train]] = RequestSpec(
                 train, f"{placement}.{end}", arrivals, 0
@@ -133,8 +188,8 @@ def _stuck_trains(
     A train can launch once some arrival block is free, and a block frees
     once its occupant launches; anything outside that fixed point is stuck.
     Any placement that leaves a station track free admits a draw with
-    nothing stuck, so the redraw loop terminates — and could not at six
-    trains, which is one reason the trains axis ends at five."""
+    nothing stuck, so the redraw loop terminates — and could not at seven
+    trains, which is one reason the trains axis ends at six."""
     occupant = {block: train for train, block in placements.items()}
     launchable: set[str] = set()
     changed = True
@@ -155,14 +210,18 @@ def _stuck_trains(
 
 def _arrivals(rng: random.Random, station: str, dest: int) -> tuple[str, ...]:
     """The three intents of the `|dest|` axis, as Gotthard's three-track
-    stations make them: one station, one track, one end."""
-    tracks = STATIONS[station]
+    stations make them: one station, one track, one end.
+
+    Ends rather than block names, since track 3's two line-facing ends are on
+    two different blocks and no single block name can say "track 3".
+    """
+    tracks = ARRIVALS[station]
     if dest == 6:
-        return tracks  # any track at the other station, either way round
+        return tuple(end for track in tracks for end in track)
     track = rng.choice(tracks)
     if dest == 2:
-        return (track,)  # one track, either way round — the old semantics
-    return (f"{track}.{rng.choice(['A', 'B'])}",)  # one track, one way round
+        return track  # one track, either way round — the old semantics
+    return (rng.choice(track),)  # one track, one way round
 
 
 def _name(workload: Workload) -> str:
