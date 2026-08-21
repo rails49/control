@@ -1,6 +1,12 @@
 import { css } from "lit";
 
-import { dismiss, menuBox, menuRow, menuShortcut } from "./shared.styles.js";
+import {
+  dismiss,
+  menuBox,
+  menuRow,
+  menuRowChosen,
+  menuShortcut,
+} from "./shared.styles.js";
 
 /**
  * The menu bar (`tc-menubar`): three titles at the left, the three commands
@@ -97,16 +103,7 @@ export const menubarStyles = css`
     ${menuShortcut}
   }
 
-  li button:hover:not(:disabled) {
-    background: var(--chosen);
-    color: #fff;
-  }
-
-  li button:hover:not(:disabled) kbd,
-  li button:hover:not(:disabled) .more {
-    color: inherit;
-    opacity: 0.75;
-  }
+  ${menuRowChosen}
 
   /* A dead item still reads, so that what is missing to bring it back can be
      worked out from the word rather than from its absence. */

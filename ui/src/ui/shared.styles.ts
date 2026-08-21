@@ -15,7 +15,8 @@
  * inside a selector the caller writes; a **whole rule set** brings its own
  * selectors and is interpolated at the top level of a sheet. A body put where
  * a rule set was meant nests silently and paints nothing at all, so each doc
- * comment below says which kind it is.
+ * comment below says which kind it is. `menuRow` and `menuRowChosen` are the
+ * pair to watch: one prefix, opposite calling conventions.
  *
  * The styles are kept out of the components so that what a component has is
  * behaviour; each component's own rules sit in a module beside it, and read
@@ -171,6 +172,32 @@ export const symbols = css`
 
   .tick {
     stroke-width: ${SLIP.weight};
+  }
+`;
+
+/**
+ * Whole rule sets. The row under the pointer, in both menu systems: the one
+ * item a press would choose, painted in the chosen colour so that a menu says
+ * what it is about to do.
+ *
+ * The selector is `li` deep because the bar's rows are, and both menus wrap
+ * every button in one; at (0,2,2) it still beats the `menuRow` the row wears
+ * underneath, which every caller writes at (0,0,1). A disabled row is left
+ * out — an item that does not apply is not about to be chosen.
+ */
+export const menuRowChosen = css`
+  li button:hover:not(:disabled) {
+    background: var(--chosen);
+    color: #fff;
+  }
+
+  /* Whatever sits beside the label goes with it: the key set, and the .more
+     glyph, which is the bar's own — tc-menu renders no such element and that
+     half of the selector matches nothing there. */
+  li button:hover:not(:disabled) kbd,
+  li button:hover:not(:disabled) .more {
+    color: inherit;
+    opacity: 0.75;
   }
 `;
 

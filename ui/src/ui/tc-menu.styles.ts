@@ -1,6 +1,12 @@
 import { css } from "lit";
 
-import { dismiss, menuBox, menuRow, menuShortcut } from "./shared.styles.js";
+import {
+  dismiss,
+  menuBox,
+  menuRow,
+  menuRowChosen,
+  menuShortcut,
+} from "./shared.styles.js";
 
 /** The right-click menu (`tc-menu`). */
 export const menuStyles = css`
@@ -24,15 +30,7 @@ export const menuStyles = css`
     ${menuShortcut}
   }
 
-  button:hover:not(:disabled) {
-    background: var(--chosen);
-    color: #fff;
-  }
-
-  button:hover:not(:disabled) kbd {
-    color: inherit;
-    opacity: 0.75;
-  }
+  ${menuRowChosen}
 
   /* Offered and not choosable: greyed says *this does not apply just now*,
      where leaving the item out says nothing at all. */
