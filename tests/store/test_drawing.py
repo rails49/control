@@ -797,7 +797,7 @@ def test_points_on_one_address_agreeing_are_no_fault() -> None:
 
 @pytest.mark.parametrize("name", RAILROADS)
 def test_a_committed_drawing_can_be_thrown(name: str) -> None:
-    """beb-gotthard is the one that gangs points: `5` moves sw1 and sw2, `1`
+    """gotthard is the one that gangs points: `5` moves sw1 and sw2, `1`
     moves sw6 through sw9, which is what the hardware needs and why that throat
     has fewer usable ways than its geometry suggests."""
     assert committed_drawing(name).review()["motor_faults"] == []
@@ -1523,7 +1523,7 @@ def test_one_address_wanted_in_both_positions_is_emitted_verbatim() -> None:
     }
 
 
-def test_beb_gotthards_ganged_points_come_out_one_entry_each() -> None:
+def test_gotthards_ganged_points_come_out_one_entry_each() -> None:
     """The railroad that gangs points, worked through by hand from its wires.
 
     `A1.A` reaches `A4.B` over `sw2` alone, lying straight, and `sw2` shares
@@ -1533,7 +1533,7 @@ def test_beb_gotthards_ganged_points_come_out_one_entry_each() -> None:
     `1`, wanting the same position, so they collapse to one — and `sw10`
     diverging (`2`). Sorted by address, four entries for five points.
     """
-    points = committed("beb-gotthard").connections["j1"].points
+    points = committed("gotthard").connections["j1"].points
     assert points["A1_A__A4_B"] == (Point("5", "closed"),)
     assert points["A2_A__CE1_B"] == (
         Point("1", "closed"),

@@ -271,7 +271,7 @@ cannot be driven ([EDITOR.md](../ui/EDITOR.md#validation)).
 
 **Points may share an address, and then they move together.** One accessory
 output throws a crossover's two ends as a unit, so a throat can have fewer
-usable ways than its geometry suggests — `beb-gotthard` gangs `sw1` with `sw2`
+usable ways than its geometry suggests — `gotthard` gangs `sw1` with `sw2`
 and `sw6` through `sw9`. Sharing is meaningful rather than a mistake, so
 nothing asks addresses to be unique. Two things do follow from it, and the
 review reports both as `motor_faults`:

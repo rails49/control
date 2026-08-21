@@ -1,4 +1,4 @@
-drawing: beb-gotthard
+drawing: gotthard
 symbols:
   sw1: {kind: turnout, at: [15, 4], connection: j1, addr: '5'}
   sw2: {kind: turnout, at: [15, 3], rot: 180, connection: j1, addr: '5'}

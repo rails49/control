@@ -10,7 +10,7 @@ and the dispatcher the sole feasibility authority precisely because nothing
 else can reach the bus (ADR-0036).
 
 **A client names the scenario it wants in the socket path** —
-``ws://127.0.0.1:8766/beb-gotthard/test1`` — and hears that railroad or
+``ws://127.0.0.1:8766/gotthard/test1`` — and hears that railroad or
 none. The relay outlives the assembly it relays: ``rebind`` points it at a
 freshly built bus and settles every client on the swap, whoever named the
 new scenario starting to hear it and whoever was on the old one being closed

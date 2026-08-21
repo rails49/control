@@ -235,7 +235,7 @@ describe("how a label is turned", () => {
   });
 
   it("does not turn over when the block is flipped", () => {
-    // beb-gotthard's `CW` is `rot: 270, flip: true`. A flip that mirrored the
+    // gotthard's `CW` is `rot: 270, flip: true`. A flip that mirrored the
     // label would leave it unreadable rather than merely upside down.
     for (const rot of [0, 90, 180, 270] as const) {
       expect(labelTurn({ kind: "block", rot, flip: true })).toBe(

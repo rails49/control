@@ -47,7 +47,7 @@ def prose(text: str) -> list[str]:
 
 
 # The railroads that explain themselves in comments, which is what there is to
-# keep. A drawing made in the editor has none — `beb-gotthard` is the first —
+# keep. A drawing made in the editor has none — `gotthard` is the first —
 # so the ones with prose are read off rather than assumed to be all of them.
 COMMENTED = [name for name in RAILROADS if prose(written(ROOT, name))]
 

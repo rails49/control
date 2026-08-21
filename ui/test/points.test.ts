@@ -101,14 +101,14 @@ describe("a point drawn in a position", () => {
  * `scene.test.ts` for the drawing's lookup, the tests above for the classes —
  * and each stayed green while the styling reached nothing, because no scenario
  * drove a drawing whose points carry addresses. So the path is walked here in
- * one piece, with the alignment `beb-gotthard/positions` produces.
+ * one piece, with the alignment `gotthard/positions` produces.
  */
 
-/** j1 of `beb-gotthard` in miniature: sw1 and sw2 share address 5 and move
+/** j1 of `gotthard` in miniature: sw1 and sw2 share address 5 and move
  *  together, sw3 wears 6, and sw4 wears one the run never commands.
  *
  *  A transcription, this and the `align` below both: the four symbols are the
- *  committed drawing's and the command is what `beb-gotthard/positions` really
+ *  committed drawing's and the command is what `gotthard/positions` really
  *  publishes at j1. No asset can be read from here — no YAML reaches the `ui`
  *  package — so `tests/system/test_positions.py` holds a mirror of what the
  *  two encode and fails when either original moves. Change one, change the

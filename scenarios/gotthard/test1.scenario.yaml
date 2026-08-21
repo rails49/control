@@ -1,5 +1,5 @@
 scenario: test1
-layout: beb-gotthard
+layout: gotthard
 
 trains:
   short: { length: 300, at: C1, facing: A }

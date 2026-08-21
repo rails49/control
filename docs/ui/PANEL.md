@@ -110,7 +110,7 @@ It still shows commanded position, not measured position, so a point that
 failed to throw looks fine. Reported position becomes worth adding if hardware
 with point feedback ever exists; the owner's points do not report. Only a
 drawing whose points carry addresses can show any of this, and
-[`beb-gotthard/positions`](../../scenarios/beb-gotthard/positions.scenario.yaml)
+[`gotthard/positions`](../../scenarios/gotthard/positions.scenario.yaml)
 is the scenario that does — one train across two junctions, which is the
 picture to run when the styling is what is being looked at (#130).
 
@@ -252,7 +252,7 @@ Python validator. The MQTT transport switch later changes only what the bridge
 subscribes to. The front end shares the editor's stack and symbol library.
 
 **The panel names the session.** The scenario picked there rides in the
-socket path — `ws://127.0.0.1:8766/beb-gotthard/test1` — so the one choice
+socket path — `ws://127.0.0.1:8766/gotthard/test1` — so the one choice
 says both which drawing to render and which railroad feeds it. A socket
 opened without it would render one railroad on another's events, which is
 what a session whose scenario was fixed at launch allowed (#148). Switching

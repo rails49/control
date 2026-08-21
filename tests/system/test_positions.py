@@ -2,7 +2,7 @@
 
 The panel draws a point in the position `align` commanded it into, the road
 that position does not offer faint (#98). Nothing in the repo drove that until
-`beb-gotthard/positions`: it is the only drawing whose points carry addresses,
+`gotthard/positions`: it is the only drawing whose points carry addresses,
 and a run over a drawing with none commands nothing and fades nothing.
 
 So the scenario is checked the way the panel reads it — through the trace,
@@ -29,7 +29,7 @@ from tc49.store import AssetStore
 from tc49.store.drawing import POSITIONS
 from tests.harness import ROOT, events, load, run
 
-SCENARIO = "beb-gotthard/positions"
+SCENARIO = "gotthard/positions"
 UI_SUITE = "ui/test/points.test.ts"  # the suite that copies part of this one
 
 
