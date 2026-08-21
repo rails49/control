@@ -80,7 +80,11 @@ need different information:
   pruned. This needs the origin block, which for a chained working is not known
   until its predecessor completes — so `request_rejected` can also be
   published at the first launch attempt, and rejection is not purely an
-  admission-time answer.
+  admission-time answer. The departure block is re-checked here for the same
+  reason, so `wrong_origin` is not an admission-only answer either: a working
+  queued behind another departs from a block that was a future dispatcher
+  choice when it arrived, and one that has gone stale while it waited is
+  refused rather than routed from.
 
 Either stage rejects the request if it empties the set. The admission stage
 records what it dropped, with reasons, on `request_admitted`
