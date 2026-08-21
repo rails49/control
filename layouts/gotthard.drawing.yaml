@@ -32,7 +32,7 @@ symbols:
   e2: {kind: terminal, at: [2, 21], rot: 180, flip: false}
   e3: {kind: terminal, at: [10, 12], rot: 180, flip: false}
   e4: {kind: terminal, at: [10, 13], rot: 180, flip: false}
-  sw13: {kind: turnout, at: [22, 16], rot: 180, flip: false, addr: '13'}
+  sw13: {kind: turnout, at: [22, 16], rot: 180, flip: false, connection: j5, addr: '13'}
   sw14: {kind: turnout, at: [22, 15], rot: 0, flip: true, connection: j2, addr: '14'}
   sw15: {kind: turnout, at: [20, 13], rot: 0, flip: true, connection: j2, addr: '15'}
   n19: {kind: pin, at: [20, 12], rot: 0}
