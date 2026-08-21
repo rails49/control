@@ -48,14 +48,14 @@ export const panelStyles = css`
 
   /* Block state, strongest first: a train standing there, a lock holding the
      empty block ahead of it, a committed route not yet locked this far. The
-     reserved fill is the lit tint, so a committed route reads as one lit path
+     locked fill is the lit tint, so a committed route reads as one lit path
      whether a stretch is locked yet or merely chosen. */
   .symbol.occupied .block-body {
     fill: #f6d3cb;
     stroke: var(--wrong);
   }
 
-  .symbol.reserved .block-body {
+  .symbol.locked .block-body {
     fill: var(--lit-body);
     stroke: var(--lit);
   }

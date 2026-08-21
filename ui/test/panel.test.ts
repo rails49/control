@@ -118,7 +118,7 @@ describe("occupancy", () => {
     });
   });
 
-  it("shades a locked but empty block as reserved, a vacated one too", () => {
+  it("shades a locked but empty block as locked, a vacated one too", () => {
     const model = panel();
     placed(model);
     feed(
@@ -126,7 +126,7 @@ describe("occupancy", () => {
       { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
     );
     expect(model.blocks().get("b")).toMatchObject({
-      state: "reserved",
+      state: "locked",
       train: "t1",
     });
     feed(
@@ -135,7 +135,7 @@ describe("occupancy", () => {
       { event: "block_vacated", block: "a" },
     );
     expect(model.blocks().get("a")).toMatchObject({
-      state: "reserved",
+      state: "locked",
       train: "t1",
     });
     feed(model, { event: "lock_released", train: "t1", resources: ["a", "sw.main"] });
@@ -449,7 +449,7 @@ describe("the run's picture", () => {
     const model = panel();
     feed(model, PICTURE);
     expect(model.blocks().get("b")).toMatchObject({ state: "occupied", train: "t1" });
-    expect(model.blocks().get("c")).toMatchObject({ state: "reserved", train: "t1" });
+    expect(model.blocks().get("c")).toMatchObject({ state: "locked", train: "t1" });
     expect(model.blocks().get("a")).toMatchObject({ state: "free" });
   });
 
@@ -523,7 +523,7 @@ describe("the run's picture", () => {
       train: "t1",
       resources: ["sw.main", "a"],
     });
-    expect(model.blocks().get("a")).toMatchObject({ state: "reserved" });
+    expect(model.blocks().get("a")).toMatchObject({ state: "locked" });
   });
 });
 

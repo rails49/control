@@ -23,7 +23,7 @@ and the candidate arrival ends — endpoints only, since no route exists yet
 and drawing a predicted one would be a second pathfinder that lies whenever
 the dispatcher disagrees. **Committed** (from `route_chosen`): the chosen
 route as a lit path in a planned tint. **Held** (from `lock_granted` /
-`lock_released`): the reserved-block shading and signals described below.
+`lock_released`): the locked-block shading and signals described below.
 
 A committed route lights **whole**: its blocks, the legs of the symbols its
 transits cross, and the wires those transits are drawn over. Without the

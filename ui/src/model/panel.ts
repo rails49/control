@@ -45,7 +45,7 @@ export type { Aspect };
 
 
 export interface BlockView {
-  state: "free" | "occupied" | "reserved" | "planned";
+  state: "free" | "occupied" | "locked" | "planned";
   /** The train standing, holding or heading here, where one is. */
   train?: string;
   /** The end the occupying train faces, as the scheduler says. */
@@ -384,7 +384,7 @@ export class Panel {
       }
       const holder = this.locks.get(block);
       if (holder !== undefined) {
-        views.set(block, { state: "reserved", train: holder });
+        views.set(block, { state: "locked", train: holder });
         continue;
       }
       const expecting = planned.get(block);
