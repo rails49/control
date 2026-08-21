@@ -138,7 +138,7 @@ simply two different counts.
 An end that leads nowhere carries no signal and the dispatcher does not name
 it, so the panel draws none — no rule here, just an end absent from the map.
 
-![A live session mid-run: a drag from south to claro_3's middle third](images/live-drag.png)
+![A live session mid-run: two committed routes, green where the dispatcher holds the lock and cyan where it does not, and a drag from t4 to claro_5's middle third](images/live-drag.png)
 
 ## What it does
 
