@@ -100,11 +100,12 @@ class State:
     # then on (ADR-0002), and so already true of a train still running one.
     leaving: dict[str, str] = field(default_factory=dict[str, str])
     # train -> the transit it is crossing: written at the grant, dropped when
-    # the sensor says it arrived. `block_of` already names the far block,
-    # `cur_index` having advanced at the grant, so the transit is the whole of
-    # what says a train is between two blocks rather than standing in one
-    # (#123). It restores across a restart with no route behind it, which is
-    # what makes it a placement hint and not a resumed move.
+    # the sensor says it arrived, and so exactly the trains with an
+    # outstanding move. `block_of` goes on naming the block the sensors last
+    # confirmed, so this is the whole of what says a train is between two
+    # blocks rather than standing in one (#123). It restores across a restart
+    # with no route behind it, which is what makes it a placement hint and
+    # not a resumed move.
     crossing: dict[str, str] = field(default_factory=dict[str, str])
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None:
@@ -286,6 +287,13 @@ class Dispatcher:
         # than through `subscribe`, because placement has to be settled before
         # the standing locks below are published, and a subscription delivers
         # at the drain.
+        #
+        # Adoption is selective: `trains` and `crossing` are taken, `locks`
+        # and `requests` left behind — the lock table is rebuilt one block per
+        # train exactly as a cold start builds it, the queue comes back empty
+        # and no request id resumes (ADR-0033). Stock stays the scenario's, so
+        # a train it does not carry is not one this session has and the
+        # picture's word for it is dropped.
         picture = bus.last_values.get(ALLOCATION, {})
         placed, crossing = picture.get("trains", {}), picture.get("crossing", {})
         self._state = State(
@@ -294,12 +302,6 @@ class Dispatcher:
             {},
             {},
             {},
-            # Adoption is selective: `locks` and `requests` are left behind,
-            # the lock table below being rebuilt one block per train exactly
-            # as a cold start builds it, the queue coming back empty and no
-            # request id resuming (ADR-0033). Stock stays the scenario's, so
-            # a train it does not carry is not one this session has and the
-            # picture's word for it is dropped.
             crossing={
                 train: transit
                 for train, transit in crossing.items()
