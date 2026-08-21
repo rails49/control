@@ -1,36 +1,45 @@
 # Milestone 1
 
-What is being built first, and — more usefully — what is not. [GOALS.md](GOALS.md)
+What was built first, and — more usefully — what was not. [GOALS.md](GOALS.md)
 describes the whole system; this page fixes the boundary of its first slice.
+
+**Reached.** Everything under *Deliverable* is in the tree and green under
+`scripts/check.sh`. The boundary is what stays live: the scope below says what
+this slice deliberately does not do, and a row stops binding only when an issue
+moves it, as one already has.
 
 ## Deliverable
 
 The system of [SYSTEM.md](SYSTEM.md) — the components wired over the
-in-process bus — plus a benchmark harness:
+in-process bus — plus a benchmark harness. Where each part landed:
 
 - The **dispatcher** of [DISPATCH.md](dispatcher/DISPATCH.md), with both locking
   strategies real from day one — full-route locking as the baseline yardstick,
   incremental locking with the route-aware safety check of
-  [SAFETY.md](dispatcher/SAFETY.md) as the research core.
+  [SAFETY.md](dispatcher/SAFETY.md) as the research core: `dispatcher/locking.py`,
+  over the state of `dispatcher/dispatch.py`.
 - The **scheduler** and **driver** — thin but real bus components: the
   scheduler releases the scenario's fixed request list at its `at` boundaries,
-  the
-  driver translates each granted move into layout commands.
+  the driver translates each granted move into layout commands:
+  `scheduler/scheduler.py` and `driver/driver.py`, the latter stateless.
 - The **simulator**, implementing the layout interface: executes commands,
-  reports occupancy, publishes the boundary, and owns pacing and termination.
+  reports occupancy, publishes the boundary, and owns pacing and termination:
+  `simulator/sim.py`.
 - The **asset store** in its milestone-1 binding — the Python library over
   the YAML files of [DRAWING.md](store/DRAWING.md) and
-  [LAYOUT.md](store/LAYOUT.md).
+  [LAYOUT.md](store/LAYOUT.md): `store/`.
 - A **pytest suite** — the four Hypothesis properties over the real assembly
-  on the bus, the boundary-condition examples, and golden-number assertions
-  on the named scenarios.
+  on the bus (`tests/system/test_properties.py`), the boundary-condition
+  examples (`tests/system/test_safety_conditions.py`, one scenario per
+  condition), and golden-number assertions on the named scenarios
+  (`tests/bench/test_benchmarks.py`).
 - A **benchmark CLI** that takes a scenario (which names its layout,
   [LAYOUT.md](store/LAYOUT.md)), prints the four
   metrics of [DISPATCH.md](dispatcher/DISPATCH.md#metrics), and can dump the structured
-  event trace ([BENCHMARKS.md](bench/BENCHMARKS.md)).
+  event trace ([BENCHMARKS.md](bench/BENCHMARKS.md)): `tc49 bench <scenario> --trace`.
 
-**Done** when an implementing agent can build all of that without hitting an
-open decision.
+**Done** meant an implementing agent could build all of that without hitting an
+open decision. Nothing on the list is stubbed.
 
 ## Toolchain
 
@@ -39,7 +48,7 @@ Python throughout, with `uv` for versions and environments — run things with
 
 ## Scope
 
-The core is **independent of the layout's hardware**, and milestone 1 builds
+The core is **independent of the layout's hardware**, and milestone 1 built
 only that core. Of [GOALS.md](GOALS.md)'s three operations, dispatching is the
 whole subject; the other two are real components kept to the minimum that
 exercises it:
@@ -69,7 +78,8 @@ mechanized verification is out of scope.
 
 ## Out of scope
 
-Each of these was ruled out deliberately, not overlooked:
+Each of these was ruled out deliberately, not overlooked, and each still binds
+unless its row says otherwise:
 
 | Not in milestone 1 | Why |
 | --- | --- |
@@ -81,7 +91,7 @@ Each of these was ruled out deliberately, not overlooked:
 | Braking distance | an open subject even in the end state, with a working answer and no decision ([GOALS.md](GOALS.md#driving)) |
 | A request due at a *time* | `at` is a boundary count here; the fast clock a timetable is written against is end-state work ([GOALS.md](GOALS.md#scheduling)) |
 | Human driving | the simulator drives |
-| UI / visualization | the event trace is the hook for a future one |
+| UI / visualization | the event trace was the hook for a future one. **Since crossed**: `ui/` ships the [layout editor](ui/EDITOR.md) and the [dispatch panel](ui/PANEL.md), and the scheduler moved out of the browser to serve them ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)) |
 | Mechanized deadlock-freedom proof | argument only, per the rigor bar above |
 | Mid-route rerouting | [ADR-0002](adr/0002-fixed-route-per-request.md) |
 | Request priorities (express > local) | the pluggable queue-ordering key of [DISPATCH.md](dispatcher/DISPATCH.md#queue-discipline) preserves the upgrade path |

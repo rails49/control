@@ -7,8 +7,8 @@ This repo (eventually) implements the features described in the docs:
 - [Goals](docs/GOALS.md) — the end state: assets (tracks, blocks, connections,
   stock) and the three operations performed on them — scheduling, dispatching,
   driving.
-- [Milestone 1](docs/MILESTONE-1.md) — what is being built first, and what is
-  deliberately out of scope.
+- [Milestone 1](docs/MILESTONE-1.md) — reached: what the first slice built, and
+  what is deliberately still out of scope.
 - [System](docs/SYSTEM.md) — the apps and the contracts between them: the
   event bus and its inventory, time, and the asset store.
 - [Architecture](docs/ARCHITECTURE.md) — how the repository is organized and
