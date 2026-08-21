@@ -406,7 +406,7 @@ export class TcEditor extends LitElement {
   // --- edits ---------------------------------------------------------------
 
   private edited(): void {
-    this.filing.edited(this.editor);
+    void this.filing.edited(this.editor);
   }
 
   /** The canvas holds the same `Editor` across an edit, so Lit sees no

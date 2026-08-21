@@ -201,12 +201,16 @@ export class Filing {
   }
 
   /** The drawing changed. The dot goes up on the keystroke and the store is
-   *  asked afterwards, so nothing waits on a round trip. */
-  edited(editor: Editor): void {
+   *  asked afterwards, so nothing waits on a round trip: the shell discards
+   *  what this answers with, a DOM handler having nowhere to wait into. That
+   *  is the handler's shape and not a rule against waiting, so this answers
+   *  with the review it set off rather than dropping it, for a caller that
+   *  does have somewhere. */
+  edited(editor: Editor): Promise<void> {
     this.clean = false;
     this.untouched = false;
     this.notify();
-    void this.reviewing(editor);
+    return this.reviewing(editor);
   }
 
   /** One drawing name, as it came back from the shell's prompt, checked. A

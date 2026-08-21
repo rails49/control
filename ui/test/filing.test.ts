@@ -14,7 +14,7 @@ import { emptyDrawing, type Drawing } from "../src/model/drawing.js";
 import { Editor } from "../src/model/editor.js";
 import { Filing, type Store } from "../src/model/filing.js";
 import type { Review } from "../src/model/store.js";
-import { CLEAN, quiet } from "./support/shell.js";
+import { CLEAN } from "./support/shell.js";
 
 /** What derivation came back with over a way it refused (#93). */
 const REFUSED: Review = {
@@ -226,7 +226,7 @@ describe("saving", () => {
     const { filing, store, editor } = made(["gotthard"]);
     await filing.open("gotthard", editor);
     editor.place("block", [20, 20]);
-    filing.edited(editor);
+    await filing.edited(editor);
 
     await filing.save(editor);
 
@@ -259,8 +259,7 @@ describe("saving", () => {
   it("says so where the save did not land", async () => {
     const { filing, store, editor } = made(["gotthard"]);
     await filing.open("gotthard", editor);
-    filing.edited(editor);
-    await quiet();
+    await filing.edited(editor);
     store.broken = new Error("disk full");
 
     await filing.save(editor);
@@ -276,7 +275,7 @@ describe("saving under another name", () => {
     await filing.load();
     await filing.open("gotthard", editor);
     editor.place("block", [20, 20]);
-    filing.edited(editor);
+    await filing.edited(editor);
 
     await filing.saveAs("otira", editor);
 
@@ -316,8 +315,7 @@ describe("an edit", () => {
     await filing.open("gotthard", editor);
     store.answer = () => Promise.resolve(REFUSED);
 
-    filing.edited(editor);
-    await quiet();
+    await filing.edited(editor);
 
     expect(filing.saved).toBe(false);
     expect(filing.reviewed).toEqual(REFUSED);
@@ -331,10 +329,29 @@ describe("an edit", () => {
     await filing.create("a/b", editor);
     expect(filing.trouble).not.toBeNull();
 
-    filing.edited(editor);
-    await quiet();
+    await filing.edited(editor);
 
     expect(filing.trouble).toBeNull();
+  });
+
+  /** What `edited` answers with is the review itself, not a turn of the queue.
+   *  The store is held open and let go from a timer, which the microtask queue
+   *  cannot reach: a `void` return, or one resolved before the store answered,
+   *  comes back with the previous answer still standing. The other waits in
+   *  this file would merely race and mostly still pass, so this is the one
+   *  that says what they are waiting on. */
+  it("answers with a review that lands only where the store has", async () => {
+    const { filing, store, editor } = made(["gotthard"]);
+    await filing.open("gotthard", editor);
+    let answer!: (review: Review) => void;
+    store.answer = () => new Promise<Review>((held) => (answer = held));
+
+    const reviewing = filing.edited(editor);
+
+    expect(filing.reviewed).toEqual(CLEAN);
+    setTimeout(() => answer(REFUSED));
+    await reviewing;
+    expect(filing.reviewed).toEqual(REFUSED);
   });
 });
 
@@ -370,8 +387,7 @@ describe("whether there are edits to lose", () => {
     await filing.create("arth-goldau", editor);
 
     editor.place("block", [0, 0]);
-    filing.edited(editor);
-    await quiet();
+    await filing.edited(editor);
 
     expect(filing.edits).toBe(true);
   });
@@ -389,8 +405,7 @@ describe("whether there are edits to lose", () => {
     await filing.open("gotthard", editor);
 
     editor.place("block", [20, 20]);
-    filing.edited(editor);
-    await quiet();
+    await filing.edited(editor);
 
     expect(filing.edits).toBe(true);
   });
@@ -434,8 +449,7 @@ describe("whether there are edits to lose", () => {
     const { filing, editor } = made(["gotthard"]);
     await filing.open("gotthard", editor);
     editor.place("block", [20, 20]);
-    filing.edited(editor);
-    await quiet();
+    await filing.edited(editor);
 
     await filing.save(editor);
 
@@ -460,8 +474,7 @@ describe("whether the drawing derives", () => {
     await filing.open("gotthard", editor);
 
     store.answer = () => Promise.resolve(REFUSED);
-    filing.edited(editor);
-    await quiet();
+    await filing.edited(editor);
 
     expect(filing.derives).toBe(false);
   });
@@ -470,12 +483,10 @@ describe("whether the drawing derives", () => {
     const { filing, store, editor } = made(["gotthard"]);
     await filing.open("gotthard", editor);
     store.answer = () => Promise.resolve(REFUSED);
-    filing.edited(editor);
-    await quiet();
+    await filing.edited(editor);
 
     store.answer = () => Promise.resolve(CLEAN);
-    filing.edited(editor);
-    await quiet();
+    await filing.edited(editor);
 
     expect(filing.derives).toBe(true);
   });
@@ -488,8 +499,7 @@ describe("whether the drawing derives", () => {
     await filing.open("gotthard", editor);
 
     editor.place("turnout", [0, 0]);
-    filing.edited(editor);
-    await quiet();
+    await filing.edited(editor);
 
     expect(filing.derives).toBe(true);
   });
@@ -500,12 +510,10 @@ describe("whether the drawing derives", () => {
     const { filing, store, editor } = made(["gotthard"]);
     await filing.open("gotthard", editor);
     store.answer = () => Promise.resolve(REFUSED);
-    filing.edited(editor);
-    await quiet();
+    await filing.edited(editor);
 
     store.broken = new Error("no store");
-    filing.edited(editor);
-    await quiet();
+    await filing.edited(editor);
 
     expect(filing.derives).toBe(false);
     expect(filing.trouble).toContain("no store");
