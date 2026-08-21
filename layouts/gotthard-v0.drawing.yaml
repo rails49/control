@@ -1,3 +1,32 @@
+# Gotthard, v0 — SUPERSEDED. Kept only so the ADRs that cite it can be re-run.
+#
+# This is not the railroad on the bench. It is wrong about the track in two
+# places, both found when the layout was drawn in the editor (#161):
+#
+#   Claro track 3.   `sw16` stands *in* track 3 on the railroad, and the road to
+#                    sidings 6 and 7 leaves from there. This file models track 3
+#                    as one 1500 mm block with the sidings hanging off the throat
+#                    beyond its end, so it is short one block the railroad has.
+#
+#   The west throat. This file puts the yellow line and the C6/C7 sidings in one
+#                    connection, `claro_west`, so a shunt into siding 6 conflicts
+#                    with the yellow's throat. On the railroad they are separate,
+#                    and most of the difference between 37 concurrent pairs here
+#                    and 33 there is that bundling.
+#
+# Its block lengths are wrong too — 700–4000 mm against the measured 200–1500.
+#
+# ADR-0006, ADR-0012 and ADR-0029 record numbers measured here, and an ADR is a
+# record rather than a living document, so this file and its scenarios and
+# goldens are frozen rather than corrected. `gotthard/…` in those three ADRs
+# means `gotthard-v0/…`. The railroad on the bench is `gotthard.drawing.yaml`.
+#
+# Everything below this line is the file as it stood, and stays that way —
+# including `meet`'s claim that blue 2 reaches tracks 1 and 2, which is wrong
+# (blue 1 reaches 2 and 3; blue 2 reaches 1). A record is not patched.
+#
+# ----------------------------------------------------------------------------
+#
 # Gotthard — the railroad this project dispatches. Ticket #10, map #1.
 #
 # Checked against the owner's Rocrail netlist, `gotthard-rocrail.xml` (rendered
