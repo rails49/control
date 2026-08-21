@@ -56,6 +56,10 @@ import "./tc-menu.js";
 import type { Mode } from "./tc-header.js";
 import type { MenuItem } from "./tc-menu.js";
 
+/** The one action the panel's menu offers, named once so the item and the
+ *  handler cannot drift apart. */
+const TURN_AROUND = "turn-around";
+
 /** Where `tc49 live` puts the bridge. Overridable for a session somewhere
  *  else, which is the whole of the browser's configuration. */
 const BRIDGE =
@@ -249,7 +253,10 @@ export class TcPanel extends LitElement {
       this.trouble = null;
     });
     socket.addEventListener("message", (frame) => this.heard(String(frame.data)));
-    socket.addEventListener("close", () => (this.connected = false));
+    socket.addEventListener("close", () => {
+      this.connected = false;
+      this.menu = null; // nowhere left to send what it offers
+    });
     socket.addEventListener("error", () => {
       this.trouble = `no session at ${BRIDGE} — run \`tc49 live ${this.session}\``;
     });
@@ -261,6 +268,12 @@ export class TcPanel extends LitElement {
     const event = this.live.read(message);
     if (event === null) return;
     this.panel.apply(event);
+    // An open menu is about one train in one block, and the run can end
+    // both. It is taken down rather than hidden: a menu merely filtered out
+    // of the render leaves nothing to dismiss and springs back the next time
+    // that train stands there.
+    const at = this.menu;
+    if (at !== null && !this.panel.standsIn(at.train, at.block)) this.menu = null;
     this.beat++;
   }
 
@@ -355,30 +368,28 @@ export class TcPanel extends LitElement {
    * and not "Reverse", which is the throttle's word, this moving nothing.
    *
    * Worked out afresh on every event, so the item ungreys the moment the
-   * request is answered — and offers nothing at all once the train has left
-   * the block it was opened over, which takes the menu down with it. A menu
-   * left standing over an empty block would turn a train around somewhere
-   * else entirely.
+   * request is answered.
    */
   private get offered(): MenuItem[] {
     const at = this.menu;
-    if (at === null) return [];
-    if (this.panel === null || !this.panel.standsIn(at.train, at.block)) return [];
+    if (at === null || this.panel === null) return [];
     return [
       {
         label: "Turn around",
-        action: "turn-around",
+        action: TURN_AROUND,
         disabled: this.panel.inFlight(at.train),
       },
     ];
   }
 
   /** Chosen: one `reversal_wanted` naming the train. The scheduler flips its
-   *  facing and the arrow follows, which is the whole of the feedback. */
-  private chose(): void {
+   *  facing and the arrow follows, which is the whole of the feedback. The
+   *  action is read rather than assumed, a throttle being the leaf this menu
+   *  grows next (ui/PANEL.md). */
+  private chose(event: CustomEvent<string>): void {
     const train = this.menu?.train;
     this.menu = null;
-    if (train === undefined) return;
+    if (train === undefined || event.detail !== TURN_AROUND) return;
     this.socket?.send(reversal(train));
   }
 

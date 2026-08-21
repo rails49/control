@@ -18,7 +18,7 @@ from websockets.sync.client import ClientConnection, connect
 
 from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.inventory import INBOUND
+from tc49.lib.inventory import INBOUND, is_state_topic
 
 WANTED = "tc49/ui/request_wanted"
 REVERSAL = "tc49/ui/reversal_wanted"
@@ -108,11 +108,18 @@ def test_a_reversal_wanted_frame_becomes_the_event(
     assert seen == [{"train": "t1"}]
 
 
-def test_the_inbound_topics_are_the_ui_roles_own(bus: Bus) -> None:
+def test_the_inbound_topics_are_the_ui_roles_own_event_leaves() -> None:
     """What a broker's ACL would grant a page is `tc49/ui/#`, and the role is
     what says so (ADR-0035): the set is read off the inventory rather than
-    listed, so a leaf added there is inbound without a second edit."""
+    listed, so a leaf added there is inbound without a second edit.
+
+    Event leaves only. A role with concurrent instances may not write a state
+    topic, and the bridge relies on it: a client's frame is published from
+    that client's own handler thread, and a state topic would write the bus's
+    last-value map from there."""
     assert INBOUND == {WANTED, REVERSAL}
+    assert not any(is_state_topic(topic) for topic in INBOUND)
+    assert is_state_topic("tc49/ui/state/throttle")  # what the filter keeps out
 
 
 def test_the_bridge_refuses_every_topic_outside_the_ui_role(

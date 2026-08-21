@@ -162,9 +162,11 @@ move it, and that is precisely when you want to turn around. The scheduler
 drops such a gesture anyway, a stale page always being able to send one.
 
 An open menu outlives what it is about: the train it was greyed for can run
-its request to completion and be somewhere else by the time the item ungreys.
-So the menu closes itself when the train leaves the block it was opened over,
-rather than turning a train around in a block nobody clicked.
+its request to completion and be somewhere else by the time the item ungreys,
+and the session it would write to can go away under it. So the menu is taken
+down when the train leaves the block it was opened over, and when the bridge
+link drops, rather than turning a train around in a block nobody clicked or
+sending into a closed socket.
 
 The panel is mouse-and-keyboard. Touch works where the browser gives it, iOS
 Safari raising `contextmenu` on a long press, but is not designed for; the one
