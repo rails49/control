@@ -566,7 +566,8 @@ export class TcPanel extends LitElement {
         <defs>${DEFS}</defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
         ${this.wires(lit)} ${this.symbols(blocks, lit, aspects, positions)}
-        ${this.labels(blocks)} ${this.arrows(blocks)} ${this.markers()}
+        ${this.labels(blocks)} ${this.arrows(blocks)} ${this.crossings()}
+        ${this.markers()}
         ${this.gesture()}
       </svg>
     `;
@@ -637,6 +638,21 @@ export class TcPanel extends LitElement {
       return svg`<text class=${occupied ? "name train" : "name"} x=${x} y=${y}
         font-size=${fitted(text, BLOCK.body.w)}
         transform=${`rotate(${labelTurn(spec)} ${x} ${y})`}>${text}</text>`;
+    });
+  }
+
+  /** A train the picture says is between two blocks: its name on the
+   *  connection it is crossing, midway between the two block ends that
+   *  transit joins, and in no block (ui/PANEL.md, #154). No arrow — the
+   *  block it faces out of is one it has left. */
+  private crossings() {
+    return this.panel!.crossings().map(({ train, between }) => {
+      const from = anchorAt(this.drawing!, between[0]);
+      const to = anchorAt(this.drawing!, between[1]);
+      if (from === null || to === null) return nothing;
+      return svg`<text class="name train crossing"
+        x=${(from.x + to.x) / 2} y=${(from.y + to.y) / 2}
+        font-size=${fitted(train, BLOCK.body.w)}>${train}</text>`;
     });
   }
 

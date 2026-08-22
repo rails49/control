@@ -56,6 +56,16 @@ export interface LitRoute {
 export type { Aspect };
 
 
+/**
+ * A train between two blocks: the transit it is crossing, read off the run's
+ * picture, given as the two block ends that transit joins. That pair is where
+ * it is drawn, the connection being what holds them (ui/PANEL.md, #154).
+ */
+export interface Crossing {
+  train: string;
+  between: [EndRef, EndRef];
+}
+
 export interface BlockView {
   state: "free" | "occupied" | "locked" | "planned";
   /** The train standing, holding or heading here, where one is. */
@@ -138,6 +148,11 @@ export class Panel {
   private lyingByAddress = new Map<string, Position>();
   /** block → the train standing in it. */
   private standing = new Map<string, string>();
+  /** train → the transit it is crossing, as the picture says. A train in it
+   *  is between two blocks and stands in none: `trains` goes on naming the
+   *  block the sensors last confirmed it in, and this is the whole of what
+   *  says it has left (#154). */
+  private crossing = new Map<string, string>();
   /** train → the block it faces out of and the end it faces, as the
    *  scheduler last said. Read, never derived: facing is scheduler state
    *  (ADR-0019), and the topic carries it whole. */
@@ -178,6 +193,7 @@ export class Panel {
     this.locks.clear();
     this.lyingByAddress.clear();
     this.standing.clear();
+    this.crossing.clear();
     this.heading.clear();
     this.requests.clear();
     this.started = false;
@@ -229,6 +245,11 @@ export class Panel {
         const holder = this.locks.get(block);
         if (holder === undefined) return;
         this.standing.set(block, holder);
+        // Arrived, so no longer crossing: the same sensor the dispatcher
+        // drops its own mark on. Waiting for the next picture instead would
+        // draw the train on the connection for a frame after it plainly got
+        // there.
+        this.crossing.delete(holder);
         return;
       }
       case "block_vacated": {
@@ -250,8 +271,9 @@ export class Panel {
         // facing is not in it and stays where the scheduler's own topic put
         // it — facing is scheduler state and on no dispatcher topic at all
         // (ADR-0019).
-        const { trains, locks, requests } = event as unknown as {
+        const { trains, crossing, locks, requests } = event as unknown as {
           trains: Record<string, string>;
+          crossing?: Record<string, string>;
           locks: Record<string, string>;
           requests: {
             id: string;
@@ -262,8 +284,14 @@ export class Panel {
           }[];
         };
         this.locks = new Map(Object.entries(locks));
+        // A crossing train is named in both maps and stands in neither block:
+        // `trains` says which one the sensors last confirmed, `crossing` says
+        // it has left it, and the panel draws it on the connection.
+        this.crossing = new Map(Object.entries(crossing ?? {}));
         this.standing = new Map(
-          Object.entries(trains).map(([train, block]) => [block, train]),
+          Object.entries(trains)
+            .filter(([train]) => !this.crossing.has(train))
+            .map(([train, block]) => [block, train]),
         );
         // A rejection is not in the picture — the dispatcher does not hold
         // the request it refused — and stays until the train is dragged
@@ -409,6 +437,27 @@ export class Panel {
       views.set(block, { state: "free" });
     }
     return views;
+  }
+
+  /**
+   * Every train the picture says is between two blocks, with the pair of
+   * block ends its transit joins: where the connection is, and so where the
+   * train is drawn (#154).
+   *
+   * A transit the drawing on screen has no such connection for is left out.
+   * The picture belongs to a railroad and a page can be showing another one,
+   * which is one train the panel cannot place rather than a panel that
+   * cannot draw — the rule `positionsBySymbol` already follows for an address
+   * no symbol wears.
+   */
+  crossings(): Crossing[] {
+    const found: Crossing[] = [];
+    for (const [train, resource] of this.crossing) {
+      const [at, name] = resource.split(".");
+      const between = this.layout.connections[at]?.transits[name];
+      if (between !== undefined) found.push({ train, between });
+    }
+    return found;
   }
 
   /**

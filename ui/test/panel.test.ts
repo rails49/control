@@ -951,3 +951,69 @@ describe("point positions", () => {
     expect(model.positionsByAddress()).toEqual(new Map([["12", "thrown"]]));
   });
 });
+
+/**
+ * A train between two blocks (#154). The picture carries `crossing`, train →
+ * the transit taking it out of the block `trains` still names — the block the
+ * sensors last confirmed it in. So the panel draws it on that transit's
+ * connection rather than in a block, which is what sends a person to look at
+ * a train a restarted session cannot place on its own.
+ */
+describe("a crossing train", () => {
+  const CROSSING = {
+    event: "allocation",
+    trains: { t1: "a" },
+    crossing: { t1: "sw.main" },
+    locks: { a: "t1", "sw.main": "t1", b: "t1" },
+    requests: [],
+  };
+
+  it("is drawn on the connection, between the two ends its transit joins", () => {
+    const model = panel();
+    feed(model, CROSSING);
+    expect(model.crossings()).toEqual([{ train: "t1", between: ["a.B", "b.A"] }]);
+  });
+
+  it("stands in no block while it is crossing", () => {
+    // `trains` goes on naming the block the sensors last confirmed, and the
+    // lock is still held there — but the train is not standing in it, so the
+    // block wears the lock's colour and neither the name nor the arrow.
+    const model = panel();
+    feed(model, facing("a.B"), CROSSING);
+    expect(model.blocks().get("a")).toEqual({ state: "locked", train: "t1" });
+    expect(model.blocks().get("b")).toMatchObject({ state: "locked" });
+  });
+
+  it("stands in one again as soon as a sensor says it arrived", () => {
+    // The same rule the dispatcher clears its own entry on: the mark is
+    // written at the grant and dropped when the sensor answers. Waiting for
+    // the next picture would draw the train on the connection for a frame
+    // after it had plainly got there.
+    const model = panel();
+    feed(model, CROSSING, { event: "block_occupied", block: "b" });
+    expect(model.crossings()).toEqual([]);
+    expect(model.blocks().get("b")).toMatchObject({ state: "occupied", train: "t1" });
+  });
+
+  it("leaves a picture without one standing every train it names", () => {
+    const model = panel();
+    feed(model, CROSSING, { ...CROSSING, crossing: {} });
+    expect(model.crossings()).toEqual([]);
+    expect(model.blocks().get("a")).toMatchObject({ state: "occupied", train: "t1" });
+  });
+
+  it("is dropped where the drawing on screen has no such transit", () => {
+    // The picture is a railroad's, and a page can be showing another one:
+    // one train the panel cannot place, rather than a panel that cannot draw.
+    const model = panel();
+    feed(model, { ...CROSSING, crossing: { t1: "elsewhere.main" } });
+    expect(model.crossings()).toEqual([]);
+  });
+
+  it("is forgotten when a replay starts over", () => {
+    const model = panel();
+    feed(model, CROSSING);
+    model.reset();
+    expect(model.crossings()).toEqual([]);
+  });
+});

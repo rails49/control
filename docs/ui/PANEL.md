@@ -17,6 +17,13 @@ state on top. Blocks show colour for state, a label for the train, an arrow
 for direction. A locked but empty block gets a fill of its own, so a committed
 route reads as a lit path.
 
+**A train between two blocks is drawn on the connection**, midway between the
+two block ends its transit joins, and stands in no block. The picture's
+`crossing` is what says so, train to the transit taking it out of the block
+`trains` still names: the block the sensors last confirmed it in, which keeps
+its lock and its colour and loses the name and the arrow
+([#154](https://github.com/rails49/control/issues/154)).
+
 A request renders in three layers, each appearing when the bus first makes it
 true. **Requested** (from `request_submitted`): the train, its departure end,
 and the candidate arrival ends, endpoints only, since no route exists yet and
@@ -319,10 +326,12 @@ operator switching railroads all evening must not be handed the last one's
 placement — train names do not tell two layouts apart. The panel reads nothing new for it:
 placement arrives on `state/allocation` and facing on `state/facing` exactly
 as they do on a rejoin. What the picture gains is `crossing`, train → the
-transit it was crossing when everything stopped — a placement hint with no
-route behind it, for the panel to draw on the connection and send a person to
-look, which is [#154](https://github.com/rails49/control/issues/154). Restart
-is not rejoin and neither is recovery
+transit it was crossing when everything stopped: a placement hint with no
+route behind it, drawn on the connection as above, which sends a person to
+look at the one train the session cannot place on its own. A restored session
+also comes up **held**, so nothing moves while they do
+([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
+Restart is not rejoin and neither is recovery
 ([CONTEXT.md](../../CONTEXT.md#interruptions)).
 
 The relay's `{"error": …}` frames reach the band as trouble rather than being

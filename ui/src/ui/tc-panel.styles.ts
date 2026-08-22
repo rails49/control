@@ -148,6 +148,15 @@ export const panelStyles = css`
     font-weight: 600;
   }
 
+  /* A train between two blocks, on the connection it is crossing (#154). The
+     label sits over the throat rather than over a block, so it carries the
+     sheet behind its own strokes to stay readable. */
+  .name.train.crossing {
+    paint-order: stroke;
+    stroke: var(--paper);
+    stroke-width: ${2 * W};
+  }
+
   /* The direction arrow: where the occupying train's nose points. */
   .arrow {
     fill: var(--ink);
