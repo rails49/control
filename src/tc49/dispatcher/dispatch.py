@@ -57,7 +57,7 @@ def departure_end(layout: Layout, route: Route) -> str:
     )
 
 
-def resolve_depart(depart: str, origin: str) -> str:
+def resolve_departure(depart: str, origin: str) -> str:
     """A bare end letter (chained request) resolves against the origin."""
     return depart if "." in depart else f"{origin}.{depart}"
 
@@ -105,7 +105,7 @@ class State:
     # train -> the end it will leave by once the last route committed for it
     # is done. Written when a route is chosen, since a route is fixed from
     # then on (ADR-0002), and so already true of a train still running one.
-    leaving: dict[str, str] = field(default_factory=dict[str, str])
+    departure: dict[str, str] = field(default_factory=dict[str, str])
     # train -> the transit it is crossing: written at the grant, dropped when
     # the sensor says it arrived, and so exactly the trains with an
     # outstanding move. `block_of` goes on naming the block the sensors last
@@ -177,27 +177,28 @@ class State:
         )
 
 
-def departure(origin: str, depart: str, leaving: str | None) -> str | None:
-    """The end a working leaves `origin` by, or None where the end it states
-    is one the dispatcher can neither use nor correct.
+def effective_departure(origin: str, depart: str, remembered: str | None) -> str | None:
+    """The end the dispatcher will actually route from, or None where the end
+    the request states is one it can neither use nor correct: what a request
+    *stated* turned into what is *used*.
 
     Normally the end the request states, resolved against `origin` where it
-    states only a letter — the device a chained working already has for a
+    states only a letter — the device a chained request already has for a
     block it could not know (LAYOUT.md). Where it states another block
     altogether it was composed against the block its train stood in at the
     time of asking, and the origin was then a future dispatcher choice; the
-    dispatcher replaces it with `leaving`, the end the route it chose itself
-    leaves the train facing (#135). Routes are strict pass-throughs
-    (ADR-0001), so that end is a fact about the route and not about the
-    stock, and facing stays the scheduler's (ADR-0019).
+    dispatcher replaces it with `remembered`, the end the route it chose
+    itself leaves the train facing (`State.departure`, #135). Routes are
+    strict pass-throughs (ADR-0001), so that end is a fact about the route and
+    not about the stock, and facing stays the scheduler's (ADR-0019).
 
     Where the train ran no route there is nothing to replace it with — the
-    work ahead of it was degenerate, or was itself refused — and the working
+    work ahead of it was degenerate, or was itself refused — and the request
     is refused rather than routed from a block the train is not in (#146).
     """
     if not departs_elsewhere(depart, origin):
-        return resolve_depart(depart, origin)
-    return leaving
+        return resolve_departure(depart, origin)
+    return remembered
 
 
 def locked_ahead(state: State, train: str, route: Route, standing: int) -> int:
@@ -704,8 +705,8 @@ class Dispatcher:
             if active
             else self._state.block_of[request.train]
         )
-        depart = departure(
-            origin, request.depart, self._state.leaving.get(request.train)
+        depart = effective_departure(
+            origin, request.depart, self._state.departure.get(request.train)
         )
         return None if depart is None else (origin, depart)
 
@@ -1009,7 +1010,9 @@ class Dispatcher:
             if req.train in waiting:
                 continue
             origin = state.block_of[req.train]
-            depart = departure(origin, req.depart, state.leaving.get(req.train))
+            depart = effective_departure(
+                origin, req.depart, state.departure.get(req.train)
+            )
             if depart is None:
                 # The stated end names a block the train is not in and no
                 # route of its own supplies a better one, so there is nothing
@@ -1093,7 +1096,7 @@ class Dispatcher:
         # A route is fixed once chosen (ADR-0002), so the end it leaves the
         # train facing is settled here rather than on arrival — which is what
         # lets a working dragged in mid-route be answered while it is asked.
-        self._state.leaving[req.train] = departure_end(
+        self._state.departure[req.train] = departure_end(
             self._state.layout, launched.route
         )
         move = self._strategy.grant(req.train, self._state)
