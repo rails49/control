@@ -39,7 +39,7 @@ def placement_file(state: Path) -> Path:
     """Where the simulator keeps its placement, beside the session's state
     file: a sibling and never the same file, the bus's holding the contract's
     retained values and this one the steel."""
-    return state.with_name(f"{state.stem}.placement{state.suffix}")
+    return durable.sibling(state, "placement")
 
 
 class Simulator:

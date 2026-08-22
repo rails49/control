@@ -34,6 +34,7 @@ from tc49.bench.replay import Replay
 from tc49.bench.runner import assemble_live, railroad
 from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Bus
+from tc49.lib.durable import sibling
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
 from tc49.lib.scenario import Scenario
@@ -50,7 +51,7 @@ def state_for(state: Path, layout: str) -> Path:
     in the scenarios shipped here. Adopting across would place a train in a
     block of another layout, which no gesture on this one can clear.
     """
-    return state.with_name(f"{state.stem}.{layout}{state.suffix}")
+    return sibling(state, layout)
 
 
 class Session:
