@@ -25,7 +25,7 @@ from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import HELD, ON, RUNNING
-from tc49.lib.layout import Layout, block_of, connected_end, end_on, opposite_end
+from tc49.lib.layout import Layout, block_of, departure_end, end_on
 from tc49.lib.payload import gesture, placement, power, run_state
 from tc49.lib.rejection import Reason
 from tc49.lib.roster import Roster
@@ -46,21 +46,6 @@ class Request:
     seq: int  # admission order; the pending queue's tie-break key
     phase: int  # grant phases run when admitted; the arrival-order key
     refusals: int = 0  # launch refusals so far; the aging key (#34)
-
-
-def departure_end(layout: Layout, route: Route) -> str:
-    """The end a train that has run `route` leaves its arrival block by: the
-    other end of the one it entered through, or a terminal block's single
-    connected end.
-
-    The composed rule: `lib`'s `connected_end` applied to the far side of the
-    end the route came in through. The primitive is a question about the
-    layout alone and the scheduler asks it of a train's facing (#145); this
-    asks it of a route the dispatcher chose itself.
-    """
-    return connected_end(
-        layout, opposite_end(end_on(layout, route.arrival_block, route.transits[-1]))
-    )
 
 
 def resolve_departure(depart: str, origin: str) -> str:
@@ -1104,9 +1089,11 @@ class Dispatcher:
         # A route is fixed once chosen (ADR-0002), so the end it leaves the
         # train facing is settled here rather than on arrival — which is what
         # lets a request dragged in mid-route be answered while it is asked.
-        self._state.departure[req.train] = departure_end(
-            self._state.layout, launched.route
-        )
+        # Which end the route comes in through is read here: `lib` states the
+        # rule and takes the end, knowing nothing of routes (#155).
+        route = launched.route
+        entered = end_on(self._state.layout, route.arrival_block, route.transits[-1])
+        self._state.departure[req.train] = departure_end(self._state.layout, entered)
         move = self._strategy.grant(req.train, self._state)
         assert isinstance(move, Move)  # the launch just granted the first increment
         self._apply_move(self._state.active[req.train], move)

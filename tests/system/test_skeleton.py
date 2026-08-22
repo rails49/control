@@ -5,7 +5,7 @@ import json
 from tc49.bench.runner import placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.layout import Layout, block_of, connected_end, end_on, opposite_end
+from tc49.lib.layout import Layout, block_of, departure_end, end_on
 from tc49.lib.rejection import Reason
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tests.harness import events, load, run, stock
@@ -227,7 +227,7 @@ def assert_routes_leave_by_their_departure_end(layout: Layout, trace: str) -> No
         else:
             assert previous is not None, chosen
             entered = end_on(layout, previous[-1], previous[-2])
-            end = connected_end(layout, opposite_end(entered))
+            end = departure_end(layout, entered)
         reachable = [transit for transit, _ in layout.transits_at(end)]
         assert first in reachable, chosen
 
@@ -267,8 +267,8 @@ def test_a_drag_mid_route_runs_from_the_block_its_train_arrives_in() -> None:
     The end the drag states is dn_w.B, correct for where the train stood at
     boundary 2 and meaningless for yard_e. The end it launches by is yard_e.A:
     yard_e is a terminal block, so the pass-through rule alone would face the
-    train at the wall and `lib`'s `connected_end` gives back the one end it can
-    leave by — the same helper the scheduler asks of facing (#145).
+    train at the wall and `lib`'s `departure_end` gives back the one end it
+    can leave by — the same rule the scheduler asks of facing (#145).
     """
     layout, _roster, _ = load("crossover-yard/meet")
     trace = second_request(layout, "dn_w.B", ("yard_w.B",), 2)

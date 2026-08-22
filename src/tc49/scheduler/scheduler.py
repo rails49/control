@@ -17,13 +17,13 @@ through, and a committed route's departure end is the end it will leave by.
 That is what the layout read is for — `move_granted` names a transit and the
 block entered, not the end entered through — and why the scheduler subscribes
 `tc49/dispatch/#` (ADR-0028's growth, spent on facing). Into a terminal block
-there is no end to face away towards, so seeding and arrival both go through
-`connected_end`, which corrects a candidate that names a wall (#145). The
-last-value topic it publishes is what every view reads to draw a direction
-arrow, a train that has never moved having no other source for one. Where
-the bus binding has kept that topic across a restart the scheduler adopts
-what it finds there instead of the placement, which is what a broker that
-outlived it would have delivered (#123).
+there is no end to face away towards, so arrival goes through `departure_end`
+and seeding through the `connected_end` under it, which corrects a candidate
+that names a wall (#145). The last-value topic it publishes is what every
+view reads to draw a direction arrow, a train that has never moved having no
+other source for one. Where the bus binding has kept that topic across a
+restart the scheduler adopts what it finds there instead of the placement,
+which is what a broker that outlived it would have delivered (#123).
 Deliberate reversal at rest is the one change routes do not account for, and
 it arrives as its own gesture on `tc49/ui/reversal_wanted` (#124).
 """
@@ -33,7 +33,7 @@ from collections.abc import Sequence
 from typing import cast
 
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.layout import Layout, connected_end, end_letter, end_on, opposite_end
+from tc49.lib.layout import Layout, connected_end, departure_end, end_letter, end_on
 from tc49.lib.payload import gesture, reversal
 from tc49.lib.scenario import RequestSpec
 
@@ -166,8 +166,9 @@ class Scheduler:
         A **rejected** request leaves the train idle — `_train_of` has dropped
         it — and that is precisely when you want to turn around.
 
-        The flip goes through `connected_end` like every other facing site, so
-        a terminal block is a no-op rather than a train pointed at the wall
+        The flip goes through `lib`'s `departure_end`, read backwards — a
+        train turned around leaves by the end it would have come in through —
+        so a terminal block is a no-op rather than a train pointed at the wall
         (#145): there is one end it can leave by either way, and facing never
         names an end that leads nowhere. Without it the gesture reaches the
         state `validate_scenario` refuses at load, and the next drag departs
@@ -181,7 +182,7 @@ class Scheduler:
             return
         if train in self._train_of.values():  # a request in flight
             return
-        self._facing[train] = connected_end(self._layout, opposite_end(facing))
+        self._facing[train] = departure_end(self._layout, facing)
         self._publish_facing()
 
     # -- facing ------------------------------------------------------------
@@ -194,15 +195,15 @@ class Scheduler:
         it will leave by, which a request departing against facing is allowed
         to state (ADR-0019 makes facing a discipline, not an invariant).
 
-        Into a terminal block there is no end to face away towards, and
-        `connected_end` gives back the one end a connection holds (#145).
-        A route's departure end is a transit's end and so always connected.
+        Both of those are `lib`'s `departure_end`, which is that rule for one
+        block: into a terminal block there is no end to face away towards and
+        it gives back the one end a connection holds (#145). A route's
+        departure end is a transit's end and so always connected.
         """
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "move_granted":
             entered = end_on(self._layout, payload["into"], payload["transit"])
-            away = opposite_end(entered)
-            self._facing[payload["train"]] = connected_end(self._layout, away)
+            self._facing[payload["train"]] = departure_end(self._layout, entered)
         elif leaf == "route_chosen":
             train = self._train_of.get(payload["id"])
             route = payload["route"]
