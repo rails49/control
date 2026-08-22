@@ -144,14 +144,12 @@ describe("the ends of the snapshot stack", () => {
 });
 
 /** The view is the surface's own, so it is there to be changed whatever the
- *  drawing is: an empty sheet still zooms. What it needs is a surface with a
- *  viewport, which the run view's picture has not got until the two canvases
- *  become one (#168). */
+ *  drawing is and whichever view is current: an empty sheet still zooms, and
+ *  both views draw on the one canvas (#168). */
 describe("the view", () => {
-  it("is there to change wherever there is a viewport", () => {
+  it("is never dead, there being one viewport under both views", () => {
     for (const id of ["zoom-in", "zoom-out", "fit"] as const) {
-      expect(on(id, { zoomable: true })).toBe(true);
-      expect(on(id, { zoomable: false })).toBe(false);
+      expect(on(id)).toBe(true);
     }
   });
 

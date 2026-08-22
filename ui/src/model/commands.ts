@@ -51,11 +51,6 @@ export interface Standing {
   /** Whether there is a snapshot behind, and one ahead. */
   undo: boolean;
   redo: boolean;
-  /** Whether the current view's drawing surface has a viewport to change. The
-   *  editor's canvas has one; the run view's picture is fitted to the sheet
-   *  and gains one when the two become one canvas
-   *  ([#168](https://github.com/rails49/control/issues/168)). */
-  zoomable: boolean;
 }
 
 /** Where the editor stands before it has been told anything: nothing open,
@@ -67,7 +62,6 @@ export const NOTHING: Standing = {
   editable: false,
   undo: false,
   redo: false,
-  zoomable: false,
 };
 
 export interface Command {
@@ -108,11 +102,12 @@ export const COMMANDS: Record<CommandId, Command> = {
     enabled: ({ selection, editable }) => selection === 1 && editable,
   },
   // The view is the surface's own, so it is there to be changed whatever the
-  // drawing is: an empty sheet still zooms. What it needs is a surface that
-  // has a viewport at all.
-  "zoom-in": { label: "Zoom in", key: "+", enabled: zooms },
-  "zoom-out": { label: "Zoom out", key: "−", enabled: zooms },
-  fit: { label: "Fit", key: "0", enabled: zooms },
+  // drawing is and whichever view is current: an empty sheet still zooms, and
+  // both views draw on the one canvas, which has the one viewport
+  // ([#168](https://github.com/rails49/control/issues/168)).
+  "zoom-in": { label: "Zoom in", key: "+", enabled: () => true },
+  "zoom-out": { label: "Zoom out", key: "−", enabled: () => true },
+  fit: { label: "Fit", key: "0", enabled: () => true },
   // Not the canvas's view but what the drawing derives to, so this one does
   // need a drawing: with none open there is nothing derived to consult, and
   // the pane would open on a hint and take a fifth of the width to say it
@@ -127,11 +122,6 @@ export const COMMANDS: Record<CommandId, Command> = {
 /** A verb that reads the selection is dead without one. */
 function hasSelection({ selection }: Standing): boolean {
   return selection > 0;
-}
-
-/** A verb that moves a viewport is dead on a surface that has none. */
-function zooms({ zoomable }: Standing): boolean {
-  return zoomable;
 }
 
 export interface Menu {
@@ -167,9 +157,11 @@ export const MENUS: Record<ViewId, Menu[]> = {
 };
 
 /** What each view pins at the right end of the bar, in the order they sit in.
- *  Zoom and fit are pressed constantly while drawing, and `View ▸ Zoom in` is
- *  three clicks for what is then one. */
+ *  Zoom and fit are pressed constantly — while drawing, and while following a
+ *  train across a railroad too large to see at once — and `View ▸ Zoom in` is
+ *  three clicks for what is then one. Both views draw on one canvas, so both
+ *  get the same three (#168). */
 export const TOOLS: Record<ViewId, CommandId[]> = {
   edit: ["zoom-out", "zoom-in", "fit"],
-  run: [],
+  run: ["zoom-out", "zoom-in", "fit"],
 };

@@ -25,7 +25,6 @@ const LIVE: Standing = {
   editable: true,
   undo: true,
   redo: true,
-  zoomable: true,
 };
 
 async function bar(
@@ -185,7 +184,7 @@ describe("what a dead item does", () => {
   /** The zoom commands are the surface's own and stay alive on an empty page;
    *  the netlist is of a drawing, and there is none. */
   it("draws the netlist dead while the zoom commands stay alive", async () => {
-    const menubar = await click(await bar({ ...NOTHING, zoomable: true }), "View");
+    const menubar = await click(await bar(NOTHING), "View");
     const items = [...menubar.renderRoot.querySelectorAll("menu > li button")];
     const dead = items
       .filter((one) => (one as HTMLButtonElement).disabled)
@@ -204,17 +203,22 @@ describe("what a dead item does", () => {
 });
 
 describe("what stays one click", () => {
-  /** Zoom and fit are pressed constantly while drawing, and `View ▸ Zoom in`
-   *  is three clicks for what is now one. */
-  it("pins zoom out, zoom in and fit at the editor's right end", async () => {
-    const menubar = await bar();
-    const tools = [...menubar.renderRoot.querySelectorAll("button.tool")];
-    expect(tools.map((one) => one.getAttribute("aria-label"))).toEqual([
-      "Zoom out  −",
-      "Zoom in  +",
-      "Fit  0",
-    ]);
-  });
+  /** Zoom and fit are pressed constantly — while drawing, and while following
+   *  a train across a railroad too large to see at once — and `View ▸ Zoom
+   *  in` is three clicks for what is now one. Both views draw on one canvas,
+   *  so both pin the same three (#168). */
+  it.each(["edit", "run"] as const)(
+    "pins zoom out, zoom in and fit at the %s view's right end",
+    async (view) => {
+      const menubar = await bar(LIVE, view);
+      const tools = [...menubar.renderRoot.querySelectorAll("button.tool")];
+      expect(tools.map((one) => one.getAttribute("aria-label"))).toEqual([
+        "Zoom out  −",
+        "Zoom in  +",
+        "Fit  0",
+      ]);
+    },
+  );
 
   it("asks for the command the button carries", async () => {
     const menubar = await bar();

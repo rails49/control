@@ -194,11 +194,22 @@ export class TcApp extends LitElement {
     return this.renderRoot.querySelector<TcEditor>("tc-editor");
   }
 
+  private get running(): TcPanel | null {
+    return this.renderRoot.querySelector<TcPanel>("tc-panel");
+  }
+
+  /** The drawing surface the current view is showing. Both views draw on one
+   *  canvas (#168), so zoom and fit are the same three commands whichever is
+   *  current — they only have to reach the one on screen. */
+  private get surface(): TcEditor | TcPanel | null {
+    return this.view === "edit" ? this.edit : this.running;
+  }
+
   /** HOLD or GO, pressed on the bar. The socket is the run view's, so the
    *  press goes there: the bar draws the run's word and this carries it, and
    *  neither decides anything about the run. */
   private held(run: Run): void {
-    this.renderRoot.querySelector<TcPanel>("tc-panel")?.press(run);
+    this.running?.press(run);
   }
 
   // --- the bar and the keyboard --------------------------------------------
@@ -216,9 +227,6 @@ export class TcApp extends LitElement {
       editable: spec !== undefined && editable(spec.kind),
       undo: this.editor.canUndo,
       redo: this.editor.canRedo,
-      // The editor's canvas has a viewport; the run view's picture is fitted
-      // to the sheet and gains one with the canvas merge (#168).
-      zoomable: this.view === "edit",
     };
   }
 
@@ -269,13 +277,13 @@ export class TcApp extends LitElement {
         this.edit?.editSelected();
         return;
       case "zoom-in":
-        this.edit?.zoom(1 / OUT);
+        this.surface?.zoom(1 / OUT);
         return;
       case "zoom-out":
-        this.edit?.zoom(OUT);
+        this.surface?.zoom(OUT);
         return;
       case "fit":
-        this.edit?.fit();
+        this.surface?.fit();
         return;
       case "netlist":
         this.netlist = !this.netlist;
@@ -375,9 +383,10 @@ export class TcApp extends LitElement {
    *
    * A new railroad is named here, after the question and not before it: a
    * prompt answered and then a discard declined would have asked for nothing.
-   * Fitting the canvas is what is left over for the app — the two DOM touches
-   * `Filing` cannot take with it, and it says whether a railroad arrived to
-   * fit to.
+   * Fitting the editor's canvas is what is left over for the app — the two DOM
+   * touches `Filing` cannot take with it, and it says whether a railroad
+   * arrived to fit to. The run view fits its own, a railroad reaching it by
+   * joining a session as well as by the picker.
    */
   private async opening(wanted: string | null): Promise<void> {
     this.netlist = false;
@@ -414,7 +423,7 @@ export class TcApp extends LitElement {
   private redraw(): void {
     this.requestUpdate();
     this.edit?.redraw();
-    this.renderRoot.querySelector<TcPanel>("tc-panel")?.requestUpdate();
+    this.running?.requestUpdate();
   }
 
   // --- the keyboard ---------------------------------------------------------

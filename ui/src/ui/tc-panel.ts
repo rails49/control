@@ -140,6 +140,10 @@ export class TcPanel extends LitElement {
   /** The railroad the model was built for, so it is rebuilt when the app loads
    *  another and kept when anything else changes. */
   private built: string | null = null;
+  /** Whether the canvas wants fitting once it has drawn: a railroad arrives
+   *  here by joining a session as well as by the band's picker, and either way
+   *  there is nowhere else the viewport should be looking. */
+  private fitting = false;
   private live: Live | null = null;
   private socket: WebSocket | null = null;
   private readonly drag = new Drag();
@@ -194,6 +198,7 @@ export class TcPanel extends LitElement {
     if (this.session !== null && this.joining?.railroad !== name) this.leave();
     this.panel = new Panel(layout, explain, this.drawing!.wires);
     this.built = name;
+    this.fitting = true;
     this.beat++;
     this.finish();
   }
@@ -500,6 +505,10 @@ export class TcPanel extends LitElement {
   private said: RunStatus | null = null;
 
   override updated(): void {
+    if (this.fitting) {
+      this.fitting = false;
+      this.canvas?.fit();
+    }
     const now = this.status;
     const was = this.said;
     if (

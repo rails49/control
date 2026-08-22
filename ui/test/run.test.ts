@@ -181,6 +181,56 @@ describe("the picture on the shared canvas", () => {
   });
 });
 
+/**
+ * The viewport the run view never had (#168). It draws on the editor's canvas
+ * now, so zoom, pan and fit are the same three commands on the same bar
+ * buttons and the same keys — and a railroad arriving is fitted, however it
+ * arrived.
+ */
+describe("the viewport the run view gained", () => {
+  /** What the run view's canvas is looking at. */
+  function looking(shell: TcApp): number[] {
+    return running(shell)
+      .renderRoot.querySelector("tc-canvas")!
+      .renderRoot.querySelector("svg")!
+      .getAttribute("viewBox")!
+      .split(" ")
+      .map(Number);
+  }
+
+  /** One of the bar's pinned buttons, by the command it carries. */
+  function tool(shell: TcApp, label: string): HTMLButtonElement {
+    return [...bar(shell).renderRoot.querySelectorAll<HTMLButtonElement>("button.tool")].find(
+      (one) => one.getAttribute("aria-label")!.startsWith(label),
+    )!;
+  }
+
+  it("fits the railroad it was handed, and zooms from the bar", async () => {
+    const shell = await joined();
+    // The two blocks span 0 to 8 across, so a fit frames at least that much.
+    const [x, , w] = looking(shell);
+    expect(x!).toBeLessThanOrEqual(0);
+    expect(x! + w!).toBeGreaterThanOrEqual(8);
+
+    tool(shell, "Zoom in").click();
+    await settled(shell);
+    expect(looking(shell)[2]).toBeLessThan(w!);
+
+    tool(shell, "Fit").click();
+    await settled(shell);
+    expect(looking(shell)[2]).toBeCloseTo(w!);
+  });
+
+  /** The same keys the editor has, and they reach the view that is current. */
+  it("zooms on the keyboard while the run view is showing", async () => {
+    const shell = await joined();
+    const [, , w] = looking(shell);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "-", bubbles: true }));
+    await settled(shell);
+    expect(looking(shell)[2]).toBeGreaterThan(w!);
+  });
+});
+
 describe("the word on the button", () => {
   it("is dead until the session says where the run stands", async () => {
     const shell = await joined();
