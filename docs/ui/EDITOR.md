@@ -68,8 +68,10 @@ status line's job, and #85 took that button off the screen entirely.
 
 **Whether what the app talks to is answering reads here**, in a health area at
 the right. That is what is wrong that is not the author's doing — the store not
-answering, the bridge on a joined session — and what the author has to fix is
-marked on the drawing ([Validation](#validation)). A name no drawing can wear is
+answering, the bridge on a joined session, whether the rails have power
+([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md))
+— and what the author has to fix is marked on the drawing
+([Validation](#validation)). A name no drawing can wear is
 the one refusal that joins it: it is typed at a prompt that is gone by the time
 it is refused, and nothing on the canvas is wrong ([Files](#files)). It is a
 region with room in it rather than a string, because per-container and
