@@ -22,12 +22,12 @@ from typing import Any
 
 from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
+from tc49.dispatcher.dispatch import ALLOCATION
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
 from tests.harness import RUN_WANTED, load
 
-ALLOCATION = "tc49/dispatch/state/allocation"
 DISPUTED = "tc49/dispatch/state/disputed"
 OCCUPIED = "tc49/layout/block_occupied"
 VACATED = "tc49/layout/block_vacated"
