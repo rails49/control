@@ -15,6 +15,12 @@ else, and is read here for the same reason: nothing raises. The dispatcher's
 own two leaves, `tc49/ui/run_wanted` and `tc49/ui/placement_wanted`, are read
 here beside them: which app reads a gesture is not what decides where the
 reading lives — that nothing raises is (#152).
+
+`tc49/layout/state/power` is read here for that reason and not the first one:
+no page writes it, but the layout binding is another process, and a dispatcher
+that raised on a frame it sent would be taken down by that binding's bug the
+moment the bus stops being in-process (#173). It is the one reader here that
+answers a word rather than `None`, and `power` says why (#175).
 """
 
 from dataclasses import dataclass
