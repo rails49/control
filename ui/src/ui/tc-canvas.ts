@@ -32,7 +32,8 @@ import {
   transformOf,
   type Point,
 } from "../model/geometry.js";
-import { Gesture, type Outcome } from "../model/gesture.js";
+import { Gesture } from "../model/gesture.js";
+import type { Outcome } from "../model/machine.js";
 import {
   chosenWay,
   dark,

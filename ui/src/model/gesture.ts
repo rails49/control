@@ -13,6 +13,7 @@
 import { symbolOf, type PinRef } from "./drawing.js";
 import type { Editor } from "./editor.js";
 import { anchorOf, facePoint, type Point } from "./geometry.js";
+import type { Input, Outcome, Span } from "./machine.js";
 import type { Review } from "./store.js";
 import { under, within, type Under } from "./under.js";
 
@@ -22,31 +23,11 @@ import { under, within, type Under } from "./under.js";
  *  stake (EDITOR.md#editing). */
 const SLOP = 4;
 
-/** What the caller has to do about a gesture event: nothing, redraw the
- *  gesture visuals, announce that the selection changed, announce that the
- *  document changed, or shift the view by a grid delta — the one effect the
- *  machine cannot apply itself, the viewBox being the component's. */
-export type Outcome = "quiet" | "render" | "picked" | "changed" | { pan: Point };
-
-/** What a pointer event says beyond where it is in squares: the button, the
- *  shift key, and the screen pixels — the only frame a slop threshold means
- *  anything in, a square being however many pixels the zoom makes it. */
-export interface Input {
-  button: number;
-  shift: boolean;
-  screen: Point;
-}
-
 interface Drag {
   from: Point;
   to: Point;
   dx: number;
   dy: number;
-}
-
-export interface Band {
-  from: Point;
-  to: Point;
 }
 
 /** A press on a pin, before the pointer has said whether it meant a wire or a
@@ -60,11 +41,11 @@ interface Press {
 export class Gesture {
   private press: Press | null = null;
   private drag: Drag | null = null;
-  private rubber: Band | null = null;
+  private rubber: Span | null = null;
   private pan: Point | null = null;
 
   /** The rubber band in flight, for the canvas to draw. */
-  get band(): Band | null {
+  get band(): Span | null {
     return this.rubber;
   }
 
