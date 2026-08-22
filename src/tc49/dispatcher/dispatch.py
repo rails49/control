@@ -24,7 +24,7 @@ from typing import cast
 from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.inventory import HELD, RUNNING
+from tc49.lib.inventory import HELD, ON, RUNNING
 from tc49.lib.layout import Layout, block_of, end_on, leaving_end, opposite_end
 from tc49.lib.payload import gesture, placement, run_state
 from tc49.lib.rejection import Reason
@@ -114,6 +114,13 @@ class State:
     # the aspects, and nothing else. State rather than a flag on the
     # dispatcher because `aspects()` answers off it.
     run: str = RUNNING
+    # `on`, `stopped` or `off`: what the layout last said about whether a
+    # train may move at all (ADR-0041). Read only as "not `on`", the two ways
+    # of standing still differing for the person recovering and not here.
+    # `on` until the layout says otherwise, which is the same opening the run
+    # takes: the binding states it from its constructor, so the word arrives
+    # before the first boundary.
+    power: str = ON
     # block -> whether the layout last reported it occupied. What the
     # detectors have *said*, which is not the same as what the dispatcher has
     # acted on: a block enters this from the report that named it, while the
@@ -453,7 +460,7 @@ class Dispatcher:
         self._publish_aspects()
         self._publish_allocation()
         self._publish_disputed()
-        bus.subscribe("tc49/layout/+", self._on_layout)
+        bus.subscribe("tc49/layout/#", self._on_layout)
         bus.subscribe("tc49/schedule/request_submitted", self._on_request)
         bus.subscribe("tc49/ui/#", self._on_gesture)
 
@@ -653,9 +660,29 @@ class Dispatcher:
         grant against a sensor buffer filled over part of a period, which is
         the one thing the time model rules out (DISPATCH.md). The cost is up
         to one period between the press and the first wheel turning.
+
+        A release is **refused while the track has no power**, dropped in
+        silence and to the trace as every other gesture the dispatcher cannot
+        act on is (ADR-0034). Releasing into dead rails would choose routes,
+        grant moves and publish `cross` over track nothing can move on, and
+        strand the next train exactly as the cut stranded the first
+        (ADR-0041). A hold is honoured whatever the power is doing: it asks
+        for less, and there is no state of the railroad in which a person may
+        not ask for it.
         """
         wanted = run_state(payload)
-        if wanted is None or wanted == self._state.run:
+        if wanted is None:
+            return
+        if wanted == RUNNING and self._state.power != ON:
+            return
+        self._move_run(wanted)
+
+    def _move_run(self, wanted: str) -> None:
+        """Where the run stands, however it was moved there: a person's
+        gesture, or the layout saying the track has no power. One path, so
+        the two cannot come to publish different things — and a value that
+        changes nothing publishes nothing."""
+        if wanted == self._state.run:
             return
         self._state.run = wanted
         self._publish_run()
@@ -744,6 +771,8 @@ class Dispatcher:
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "boundary":
             self._grant_phase()
+        elif leaf == "power":
+            self._on_power(payload)
         else:
             block = payload["block"]
             self._buffered.append((leaf, block))
@@ -758,6 +787,32 @@ class Dispatcher:
             # (SYSTEM.md, the standing assumption).
             self._state.reported[block] = leaf == "block_occupied"
             self._publish_disputed()
+
+    def _on_power(self, payload: Payload) -> None:
+        """What the layout says about whether a train may move at all.
+
+        Anything but `on` **holds the run**, by the path a person's HOLD
+        takes: the dispatcher commits nothing more, and every signalled end
+        shows `stop` rather than going on showing `clear` over track with no
+        volts in it (ADR-0041). Which of `stopped` and `off` it is changes
+        nothing here — the two differ for the person recovering, who clears an
+        emergency stop or switches a supply back on, and the panel is where
+        that is said.
+
+        Power **returning** to `on` releases nothing. That is the bar the hold
+        exists for: an explicit GO before anything moves, whatever the rails
+        did in the meantime, and the same guarantee the hardware gives at
+        power-up by coming back idle.
+
+        What it cannot do is undo the cut. A train granted a move that no
+        sensor will ever answer keeps its locks and its `crossing` entry, and
+        every train waiting on those resources waits with it, until somebody
+        restarts the session — the hold is a brake and not an emergency stop,
+        and nothing on the bus retracts a `cross` already sent.
+        """
+        self._state.power = payload["power"]
+        if self._state.power != ON:
+            self._move_run(HELD)
 
     def _grant_phase(self) -> None:
         """The boundary's work: the buffered sensors, then the grants.

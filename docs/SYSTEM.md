@@ -221,7 +221,7 @@ the driver moves locomotives
 | Consumer | Filter(s) |
 | --- | --- |
 | Scheduler | `tc49/layout/boundary`, `tc49/dispatch/#` **and** `tc49/ui/#` |
-| Dispatcher | `tc49/layout/+`, `tc49/schedule/request_submitted` **and** `tc49/ui/#` |
+| Dispatcher | `tc49/layout/#`, `tc49/schedule/request_submitted` **and** `tc49/ui/#` |
 | Driver | `tc49/dispatch/move_granted` |
 | Layout interface | `tc49/drive/+`, `tc49/dispatch/align` **and** `tc49/dispatch/train_placed` |
 | Trace tap | `tc49/#` |
@@ -405,7 +405,7 @@ its `trains` and `crossing`, adopted before the standing locks are published;
 lengths stay the scenario's, and `locks` and `requests` are not adopted at
 all, so the lock table is rebuilt one block per train and the queue comes
 back empty. *Subscribes*
-`tc49/layout/+`,
+`tc49/layout/#`,
 `tc49/schedule/request_submitted` and `tc49/ui/#`. *Publishes* the nine
 `tc49/dispatch/*` events, plus `state/run`, `state/aspects`,
 `state/disputed` and
@@ -426,6 +426,16 @@ stop, nothing on the bus retracting a `cross` already sent — and every
 signalled end shows `stop` for as long as it lasts. Releasing sets the word
 and nothing else; the next boundary grants
 ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
+
+**The layout can hold it too.** `tc49/layout/state/power` arriving as anything
+but `on` sets the word to `held`, by the path the gesture takes: nothing more
+is committed, and no signalled end goes on showing `clear` over track with no
+volts in it. Which of `stopped` and `off` it is changes nothing here. Power
+returning to `on` releases nothing — the operator presses GO — and a
+`run_wanted` of `running` is **dropped** while it is anything else, releasing
+into dead rails being how the next train is stranded like the first. A hold is
+honoured whatever the power is doing
+([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move.md)).
 
 **It alone reads `tc49/ui/placement_wanted`**, a person saying where a train
 actually stands. Whether the block is free is knowledge only it has, so a
@@ -554,8 +564,7 @@ the occupancy topics are event topics, facts that happened, not state.
 says whether a train may move at all, `on`, `stopped` or `off`. It is stated
 from the binding's constructor, always, so a joining client is served the word
 rather than left to read one out of an absence
-([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)) —
-a booster's output state being about as implementable as an observation gets.
+([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
 `stopped` is an emergency stop and `off` is the supply removed; they differ
 for the person recovering and not for the dispatcher, which holds the run on
 either ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move.md)).
