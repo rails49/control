@@ -356,8 +356,8 @@ def restored(
     about the block the document put the train in.
     """
     cold = {train: spec.at for train, spec in scenario.trains.items()}
-    seen: Payload = picture.get("trains", {})
-    hinted = {train: seen[train] for train in cold if train in seen}
+    named: Payload = picture.get("trains", {})
+    pictured = {train: named[train] for train in cold if train in named}
     settled: dict[str, str] = {}
 
     def place(train: str, block: str) -> None:
@@ -365,17 +365,17 @@ def restored(
             settled[train] = block
 
     for train, at in cold.items():  # named by no picture: the document
-        if train not in hinted:
+        if train not in pictured:
             place(train, at)
-    for train, at in hinted.items():  # the picture's own word, where it is free
+    for train, at in pictured.items():  # the picture's word, where it is free
         place(train, at)
-    for train in hinted:  # pushed off it: the document, or nowhere
+    for train in pictured:  # pushed off it: the document, or nowhere
         if train not in settled:
             place(train, cold[train])
     # Back into the document's order, whatever order they were settled in:
     # the standing locks are published one train at a time from this.
     standing = {train: settled[train] for train in cold if train in settled}
-    kept = {train for train, at in hinted.items() if standing.get(train) == at}
+    kept = {train for train, at in pictured.items() if standing.get(train) == at}
     return standing, {
         train: transit
         for train, transit in picture.get("crossing", {}).items()
