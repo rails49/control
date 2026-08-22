@@ -354,9 +354,15 @@ def disputed(state: State) -> Payload:
     }
 
 
-def restored(
-    picture: Payload, roster: Roster, cold: dict[str, str]
-) -> tuple[dict[str, str], dict[str, str]]:
+@dataclass(frozen=True)
+class Adopted:
+    """What a restart takes from the last picture (`restored`)."""
+
+    standing: dict[str, str]  # train -> the block it comes up in
+    crossing: dict[str, str]  # train -> the transit it was crossing
+
+
+def restored(picture: Payload, roster: Roster, cold: dict[str, str]) -> Adopted:
     """Placement and crossing hints off the last picture the bus kept across
     a restart, or the run's own `cold` placement where there is none (#123).
 
@@ -410,11 +416,14 @@ def restored(
     order = list(cold) + [train for train in pictured if train not in cold]
     standing = {train: settled[train] for train in order if train in settled}
     kept = {train for train, at in pictured.items() if standing.get(train) == at}
-    return standing, {
-        train: transit
-        for train, transit in picture.get("crossing", {}).items()
-        if train in kept
-    }
+    return Adopted(
+        standing,
+        {
+            train: transit
+            for train, transit in picture.get("crossing", {}).items()
+            if train in kept
+        },
+    )
 
 
 @dataclass
@@ -484,14 +493,14 @@ class Dispatcher:
         # the standing locks below are published, and a subscription delivers
         # at the drain.
         picture = bus.last_values.get(ALLOCATION, {})
-        standing, crossing = restored(picture, roster, placement)
+        adopted = restored(picture, roster, placement)
         self._state = State(
             layout,
             roster.lengths(),
             {},
             {},
             {},
-            crossing=crossing,
+            crossing=adopted.crossing,
             # **A run comes up held unless its own document stood its trains
             # on the rails** (ADR-0037 as #171 amends it, ADR-0039).
             #
@@ -517,9 +526,9 @@ class Dispatcher:
             # its trains before the first boundary: nothing is left to place,
             # and a run that refused to grant with nobody at a panel would be
             # a fault that looks like a hang (ADR-0037).
-            run=HELD if picture or not standing else RUNNING,
+            run=HELD if picture or not adopted.standing else RUNNING,
         )
-        for train, at in standing.items():
+        for train, at in adopted.standing.items():
             self._state.locks[at] = train
             self._state.block_of[train] = at
             bus.publish(
