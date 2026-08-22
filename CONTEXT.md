@@ -166,6 +166,27 @@ crossing it holds the transit and, until its tail clears, the block behind as
 well.
 _Avoid_: consist
 
+**Roster**:
+The trains a railroad owns, served by the store beside its drawing. A train in
+it is **known**, which is separate from being **placed**: a railroad at rest
+says what stock it has without saying where any of it stands
+([ADR-0039](docs/adr/0039-a-train-may-be-off-the-layout.md)). Also the name of
+the pane that draws it, as `netlist` names both what derivation produces and
+the pane it is read in.
+_Avoid_: closet, fleet, inventory
+
+**Placed**:
+Of a train: present in the dispatcher's `block_of`, standing in that block and
+holding its standing lock. A train that is not placed is **off the layout** —
+an ordinary state rather than a fault, and *absence* from the mapping rather
+than a sentinel block name
+([ADR-0039](docs/adr/0039-a-train-may-be-off-the-layout.md)). Every placed
+train is on the roster; a train on the roster may be placed nowhere, and an
+unplaced train has no **facing**, there being no block for a facing to be an
+end of.
+_Avoid_: closet, positioned. *Not on the layout* is the same state said a
+second way, and the state has one phrase.
+
 **Facing**:
 The end of its block through which a parked train would depart nose-first.
 Declared with initial placement and thereafter determined by three rules:

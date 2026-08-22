@@ -29,8 +29,8 @@ is the only source of the train roster, the initial placement and an `at`-timed
 request list, and `tc49 live` cannot build an assembly without one. A scenario
 is the harness's file format — a roster and a canned request list in one test
 file — and a person does not name one. What a person does is load a railroad,
-take trains out of the closet, put them on the layout, and drag them where they
-should go. Retiring the scenario from that path is
+put its trains on the layout, and drag them where they should go. Retiring the
+scenario from that path is
 [#171](https://github.com/rails49/control/issues/171); this decision is what
 makes it a step rather than a rewrite.
 
@@ -144,7 +144,7 @@ scenario.
 **One place answers "what am I looking at".** The band. Previously the drawing
 name was in one row on one page and the scenario in a different row on another.
 
-**The left pane is one slot.** The editor's palette in one view, the closet in
+**The left pane is one slot.** The editor's palette in one view, the roster in
 the other ([ADR-0039](0039-a-train-may-be-off-the-layout.md)), the same width
 and the same place.
 

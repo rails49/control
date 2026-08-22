@@ -2,8 +2,8 @@
 
 A train is **known** by being in its railroad's roster and **placed** by being
 in the dispatcher's `block_of`. The two are separate, and a train that is known
-and placed nowhere is an ordinary state rather than a fault: it is in the
-closet. Putting one on the track and taking it off are the same gesture in two
+and placed nowhere is an ordinary state rather than a fault: it is off the
+layout. Putting one on the track and taking it off are the same gesture in two
 directions ([#170](https://github.com/rails49/control/issues/170)).
 
 This is what the railroad does. Initially there is only track; locomotives come
@@ -40,8 +40,9 @@ already placed — and not for an operator holding a locomotive.
   on screen ([#126](https://github.com/rails49/control/issues/126)).
 
 The fifth objection — that a view has nowhere to draw such a train — is answered
-by the closet, which is where it is drawn. That pane is the feature; the domain
-change is what it needs.
+by the **roster**, the pane listing what the railroad owns. It draws ownership
+and not placement, so a train standing nowhere still has a row. That pane is
+the feature; the domain change is what it needs.
 
 ## Facing is placement's, and only placement's
 
@@ -61,8 +62,8 @@ split exactly where a person is working.
 
 ## Placing and removing are one gesture
 
-The gesture names a train and where it is; the closet is one of the places it
-can be. Both directions take the same preconditions — the run held (ADR-0037,
+The gesture names a train and where it is; off the layout is one of the places
+it can be. Both directions take the same preconditions — the run held (ADR-0037,
 landing with #152), the train known, no request in flight — and removal
 additionally releases what the train held.
 
@@ -72,17 +73,17 @@ had would invalidate locks it has already granted on. The hold exists precisely
 so a person can say where things are.
 
 What decides which gesture a drag is, is **where the drag began** — never the
-run's state. A train's row in the closet always places; a train's marker on the
-canvas always asks for a request. Reading it off the run state instead would
-make one motion mean two things depending on a word in the band, and would cost
-queuing a request while held, which ADR-0037 deliberately keeps working for a
-timetable.
+run's state. A drag from a train's row in the roster places it; a drag from a
+train's marker on the canvas asks for a request. Deciding by the run state
+instead would make one motion mean two things depending on a word in the band,
+and would cost queuing a request while held, which ADR-0037 deliberately keeps
+working for a timetable.
 
 ## Consequences
 
 **A run may come up with an empty layout.** That is the cold start once a
-scenario no longer places trains: nothing on the rails, every train in the
-closet, the run held, and nothing to do but place them and press GO.
+scenario no longer places trains: nothing on the rails, every train known and
+off the layout, the run held, and nothing to do but place them and press GO.
 
 **A roster is a thing the store serves.** Trains are owned by the railroad they
 run on, so the store's unit grows from a drawing to a railroad. What a train
@@ -90,6 +91,6 @@ carries beyond a name and a length — cars, type, addresses, priority, and
 trains that split and merge during operation — is a separate design, and this
 decision takes none of it.
 
-**Removal is not deletion.** A train in the closet is on its railroad's roster
-and can be placed again. Adding a train to a railroad and taking one off it are
-different acts, and only the second is decided here.
+**Removal is not deletion.** A train taken off the layout is still on its
+railroad's roster and can be placed again. Adding a train to a railroad and
+taking one off it are different acts, and only the second is decided here.

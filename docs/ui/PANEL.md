@@ -211,10 +211,11 @@ fit or reachability. Every drop submits, the dispatcher stays the sole
 feasibility authority, and a rejection renders at the request's endpoints
 with its reason spelled out (`no_fit`, `no_entry`, `unreachable`,
 `no_origin`, `wrong_origin`, `unknown_train`, `unknown_block`,
-`malformed`). `no_origin` is a train on the roster but not on the layout —
-the closet ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)), which
-a drag can name because the closet is drawn. The last three answer a payload the dispatcher could not read as a request; an honest
-drag cannot produce one, and the page that can is a stale one, a race or a
+`malformed`). `no_origin` is a train that is known but off the layout
+([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)), which a drag can
+name because the roster draws it a row. The last three answer a payload the
+dispatcher could not read as a request; an honest drag cannot produce one, and
+the page that can is a stale one, a race or a
 bug ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 The names are not retyped here: `src/rejection.generated.ts` is written from
 `tc49.lib.rejection` by `tc49 generate`, and the wording table is keyed by

@@ -491,7 +491,7 @@ an inbound topic, and after the relay is deleted nothing stands in front
 of it, so the dispatcher never raises on a bus payload. A request naming a
 train or a block that does not exist is answered `unknown_train` or
 `unknown_block`; one naming a train on the roster that stands on no block is
-answered `no_origin`, the closet being a place a train can be
+answered `no_origin`, off the layout being a place a train can be
 ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)); one carrying a
 readable id and otherwise not a request is
 answered `malformed`; one with no readable id is dropped, there being nothing
