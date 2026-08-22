@@ -17,6 +17,10 @@ import type { Explained, Layout, Review } from "../../src/model/store.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
 import { CLEAN, mounted, running, serving, settled } from "./shell.js";
 
+/** The stock the toy session runs: one train, long enough to be a number on
+ *  the roster pane and short enough for either block. */
+export const STOCK = { goods: { length: 400 } };
+
 /** Two blocks and nothing joining them: enough to derive, enough to paint, and
  *  enough for a train to stand, be dragged and be disputed in. */
 export const LAYOUT: Layout = {
@@ -84,6 +88,7 @@ export function bridging(): void {
   serving({
     drawings: ["toy"],
     scenarios: ["toy/test"],
+    stockOf: () => STOCK,
     read: stored,
     review: () => Promise.resolve(DERIVES),
   });

@@ -61,8 +61,10 @@ import {
 import { panelStyles } from "./tc-panel.styles.js";
 import "./tc-canvas.js";
 import "./tc-menu.js";
+import "./tc-roster.js";
 import type { TcCanvas } from "./tc-canvas.js";
 import type { MenuItem } from "./tc-menu.js";
+import type { RosterRow } from "./tc-roster.js";
 
 /**
  * What the run view knows about the run that the band and the bar do not:
@@ -133,6 +135,10 @@ export class TcPanel extends LitElement {
    *  apply it to would be a frame lost, and the drain a join opens with is the
    *  whole of the run's picture. */
   private joining: { id: string; railroad: string } | null = null;
+  /** How long each train of the joined session is, by name. The stock is the
+   *  scenario's until the store serves a roster (#170); the bus says where
+   *  the trains are and never how long they are. */
+  @state() private stock: Record<string, { length: number }> = {};
   /** What was still disputed at the moment the hold was released, in words,
    *  `null` while there is nothing to say. */
   @state() private released: string | null = null;
@@ -247,6 +253,7 @@ export class TcPanel extends LitElement {
     try {
       const scenario = await readScenario(id);
       this.joining = { id, railroad: scenario.layout };
+      this.stock = scenario.trains ?? {};
       if (!rejoining) this.panel?.reset();
       if (this.built === scenario.layout) {
         this.finish();
@@ -350,6 +357,7 @@ export class TcPanel extends LitElement {
     this.drag.cancel();
     this.menu = null;
     this.joining = null;
+    this.stock = {};
     this.released = null;
     this.wasRunning = false;
     this.socket?.close();
@@ -449,6 +457,8 @@ export class TcPanel extends LitElement {
     const drawing = this.drawing;
     const live = this.overlay;
     return html`
+      <tc-roster .trains=${this.roster}></tc-roster>
+
       <header>
         <sl-select
           size="small"
@@ -516,6 +526,17 @@ export class TcPanel extends LitElement {
    *  frame's answer like everything else the picture says. */
   private get standing(): Placed[] {
     return this.panel?.placed() ?? [];
+  }
+
+  /** What the roster pane draws: the run's placed trains with the length the
+   *  session's stock gives each. Two sources because they are two things — the
+   *  bus says where a train is, the store's document says how long it is
+   *  (ADR-0010) — and the pane is handed the answer rather than either. */
+  private get roster(): RosterRow[] {
+    return this.standing.map((placed) => ({
+      ...placed,
+      length: this.stock[placed.train]?.length ?? null,
+    }));
   }
 
   /** The last status the app was told, so it is told again only when one of

@@ -48,6 +48,7 @@ import { menuStyles } from "../src/ui/tc-menu.styles.js";
 import { menubarStyles } from "../src/ui/tc-menubar.styles.js";
 import { paletteStyles } from "../src/ui/tc-palette.styles.js";
 import { panelStyles } from "../src/ui/tc-panel.styles.js";
+import { rosterStyles } from "../src/ui/tc-roster.styles.js";
 
 /**
  * The component stylesheets, hand-listed: the imports above, named, so that a
@@ -63,6 +64,7 @@ const sheets: Record<string, CSSResult> = {
   menubarStyles,
   paletteStyles,
   panelStyles,
+  rosterStyles,
 };
 
 /**
@@ -100,6 +102,21 @@ describe("the palette", () => {
   /** An exported file has no host above the svg to inherit from (#86). */
   it("is written onto the svg an export carries", () => {
     expect(exportStyles.cssText).toContain(palette.cssText);
+  });
+});
+
+/**
+ * The shell has one left-pane slot and each view fills it: the palette in
+ * edit, the roster in run (#169). One width, declared where the page is, or
+ * the two panes drift apart across a toggle and the slot stops being one.
+ */
+describe("the left-pane slot", () => {
+  it("is declared on the page and read by both views", () => {
+    expect(appStyles.cssText).toContain("--pane:");
+    for (const sheet of [editorStyles, panelStyles]) {
+      expect(sheet.cssText).toContain("var(--pane)");
+      expect(sheet.cssText).not.toContain("--pane:");
+    }
   });
 });
 

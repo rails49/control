@@ -9,6 +9,13 @@ import { palette } from "./shared.styles.js";
  * properties is declared here, a page being the host every component inherits
  * it from (#86).
  *
+ * Each view fills the work row with a left pane and its surface, and the
+ * shell is where that pane's width is declared: one left-pane slot with a
+ * view's pane in it — the editor's palette, the run view's roster
+ * ([#169](https://github.com/rails49/control/issues/169)). Two views agreeing
+ * on a number would be two places to change it, and the panes would drift
+ * apart across a toggle.
+ *
  * Both views sit in the work row, in the same cell, and the one that is not
  * current is hidden rather than taken away. Taking it away would close the
  * live session on every toggle, which is the wrong price for looking at the
@@ -18,6 +25,10 @@ import { palette } from "./shared.styles.js";
 export const appStyles = css`
   :host {
     ${palette}
+
+    /* The left-pane slot every view fills: the palette in edit, the roster in
+       run. */
+    --pane: 12rem;
 
     display: grid;
     grid-template-rows: auto auto 1fr;

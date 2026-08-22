@@ -3,7 +3,9 @@ import { css } from "lit";
 /** The editing view (`tc-editor`): the panes it lays out inside the app's work
  *  row.
  *
- * Two columns by default, the palette and the drawing. The netlist is a
+ * Two columns by default, the palette and the drawing. The palette's width is
+ * the shell's `--pane`, the left-pane slot the run view's roster fills too
+ * (#169). The netlist is a
  * debugging view opened from `View ▸ Netlist` (ADR-0024), and while it is shut
  * the view renders no `tc-netlist` at all — so the third column is not
  * declared either, and the canvas has the width rather than a 22rem gap. The
@@ -12,12 +14,12 @@ import { css } from "lit";
 export const editorStyles = css`
   :host {
     display: grid;
-    grid-template-columns: 12rem 1fr;
+    grid-template-columns: var(--pane) 1fr;
     grid-template-areas: "palette canvas";
   }
 
   :host([netlist]) {
-    grid-template-columns: 12rem 1fr 22rem;
+    grid-template-columns: var(--pane) 1fr 22rem;
     grid-template-areas: "palette canvas side";
   }
 

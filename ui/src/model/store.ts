@@ -144,13 +144,26 @@ export async function review(drawing: Drawing): Promise<Review> {
   return await ask<Review>("POST", "/review", drawing);
 }
 
-/** The scenario a live session was started from. The panel reads it for one
- *  thing, which drawing to render: nothing retained says which railroad a
- *  session runs, and a topic that did would be the bridge describing the run
- *  (#67, ADR-0036). Stock, placement and facing come off the bus. */
+/**
+ * The scenario a live session was started from.
+ *
+ * The panel reads it for two things: which drawing to render — nothing
+ * retained says which railroad a session runs, and a topic that did would be
+ * the bridge describing the run (#67, ADR-0036) — and how long each train is.
+ *
+ * The second is interim. A train's length belongs to the railroad's **roster**
+ * and the store will serve one
+ * ([#170](https://github.com/rails49/control/issues/170)); until it does, the
+ * scenario is where the stock of a run is written down, and it is where the
+ * dispatcher's own `train_lengths` comes from — the bus carries neither. Where
+ * each train *is* comes off the bus, as it always did.
+ */
 export interface ScenarioDoc {
   name: string;
   layout: string;
+  /** The stock the session runs, by train. Absent from a document written
+   *  before it was read for this. */
+  trains?: Record<string, { length: number }>;
 }
 
 export async function listScenarios(): Promise<string[]> {
