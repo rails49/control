@@ -71,7 +71,7 @@ export function serving(answers: Partial<Answers> = {}): Answers {
   const store: Answers = {
     drawings: [],
     scenarios: [],
-    layoutOf: (id) => id.slice(0, id.indexOf("/")),
+    layoutOf: (id) => id.split("/")[0]!,
     read: (name) => {
       throw new Error(`no drawing '${name}'`);
     },

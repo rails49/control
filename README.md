@@ -27,5 +27,6 @@ Each app's implementation details live beside it:
   drawn railroads live in [layouts/](layouts) and [scenarios/](scenarios).
 - [Bench](docs/bench) — the [benchmark suite](docs/bench/BENCHMARKS.md) and
   the [metrics derivations](docs/bench/METRICS.md).
-- [UI](docs/ui) — the [layout editor](docs/ui/EDITOR.md) and the [dispatch
-  panel](docs/ui/PANEL.md), both built and living in [ui/](ui).
+- [UI](docs/ui) — one app with two views of the loaded railroad, the [layout
+  editor](docs/ui/EDITOR.md) and the [run view](docs/ui/PANEL.md), living in
+  [ui/](ui).

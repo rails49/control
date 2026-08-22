@@ -250,7 +250,9 @@ export class TcEditor extends LitElement {
   private applied(event: CustomEvent<Properties>): void {
     const { was, name, spec } = event.detail;
     this.editing = null;
-    if (this.editor.edit(was, name, spec)) this.act(() => {});
+    if (!this.editor.edit(was, name, spec)) return;
+    this.redraw();
+    this.edited();
   }
 
   // --- dragging a symbol off the palette -----------------------------------

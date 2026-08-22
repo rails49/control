@@ -173,6 +173,20 @@ describe("switching view", () => {
 
     expect(titles(shell)).toEqual(["View"]);
   });
+
+  /** A menu is the view's too: one left down would be drawing the titles of a
+   *  view that is no longer on screen. */
+  it("takes a menu that is down up with the view", async () => {
+    const shell = await mounted("edit");
+    const titled = bar(shell).renderRoot.querySelectorAll("button.title")[0]!;
+    (titled as HTMLElement).click();
+    await settled(shell);
+    expect(bar(shell).renderRoot.querySelector("menu")).not.toBeNull();
+
+    await toggled(shell);
+
+    expect(bar(shell).renderRoot.querySelector("menu")).toBeNull();
+  });
 });
 
 describe("the picker over unsaved edits", () => {

@@ -38,7 +38,7 @@ export class TcHeader extends LitElement {
   /** The railroads there are to load, as the store lists them. */
   @property({ attribute: false }) drawings: readonly string[] = [];
 
-  /** Whether the open drawing holds edits the store has not been given. */
+  /** Whether the loaded railroad holds edits the store has not been given. */
   @property({ type: Boolean }) unsaved = false;
 
   /** The view that is current, which the toggle at the right end offers a way
@@ -49,22 +49,21 @@ export class TcHeader extends LitElement {
    *  report on at all. */
   @property({ type: Boolean }) joined = false;
 
-  /** What the page could not do — the store not answering, a bridge that is
+  /** What the app could not do — the store not answering, a bridge that is
    *  not there, a name no drawing can wear. Never a fault of the drawing
    *  itself: those are marked where they are (ADR-0024). */
   @property() trouble: string | null = null;
 
   /** Whether the drawing derives, which is the one thing the band says about
    *  the drawing itself (ADR-0024). The mark names no fault and counts
-   *  nothing: the canvas is where you find out where. A page with nothing to
-   *  say about derivation leaves it alone and is left clean. */
+   *  nothing: the canvas is where you find out where. */
   @property({ type: Boolean }) derives = true;
 
-  /** Whether the bridge is answering. Read only in a live session. */
+  /** Whether the bridge is answering, read only while a session is joined. */
   @property({ type: Boolean }) linked = false;
 
-  /** The grant boundary the run has reached, `null` before the first one.
-   *  Read on the panel only: a drawing is not a run. */
+  /** The grant boundary the run has reached, `null` before the first one and
+   *  with no run to have reached one: a drawing is not a run. */
   @property({ type: Number }) boundary: number | null = null;
 
   /** Whether the picker's list is down. */

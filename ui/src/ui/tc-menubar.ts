@@ -62,6 +62,12 @@ export class TcMenubar extends LitElement {
    *  land there has yet to be absorbed. */
   private hovered = false;
 
+  override willUpdate(changed: Map<string, unknown>): void {
+    // A menu is the view's, so it goes up with the view. One left down would
+    // be drawing the titles of a view that is no longer on screen.
+    if (changed.has("view")) this.showing = null;
+  }
+
   override render() {
     return html`
       ${this.showing === null
