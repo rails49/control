@@ -134,7 +134,7 @@ def assemble_live(
     layout: Layout,
     roster: Roster,
     trains: dict[str, TrainSpec] | None = None,
-    make_strategy: StrategyFactory = FullRoute,
+    make_strategy: StrategyFactory = Incremental,
     k: int = DEFAULT_K,
     state: Path | None = None,
 ) -> Assembly:
@@ -153,6 +153,14 @@ def assemble_live(
     replay is measured against. `tc49 live` itself passes none — a run an
     operator drives comes up with an empty layout and held, and the trains
     arrive as gestures (ADR-0039).
+
+    Locking is **incremental** here, where `assemble` keeps the `FullRoute`
+    baseline (#165). Incremental is what the panel's two colours mean: a
+    grant is the next transit with the block beyond it, so green creeps
+    along a cyan path and its length says how far the train may go
+    (ui/PANEL.md, ADR-0026). `FullRoute` is the measurement baseline the
+    research core compares against, and holding a whole route at launch is
+    not the behaviour to hand an operator on a shared railroad.
 
     `state` makes the session outlive the process (#123): the bus keeps its
     retained values there and each app adopts its own coming up, so placement

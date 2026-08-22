@@ -124,6 +124,27 @@ UNCOMPOSABLE: list[object] = [
 ]
 
 
+def test_a_live_run_locks_incrementally(assembly: Assembly) -> None:
+    """The default `assemble_live` runs, pinned (#165). A live session locks
+    the next transit plus the block beyond it and commits the rest, which is
+    what the panel's two colours mean: green creeps along a cyan path as the
+    train advances (ui/PANEL.md). `FullRoute`, the batch harness's baseline,
+    would lock the whole route here and the route would come up all green.
+    """
+    assembly.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    assembly.bus.drain()
+    tick_until(assembly, lambda: bool(events(assembly.trace, "route_chosen")))
+
+    lines = events(assembly.trace)
+    at = next(i for i, line in enumerate(lines) if line["event"] == "route_chosen")
+    chosen, granted = lines[at], lines[at + 1]  # the grant the launch made
+    assert granted["event"] == "lock_granted"
+    # The route is interleaved block, transit, block, ... so the first
+    # increment is the pair after the block the train stands in.
+    assert granted["resources"] == chosen["route"][1:3]
+    assert len(chosen["route"]) > 3, "a route this short cannot show the difference"
+
+
 def test_there_is_no_timetable_and_facing_is_still_published(
     assembly: Assembly,
 ) -> None:

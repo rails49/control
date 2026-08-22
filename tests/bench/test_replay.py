@@ -23,6 +23,7 @@ from tc49.bench.cli import main
 from tc49.bench.replay import Replay, arrival_ends
 from tc49.bench.runner import Assembly, assemble, assemble_live
 from tc49.bench.session import Session
+from tc49.dispatcher import Incremental
 from tc49.lib.scenario import TrainSpec
 from tests.harness import ROOT, events, load
 
@@ -121,9 +122,15 @@ def test_the_replayed_run_is_the_one_the_document_produced() -> None:
     The departure end is the one thing a gesture cannot state, so this holds
     only while a scenario's `from` agrees with its facing, which
     `crossover-yard/meet`'s does. That is the difference a browser has too.
+
+    The document assembly is given `Incremental` because that is what a live
+    run locks with (#165), and the difference under test is how the trains
+    arrived — through a gesture or through a constructor — not which locking
+    discipline they then ran under. `assemble`'s own default stays the
+    `FullRoute` baseline.
     """
     layout, roster, scenario = load(SCENARIO)
-    document = assemble(layout, roster, scenario)
+    document = assemble(layout, roster, scenario, Incremental)
     document.simulator.run()
 
     replay = replayed()
