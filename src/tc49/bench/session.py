@@ -155,6 +155,9 @@ class Session:
                 return
             name, layout, roster, scenario = wanted
             kept = None if self._state is None else state_for(self._state, name)
+            # No strategy named, so the session locks the way `assemble_live`
+            # defaults: incrementally, which is what the panel's two colours
+            # mean and what ui/PANEL.md says a live run does (#165).
             assembly = assemble_live(layout, roster, state=kept)
             self.bridge.rebind(assembly.bus, name)
             # After the rebind, so a client that named this railroad is

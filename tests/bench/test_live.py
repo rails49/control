@@ -138,11 +138,11 @@ def test_a_live_run_locks_incrementally(assembly: Assembly) -> None:
     lines = events(assembly.trace)
     at = next(i for i, line in enumerate(lines) if line["event"] == "route_chosen")
     chosen, granted = lines[at], lines[at + 1]  # the grant the launch made
-    assert granted["event"] == "lock_granted"
+    assert len(chosen["route"]) > 3, "a route this short cannot show the difference"
+    assert granted["event"] == "lock_granted"  # an arrival on the spot has none
     # The route is interleaved block, transit, block, ... so the first
     # increment is the pair after the block the train stands in.
     assert granted["resources"] == chosen["route"][1:3]
-    assert len(chosen["route"]) > 3, "a route this short cannot show the difference"
 
 
 def test_there_is_no_timetable_and_facing_is_still_published(
