@@ -307,6 +307,34 @@ describe("the two weights a fault is marked in", () => {
  * pinning: the mark written in a hex nobody can move from the palette, and
  * the mark declared where a block's own state outranks it.
  */
+/**
+ * What one mode's rules must not reach (#168).
+ *
+ * The two modes share a stylesheet now, and nearly every rule in the run's
+ * half hangs off a class only a run emits — a block is `occupied`, a route is
+ * `locked`, a name is `dim` — so it cannot match anything the editor draws.
+ * The signal is the exception: both modes draw one, lamps and all, so a rule
+ * that dims them has to say whose it is or the editor's signals go dark.
+ */
+describe("a signal's lamps", () => {
+  it("are dimmed only on a run, the editor showing every one lit", () => {
+    const rules = [
+      ...canvasStyles.cssText
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .matchAll(/([^{}]*)\{([^{}]*)\}/g),
+    ].filter(
+      ([, selector, declared]) =>
+        selector!.includes(".lamp") && declared!.includes("opacity"),
+    );
+    expect(rules.length).toBeGreaterThan(0);
+    for (const [, selector] of rules) {
+      expect(selector, `${selector!.trim()} reaches both modes`).toContain(
+        '[mode="run"]',
+      );
+    }
+  });
+});
+
 describe("the mark on a disputed block", () => {
   const panel = canvasStyles.cssText.replace(palette.cssText, "");
 

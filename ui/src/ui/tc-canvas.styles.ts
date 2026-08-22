@@ -330,15 +330,22 @@ const running = css`
      approach is green with amber, clear is green alone. The artwork draws
      every lamp and the aspect lights a set of them, so the aspect is a class
      on the signal's group and never on a lamp (ui/PANEL.md). Every end rests
-     at stop, which is what an end no train may leave by keeps showing. */
-  .signal .lamp {
+     at stop, which is what an end no train may leave by keeps showing.
+
+     The only rules here that name the mode. Both modes draw a signal and
+     neither of these carries a class only a run emits, so unscoped they would
+     dim the editor's lamps too — and the editor shows every one lit, an aspect
+     being a run's answer and not a drawing's
+     (EDITOR.md#symbol-geometry). Everything else in this block hangs off a
+     class only run mode puts on. */
+  :host([mode="run"]) .signal .lamp {
     opacity: 0.18;
   }
 
-  .signal.stop .lamp.red,
-  .signal.approach .lamp.green,
-  .signal.approach .lamp.amber,
-  .signal.clear .lamp.green {
+  :host([mode="run"]) .signal.stop .lamp.red,
+  :host([mode="run"]) .signal.approach .lamp.green,
+  :host([mode="run"]) .signal.approach .lamp.amber,
+  :host([mode="run"]) .signal.clear .lamp.green {
     opacity: 1;
   }
 
