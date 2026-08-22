@@ -2,16 +2,16 @@
 
 Its sources are configuration rather than a rule (ADR-0036): a timetable
 released at its `at` boundaries, and a person gesturing on `tc49/ui/*`.
-`tc49 bench` runs with the timetable on, `tc49 live` with it off while `at` is
+`tc49 bench` runs with a timetable, `tc49 live` with none while `at` is
 still a boundary count. A gesture is not a request — it names a train and
-where to put it, and the id and the departure end are what the scheduler adds. Ids are minted deterministically in scenario order
+where to put it, and the id and the departure end are what the scheduler adds. Ids are minted deterministically in the timetable's order
 (`<train>-1`, `<train>-2`, ...) from one undivided counter, the arrival-end
 expansion is purely mechanical (a bare block becomes both of its ends), and
 when the last timetable request is out the `exhausted` state topic is set —
 the milestone-1 termination signal.
 
-It **holds facing** (ADR-0019), seeded from the scenario's placement and
-carried forward from the bus: a train faces away from the end it entered
+It **holds facing** (ADR-0019), seeded where a run was built from a document
+and carried forward from the bus: a train faces away from the end it entered
 through, and a committed route's departure end is the end it will leave by.
 That is what the layout read is for — `move_granted` names a transit and the
 block entered, not the end entered through — and why the scheduler subscribes
@@ -28,53 +28,62 @@ it arrives as its own gesture on `tc49/ui/reversal_wanted` (#124).
 """
 
 from collections import Counter
+from collections.abc import Sequence
 from typing import cast
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import Layout, end_letter, end_on, leaving_end, opposite_end
 from tc49.lib.payload import gesture, reversal
-from tc49.lib.scenario import Scenario
+from tc49.lib.scenario import RequestSpec
 
 FACING = "tc49/schedule/state/facing"
 
 
 class Scheduler:
     def __init__(
-        self, bus: Bus, layout: Layout, scenario: Scenario, timetable: bool = True
+        self,
+        bus: Bus,
+        layout: Layout,
+        facing: dict[str, str] | None = None,
+        timetable: Sequence[RequestSpec] = (),
     ) -> None:
+        """`facing` is where a run built from a document says its trains point,
+        train to the end it would leave by, and `timetable` is that document's
+        request list. Both are the harness's: a run an operator drives is given
+        neither, and its facing arrives with the placements a person makes
+        (ADR-0036 — which sources a run has is configuration, not a rule).
+        """
         self._bus = bus
         self._layout = layout
         # Facing as the last session left it, where the bus binding kept it
         # across the process: the scheduler's own state topic, found waiting
         # exactly as it would be against a broker that outlived the app
         # (#123). It comes first, and for every train it names — including one
-        # no scenario places, which a person put on the rails by hand
+        # no document places, which a person put on the rails by hand
         # (ADR-0039); dropping that one would leave its drags uncomposable
-        # for want of a departure end. The scenario's placement seeds a cold
-        # start, and a train the retained value does not name — one added
-        # since — is a cold start of one.
+        # for want of a departure end. The seed above it is a cold start's,
+        # and a train the retained value does not name — one added since — is
+        # a cold start of one.
         restored = bus.last_values.get(FACING, {}).get("facing", {})
-        self._facing: dict[str, str] = {
-            train: leaving_end(layout, f"{spec.at}.{spec.facing}")
-            for train, spec in sorted(scenario.trains.items())
-        } | dict(sorted(cast(dict[str, str], restored).items()))
+        self._facing: dict[str, str] = dict(sorted((facing or {}).items())) | dict(
+            sorted(cast(dict[str, str], restored).items())
+        )
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
         self._counters: Counter[str] = Counter()  # one undivided minter
         self._pending: list[tuple[int, Payload]] = []
-        if timetable:
-            for request in scenario.requests:
-                self._counters[request.train] += 1
-                self._pending.append(
-                    (
-                        request.at,
-                        {
-                            "id": f"{request.train}-{self._counters[request.train]}",
-                            "train": request.train,
-                            "depart": request.depart,
-                            "dest": _expand(request.arrivals),
-                        },
-                    )
+        for request in timetable:
+            self._counters[request.train] += 1
+            self._pending.append(
+                (
+                    request.at,
+                    {
+                        "id": f"{request.train}-{self._counters[request.train]}",
+                        "train": request.train,
+                        "depart": request.depart,
+                        "dest": _expand(request.arrivals),
+                    },
                 )
+            )
         self._exhausted = False
         self._published: Payload = {}  # the facing last sent, so only changes go
         self._publish_facing()

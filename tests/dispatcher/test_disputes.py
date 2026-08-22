@@ -20,7 +20,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from tc49.bench.runner import DEFAULT_K
+from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.roster import Train
@@ -71,7 +71,9 @@ def restored(
             },
         )
     bus = Bus(path)
-    dispatcher = Dispatcher(bus, layout, roster, scenario, FullRoute(layout, DEFAULT_K))
+    dispatcher = Dispatcher(
+        bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
+    )
     bus.drain()
     return bus, dispatcher
 
@@ -164,7 +166,9 @@ def test_the_opening_statement_carries_the_set(tmp_path: Path) -> None:
     path.write_text(json.dumps({ALLOCATION: MOVED, DISPUTED: stale}))
     layout, roster, scenario = load("crossover-yard/meet")
     bus = Bus(path)
-    Dispatcher(bus, layout, roster, scenario, FullRoute(layout, DEFAULT_K))
+    Dispatcher(
+        bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
+    )
     bus.drain()
 
     assert disputed(bus) == {"trains": [], "blocks": []}

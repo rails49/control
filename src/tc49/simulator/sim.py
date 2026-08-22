@@ -33,7 +33,6 @@ from pathlib import Path
 from tc49.lib import durable
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import ON
-from tc49.lib.scenario import Scenario
 
 
 def placement_file(state: Path) -> Path:
@@ -45,23 +44,29 @@ def placement_file(state: Path) -> Path:
 
 class Simulator:
     def __init__(
-        self, bus: Bus, scenario: Scenario, placement: Path | None = None
+        self,
+        bus: Bus,
+        position: dict[str, str] | None = None,
+        placement: Path | None = None,
     ) -> None:
-        """`placement`: the file this railroad's steel stands in for, or None
-        to forget everything when the process ends.
+        """`position`: where the steel stands before anything has run, train to
+        block, which is the harness's — a run built from a scenario document
+        (`bench/runner.py`). A run an operator drives is given none: its steel
+        arrives block by block as the dispatcher accepts each placement.
+
+        `placement`: the file this railroad's steel stands in for, or None to
+        forget everything when the process ends.
 
         The file is the steel's own memory and comes first: a train it names
-        is where it was left, including one no scenario places, which is a
+        is where it was left, including one no document places, which is a
         train a hand put on the rails (ADR-0039). A train the file does not
-        name — one added to the scenario since, or a first run — starts where
-        the scenario places it.
+        name — one added since, or a first run — starts where it was built
+        standing, if anywhere.
         """
         self._bus = bus
         self._placement = placement
         stood = durable.read(placement) if placement is not None else {}
-        self._position = {
-            train: spec.at for train, spec in scenario.trains.items()
-        } | dict(stood)
+        self._position = dict(position or {}) | dict(stood)
         self._crosses: list[Payload] = []
         self._saw_command = False
         self._exhausted = False

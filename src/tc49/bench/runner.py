@@ -15,9 +15,9 @@ from pathlib import Path
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental, LockingStrategy
 from tc49.driver import Driver
 from tc49.lib.bus import Bus
-from tc49.lib.layout import Layout
+from tc49.lib.layout import Layout, leaving_end
 from tc49.lib.roster import Roster
-from tc49.lib.scenario import Scenario
+from tc49.lib.scenario import Scenario, TrainSpec
 from tc49.lib.trace import TraceTap
 from tc49.scheduler import Scheduler
 from tc49.simulator import Simulator, placement_file
@@ -64,6 +64,23 @@ def load(store: AssetStore, scenario_id: str) -> tuple[Layout, Roster, Scenario]
     return layout, store.roster(scenario.layout), scenario
 
 
+def placement(trains: dict[str, TrainSpec]) -> dict[str, str]:
+    """Train to the block it starts in: what the dispatcher and the simulator
+    take of a document's placement. Neither reads facing (ADR-0019)."""
+    return {train: spec.at for train, spec in trains.items()}
+
+
+def facing(layout: Layout, trains: dict[str, TrainSpec]) -> dict[str, str]:
+    """Train to the end it would leave by: what the scheduler takes of the
+    same placement. Through `leaving_end`, so a train standing in a terminal
+    block faces its one connected end however the document writes it (#145).
+    """
+    return {
+        train: leaving_end(layout, f"{spec.at}.{spec.facing}")
+        for train, spec in sorted(trains.items())
+    }
+
+
 @dataclass
 class Assembly:
     """Everything wired on one bus, held so a caller can peek at live state."""
@@ -92,11 +109,12 @@ def assemble(
     bus = Bus()
     out = io.StringIO()
     TraceTap(bus, out)
-    Scheduler(bus, layout, scenario)
-    dispatcher = Dispatcher(bus, layout, roster, scenario, make_strategy(layout, k))
+    stood = placement(scenario.trains)
+    Scheduler(bus, layout, facing(layout, scenario.trains), scenario.requests)
+    dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
     return Assembly(
-        bus, dispatcher, Simulator(bus, scenario), layout, roster, scenario, k, out
+        bus, dispatcher, Simulator(bus, stood), layout, roster, scenario, k, out
     )
 
 
@@ -124,14 +142,15 @@ def assemble_live(
     bus = Bus(state)
     out = io.StringIO()
     TraceTap(bus, out)
-    Scheduler(bus, layout, scenario, timetable=False)
-    dispatcher = Dispatcher(bus, layout, roster, scenario, make_strategy(layout, k))
+    stood = placement(scenario.trains)
+    Scheduler(bus, layout, facing(layout, scenario.trains))
+    dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
-    placement = None if state is None else placement_file(state)
+    steel = None if state is None else placement_file(state)
     return Assembly(
         bus,
         dispatcher,
-        Simulator(bus, scenario, placement),
+        Simulator(bus, stood, steel),
         layout,
         roster,
         scenario,

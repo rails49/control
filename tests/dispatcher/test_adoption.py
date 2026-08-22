@@ -23,7 +23,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from tc49.bench.runner import DEFAULT_K
+from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.roster import Train
@@ -85,7 +85,9 @@ def restarted(
             },
         )
     bus = Bus(path)
-    dispatcher = Dispatcher(bus, layout, roster, scenario, FullRoute(layout, DEFAULT_K))
+    dispatcher = Dispatcher(
+        bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
+    )
     said: list[Payload] = []
     bus.subscribe(
         "tc49/#", lambda topic, payload: said.append({"event": topic, **payload})

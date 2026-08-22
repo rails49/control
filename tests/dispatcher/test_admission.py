@@ -17,7 +17,7 @@ from typing import cast
 
 import pytest
 
-from tc49.bench.runner import DEFAULT_K, Assembly, assemble_live
+from tc49.bench.runner import DEFAULT_K, Assembly, assemble_live, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib import durable
 from tc49.lib.bus import Bus, Payload
@@ -131,7 +131,9 @@ def test_a_payload_that_is_not_an_object_at_all_is_dropped() -> None:
     bus = Bus()
     seen: list[Payload] = []
     bus.subscribe("tc49/dispatch/request_rejected", lambda _, p: seen.append(p))
-    Dispatcher(bus, layout, roster, scenario, FullRoute(layout, DEFAULT_K))
+    Dispatcher(
+        bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
+    )
     bus.publish(REQUESTS, cast(Payload, "freight_1 to yard_e"))
     bus.drain()
     assert seen == []

@@ -13,6 +13,7 @@ Driven at the layout interface: a `cross` command in, sensor events out.
 import json
 from pathlib import Path
 
+from tc49.bench.runner import placement
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import TOPICS
 from tc49.simulator import Simulator, placement_file
@@ -47,9 +48,9 @@ def cross(bus: Bus, train: str, into: str) -> None:
 
 def test_nothing_is_written_without_a_path(tmp_path: Path) -> None:
     """A benchmark run keeps no file, exactly as its bus opens none."""
-    _, _roster, scenario = load("crossover-yard/meet")
+    stood = placement(load("crossover-yard/meet")[2].trains)
     bus = Bus()
-    simulator = Simulator(bus, scenario)
+    simulator = Simulator(bus, stood)
     cross(bus, "freight_1", "dn_w")
     tick(simulator)
 
@@ -59,10 +60,10 @@ def test_nothing_is_written_without_a_path(tmp_path: Path) -> None:
 def test_a_moved_train_is_written_where_it_now_stands(tmp_path: Path) -> None:
     """Written on change: the file is the placement whole, so what it holds
     is where every train is and not a log of how it got there."""
-    _, _roster, scenario = load("crossover-yard/meet")
+    stood = placement(load("crossover-yard/meet")[2].trains)
     path = tmp_path / "placement.json"
     bus = Bus()
-    simulator = Simulator(bus, scenario, path)
+    simulator = Simulator(bus, stood, path)
     cross(bus, "freight_1", "dn_w")
     tick(simulator)
 
@@ -73,15 +74,15 @@ def test_a_restarted_simulator_starts_from_the_file(tmp_path: Path) -> None:
     """The morning after: the trains are where they were left, so the block
     the next move vacates is the one the last session parked them in and not
     the one the scenario document names."""
-    _, _roster, scenario = load("crossover-yard/meet")
+    stood = placement(load("crossover-yard/meet")[2].trains)
     path = tmp_path / "placement.json"
     first = Bus()
-    moved = Simulator(first, scenario, path)
+    moved = Simulator(first, stood, path)
     cross(first, "freight_1", "dn_w")
     tick(moved)
 
     second = Bus()
-    restarted = Simulator(second, scenario, path)
+    restarted = Simulator(second, stood, path)
     seen = sensors(second)
     cross(second, "freight_1", "dn_e")
     tick(restarted)
@@ -96,10 +97,10 @@ def test_a_hand_that_lifts_a_train_moves_the_steel_under_it(tmp_path: Path) -> N
     left — and the simulator stands in for the steel, so it is told. Without
     it the next move would vacate the block the train used to be in and the
     sensors would describe a railroad nobody is on."""
-    _, _roster, scenario = load("crossover-yard/meet")
+    stood = placement(load("crossover-yard/meet")[2].trains)
     path = tmp_path / "placement.json"
     bus = Bus()
-    simulator = Simulator(bus, scenario, path)
+    simulator = Simulator(bus, stood, path)
     bus.publish("tc49/dispatch/train_placed", {"train": "freight_1", "block": "up_w"})
     bus.drain()
 
@@ -118,10 +119,10 @@ def test_a_hand_that_lifts_a_train_off_the_layout_takes_the_steel_with_it(
     steel this binding stands in for is gone, and the file it is kept in says
     so. Nothing is reported on any detector — this binding reports occupancy
     when a train crosses, and this train crosses nothing now."""
-    _, _roster, scenario = load("crossover-yard/meet")
+    stood = placement(load("crossover-yard/meet")[2].trains)
     path = tmp_path / "placement.json"
     bus = Bus()
-    Simulator(bus, scenario, path)
+    Simulator(bus, stood, path)
     seen = sensors(bus)
 
     bus.publish("tc49/dispatch/train_removed", {"train": "freight_1"})
@@ -131,15 +132,15 @@ def test_a_hand_that_lifts_a_train_off_the_layout_takes_the_steel_with_it(
     assert seen == []
 
 
-def test_the_file_names_the_steel_the_scenario_never_placed(tmp_path: Path) -> None:
+def test_the_file_names_the_steel_no_document_placed(tmp_path: Path) -> None:
     """The file is the steel's own memory, so it comes first: a train a hand
-    put on the rails is one no scenario places, and a restart that dropped it
+    put on the rails is one no document places, and a restart that dropped it
     would move a locomotive nobody touched (ADR-0039, ADR-0030)."""
-    _, _roster, scenario = load("crossover-yard/meet")
+    stood = placement(load("crossover-yard/meet")[2].trains)
     path = tmp_path / "placement.json"
     path.write_text(json.dumps({"shunter": "up_w"}))
     bus = Bus()
-    simulator = Simulator(bus, scenario, path)
+    simulator = Simulator(bus, stood, path)
 
     seen = sensors(bus)
     cross(bus, "shunter", "dn_w")

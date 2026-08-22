@@ -7,7 +7,7 @@ buffered until the boundary and treated as a set, so grants are a pure
 function of the buffered set, never of delivery order (DISPATCH.md, time
 model). Standing locks are seeded and published at startup — from the last
 picture where the bus binding has kept one across a restart, and from the
-scenario where it has not (#123). The locking discipline is the pluggable
+placement the run was built with where it has not (#123). The locking discipline is the pluggable
 strategy of locking.py.
 
 It is also the sole payload authority (SYSTEM.md, dispatcher footprint):
@@ -29,7 +29,6 @@ from tc49.lib.layout import Layout, block_of, end_on, leaving_end, opposite_end
 from tc49.lib.payload import gesture, placement, power, run_state
 from tc49.lib.rejection import Reason
 from tc49.lib.roster import Roster
-from tc49.lib.scenario import Scenario
 
 ALLOCATION = "tc49/dispatch/state/allocation"
 
@@ -353,17 +352,17 @@ def disputed(state: State) -> Payload:
 
 
 def restored(
-    picture: Payload, roster: Roster, scenario: Scenario
+    picture: Payload, roster: Roster, cold: dict[str, str]
 ) -> tuple[dict[str, str], dict[str, str]]:
     """Placement and crossing hints off the last picture the bus kept across
-    a restart, or the scenario's own placement where there is none (#123).
+    a restart, or the run's own `cold` placement where there is none (#123).
 
     Adoption is **selective**: `trains` and `crossing` are taken, `locks` and
     `requests` left behind — the lock table is rebuilt one block per train
     exactly as a cold start builds it, the queue comes back empty and no
-    request id resumes (ADR-0033). Stock stays the scenario's, so a train it
-    does not carry is not one this session has and the picture's word for it
-    is dropped, and a train the picture does not name falls back to its
+    request id resumes (ADR-0033). Stock stays the **roster**'s, so a train it
+    does not carry is not one this railroad owns and the picture's word for it
+    is dropped, and a train the picture does not name falls back to its cold
     placement: one added since the last run is a cold start of one.
 
     It is also taken **per train** (#164). Where the two contradict each
@@ -385,7 +384,6 @@ def restored(
     transit the placement it came with was consistent with, and says nothing
     about the block the document put the train in.
     """
-    cold = {train: spec.at for train, spec in scenario.trains.items()}
     named: Payload = picture.get("trains", {})
     pictured = {train: at for train, at in named.items() if train in roster.trains}
     settled: dict[str, str] = {}
@@ -405,7 +403,7 @@ def restored(
     # Back into one stated order, whatever order they were settled in: the
     # standing locks are published one train at a time from this. The
     # document's trains first, then whatever else the picture placed, so a
-    # railroad the scenario describes reads as it always did.
+    # railroad a document describes reads as it always did.
     order = list(cold) + [train for train in pictured if train not in cold]
     standing = {train: settled[train] for train in order if train in settled}
     kept = {train for train, at in pictured.items() if standing.get(train) == at}
@@ -462,14 +460,18 @@ class Dispatcher:
         bus: Bus,
         layout: Layout,
         roster: Roster,
-        scenario: Scenario,
+        placement: dict[str, str],
         strategy: LockingStrategy,
     ) -> None:
         """The railroad's `roster` is the stock: every train it owns, whether
-        the scenario places it or not. The scenario says where the placed
-        ones start, and a train it does not name comes up **off the layout**
-        — known, standing nowhere, and waiting for a person to put it
-        somewhere (ADR-0039)."""
+        anything places it or not. `placement` is train to block, and it is
+        the whole of what a run can be *built* standing somewhere — the
+        harness's batch loop, which is built from a scenario document
+        (`bench/runner.py`). A run an operator drives passes none: its trains
+        arrive by gesture, and a train nothing places comes up **off the
+        layout** — known, standing nowhere, and waiting for a person to put it
+        somewhere (ADR-0039).
+        """
         self._bus = bus
         self._strategy = strategy
         # The last picture, where the bus binding held one across a restart:
@@ -479,7 +481,7 @@ class Dispatcher:
         # the standing locks below are published, and a subscription delivers
         # at the drain.
         picture = bus.last_values.get(ALLOCATION, {})
-        standing, crossing = restored(picture, roster, scenario)
+        standing, crossing = restored(picture, roster, placement)
         self._state = State(
             layout,
             roster.lengths(),
@@ -568,9 +570,9 @@ class Dispatcher:
             self._reject(rid, Reason.UNKNOWN_BLOCK)
             return
         if request.train not in self._state.block_of:
-            # Known but off the layout (ADR-0039): a train the scenario
-            # placed nowhere, one adoption could not place (#164), or one a
-            # person has lifted off. Answered here rather than guarded at
+            # Known but off the layout (ADR-0039): a train nothing placed,
+            # one adoption could not place (#164), or one a person has
+            # lifted off. Answered here rather than guarded at
             # each launch lookup, because this is the only way in — the one
             # thing that unplaces a train, `_remove`, refuses a train with a
             # request in flight, so a request that gets past this line names a
@@ -983,7 +985,7 @@ class Dispatcher:
         # A train's chained workings run in order: once one of them is left
         # pending — refused, or launched and now active — the rest of that
         # train's queue waits. Letting a later working overtake a refused one
-        # would run the scenario out of order and from the wrong origin.
+        # would run a train's chain out of order and from the wrong origin.
         # Across trains the scan ages (#34): a request refused N times is
         # tried before fresher ones, so a starved request gets first claim on
         # whatever just freed. A train's own chain order is preserved for

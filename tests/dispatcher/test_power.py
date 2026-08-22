@@ -24,7 +24,7 @@ from typing import cast
 
 import pytest
 
-from tc49.bench.runner import DEFAULT_K, Assembly, assemble
+from tc49.bench.runner import DEFAULT_K, Assembly, assemble, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import HELD, ON
@@ -62,7 +62,7 @@ def told(payload: object) -> Dispatcher:
     layout, _roster, scenario = load("crossover-yard/meet")
     bus = Bus()
     dispatcher = Dispatcher(
-        bus, layout, _roster, scenario, FullRoute(layout, DEFAULT_K)
+        bus, layout, _roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )
     bus.drain()
     bus.publish(POWER, cast(Payload, payload))

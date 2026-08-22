@@ -2,6 +2,7 @@
 
 import json
 
+from tc49.bench.runner import placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import Layout, block_of, end_on, leaving_end, opposite_end
@@ -463,7 +464,9 @@ def test_grants_are_a_pure_function_of_the_buffered_sensor_set() -> None:
             "tc49/dispatch/#",
             lambda topic, payload: seen.append(json.dumps([topic, payload])),
         )
-        Dispatcher(bus, layout, _roster, scenario, FullRoute(layout, 2))
+        Dispatcher(
+            bus, layout, _roster, placement(scenario.trains), FullRoute(layout, 2)
+        )
         for submitted in (
             {
                 "id": "freight_1-1",

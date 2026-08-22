@@ -24,9 +24,8 @@ def test_the_word_is_stated_before_anything_is_asked() -> None:
     """Retained and published from the constructor, so a subscriber that
     arrives afterwards is served it too — which is the case that matters,
     every consumer of the layout being built before the layout is."""
-    _, _roster, scenario = load("crossover-yard/meet")
     bus = Bus()
-    Simulator(bus, scenario)
+    Simulator(bus)
     assert bus.last_values[POWER] == {"power": "on"}
 
     seen = heard(bus)

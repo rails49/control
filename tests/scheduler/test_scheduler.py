@@ -4,34 +4,39 @@ import json
 from pathlib import Path
 from typing import cast
 
+from tc49.bench.runner import facing as seed
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import Layout
-from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
+from tc49.lib.scenario import RequestSpec, TrainSpec
 from tc49.scheduler import Scheduler
 from tests.harness import load
 
 
 def yard() -> Layout:
-    """crossover-yard, the railroad the scenario below stands on: the
+    """crossover-yard, the railroad the trains below stand on: the
     scheduler reads a layout to keep facing, and nothing else."""
     layout, _roster, _ = load("crossover-yard/meet")
     return layout
 
 
-def two_train_scenario() -> Scenario:
-    return Scenario(
-        name="meet",
-        layout="crossover-yard",
-        trains={
-            "freight_1": TrainSpec("yard_w", "B"),
-            "express_2": TrainSpec("up_e", "A"),
-        },
-        requests=(
-            RequestSpec("freight_1", "yard_w.B", ("yard_e",), 0),
-            RequestSpec("express_2", "up_e.A", ("yard_w.B",), 0),
-            RequestSpec("freight_1", "yard_e.A", ("yard_w",), 2),
-        ),
-    )
+TWO_TRAINS = {
+    "freight_1": TrainSpec("yard_w", "B"),
+    "express_2": TrainSpec("up_e", "A"),
+}
+"""Where a document stands the two trains. The scheduler is never handed the
+document: the harness reads a scenario into a facing seed and a timetable, and
+those two are all that reaches here (bench/runner.py, ADR-0036)."""
+
+TIMETABLE = (
+    RequestSpec("freight_1", "yard_w.B", ("yard_e",), 0),
+    RequestSpec("express_2", "up_e.A", ("yard_w.B",), 0),
+    RequestSpec("freight_1", "yard_e.A", ("yard_w",), 2),
+)
+
+
+def seeded(trains: dict[str, TrainSpec] | None = None) -> dict[str, str]:
+    """That placement as the facing seed the scheduler takes."""
+    return seed(yard(), TWO_TRAINS if trains is None else trains)
 
 
 def collect(bus: Bus, topic_filter: str) -> list[tuple[str, Payload]]:
@@ -48,7 +53,7 @@ def boundary(bus: Bus, n: int) -> None:
 def test_releases_at_due_boundaries_with_deterministic_ids_and_expansion() -> None:
     bus = Bus()
     seen = collect(bus, "tc49/schedule/request_submitted")
-    Scheduler(bus, yard(), two_train_scenario())
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
 
     boundary(bus, 0)
     assert [p for _, p in seen] == [
@@ -83,7 +88,7 @@ def test_releases_at_due_boundaries_with_deterministic_ids_and_expansion() -> No
 def test_exhausted_set_when_the_last_request_is_out() -> None:
     bus = Bus()
     seen = collect(bus, "tc49/schedule/state/exhausted")
-    Scheduler(bus, yard(), two_train_scenario())
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
 
     boundary(bus, 0)
     assert seen == []
@@ -93,25 +98,22 @@ def test_exhausted_set_when_the_last_request_is_out() -> None:
     assert len(seen) == 1  # set once, not republished
 
 
-def test_empty_scenario_is_exhausted_at_the_first_boundary() -> None:
+def test_an_empty_timetable_is_exhausted_at_the_first_boundary() -> None:
     bus = Bus()
     seen = collect(bus, "tc49/schedule/state/exhausted")
-    scenario = two_train_scenario()
-    Scheduler(
-        bus, yard(), Scenario(scenario.name, scenario.layout, scenario.trains, ())
-    )
+    Scheduler(bus, yard(), seeded())
 
     boundary(bus, 0)
     assert [p for _, p in seen] == [{"exhausted": True}]
 
 
-def test_the_timetable_is_off_when_the_session_says_so() -> None:
-    """Which sources a session has is configuration (ADR-0036): `tc49 live`
-    runs the same scheduler with nothing released, while `at` is a boundary
+def test_a_run_given_no_timetable_releases_nothing() -> None:
+    """Which sources a run has is configuration (ADR-0036): `tc49 live` runs
+    the same scheduler with no timetable at all, while `at` is a boundary
     number, and the first gesture's id is still `<train>-1`."""
     bus = Bus()
     seen = collect(bus, "tc49/schedule/request_submitted")
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
 
     boundary(bus, 0)
     boundary(bus, 2)
@@ -121,13 +123,13 @@ def test_the_timetable_is_off_when_the_session_says_so() -> None:
 FACING = "tc49/schedule/state/facing"
 
 
-def test_the_scenarios_placement_is_the_first_facing() -> None:
+def test_the_documents_placement_is_the_first_facing() -> None:
     """A train that has never moved has no other source for a direction
     arrow, which is why the topic survives the scheduler leaving the browser
     (ADR-0036)."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario())
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
     assert [p["facing"] for _, p in seen] == [
         {"express_2": "up_e.A", "freight_1": "yard_w.B"}
@@ -139,16 +141,16 @@ def test_a_retained_facing_is_adopted_in_place_of_the_placement(
 ) -> None:
     """A restart: the scheduler finds its own state topic already carrying
     facing, kept across the process by the bus binding, and takes it (#123).
-    The scenario's placement is the cold start's seed and nothing more."""
+    The document's placement is the cold start's seed and nothing more."""
     path = tmp_path / "session.json"
     path.write_text(json.dumps({FACING: {"facing": {"freight_1": "dn_e.A"}}}))
     bus = Bus(path)
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario())
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
 
     # `express_2` is not in the file, so it falls back to its placement: a
-    # train added to the scenario since the last run is a cold start of one.
+    # train added to the document since the last run is a cold start of one.
     assert seen[-1][1]["facing"] == {"express_2": "up_e.A", "freight_1": "dn_e.A"}
 
 
@@ -159,7 +161,7 @@ def test_a_granted_move_turns_the_train_away_from_the_end_it_entered() -> None:
     comes in through A and faces B."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario())
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.publish(
         "tc49/dispatch/move_granted",
         {
@@ -182,9 +184,7 @@ def test_a_train_seeded_into_a_terminal_block_faces_its_connected_end() -> None:
     document from anywhere is still right."""
     bus = Bus()
     seen = collect(bus, FACING)
-    scenario = two_train_scenario()
-    scenario.trains["freight_1"] = TrainSpec("yard_w", "A")
-    Scheduler(bus, yard(), scenario, timetable=False)
+    Scheduler(bus, yard(), seeded(TWO_TRAINS | {"freight_1": TrainSpec("yard_w", "A")}))
     bus.drain()
     assert seen[-1][1]["facing"]["freight_1"] == "yard_w.B"
 
@@ -196,7 +196,7 @@ def test_a_granted_move_into_a_terminal_block_faces_its_connected_end() -> None:
     can leave by, and the physical railroad is what settles it (#145)."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
     bus.publish(
         "tc49/dispatch/move_granted",
         {
@@ -217,7 +217,7 @@ def test_a_committed_route_faces_the_train_at_its_departure_end() -> None:
     dispatcher commits to has the last word before the train moves."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario())
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
     boundary(bus, 0)  # express_2-1 goes out, so the scheduler knows whose route it is
     bus.publish(
         "tc49/dispatch/route_chosen",
@@ -236,7 +236,7 @@ def test_facing_is_published_only_when_it_moves() -> None:
     map on every dispatch event would be a line in the trace per grant."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario())
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
     boundary(bus, 0)
     bus.publish("tc49/dispatch/request_admitted", {"id": "freight_1-1", "dest": []})
     bus.publish(
@@ -260,7 +260,7 @@ def test_a_gesture_is_composed_into_the_request_it_asks_for() -> None:
     it mints and the departure end it holds as facing (ADR-0036)."""
     bus = Bus()
     seen = collect(bus, "tc49/schedule/request_submitted")
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
 
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A", "dn_e.B"]})
     assert [p for _, p in seen] == [
@@ -279,9 +279,7 @@ def test_a_drag_out_of_a_terminal_block_departs_by_its_connected_end() -> None:
     the rest of the session (#145)."""
     bus = Bus()
     seen = collect(bus, "tc49/schedule/request_submitted")
-    scenario = two_train_scenario()
-    scenario.trains["freight_1"] = TrainSpec("yard_w", "A")
-    Scheduler(bus, yard(), scenario, timetable=False)
+    Scheduler(bus, yard(), seeded(TWO_TRAINS | {"freight_1": TrainSpec("yard_w", "A")}))
 
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
     assert seen[-1][1]["depart"] == "yard_w.B"
@@ -292,7 +290,7 @@ def test_gestures_and_the_timetable_share_one_undivided_counter() -> None:
     the shape (ADR-0033): a person's drag simply takes the next number."""
     bus = Bus()
     seen = collect(bus, "tc49/schedule/request_submitted")
-    Scheduler(bus, yard(), two_train_scenario())
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
 
     boundary(bus, 0)  # freight_1-1 and express_2-1 go out
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
@@ -300,12 +298,12 @@ def test_gestures_and_the_timetable_share_one_undivided_counter() -> None:
 
 
 def test_a_gesture_departs_from_where_facing_has_moved_to() -> None:
-    """Facing is not the scenario's for long: the drag names no departure
+    """Facing is not the document's for long: the drag names no departure
     end, so what the scheduler has carried forward is what the request
     states."""
     bus = Bus()
     seen = collect(bus, "tc49/schedule/request_submitted")
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
     bus.publish(
         "tc49/dispatch/move_granted",
         {
@@ -326,7 +324,7 @@ def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
     leaves no request behind, and the next honest drag still composes."""
     bus = Bus()
     seen = collect(bus, "tc49/schedule/request_submitted")
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
 
     for payload in [
         "freight_1 to dn_e",  # not an object at all
@@ -360,7 +358,7 @@ def test_a_reversal_turns_the_train_around_where_it_stands() -> None:
     has two ends to choose between at all."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
 
     reversal(bus, {"train": "express_2"})
     assert seen[-1][1]["facing"] == {"express_2": "up_e.B", "freight_1": "yard_w.B"}
@@ -378,7 +376,7 @@ def test_a_reversal_on_a_terminal_block_leaves_the_arrow_alone() -> None:
     the session."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
 
     reversal(bus, {"train": "freight_1"})
     assert seen[-1][1]["facing"] == {"express_2": "up_e.A", "freight_1": "yard_w.B"}
@@ -389,7 +387,7 @@ def test_a_reversal_composes_no_request_and_tells_the_dispatcher_nothing() -> No
     learns the gesture happened."""
     bus = Bus()
     seen = collect(bus, "tc49/schedule/request_submitted")
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
 
     reversal(bus, {"train": "freight_1"})
     assert seen == []
@@ -405,7 +403,7 @@ def test_a_reversal_is_dropped_while_the_train_has_a_request_in_flight() -> None
     drop would not be what held the arrow still (#145)."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
     gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
     published = len(seen)
 
@@ -423,7 +421,7 @@ def test_a_reversal_lands_once_the_request_is_answered() -> None:
     about the rejection rather than about the block (#145)."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
     gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
     bus.publish(
         "tc49/dispatch/request_rejected",
@@ -441,7 +439,7 @@ def test_a_reversal_that_cannot_be_read_is_dropped() -> None:
     be read leaves nothing behind, and the trace is its only record."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
     bus.drain()  # the placement facing, so what follows is the answer
     published = len(seen)
 
@@ -477,7 +475,7 @@ def test_facing_follows_a_train_the_dispatcher_has_accepted_as_placed() -> None:
     anyway."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
 
     placed(bus, {"train": "freight_1", "block": "up_w"})
     assert seen[-1][1]["facing"] == {"express_2": "up_e.A", "freight_1": "up_w.B"}
@@ -489,7 +487,7 @@ def test_a_train_placed_into_a_terminal_block_faces_its_connected_end() -> None:
     train can leave by rather than pointing it at the wall (#145)."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
 
     placed(bus, {"train": "express_2", "block": "yard_e"})
     assert seen[-1][1]["facing"]["express_2"] == "yard_e.A"
@@ -503,7 +501,7 @@ def test_the_scheduler_never_reads_the_placement_gesture() -> None:
     a real operator works."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
     bus.drain()
     published = len(seen)
 
@@ -512,7 +510,7 @@ def test_the_scheduler_never_reads_the_placement_gesture() -> None:
     assert len(seen) == published
 
 
-def test_a_train_the_scenario_placed_nowhere_gains_a_facing_when_placed() -> None:
+def test_a_train_nothing_placed_gains_a_facing_when_it_is_placed() -> None:
     """A train off the layout has no facing, there being no block for one to
     be an end of. Placing it is where its facing begins: `train_placed` is the
     dispatcher having accepted the train as known, so the scheduler carries no
@@ -520,7 +518,7 @@ def test_a_train_the_scenario_placed_nowhere_gains_a_facing_when_placed() -> Non
     (ADR-0019, ADR-0039)."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
     bus.drain()
     assert "shunter" not in facing(seen)
 
@@ -528,7 +526,7 @@ def test_a_train_the_scenario_placed_nowhere_gains_a_facing_when_placed() -> Non
     assert facing(seen)["shunter"] == "up_w.A"
 
 
-def test_a_restart_keeps_the_facing_of_a_train_no_scenario_places(
+def test_a_restart_keeps_the_facing_of_a_train_no_document_places(
     tmp_path: Path,
 ) -> None:
     """A train a hand put on the rails has a facing and no placement in any
@@ -540,7 +538,7 @@ def test_a_restart_keeps_the_facing_of_a_train_no_scenario_places(
     path.write_text(json.dumps({FACING: {"facing": {"shunter": "up_w.B"}}}))
     bus = Bus(path)
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
     bus.drain()
 
     assert facing(seen)["shunter"] == "up_w.B"
@@ -551,7 +549,7 @@ def test_a_train_taken_off_the_layout_loses_its_facing() -> None:
     (ADR-0039)."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    Scheduler(bus, yard(), seeded())
     bus.drain()
     assert "freight_1" in facing(seen)
 
