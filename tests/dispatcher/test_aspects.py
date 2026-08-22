@@ -3,6 +3,7 @@
 import json
 from itertools import pairwise
 
+from tc49.bench.runner import assemble
 from tc49.dispatcher import Incremental
 from tc49.dispatcher.dispatch import (
     Active,
@@ -11,8 +12,11 @@ from tc49.dispatcher.dispatch import (
     aspects,
 )
 from tc49.dispatcher.routing import Route, candidates
+from tc49.lib.inventory import HELD, RUNNING
 from tc49.lib.layout import Layout, end_on, opposite_end
-from tests.harness import events, load, run
+from tests.harness import events, load, press, run, ticks
+
+RUN_WANTED = "tc49/ui/run_wanted"
 
 
 def a_route(layout: Layout) -> Route:
@@ -84,6 +88,43 @@ def test_an_end_no_train_is_leaving_by_shows_stop() -> None:
     assert [e for e, a in shown.items() if a != "stop"] == [end]
     other = opposite_end(end)
     assert shown.get(other, "stop") == "stop"
+
+
+def test_a_held_run_puts_every_signal_to_stop() -> None:
+    """An aspect answers "may the train in this block leave via this end",
+    and while held the answer is no at every end (ADR-0037). The real aspects
+    return on release: the state is a gate over the reading, not a rewrite of
+    it, so nothing about the locks has to be undone and put back."""
+    layout, _ = load("crossover-yard/meet")
+    state = a_state(layout, a_route(layout), 2)
+    running = aspects(state)
+    assert "clear" in running.values()
+
+    state.run = HELD
+    held = aspects(state)
+    assert set(held.values()) == {"stop"}
+    assert set(held) == set(running)  # the same ends, every time (ADR-0032)
+
+    state.run = RUNNING
+    assert aspects(state) == running
+
+
+def test_holding_and_releasing_both_republish_the_aspects() -> None:
+    """The topic is what a lineside signal and a panel read, so both
+    transitions have to reach it — a `clear` left standing over a held
+    railroad is a green light over dead track."""
+    assembly = assemble(*load("crossover-yard/meet"))
+    ticks(assembly, 2)
+    before = [line["aspects"] for line in events(assembly.trace, "aspects")][-1]
+    assert "clear" in before.values()
+
+    press(assembly, RUN_WANTED, {"run": "held"})
+    held = [line["aspects"] for line in events(assembly.trace, "aspects")][-1]
+    assert set(held.values()) == {"stop"}
+
+    press(assembly, RUN_WANTED, {"run": "running"})
+    after = [line["aspects"] for line in events(assembly.trace, "aspects")][-1]
+    assert after == before
 
 
 def test_the_grant_and_the_state_topic_tell_the_same_story() -> None:

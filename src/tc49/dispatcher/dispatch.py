@@ -24,8 +24,9 @@ from typing import cast
 from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.inventory import HELD, RUNNING
 from tc49.lib.layout import Layout, block_of, end_on, leaving_end, opposite_end
-from tc49.lib.payload import gesture
+from tc49.lib.payload import gesture, run_state
 from tc49.lib.rejection import Reason
 from tc49.lib.scenario import Scenario
 
@@ -107,6 +108,12 @@ class State:
     # with no route behind it, which is what makes it a placement hint and
     # not a resumed move.
     crossing: dict[str, str] = field(default_factory=dict[str, str])
+    # `held` or `running`: whether the dispatcher may commit anything at the
+    # next boundary (ADR-0037). A brake and not an emergency stop — a move
+    # already granted is not retractable — so it gates the grant phase and
+    # the aspects, and nothing else. State rather than a flag on the
+    # dispatcher because `aspects()` answers off it.
+    run: str = RUNNING
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None:
         """Why `train` cannot lock `resource`: (reason, resource, holder),
@@ -176,8 +183,18 @@ def aspects(state: State) -> dict[str, str]:
     A train mid-transit has already had `cur_index` advanced, so the block it
     stands in is one back. The aspect belongs to where it stands, not where
     it is going.
+
+    **A held run puts every signal to stop.** An aspect answers "may the
+    train in this block leave via this end", and while held the answer is no
+    at every end (ADR-0037). Reading the locks instead would show `clear`
+    over a railroad that is going nowhere, and on the physical layout would
+    leave a lineside signal green over dead track. It qualifies ADR-0025
+    rather than superseding it: the depth still decides which of the other
+    two shows.
     """
     shown = {end: "stop" for end in sorted(state.layout.end_connection)}
+    if state.run == HELD:
+        return shown
     for train, active in state.active.items():
         standing = active.cur_index - (1 if active.outstanding else 0)
         if standing >= len(active.route.transits):
@@ -349,11 +366,16 @@ class Dispatcher:
         # has a previous value on that topic too: the last session's
         # `approach` for a route this one did not restore would stand until
         # the first grant phase, and a panel joining in that window draws a
-        # clear road nothing holds a lock on.
+        # clear road nothing holds a lock on. The run state opens it for the
+        # same reason and one step earlier: it is the frame the rest is read
+        # in, and a joining client is served the word rather than left to
+        # read one out of an absence (ADR-0032).
+        self._publish_run()
         self._publish_aspects()
         self._publish_allocation()
         bus.subscribe("tc49/layout/+", self._on_layout)
         bus.subscribe("tc49/schedule/request_submitted", self._on_request)
+        bus.subscribe("tc49/ui/#", self._on_gesture)
 
     # -- live state, for the property tests' oracles ------------------------
 
@@ -525,6 +547,38 @@ class Dispatcher:
             )
         )
 
+    # -- gestures ----------------------------------------------------------
+
+    def _on_gesture(self, topic: str, payload: Payload) -> None:
+        """A person's action on a page, on the leaves the dispatcher owns.
+
+        `request_wanted` and `reversal_wanted` are the scheduler's and pass
+        by here unread — the filter is the role, as every consumer's is
+        (SYSTEM.md, rule 3). What it cannot act on it drops, in silence and
+        to the trace: a gesture carries no id and there is nothing to address
+        an answer to (ADR-0034).
+        """
+        leaf = topic.rsplit("/", 1)[-1]
+        if leaf == "run_wanted":
+            self._set_run(payload)
+
+    def _set_run(self, payload: Payload) -> None:
+        """Hold the run, or release it.
+
+        Releasing sets the state and nothing else: the next
+        `tc49/layout/boundary` runs an ordinary grant phase. Granting from
+        here would make the boundary no longer the sole trigger, and would
+        grant against a sensor buffer filled over part of a period, which is
+        the one thing the time model rules out (DISPATCH.md). The cost is up
+        to one period between the press and the first wheel turning.
+        """
+        wanted = run_state(payload)
+        if wanted is None or wanted == self._state.run:
+            return
+        self._state.run = wanted
+        self._publish_run()
+        self._publish_aspects()
+
     # -- the grant phase ---------------------------------------------------
 
     def _on_layout(self, topic: str, payload: Payload) -> None:
@@ -535,8 +589,24 @@ class Dispatcher:
             self._buffered.append((leaf, payload["block"]))
 
     def _grant_phase(self) -> None:
+        """The boundary's work: the buffered sensors, then the grants.
+
+        While the run is held the sensors are applied and the phase stops
+        there (ADR-0037). The hold is a brake and not an emergency stop —
+        nothing on the bus retracts a `cross` already sent — so an
+        outstanding move still completes and releases its locks, and what is
+        withheld is everything that would commit something new. `_phases`
+        keeps counting either way: a held run is still a run, and the count
+        is what stamps an admission with the grant order it joined at.
+        """
         self._phases += 1
         self._apply_sensors()
+        if self._state.run == RUNNING:
+            self._grant()
+        self._publish_aspects()
+        self._publish_allocation()
+
+    def _grant(self) -> None:
         state = self._state
         # Active trains first, by request arrival then train id (DISPATCH.md).
         for train in sorted(
@@ -600,8 +670,6 @@ class Dispatcher:
             else:
                 waiting.add(req.train)
                 self._launch(req, result)
-        self._publish_aspects()
-        self._publish_allocation()
 
     def _apply_sensors(self) -> None:
         """The buffered set, in canonical order — never delivery order."""
@@ -717,6 +785,12 @@ class Dispatcher:
                 ],
             },
         )
+
+    def _publish_run(self) -> None:
+        """Whether the run is held or running, on a last-value topic. The
+        word carries a value and not a boolean because the ordinary-shutdown
+        drain will add `draining` as a third one (#123)."""
+        self._publish("state/run", {"run": self._state.run})
 
     def _publish_aspects(self) -> None:
         """The signalled ends, on a last-value topic, when any of them has
