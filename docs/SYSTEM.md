@@ -216,7 +216,7 @@ not be writable is misfiled, and belongs to the role that may write it.
 | `tc49/ui/run_wanted` | event | UI | run (`held`, `running`) — hold the run or release it |
 | `tc49/ui/placement_wanted` | event | UI | train, block — where a train actually stands, said by the person who can see it |
 | `tc49/dispatch/request_admitted` | event | dispatcher | id, surviving dest ends, pruned |
-| `tc49/dispatch/request_rejected` | event | dispatcher | id, reason (`no_fit`, `no_entry`, `unreachable`, `wrong_origin`, `unknown_train`, `unknown_block`, `malformed` — the set is `tc49.lib.rejection`, and the UI's copy of it is generated) |
+| `tc49/dispatch/request_rejected` | event | dispatcher | id, reason (`no_fit`, `no_entry`, `unreachable`, `no_origin`, `wrong_origin`, `unknown_train`, `unknown_block`, `malformed` — the set is `tc49.lib.rejection`, and the UI's copy of it is generated) |
 | `tc49/dispatch/request_completed` | event | dispatcher | id |
 | `tc49/dispatch/route_chosen` | event | dispatcher | id, route, k_tried |
 | `tc49/dispatch/move_granted` | event | dispatcher | id, train, transit, into, aspect |
@@ -490,7 +490,10 @@ It is also the **sole payload authority**: a browser can publish anything on
 an inbound topic, and after the relay is deleted nothing stands in front
 of it, so the dispatcher never raises on a bus payload. A request naming a
 train or a block that does not exist is answered `unknown_train` or
-`unknown_block`; one carrying a readable id and otherwise not a request is
+`unknown_block`; one naming a train on the roster that stands on no block is
+answered `no_origin`, the closet being a place a train can be
+([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)); one carrying a
+readable id and otherwise not a request is
 answered `malformed`; one with no readable id is dropped, there being nothing
 to address an answer to, and is already in the trace by virtue of having been
 published

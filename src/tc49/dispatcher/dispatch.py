@@ -524,6 +524,16 @@ class Dispatcher:
         if self._names_no_such_block(request):
             self._reject(rid, Reason.UNKNOWN_BLOCK)
             return
+        if request.train not in self._state.block_of:
+            # On the roster but not on the layout: the closet (ADR-0039), which
+            # adoption reaches when a train's picture block and its starting
+            # block are both taken (#164). Answered here rather than guarded at
+            # each launch lookup, because this is the only way in: nothing
+            # unplaces a train once the constructor has run, so a request that
+            # gets past this line names a train with a block, and `_pending`
+            # holds none that did not.
+            self._reject(rid, Reason.NO_ORIGIN)
+            return
         expected = self._expected_block(request.train)
         if departs_elsewhere(request.depart, expected):
             self._reject(rid, Reason.WRONG_ORIGIN)

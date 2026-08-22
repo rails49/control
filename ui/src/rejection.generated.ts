@@ -10,6 +10,7 @@ export type Reason =
   | "malformed"
   | "unknown_train"
   | "unknown_block"
+  | "no_origin"
   | "wrong_origin"
   | "no_fit"
   | "no_entry"

@@ -12,13 +12,16 @@ Driven at the bus: `publish(REQUESTS, payload)` and nothing else.
 """
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import cast
 
 import pytest
 
 from tc49.bench.runner import DEFAULT_K, Assembly, assemble_live
 from tc49.dispatcher import Dispatcher, FullRoute
+from tc49.lib import durable
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.scenario import Scenario, TrainSpec
 from tests.harness import events, load
 
 REQUESTS = "tc49/schedule/request_submitted"
@@ -145,3 +148,49 @@ def test_the_session_survives_every_unreadable_payload(assembly: Assembly) -> No
         lambda: bool(events(assembly.trace, "request_completed", rid="freight_1-1")),
     )
     assert events(assembly.trace, "request_completed", rid="freight_1-1")
+
+
+def test_a_request_for_a_train_in_the_closet_is_answered(tmp_path: Path) -> None:
+    """A known train that stands nowhere has no origin to depart from, so the
+    request is answered rather than indexed for (ADR-0039, #175).
+
+    Adoption takes the picture a train at a time (#164), so a train whose
+    picture block *and* whose starting block are both taken comes up in the
+    closet. That is the first state in which a known train has no block, and
+    every launch lookup reads `block_of` expecting one — so without this the
+    answer is a `KeyError` on a payload a browser can send, which is the one
+    thing this module exists to rule out.
+
+    `leviathan` was added to the roster since the picture was taken and
+    stands where the picture left `freight_1`; `railcar_3` sits in
+    `freight_1`'s own starting block.
+    """
+    state = tmp_path / "session.json"
+    durable.write(
+        state,
+        {
+            "tc49/dispatch/state/allocation": {
+                "trains": {"freight_1": "dn_e", "railcar_3": "yard_w"},
+                "crossing": {},
+                "locks": {},
+                "requests": [],
+            }
+        },
+    )
+    layout, _ = load("crossover-yard/meet")
+    scenario = Scenario(
+        name="closet",
+        layout="crossover-yard",
+        trains={
+            "freight_1": TrainSpec(1100, "yard_w", "B"),
+            "railcar_3": TrainSpec(600, "dn_w", "A"),
+            "leviathan": TrainSpec(2000, "dn_e", "A"),
+        },
+        requests=(),
+    )
+    assembly = assemble_live(layout, scenario, state=state)
+    assembly.bus.drain()
+
+    submit(assembly, GOOD)
+
+    assert reason(assembly, "freight_1-1") == "no_origin"
