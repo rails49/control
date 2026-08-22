@@ -1,5 +1,6 @@
 /**
- * The shell the editor's DOM suites stand up, written once (#131).
+ * The app the DOM suites stand up, and the parts of it they reach for,
+ * written once (#131).
  *
  * Five suites each forged their own `globalThis.fetch`, and four of those
  * respelled the same microtask wait with a hand-tuned loop count — `< 5`,
@@ -13,14 +14,18 @@
  * this counter would be waiting on a store nothing put behind `fetch`.
  *
  * Tests only — nothing under `src` imports this, and it defines no element
- * either. A suite's own `import "../src/ui/tc-editor.js"` is what registers
- * `tc-editor`, and that import is what makes it a DOM suite.
+ * either. A suite's own `import "../src/ui/tc-app.js"` is what registers
+ * `tc-app`, and that import is what makes it a DOM suite.
  */
 
 import type { Drawing } from "../../src/model/drawing.js";
 import type { Editor } from "../../src/model/editor.js";
 import type { Review } from "../../src/model/store.js";
+import type { ViewId } from "../../src/model/views.js";
+import type { TcApp } from "../../src/ui/tc-app.js";
 import type { TcEditor } from "../../src/ui/tc-editor.js";
+import type { TcHeader } from "../../src/ui/tc-header.js";
+import type { TcMenubar } from "../../src/ui/tc-menubar.js";
 
 /** A drawing the store is happy with: nothing to report. */
 export const CLEAN: Review = {
@@ -41,6 +46,8 @@ export const CLEAN: Review = {
 export interface Answers {
   /** The names `/drawings` lists. */
   drawings: string[];
+  /** The ids `/scenarios` lists, which is what the run view asks for. */
+  scenarios: string[];
   /** What `/drawings/<name>` answers with. */
   read: (name: string) => Drawing;
   /** What `/review` answers with. */
@@ -59,6 +66,7 @@ let asked = 0;
 export function serving(answers: Partial<Answers> = {}): Answers {
   const store: Answers = {
     drawings: [],
+    scenarios: [],
     read: (name) => {
       throw new Error(`no drawing '${name}'`);
     },
@@ -82,6 +90,9 @@ export function serving(answers: Partial<Answers> = {}): Answers {
 function answered(store: Answers, path: string): Promise<unknown> {
   if (path === "/review") return store.review();
   if (path === "/drawings") return Promise.resolve({ drawings: [...store.drawings] });
+  if (path === "/scenarios") {
+    return Promise.resolve({ scenarios: [...store.scenarios] });
+  }
   const name = decodeURIComponent(path.slice("/drawings/".length));
   return Promise.resolve(store.read(name));
 }
@@ -107,27 +118,64 @@ async function quiet(): Promise<void> {
 }
 
 /** Let the store answers in flight settle, then let Lit paint what they said —
- *  the shell and what it drew inside it, the band included. */
-export async function settled(shell: TcEditor): Promise<void> {
+ *  the app, the views inside it and what those drew, the band included. */
+export async function settled(shell: TcApp): Promise<void> {
   await quiet();
-  await shell.updateComplete;
-  for (const part of shell.renderRoot.querySelectorAll("*")) {
-    const painting = (part as Element & { updateComplete?: Promise<boolean> })
-      .updateComplete;
-    if (painting !== undefined) await painting;
-  }
+  await painted(shell);
 }
 
-/** A mounted editor, settled: what every DOM suite starts from. */
-export async function mounted(): Promise<TcEditor> {
-  const shell = document.createElement("tc-editor");
+/** One element and everything inside its shadow root, painted. The views nest
+ *  a level deeper than the band and the bar, so this walks rather than reading
+ *  one level. */
+async function painted(part: Element): Promise<void> {
+  const painting = (part as Element & { updateComplete?: Promise<boolean> })
+    .updateComplete;
+  if (painting !== undefined) await painting;
+  const inside = (part as Element & { renderRoot?: ParentNode }).renderRoot;
+  if (inside === undefined) return;
+  for (const child of inside.querySelectorAll("*")) await painted(child);
+}
+
+/** A mounted app, settled, showing `view`: what every DOM suite starts from.
+ *  The view is set the way an operator sets it, in the hash. */
+export async function mounted(view: ViewId = "edit"): Promise<TcApp> {
+  location.hash = `#${view}`;
+  const shell = document.createElement("tc-app");
   document.body.append(shell);
   await settled(shell);
   return shell;
 }
 
-/** The editor the shell is holding. It is the component's own, and reaching
- *  through for it is how a DOM suite drives the document. */
-export function session(shell: TcEditor): Editor {
+/** The editing session the app is holding. It is the component's own, and
+ *  reaching through for it is how a DOM suite drives the document. */
+export function session(shell: TcApp): Editor {
   return (shell as unknown as { editor: Editor }).editor;
+}
+
+/** The band across the top, where what is true of the whole system reads. */
+export function band(shell: TcApp): TcHeader {
+  return shell.renderRoot.querySelector("tc-header")!;
+}
+
+/** The bar under it, which carries the current view's menus. */
+export function bar(shell: TcApp): TcMenubar {
+  return shell.renderRoot.querySelector("tc-menubar")!;
+}
+
+/** The editing view, and whatever it has drawn inside itself. */
+export function editing(shell: TcApp): TcEditor {
+  return shell.renderRoot.querySelector("tc-editor")!;
+}
+
+/** One of the editing view's own parts, by tag. The views nest inside the app,
+ *  so a suite reaching for a canvas or a dialog says which view's it is. */
+export function inside(shell: TcApp, tag: string): Element {
+  return editing(shell).renderRoot.querySelector(tag)!;
+}
+
+/** An edit, as the canvas reports one. */
+export function edited(shell: TcApp): void {
+  inside(shell, "tc-canvas").dispatchEvent(
+    new CustomEvent("edit", { bubbles: true, composed: true }),
+  );
 }

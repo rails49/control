@@ -1,8 +1,10 @@
 /**
- * What more than one component wears: the palette, the page the two shells lay
- * out on, the symbol rules, the lit way, and what a menu is made of — its box,
- * its rows, the key set beside a label, the overlay a press outside lands on,
- * and the row under the pointer.
+ * What more than one component wears: the palette, the symbol rules, the lit
+ * way, and what a menu is made of — its box, its rows, the key set beside a
+ * label, the overlay a press outside lands on, and the row under the pointer.
+ *
+ * The page is not here. There is one page, and `tc-app.styles.ts` is it
+ * (ADR-0038).
  *
  * Nothing lives here that fewer than two component stylesheets wear. Without
  * that limit *what more than one component wears* admits every duplication
@@ -49,25 +51,6 @@ export const palette = unsafeCSS(
     .map(([name, value]) => `${name}: ${value};`)
     .join("\n    "),
 );
-
-/**
- * Declaration body. The shell both pages lay themselves out on: a band, a bar,
- * and the surface under them, on the paper and the ink the palette names.
- *
- * The palette comes with it, a page being the host every component inherits it
- * through. It stays a separate export all the same — an exported drawing has
- * no page above its svg to inherit from (#86).
- */
-export const page = css`
-  ${palette}
-
-  display: grid;
-  grid-template-rows: auto auto 1fr;
-  height: 100vh;
-  background: var(--paper);
-  color: var(--ink);
-  font: 13px/1.4 system-ui, sans-serif;
-`;
 
 /**
  * Declaration body. The box a menu drops into, shared by the right-click menu

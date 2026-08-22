@@ -37,13 +37,13 @@ import {
   menuRow,
   menuRowChosen,
   menuShortcut,
-  page,
   palette,
   symbols,
   way,
 } from "../src/ui/shared.styles.js";
+import { appStyles } from "../src/ui/tc-app.styles.js";
 import { canvasStyles, exportStyles } from "../src/ui/tc-canvas.styles.js";
-import { appStyles } from "../src/ui/tc-editor.styles.js";
+import { editorStyles } from "../src/ui/tc-editor.styles.js";
 import { headerStyles } from "../src/ui/tc-header.styles.js";
 import { menuStyles } from "../src/ui/tc-menu.styles.js";
 import { menubarStyles } from "../src/ui/tc-menubar.styles.js";
@@ -57,6 +57,7 @@ import { panelStyles } from "../src/ui/tc-panel.styles.js";
 const sheets: Record<string, CSSResult> = {
   appStyles,
   canvasStyles,
+  editorStyles,
   exportStyles,
   headerStyles,
   menuStyles,
@@ -87,14 +88,14 @@ describe("everything the shared module holds", () => {
 });
 
 describe("the palette", () => {
-  /** The two pages' hosts, from which every component inherits it — and it
-   *  reaches them inside `page`, which is what the assertion says. Asserting
-   *  it of the two sheets directly would pass on textual containment alone
-   *  and read as the stronger claim that each declares the palette itself. */
-  it("rides in on the page the shell and the panel lay out on", () => {
-    expect(page.cssText).toContain(palette.cssText);
-    expect(appStyles.cssText).toContain(page.cssText);
-    expect(panelStyles.cssText).toContain(page.cssText);
+  /** The app's host, from which every component in the page inherits it.
+   *  There is one page and one host to declare it on (ADR-0038), so the
+   *  views do not declare it and must not: a second declaration is a second
+   *  place for a colour to be changed in. */
+  it("is declared on the one page every view is laid out in", () => {
+    expect(appStyles.cssText).toContain(palette.cssText);
+    expect(editorStyles.cssText).not.toContain(palette.cssText);
+    expect(panelStyles.cssText).not.toContain(palette.cssText);
   });
 
   /** An exported file has no host above the svg to inherit from (#86). */

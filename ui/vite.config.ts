@@ -1,19 +1,11 @@
-import { fileURLToPath } from "node:url";
-
 import { defineConfig } from "vitest/config";
 
 // The store's HTTP face runs separately (`uv run tc49 serve`), so the dev
-// server proxies to it and the editor talks to its own origin.
+// server proxies to it and the app talks to its own origin.
+//
+// One entry, `index.html`, and vite finds it without being told: the app is
+// one page with a view in its hash (ADR-0038).
 export default defineConfig({
-  // Two pages, one stack: the editor at `/`, the panel at `/panel.html`.
-  build: {
-    rollupOptions: {
-      input: {
-        editor: fileURLToPath(new URL("index.html", import.meta.url)),
-        panel: fileURLToPath(new URL("panel.html", import.meta.url)),
-      },
-    },
-  },
   server: {
     // A second `pnpm dev` must fail rather than move to the next free port:
     // the tab already open on 5173 keeps fetching its own origin, and when the

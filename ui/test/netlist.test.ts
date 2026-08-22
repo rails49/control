@@ -16,11 +16,11 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import "../src/ui/tc-editor.js";
+import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
-import type { TcEditor } from "../src/ui/tc-editor.js";
-import { mounted, serving, settled } from "./support/shell.js";
+import type { TcApp } from "../src/ui/tc-app.js";
+import { editing, inside, mounted, serving, settled } from "./support/shell.js";
 
 const DRAWING: Drawing = {
   drawing: "gotthard",
@@ -35,7 +35,7 @@ beforeEach(() => {
 
 /** The shell with `gotthard` open, which is what the netlist item needs to be
  *  alive at all. */
-async function open(): Promise<TcEditor> {
+async function open(): Promise<TcApp> {
   const shell = await mounted();
   shell.renderRoot
     .querySelector("tc-header")!
@@ -45,7 +45,7 @@ async function open(): Promise<TcEditor> {
 }
 
 /** A command asked for on the menu bar, the way an item's click asks it. */
-async function asked(shell: TcEditor, command: string): Promise<void> {
+async function asked(shell: TcApp, command: string): Promise<void> {
   shell.renderRoot
     .querySelector("tc-menubar")!
     .dispatchEvent(new CustomEvent("command", { detail: command }));
@@ -53,7 +53,7 @@ async function asked(shell: TcEditor, command: string): Promise<void> {
 }
 
 /** The same command reached by the key the menu prints beside it. */
-async function pressed(shell: TcEditor, name: string): Promise<void> {
+async function pressed(shell: TcApp, name: string): Promise<void> {
   window.dispatchEvent(
     new KeyboardEvent("keydown", { key: name, bubbles: true, composed: true }),
   );
@@ -62,8 +62,8 @@ async function pressed(shell: TcEditor, name: string): Promise<void> {
 
 /** Whether the pane is on the page at all. Shut, it is not rendered, which is
  *  what leaves its grid column with nothing in it. */
-function showing(shell: TcEditor): boolean {
-  return shell.renderRoot.querySelector("tc-netlist") !== null;
+function showing(shell: TcApp): boolean {
+  return editing(shell).renderRoot.querySelector("tc-netlist") !== null;
 }
 
 describe("the column the netlist sits in", () => {
@@ -79,11 +79,11 @@ describe("the column the netlist sits in", () => {
    *  the width rather than a 22rem gap beside it. */
   it("is what the host attribute the grid reads says it is", async () => {
     const shell = await open();
-    expect(shell.hasAttribute("netlist")).toBe(false);
+    expect(editing(shell).hasAttribute("netlist")).toBe(false);
 
     await asked(shell, "netlist");
 
-    expect(shell.hasAttribute("netlist")).toBe(true);
+    expect(editing(shell).hasAttribute("netlist")).toBe(true);
     expect(showing(shell)).toBe(true);
   });
 
@@ -152,8 +152,8 @@ describe("the key and the item", () => {
  *  must not cost that, and shutting it takes the lit way with it — nothing
  *  left on screen could unlight it otherwise. */
 describe("a transit chosen in it", () => {
-  async function choose(shell: TcEditor): Promise<void> {
-    shell.renderRoot.querySelector("tc-netlist")!.dispatchEvent(
+  async function choose(shell: TcApp): Promise<void> {
+    editing(shell).renderRoot.querySelector("tc-netlist")!.dispatchEvent(
       new CustomEvent("transit-chosen", {
         detail: { connection: "butterfly", transit: "A3_B__CW_A" },
       }),
@@ -167,7 +167,7 @@ describe("a transit chosen in it", () => {
 
     await choose(shell);
 
-    expect(shell.renderRoot.querySelector<TcCanvas>("tc-canvas")!.chosen).toEqual({
+    expect((inside(shell, "tc-canvas") as TcCanvas).chosen).toEqual({
       connection: "butterfly",
       transit: "A3_B__CW_A",
     });
@@ -180,6 +180,6 @@ describe("a transit chosen in it", () => {
 
     await asked(shell, "netlist");
 
-    expect(shell.renderRoot.querySelector<TcCanvas>("tc-canvas")!.chosen).toBeNull();
+    expect((inside(shell, "tc-canvas") as TcCanvas).chosen).toBeNull();
   });
 });

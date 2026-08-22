@@ -88,14 +88,19 @@ export const headerStyles = css`
     color: var(--lit);
   }
 
-  .boundary {
-    color: var(--hint);
+  /* What the app talks to, and what it could not do. One row with room in it:
+     per-container and hardware reachability land here (2a-docker), and the
+     slot is where they go. */
+  .health {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    min-width: 0;
   }
 
   .boundary {
+    color: var(--hint);
     font-variant-numeric: tabular-nums;
-    min-width: 7rem;
-    text-align: right;
   }
 
   .spacer {
@@ -134,12 +139,22 @@ export const headerStyles = css`
     color: var(--wrong);
   }
 
-  .other {
-    color: var(--chosen);
-    text-decoration: none;
+  /* The view toggle: square around its icon, as the bar's tools are. */
+  .view {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.6rem;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: inherit;
+    cursor: pointer;
   }
 
-  .other:hover {
-    text-decoration: underline;
+  .view:hover {
+    background: #f0eeea;
   }
 `;

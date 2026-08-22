@@ -12,10 +12,10 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import "../src/ui/tc-editor.js";
+import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
-import type { TcEditor } from "../src/ui/tc-editor.js";
-import { mounted, serving, session, settled } from "./support/shell.js";
+import type { TcApp } from "../src/ui/tc-app.js";
+import { edited, mounted, serving, session, settled } from "./support/shell.js";
 
 /** A drawing a red pin short of nothing, one per name the store has. */
 function stored(name: string): Drawing {
@@ -42,14 +42,14 @@ afterEach(() => {
 
 /** A mounted editor with `gotthard` open and saved, which is where every test
  *  here starts. */
-async function opened(): Promise<TcEditor> {
+async function opened(): Promise<TcApp> {
   const shell = await mounted();
   await choose(shell, "gotthard");
   return shell;
 }
 
 /** Choose a railroad in the band, which is the one way one is loaded. */
-async function choose(shell: TcEditor, name: string): Promise<void> {
+async function choose(shell: TcApp, name: string): Promise<void> {
   shell.renderRoot
     .querySelector("tc-header")!
     .dispatchEvent(new CustomEvent<string>("railroad-wanted", { detail: name }));
@@ -60,7 +60,7 @@ async function choose(shell: TcEditor, name: string): Promise<void> {
  *  click on the entry. `choose` hands the shell the event the band would have
  *  sent, which is past the band's own guard on the ticked entry; this goes
  *  through it. */
-async function picked(shell: TcEditor, name: string): Promise<void> {
+async function picked(shell: TcApp, name: string): Promise<void> {
   const band = shell.renderRoot.querySelector("tc-header")!;
   (band.renderRoot.querySelector("button.chosen") as HTMLElement).click();
   await settled(shell);
@@ -74,7 +74,7 @@ async function picked(shell: TcEditor, name: string): Promise<void> {
 
 /** Ask for a new drawing, which is the other way the open one is thrown
  *  away. */
-async function fresh(shell: TcEditor): Promise<void> {
+async function fresh(shell: TcApp): Promise<void> {
   shell.renderRoot
     .querySelector("tc-menubar")!
     .dispatchEvent(new CustomEvent<string>("command", { detail: "new" }));
@@ -82,19 +82,19 @@ async function fresh(shell: TcEditor): Promise<void> {
 }
 
 /** Draw something, which is what leaves the drawing unsaved. */
-async function drawn(shell: TcEditor): Promise<void> {
+async function drawn(shell: TcApp): Promise<void> {
   session(shell).place("block", [4, 0]);
-  shell.renderRoot.querySelector("tc-canvas")!.dispatchEvent(new CustomEvent("edit"));
+  edited(shell);
   await settled(shell);
 }
 
 /** The question, `null` while none is up. */
-function asked(shell: TcEditor): Element | null {
+function asked(shell: TcApp): Element | null {
   return shell.renderRoot.querySelector("sl-dialog");
 }
 
 /** Answer it, the way the two buttons in its footer read. */
-async function answer(shell: TcEditor, said: string): Promise<void> {
+async function answer(shell: TcApp, said: string): Promise<void> {
   const buttons = [...shell.renderRoot.querySelectorAll("sl-dialog sl-button")];
   const button = buttons.find((one) => one.textContent!.trim() === said);
   (button as HTMLElement).click();
@@ -102,13 +102,13 @@ async function answer(shell: TcEditor, said: string): Promise<void> {
 }
 
 /** The drawing the band names as open. */
-function open(shell: TcEditor): string {
+function open(shell: TcApp): string {
   const band = shell.renderRoot.querySelector("tc-header")!;
   return band.renderRoot.querySelector(".drawing")!.textContent!.trim();
 }
 
 /** Whether the band shows the dot that says there are edits to lose. */
-function unsaved(shell: TcEditor): boolean {
+function unsaved(shell: TcApp): boolean {
   const band = shell.renderRoot.querySelector("tc-header")!;
   return band.renderRoot.querySelector(".unsaved") !== null;
 }

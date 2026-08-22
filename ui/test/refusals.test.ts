@@ -14,14 +14,14 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import "../src/ui/tc-editor.js";
+import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
 import type { Editor } from "../src/model/editor.js";
-import type { TcEditor } from "../src/ui/tc-editor.js";
+import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcHeader } from "../src/ui/tc-header.js";
 import type { TcProperties } from "../src/ui/tc-properties.js";
 import type SlInput from "@shoelace-style/shoelace/dist/components/input/input.js";
-import { mounted, serving, session, settled } from "./support/shell.js";
+import { inside, mounted, serving, session, settled } from "./support/shell.js";
 
 /** Two symbols, so a rename onto a taken name has something to collide with. */
 const DRAWING: Drawing = {
@@ -37,7 +37,7 @@ beforeEach(() => {
 /** A mounted editor holding the drawing above, with the review it asks for on
  *  load already answered: that answer clears the band, so a test that raced it
  *  would be testing the timing and not the refusal. */
-async function holding(): Promise<{ shell: TcEditor; editing: Editor }> {
+async function holding(): Promise<{ shell: TcApp; editing: Editor }> {
   const shell = await mounted();
   const editing = session(shell);
   editing.reset(structuredClone(DRAWING));
@@ -46,19 +46,19 @@ async function holding(): Promise<{ shell: TcEditor; editing: Editor }> {
 
 /** The band across the top, which is where the editor says what it could not
  *  do. */
-function band(shell: TcEditor): TcHeader {
+function band(shell: TcApp): TcHeader {
   return shell.renderRoot.querySelector("tc-header")!;
 }
 
 /** The properties dialog, opened on the one selected symbol the way the
  *  `Properties…` command opens it. */
-async function opened(shell: TcEditor, editing: Editor, name: string) {
+async function opened(shell: TcApp, editing: Editor, name: string) {
   editing.select([name]);
   shell.renderRoot
     .querySelector("tc-menubar")!
     .dispatchEvent(new CustomEvent("command", { detail: "properties" }));
   await settled(shell);
-  const dialog = shell.renderRoot.querySelector("tc-properties")!;
+  const dialog = inside(shell, "tc-properties") as TcProperties;
   await dialog.updateComplete;
   return dialog;
 }

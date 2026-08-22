@@ -169,23 +169,19 @@ describe("the status the band takes over", () => {
     );
   });
 
-  /** With no session joined there is no bridge to be answering, and the
-   *  editor never has one. */
+  /** With no session joined there is no bridge to be answering. */
   it("says nothing about a bridge off a joined session", async () => {
-    expect(reads(await band({ mode: "run", linked: true }), ".link")).toBeNull();
-    expect(reads(await band({ mode: "editor", linked: true }), ".link")).toBeNull();
+    expect(reads(await band({ linked: true }), ".link")).toBeNull();
   });
 
-  it("stamps the boundary, and a dash before the first one", async () => {
-    expect(reads(await band({ mode: "run", boundary: 7 }), ".boundary")).toBe(
-      "boundary 7",
-    );
-    expect(reads(await band({ mode: "run", boundary: null }), ".boundary")).toBe("—");
+  it("stamps how far the run has got", async () => {
+    expect(reads(await band({ boundary: 7 }), ".boundary")).toBe("boundary 7");
   });
 
-  /** The editor has no clock: a drawing is not a run. */
-  it("stamps no boundary in the editor", async () => {
-    expect(reads(await band({ mode: "editor", boundary: 7 }), ".boundary")).toBeNull();
+  /** Before the first boundary there is no run to stamp, and a drawing that
+   *  nothing is running on never has one. */
+  it("stamps nothing before the first boundary", async () => {
+    expect(reads(await band({ boundary: null }), ".boundary")).toBeNull();
   });
 });
 
@@ -219,16 +215,27 @@ describe("whether the drawing derives", () => {
   });
 });
 
-describe("the way to the other page", () => {
-  it("sends the editor to the run view", async () => {
-    const other = (await band({ mode: "editor" })).renderRoot.querySelector("a.other")!;
-    expect(other.getAttribute("href")).toBe("/panel.html");
-    expect(other.textContent!.trim()).toBe("run");
+/** Views are a list with one current entry, and two of them render as one
+ *  icon-button wearing the other's name — which is what a toggle is. A third
+ *  makes it a selector, and that is the redesign the list avoids (ADR-0038). */
+describe("the view toggle", () => {
+  it("offers the view that is not current", async () => {
+    const button = (await band({ view: "run" })).renderRoot.querySelector("button.view")!;
+    expect(button.getAttribute("aria-label")).toBe("Edit");
   });
 
-  it("sends the run view to the editor", async () => {
-    const other = (await band({ mode: "run" })).renderRoot.querySelector("a.other")!;
-    expect(other.getAttribute("href")).toBe("/");
-    expect(other.textContent!.trim()).toBe("editor");
+  it("offers the run view from the editor", async () => {
+    const button = (await band({ view: "edit" })).renderRoot.querySelector("button.view")!;
+    expect(button.getAttribute("aria-label")).toBe("Run");
+  });
+
+  it("asks for the view it offers", async () => {
+    const header = await band({ view: "run" });
+    const heard: string[] = [];
+    header.addEventListener("view-wanted", (event) => {
+      heard.push((event as CustomEvent<string>).detail);
+    });
+    (header.renderRoot.querySelector("button.view") as HTMLElement).click();
+    expect(heard).toEqual(["edit"]);
   });
 });

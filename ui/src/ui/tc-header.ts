@@ -1,6 +1,16 @@
 /**
- * The band across the top of both pages: what is open, and the status that is
- * nobody's mistake.
+ * The band across the top: what is true of the whole system
+ * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
+ *
+ * Which railroad is loaded and the way to another, whether it holds unsaved
+ * edits, whether what the app talks to is answering, and which view is
+ * current. The bar below carries what acts on that view's document.
+ *
+ * The line is *what it is about*, not *whether it is pressable*. The rule this
+ * carried — "it shows status and nothing else. Everything a person presses
+ * stays in the row below" — was already broken by the navigation link that
+ * stood at this end, and it has no answer for track power, which is pressable
+ * and is a fact about the whole railroad rather than about a document.
  *
  * Two things the author is answerable for read here anyway
  * ([ADR-0024](../../../docs/adr/0024-the-drawing-shows-its-own-faults.md)).
@@ -9,28 +19,14 @@
  * status beside the rest, not a list of faults creeping back into the band. A
  * name no drawing can wear is the other: it is typed at a prompt that is gone
  * by the time it is refused, and nothing on the canvas is wrong.
- *
- * One component for both pages, because the two facts every page has — what is
- * open and what is wrong outside the drawing — are the same facts. The editor
- * and the panel stay separate entries (vite.config.ts) and separate pages; the
- * band names the page it is on and offers a way to the other, which is the
- * whole of the navigation.
- *
- * It shows status and nothing else. Everything a person presses stays in the
- * row below — the editor's menu bar, the panel's controls (EDITOR.md,
- * PANEL.md) — the unsaved dot included: it is the mark that used to be
- * readable only as the Save button's disabled state, and #85 took that button
- * off the screen entirely.
  */
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
+import { VIEWS, type ViewId } from "../model/views.js";
+import { ICONS } from "./icons.js";
 import { headerStyles } from "./tc-header.styles.js";
-
-/** Which page the band is on. The run view's one source is the bus, so there
- *  is no second one to name (ADR-0038). */
-export type Mode = "editor" | "run";
 
 @customElement("tc-header")
 export class TcHeader extends LitElement {
@@ -45,7 +41,9 @@ export class TcHeader extends LitElement {
   /** Whether the open drawing holds edits the store has not been given. */
   @property({ type: Boolean }) unsaved = false;
 
-  @property() mode: Mode = "editor";
+  /** The view that is current, which the toggle at the right end offers a way
+   *  out of. */
+  @property() view: ViewId = VIEWS[0]!.id;
 
   /** Whether a session is joined, which is what makes the bridge a thing to
    *  report on at all. */
@@ -73,7 +71,6 @@ export class TcHeader extends LitElement {
   @state() private picking = false;
 
   override render() {
-    const editing = this.mode === "editor";
     return html`
       ${this.picker()}
       ${this.unsaved
@@ -82,27 +79,68 @@ export class TcHeader extends LitElement {
           </span>`
         : nothing}
       <span class="spacer"></span>
-      ${this.derives
-        ? nothing
-        : html`<span class="refused">does not derive</span>`}
-      ${this.trouble === null
-        ? nothing
-        : html`<span class="trouble" title=${this.trouble}>${this.trouble}</span>`}
-      ${this.joined
-        ? html`
-            <span class=${`link ${this.linked ? "joined" : "gone"}`}>
-              ${this.linked ? "connected" : "not connected"}
-            </span>
-          `
-        : nothing}
-      ${editing
-        ? nothing
-        : html`<span class="boundary">
-            ${this.boundary === null ? "—" : `boundary ${this.boundary}`}
-          </span>`}
-      <a class="other" href=${editing ? "/panel.html" : "/"}>
-        ${editing ? "run" : "editor"}
-      </a>
+      ${this.health()} ${this.toggle()}
+    `;
+  }
+
+  /**
+   * Whether what the app talks to is answering, and what it could not do.
+   *
+   * A region rather than a string, with room in it: per-container reachability
+   * and eventually the hardware's belong here too, and what fills the slot is
+   * the deployment design's (`2a-docker`). What is here today is the store not
+   * answering, the bridge on a joined session, how far the run has got, and
+   * the one coarse mark the loaded railroad makes about itself.
+   */
+  private health() {
+    return html`
+      <div class="health">
+        <slot name="health"></slot>
+        ${this.derives ? nothing : html`<span class="refused">does not derive</span>`}
+        ${this.trouble === null
+          ? nothing
+          : html`<span class="trouble" title=${this.trouble}>${this.trouble}</span>`}
+        ${this.joined
+          ? html`
+              <span class=${`link ${this.linked ? "joined" : "gone"}`}>
+                ${this.linked ? "connected" : "not connected"}
+              </span>
+            `
+          : nothing}
+        ${this.boundary === null
+          ? nothing
+          : html`<span class="boundary">boundary ${this.boundary}</span>`}
+      </div>
+    `;
+  }
+
+  /**
+   * Which view is current, and the way to the next one.
+   *
+   * The views are a list with one current entry (`model/views.ts`). Two of
+   * them render as a single icon-button wearing the other one's icon and
+   * name, which is what a toggle is; a third makes this a selector, and that
+   * is the redesign the list is here to avoid.
+   */
+  private toggle() {
+    const at = VIEWS.findIndex((view) => view.id === this.view);
+    const next = VIEWS[(at + 1) % VIEWS.length]!;
+    return html`
+      <button
+        class="view"
+        title=${next.label}
+        aria-label=${next.label}
+        @click=${() =>
+          this.dispatchEvent(
+            new CustomEvent<ViewId>("view-wanted", {
+              detail: next.id,
+              bubbles: true,
+              composed: true,
+            }),
+          )}
+      >
+        ${ICONS[next.id]}
+      </button>
     `;
   }
 

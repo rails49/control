@@ -1,5 +1,5 @@
 /**
- * The menu bar's icons, drawn here rather than fetched.
+ * The band's and the bar's icons, drawn here rather than fetched.
  *
  * Shoelace's `sl-icon` loads its SVGs from a CDN at runtime unless a base path
  * is registered, and the editor has to work on the railroad's own network
@@ -9,16 +9,17 @@
  * Each is drawn on a 16 unit square and inherits `currentColor`, so a button's
  * own colour and disabled state carry through without a second rule.
  *
- * `GLYPHS` is keyed by `CommandId` and exhaustive, which is what keeps this
- * file and `model/commands.ts` from drifting apart: a command declared without
- * a glyph is a compile error. The glyphs live here rather than beside the
- * declarations because they are `lit` templates and `model/` imports no
- * `ui/`.
+ * `GLYPHS` is keyed by `CommandId` and `ICONS` by `ViewId`, both exhaustive,
+ * which is what keeps this file from drifting away from `model/commands.ts`
+ * and `model/views.ts`: a command or a view declared without a picture is a
+ * compile error. They live here rather than beside the declarations because
+ * they are `lit` templates and `model/` imports no `ui/`.
  */
 
 import { svg, type SVGTemplateResult } from "lit";
 
 import type { CommandId } from "../model/commands.js";
+import type { ViewId } from "../model/views.js";
 
 /** One glyph, with the stroke settings every one of them shares. */
 function icon(body: SVGTemplateResult): SVGTemplateResult {
@@ -160,4 +161,26 @@ export const GLYPHS: Record<CommandId, SVGTemplateResult> = {
   "zoom-out": ZOOM_OUT,
   fit: FIT,
   netlist: NETLIST,
+};
+
+/** A pencil: the view the drawing is drawn in. */
+export const EDIT = icon(svg`
+  <path d="M11.6 2.6 13.4 4.4 5.4 12.4 2.8 13.2 3.6 10.6z" />
+  <path d="M10.2 4 12 5.8" />
+`);
+
+/** A signal: a post with a lamp on it, which is the run view's whole subject
+ *  — what the dispatcher is telling the railroad. */
+export const RUN = icon(svg`
+  <path d="M5.5 13.5V3.5" />
+  <path d="M3.5 13.5h4" />
+  <circle cx="10.5" cy="5.5" r="2.5" />
+  <path d="M5.5 5.5h2.5" />
+`);
+
+/** The picture on the toggle that switches to a view. Exhaustive over `ViewId`
+ *  by its type, as `GLYPHS` is over `CommandId`. */
+export const ICONS: Record<ViewId, SVGTemplateResult> = {
+  edit: EDIT,
+  run: RUN,
 };

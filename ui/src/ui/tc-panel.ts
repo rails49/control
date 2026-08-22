@@ -1,13 +1,21 @@
 /**
- * The panel (ui/PANEL.md): the drawing with the railroad's state painted on
+ * The run view (ui/PANEL.md): the drawing with the railroad's state painted on
  * top, fed by a live session over the bridge, and scheduling by drag and
  * turning a train around by right-click.
  *
+ * The railroad it is painting is not its own — the app holds it and hands over
+ * the drawing and the review
+ * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
+ * A session is still named by a scenario, so joining one names a railroad too:
+ * this asks the app for it and waits, rather than reading a second copy. Which
+ * of the two happened last is what the app has loaded, until a run needs no
+ * scenario at all (#171).
+ *
  * Everything shown is the panel model's answer (model/panel.ts) and everything
- * a drag means is the drag model's (model/drag.ts). This component loads the
- * documents, converts the pointer's pixels into squares, paints, and sends the
- * frames the relay accepts. It computes nothing: occupancy, aspects, markers,
- * the lit route, arrival ends and whether a train is busy all arrive as data.
+ * a drag means is the drag model's (model/drag.ts). This component converts
+ * the pointer's pixels into squares, paints, and sends the frames the relay
+ * accepts. It computes nothing: occupancy, aspects, markers, the lit route,
+ * arrival ends and whether a train is busy all arrive as data.
  *
  * Its one source is the bus (ADR-0038). Reading a recorded trace was how this
  * view was built before `tc49 live` existed; a trace is the harness's now, and
@@ -15,7 +23,7 @@
  */
 
 import { LitElement, html, svg, nothing } from "lit";
-import { customElement, state } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/select/select.js";
 import "@shoelace-style/shoelace/dist/components/option/option.js";
@@ -43,22 +51,30 @@ import {
   type Marker,
 } from "../model/panel.js";
 import { anchorAt, arrowPose, fitBox, positionsBySymbol } from "../model/scene.js";
-import {
-  listScenarios,
-  readDrawing,
-  readScenario,
-  review,
-  type Review,
-} from "../model/store.js";
+import { listScenarios, readScenario, type Review } from "../model/store.js";
 import { gesture, Live, reversal } from "../model/trace.js";
 import type { Position } from "../symbols.generated.js";
 import { pointOf } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { BLOCK, fitted } from "../render/units.js";
 import { panelStyles } from "./tc-panel.styles.js";
-import "./tc-header.js";
 import "./tc-menu.js";
 import type { MenuItem } from "./tc-menu.js";
+
+/**
+ * What the run view knows about the run that the band and the bar do not:
+ * whether a session is joined and answering, how far it has got, and what it
+ * refused. One event carries all of it, because they change together and the
+ * app keeps one copy.
+ */
+export interface RunStatus {
+  joined: boolean;
+  linked: boolean;
+  boundary: number | null;
+  /** What a session refused, or the store not answering. Never a fault of the
+   *  drawing itself: those are marked where they are (ADR-0024). */
+  trouble: string | null;
+}
 
 /** The one action the panel's menu offers, named once so the item and the
  *  handler cannot drift apart. */
@@ -75,12 +91,23 @@ const BRIDGE =
 export class TcPanel extends LitElement {
   static override styles = panelStyles;
 
+  /** The loaded railroad, the app's own document. */
+  @property({ attribute: false }) drawing: Drawing | null = null;
+
+  /** What the store says that drawing means. A railroad that does not derive
+   *  has no layout to paint on, and the band already says so. */
+  @property({ attribute: false }) review: Review | null = null;
+
   @state() private scenarios: string[] = [];
-  @state() private drawing: Drawing | null = null;
   /** The scenario a live session was started from, `null` while none is. */
   @state() private session: string | null = null;
   @state() private connected = false;
   @state() private trouble: string | null = null;
+  /** The scenario whose railroad has been asked for and not yet arrived. The
+   *  socket is opened once it has: a frame heard before there is a model to
+   *  apply it to would be a frame lost, and the drain a join opens with is the
+   *  whole of the run's picture. */
+  private joining: { id: string; railroad: string } | null = null;
   /** Bumped after each step: the model mutates in place, so rendering is
    *  asked for rather than observed. */
   @state() private beat = 0;
@@ -94,7 +121,9 @@ export class TcPanel extends LitElement {
   } | null = null;
 
   private panel: Panel | null = null;
-  private reviewed: Review | null = null;
+  /** The railroad the model was built for, so it is rebuilt when the app loads
+   *  another and kept when anything else changes. */
+  private built: string | null = null;
   private live: Live | null = null;
   private socket: WebSocket | null = null;
   private readonly drag = new Drag();
@@ -118,27 +147,40 @@ export class TcPanel extends LitElement {
   }
 
   /**
-   * Load a drawing and what it means. The panel needs the derived layout, so
-   * a drawing the store refuses to derive is trouble, not a canvas.
+   * The app loaded a railroad, or reviewed the one that is loaded again.
    *
-   * The railroad already on screen is kept rather than rebuilt. A model built
-   * afresh would forget everything the bus has shown it, and only the next
-   * picture would bring any of it back. Callers say what should be forgotten,
-   * with `reset`.
+   * The model is built once per railroad and kept across everything else. One
+   * built afresh would forget what the bus has shown it, and only the next
+   * picture would bring any of it back. A railroad that does not derive has no
+   * layout to build from, so nothing is painted and the band says why.
    */
-  private async load(name: string): Promise<boolean> {
-    if (this.drawing?.drawing === name && this.panel !== null) return true;
-    const drawing = await readDrawing(name);
-    const reviewed = await review(drawing);
-    if (reviewed.layout === null || reviewed.explain === null) {
-      this.trouble = reviewed.refused ?? `'${name}' does not derive`;
-      return false;
+  override willUpdate(changed: Map<string, unknown>): void {
+    if (!changed.has("drawing") && !changed.has("review")) return;
+    const name = this.drawing?.drawing ?? null;
+    const layout = this.review?.layout ?? null;
+    const explain = this.review?.explain ?? null;
+    if (name === null || layout === null || explain === null) {
+      if (name !== this.built) this.gone();
+      return;
     }
-    this.panel = new Panel(reviewed.layout, reviewed.explain, drawing.wires);
-    this.reviewed = reviewed;
-    this.drawing = drawing;
-    this.trouble = null;
-    return true;
+    if (name === this.built) return;
+    // A railroad swapped under a joined session would paint one railroad's
+    // events on another's picture, which is what naming the session in the
+    // socket path was for (#148).
+    if (this.session !== null && this.joining?.railroad !== name) this.leave();
+    this.panel = new Panel(layout, explain, this.drawing!.wires);
+    this.built = name;
+    this.beat++;
+    this.finish();
+  }
+
+  /** The railroad went away, or stopped deriving. There is nothing to paint
+   *  and nothing for a session to be a session of. */
+  private gone(): void {
+    this.leave();
+    this.panel = null;
+    this.built = null;
+    this.beat++;
   }
 
   // --- joining a live session -----------------------------------------------
@@ -147,31 +189,53 @@ export class TcPanel extends LitElement {
    * Join the session on a scenario: its railroad, then the bridge on the path
    * that names it.
    *
-   * The panel names the session (#148). The scenario says which drawing to
+   * The view names the session (#148). The scenario says which railroad to
    * render *and* which railroad to be fed, those being one choice: a socket
-   * opened without it would render one railroad on another's events.
-   * Everything else comes off the bus: placement, locks and live requests off
-   * the dispatcher's retained picture, facing off the scheduler's (ADR-0032,
-   * ADR-0036), both written by apps that are always running, so there is no
-   * cold start to seed.
+   * opened without it would render one railroad on another's events. The
+   * railroad is the app's to load, so it is asked for and the socket waits on
+   * it; everything else comes off the bus — placement, locks and live requests
+   * off the dispatcher's retained picture, facing off the scheduler's
+   * (ADR-0032, ADR-0036), both written by apps that are always running, so
+   * there is no cold start to seed.
    */
   private async join(id: string): Promise<void> {
+    if (id === "") return; // the select clears itself on leaving
     // Rejoining the session already on screen keeps what the bus has shown;
     // anything else starts from nothing, so another scenario's state is not
     // mistaken for this railroad's.
-    if (id === "") return; // the select clears itself on leaving
     const rejoining = this.session === id && this.panel !== null;
     this.leave();
     try {
       const scenario = await readScenario(id);
-      if (!(await this.load(scenario.layout))) return;
-      if (!rejoining) this.panel!.reset();
-      this.session = id;
-      this.listen();
-      this.beat++;
+      this.joining = { id, railroad: scenario.layout };
+      if (!rejoining) this.panel?.reset();
+      if (this.built === scenario.layout) {
+        this.finish();
+        return;
+      }
+      this.dispatchEvent(
+        new CustomEvent<string>("railroad-wanted", {
+          detail: scenario.layout,
+          bubbles: true,
+          composed: true,
+        }),
+      );
     } catch (error) {
       this.trouble = String(error instanceof Error ? error.message : error);
     }
+  }
+
+  /** The railroad the join was waiting on is on screen, so the socket may be
+   *  opened. A join the app answered with another railroad — the question
+   *  before unsaved edits was declined, or a picker press overtook it — never
+   *  finishes, and the select is left showing nothing joined. */
+  private finish(): void {
+    const waiting = this.joining;
+    if (waiting === null || waiting.railroad !== this.built) return;
+    this.joining = null;
+    this.session = waiting.id;
+    this.listen();
+    this.beat++;
   }
 
   /** Open the socket on the scenario's own path: the session runs the
@@ -220,6 +284,7 @@ export class TcPanel extends LitElement {
   private leave(): void {
     this.drag.cancel();
     this.menu = null;
+    this.joining = null;
     this.socket?.close();
     this.socket = null;
     this.live = null;
@@ -239,7 +304,7 @@ export class TcPanel extends LitElement {
     if (!this.scheduling) return;
     const took = this.drag.down(
       this.drawing!,
-      this.reviewed!,
+      this.review!,
       this.panel!.blocks(),
       this.gridAt(event),
     );
@@ -250,7 +315,7 @@ export class TcPanel extends LitElement {
 
   private moved(event: PointerEvent): void {
     if (this.drag.train === null) return;
-    this.drag.moved(this.drawing!, this.reviewed!, this.gridAt(event));
+    this.drag.moved(this.drawing!, this.review!, this.gridAt(event));
     this.beat++;
   }
 
@@ -262,7 +327,7 @@ export class TcPanel extends LitElement {
    */
   private up(event: PointerEvent): void {
     if (this.drag.train === null) return;
-    const drop = this.drag.up(this.drawing!, this.reviewed!, this.gridAt(event));
+    const drop = this.drag.up(this.drawing!, this.review!, this.gridAt(event));
     this.beat++;
     if (drop === null) return;
     this.socket?.send(gesture(this.panel!.compose(drop.train, drop.dest)));
@@ -293,7 +358,7 @@ export class TcPanel extends LitElement {
     if (!this.scheduling) return;
     const standing = trainAt(
       this.drawing!,
-      this.reviewed!,
+      this.review!,
       this.panel!.blocks(),
       this.gridAt(event),
     );
@@ -348,15 +413,6 @@ export class TcPanel extends LitElement {
 
   override render() {
     return html`
-      <tc-header
-        .drawing=${this.drawing?.drawing ?? null}
-        mode="run"
-        .trouble=${this.trouble}
-        .joined=${this.session !== null}
-        .linked=${this.connected}
-        .boundary=${this.live?.boundary ?? null}
-      ></tc-header>
-
       <header>
         <sl-select
           size="small"
@@ -386,6 +442,43 @@ export class TcPanel extends LitElement {
         }}
       ></tc-menu>
     `;
+  }
+
+  /** What the band and the bar read off the run, told rather than reached
+   *  for: only this view knows any of it, and it changes as the bus moves. */
+  private get status(): RunStatus {
+    return {
+      joined: this.session !== null,
+      linked: this.connected,
+      boundary: this.live?.boundary ?? null,
+      trouble: this.trouble,
+    };
+  }
+
+  /** The last status the app was told, so it is told again only when one of
+   *  the four has moved. */
+  private said: RunStatus | null = null;
+
+  override updated(): void {
+    const now = this.status;
+    const was = this.said;
+    if (
+      was !== null &&
+      was.joined === now.joined &&
+      was.linked === now.linked &&
+      was.boundary === now.boundary &&
+      was.trouble === now.trouble
+    ) {
+      return;
+    }
+    this.said = now;
+    this.dispatchEvent(
+      new CustomEvent<RunStatus>("run-status", {
+        detail: now,
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   private canvas() {
@@ -445,7 +538,7 @@ export class TcPanel extends LitElement {
     positions: ReadonlyMap<string, Position>,
   ) {
     const target = this.drag.drop?.block;
-    const blind = dark(this.reviewed!);
+    const blind = dark(this.review!);
     return Object.entries(this.drawing!.symbols).map(([name, spec]) => {
       const block = blocks.get(name);
       // Keyed by end letter, which is what the artwork puts on each signal's

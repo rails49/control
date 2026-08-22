@@ -13,13 +13,13 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 
-import "../src/ui/tc-editor.js";
+import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
 import type { Editor } from "../src/model/editor.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
-import type { TcEditor } from "../src/ui/tc-editor.js";
+import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcMenubar } from "../src/ui/tc-menubar.js";
-import { mounted, serving, session } from "./support/shell.js";
+import { inside, mounted, serving, session } from "./support/shell.js";
 
 /** One turnout, selected, the way the right-click that opens the properties
  *  dialog leaves it. */
@@ -45,7 +45,7 @@ afterEach(() => {
 /** A mounted editor holding one selected turnout, and a Shoelace input to
  *  type into, standing in for the properties dialog's name field. */
 async function holding(): Promise<{
-  shell: TcEditor;
+  shell: TcApp;
   editing: Editor;
   field: HTMLInputElement;
 }> {
@@ -74,8 +74,8 @@ async function opened(shell: {
 
 /** How often the canvas was asked to change the view. The zoom keys say
  *  nothing about the document, so this is what says they arrived. */
-function views(shell: { renderRoot: ParentNode }): () => number {
-  const canvas = shell.renderRoot.querySelector<TcCanvas>("tc-canvas")!;
+function views(shell: TcApp): () => number {
+  const canvas = inside(shell, "tc-canvas") as TcCanvas;
   let asked = 0;
   canvas.zoom = () => {
     asked += 1;

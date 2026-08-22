@@ -13,13 +13,14 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import "../src/ui/tc-editor.js";
+import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
 import type { Review } from "../src/model/store.js";
-import type { TcEditor } from "../src/ui/tc-editor.js";
+import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcHeader } from "../src/ui/tc-header.js";
 import {
   CLEAN,
+  edited,
   mounted,
   serving,
   session,
@@ -42,7 +43,7 @@ beforeEach(() => {
 });
 
 /** A mounted editor holding `symbols`, wired to nothing. */
-async function holding(symbols: Drawing["symbols"]): Promise<TcEditor> {
+async function holding(symbols: Drawing["symbols"]): Promise<TcApp> {
   const shell = await mounted();
   session(shell).reset({ drawing: "gotthard", symbols, wires: [] });
   return shell;
@@ -54,19 +55,19 @@ const APART: Drawing["symbols"] = {
   b1: { kind: "block", at: [4, 0] },
 };
 
-function band(shell: TcEditor): TcHeader {
+function band(shell: TcApp): TcHeader {
   return shell.renderRoot.querySelector("tc-header")!;
 }
 
 /** What the band's indicator reads, or `null` while it is clean. */
-function indicator(shell: TcEditor): string | null {
+function indicator(shell: TcApp): string | null {
   const mark = band(shell).renderRoot.querySelector(".refused");
   return mark === null ? null : mark.textContent!.trim();
 }
 
 /** An edit of the drawing, as the canvas reports one. */
-function edit(shell: TcEditor): void {
-  shell.renderRoot.querySelector("tc-canvas")!.dispatchEvent(new CustomEvent("edit"));
+function edit(shell: TcApp): void {
+  edited(shell);
 }
 
 describe("what the band says about the drawing", () => {

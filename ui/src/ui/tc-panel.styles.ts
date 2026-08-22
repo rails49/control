@@ -1,12 +1,14 @@
 import { css } from "lit";
 
 import { NOTE, W } from "../render/units.js";
-import { page, symbols, way } from "./shared.styles.js";
+import { symbols, way } from "./shared.styles.js";
 
-/** The dispatch panel (`tc-panel`): a live session painted over the drawing. */
+/** The run view (`tc-panel`): a live session painted over the drawing, laid
+ *  out inside the app's work row. */
 export const panelStyles = css`
   :host {
-    ${page}
+    display: grid;
+    grid-template-rows: auto 1fr;
   }
 
   header {
