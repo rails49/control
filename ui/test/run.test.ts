@@ -14,14 +14,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../src/ui/tc-app.js";
+import type { Drawing } from "../src/model/drawing.js";
 import { centreOf } from "../src/model/geometry.js";
+import type { Explained, Layout } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import { RETRY_MS } from "../src/ui/tc-panel.js";
-import { band, bar, mounted, running, settled } from "./support/shell.js";
+import {
+  band,
+  bar,
+  CLEAN,
+  mounted,
+  running,
+  serving,
+  settled,
+} from "./support/shell.js";
 import {
   Bridge,
   bridging,
   joined,
+  loads,
   said,
   stored,
   unbridged,
@@ -41,6 +52,13 @@ function press(shell: TcApp): HTMLButtonElement {
  *  nothing. */
 function notice(shell: TcApp): string | null {
   const said = running(shell).renderRoot.querySelector(".released");
+  return said === null ? null : said.textContent!.trim();
+}
+
+/** What the band's health area is reporting, `null` while it reports
+ *  nothing. */
+function health(shell: TcApp): string | null {
+  const said = band(shell).renderRoot.querySelector(".trouble");
   return said === null ? null : said.textContent!.trim();
 }
 
@@ -120,6 +138,24 @@ describe("joining a session", () => {
     expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(1);
     expect(Bridge.last!.url).toMatch(/\/toy$/);
   });
+
+  /** The relay's one frame that is not an event: `{error}`, a gesture it will
+   *  not carry or a socket path naming no railroad (#148). It is the only
+   *  answer a gesture or a join ever gets when it goes wrong, so it is shown
+   *  in the band rather than swallowed — and the session is not a session that
+   *  ended, so the picture stays up and the button stays live. */
+  it("shows what the session refused rather than swallowing it", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/run", { run: "held" });
+
+    Bridge.last!.raise("message", {
+      data: JSON.stringify({ error: "cannot publish tc49/dispatch/request" }),
+    });
+    await settled(shell);
+
+    expect(health(shell)).toBe("cannot publish tc49/dispatch/request");
+    expect(press(shell).textContent!.trim()).toBe("GO");
+  });
 });
 
 /**
@@ -193,6 +229,74 @@ describe("the picture on the shared canvas", () => {
         payload: { train: "goods", dest: ["b.A", "b.B"] },
       },
     ]);
+  });
+
+  /**
+   * A route the run holds, drawn on the sheet: the model says which wires the
+   * way runs over and in what colour, and the canvas emits the lit ones last
+   * so a crossing unlit one cannot half hide one (#140, #142).
+   *
+   * `inspect.wiresOn` and `inspect.litLast` are each tested at their own seam
+   * and the canvas's ordering at its; what only this walk can see is that the
+   * run view hands its `lit()` through to the surface, the answer arriving as
+   * a lock off the bus rather than as a hand-written overlay.
+   *
+   * The toy railroad has no connection to light, so this one has: two blocks
+   * through a turnout, with a third off its diverging road so that a wire
+   * crosses the way without being on it. The lit wires are written **first**
+   * in the document, so drawing them in the order they are written would put
+   * the unlit one on top.
+   */
+  it("draws a locked route's wires last, in the colour the claim reads in", async () => {
+    const YARD: Drawing = {
+      drawing: "yard",
+      symbols: {
+        a: { kind: "block", at: [0, 0], length: 1000 },
+        sw: { kind: "turnout", at: [6, 0] },
+        b: { kind: "block", at: [9, 0], length: 1000 },
+        north: { kind: "block", at: [9, 3], length: 1000 },
+      },
+      wires: [
+        ["a.B", "sw.toe"],
+        ["sw.diverging", "north.A"],
+        ["sw.straight", "b.A"],
+      ],
+    };
+    const LAYOUT: Layout = {
+      layout: "yard",
+      blocks: { a: { length: 1000 }, b: { length: 1000 }, north: { length: 1000 } },
+      connections: { c: { transits: { t: ["a.B", "b.A"] } } },
+    };
+    const EXPLAIN: Explained = {
+      layout: "yard",
+      connections: {
+        c: {
+          transits: { t: { ends: ["a.B", "b.A"], way: [["sw", "straight"]] } },
+          exclusive: [],
+        },
+      },
+    };
+    serving({
+      drawings: ["yard"],
+      rosterOf: () => ({ goods: { length: 400 } }),
+      read: () => structuredClone(YARD),
+      review: () =>
+        Promise.resolve({ ...CLEAN, layout: LAYOUT, explain: EXPLAIN }),
+    });
+
+    const shell = await mounted("run");
+    await loads(shell, "yard");
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { goods: "a" },
+      locks: { a: "goods", "c.t": "goods" },
+      requests: [],
+    });
+
+    expect(
+      [...sheet(shell).querySelectorAll("line.wire")].map((line) =>
+        [...line.classList].join(" "),
+      ),
+    ).toEqual(["wire", "wire lit locked", "wire lit locked"]);
   });
 });
 
