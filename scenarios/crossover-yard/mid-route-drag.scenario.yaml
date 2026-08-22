@@ -23,7 +23,7 @@ scenario: mid-route-drag
 layout: crossover-yard
 
 trains:
-  freight: { length: 600, at: yard_w, facing: B }
+  freight: { at: yard_w, facing: B }
 
 requests:
   # Out over the down main, which the lexicographic tie-break prefers.

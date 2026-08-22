@@ -32,6 +32,7 @@ from tc49.bench.runner import assemble_live, load
 from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Bus
 from tc49.lib.layout import Layout
+from tc49.lib.roster import Roster
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 
@@ -71,7 +72,7 @@ class Session:
         # which is what cuts a boundary's sleep short: picking a railroad in
         # the panel must not wait out a ten-second period.
         self._swap = threading.Event()
-        self._wanted: tuple[str, Layout, Scenario] | None = None
+        self._wanted: tuple[str, Layout, Roster, Scenario] | None = None
         # A bridge wants a bus, and an idle session has no assembly to give
         # it: this one is relayed until the first `rebind` replaces it, and
         # nothing ever publishes to it.
@@ -118,11 +119,11 @@ class Session:
                 wanted = self._wanted
             if wanted is None:
                 return
-            scenario_id, layout, scenario = wanted
+            scenario_id, layout, roster, scenario = wanted
             kept = (
                 None if self._state is None else state_for(self._state, scenario.layout)
             )
-            assembly = assemble_live(layout, scenario, state=kept)
+            assembly = assemble_live(layout, roster, scenario, state=kept)
             self.bridge.rebind(assembly.bus, scenario_id)
             out.write(f"  running {scenario_id}\n")
             out.flush()

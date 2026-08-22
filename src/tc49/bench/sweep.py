@@ -97,14 +97,6 @@ DEST_SIZES = (1, 2, 6)
 K_VALUES = (1, 2, 4, 6)
 
 
-def train_length(index: int) -> int:
-    """Constant, so the fit check is deterministic: any length that fits every
-    station track will do, and `C3a` at 500 mm is the tightest. The railroad
-    is smaller than the model it replaced — the old drawing's 1200 mm Airolo
-    tracks measure 980 to 1350, and track 3's halves 500 and 550."""
-    return 450
-
-
 def station_of(track: str) -> str:
     return STATION_OF[track]
 
@@ -130,12 +122,13 @@ def generate(workload: Workload) -> Scenario:
 
     # 1. Placement — distinct station tracks, one train each.
     placements = rng.sample(STATION_TRACKS, workload.trains)
-    # Facing is scheduler state batch runs never read (ADR-0019); a constant
-    # keeps it out of the rng stream, so the drawn requests stay byte-identical.
-    trains = {
-        f"t{i + 1}": TrainSpec(train_length(i), track, "A")
-        for i, track in enumerate(placements)
-    }
+    # The trains are `t1`..`t6` on the railroad's own roster, which is where
+    # a length lives (ADR-0039): one constant that fits every station track,
+    # `C3a` at 500 mm being the tightest, so the fit check is deterministic
+    # and prunes nothing. Facing is scheduler state batch runs never read
+    # (ADR-0019); a constant keeps it out of the rng stream, so the drawn
+    # requests stay byte-identical.
+    trains = {f"t{i + 1}": TrainSpec(track, "A") for i, track in enumerate(placements)}
 
     # 2. Workings — per train in id order, a chained walk between the stations.
     requests: list[RequestSpec] = []
@@ -272,8 +265,10 @@ def row(workload: Workload, k: int, locking: str, trace: str) -> dict[str, Any]:
 def sweep(out_dir: Path | None = None, root: Path | None = None) -> int:
     """Run the grid, writing one row per run. Returns the row count."""
     root = root or find_root()
-    layout = AssetStore(root).get(LAYOUT)
+    store = AssetStore(root)
+    layout = store.get(LAYOUT)
     assert isinstance(layout, Layout)
+    roster = store.roster(LAYOUT)
     destination = out_dir or root / "out"
     destination.mkdir(parents=True, exist_ok=True)
 
@@ -285,7 +280,7 @@ def sweep(out_dir: Path | None = None, root: Path | None = None) -> int:
                 generated[workload] = generate(workload)
             scenario = generated[workload]
             try:
-                trace = run_scenario(layout, scenario, STRATEGIES[locking], k)
+                trace = run_scenario(layout, roster, scenario, STRATEGIES[locking], k)
             except RuntimeError as exhausted:  # the live-lock backstop tripped
                 raise RuntimeError(
                     f"{scenario.name} under {locking} at k={k}: {exhausted}"

@@ -20,6 +20,7 @@ from tc49.bench.runner import (
 from tc49.bench.runner import load as load_scenario
 from tc49.lib.bus import Payload
 from tc49.lib.layout import Layout
+from tc49.lib.roster import Roster, Train
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 
@@ -36,6 +37,7 @@ __all__ = [
     "run",
     "run_wanted",
     "runs",
+    "stock",
     "ticks",
     "timetabled",
 ]
@@ -46,9 +48,21 @@ build = assemble
 run = run_scenario
 
 
-def load(scenario_id: str) -> tuple[Layout, Scenario]:
+def load(scenario_id: str) -> tuple[Layout, Roster, Scenario]:
     """The wiring module's loader against the one root the suite uses."""
     return load_scenario(AssetStore(ROOT), scenario_id)
+
+
+def stock(**lengths: int) -> Roster:
+    """A roster of a suite's own: the trains a railroad owns and how long each
+    is (ADR-0039).
+
+    A suite that stands up its own scenario stands up the stock it places
+    beside it, the two being one railroad's — and a train here that the
+    scenario places nowhere is exactly the train that comes up **off the
+    layout**.
+    """
+    return Roster("test", {name: Train(length) for name, length in lengths.items()})
 
 
 def events(

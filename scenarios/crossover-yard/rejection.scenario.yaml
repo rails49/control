@@ -26,8 +26,8 @@ scenario: rejection
 layout: crossover-yard
 
 trains:
-  shunter: { length: 600, at: yard_w, facing: B }
-  hauler: { length: 600, at: up_e, facing: B }
+  shunter: { at: yard_w, facing: B }
+  hauler: { at: up_e, facing: B }
 
 requests:
   - { train: shunter, from: yard_w.A, to: [dn_e.A], at: 0 }

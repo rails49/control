@@ -108,9 +108,9 @@ Everything below is drawn from a single seeded RNG, in this order, so a
 `(layout, trains, workings, |dest|, seed)` tuple names one exact workload:
 
 1. **Placement** — sample `trains` distinct station tracks from the seven, one
-   train each. Train length is a constant 450 mm so the fit check is
-   deterministic: it has to fit every station track, and `C3a` at 500 mm is
-   the tightest. The railroad is smaller than the drawing it replaced, whose
+   train each, drawn from `t1`..`t6` on the railroad's own roster. Train
+   length is a constant 450 mm there so the fit check is deterministic: it has
+   to fit every station track, and `C3a` at 500 mm is the tightest. The railroad is smaller than the drawing it replaced, whose
    Airolo tracks were a flat 1200 mm against a measured 980 to 1350.
 2. **Workings** — for each train in id order, chain `workings` requests. The
    first departs from its placement and states that block; each later one

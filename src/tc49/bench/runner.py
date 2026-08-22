@@ -16,6 +16,7 @@ from tc49.dispatcher import Dispatcher, FullRoute, Incremental, LockingStrategy
 from tc49.driver import Driver
 from tc49.lib.bus import Bus
 from tc49.lib.layout import Layout
+from tc49.lib.roster import Roster
 from tc49.lib.scenario import Scenario
 from tc49.lib.trace import TraceTap
 from tc49.scheduler import Scheduler
@@ -51,13 +52,16 @@ def find_root(start: Path | None = None) -> Path:
     )
 
 
-def load(store: AssetStore, scenario_id: str) -> tuple[Layout, Scenario]:
-    """A scenario and the layout it names, which is what assembling wants."""
+def load(store: AssetStore, scenario_id: str) -> tuple[Layout, Roster, Scenario]:
+    """A scenario, and the layout and roster of the railroad it names — which
+    is what assembling wants. The three are one railroad's: the drawing it
+    derives from, the trains it owns, and where this run stands them
+    (ADR-0039)."""
     scenario = store.get(scenario_id)
     assert isinstance(scenario, Scenario)
     layout = store.get(scenario.layout)
     assert isinstance(layout, Layout)
-    return layout, scenario
+    return layout, store.roster(scenario.layout), scenario
 
 
 @dataclass
@@ -68,6 +72,7 @@ class Assembly:
     dispatcher: Dispatcher
     simulator: Simulator
     layout: Layout
+    roster: Roster
     scenario: Scenario
     k: int
     _out: io.StringIO
@@ -79,6 +84,7 @@ class Assembly:
 
 def assemble(
     layout: Layout,
+    roster: Roster,
     scenario: Scenario,
     make_strategy: StrategyFactory = FullRoute,
     k: int = DEFAULT_K,
@@ -87,13 +93,16 @@ def assemble(
     out = io.StringIO()
     TraceTap(bus, out)
     Scheduler(bus, layout, scenario)
-    dispatcher = Dispatcher(bus, layout, scenario, make_strategy(layout, k))
+    dispatcher = Dispatcher(bus, layout, roster, scenario, make_strategy(layout, k))
     Driver(bus)
-    return Assembly(bus, dispatcher, Simulator(bus, scenario), layout, scenario, k, out)
+    return Assembly(
+        bus, dispatcher, Simulator(bus, scenario), layout, roster, scenario, k, out
+    )
 
 
 def assemble_live(
     layout: Layout,
+    roster: Roster,
     scenario: Scenario,
     make_strategy: StrategyFactory = FullRoute,
     k: int = DEFAULT_K,
@@ -116,22 +125,30 @@ def assemble_live(
     out = io.StringIO()
     TraceTap(bus, out)
     Scheduler(bus, layout, scenario, timetable=False)
-    dispatcher = Dispatcher(bus, layout, scenario, make_strategy(layout, k))
+    dispatcher = Dispatcher(bus, layout, roster, scenario, make_strategy(layout, k))
     Driver(bus)
     placement = None if state is None else placement_file(state)
     return Assembly(
-        bus, dispatcher, Simulator(bus, scenario, placement), layout, scenario, k, out
+        bus,
+        dispatcher,
+        Simulator(bus, scenario, placement),
+        layout,
+        roster,
+        scenario,
+        k,
+        out,
     )
 
 
 def run_scenario(
     layout: Layout,
+    roster: Roster,
     scenario: Scenario,
     make_strategy: StrategyFactory = FullRoute,
     k: int = DEFAULT_K,
     tick_limit: int = 10_000,
 ) -> str:
     """Wire everything on one bus, run to quiescence, return the trace."""
-    assembly = assemble(layout, scenario, make_strategy, k)
+    assembly = assemble(layout, roster, scenario, make_strategy, k)
     assembly.simulator.run(tick_limit)
     return assembly.trace

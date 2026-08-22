@@ -152,7 +152,7 @@ def test_a_transit_names_one_end_of_each_block_it_joins() -> None:
     """Read from either side, `end_on` gives that side's own end — which is
     what lets one function serve the departure end the dispatcher signals and
     the arrival end the scheduler faces a train away from."""
-    layout, _ = load("crossover-yard/meet")
+    layout, _roster, _ = load("crossover-yard/meet")
     connection = next(iter(layout.connections))
     transit, (first, second) = next(
         iter(layout.connections[connection].transits.items())

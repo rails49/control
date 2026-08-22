@@ -1,0 +1,29 @@
+# gotthard — the trains this railroad owns (CONTEXT.md, **Roster**).
+#
+# A train is a name and a length. Being on the roster is what makes a train
+# **known**; where it stands, if anywhere, is the run's and not this file's
+# (ADR-0039). A scenario over this railroad places trains from here and states
+# no length of its own, so one train has one length however many scenarios
+# name it.
+
+roster: gotthard
+
+trains:
+  fixed: { length: 450 }
+  flexible: { length: 450 }
+  long: { length: 1000 }
+  med: { length: 800 }
+  mover: { length: 300 }
+  north: { length: 450 }
+  resident: { length: 450 }
+  short: { length: 300 }
+  south: { length: 450 }
+  stock: { length: 450 }
+  stranded: { length: 450 }
+  t1: { length: 450 }
+  t2: { length: 450 }
+  t3: { length: 450 }
+  t4: { length: 450 }
+  t5: { length: 450 }
+  t6: { length: 450 }
+  too_long: { length: 1500 }

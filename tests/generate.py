@@ -18,6 +18,7 @@ import yaml
 from hypothesis import strategies as st
 
 from tc49.lib.layout import Layout, end_letter, leaving_end
+from tc49.lib.roster import Roster
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 from tests.harness import ROOT
@@ -34,6 +35,12 @@ def _load(layout_id: str) -> Layout:
 
 
 LAYOUTS = {layout_id: _load(layout_id) for layout_id in LIBRARY}
+
+# The stock each library railroad owns (ADR-0039). A drawn scenario places
+# `t1`..`t3` from it and states no length of its own: the roster gives those
+# three one length that fits every block of their railroad, so the fit check
+# prunes nothing and the pressure stays on interleaving.
+ROSTERS = {layout_id: _STORE.roster(layout_id) for layout_id in LIBRARY}
 
 # Every end of every block, including the outer end of a terminal block —
 # which is pruned `no_entry` at admission, and is drawn so that pruning and
@@ -60,9 +67,6 @@ def scenario_documents(
     layout_id = draw(st.sampled_from(LIBRARY))
     layout = LAYOUTS[layout_id]
     blocks = sorted(layout.blocks)
-    # One length that fits every block: the fit check then prunes nothing,
-    # keeping the pressure on interleaving rather than on admission.
-    length = min(layout.blocks.values())
 
     count = draw(st.integers(1, min(max_trains, len(blocks))))
     placements = draw(
@@ -74,7 +78,6 @@ def scenario_documents(
     # store refuses the placement (#145). `leaving_end` picks the letter.
     trains = {
         f"t{i + 1}": {
-            "length": length,
             "at": block,
             "facing": end_letter(leaving_end(layout, f"{block}.A")),
         }
@@ -113,10 +116,12 @@ def scenario_documents(
 
 
 @st.composite
-def scenarios(draw: st.DrawFn) -> tuple[Document, Layout, Scenario]:
-    """A drawn document with the layout and the validated scenario it names."""
+def scenarios(draw: st.DrawFn) -> tuple[Document, Layout, Roster, Scenario]:
+    """A drawn document with the layout, the roster and the validated scenario
+    it names."""
     doc = draw(scenario_documents())
-    return doc, LAYOUTS[doc["layout"]], _STORE.validate_scenario(doc)
+    layout_id = doc["layout"]
+    return doc, LAYOUTS[layout_id], ROSTERS[layout_id], _STORE.validate_scenario(doc)
 
 
 def fixture_yaml(doc: Document) -> str:

@@ -59,9 +59,11 @@ def told(payload: object) -> Dispatcher:
     one — it reads what arrives and never raises (ADR-0034) — and that is
     what is under test here.
     """
-    layout, scenario = load("crossover-yard/meet")
+    layout, _roster, scenario = load("crossover-yard/meet")
     bus = Bus()
-    dispatcher = Dispatcher(bus, layout, scenario, FullRoute(layout, DEFAULT_K))
+    dispatcher = Dispatcher(
+        bus, layout, _roster, scenario, FullRoute(layout, DEFAULT_K)
+    )
     bus.drain()
     bus.publish(POWER, cast(Payload, payload))
     bus.drain()

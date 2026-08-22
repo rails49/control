@@ -231,8 +231,8 @@ def test_the_trace_is_load_bearing(event: str) -> None:
     The scenario has to be one that both moves trains and stalls a request,
     or the stall diagnosis has nothing to lose.
     """
-    layout, scenario = load("single-track-meet/arrival-obstruction")
-    full = run(layout, scenario, Incremental)
+    layout, _roster, scenario = load("single-track-meet/arrival-obstruction")
+    full = run(layout, _roster, scenario, Incremental)
     suppressed = "".join(
         line + "\n" for line in full.splitlines() if json.loads(line)["event"] != event
     )
@@ -246,9 +246,9 @@ def test_the_trace_is_load_bearing(event: str) -> None:
 
 
 def test_metrics_over_a_real_run_agree_with_the_trace() -> None:
-    layout, scenario = load("crossover-yard/meet")
-    m = metrics(run(layout, scenario, Incremental))
-    trace_text = run(layout, scenario, Incremental)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    m = metrics(run(layout, _roster, scenario, Incremental))
+    trace_text = run(layout, _roster, scenario, Incremental)
     assert m.status == "ok"
     assert set(m.completed) == {
         line["id"] for line in events(trace_text, "request_completed")

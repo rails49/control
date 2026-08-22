@@ -11,13 +11,14 @@
 scenario: meet
 layout: crossover-yard
 
-# A train has a length, a starting block, and a facing — the end it would
-# depart through nose-first (CONTEXT.md). Facing is scheduler state the
-# dispatcher never reads (ADR-0019): file scenarios like this one state the
+# A scenario places the railroad's trains: a starting block and a facing — the
+# end the train would depart through nose-first (CONTEXT.md). The train itself
+# is the roster's and so is its length (ADR-0039). Facing is scheduler state
+# the dispatcher never reads (ADR-0019): file scenarios like this one state the
 # departure end per request, and a request is free to contradict the facing.
 trains:
-  freight_1: { length: 1100, at: yard_w, facing: B }
-  express_2: { length: 600, at: up_e, facing: A }
+  freight_1: { at: yard_w, facing: B }
+  express_2: { at: up_e, facing: A }
 
 # request = (train, departure end, arrival ends, arrival boundary), per ADR-0007.
 #

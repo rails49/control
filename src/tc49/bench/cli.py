@@ -54,10 +54,10 @@ def bench(
     scenario_id: str, k: int = DEFAULT_K, root: Path = ROOT
 ) -> dict[str, tuple[str, Metrics]]:
     """One scenario under every strategy: (trace, metrics) per strategy."""
-    layout, scenario = load(AssetStore(root), scenario_id)
+    layout, roster, scenario = load(AssetStore(root), scenario_id)
     results: dict[str, tuple[str, Metrics]] = {}
     for name, strategy in STRATEGIES.items():
-        trace = run_scenario(layout, scenario, strategy, k)
+        trace = run_scenario(layout, roster, scenario, strategy, k)
         results[name] = (trace, metrics(trace))
     return results
 

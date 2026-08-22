@@ -21,7 +21,7 @@ scenario: revisit
 layout: crossover-yard
 
 trains:
-  shuttle: { length: 600, at: yard_w, facing: B }
+  shuttle: { at: yard_w, facing: B }
 
 requests:
   # Out. Both arrival ends of yard_e survive admission — yard_e is terminal,

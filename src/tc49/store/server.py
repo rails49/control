@@ -9,7 +9,8 @@ the store rather than to an app of its own — a `ui` package could not import
     PUT  /drawings/<name>       save it, keeping what the file says
     POST /review                what a drawing means, derived and explained
     GET  /scenarios             the scenarios there are, layout-qualified
-    GET  /scenarios/<id>        one scenario: stock, placement, facing
+    GET  /scenarios/<id>        one scenario: placement and facing
+    GET  /rosters/<name>        one railroad's roster: its trains and lengths
 
 `review` is the one that carries the editor's whole view of topology: red
 pins, the portal labels that pair with nothing, junction membership, the
@@ -17,12 +18,16 @@ derived layout, and why each pair of transits does or does not run together.
 The front end reimplements none of it, so a second union-find cannot disagree
 with the first inside the tool whose job is to be believed.
 
-The two scenario routes are the panel's: a live session's stock, placement,
-and facing come from the scenario document (ui/PANEL.md, ADR-0019), and the
-bridge relays the bus rather than describing the run. They are reads of the
-store like any other, so they answer with the *validated* scenario — a
-document that will not validate is refused here rather than mis-read by a
-scheduler.
+The scenario and roster routes are the panel's: a live session's placement and
+facing come from the scenario document and its stock from the railroad's
+roster (ui/PANEL.md, ADR-0019, ADR-0039), and the bridge relays the bus rather
+than describing the run. They are reads of the store like any other, so they
+answer with the *validated* document — one that will not validate is refused
+here rather than mis-read by a scheduler.
+
+The roster is a read of the railroad and not of the run: which trains it owns
+does not change while a session is up, and what the bus says is where they
+are. Editing one is `scratch/4-stock`'s, so there is no `PUT` here yet.
 
 `review` takes a *document* rather than a name because the interesting drawing is
 the one being edited, which has not been saved and may not derive. Work in
@@ -86,6 +91,16 @@ def _route(store: AssetStore, method: str, path: str, body: Any) -> Response:
             return 200, asdict(store.get(scenario))
         except FileNotFoundError:
             return 404, {"error": f"no scenario '{scenario}'"}
+
+    railroad = route.removeprefix("/rosters/")
+    if method == "GET" and railroad != route and "/" not in railroad:
+        roster = store.roster(railroad)
+        return 200, {
+            "roster": roster.railroad,
+            "trains": {
+                name: asdict(train) for name, train in sorted(roster.trains.items())
+            },
+        }
 
     name = route.removeprefix("/drawings/")
     if name != route and "/" not in name:

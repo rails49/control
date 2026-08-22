@@ -15,7 +15,7 @@ reading another component's internals. Terminology follows
 
 ```
           ┌───────────────────── asset store ─────────────────────┐
-          │   layout + scenario documents — read-only, snapshot   │
+          │  layout + roster + scenario docs — read-only, snapshot│
           └───────┬─────────────┬─────────────────────┬───────────┘
                   │             │                     │
           ┌───────┴───┐  ┌──────┴─────┐  ┌────────┐  ┌┴─────────────────┐
@@ -40,7 +40,7 @@ reading another component's internals. Terminology follows
 - **Layout interface** — the boundary to whatever runs the track: sensor
   readings and the grant boundary come out, turnout and throttle commands go
   in. A simulator implements it in milestone 1, a hardware adapter later.
-- **Asset store** — serves the layout and scenario documents; the one
+- **Asset store** — serves the layout, roster and scenario documents; the one
   contract that is not the bus, because it answers queries and the bus
   refuses to.
 - **UI** — the panel, and a throttle later: watches the bus and writes
@@ -315,14 +315,22 @@ The milestone-1 binding is a Python library over the YAML files of
 [DRAWING.md](store/DRAWING.md) and [LAYOUT.md](store/LAYOUT.md); a future REST
 binding slots under the same names and verbs without appearing in the contract.
 
-- **Two coarse document types** — `drawing` and `scenario`, fetched and
-  stored whole. Symbols, wires, trains, and requests live inside documents
-  and are not independently addressable. A layout is **derived** from a
-  drawing at `get` and is not a document type of its own
+- **Three coarse document types** — `drawing`, `roster` and `scenario`,
+  fetched and stored whole. Symbols, wires, trains, and requests live inside
+  documents and are not independently addressable. A layout is **derived**
+  from a drawing at `get` and is not a document type of its own
   ([ADR-0015](adr/0015-drawing-is-the-source-of-truth.md)), so a railroad has
   one committed description.
-- **Names as ids** — `crossover-yard` for railroads, layout-qualified
-  `crossover-yard/meet` for scenarios. Verbs: `get`, `put` (whole-document
+- **A railroad owns its roster** — the trains it has, each a name and a
+  length, beside its drawing and under the same name
+  ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). A scenario places
+  trains from it and states no length, so one train has one length however
+  many scenarios name it; a railroad with no roster file owns nothing yet,
+  which is what a drawing made this morning is. Being on the roster is what
+  makes a train **known**, and the scenario is what places it — a train on the
+  roster that no scenario places comes up **off the layout**.
+- **Names as ids** — `crossover-yard` for railroads and their rosters,
+  layout-qualified `crossover-yard/meet` for scenarios. Verbs: `get`, `put` (whole-document
   create-or-replace), `delete`, `list` (all layouts; scenarios of a layout).
   No partial update.
 - **Components are read-only** — scheduler, dispatcher, driver, and the
@@ -409,14 +417,17 @@ falling back to it.
 
 ### Dispatcher
 
-*Reads* the layout, and from the scenario its stock — train lengths for the
-admission fit check, initial placement to seed the standing locks. Neither
-fact can come off the bus: sensors are anonymous, so the lock table the
-dispatcher recovers identity from must be seeded before the first sensor
-event, and `request_submitted` carries no length. Where a **retained
+*Reads* the layout, the railroad's **roster** — train lengths for the
+admission fit check, and the whole of what makes a train **known**
+([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) — and from the
+scenario the initial placement that seeds the standing locks. A train on the
+roster the scenario places nowhere comes up off the layout. Neither fact can
+come off the bus: sensors are anonymous, so the lock table the dispatcher
+recovers identity from must be seeded before the first sensor event, and
+`request_submitted` carries no length. Where a **retained
 `state/allocation` survived a restart** the placement comes from it instead —
 its `trains` and `crossing`, adopted before the standing locks are published;
-lengths stay the scenario's, and `locks` and `requests` are not adopted at
+lengths stay the roster's, and `locks` and `requests` are not adopted at
 all, so the lock table is rebuilt one block per train and the queue comes
 back empty. The placement is taken **per train**: a train the picture does
 not name starts where the document says, and where that is the block the

@@ -24,7 +24,7 @@ def test_the_word_is_stated_before_anything_is_asked() -> None:
     """Retained and published from the constructor, so a subscriber that
     arrives afterwards is served it too — which is the case that matters,
     every consumer of the layout being built before the layout is."""
-    _, scenario = load("crossover-yard/meet")
+    _, _roster, scenario = load("crossover-yard/meet")
     bus = Bus()
     Simulator(bus, scenario)
     assert bus.last_values[POWER] == {"power": "on"}
@@ -37,8 +37,8 @@ def test_the_word_is_stated_before_anything_is_asked() -> None:
 def test_a_whole_run_says_it_once_and_never_changes_it() -> None:
     """Nothing in the simulator moves the word: it is on the trace at
     boundary 0 and appears nowhere after."""
-    layout, scenario = load("crossover-yard/meet")
-    assembly = build(layout, scenario)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    assembly = build(layout, _roster, scenario)
     assembly.simulator.run()
 
     said = events(assembly.trace, "power")

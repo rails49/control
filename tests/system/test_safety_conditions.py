@@ -21,8 +21,8 @@ from tests.harness import events, load, run
 
 
 def trace_of(scenario_id: str) -> str:
-    layout, scenario = load(scenario_id)
-    return run(layout, scenario, Incremental)
+    layout, _roster, scenario = load(scenario_id)
+    return run(layout, _roster, scenario, Incremental)
 
 
 def latencies(trace: str) -> dict[str, int]:

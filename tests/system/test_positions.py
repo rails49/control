@@ -34,8 +34,8 @@ UI_SUITE = "ui/test/points.test.ts"  # the suite that copies part of this one
 
 
 def trace() -> str:
-    layout, scenario = load(SCENARIO)
-    return run(layout, scenario)
+    layout, _roster, scenario = load(SCENARIO)
+    return run(layout, _roster, scenario)
 
 
 def commanded(trace: str) -> dict[str, str]:

@@ -14,7 +14,7 @@ from tests.harness import load
 def yard() -> Layout:
     """crossover-yard, the railroad the scenario below stands on: the
     scheduler reads a layout to keep facing, and nothing else."""
-    layout, _ = load("crossover-yard/meet")
+    layout, _roster, _ = load("crossover-yard/meet")
     return layout
 
 
@@ -23,8 +23,8 @@ def two_train_scenario() -> Scenario:
         name="meet",
         layout="crossover-yard",
         trains={
-            "freight_1": TrainSpec(1100, "yard_w", "B"),
-            "express_2": TrainSpec(600, "up_e", "A"),
+            "freight_1": TrainSpec("yard_w", "B"),
+            "express_2": TrainSpec("up_e", "A"),
         },
         requests=(
             RequestSpec("freight_1", "yard_w.B", ("yard_e",), 0),
@@ -183,7 +183,7 @@ def test_a_train_seeded_into_a_terminal_block_faces_its_connected_end() -> None:
     bus = Bus()
     seen = collect(bus, FACING)
     scenario = two_train_scenario()
-    scenario.trains["freight_1"] = TrainSpec(1100, "yard_w", "A")
+    scenario.trains["freight_1"] = TrainSpec("yard_w", "A")
     Scheduler(bus, yard(), scenario, timetable=False)
     bus.drain()
     assert seen[-1][1]["facing"]["freight_1"] == "yard_w.B"
@@ -280,7 +280,7 @@ def test_a_drag_out_of_a_terminal_block_departs_by_its_connected_end() -> None:
     bus = Bus()
     seen = collect(bus, "tc49/schedule/request_submitted")
     scenario = two_train_scenario()
-    scenario.trains["freight_1"] = TrainSpec(1100, "yard_w", "A")
+    scenario.trains["freight_1"] = TrainSpec("yard_w", "A")
     Scheduler(bus, yard(), scenario, timetable=False)
 
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})

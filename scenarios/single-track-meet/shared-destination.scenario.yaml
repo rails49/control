@@ -22,8 +22,8 @@ scenario: shared-destination
 layout: single-track-meet
 
 trains:
-  first: { length: 1000, at: west_1, facing: B }
-  second: { length: 1000, at: west_2, facing: B }
+  first: { at: west_1, facing: B }
+  second: { at: west_2, facing: B }
 
 requests:
   - { train: first, from: west_1.B, to: [east_1.A, east_2.A], at: 0 }

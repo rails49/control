@@ -53,15 +53,15 @@ def obstructed_blocks(
 @given(scenarios())
 @EXAMPLES
 def test_safety_invariant_holds_after_every_grant(
-    case: tuple[dict[str, Any], Any, Any],
+    case: tuple[dict[str, Any], Any, Any, Any],
 ) -> None:
     """Property 1. The bus drives, the assertion peeks: after each grant the
     library `safe()` is re-evaluated on the dispatcher's live state, so a
     violation fails at the grant that broke it rather than at the deadlock
     much later."""
-    doc, layout, scenario = case
+    doc, layout, roster, scenario = case
     note(fixture_yaml(doc))
-    assembly = build(layout, scenario, Incremental, K)
+    assembly = build(layout, roster, scenario, Incremental, K)
 
     def check(topic: str, payload: Payload) -> None:
         assert safe(
@@ -98,7 +98,7 @@ def assert_quiescence_is_a_permanent_obstacle(assembly: Assembly) -> None:
             origin,
             depart,
             req.arrivals,
-            state.train_lengths[req.train],
+            state.roster[req.train],
             assembly.k,
             congested(state, req.train),
         )
@@ -111,12 +111,12 @@ def assert_quiescence_is_a_permanent_obstacle(assembly: Assembly) -> None:
 @given(scenarios())
 @EXAMPLES
 def test_quiescence_is_always_a_permanent_obstacle(
-    case: tuple[dict[str, Any], Any, Any],
+    case: tuple[dict[str, Any], Any, Any, Any],
 ) -> None:
     """Property 2, under the research core."""
-    doc, layout, scenario = case
+    doc, layout, roster, scenario = case
     note(fixture_yaml(doc))
-    assembly = build(layout, scenario, Incremental, K)
+    assembly = build(layout, roster, scenario, Incremental, K)
     assembly.simulator.run(TICK_LIMIT)
     assert_quiescence_is_a_permanent_obstacle(assembly)
 
@@ -124,7 +124,7 @@ def test_quiescence_is_always_a_permanent_obstacle(
 @given(scenarios())
 @EXAMPLES
 def test_differential_against_the_baseline(
-    case: tuple[dict[str, Any], Any, Any],
+    case: tuple[dict[str, Any], Any, Any, Any],
 ) -> None:
     """Property 3. The same harness run twice with the locking strategy
     swapped, so the baseline gets the same oracle the research core does:
@@ -144,10 +144,10 @@ def test_differential_against_the_baseline(
     throughput claim belongs to the measured benchmark workloads
     (BENCHMARKS.md), not to arbitrary ones.
     """
-    doc, layout, scenario = case
+    doc, layout, roster, scenario = case
     note(fixture_yaml(doc))
     for strategy in (FullRoute, Incremental):
-        assembly = build(layout, scenario, strategy, K)
+        assembly = build(layout, roster, scenario, strategy, K)
         assembly.simulator.run(TICK_LIMIT)
         assert_quiescence_is_a_permanent_obstacle(assembly)
 
@@ -155,27 +155,27 @@ def test_differential_against_the_baseline(
 @given(scenarios())
 @EXAMPLES
 def test_traces_are_byte_identical_across_runs(
-    case: tuple[dict[str, Any], Any, Any],
+    case: tuple[dict[str, Any], Any, Any, Any],
 ) -> None:
     """Property 4. Each case run twice, the two trace byte streams identical
     in memory — the tie-break, grant-order and canonical-serialization
     promises. No trace files are committed; the goldens are metrics numbers
     and scenario YAML."""
-    doc, layout, scenario = case
+    doc, layout, roster, scenario = case
     note(fixture_yaml(doc))
     for strategy in (FullRoute, Incremental):
-        first = run(layout, scenario, strategy, K, TICK_LIMIT)
-        second = run(layout, scenario, strategy, K, TICK_LIMIT)
+        first = run(layout, roster, scenario, strategy, K, TICK_LIMIT)
+        second = run(layout, roster, scenario, strategy, K, TICK_LIMIT)
         assert first == second
 
 
 @given(scenarios())
 @settings(deadline=None, max_examples=25)
 def test_generated_documents_are_committable_fixtures(
-    case: tuple[dict[str, Any], Any, Any],
+    case: tuple[dict[str, Any], Any, Any, Any],
 ) -> None:
     """The shrink output is a scenario file: rendered as YAML text it passes
     the same asset-store validation a committed file gets, unchanged."""
-    doc, _, scenario = case
+    doc, _, _roster, scenario = case
     store = AssetStore(ROOT)
     assert store.validate_scenario(yaml.safe_load(fixture_yaml(doc))) == scenario

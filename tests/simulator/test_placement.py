@@ -47,7 +47,7 @@ def cross(bus: Bus, train: str, into: str) -> None:
 
 def test_nothing_is_written_without_a_path(tmp_path: Path) -> None:
     """A benchmark run keeps no file, exactly as its bus opens none."""
-    _, scenario = load("crossover-yard/meet")
+    _, _roster, scenario = load("crossover-yard/meet")
     bus = Bus()
     simulator = Simulator(bus, scenario)
     cross(bus, "freight_1", "dn_w")
@@ -59,7 +59,7 @@ def test_nothing_is_written_without_a_path(tmp_path: Path) -> None:
 def test_a_moved_train_is_written_where_it_now_stands(tmp_path: Path) -> None:
     """Written on change: the file is the placement whole, so what it holds
     is where every train is and not a log of how it got there."""
-    _, scenario = load("crossover-yard/meet")
+    _, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
     bus = Bus()
     simulator = Simulator(bus, scenario, path)
@@ -73,7 +73,7 @@ def test_a_restarted_simulator_starts_from_the_file(tmp_path: Path) -> None:
     """The morning after: the trains are where they were left, so the block
     the next move vacates is the one the last session parked them in and not
     the one the scenario document names."""
-    _, scenario = load("crossover-yard/meet")
+    _, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
     first = Bus()
     moved = Simulator(first, scenario, path)
@@ -96,7 +96,7 @@ def test_a_hand_that_lifts_a_train_moves_the_steel_under_it(tmp_path: Path) -> N
     left — and the simulator stands in for the steel, so it is told. Without
     it the next move would vacate the block the train used to be in and the
     sensors would describe a railroad nobody is on."""
-    _, scenario = load("crossover-yard/meet")
+    _, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
     bus = Bus()
     simulator = Simulator(bus, scenario, path)

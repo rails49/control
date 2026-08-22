@@ -19,7 +19,7 @@ scenario: positions
 layout: gotthard
 
 trains:
-  mover: { length: 300, at: C4, facing: A }
+  mover: { at: C4, facing: A }
 
 requests:
   - { train: mover, from: C4.A, to: [A2.A], at: 0 }

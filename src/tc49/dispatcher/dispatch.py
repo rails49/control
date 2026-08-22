@@ -28,6 +28,7 @@ from tc49.lib.inventory import HELD, ON, RUNNING
 from tc49.lib.layout import Layout, block_of, end_on, leaving_end, opposite_end
 from tc49.lib.payload import gesture, placement, power, run_state
 from tc49.lib.rejection import Reason
+from tc49.lib.roster import Roster
 from tc49.lib.scenario import Scenario
 
 ALLOCATION = "tc49/dispatch/state/allocation"
@@ -92,7 +93,13 @@ class Active:
 @dataclass
 class State:
     layout: Layout
-    train_lengths: dict[str, int]
+    # train -> its length: the railroad's **roster**, and the whole of what
+    # the dispatcher knows about stock. Being in it is what makes a train
+    # **known**, which is separate from being **placed** — a request naming a
+    # train that is not here is answered `unknown_train`, and one naming a
+    # train that is here and not in `block_of` is answered `no_origin`
+    # (ADR-0039).
+    roster: dict[str, int]
     locks: dict[str, str]  # resource -> holding train
     block_of: dict[str, str]  # train -> block it stands in (or last parked)
     active: dict[str, Active]
@@ -448,8 +455,18 @@ def submission(payload: Payload, rid: str) -> Submission | None:
 
 class Dispatcher:
     def __init__(
-        self, bus: Bus, layout: Layout, scenario: Scenario, strategy: LockingStrategy
+        self,
+        bus: Bus,
+        layout: Layout,
+        roster: Roster,
+        scenario: Scenario,
+        strategy: LockingStrategy,
     ) -> None:
+        """The railroad's `roster` is the stock: every train it owns, whether
+        the scenario places it or not. The scenario says where the placed
+        ones start, and a train it does not name comes up **off the layout**
+        — known, standing nowhere, and waiting for a person to put it
+        somewhere (ADR-0039)."""
         self._bus = bus
         self._strategy = strategy
         # The last picture, where the bus binding held one across a restart:
@@ -462,7 +479,7 @@ class Dispatcher:
         standing, crossing = restored(picture, scenario)
         self._state = State(
             layout,
-            {train: spec.length for train, spec in scenario.trains.items()},
+            roster.lengths(),
             {},
             {},
             {},
@@ -541,7 +558,7 @@ class Dispatcher:
         if request is None:
             self._reject(rid, Reason.MALFORMED)
             return
-        if request.train not in self._state.train_lengths:
+        if request.train not in self._state.roster:
             self._reject(rid, Reason.UNKNOWN_TRAIN)
             return
         if self._names_no_such_block(request):
@@ -570,10 +587,7 @@ class Dispatcher:
                 # stands in, accepted whichever end it names (DISPATCH.md);
                 # the first launch attempt decides.
                 surviving.append(end)
-            elif (
-                self._state.train_lengths[request.train]
-                > self._state.layout.blocks[block]
-            ):
+            elif self._state.roster[request.train] > self._state.layout.blocks[block]:
                 pruned.append({"end": end, "reason": Reason.NO_FIT})
             elif end not in self._state.layout.end_connection:
                 pruned.append({"end": end, "reason": Reason.NO_ENTRY})
@@ -689,7 +703,7 @@ class Dispatcher:
                 origin,
                 depart,
                 (end,),
-                self._state.train_lengths[train],
+                self._state.roster[train],
                 1,
             )
         )
@@ -780,13 +794,13 @@ class Dispatcher:
         state = self._state
         if wanted is None or state.run != HELD:
             return
-        if wanted.train not in state.train_lengths:
+        if wanted.train not in state.roster:
             return
         if wanted.block not in state.layout.blocks:
             return
         if not state.free(wanted.block):
             return
-        if state.train_lengths[wanted.train] > state.layout.blocks[wanted.block]:
+        if state.roster[wanted.train] > state.layout.blocks[wanted.block]:
             return
         if self._has_pending(wanted.train) or wanted.train in state.active:
             return

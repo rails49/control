@@ -23,6 +23,7 @@ from typing import Any
 from tc49.bench.runner import DEFAULT_K
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
 from tests.harness import RUN_WANTED, load
 
@@ -54,20 +55,23 @@ def restored(
     """
     path = tmp_path / "session.json"
     path.write_text(json.dumps({} if picture is None else {ALLOCATION: picture}))
-    layout, scenario = load("crossover-yard/meet")
+    layout, roster, scenario = load("crossover-yard/meet")
     if added is not None:
+        # Stock the scenario gained, which the railroad owns: on the roster,
+        # and placed by the document (ADR-0039).
+        roster = replace(
+            roster,
+            trains={**roster.trains, **{train: Train(600) for train in added}},
+        )
         scenario = replace(
             scenario,
             trains={
                 **scenario.trains,
-                **{
-                    train: TrainSpec(length=600, at=at, facing="A")
-                    for train, at in added.items()
-                },
+                **{train: TrainSpec(at=at, facing="A") for train, at in added.items()},
             },
         )
     bus = Bus(path)
-    dispatcher = Dispatcher(bus, layout, scenario, FullRoute(layout, DEFAULT_K))
+    dispatcher = Dispatcher(bus, layout, roster, scenario, FullRoute(layout, DEFAULT_K))
     bus.drain()
     return bus, dispatcher
 
@@ -158,9 +162,9 @@ def test_the_opening_statement_carries_the_set(tmp_path: Path) -> None:
     stale = {"trains": ["freight_1"], "blocks": ["dn_w"]}
     path = tmp_path / "session.json"
     path.write_text(json.dumps({ALLOCATION: MOVED, DISPUTED: stale}))
-    layout, scenario = load("crossover-yard/meet")
+    layout, roster, scenario = load("crossover-yard/meet")
     bus = Bus(path)
-    Dispatcher(bus, layout, scenario, FullRoute(layout, DEFAULT_K))
+    Dispatcher(bus, layout, roster, scenario, FullRoute(layout, DEFAULT_K))
     bus.drain()
 
     assert disputed(bus) == {"trains": [], "blocks": []}

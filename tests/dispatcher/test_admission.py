@@ -22,7 +22,7 @@ from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib import durable
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.scenario import Scenario, TrainSpec
-from tests.harness import events, load
+from tests.harness import events, load, stock
 
 REQUESTS = "tc49/schedule/request_submitted"
 
@@ -44,8 +44,8 @@ UNREADABLE: list[Payload] = [
 
 @pytest.fixture
 def assembly() -> Assembly:
-    layout, scenario = load("crossover-yard/meet")
-    return assemble_live(layout, scenario)
+    layout, roster, scenario = load("crossover-yard/meet")
+    return assemble_live(layout, roster, scenario)
 
 
 def submit(assembly: Assembly, payload: Payload) -> None:
@@ -127,11 +127,11 @@ def test_a_payload_that_is_not_an_object_at_all_is_dropped() -> None:
     which holds the apps to the inventory and would refuse this line — an
     honest publisher cannot produce it, and the one that can is a client, on
     the topic the tap records verbatim."""
-    layout, scenario = load("crossover-yard/meet")
+    layout, roster, scenario = load("crossover-yard/meet")
     bus = Bus()
     seen: list[Payload] = []
     bus.subscribe("tc49/dispatch/request_rejected", lambda _, p: seen.append(p))
-    Dispatcher(bus, layout, scenario, FullRoute(layout, DEFAULT_K))
+    Dispatcher(bus, layout, roster, scenario, FullRoute(layout, DEFAULT_K))
     bus.publish(REQUESTS, cast(Payload, "freight_1 to yard_e"))
     bus.drain()
     assert seen == []
@@ -177,18 +177,23 @@ def test_a_request_for_a_train_off_the_layout_is_answered(tmp_path: Path) -> Non
             }
         },
     )
-    layout, _ = load("crossover-yard/meet")
+    layout, _roster, _ = load("crossover-yard/meet")
     scenario = Scenario(
         name="unplaced",
         layout="crossover-yard",
         trains={
-            "freight_1": TrainSpec(1100, "yard_w", "B"),
-            "railcar_3": TrainSpec(600, "dn_w", "A"),
-            "leviathan": TrainSpec(2000, "dn_e", "A"),
+            "freight_1": TrainSpec("yard_w", "B"),
+            "railcar_3": TrainSpec("dn_w", "A"),
+            "leviathan": TrainSpec("dn_e", "A"),
         },
         requests=(),
     )
-    assembly = assemble_live(layout, scenario, state=state)
+    assembly = assemble_live(
+        layout,
+        stock(freight_1=1100, railcar_3=600, leviathan=2000),
+        scenario,
+        state=state,
+    )
     assembly.bus.drain()
 
     submit(assembly, GOOD)

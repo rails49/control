@@ -24,7 +24,7 @@ from tests.harness import ROOT
 @pytest.fixture
 def store(tmp_path: Path) -> AssetStore:
     (tmp_path / "layouts").mkdir()
-    for path in (ROOT / "layouts").glob("*.drawing.yaml"):
+    for path in (ROOT / "layouts").glob("*.yaml"):
         shutil.copy(path, tmp_path / "layouts" / path.name)
     shutil.copytree(ROOT / "scenarios", tmp_path / "scenarios")
     return AssetStore(tmp_path)
@@ -79,12 +79,32 @@ def test_the_scenarios_are_listed_across_every_railroad(store: AssetStore) -> No
 
 
 def test_a_scenario_is_served_validated(store: AssetStore) -> None:
-    """Stock, placement and facing: what the panel-scheduler needs to submit a
-    departure end, and the one place facing is written down (ADR-0019)."""
+    """Placement and facing: what the panel-scheduler needs to submit a
+    departure end, and the one place facing is written down (ADR-0019). How
+    long a train is, is the roster's and not here (ADR-0039)."""
     status, body = handle(store, "GET", "/scenarios/gotthard-v0/meet", None)
     assert status == 200
     assert body["layout"] == "gotthard-v0"
-    assert body["trains"]["south"] == {"length": 900, "at": "claro_2", "facing": "B"}
+    assert body["trains"]["south"] == {"at": "claro_2", "facing": "B"}
+
+
+def test_a_roster_is_served_for_the_railroad_that_owns_it(store: AssetStore) -> None:
+    """Every train the railroad owns, whether a scenario places it or not: the
+    roster is the run view's source for what there is to place, and the one
+    place a length is written down (ADR-0039, ui/PANEL.md)."""
+    status, body = handle(store, "GET", "/rosters/gotthard-v0", None)
+    assert status == 200
+    assert body["roster"] == "gotthard-v0"
+    assert body["trains"]["south"] == {"length": 900}
+    assert body["trains"] == dict(sorted(body["trains"].items()))
+
+
+def test_a_railroad_with_no_roster_owns_nothing_yet(store: AssetStore) -> None:
+    """A drawing made this morning has no roster file beside it, which is not
+    a missing railroad: it is a railroad with no trains on it yet."""
+    status, body = handle(store, "GET", "/rosters/facing-pair-2", None)
+    assert status == 200
+    assert body == {"roster": "facing-pair-2", "trains": {}}
 
 
 def test_an_unknown_scenario_is_not_found(store: AssetStore) -> None:

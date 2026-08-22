@@ -118,11 +118,13 @@ def test_no_drawn_workload_is_dead_at_boundary_zero() -> None:
     # than the lexicographic bias of a truncated k. A run that moves and
     # *then* stalls is still allowed: a finished train parked across a route
     # is a legitimate finding, not a generator defect.
-    layout, _ = load(f"{LAYOUT}/meet")
+    layout, roster, _ = load(f"{LAYOUT}/meet")
     for workload in every_workload():
         scenario = generate(workload)
         for locking in STRATEGIES:
-            trace = run_scenario(layout, scenario, STRATEGIES[locking], workload.dest)
+            trace = run_scenario(
+                layout, roster, scenario, STRATEGIES[locking], workload.dest
+            )
             m = metrics(trace)
             assert (
                 m.completed or not m.stalled
@@ -135,15 +137,17 @@ def test_every_request_arrives_at_boundary_zero() -> None:
 
 
 def test_generated_workloads_load_as_real_scenarios() -> None:
-    layout, _ = load(f"{LAYOUT}/meet")
+    layout, roster, _ = load(f"{LAYOUT}/meet")
     for workload in every_workload():
         scenario = generate(workload)
         assert isinstance(scenario, Scenario)
         assert len(scenario.trains) == workload.trains
         assert len(scenario.requests) == workload.trains * workload.workings
-        for train in scenario.trains.values():
+        for name, train in scenario.trains.items():
             assert train.at in layout.blocks
-            assert train.length <= min(
+            # The length is the railroad's roster's (ADR-0039), and every
+            # drawn train must fit every station track.
+            assert roster.trains[name].length <= min(
                 layout.blocks[t] for t in STATION_TRACKS
             ), "every train must fit every station track"
 

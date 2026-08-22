@@ -12,8 +12,8 @@ from tests.harness import build, events, load
 def run_live_for(ticks: int, period_s: float = 0.5) -> tuple[str, list[float]]:
     """A live session over crossover-yard/meet, stopped after `ticks` ticks;
     the trace and every sleep the loop asked for."""
-    layout, scenario = load("crossover-yard/meet")
-    assembly = build(layout, scenario)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    assembly = build(layout, _roster, scenario)
     slept: list[float] = []
     assembly.simulator.run_live(
         period_s,
@@ -32,8 +32,8 @@ def test_ticks_arrive_on_the_timer_and_stay_deterministic_integers() -> None:
 def test_a_live_session_survives_quiescence() -> None:
     """Batch mode stops once the schedule is exhausted and a tick's cascade
     produces no command; live mode keeps ticking until told to stop."""
-    layout, scenario = load("crossover-yard/meet")
-    batch = build(layout, scenario)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    batch = build(layout, _roster, scenario)
     batch.simulator.run()
     quiescent_at = events(batch.trace, "boundary")[-1]["boundary"]
 
@@ -49,8 +49,8 @@ def test_the_railroad_runs_in_live_mode_as_it_does_in_batch() -> None:
     """Same assembly, same scenario, same events — pacing is the whole
     difference, so the trace agrees with batch mode line for line up to
     the tick where batch mode stops."""
-    layout, scenario = load("crossover-yard/meet")
-    batch = build(layout, scenario)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    batch = build(layout, _roster, scenario)
     batch.simulator.run()
 
     trace, _ = run_live_for(len(events(batch.trace, "boundary")))

@@ -30,9 +30,9 @@ scenario: flexibility
 layout: gotthard
 
 trains:
-  fixed: { length: 450, at: A1, facing: A }
-  flexible: { length: 450, at: A2, facing: A }
-  resident: { length: 450, at: C2, facing: A } # idle: no request names it
+  fixed: { at: A1, facing: A }
+  flexible: { at: A2, facing: A }
+  resident: { at: C2, facing: A } # idle: no request names it
 
 requests:
   - { train: fixed, from: A1.A, to: [C2.A], at: 0 }

@@ -59,8 +59,8 @@ def facing(assembly: Assembly) -> dict[str, str]:
 def dragged(state: Path | None) -> Assembly:
     """A live session on `crossover-yard/meet` with `freight_1` on its way
     across the railroad: the timetable is off, so a drag is what moves it."""
-    layout, scenario = load("crossover-yard/meet")
-    assembly = assemble_live(layout, scenario, state=state)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    assembly = assemble_live(layout, _roster, scenario, state=state)
     assembly.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
     assembly.bus.drain()
     return assembly
@@ -96,8 +96,8 @@ def test_a_restarted_session_comes_up_where_the_railroad_stopped(
     assert was["crossing"], "the run was meant to stop with a train crossing"
     assert was["trains"] != {"express_2": "up_e", "freight_1": "yard_w"}
 
-    layout, scenario = load("crossover-yard/meet")
-    restarted = assemble_live(layout, scenario, state=state)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    restarted = assemble_live(layout, _roster, scenario, state=state)
     restarted.bus.drain()
 
     assert picture(restarted)["trains"] == was["trains"]
@@ -113,8 +113,8 @@ def test_the_restarted_run_carries_no_route_and_no_request(tmp_path: Path) -> No
     stopped = cut_off_crossing(state)
     assert picture(stopped)["requests"], "the run was meant to stop mid-request"
 
-    layout, scenario = load("crossover-yard/meet")
-    restarted = assemble_live(layout, scenario, state=state)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    restarted = assemble_live(layout, _roster, scenario, state=state)
     restarted.bus.drain()
 
     assert picture(restarted)["requests"] == []
@@ -134,8 +134,8 @@ def test_a_restarted_session_moves_nothing_until_it_is_released(
     state = tmp_path / "session.json"
     run_to_a_standstill(state)
 
-    layout, scenario = load("crossover-yard/meet")
-    restarted = assemble_live(layout, scenario, state=state)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    restarted = assemble_live(layout, _roster, scenario, state=state)
     restarted.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_w.B"]})
     restarted.bus.drain()
     tick_until(restarted, lambda: False, limit=3)
@@ -159,8 +159,8 @@ def test_the_simulator_comes_back_to_the_same_railroad(tmp_path: Path) -> None:
     parked = events(stopped.trace, "block_occupied")[-1]["block"]
     assert parked != "yard_w", "the run was meant to leave the scenario's block"
 
-    layout, scenario = load("crossover-yard/meet")
-    restarted = assemble_live(layout, scenario, state=state)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    restarted = assemble_live(layout, _roster, scenario, state=state)
     release(restarted)
     restarted.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_w.B"]})
     restarted.bus.drain()
@@ -186,8 +186,8 @@ def test_a_train_restored_mid_crossing_is_resolved_by_placing_it(
     state = tmp_path / "session.json"
     cut_off_crossing(state)
 
-    layout, scenario = load("crossover-yard/meet")
-    restarted = assemble_live(layout, scenario, state=state)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    restarted = assemble_live(layout, _roster, scenario, state=state)
     restarted.bus.drain()
     transit = picture(restarted)["crossing"]["freight_1"]
     connection, _, name = transit.partition(".")

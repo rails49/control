@@ -5,9 +5,9 @@ transits, and which transits are `concurrent`. It is **derived**, never
 authored — the drawing is the source of truth
 ([DRAWING.md](DRAWING.md), [ADR-0015](../adr/0015-drawing-is-the-source-of-truth.md)),
 and `get` derives the layout from it and runs the validator, so components read
-it unchecked. A **scenario** file names a layout and adds the stock standing on
-it and the fixed request list; it is the one authored document besides the
-drawing. The split is what lets one railroad carry many benchmark runs, and it
+it unchecked. A **roster** file names the trains the railroad owns, and a
+**scenario** file names a layout and adds where its trains stand and the fixed
+request list; they are the authored documents besides the drawing. The split is what lets one railroad carry many benchmark runs, and it
 makes the benchmark CLI's argument a single scenario path.
 
 Terminology follows [CONTEXT.md](../../CONTEXT.md); the semantics of what these
@@ -16,6 +16,7 @@ describe are in [GOALS.md](../GOALS.md) and
 
 ```
 layouts/<layout>.drawing.yaml                   # the railroad, drawn
+layouts/<layout>.roster.yaml                    # the trains it owns
 scenarios/<layout>/<scenario>.scenario.yaml     # e.g. gotthard/meet
 ```
 
@@ -102,6 +103,28 @@ connections:
   drawing is where an unaddressed point is reported, and the layout carries
   only what can be thrown.
 
+## Roster schema
+
+```yaml
+roster: crossover-yard
+
+trains:
+  freight_1: { length: 1100 }
+```
+
+- **A roster belongs to the railroad**, not to a run: it sits beside the
+  drawing as `layouts/<id>.roster.yaml` and every scenario over that railroad
+  places trains from it. That is what makes a train's length one fact rather
+  than one per scenario ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)).
+- **A train is a name and a length.** The dispatcher only ever asks whether a
+  train fits a block, so total length is the whole of what milestone 1 reads;
+  [GOALS.md](../GOALS.md)'s composed loco-and-car model, with types, addresses
+  and priority, arrives when something consumes it.
+- **Being on the roster is being *known*, which is not being *placed*.** A
+  railroad with a roster and no scenario has every train off the layout, and
+  a railroad with no roster file owns nothing yet — a drawing made this
+  morning, which is not a missing railroad.
+
 ## Scenario schema
 
 ```yaml
@@ -109,7 +132,7 @@ scenario: meet
 layout: crossover-yard
 
 trains:
-  freight_1: { length: 1100, at: yard_w, facing: B }
+  freight_1: { at: yard_w, facing: B }
 
 requests:
   - { train: freight_1, from: yard_w.B, to: [dn_e, up_e], at: 0 }
@@ -120,10 +143,12 @@ requests:
   drawing's own `drawing:` key carries. The loader resolves it to
   `layouts/<id>.drawing.yaml`, so a scenario can move between directories
   without rewriting.
-- **Trains are flat** — id, length, starting block, facing. The dispatcher only
-  ever asks whether a train fits a block, so total length is the whole of what
-  milestone 1 reads; [GOALS.md](../GOALS.md)'s composed loco-and-car model arrives
-  when something consumes it.
+- **A scenario places trains it does not own** — id, starting block, facing.
+  The train itself is the railroad's roster's and so is its length, so a
+  scenario naming a train the roster does not have is refused at load. A train
+  the roster has and the scenario does not place comes up **off the layout**,
+  which is an ordinary state rather than a fault
+  ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)).
 - **`to` is a list of arrival ends**, any one of which satisfies the request
   ([ADR-0007](../adr/0007-requests-name-a-set-of-arrival-ends.md)). An element is
   either `<block>.<end>`, naming the end the train enters through, or a bare

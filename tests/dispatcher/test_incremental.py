@@ -7,7 +7,7 @@ from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tc49.store import AssetStore
-from tests.harness import ROOT, events, load, run
+from tests.harness import ROOT, events, load, run, stock
 
 
 def final_boundary(trace: str) -> int:
@@ -55,13 +55,14 @@ def test_facing_pair_refuses_a_launch_and_quiesces() -> None:
     scenario = Scenario(
         "swap",
         "facing-pair",
-        {"t_west": TrainSpec(500, "west", "B"), "t_east": TrainSpec(500, "east", "A")},
+        {"t_west": TrainSpec("west", "B"), "t_east": TrainSpec("east", "A")},
         (
             RequestSpec("t_west", "west.B", ("east.A",), 0),
             RequestSpec("t_east", "east.A", ("west.B",), 0),
         ),
     )
-    trace = run(layout, scenario, Incremental)  # run() returning is quiescence
+    # `run()` returning is quiescence.
+    trace = run(layout, stock(t_west=500, t_east=500), scenario, Incremental)
     assert len(events(trace, "request_admitted")) == 2
     assert events(trace, "request_completed") == []
     assert events(trace, "cross") == []  # never a collision, never movement
@@ -71,26 +72,26 @@ def test_facing_pair_refuses_a_launch_and_quiesces() -> None:
 
 
 def test_meet_completes_under_incremental_in_no_more_boundaries() -> None:
-    layout, scenario = load("crossover-yard/meet")
-    full = run(layout, scenario)
-    incremental = run(layout, scenario, Incremental)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    full = run(layout, _roster, scenario)
+    incremental = run(layout, _roster, scenario, Incremental)
     completed = {line["id"] for line in events(incremental, "request_completed")}
     assert completed == {"freight_1-1", "express_2-1", "freight_1-2"}
     assert final_boundary(incremental) <= final_boundary(full)
 
 
 def test_concurrent_pair_held_simultaneously_and_undeclared_pairs_never() -> None:
-    layout, _ = load("crossover-yard/meet")
+    layout, _roster, _ = load("crossover-yard/meet")
     straights = Scenario(
         "parallel",
         "crossover-yard",
-        {"t_up": TrainSpec(600, "up_w", "B"), "t_dn": TrainSpec(600, "dn_w", "B")},
+        {"t_up": TrainSpec("up_w", "B"), "t_dn": TrainSpec("dn_w", "B")},
         (
             RequestSpec("t_up", "up_w.B", ("up_e.A",), 0),
             RequestSpec("t_dn", "dn_w.B", ("dn_e.A",), 0),
         ),
     )
-    trace = run(layout, straights, Incremental)
+    trace = run(layout, stock(t_up=600, t_dn=600), straights, Incremental)
     assert {line["id"] for line in events(trace, "request_completed")} == {
         "t_up-1",
         "t_dn-1",
@@ -105,13 +106,13 @@ def test_concurrent_pair_held_simultaneously_and_undeclared_pairs_never() -> Non
     crossing = Scenario(
         "crossing",
         "crossover-yard",
-        {"t_up": TrainSpec(600, "up_w", "B"), "t_dn": TrainSpec(600, "dn_w", "B")},
+        {"t_up": TrainSpec("up_w", "B"), "t_dn": TrainSpec("dn_w", "B")},
         (
             RequestSpec("t_up", "up_w.B", ("dn_e.A",), 0),
             RequestSpec("t_dn", "dn_w.B", ("up_e.A",), 0),
         ),
     )
-    trace = run(layout, crossing, Incremental)
+    trace = run(layout, stock(t_up=600, t_dn=600), crossing, Incremental)
     assert {line["id"] for line in events(trace, "request_completed")} == {
         "t_up-1",
         "t_dn-1",
@@ -139,15 +140,15 @@ def test_shared_destination_refusal_names_the_committed_train() -> None:
         "collide",
         "gotthard-v0",
         {
-            "t_blue": TrainSpec(900, "claro_1", "B"),
-            "t_yellow": TrainSpec(900, "claro_3", "A"),
+            "t_blue": TrainSpec("claro_1", "B"),
+            "t_yellow": TrainSpec("claro_3", "A"),
         },
         (
             RequestSpec("t_blue", "claro_1.B", ("airolo_1.A",), 0),
             RequestSpec("t_yellow", "claro_3.A", ("airolo_1.A",), 0),
         ),
     )
-    trace = run(layout, scenario, Incremental)
+    trace = run(layout, stock(t_blue=900, t_yellow=900), scenario, Incremental)
     assert events(trace, "request_completed", rid="t_blue-1")
     refused = events(trace, "grant_refused", rid="t_yellow-1")
     assert refused[0]["reason"] == "unsafe"
@@ -161,9 +162,9 @@ def test_route_blindness_is_fixed_by_congestion_aware_costing() -> None:
     # launch see t1 across its first candidate. Costing restores that signal
     # from committed routes, so both strategies now steer t2 to the up line
     # at the first candidate and finish together. See the scenario file.
-    layout, scenario = load("crossover-yard/route-blindness")
-    full = run(layout, scenario)
-    incremental = run(layout, scenario, Incremental)
+    layout, _roster, scenario = load("crossover-yard/route-blindness")
+    full = run(layout, _roster, scenario)
+    incremental = run(layout, _roster, scenario, Incremental)
     assert {line["id"] for line in events(full, "request_completed")} == {
         "t1-1",
         "t2-1",
@@ -184,8 +185,8 @@ def test_transits_are_never_held_across_a_wait() -> None:
     # Lemma 1 made observable: under Incremental every lock grant beyond the
     # startup standing locks is one transit with its far block, atomically,
     # and every release is the origin block with its transit, atomically.
-    layout, scenario = load("crossover-yard/meet")
-    trace = run(layout, scenario, Incremental)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    trace = run(layout, _roster, scenario, Incremental)
     for line in events(trace, "lock_granted"):
         resources = line["resources"]
         if line["boundary"] == 0 and len(resources) == 1:
@@ -237,7 +238,7 @@ def test_a_grant_reaches_one_increment_past_what_it_needs() -> None:
     """Depth two: the grant locks the increment it needs and then the one
     after it, so the train stands with two blocks locked ahead rather than
     one — which is the difference between `approach` and `clear`."""
-    layout, _ = load("gotthard-v0/saturation")
+    layout, _roster, _ = load("gotthard-v0/saturation")
     route = a_route(layout, "t")
     state = a_state(layout, route, {route.blocks[0]: "t"})
 
@@ -253,7 +254,7 @@ def test_an_unavailable_second_increment_refuses_nothing() -> None:
     another train the move is granted exactly as before, reporting nothing
     ahead — and reporting nothing ahead is what `approach` means, not an
     error the train has to wait on."""
-    layout, _ = load("gotthard-v0/saturation")
+    layout, _roster, _ = load("gotthard-v0/saturation")
     route = a_route(layout, "t")
     state = a_state(layout, route, {route.blocks[0]: "t", route.blocks[2]: "other"})
 
@@ -267,7 +268,7 @@ def test_an_unavailable_second_increment_refuses_nothing() -> None:
 def test_a_route_with_nothing_two_blocks_ahead_reaches_for_nothing() -> None:
     """The last grant of a route has no second increment to ask for, and
     that is not a failure either."""
-    layout, _ = load("gotthard-v0/saturation")
+    layout, _roster, _ = load("gotthard-v0/saturation")
     route = a_route(layout, "t")
     short = Route(route.blocks[:2], route.transits[:1])
     state = a_state(layout, short, {short.blocks[0]: "t"})

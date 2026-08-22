@@ -86,8 +86,8 @@ def test_the_picture_is_republished_only_when_it_changes() -> None:
 def test_the_locks_are_the_lock_table_as_the_dispatcher_holds_it() -> None:
     """The picture is a projection, not a second copy: at every point in the
     run it agrees with the lock and release events that made it."""
-    layout, scenario = load("crossover-yard/meet")
-    trace = run(layout, scenario, Incremental)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    trace = run(layout, _roster, scenario, Incremental)
     held: dict[str, str] = {}
     for line in events(trace):
         if line["event"] == "lock_granted":

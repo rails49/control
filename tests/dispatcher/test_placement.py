@@ -21,26 +21,30 @@ from tc49.bench.runner import Assembly, assemble_live
 from tc49.dispatcher import Incremental
 from tc49.lib import durable
 from tc49.lib.scenario import Scenario, TrainSpec
-from tests.harness import RUN_WANTED, events, load, press, ticks
+from tests.harness import RUN_WANTED, events, load, press, stock, ticks
 
 PLACEMENT_WANTED = "tc49/ui/placement_wanted"
 REQUEST_WANTED = "tc49/ui/request_wanted"
+
+
+STOCK = stock(freight_1=1100, leviathan=2000, railcar_3=600, shunter=600)
+"""The railroad's roster, one for the suite: `leviathan` at 2000mm fits
+neither yard block (1400mm), so the fit rule has something to refuse."""
 
 
 def two_trains() -> Scenario:
     """`crossover-yard` with no timetable at all: a railroad standing still,
     which is what a person correcting a placement is looking at.
 
-    `leviathan` is 2000mm and fits neither yard block (1400mm), so the fit
-    rule has something to refuse; `dn_e` is where it stands, so the occupancy
-    rule does too.
+    `leviathan` stands in `dn_e`, so the occupancy rule has something to
+    refuse too.
     """
     return Scenario(
         name="placing",
         layout="crossover-yard",
         trains={
-            "freight_1": TrainSpec(1100, "yard_w", "B"),
-            "leviathan": TrainSpec(2000, "dn_e", "A"),
+            "freight_1": TrainSpec("yard_w", "B"),
+            "leviathan": TrainSpec("dn_e", "A"),
         },
         requests=(),
     )
@@ -48,8 +52,8 @@ def two_trains() -> Scenario:
 
 @pytest.fixture
 def held() -> Assembly:
-    layout, _ = load("crossover-yard/meet")
-    assembly = assemble_live(layout, two_trains())
+    layout, _roster, _ = load("crossover-yard/meet")
+    assembly = assemble_live(layout, STOCK, two_trains())
     press(assembly, RUN_WANTED, {"run": "held"})
     return assembly
 
@@ -113,8 +117,8 @@ def test_facing_never_names_the_wall_of_a_terminal_block(held: Assembly) -> None
 def test_a_placement_is_dropped_while_the_run_is_running() -> None:
     """Placing under a running dispatcher would let a grant phase launch from
     a block the operator is still moving a locomotive out of."""
-    layout, _ = load("crossover-yard/meet")
-    running = assemble_live(layout, two_trains())
+    layout, _roster, _ = load("crossover-yard/meet")
+    running = assemble_live(layout, STOCK, two_trains())
 
     place(running, "freight_1", "up_w")
 
@@ -216,10 +220,10 @@ def test_a_placement_clears_whatever_the_train_was_crossing(tmp_path: Path) -> N
             }
         },
     )
-    layout, _ = load("crossover-yard/meet")
+    layout, _roster, _ = load("crossover-yard/meet")
     # No press: a session that adopted a picture comes up held (#154), which
     # is what makes the placement below acceptable at all.
-    assembly = assemble_live(layout, two_trains(), state=state)
+    assembly = assemble_live(layout, STOCK, two_trains(), state=state)
     assembly.bus.drain()  # the opening statement, which no boundary has yet
     assert last(assembly, "run")["run"] == "held"
     assert last(assembly, "allocation")["crossing"] == {
@@ -262,18 +266,18 @@ def test_a_train_adoption_placed_nowhere_can_be_put_on_the_layout(
             }
         },
     )
-    layout, _ = load("crossover-yard/meet")
+    layout, _roster, _ = load("crossover-yard/meet")
     scenario = Scenario(
         name="unplaced",
         layout="crossover-yard",
         trains={
-            "freight_1": TrainSpec(1100, "yard_w", "B"),
-            "railcar_3": TrainSpec(600, "dn_w", "A"),
-            "leviathan": TrainSpec(2000, "dn_e", "A"),
+            "freight_1": TrainSpec("yard_w", "B"),
+            "railcar_3": TrainSpec("dn_w", "A"),
+            "leviathan": TrainSpec("dn_e", "A"),
         },
         requests=(),
     )
-    assembly = assemble_live(layout, scenario, state=state)
+    assembly = assemble_live(layout, STOCK, scenario, state=state)
     assembly.bus.drain()  # the opening statement, which no boundary has yet
     opening = last(assembly, "allocation")
     assert "freight_1" not in opening["trains"]
@@ -306,19 +310,19 @@ def test_a_placement_into_a_committed_block_is_dropped() -> None:
     permanent obstacle (SAFETY.md), and nothing cancels a request — so the
     committed train would be refused for the rest of the session.
     """
-    layout, _ = load("crossover-yard/meet")
+    layout, _roster, _ = load("crossover-yard/meet")
     # `shunter` is short enough for either yard block, so the fit rule cannot
     # do this test's work for it.
     scenario = Scenario(
         name="committed",
         layout="crossover-yard",
         trains={
-            "freight_1": TrainSpec(1100, "yard_w", "B"),
-            "shunter": TrainSpec(600, "dn_e", "A"),
+            "freight_1": TrainSpec("yard_w", "B"),
+            "shunter": TrainSpec("dn_e", "A"),
         },
         requests=(),
     )
-    assembly = assemble_live(layout, scenario, Incremental)
+    assembly = assemble_live(layout, STOCK, scenario, Incremental)
     press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
     ticks(assembly, 1)
     press(assembly, RUN_WANTED, {"run": "held"})

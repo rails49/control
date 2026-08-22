@@ -22,10 +22,13 @@ def store() -> AssetStore:
 @pytest.fixture
 def scratch_store(tmp_path: Path) -> AssetStore:
     (tmp_path / "layouts").mkdir()
-    shutil.copy(
-        ROOT / "layouts" / "crossover-yard.drawing.yaml",
-        tmp_path / "layouts" / "crossover-yard.drawing.yaml",
-    )
+    # The drawing and the roster together: a railroad is both, and a scenario
+    # places trains the roster names (ADR-0039).
+    for suffix in (".drawing.yaml", ".roster.yaml"):
+        shutil.copy(
+            ROOT / "layouts" / f"crossover-yard{suffix}",
+            tmp_path / "layouts" / f"crossover-yard{suffix}",
+        )
     return AssetStore(tmp_path)
 
 
@@ -33,7 +36,7 @@ def scratch_store(tmp_path: Path) -> AssetStore:
 def drawings(tmp_path: Path) -> AssetStore:
     """Every committed railroad, somewhere writable."""
     (tmp_path / "layouts").mkdir()
-    for path in (ROOT / "layouts").glob("*.drawing.yaml"):
+    for path in (ROOT / "layouts").glob("*.yaml"):
         shutil.copy(path, tmp_path / "layouts" / path.name)
     return AssetStore(tmp_path)
 
@@ -56,7 +59,7 @@ def meet_document() -> dict[str, Any]:
     return {
         "scenario": "meet",
         "layout": "crossover-yard",
-        "trains": {"freight_1": {"length": 1100, "at": "yard_w", "facing": "B"}},
+        "trains": {"freight_1": {"at": "yard_w", "facing": "B"}},
         "requests": [
             {"train": "freight_1", "from": "yard_w.B", "to": ["yard_e"], "at": 0},
         ],
@@ -243,11 +246,67 @@ def test_a_save_after_one_that_failed_writes_the_file_it_was_given(
     assert "# reasoning" in path.read_text()
 
 
+def test_a_roster_is_the_railroads_own_stock(store: AssetStore) -> None:
+    """Every train the railroad owns and how long each is, whether a scenario
+    places it or not (ADR-0039)."""
+    roster = store.roster("crossover-yard")
+    assert roster.railroad == "crossover-yard"
+    assert roster.trains["freight_1"].length == 1100
+    assert roster.lengths()["express_2"] == 600
+
+
+def test_a_railroad_with_no_roster_file_owns_nothing_yet(store: AssetStore) -> None:
+    """A drawing with no roster beside it is a railroad with no trains on it,
+    not a missing railroad: the answer is an empty roster and not a refusal."""
+    assert store.roster("crossover-yard-2").trains == {}
+
+
+def test_a_roster_train_must_have_a_positive_length(
+    scratch_store: AssetStore,
+) -> None:
+    with pytest.raises(ValueError, match="length"):
+        scratch_store.validate_roster(
+            {"roster": "crossover-yard", "trains": {"freight_1": {"length": 0}}}
+        )
+
+
+def test_a_roster_file_must_name_the_railroad_it_is_filed_under(
+    scratch_store: AssetStore, tmp_path: Path
+) -> None:
+    (tmp_path / "layouts" / "crossover-yard.roster.yaml").write_text(
+        "roster: elsewhere\ntrains: {}\n"
+    )
+    with pytest.raises(ValueError, match="names itself"):
+        scratch_store.roster("crossover-yard")
+
+
+def test_a_scenario_may_only_place_trains_the_roster_has(
+    scratch_store: AssetStore,
+) -> None:
+    """A train's length is the roster's, so a scenario naming a train the
+    railroad does not own has nothing to read (ADR-0039)."""
+    doc = meet_document()
+    doc["trains"]["phantom"] = {"at": "up_w", "facing": "B"}
+    with pytest.raises(ValueError, match="phantom.*roster"):
+        scratch_store.put(doc)
+
+
+def test_a_scenario_may_place_no_train_at_all(scratch_store: AssetStore) -> None:
+    """The cold start of a run built from a drawing and a roster: nothing on
+    the rails, every train known and off the layout (ADR-0039)."""
+    doc = meet_document()
+    doc["trains"] = {}
+    doc["requests"] = []
+    scratch_store.put(doc)
+    scenario = scratch_store.get("crossover-yard/meet")
+    assert isinstance(scenario, Scenario)
+    assert scenario.trains == {}
+
+
 def test_meet_scenario_loads_clean(store: AssetStore) -> None:
     scenario = store.get("crossover-yard/meet")
     assert isinstance(scenario, Scenario)
     assert scenario.layout == "crossover-yard"
-    assert scenario.trains["freight_1"].length == 1100
     assert scenario.trains["express_2"].at == "up_e"
     assert scenario.trains["freight_1"].facing == "B"
     first = scenario.requests[0]
@@ -353,12 +412,12 @@ def test_put_is_whole_document_create_or_replace(scratch_store: AssetStore) -> N
     assert scratch_store.list("crossover-yard") == ["crossover-yard/meet"]
 
     replaced = meet_document()
-    replaced["trains"]["freight_1"]["length"] = 900
+    replaced["trains"]["freight_1"]["at"] = "up_w"
     scratch_store.put(replaced)
 
     scenario = scratch_store.get("crossover-yard/meet")
     assert isinstance(scenario, Scenario)
-    assert scenario.trains["freight_1"].length == 900
+    assert scenario.trains["freight_1"].at == "up_w"
 
 
 def test_put_rejects_invalid_documents_and_writes_nothing(

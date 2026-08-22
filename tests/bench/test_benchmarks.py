@@ -111,8 +111,8 @@ def test_batch_trace_is_pinned_byte_identical() -> None:
     and everything after must leave its traces byte-identical, so one full
     trace is pinned alongside the golden numbers. Regenerate like the goldens,
     with TC49_REGEN_GOLDENS=1, and read the diff before committing it."""
-    layout, scenario = load("crossover-yard/meet")
-    trace = run_scenario(layout, scenario)
+    layout, _roster, scenario = load("crossover-yard/meet")
+    trace = run_scenario(layout, _roster, scenario)
     path = EXPECTED / "crossover-yard-meet.trace.jsonl"
     if os.environ.get("TC49_REGEN_GOLDENS"):
         path.write_text(trace)
@@ -190,7 +190,7 @@ def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
     working and dissolving the rotation this test is about. So the sixteen line
     workings widen and the two shunts are left alone.
     """
-    layout, scenario = load("gotthard/saturation")
+    layout, _roster, scenario = load("gotthard/saturation")
     line_facing = {end for tracks in ARRIVALS.values() for t in tracks for end in t}
 
     def widen(req: RequestSpec) -> RequestSpec:
@@ -219,7 +219,7 @@ def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
     )
     assert sum(a is not b for a, b in zip(scenario.requests, widened.requests)) == 16
     for strategy in STRATEGIES.values():
-        trace = run_scenario(layout, widened, strategy, DEFAULT_K)
+        trace = run_scenario(layout, _roster, widened, strategy, DEFAULT_K)
         m = metrics(trace)
         assert m.status == "ok"
         assert len(m.completed) == 18

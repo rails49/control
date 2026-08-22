@@ -23,8 +23,8 @@ scenario: meet
 layout: gotthard
 
 trains:
-  south: { length: 450, at: C2, facing: A }
-  north: { length: 450, at: A1, facing: A }
+  south: { at: C2, facing: A }
+  north: { at: A1, facing: A }
 
 requests:
   - { train: south, from: C2.A, to: [A2], at: 0 }

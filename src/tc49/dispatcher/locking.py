@@ -98,7 +98,7 @@ class FullRoute:
             origin,
             depart,
             req.arrivals,
-            state.train_lengths[req.train],
+            state.roster[req.train],
             self._k,
             congested(state, req.train),
         )
@@ -161,7 +161,7 @@ class Incremental:
             origin,
             depart,
             req.arrivals,
-            state.train_lengths[req.train],
+            state.roster[req.train],
             self._k,
             congested(state, req.train),
         )
