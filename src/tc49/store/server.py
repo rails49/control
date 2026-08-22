@@ -1,6 +1,6 @@
 """The store's HTTP face: what the layout editor talks to (ui/EDITOR.md).
 
-Six routes, every one of them a store operation, which is why this belongs to
+Five routes, every one of them a store operation, which is why this belongs to
 the store rather than to an app of its own — a `ui` package could not import
 `tc49.store` and stay inside ADR-0013.
 
@@ -8,8 +8,6 @@ the store rather than to an app of its own — a `ui` package could not import
     GET  /drawings/<name>       one drawing, as the document it is
     PUT  /drawings/<name>       save it, keeping what the file says
     POST /review                what a drawing means, derived and explained
-    GET  /scenarios             the scenarios there are, layout-qualified
-    GET  /scenarios/<id>        one scenario: placement and facing
     GET  /rosters/<name>        one railroad's roster: its trains and lengths
 
 `review` is the one that carries the editor's whole view of topology: red
@@ -18,12 +16,14 @@ derived layout, and why each pair of transits does or does not run together.
 The front end reimplements none of it, so a second union-find cannot disagree
 with the first inside the tool whose job is to be believed.
 
-The scenario and roster routes are the panel's: a live session's placement and
-facing come from the scenario document and its stock from the railroad's
-roster (ui/PANEL.md, ADR-0019, ADR-0039), and the bridge relays the bus rather
-than describing the run. They are reads of the store like any other, so they
-answer with the *validated* document — one that will not validate is refused
-here rather than mis-read by a scheduler.
+The roster route is the panel's: a run is built from a railroad, and its stock
+is the railroad's roster (ui/PANEL.md, ADR-0039), the bridge relaying the bus
+rather than describing the run. It is a read of the store like any other, so
+it answers with the *validated* document.
+
+A **scenario is not served at all**. It is the harness's file format, read off
+disk by `tc49 bench` and by `tc49 live --scenario`, and never
+browser-reachable (#171).
 
 The roster is a read of the railroad and not of the run: which trains it owns
 does not change while a session is up, and what the bus says is where they
@@ -79,18 +79,6 @@ def _route(store: AssetStore, method: str, path: str, body: Any) -> Response:
         if not isinstance(body, dict):
             return 400, {"error": "review takes a drawing document"}
         return 200, Drawing.from_document(body).review()
-
-    if method == "GET" and route == "/scenarios":
-        return 200, {"scenarios": store.scenarios()}
-
-    # Layout-qualified, always: `get` derives a layout from a bare name, and
-    # this route answers about scenarios only.
-    scenario = route.removeprefix("/scenarios/")
-    if method == "GET" and scenario != route and "/" in scenario:
-        try:
-            return 200, asdict(store.get(scenario))
-        except FileNotFoundError:
-            return 404, {"error": f"no scenario '{scenario}'"}
 
     railroad = route.removeprefix("/rosters/")
     if method == "GET" and railroad != route and "/" not in railroad:

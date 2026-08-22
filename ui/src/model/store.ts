@@ -145,19 +145,6 @@ export async function review(drawing: Drawing): Promise<Review> {
 }
 
 /**
- * The scenario a live session was started from.
- *
- * The panel reads it for one thing: which drawing to render, nothing retained
- * saying which railroad a session runs and a topic that did being the bridge
- * describing the run (#67, ADR-0036). Where each train is comes off the bus,
- * and what trains there are comes off the roster below.
- */
-export interface ScenarioDoc {
-  name: string;
-  layout: string;
-}
-
-/**
  * A railroad's roster: every train it owns, whether on the layout or off it
  * ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)).
  *
@@ -170,14 +157,6 @@ export interface ScenarioDoc {
 export interface RosterDoc {
   roster: string;
   trains: Record<string, { length: number }>;
-}
-
-export async function listScenarios(): Promise<string[]> {
-  return (await ask<{ scenarios: string[] }>("GET", "/scenarios")).scenarios;
-}
-
-export async function readScenario(id: string): Promise<ScenarioDoc> {
-  return await ask<ScenarioDoc>("GET", `/scenarios/${id}`);
 }
 
 export async function readRoster(railroad: string): Promise<RosterDoc> {

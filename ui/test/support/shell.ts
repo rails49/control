@@ -47,11 +47,6 @@ export const CLEAN: Review = {
 export interface Answers {
   /** The names `/drawings` lists. */
   drawings: string[];
-  /** The ids `/scenarios` lists, which is what the run view asks for. */
-  scenarios: string[];
-  /** Which railroad a scenario names: what the run view reads a scenario
-   *  for. */
-  layoutOf: (id: string) => string;
   /** The trains a railroad owns, which is what `/rosters/<name>` answers
    *  (ADR-0039). */
   rosterOf: (railroad: string) => Record<string, { length: number }>;
@@ -73,8 +68,6 @@ let asked = 0;
 export function serving(answers: Partial<Answers> = {}): Answers {
   const store: Answers = {
     drawings: [],
-    scenarios: [],
-    layoutOf: (id) => id.split("/")[0]!,
     rosterOf: () => ({}),
     read: (name) => {
       throw new Error(`no drawing '${name}'`);
@@ -99,13 +92,6 @@ export function serving(answers: Partial<Answers> = {}): Answers {
 function answered(store: Answers, path: string): Promise<unknown> {
   if (path === "/review") return store.review();
   if (path === "/drawings") return Promise.resolve({ drawings: [...store.drawings] });
-  if (path === "/scenarios") {
-    return Promise.resolve({ scenarios: [...store.scenarios] });
-  }
-  if (path.startsWith("/scenarios/")) {
-    const id = decodeURIComponent(path.slice("/scenarios/".length));
-    return Promise.resolve({ name: id, layout: store.layoutOf(id) });
-  }
   if (path.startsWith("/rosters/")) {
     const railroad = decodeURIComponent(path.slice("/rosters/".length));
     return Promise.resolve({ roster: railroad, trains: store.rosterOf(railroad) });
