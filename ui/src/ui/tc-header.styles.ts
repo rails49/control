@@ -119,6 +119,16 @@ export const headerStyles = css`
     color: var(--wrong);
   }
 
+  /* Trains on the layout freeze the drawing (ADR-0038, #169). The other thing
+     the band says about the drawing itself, and the quieter of the two: a
+     frozen drawing is the ordinary state of a railroad with trains on it, and
+     nothing is wrong with it. So it reads as the boundary does and not as the
+     refusal above. */
+  .frozen {
+    flex: none;
+    color: var(--hint);
+  }
+
   /* One line, whatever the store said: the band's height is a row of the
      page's grid, and a wrapped message would take the wrap out of the canvas. */
   .trouble {

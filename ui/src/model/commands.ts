@@ -51,6 +51,12 @@ export interface Standing {
   /** Whether there is a snapshot behind, and one ahead. */
   undo: boolean;
   redo: boolean;
+  /** How many trains stand on the layout, as the run says. Any of them
+   *  freezes the drawing (`frozen` below). A count and not a flag, because
+   *  what the run knows is which trains are placed and the rule is read off
+   *  it afresh — nothing here is latched, so the last train leaving thaws
+   *  the drawing on its own. */
+  placed: number;
 }
 
 /** Where the editor stands before it has been told anything: nothing open,
@@ -62,7 +68,22 @@ export const NOTHING: Standing = {
   editable: false,
   undo: false,
   redo: false,
+  placed: 0,
 };
+
+/**
+ * Whether the drawing is frozen: any train placed, and it is
+ * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md),
+ * #169). You do not rewire track with locomotives standing on it.
+ *
+ * The one reading of the rule. `editing` below kills the commands that would
+ * change the document, the editing view's gestures ask it before they mean
+ * anything, and the band prints its word off it rather than counting trains
+ * of its own.
+ */
+export function frozen({ placed }: Standing): boolean {
+  return placed > 0;
+}
 
 export interface Command {
   label: string;
@@ -92,14 +113,14 @@ export const COMMANDS: Record<CommandId, Command> = {
     label: "Export SVG…",
     enabled: ({ opened }) => opened !== "",
   },
-  undo: { label: "Undo", key: "⌘Z", enabled: ({ undo }) => undo },
-  redo: { label: "Redo", key: "⇧⌘Z", enabled: ({ redo }) => redo },
-  rotate: { label: "Rotate", key: "R", enabled: hasSelection },
-  flip: { label: "Flip", key: "F", enabled: hasSelection },
-  delete: { label: "Delete", key: "⌫", enabled: hasSelection },
+  undo: { label: "Undo", key: "⌘Z", enabled: editing(({ undo }) => undo) },
+  redo: { label: "Redo", key: "⇧⌘Z", enabled: editing(({ redo }) => redo) },
+  rotate: { label: "Rotate", key: "R", enabled: editing(hasSelection) },
+  flip: { label: "Flip", key: "F", enabled: editing(hasSelection) },
+  delete: { label: "Delete", key: "⌫", enabled: editing(hasSelection) },
   properties: {
     label: "Properties…",
-    enabled: ({ selection, editable }) => selection === 1 && editable,
+    enabled: editing(({ selection, editable }) => selection === 1 && editable),
   },
   // The view is the surface's own, so it is there to be changed whatever the
   // drawing is and whichever view is current: an empty sheet still zooms, and
@@ -122,6 +143,20 @@ export const COMMANDS: Record<CommandId, Command> = {
 /** A verb that reads the selection is dead without one. */
 function hasSelection({ selection }: Standing): boolean {
   return selection > 0;
+}
+
+/**
+ * A verb that changes the document, which is dead while the drawing is frozen
+ * whatever else is true of it (#169).
+ *
+ * Written as a wrapper so that the category is named once and a command joins
+ * it by wearing it: a new verb that draws is frozen by being declared with
+ * this, rather than by someone remembering to repeat the condition. Saving is
+ * not one of them — it writes the document out rather than changing it, and
+ * the edits it carries were made before the train arrived.
+ */
+function editing(rule: (standing: Standing) => boolean): Command["enabled"] {
+  return (standing) => !frozen(standing) && rule(standing);
 }
 
 export interface Menu {

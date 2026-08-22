@@ -30,7 +30,12 @@ import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
-import { COMMANDS, type CommandId, type Standing } from "../model/commands.js";
+import {
+  COMMANDS,
+  frozen,
+  type CommandId,
+  type Standing,
+} from "../model/commands.js";
 import { emptyDrawing } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { Filing } from "../model/filing.js";
@@ -129,6 +134,7 @@ export class TcApp extends LitElement {
         .linked=${this.status.linked}
         .boundary=${this.status.boundary}
         .power=${this.status.power}
+        .frozen=${frozen(this.standing)}
         .view=${this.view}
         @railroad-wanted=${(event: CustomEvent<string>) => this.discard(event.detail)}
         @view-wanted=${(event: CustomEvent<ViewId>) => this.showing(event.detail)}
@@ -164,6 +170,7 @@ export class TcApp extends LitElement {
         .editor=${this.editor}
         .review=${this.filing.reviewed}
         .netlist=${this.netlist}
+        .frozen=${frozen(this.standing)}
         @edit=${this.edited}
         @picked=${() => this.redraw()}
       ></tc-editor>
@@ -219,6 +226,10 @@ export class TcApp extends LitElement {
    *  (model/commands.ts). Nothing here decides what is dead; that module
    *  does, and it is what both the bar and the keyboard ask. */
   private get standing(): Standing {
+    // Trains on the layout freeze the drawing (ADR-0038, #169), and the run
+    // view is what knows of any: the count comes up here with the rest of what
+    // it says about itself, and goes back down to the band that says why and
+    // the editing view whose gestures it kills.
     const one = this.inspecting;
     const spec = one === null ? undefined : this.editor.drawing.symbols[one];
     return {
@@ -228,6 +239,7 @@ export class TcApp extends LitElement {
       editable: spec !== undefined && editable(spec.kind),
       undo: this.editor.canUndo,
       redo: this.editor.canRedo,
+      placed: this.status.placed,
     };
   }
 

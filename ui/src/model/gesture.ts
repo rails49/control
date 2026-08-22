@@ -194,6 +194,18 @@ export class Gesture {
     return "quiet";
   }
 
+  /** Everything in flight dropped, writing nothing. What a frozen drawing
+   *  answers every press with (#169): a gesture the freeze lands in the middle
+   *  of leaves the sheet as it found it rather than finishing on a railroad
+   *  with trains standing on it. */
+  abandon(): Outcome {
+    const drawn = this.press !== null || this.drag !== null || this.rubber !== null;
+    this.press = null;
+    this.drag = null;
+    this.rubber = null;
+    return drawn ? "render" : "quiet";
+  }
+
   /**
    * A right-click, told what was clicked. While a palette drag is in flight it
    * abandons the symbol instead of asking about what is under it, and `found`
@@ -272,18 +284,30 @@ export class Gesture {
  * captured, `Gesture` taking both per call and holding neither: the shell is
  * the single owner of the `Editor` the canvas renders from, and it may hand
  * over another when a railroad is opened.
+ *
+ * `frozen` is read the same way, and it is the whole of the freeze on this
+ * surface: with a train on the layout every press is abandoned rather than
+ * meant (`model/commands.ts`, #169). The canvas goes on converting pixels to
+ * squares and asking, as it does with no session in the run view — a view
+ * whose gestures mean nothing is the shape both of them already have.
  */
 export function editingMachine(
   gesture: Gesture,
   editor: () => Editor,
   review: () => Review,
+  frozen: () => boolean,
 ): Machine {
   return {
-    down: (point, input) => gesture.down(editor(), review(), point, input),
-    moved: (point, screen) => gesture.moved(editor(), point, screen),
-    up: (point) => gesture.up(editor(), point),
+    down: (point, input) =>
+      frozen() ? gesture.abandon() : gesture.down(editor(), review(), point, input),
+    moved: (point, screen) =>
+      frozen() ? gesture.abandon() : gesture.moved(editor(), point, screen),
+    up: (point) => (frozen() ? gesture.abandon() : gesture.up(editor(), point)),
     left: () => gesture.left(),
-    menu: (point) => gesture.menu(editor(), review(), point),
+    menu: (point) =>
+      frozen()
+        ? { outcome: gesture.abandon(), found: null }
+        : gesture.menu(editor(), review(), point),
     shift: (name) => gesture.shift(editor(), name),
     get marks() {
       const band = gesture.band;

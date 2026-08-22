@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   COMMANDS,
+  frozen,
   MENUS,
   NOTHING,
   type CommandId,
@@ -140,6 +141,70 @@ describe("the ends of the snapshot stack", () => {
     expect(on("redo")).toBe(false);
     expect(on("undo", { undo: true })).toBe(true);
     expect(on("redo", { redo: true })).toBe(true);
+  });
+});
+
+/**
+ * Trains on the layout freeze the drawing
+ * ([ADR-0038](../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md),
+ * #169). You do not rewire track with locomotives standing on it, so with any
+ * train placed every command that changes the document is dead and the rest
+ * are not.
+ *
+ * The rule is here rather than on a component for the reason the others are:
+ * it is neither the document nor the DOM, and the bar and the keyboard both
+ * ask it, so a menu item and the key printed beside it cannot come to mean
+ * different things (EDITOR.md#tests).
+ */
+describe("what a train standing on the railroad freezes", () => {
+  /** Everything that would change the drawing, alive where it would be alive
+   *  on an empty layout. */
+  const CHANGES: Partial<Record<CommandId, Partial<Standing>>> = {
+    undo: { undo: true },
+    redo: { redo: true },
+    rotate: { selection: 1 },
+    flip: { selection: 1 },
+    delete: { selection: 1 },
+    properties: { selection: 1, editable: true },
+  };
+
+  it("kills every command that changes the drawing", () => {
+    for (const [id, alive] of Object.entries(CHANGES)) {
+      expect(on(id as CommandId, alive), `${id} with nothing placed`).toBe(true);
+      expect(on(id as CommandId, { ...alive, placed: 1 }), `${id} frozen`).toBe(
+        false,
+      );
+    }
+  });
+
+  /** Look, zoom, inspect the netlist: a frozen drawing is read-only and not
+   *  gone. Saving is here too — the edits it writes were made before the
+   *  train arrived, and refusing to store them would strand them. */
+  it("leaves looking at the drawing alone", () => {
+    const open = { opened: "gotthard", placed: 2 };
+    for (const id of ["zoom-in", "zoom-out", "fit"] as const) {
+      expect(on(id, open), id).toBe(true);
+    }
+    expect(on("netlist", open)).toBe(true);
+    expect(on("export-svg", open)).toBe(true);
+    expect(on("save", { ...open, saved: false })).toBe(true);
+    expect(on("save-as", open)).toBe(true);
+    expect(on("new", open)).toBe(true);
+  });
+
+  /** One reading of the freeze, for whoever says why: the band prints its
+   *  word off this rather than counting trains itself. */
+  it("is one question, asked of where the app stands", () => {
+    expect(frozen(standing())).toBe(false);
+    expect(frozen(standing({ placed: 1 }))).toBe(true);
+  });
+
+  /** Putting every train away unfreezes it. There is no gesture that does so
+   *  from the browser until #170, and the rule is written as the count it
+   *  reads rather than as a latch, so it comes back on its own. */
+  it("thaws when the last train is off the layout", () => {
+    expect(on("rotate", { selection: 1, placed: 1 })).toBe(false);
+    expect(on("rotate", { selection: 1, placed: 0 })).toBe(true);
   });
 });
 

@@ -17,7 +17,8 @@ import { NOTHING, type CommandId, type Standing } from "../src/model/commands.js
 import type { ViewId } from "../src/model/views.js";
 
 /** A drawing open with edits in it, one symbol selected that has properties,
- *  and a snapshot either way: everything alive at once. */
+ *  a snapshot either way, and nothing standing on the layout to freeze it:
+ *  everything alive at once. */
 const LIVE: Standing = {
   opened: "gotthard",
   saved: false,
@@ -25,6 +26,7 @@ const LIVE: Standing = {
   editable: true,
   undo: true,
   redo: true,
+  placed: 0,
 };
 
 async function bar(

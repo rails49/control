@@ -99,12 +99,21 @@ export class TcEditor extends LitElement {
    *  attribute is what `tc-editor.styles.ts` can read. */
   @property({ type: Boolean, reflect: true }) netlist = false;
 
+  /** Whether the drawing is frozen: a train is on the layout, and this view is
+   *  read-only until it is off it (`model/commands.ts`, ADR-0038). The app
+   *  owns the rule, the run being what knows; it is reflected onto the host
+   *  because the palette is greyed by a stylesheet, and an attribute is what
+   *  `tc-editor.styles.ts` can read. */
+  @property({ type: Boolean, reflect: true }) frozen = false;
+
   /** What a press on the canvas means here (model/gesture.ts), bound to the
-   *  document it is about. The canvas drives it and decides none of it. */
+   *  document it is about. The canvas drives it and decides none of it — the
+   *  freeze included, which the machine answers rather than the surface. */
   private readonly machine = editingMachine(
     new Gesture(),
     () => this.editor,
     () => this.review ?? UNREVIEWED,
+    () => this.frozen,
   );
 
   @state() private menu: MenuAt | null = null;
@@ -278,6 +287,9 @@ export class TcEditor extends LitElement {
    * release over the canvas there is nothing pending left to cancel.
    */
   private take(event: CustomEvent<Kind>): void {
+    // The other half of the freeze: the canvas's machine answers for presses
+    // on the sheet, and a palette drag starts on a tile (#169).
+    if (this.frozen) return;
     this.editor.beginPlace(event.detail);
     this.redraw();
     window.addEventListener("pointerup", this.dropped);

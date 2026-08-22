@@ -68,6 +68,7 @@ async function canvasOn(drawing: Drawing, review: Review): Promise<TcCanvas> {
     new Gesture(),
     () => editor,
     () => canvas.review ?? UNREVIEWED,
+    () => false,
   );
   document.body.append(canvas);
   await canvas.updateComplete;

@@ -70,6 +70,13 @@ export class TcHeader extends LitElement {
    *  nothing: the canvas is where you find out where. */
   @property({ type: Boolean }) derives = true;
 
+  /** Whether the drawing is frozen: a train is on the layout, so the editing
+   *  view is read-only until it is off it (`model/commands.ts`, ADR-0038).
+   *  Said here because it is true of the system rather than of a view — the
+   *  editor's dead verbs are what it explains, and it reads in the run view as
+   *  what the run is doing to the drawing. */
+  @property({ type: Boolean }) frozen = false;
+
   /** Whether the bridge is answering, read only while a session is joined. */
   @property({ type: Boolean }) linked = false;
 
@@ -115,6 +122,14 @@ export class TcHeader extends LitElement {
       <div class="health">
         <slot name="health"></slot>
         ${this.derives ? nothing : html`<span class="refused">does not derive</span>`}
+        ${this.frozen
+          ? html`<span
+              class="frozen"
+              title="trains are on the layout, so the drawing is read-only"
+            >
+              drawing frozen
+            </span>`
+          : nothing}
         ${this.trouble === null
           ? nothing
           : html`<span class="trouble" title=${this.trouble}>${this.trouble}</span>`}
