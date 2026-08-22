@@ -252,27 +252,33 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         return 0
 
     if args.command == "live":
-        session = Session(ROOT, args.period, args.port, args.state)
-        # What the session comes up on, and the refusal if it cannot: a
-        # scenario names its own railroad and replays onto it, a railroad
-        # comes up empty, and with neither the session waits to be told.
         # Two sources for one placement, and no reason to choose between
         # them: `--state` comes up standing the trains where the last session
         # left them, and a replay's placements would then be refused one by
         # one for the blocks those trains hold — a run silently unlike the
-        # document, with no diagnostic (#171).
+        # document, with no diagnostic (#171). Before the session, because a
+        # session serves from construction and a refusal that came after it
+        # would leave the bridge port bound (#179).
         if args.scenario is not None and args.state is not None:
             out.write(
                 "--scenario replays a document onto an empty layout and"
                 " --state comes up on the last session's placement; name one\n"
             )
             return 2
+        session = Session(ROOT, args.period, args.port, args.state)
+        # What the session comes up on, and the refusal if it cannot: a
+        # scenario names its own railroad and replays onto it, a railroad
+        # comes up empty, and with neither the session waits to be told.
         opening: str | None = None
         if args.scenario is not None:
             opening = session.plays(args.scenario)
         elif args.railroad is not None:
             opening = session.wants(args.railroad)
         if opening is not None:
+            # This one needs the session — only a session can say whether the
+            # store opens a railroad — so the port it took is given back here
+            # instead (#179).
+            session.bridge.close()
             out.write(f"{opening}\n")
             return 2
         # A session carries a store so that one command is all a browser

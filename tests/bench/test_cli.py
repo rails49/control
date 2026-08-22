@@ -1,8 +1,10 @@
 """`tc49 bench`: the comparison table, the k flag, the trace dump (#30),
-`tc49 layout show` (#45), and `tc49 generate` (#52, #126)."""
+`tc49 layout show` (#45), `tc49 generate` (#52, #126), and what `tc49 live`
+takes and refuses (#179)."""
 
 import io
 import json
+import socket
 from pathlib import Path
 
 import pytest
@@ -162,3 +164,39 @@ def test_a_session_is_told_where_to_keep_the_run(
     with pytest.raises(SystemExit):
         command_line().parse_args(["live", "--help"])
     assert "--state" in capsys.readouterr().out
+
+
+def free_port() -> int:
+    """A port nothing is listening on, so a refusal can be watched giving back
+    one it really held. The default 8766 would have the suite fight whatever
+    else on the machine wants that port."""
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
+REFUSED_LIVE = [
+    (["--scenario", "crossover-yard/meet", "--state", "run.json"], "name one"),
+    (["nonesuch"], "no railroad 'nonesuch'"),
+]
+"""Every `tc49 live` the CLI refuses, and a word of the refusal. One is
+decided off the arguments alone, the other only by asking the store for the
+railroad — which takes a session, and a session is already serving."""
+
+
+@pytest.mark.parametrize("argv, wording", REFUSED_LIVE)
+def test_a_refused_live_session_leaves_no_socket_bound(
+    argv: list[str], wording: str
+) -> None:
+    """A session serves from construction, so a refusal decided after one is
+    built holds the bridge port for the rest of the process (#179). From a
+    shell that is invisible — the port goes when the process does — but in a
+    pytest run it makes a later session's bind fail for reasons that have
+    nothing to do with what is under test."""
+    port = free_port()
+    out = io.StringIO()
+
+    assert main(["live", "--port", str(port), *argv], out) == 2
+    assert wording in out.getvalue()
+    with socket.socket() as after:
+        after.bind(("127.0.0.1", port))  # nothing is listening on it
