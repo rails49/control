@@ -83,7 +83,7 @@ def _line_ends() -> dict[str, tuple[str, ...]]:
 LINE_ENDS = _line_ends()
 
 
-def departure_end(block: str, drawn: str) -> str:
+def line_end(block: str, drawn: str) -> str:
     """The drawn end, unless the block has only one end that faces a line."""
     ends = LINE_ENDS[block]
     return drawn if drawn in ends else ends[0]
@@ -137,7 +137,7 @@ def generate(workload: Workload) -> Scenario:
         for working in range(workload.workings):
             end = rng.choice(["A", "B"])  # uniform, never "the end facing the route"
             if working == 0:
-                end = departure_end(placement, end)
+                end = line_end(placement, end)
             target = other_station(here)
             arrivals = _arrivals(rng, target, workload.dest)
             requests.append(
@@ -164,7 +164,7 @@ def generate(workload: Workload) -> Scenario:
     ):
         for train in stuck:
             placement = placement_of[train]
-            end = departure_end(placement, rng.choice(["A", "B"]))
+            end = line_end(placement, rng.choice(["A", "B"]))
             arrivals = _arrivals(rng, other_station(placement), workload.dest)
             requests[first[train]] = RequestSpec(
                 train, f"{placement}.{end}", arrivals, 0
