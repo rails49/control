@@ -158,9 +158,9 @@ the app.
 What is dead and what is alive is not the bar's to decide. Save is dead with
 nothing open or nothing to write, Rotate, Flip and Delete are dead on an empty
 selection, Properties on anything but one symbol that has some, Undo and Redo
-at the ends of the snapshot stack, Export SVG… with nothing to export, and the
-and nothing else — the zoom commands are alive always, both views drawing on
-the one canvas and an empty sheet still zooming. Those rules
+at the ends of the snapshot stack, and Export SVG… with nothing to export. The
+zoom commands are dead in neither view: both draw on the one canvas, and an
+empty sheet still zooms. Those rules
 are `model/commands.ts` with a test and no DOM, which is the rule
 [below](#tests): the model owns the document, a component owns the DOM, and a
 rule that is neither is a module in `model/`. The keyboard asks the same module
