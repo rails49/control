@@ -36,17 +36,17 @@ at once cost.
 
 **The railroad's roster is listed in the left pane.** The shell has one
 left-pane slot and each view fills it: the editor's palette, this view's
-`tc-roster` ([#169](https://github.com/rails49/control/issues/169)). A row is a
-train's name, its length, and where the run has it — the block it stands in,
+`tc-roster` ([#169](https://github.com/rails49/control/issues/169)). A row is
+a train's name, its length, and where the run has it — the block it stands in,
 *crossing* where it stands in none (a train holding a transit, and on the
 layout all the same), or *off the layout*. Ordered by name, so the list does
 not reshuffle as the railroad moves.
 
-A railroad's **roster** is every train it owns, whether on the layout or off it
-([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)), so the pane is fed
-from two places: `GET /rosters/<railroad>` for what there is and how long each
-train is, and `tc49/dispatch/state/allocation` for which of them the run has.
-Two sources because they are two things — the store serves the railroad's
+A railroad's **roster** is every train it owns, whether on the layout or off
+it ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)), so the pane is
+fed from two places: `GET /rosters/<railroad>` for what there is and how long
+each train is, and `tc49/dispatch/state/allocation` for which of them the run
+has. Two sources because they are two things — the store serves the railroad's
 assets, the bus carries the run
 ([ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)) —
 and the pane is handed one list. A train the picture has and the roster does
@@ -298,17 +298,18 @@ locomotive on the track and lifting it off are the same act with a different
 destination, so there is one leaf and one answer — `train_placed` or
 `train_removed`, which the picture follows.
 
-Both are **greyed while the run is running** and the pane says why. A placement
-is accepted only while the run is **held**: the dispatcher grants against its
-picture of where the trains are, and a block that fills or empties under it
-invalidates what it has already granted. This is a second pre-judgement beside
-the right-click's, and it earns the exception for the same reason — a still row
-says the run is running, where a swallowed gesture says nothing. A drop with no
-block under it — back on the pane, or on bare paper — writes nothing.
+Both are **greyed while the run is running** and the pane says why. A
+placement is accepted only while the run is **held**: the dispatcher grants
+against its picture of where the trains are, and a block that fills or empties
+under it invalidates what it has already granted. This is a second
+pre-judgement beside the right-click's, and it earns the exception for the
+same reason — a still row says the run is running, where a swallowed gesture
+says nothing. A drop with no block under it — back on the pane, or on bare
+paper — writes nothing.
 
-A train **mid-request cannot be lifted off**: nothing cancels a request, so the
-way out is to release the hold and let the train run. That is the derailment
-case, and cancelling is
+A train **mid-request cannot be lifted off**: nothing cancels a request, so
+the way out is to release the hold and let the train run. That is the
+derailment case, and cancelling is
 [#123](https://github.com/rails49/control/issues/123)'s.
 
 **Right-clicking** the block a train stands in opens a menu with one item,
@@ -318,9 +319,9 @@ block by, and the arrow turns. That is the whole of the feedback: nothing
 moves, no request is composed, and no `tc49/dispatch` topic carries anything.
 On a **terminal block** the gesture is a no-op — one end is all the train can
 leave by whichever way it is pointed, and facing never names an end that
-leads nowhere ([#145](https://github.com/rails49/control/issues/145)). Facing is
-otherwise fully determined once placed, routes being strict pass-throughs, and
-deliberate reversal at rest is the one exception
+leads nowhere ([#145](https://github.com/rails49/control/issues/145)). Facing
+is otherwise fully determined once placed, routes being strict pass-throughs,
+and deliberate reversal at rest is the one exception
 ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)). It is what a train
 that can run either way needs, and what switching needs: the panel should read
 true before you drag anywhere.
@@ -448,7 +449,8 @@ detectors dispute off `state/disputed`, facing off
 `tc49/schedule/state/facing` — rather than on an empty layout
 ([ADR-0032](../adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
 Rejoining is not recovery: nothing was lost, and the dispatcher was
-holding the truth the whole time ([CONTEXT.md](../../CONTEXT.md#interruptions)).
+holding the truth the whole time
+([CONTEXT.md](../../CONTEXT.md#interruptions)).
 
 **A session may outlive its process**, `tc49 live --state <path>`. The bus
 keeps its retained values there and each app adopts its own coming up, so a
@@ -487,10 +489,10 @@ having nothing to re-use, rather than a page minting carefully
 
 The front end keeps the editor's model/component split. `model/panel.ts` turns
 bus payloads into render state and holds no scheduler state: facing arrives on
-its topic and ids arrive on `request_submitted`. `model/drag.ts` turns pointer positions
-into an arrival-end set or a cancel, DOM-free and tested the way the editor's
-gesture model is; `trainAt` there is the one question the press and the
-right-click share, so the two can never disagree about which train was
+its topic and ids arrive on `request_submitted`. `model/drag.ts` turns pointer
+positions into an arrival-end set or a cancel, DOM-free and tested the way the
+editor's gesture model is; `trainAt` there is the one question the press and
+the right-click share, so the two can never disagree about which train was
 clicked. It answers the same `Machine` (`model/machine.ts`) the editor's
 `Gesture` does, so the canvas drives one gesture sequence and converts pixels
 into squares in one place; composing the drop into a frame and writing it to
@@ -499,10 +501,10 @@ else. `tc-menu` renders the items it is given, the editor and the run view
 each working out their own list. `model/scene.ts` is what the drawing alone
 answers: the frame a fit and an export are drawn in, an arrow's pose, and
 which symbol an address is worn by. `tc-panel` holds the session, feeds the
-model, hands the canvas an overlay, hands `tc-roster` the railroad's roster marked
-with where the run has each train, and sends. Where a drag from the pane
-landed is asked of the canvas, which is what turns a client pixel into a point
-on the drawing.
+model, hands the canvas an overlay, hands `tc-roster` the railroad's roster
+marked with where the run has each train, and sends. Where a drag from the
+pane landed is asked of the canvas, which is what turns a client pixel into a
+point on the drawing.
 
 **The component gets a suite where only mounting it can see the answer.** Each
 rule is tested at its own seam — `trainAt` in `drag.test.ts`, `standsIn` and
@@ -513,8 +515,8 @@ menu offered over a train's block and nowhere else, the browser's own menu
 suppressed either way, one `reversal_wanted` and no second frame, a refusal
 shown in the band rather than swallowed, and a menu coming down when the train
 leaves the block or the session goes. The last of those is the shape both bugs
-[#124](https://github.com/rails49/control/issues/124) found in Chrome took, and
-catching that shape is what the suite is for
+[#124](https://github.com/rails49/control/issues/124) found in Chrome took,
+and catching that shape is what the suite is for
 ([#157](https://github.com/rails49/control/issues/157)). The session they run
 against — the toy railroad, the fake bridge, and the app joined to it — is
 `ui/test/support/session.ts`, written once for every suite that needs one.
@@ -549,8 +551,9 @@ rather than asking for a change: two presses of the same word are not a race.
 which of the two ways of standing still it is: *emergency stop* for `stopped`
 and *power off* for `off`. The person recovering clears the one and switches
 the other back on, which are different actions
-([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)). With no
-session joined it says nothing, a drawing having no rails to have power.
+([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
+With no session joined it says nothing, a drawing having no rails to have
+power.
 
 **GO is greyed while the power is not `on`.** The dispatcher drops such a
 release, so a live button would be one that does nothing. It carries no
