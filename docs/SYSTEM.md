@@ -213,6 +213,7 @@ the driver moves locomotives
 | `tc49/dispatch/state/run` | state | dispatcher | last-value word, `held` or `running` ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | last-value map of signalled block end to aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | last-value picture of the run: standing trains, the transit each crossing train is on, locks and holders, committed routes, live requests |
+| `tc49/dispatch/state/disputed` | state | dispatcher | last-value pair of lists: trains standing in a block that reads clear, and blocks that read occupied with nothing claiming them. Empty unless the run is held ([#153](https://github.com/rails49/control/issues/153)) |
 | `tc49/dispatch/align` | command | dispatcher | connection, transit, points `[{addr, position}]` |
 | `tc49/drive/cross` | command | driver | train, connection, transit, into |
 
@@ -405,7 +406,8 @@ all, so the lock table is rebuilt one block per train and the queue comes
 back empty. *Subscribes*
 `tc49/layout/+`,
 `tc49/schedule/request_submitted` and `tc49/ui/#`. *Publishes* the nine
-`tc49/dispatch/*` events, plus `state/run`, `state/aspects` and
+`tc49/dispatch/*` events, plus `state/run`, `state/aspects`,
+`state/disputed` and
 `state/allocation` — the last its picture of the run, serialized from the
 lock table on change, so a client that joins an idle railroad can draw it
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
@@ -434,6 +436,22 @@ in flight; anything else is dropped in silence and to the trace. Having accepted
 standing lock and publishes `train_placed`, which the scheduler follows to
 carry facing into the new block and the layout interface to move the steel
 under it.
+
+**While held it publishes what the detectors dispute**, on `state/disputed`:
+the trains its placement stands in a block the layout reports clear, and the
+blocks the layout reports occupied with nothing claiming them. On power-up
+the detectors assert at once, anonymously, at exactly the moment a restored
+placement is least trustworthy, and naming the two contradictions turns
+walking the whole railroad into checking a handful of trains. The set
+**resolves nothing** — no sensor says *which* train — so a person ends each
+entry with a `placement_wanted`, and it empties as they do. Only blocks the
+layout has actually reported on take part: **silence is not a clear reading**,
+and a binding that reports no occupancy at all disputes nothing rather than
+disputing the whole railroad. A train the picture says is crossing takes no
+part either, standing in no block. Releasing the hold with entries
+outstanding is allowed — the person decides, not the check — and empties the
+set, a running dispatcher's placement being what its sensors have just told
+it ([#153](https://github.com/rails49/control/issues/153)).
 
 It is also the **sole payload authority**: a browser can publish anything on
 an inbound topic, and after the relay is deleted nothing stands in front
@@ -546,7 +564,10 @@ publishes no sensors for a placement, which is what makes the gesture safe
 today. A layout that detects occupancy will need the dispatcher told what an
 unexpected sensor means, which is
 [#159](https://github.com/rails49/control/issues/159)'s half of this and is
-not settled here.
+not settled here. The **dispute check** is not that answer either: it records
+every reading as it arrives, explained or not, and compares — comparing
+commits nothing. What the *boundary* then does with a reading no grant
+accounts for is the half still open.
 
 ### Asset store
 

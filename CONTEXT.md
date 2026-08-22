@@ -250,6 +250,17 @@ _Avoid_: paused, stopped, frozen. Not the `held` **grant_refused** reason,
 which says a resource is locked by another train: a different thing, on a
 different topic, about one request rather than the run.
 
+**Disputed**:
+Where the placement and the detectors contradict each other, named while the
+run is **held**: a *train* whose block the layout reports clear, and a *block*
+the layout reports occupied with nothing claiming it. Published as a set the
+panel points a person at, and it **resolves nothing** — occupancy is
+anonymous, so the check only points and a person ends each entry with a
+placement ([#153](https://github.com/rails49/control/issues/153)). A block
+the layout has said nothing about is neither: silence is not a clear reading.
+_Avoid_: mismatch, discrepancy, error. Not a **transit conflict**, which is
+two transits that may not be in use at once.
+
 **Active / idle train**:
 A train is **active** while it has a committed route — launched, not yet
 completed — and **idle** otherwise, whether or not a request for it is pending.

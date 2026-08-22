@@ -32,6 +32,10 @@ from tc49.lib.scenario import Scenario
 
 ALLOCATION = "tc49/dispatch/state/allocation"
 
+EMPTY: Payload = {"trains": [], "blocks": []}
+"""Nothing disputed: what a running run says, and what a held one says of a
+railroad whose detectors agree with it."""
+
 
 @dataclass
 class Request:
@@ -114,6 +118,14 @@ class State:
     # the aspects, and nothing else. State rather than a flag on the
     # dispatcher because `aspects()` answers off it.
     run: str = RUNNING
+    # block -> whether the layout last reported it occupied. What the
+    # detectors have *said*, which is not the same as what the dispatcher has
+    # acted on: a block enters this from the report that named it, while the
+    # buffered set below is about when a grant may follow (#153). Only blocks
+    # the layout has actually reported on are keys — silence is not a clear
+    # reading, and a binding that reports nothing disputes nothing rather
+    # than the whole railroad.
+    reported: dict[str, bool] = field(default_factory=dict[str, bool])
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None:
         """Why `train` cannot lock `resource`: (reason, resource, holder),
@@ -252,6 +264,51 @@ def allocation(state: State, pending: Sequence[Request]) -> Payload:
     }
 
 
+def disputed(state: State) -> Payload:
+    """Where the placement and the detectors contradict each other: trains
+    standing in a block that reads clear, and blocks that read occupied with
+    nothing claiming them (#153).
+
+    On power-up the detectors assert straight away — anonymously, so no
+    reading names a train — at exactly the moment the placement is least
+    trustworthy: it is where the last session *believed* the railroad was,
+    and the steel has stood unwatched since (CONTEXT.md, recovery). Naming
+    the two contradictions turns walking the whole railroad into checking a
+    handful of trains. It **resolves** nothing: the check points, and a
+    person ends every entry with a `placement_wanted`.
+
+    Only blocks `reported` carries take part, which is the whole of AC 3:
+    a block the layout has said nothing about is not clear, it is unknown.
+
+    Two exclusions, both of them the picture agreeing with itself rather
+    than a dispute suppressed:
+
+    - A **crossing** train stands in no block. `block_of` goes on naming the
+      block the sensors last confirmed it in and `crossing` says it has left
+      it, so a clear reading there is what the picture already claims. That
+      train is in any case the one a person is sent to first, drawn on its
+      connection (#154).
+    - A block the dispatcher holds a **lock** on is claimed. At the moment
+      this runs the lock table is one standing lock per placed train and
+      nothing else — the queue does not restore (#123) — so this is the
+      placement read off the table that carries it. Mid-run it also covers
+      the block a train has been granted a move into, which reads occupied
+      the moment it arrives and is not a stray.
+    """
+    return {
+        "trains": sorted(
+            train
+            for train, block in state.block_of.items()
+            if train not in state.crossing and state.reported.get(block) is False
+        ),
+        "blocks": sorted(
+            block
+            for block, occupied in state.reported.items()
+            if occupied and block not in state.locks
+        ),
+    }
+
+
 def restored(
     picture: Payload, scenario: Scenario
 ) -> tuple[dict[str, str], dict[str, str]]:
@@ -373,6 +430,7 @@ class Dispatcher:
         self._buffered: list[tuple[str, str]] = []
         self._aspects: dict[str, str] = {}  # last published, so only changes go
         self._allocation: Payload = {}  # likewise: the picture, when it moves
+        self._disputed: Payload = {}  # and the detectors' quarrel with it
         # The opening statement is the whole of what the dispatcher holds, in
         # the order a grant phase says it. Aspects are in it because a restart
         # has a previous value on that topic too: the last session's
@@ -381,10 +439,14 @@ class Dispatcher:
         # clear road nothing holds a lock on. The run state opens it for the
         # same reason and one step earlier: it is the frame the rest is read
         # in, and a joining client is served the word rather than left to
-        # read one out of an absence (ADR-0032).
+        # read one out of an absence (ADR-0032). The disputed set closes it
+        # for the same reason again: nothing has been reported yet, so the
+        # set is empty, and saying so is what clears the quarrel the last
+        # session left standing on that topic.
         self._publish_run()
         self._publish_aspects()
         self._publish_allocation()
+        self._publish_disputed()
         bus.subscribe("tc49/layout/+", self._on_layout)
         bus.subscribe("tc49/schedule/request_submitted", self._on_request)
         bus.subscribe("tc49/ui/#", self._on_gesture)
@@ -592,6 +654,12 @@ class Dispatcher:
         self._state.run = wanted
         self._publish_run()
         self._publish_aspects()
+        # Held, and the detectors are asked what they make of the placement;
+        # released, and the set empties. Not a dispute swept away: a person
+        # releasing has decided the railroad is as they want it, and a
+        # running dispatcher's placement follows the sensors move by move, so
+        # there is nothing left for the check to compare (#153).
+        self._publish_disputed()
 
     def _place(self, payload: Payload) -> None:
         """Where a train actually stands, said by the person who can see it.
@@ -637,6 +705,9 @@ class Dispatcher:
         state.crossing.pop(wanted.train, None)
         self._publish("train_placed", {"train": wanted.train, "block": wanted.block})
         self._publish_allocation()
+        # The entry the person just resolved leaves the set, which is what
+        # empties it as the railroad is walked (#153).
+        self._publish_disputed()
 
     def _free(self, block: str) -> bool:
         """Whether nothing else has a claim on `block`.
@@ -668,7 +739,19 @@ class Dispatcher:
         if leaf == "boundary":
             self._grant_phase()
         else:
-            self._buffered.append((leaf, payload["block"]))
+            block = str(payload["block"])
+            self._buffered.append((leaf, block))
+            # Recorded where it arrives rather than where the buffer is
+            # applied. A reading is a fact the moment the layout states it,
+            # and the dispute it may settle commits nothing — the buffer
+            # exists so that *grants* are a function of a whole period's
+            # sensors (DISPATCH.md, time model), which is a rule about
+            # acting. It also has to be so for the case this is for: the
+            # detectors asserting on power-up explain no move the dispatcher
+            # granted, and a boundary is not where such a reading survives
+            # (SYSTEM.md, the standing assumption).
+            self._state.reported[block] = leaf == "block_occupied"
+            self._publish_disputed()
 
     def _grant_phase(self) -> None:
         """The boundary's work: the buffered sensors, then the grants.
@@ -687,6 +770,10 @@ class Dispatcher:
             self._grant()
         self._publish_aspects()
         self._publish_allocation()
+        # The sensors just applied moved the placement the check compares
+        # against: an outstanding move completing while held is the one thing
+        # that resolves a dispute without a person saying anything.
+        self._publish_disputed()
 
     def _grant(self) -> None:
         state = self._state
@@ -892,6 +979,23 @@ class Dispatcher:
         if picture != self._allocation:
             self._allocation = picture
             self._publish("state/allocation", picture)
+
+    def _publish_disputed(self) -> None:
+        """What the detectors make of the placement, on a last-value topic,
+        when it moves — the panel points a person at it, and a panel joining
+        later must find it there (ADR-0032).
+
+        **Only while held.** The check runs before anything commits, which is
+        the moment it is about: a running dispatcher's placement is what the
+        sensors have just told it, so the two agree by construction and a
+        comparison would only catch itself mid-transit. Releasing therefore
+        empties the set rather than freezing it — the person has decided, and
+        a set left standing would go on disputing a railroad they accepted.
+        """
+        found = disputed(self._state) if self._state.run == HELD else EMPTY
+        if found != self._disputed:
+            self._disputed = found
+            self._publish("state/disputed", found)
 
     def _publish(self, leaf: str, payload: Payload) -> None:
         self._bus.publish(f"tc49/dispatch/{leaf}", payload)
