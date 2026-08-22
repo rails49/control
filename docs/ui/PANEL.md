@@ -503,6 +503,21 @@ with where the run has each train, and sends. Where a drag from the pane
 landed is asked of the canvas, which is what turns a client pixel into a point
 on the drawing.
 
+**The component gets a suite where only mounting it can see the answer.** Each
+rule is tested at its own seam — `trainAt` in `drag.test.ts`, `standsIn` and
+`inFlight` in `panel.test.ts`, `litLast` in `inspect.test.ts` — and not one of
+them can say whether this view asked. So `reversal.test.ts` mounts the app in
+this view and drives the right-click, and `run.test.ts` walks the session: a
+menu offered over a train's block and nowhere else, the browser's own menu
+suppressed either way, one `reversal_wanted` and no second frame, a refusal
+shown in the band rather than swallowed, and a menu coming down when the train
+leaves the block or the session goes. The last of those is the shape both bugs
+[#124](https://github.com/rails49/control/issues/124) found in Chrome took, and
+catching that shape is what the suite is for
+([#157](https://github.com/rails49/control/issues/157)). The session they run
+against — the toy railroad, the fake bridge, and the app joined to it — is
+`ui/test/support/session.ts`, written once for every suite that needs one.
+
 The railroad it paints is not its own: the app holds it and hands over the
 drawing and the review (ADR-0038). Joining a session names a railroad, so this
 view asks the app for it and opens the socket once it is on screen — which is
