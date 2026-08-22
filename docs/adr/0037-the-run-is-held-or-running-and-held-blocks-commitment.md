@@ -152,14 +152,30 @@ believes in is not accepted, that block not being free.
 
 ## Consequences
 
-**Every session comes up running**, and states so from the dispatcher's
-constructor as `state/allocation` already does: a joining client is served the
-word rather than left to read one out of an absence
-([ADR-0032](0032-a-joining-client-is-served-the-runs-retained-state.md)). The
-retained value is not adopted across a restart — the rails are dead until a
-person switches them on, so there is nothing for a remembered `held` to
-protect, and a run that came back up refusing to grant with no one at the
-panel would be a fault that looks like a hang.
+**A cold session comes up running, a restored one comes up held**, and either
+way the constructor states it as `state/allocation` already does: a joining
+client is served the word rather than left to read one out of an absence
+([ADR-0032](0032-a-joining-client-is-served-the-runs-retained-state.md)).
+
+A cold start has nothing for a hold to protect: the rails are dead until a
+person switches them on, and a run that came back up refusing to grant with no
+one at the panel would be a fault that looks like a hang. A **restored**
+session is the hold's own case
+([#154](https://github.com/rails49/control/issues/154)): the picture it
+adopted says where the last session *believed* the railroad was, and the steel
+has stood there unwatched since, long enough for a stalled train to have been
+lifted out of a tunnel by hand
+([CONTEXT.md](../../CONTEXT.md#interruptions)). Coming up running on the
+strength of a picture nobody has looked at is the failure this decision exists
+to prevent.
+
+The **retained word is not what decides it.** The file keeps every state
+topic's last value, `state/run` among them
+([#151](https://github.com/rails49/control/issues/151)), so a session cut
+while running finds `running` waiting for it, and adoption overrides it.
+Neither does it turn on whether the picture was in the end *taken*: where it
+contradicts the scenario the document wins the placement whole, and the rails
+do not go back to the document with it.
 
 **The simulator is told when a hand moves a train.** It stands in for steel
 that would simply be where it was left, so `train_placed` moves its placement

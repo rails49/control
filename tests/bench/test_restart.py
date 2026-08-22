@@ -10,6 +10,10 @@ else. The lock table comes back one block per train, the queue comes back
 empty and no request id resumes (ADR-0033) — the per-app tests pin those
 (tests/dispatcher/test_adoption.py, tests/scheduler/test_scheduler.py); this
 one is about the three of them agreeing after a real run.
+
+And it comes up **held** (#154): the picture is where the last session was
+cut off, not where the railroad now stands, so nothing moves until a person
+has looked and released it.
 """
 
 from collections.abc import Callable
@@ -21,6 +25,7 @@ from tc49.simulator import placement_file
 from tests.harness import events, load
 
 WANTED = "tc49/ui/request_wanted"
+RUN_WANTED = "tc49/ui/run_wanted"
 
 
 def tick_until(assembly: Assembly, done: Callable[[], bool], limit: int = 50) -> None:
@@ -33,6 +38,13 @@ def tick_until(assembly: Assembly, done: Callable[[], bool], limit: int = 50) ->
         return done() or ticks > limit
 
     assembly.simulator.run_live(0.0, sleep=lambda _: None, stop=stop)
+
+
+def release(assembly: Assembly) -> None:
+    """The press a restored session waits for: it comes up held, and the
+    operator releases it once they have looked at the railroad (#154)."""
+    assembly.bus.publish(RUN_WANTED, {"run": "running"})
+    assembly.bus.drain()
 
 
 def picture(assembly: Assembly) -> dict[str, Any]:
@@ -111,6 +123,32 @@ def test_the_restarted_run_carries_no_route_and_no_request(tmp_path: Path) -> No
     }
 
 
+def test_a_restarted_session_moves_nothing_until_it_is_released(
+    tmp_path: Path,
+) -> None:
+    """It comes up **held** (#154). The picture says where the last session
+    believed the railroad was and nobody has looked at it since, so the
+    second session admits the work and grants none of it: the boundaries
+    pass, no route is chosen, and the release is what starts it."""
+    state = tmp_path / "session.json"
+    run_to_a_standstill(state)
+
+    layout, scenario = load("crossover-yard/meet")
+    restarted = assemble_live(layout, scenario, state=state)
+    restarted.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_w.B"]})
+    restarted.bus.drain()
+    tick_until(restarted, lambda: False, limit=3)
+
+    assert events(restarted.trace, "run")[-1]["run"] == "held"
+    assert events(restarted.trace, "request_admitted"), "held blocks commitment only"
+    assert events(restarted.trace, "route_chosen") == []
+
+    release(restarted)
+    tick_until(restarted, lambda: bool(events(restarted.trace, "route_chosen")))
+
+    assert events(restarted.trace, "route_chosen")
+
+
 def test_the_simulator_comes_back_to_the_same_railroad(tmp_path: Path) -> None:
     """The steel's side of it, in its own file beside the session's: the
     trains are where the last session left them, so the next move vacates the
@@ -122,6 +160,7 @@ def test_the_simulator_comes_back_to_the_same_railroad(tmp_path: Path) -> None:
 
     layout, scenario = load("crossover-yard/meet")
     restarted = assemble_live(layout, scenario, state=state)
+    release(restarted)
     restarted.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_w.B"]})
     restarted.bus.drain()
     tick_until(restarted, lambda: bool(events(restarted.trace, "block_vacated")))

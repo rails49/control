@@ -25,6 +25,7 @@ from tests.harness import load
 
 ALLOCATION = "tc49/dispatch/state/allocation"
 ASPECTS = "tc49/dispatch/state/aspects"
+RUN = "tc49/dispatch/state/run"
 REQUESTS = "tc49/schedule/request_submitted"
 
 MOVED: dict[str, Any] = {
@@ -37,15 +38,24 @@ MOVED: dict[str, Any] = {
 
 
 def restarted(
-    tmp_path: Path, picture: dict[str, Any], aspects: dict[str, str] | None = None
+    tmp_path: Path,
+    picture: dict[str, Any] | None,
+    aspects: dict[str, str] | None = None,
+    run: str | None = None,
 ) -> tuple[Bus, Dispatcher, list[Payload]]:
     """A dispatcher on a bus whose file already holds that picture — and the
-    aspects the last session left showing, where a test wants them — with
-    everything published on it collected as it goes."""
+    aspects and the run word the last session left, where a test wants them —
+    with everything published on it collected as it goes.
+
+    No picture at all is the first session of all naming a path: a file that
+    exists with nothing of the dispatcher's in it, which is a cold start.
+    """
     path = tmp_path / "session.json"
-    kept: dict[str, Any] = {ALLOCATION: picture}
+    kept: dict[str, Any] = {} if picture is None else {ALLOCATION: picture}
     if aspects is not None:
         kept[ASPECTS] = {"aspects": aspects}
+    if run is not None:
+        kept[RUN] = {"run": run}
     path.write_text(json.dumps(kept))
     layout, scenario = load("crossover-yard/meet")
     bus = Bus(path)
@@ -213,3 +223,56 @@ def test_the_opening_statement_corrects_a_stale_aspect(tmp_path: Path) -> None:
     shown = [line for line in said if line["event"] == ASPECTS]
     assert shown, "the opening statement said nothing about the signals"
     assert all(set(line["aspects"].values()) == {"stop"} for line in shown)
+
+
+def test_a_restored_session_comes_up_held(tmp_path: Path) -> None:
+    """The whole point of the hold on a real railroad (#154).
+
+    A picture nobody has looked at is not a railroad anyone should be
+    granting into: the steel is wherever the last session left it, and the
+    file says where it *believed* it was. So the constructor states `held`,
+    and the operator releases it once they have looked.
+    """
+    _, dispatcher, said = restarted(tmp_path, MOVED)
+
+    assert dispatcher.state.run == "held"
+    # Once from the constructor's own publish and once as the last value the
+    # subscription replays; the word is what matters, and it never moved.
+    assert {line["run"] for line in said if line["event"] == RUN} == {"held"}
+
+
+def test_a_session_with_nothing_to_adopt_still_comes_up_running(
+    tmp_path: Path,
+) -> None:
+    """A cold start is a cold start whether or not it names a file: the first
+    session of all writes the picture nobody has yet, and there is nothing
+    for a hold to protect (ADR-0037)."""
+    _, dispatcher, said = restarted(tmp_path, None)
+
+    assert dispatcher.state.block_of == {"express_2": "up_e", "freight_1": "yard_w"}
+    assert dispatcher.state.run == "running"
+    assert {line["run"] for line in said if line["event"] == RUN} == {"running"}
+
+
+def test_the_retained_word_is_not_what_decides_it(tmp_path: Path) -> None:
+    """The file keeps whatever was retained on every state topic, `state/run`
+    included, so a session cut while running finds `running` waiting for it.
+    Adoption overrides it: coming up running on the strength of a picture
+    nobody has looked at is the failure the hold exists to prevent (#123)."""
+    _, dispatcher, _ = restarted(tmp_path, MOVED, run="running")
+
+    assert dispatcher.state.run == "held"
+
+
+def test_a_picture_the_document_overruled_holds_the_run_all_the_same(
+    tmp_path: Path,
+) -> None:
+    """Where the picture contradicts the scenario the document wins the
+    placement whole (`restored`) — and the steel does not go back to the
+    document with it. There was a session here and it was cut off, which is
+    exactly what a person has to come and look at."""
+    stacked = {**MOVED, "trains": {"freight_1": "up_e"}}  # express_2's own block
+    _, dispatcher, _ = restarted(tmp_path, stacked)
+
+    assert dispatcher.state.block_of == {"freight_1": "yard_w", "express_2": "up_e"}
+    assert dispatcher.state.run == "held"

@@ -412,7 +412,9 @@ lock table on change, so a client that joins an idle railroad can draw it
 
 **The run is held or running**, on `state/run`, stated from the constructor
 so a joining client is served the word rather than left to read one out of an
-absence. A person moves it with `tc49/ui/run_wanted`, and while it is `held`
+absence. A cold session states `running`; one that came up on a restored
+picture states `held`, that picture being where the last session believed the
+railroad was rather than where it now stands. A person moves it with `tc49/ui/run_wanted`, and while it is `held`
 the dispatcher **commits nothing**: the grant phase applies its buffered
 sensors and stops, so no route is chosen, no move granted and no lock taken,
 while admission goes on accepting and queuing. An outstanding move still

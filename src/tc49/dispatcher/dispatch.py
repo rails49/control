@@ -338,7 +338,8 @@ class Dispatcher:
         # than through `subscribe`, because placement has to be settled before
         # the standing locks below are published, and a subscription delivers
         # at the drain.
-        standing, crossing = restored(bus.last_values.get(ALLOCATION, {}), scenario)
+        picture = bus.last_values.get(ALLOCATION, {})
+        standing, crossing = restored(picture, scenario)
         self._state = State(
             layout,
             {train: spec.length for train, spec in scenario.trains.items()},
@@ -346,6 +347,17 @@ class Dispatcher:
             {},
             {},
             crossing=crossing,
+            # **A restored session comes up held** (#154), which is the whole
+            # point of the hold on a real railroad: the steel is wherever the
+            # last session left it, and coming up running on the strength of a
+            # picture nobody has looked at is the failure the hold exists to
+            # prevent. The retained `state/run` is not what decides it — a
+            # session cut while running left `running` waiting on that topic —
+            # and neither is whether the picture was taken: where it
+            # contradicts the document the document wins the placement
+            # (`restored`), and the rails do not go back to the document with
+            # it. A cold session has no picture and comes up running.
+            run=HELD if picture else RUNNING,
         )
         for train, at in standing.items():
             self._state.locks[at] = train
