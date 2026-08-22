@@ -517,19 +517,18 @@ def test_a_request_for_a_train_just_taken_off_the_layout_is_answered(
     assert last(held, "request_rejected")["reason"] == "no_origin"
 
 
-def test_a_run_may_come_up_with_an_empty_layout() -> None:
-    """The cold start once a scenario places nothing: every train known and
-    off the layout, nothing on the rails, and nothing to do but place them
-    (ADR-0039).
+def test_a_run_may_come_up_with_an_empty_layout_and_comes_up_held() -> None:
+    """The ordinary cold start of a run an operator drives (ADR-0039): every
+    train known and off the layout, nothing on the rails, and nothing to do
+    but place them and press GO.
 
-    It comes up **running**, because the word a session opens with is settled
-    by whether there was a picture to adopt and not by what is on the rails
-    (ADR-0037, CONTEXT.md: a cold session comes up running). Nothing commits
-    either way with no train placed, so the cost is one press of HOLD before
-    the first placement, which the roster pane says out loud. ADR-0039's
-    consequence describes that start as held; making it so is a change to the
-    opening word, which belongs with the run that needs no scenario at all
-    (#171).
+    It comes up **held**, and the reason is the placing. A placement is
+    honoured while held and dropped while running, so a run that opened
+    running would refuse the first gesture an operator makes on it — and an
+    empty layout has nothing else to offer them. ADR-0037's "a cold session
+    comes up running" was written when every cold start arrived with a
+    document's trains already standing; that start still opens running, and it
+    is now the harness's alone (#171).
     """
     layout, _roster, _ = load("crossover-yard/meet")
     empty = Scenario(name="empty", layout="crossover-yard", trains={}, requests=())
@@ -540,12 +539,25 @@ def test_a_run_may_come_up_with_an_empty_layout() -> None:
     assert opening["trains"] == {} and opening["locks"] == {}
     assert events(assembly.trace, "lock_granted") == []
     assert last(assembly, "facing")["facing"] == {}
+    assert last(assembly, "run")["run"] == "held"
 
-    press(assembly, RUN_WANTED, {"run": "held"})
-    place(assembly, "freight_1", "yard_w")
+    place(assembly, "freight_1", "yard_w")  # no press of HOLD first
 
     assert last(assembly, "allocation")["trains"] == {"freight_1": "yard_w"}
     assert facing(assembly, "freight_1") == "yard_w.B"
+
+
+def test_a_run_whose_document_stands_its_trains_comes_up_running() -> None:
+    """The other half of the same rule, and the harness's own start: the
+    batch loop's document places every train before the first boundary, so
+    there is nothing for a person to place and nobody at a panel to press GO
+    — a run that held there would be a fault that looks like a hang
+    (ADR-0037)."""
+    layout, _roster, _ = load("crossover-yard/meet")
+    assembly = assemble_live(layout, STOCK, two_trains())
+    assembly.bus.drain()
+
+    assert last(assembly, "run")["run"] == "running"
 
 
 def test_a_hand_placed_train_the_scenario_never_placed_survives_a_restart(

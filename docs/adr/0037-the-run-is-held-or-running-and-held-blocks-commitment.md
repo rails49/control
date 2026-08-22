@@ -156,15 +156,22 @@ believes in is not accepted, that block not being free.
 
 ## Consequences
 
-**A cold session comes up running, a restored one comes up held**, and either
-way the constructor states it as `state/allocation` already does: a joining
-client is served the word rather than left to read one out of an absence
+**A run comes up held unless its own document stood its trains on the rails**,
+and either way the constructor states it as `state/allocation` already does: a
+joining client is served the word rather than left to read one out of an
+absence
 ([ADR-0032](0032-a-joining-client-is-served-the-runs-retained-state.md)).
 
-A cold start has nothing for a hold to protect: the rails are dead until a
-person switches them on, and a run that came back up refusing to grant with no
-one at the panel would be a fault that looks like a hang. A **restored**
-session is the hold's own case
+A start whose document places every train has nothing for a hold to protect:
+the rails are dead until a person switches them on, and a run that came up
+refusing to grant with no one at the panel would be a fault that looks like a
+hang. That start is the harness's — `tc49 bench` and `tc49 sweep`, built from
+a scenario file
+([#171](https://github.com/rails49/control/issues/171)) — and it is the one
+this decision was written against, when it read "a cold session comes up
+running".
+
+A **restored** session is the hold's own case
 ([#154](https://github.com/rails49/control/issues/154)): the picture it
 adopted says where the last session *believed* the railroad was, and the steel
 has stood there unwatched since, long enough for a stalled train to have been
@@ -172,6 +179,14 @@ lifted out of a tunnel by hand
 ([CONTEXT.md](../../CONTEXT.md#interruptions)). Coming up running on the
 strength of a picture nobody has looked at is the failure this decision exists
 to prevent.
+
+A cold session with an **empty layout** comes up held too
+([ADR-0039](0039-a-train-may-be-off-the-layout.md)), and for a plainer reason
+than either: a placement is honoured while held and dropped while running, so
+a run that opened running would refuse the first gesture an operator makes on
+it, and an empty layout has nothing else to offer them. That is every run an
+operator starts, once a run is built from a railroad rather than from a
+scenario (#171) — the hold is what lets them lay the railroad out.
 
 The **retained word is not what decides it.** The file keeps every state
 topic's last value, `state/run` among them

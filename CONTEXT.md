@@ -268,8 +268,11 @@ and what keeps a railroad still after a power cut is track power, one layer
 down. The layout holds it too: `tc49/layout/state/power` arriving as anything
 but `on` sets the word to `held`, and a release is refused until it is back
 ([ADR-0041](docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
-Admission is untouched — requests queue up while held. A **restored**
-session comes up held and a cold one comes up running.
+Admission is untouched — requests queue up while held. A run **comes up
+held unless its own document stood its trains on the rails**: a restored
+session comes up held, so does the empty layout every operator's run starts
+from, and what opens running is the harness's batch loop, built from a
+scenario file.
 _Avoid_: paused, stopped, frozen. Not the `held` **grant_refused** reason,
 which says a resource is locked by another train: a different thing, on a
 different topic, about one request rather than the run.

@@ -489,7 +489,10 @@ class Dispatcher:
             {},
             {},
             crossing=crossing,
-            # **A restored session comes up held** (#154), which is the whole
+            # **A run comes up held unless its own document stood its trains
+            # on the rails** (ADR-0037 as #171 amends it, ADR-0039).
+            #
+            # A **restored** session comes up held (#154), which is the whole
             # point of the hold on a real railroad: the steel is wherever the
             # last session left it, and coming up running on the strength of a
             # picture nobody has looked at is the failure the hold exists to
@@ -498,9 +501,20 @@ class Dispatcher:
             # and neither is how much of the picture was taken: a train the
             # document overruled, or that adoption placed nowhere at all
             # (`restored`), is one more thing to come and look at rather than
-            # a reason to start running. A cold session has no picture and
-            # comes up running.
-            run=HELD if picture else RUNNING,
+            # a reason to start running.
+            #
+            # A cold session with an **empty layout** comes up held too, and
+            # for a plainer reason: the only thing there is to do on one is
+            # place trains, and `placement_wanted` is honoured while held and
+            # dropped while running. Coming up running would refuse the first
+            # gesture an operator makes. That is every run an operator starts
+            # (#171) — the hold is what lets them lay the railroad out.
+            #
+            # What is left is the harness's batch loop, whose document stands
+            # its trains before the first boundary: nothing is left to place,
+            # and a run that refused to grant with nobody at a panel would be
+            # a fault that looks like a hang (ADR-0037).
+            run=HELD if picture or not standing else RUNNING,
         )
         for train, at in standing.items():
             self._state.locks[at] = train
