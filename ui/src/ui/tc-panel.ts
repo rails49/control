@@ -117,6 +117,17 @@ const BRIDGE =
   new URLSearchParams(location.search).get("bridge") ??
   `ws://${location.hostname || "127.0.0.1"}:8766`;
 
+/** How long the view waits before trying a dropped session again.
+ *
+ *  The loaded railroad **is** the session (#171), so a page with a railroad on
+ *  it wants to be joined to that railroad and there is no choice left for a
+ *  person to make: the band's picker says nothing about a name it is already
+ *  showing, and a session that went is not a reason to make somebody reload.
+ *  Three seconds is long enough not to hammer a port nothing is listening on,
+ *  and short enough that restarting `tc49 live` under an open tab reconnects
+ *  while the operator is still looking at it. */
+export const RETRY_MS = 3000;
+
 @customElement("tc-panel")
 export class TcPanel extends LitElement {
   static override styles = panelStyles;
@@ -162,6 +173,8 @@ export class TcPanel extends LitElement {
   private socket: WebSocket | null = null;
   /** Joins started, so an overtaken one can tell that it has been. */
   private joins = 0;
+  /** The retry waiting to be made, `null` while none is. */
+  private waiting: ReturnType<typeof setTimeout> | null = null;
   private readonly drag = new Drag();
   /** What a press on the canvas means here (model/drag.ts), bound to what is
    *  on screen. It answers quiet while there is no session to submit to,
@@ -265,7 +278,19 @@ export class TcPanel extends LitElement {
       // screen came from the same store a moment ago. So the message names
       // the fix rather than repeating what `fetch` said.
       this.trouble = "the store is not answering — run `tc49 serve`";
+      if (mine === this.joins) this.retry();
     }
+  }
+
+  /** Try the loaded railroad again in a moment, unless a try is already
+   *  waiting. What runs it is the same `join` the picker runs, so a session
+   *  reached this way is a session reached any other way. */
+  private retry(): void {
+    if (this.waiting !== null) return;
+    this.waiting = setTimeout(() => {
+      this.waiting = null;
+      if (this.built !== null && this.session === null) void this.join(this.built);
+    }, RETRY_MS);
   }
 
   /** Open the socket on the railroad's own path: the session runs the
@@ -292,6 +317,7 @@ export class TcPanel extends LitElement {
       // (#171). Exactly what leaving one was, which is why it is that.
       this.leave();
       this.beat++;
+      this.retry();
     });
     socket.addEventListener("error", () => {
       this.trouble = `no session at ${at} — run \`tc49 live\``;
@@ -351,6 +377,8 @@ export class TcPanel extends LitElement {
 
   private leave(): void {
     this.joins++; // whatever join is in flight is not this railroad's
+    if (this.waiting !== null) clearTimeout(this.waiting);
+    this.waiting = null;
     this.drag.cancel();
     this.menu = null;
     this.stock = {};

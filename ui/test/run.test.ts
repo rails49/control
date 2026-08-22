@@ -11,17 +11,17 @@
  * `support/session.ts`, shared with the other suites that need one.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../src/ui/tc-app.js";
 import { centreOf } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
+import { RETRY_MS } from "../src/ui/tc-panel.js";
 import { band, bar, mounted, running, settled } from "./support/shell.js";
 import {
   Bridge,
   bridging,
   joined,
-  loads,
   said,
   stored,
   unbridged,
@@ -57,25 +57,32 @@ describe("joining a session", () => {
 
   /** The bridge closes a client when the session switches railroads under one
    *  operator, and the process can simply go. The view has no session select
-   *  to re-pick any more (#171), so it must let the session go and let the
-   *  band's picker be the way back in — and a press in between must not
-   *  pretend to have been heard: sending on a closed socket is discarded, not
-   *  thrown. */
-  it("lets the session go when the bridge closes it, and the picker gets back in", async () => {
-    const shell = await joined();
-    const dropped = Bridge.last!;
-    await said(shell, "tc49/dispatch/state/run", { run: "held" });
+   *  to re-pick any more (#171) and the band says nothing about a railroad it
+   *  is already showing, so the view lets the session go and tries it again
+   *  itself — and a press in between must not pretend to have been heard:
+   *  sending on a closed socket is discarded, not thrown. */
+  it("lets the session go when the bridge closes it, and tries it again", async () => {
+    vi.useFakeTimers();
+    try {
+      const shell = await joined();
+      const dropped = Bridge.last!;
+      await said(shell, "tc49/dispatch/state/run", { run: "held" });
 
-    dropped.close();
-    await settled(shell);
+      dropped.close();
+      await settled(shell);
 
-    running(shell).press("running");
-    expect(written()).toEqual([]);
-    expect(notice(shell)).toBeNull();
+      running(shell).press("running");
+      expect(written()).toEqual([]);
+      expect(notice(shell)).toBeNull();
 
-    await loads(shell, "toy");
-    expect(Bridge.last).not.toBe(dropped);
-    expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(RETRY_MS);
+      await settled(shell);
+
+      expect(Bridge.last).not.toBe(dropped);
+      expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   /** A press away and back while the store is still answering: the join the

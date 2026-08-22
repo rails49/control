@@ -384,8 +384,12 @@ mid-run. Naming another tears the assembly down, builds a fresh one for that
 railroad, and closes any client still on the old path — one operator, one
 railroad. **A client the session closes lets go of it entirely**: it holds no
 run, so the roster empties and the drawing thaws rather than freezing on a
-picture nobody is maintaining, and pressing the band's picker is the way back
-in. Naming a railroad that does not exist gets an
+picture nobody is maintaining. It then **tries the same railroad again**,
+every few seconds, until it is joined or another railroad is loaded. There is
+no choice left for a person to make — the loaded railroad *is* the session,
+and the band says nothing about a name it is already showing — so a session
+that went is not a reason to make somebody reload the page. Naming a railroad
+that does not exist gets an
 `{"error": …}` frame and a close, with the running railroad untouched: a typo
 must not take a live session down. A run outlives its clients, so closing the
 browser leaves the railroad running and Ctrl-C ends the session.
@@ -544,8 +548,7 @@ decision about is running, and a fresh hold is a fresh decision
 
 **This view has no control of its own.** The session select it used to carry
 is gone: the band's picker is the only thing that says which railroad is on
-screen, and pressing it is also what rejoins a session that dropped the page.
-The run view joins whatever is loaded
+screen, and the run view joins whatever is loaded
 ([#171](https://github.com/rails49/control/issues/171)). What its header still
 draws is the release notice, and only while there is one.
 
