@@ -194,6 +194,7 @@ the driver moves locomotives
 | `tc49/layout/boundary` | event | layout | deterministic counter |
 | `tc49/layout/block_occupied` | event | layout | block |
 | `tc49/layout/block_vacated` | event | layout | block |
+| `tc49/layout/state/power` | state | layout | last-value word, `on`, `stopped` or `off` — whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move.md)) |
 | `tc49/schedule/request_submitted` | event | scheduler | id, train, depart, dest ends |
 | `tc49/schedule/state/exhausted` | state | scheduler | last-value flag |
 | `tc49/schedule/state/facing` | state | scheduler | last-value map of train to the end it would depart through |
@@ -518,11 +519,11 @@ future realistic-driving component fattens the driver behind the same topic.
 
 *Reads* the layout and the scenario (initial train placement). *Subscribes*
 `tc49/drive/+`, `tc49/dispatch/align` and `tc49/dispatch/train_placed`.
-*Publishes* the boundary and the sensor events.
+*Publishes* the boundary, the sensor events and `state/power`.
 
 The layout interface is the app's edge: **commands in, observations out**,
 plus ownership of time. Its outbound vocabulary is exactly what hardware can
-implement — anonymous occupancy sensors and the boundary; it never asserts
+implement — anonymous occupancy sensors, track power and the boundary; it never asserts
 train identity, which detectors cannot honestly report (the dispatcher
 recovers identity from its own lock table). Commands are **transit-level**: an
 `align` names a connection and a transit, and carries the points that transit
@@ -548,6 +549,20 @@ rule is milestone-1 pacing, not bus contract — a hardware adapter never
 terminates. Sensor events report moves only: initial occupancy is never
 published — the dispatcher seeds its standing locks from the scenario, and
 the occupancy topics are event topics, facts that happened, not state.
+
+**Track power** is the one observation that is not a sensor: `state/power`
+says whether a train may move at all, `on`, `stopped` or `off`. It is stated
+from the binding's constructor, always, so a joining client is served the word
+rather than left to read one out of an absence
+([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)) —
+a booster's output state being about as implementable as an observation gets.
+`stopped` is an emergency stop and `off` is the supply removed; they differ
+for the person recovering and not for the dispatcher, which holds the run on
+either ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move.md)).
+Commanding power is not here: today the operator's ON is a physical action,
+and an emergency stop worth the name is a hardwired contact rather than a
+message. The milestone-1 **simulator** publishes `on` and never changes it,
+simulated track being always live (ADR-0030).
 
 `train_placed` is the one thing besides a `cross` that moves a train, and what
 a binding does with it is its own business: the simulator stands in for steel

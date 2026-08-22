@@ -5,6 +5,7 @@
 {"boundary":0,"event":"aspects","aspects":{"dn_e.A":"stop","dn_e.B":"stop","dn_w.A":"stop","dn_w.B":"stop","up_e.A":"stop","up_e.B":"stop","up_w.A":"stop","up_w.B":"stop","yard_e.A":"stop","yard_w.B":"stop"}}
 {"boundary":0,"event":"allocation","trains":{"express_2":"up_e","freight_1":"yard_w"},"crossing":{},"locks":{"up_e":"express_2","yard_w":"freight_1"},"requests":[]}
 {"boundary":0,"event":"disputed","trains":[],"blocks":[]}
+{"boundary":0,"event":"power","power":"on"}
 {"boundary":0,"event":"boundary"}
 {"boundary":0,"event":"request_submitted","id":"freight_1-1","train":"freight_1","depart":"yard_w.B","dest":["yard_e.A","yard_e.B"]}
 {"boundary":0,"event":"request_submitted","id":"express_2-1","train":"express_2","depart":"up_e.A","dest":["yard_w.A","yard_w.B"]}

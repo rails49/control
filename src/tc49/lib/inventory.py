@@ -5,15 +5,16 @@ depends on this module; leaf names are globally unique across all topics
 (tested), because the trace's ``event`` field is the leaf alone.
 
 Where a field's *values* are a closed set the contract names, they live here
-too, beside the field they belong to: ``run`` is the one such field, and its
-two words are read by the dispatcher that writes them and by the payload
-reader that refuses everything else.
+too, beside the field they belong to: ``run`` and ``power`` are those fields,
+and their words are read by the apps that write them and by the payload
+readers that refuse everything else.
 """
 
 TOPICS: dict[str, tuple[str, ...]] = {
     "tc49/layout/boundary": ("boundary",),
     "tc49/layout/block_occupied": ("block",),
     "tc49/layout/block_vacated": ("block",),
+    "tc49/layout/state/power": ("power",),
     "tc49/schedule/request_submitted": ("id", "train", "depart", "dest"),
     "tc49/schedule/state/exhausted": ("exhausted",),
     "tc49/schedule/state/facing": ("facing",),
@@ -46,6 +47,18 @@ the ordinary-shutdown drain adds ``draining`` as a third value here rather
 than inventing a state of its own (#123). Not to be read as the ``held``
 ``grant_refused`` reason, which says a resource is locked by another train
 and is a different thing on a different topic (CONTEXT.md)."""
+
+
+ON = "on"
+STOPPED = "stopped"
+OFF = "off"
+"""The three values of ``tc49/layout/state/power``: the layout's answer to
+whether a train may move at all. `stopped` is an **emergency stop** — every
+locomotive told to stand with the track still live — and `off` is the supply
+removed. They differ for the person recovering, who clears one and switches
+the other back on, and not for the dispatcher, which branches on "not `on`"
+(ADR-0041). `stopped` and not `stop`, which is an aspect: a different thing
+on a different topic."""
 
 
 def is_state_topic(topic: str) -> bool:

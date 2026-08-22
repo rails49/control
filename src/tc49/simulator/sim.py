@@ -32,6 +32,7 @@ from pathlib import Path
 
 from tc49.lib import durable
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.inventory import ON
 from tc49.lib.scenario import Scenario
 
 
@@ -58,6 +59,14 @@ class Simulator:
         self._crosses: list[Payload] = []
         self._saw_command = False
         self._exhausted = False
+        # Whether a train may move at all, stated from the constructor so a
+        # joining client is served the word rather than left to read one out
+        # of an absence (ADR-0032, ADR-0041). Simulated track is always live
+        # and this binding never says otherwise: a power cut is a physical
+        # act, and simulating one would be a field or a branch that ADR-0030
+        # keeps out of every app. What exercises the dispatcher's side of it
+        # is the topic, published by a test.
+        bus.publish("tc49/layout/state/power", {"power": ON})
         bus.subscribe("tc49/drive/+", self._on_command)
         bus.subscribe("tc49/dispatch/align", self._on_command)
         bus.subscribe("tc49/dispatch/train_placed", self._on_placed)
