@@ -171,3 +171,23 @@ def test_an_outstanding_move_completes_and_releases_its_locks(
     assert leaves(timetabled, "lock_released")  # and its origin came back
     # and nothing committed at the boundary the press landed before
     assert [line["boundary"] for line in leaves(timetabled, "route_chosen")] == [1]
+
+
+def test_a_degenerate_request_waits_for_the_release_too() -> None:
+    """A request whose train already stands in one of its own arrival blocks
+    completes without moving a wheel, and still waits: "no `route_chosen`" is
+    read literally, and a phase that answered one working would be a phase
+    that ran."""
+    assembly = assemble_live(*load("crossover-yard/meet"))
+    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_w.B"]})
+    ticks(assembly, 3)
+
+    assert ids(assembly, "request_admitted") == ["freight_1-1"]
+    assert leaves(assembly, "route_chosen") == []
+
+    press(assembly, RUN_WANTED, {"run": "running"})
+    ticks(assembly, 1)
+
+    assert leaves(assembly, "route_chosen")[0]["route"] == ["yard_w"]
+    assert ids(assembly, "request_completed") == ["freight_1-1"]
