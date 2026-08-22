@@ -24,14 +24,13 @@ from tc49.bench.runner import DEFAULT_K
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.scenario import TrainSpec
-from tests.harness import load
+from tests.harness import RUN_WANTED, load
 
 ALLOCATION = "tc49/dispatch/state/allocation"
 DISPUTED = "tc49/dispatch/state/disputed"
 OCCUPIED = "tc49/layout/block_occupied"
 VACATED = "tc49/layout/block_vacated"
 PLACEMENT_WANTED = "tc49/ui/placement_wanted"
-RUN_WANTED = "tc49/ui/run_wanted"
 
 MOVED: dict[str, Any] = {
     "trains": {"express_2": "up_w", "freight_1": "dn_e"},

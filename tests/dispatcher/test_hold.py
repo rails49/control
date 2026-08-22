@@ -10,38 +10,14 @@ Driven at the bus, which is where a person's press arrives: `run_wanted` in,
 `state/run` and the trace out.
 """
 
-import pytest
+from tc49.bench.runner import Assembly, assemble_live
+from tests.harness import RUN_WANTED, leaves, load, press, run_wanted, runs, ticks
 
-from tc49.bench.runner import Assembly, assemble, assemble_live
-from tc49.lib.bus import Payload
-from tests.harness import events, load, press, ticks
-
-RUN_WANTED = "tc49/ui/run_wanted"
 REQUEST_WANTED = "tc49/ui/request_wanted"
-
-
-@pytest.fixture
-def timetabled() -> Assembly:
-    """`crossover-yard/meet` with its timetable on: three workings minted
-    into the run, two at boundary 0 and freight_1's return at boundary 12."""
-    return assemble(*load("crossover-yard/meet"))
-
-
-def run_wanted(word: str) -> tuple[str, Payload]:
-    """A press of the run's one button, as `ticks` plans one."""
-    return (RUN_WANTED, {"run": word})
-
-
-def leaves(assembly: Assembly, leaf: str) -> list[Payload]:
-    return events(assembly.trace, leaf)
 
 
 def ids(assembly: Assembly, leaf: str) -> list[str]:
     return [str(line["id"]) for line in leaves(assembly, leaf)]
-
-
-def runs(assembly: Assembly) -> list[str]:
-    return [str(line["run"]) for line in leaves(assembly, "run")]
 
 
 def test_a_cold_session_says_it_is_running_before_anything_moves(

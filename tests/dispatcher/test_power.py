@@ -25,36 +25,15 @@ from tc49.bench.runner import DEFAULT_K, Assembly, assemble
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import HELD, ON
-from tests.harness import events, load, press, ticks
+from tests.harness import RUN_WANTED, leaves, load, press, run_wanted, runs, ticks
 
 BOUNDARY = "tc49/layout/boundary"
 POWER = "tc49/layout/state/power"
-RUN_WANTED = "tc49/ui/run_wanted"
-
-
-@pytest.fixture
-def timetabled() -> Assembly:
-    """`crossover-yard/meet` with its timetable on, as the hold's tests use
-    it: two workings minted at boundary 0 and freight_1's return at 12."""
-    return assemble(*load("crossover-yard/meet"))
 
 
 def power(word: str) -> tuple[str, Payload]:
     """The layout reporting its supply, as `ticks` plans an event."""
     return (POWER, {"power": word})
-
-
-def run_wanted(word: str) -> tuple[str, Payload]:
-    """A press of the run's one button."""
-    return (RUN_WANTED, {"run": word})
-
-
-def leaves(assembly: Assembly, leaf: str) -> list[Payload]:
-    return events(assembly.trace, leaf)
-
-
-def runs(assembly: Assembly) -> list[str]:
-    return [str(line["run"]) for line in leaves(assembly, "run")]
 
 
 def dead(assembly: Assembly, first: int, last: int) -> None:

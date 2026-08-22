@@ -21,11 +21,10 @@ from tc49.bench.runner import Assembly, assemble_live
 from tc49.dispatcher import Incremental
 from tc49.lib import durable
 from tc49.lib.scenario import Scenario, TrainSpec
-from tests.harness import events, load, press, ticks
+from tests.harness import RUN_WANTED, events, load, press, ticks
 
 PLACEMENT_WANTED = "tc49/ui/placement_wanted"
 REQUEST_WANTED = "tc49/ui/request_wanted"
-RUN_WANTED = "tc49/ui/run_wanted"
 
 
 def two_trains() -> Scenario:

@@ -14,9 +14,7 @@ from tc49.dispatcher.dispatch import (
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.inventory import HELD, RUNNING
 from tc49.lib.layout import Layout, end_on, opposite_end
-from tests.harness import events, load, press, run, ticks
-
-RUN_WANTED = "tc49/ui/run_wanted"
+from tests.harness import RUN_WANTED, events, load, press, run, ticks
 
 
 def a_route(layout: Layout) -> Route:
