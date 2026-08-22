@@ -13,7 +13,7 @@ import {
   reversal,
   REVERSAL_WANTED,
   RUN_WANTED,
-  wanted,
+  runWanted,
 } from "../src/model/trace.js";
 
 describe("Live", () => {
@@ -94,13 +94,13 @@ describe("reversal", () => {
 /** Holding the run and releasing it (ADR-0037): the third thing the page may
  *  write. It says where the run should stand rather than asking for a change,
  *  so two presses of the same word are not a race. */
-describe("wanted", () => {
+describe("runWanted", () => {
   it("names where the run should stand and nothing else", () => {
-    expect(JSON.parse(wanted("held"))).toEqual({
+    expect(JSON.parse(runWanted("held"))).toEqual({
       topic: "tc49/ui/run_wanted",
       payload: { run: "held" },
     });
-    expect(JSON.parse(wanted("running")).payload).toEqual({ run: "running" });
+    expect(JSON.parse(runWanted("running")).payload).toEqual({ run: "running" });
     expect(RUN_WANTED).toBe("tc49/ui/run_wanted");
   });
 });

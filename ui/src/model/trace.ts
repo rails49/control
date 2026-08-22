@@ -127,7 +127,7 @@ export function placement(train: string, block: string | null): string {
  *  should stand rather than asking for a change, so a press that agrees with
  *  where it already stands is not a race — and the dispatcher is the one
  *  writer of `state/run`, this being a gesture like the other two. */
-export function wanted(run: Run): string {
+export function runWanted(run: Run): string {
   return JSON.stringify({ topic: RUN_WANTED, payload: { run } });
 }
 

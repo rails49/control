@@ -151,7 +151,7 @@ export class TcApp extends LitElement {
         .standing=${this.standing}
         .run=${this.status.run}
         .power=${this.status.power}
-        @command=${(event: CustomEvent<CommandId>) => this.run(event.detail)}
+        @command=${(event: CustomEvent<CommandId>) => this.invoke(event.detail)}
         @run-wanted=${(event: CustomEvent<Run>) => this.held(event.detail)}
         @menu-open=${(event: CustomEvent<boolean>) => {
           this.barMenu = event.detail;
@@ -255,8 +255,12 @@ export class TcApp extends LitElement {
 
   /** One command, however it was asked for. A menu item and the key printed
    *  beside it come through here, so the two cannot diverge, and a command
-   *  that is dead does nothing whichever way it was reached. */
-  private run(id: CommandId): void {
+   *  that is dead does nothing whichever way it was reached.
+   *
+   *  `invoke` and not `run`: a **run** is the railroad moving under a
+   *  dispatcher (CONTEXT.md), which this app now has a view of, and a private
+   *  method that dispatches menu items must not answer to that word. */
+  private invoke(id: CommandId): void {
     if (!COMMANDS[id].enabled(this.standing)) return;
     switch (id) {
       case "new":
@@ -495,24 +499,24 @@ export class TcApp extends LitElement {
     switch (event.key) {
       case "+":
       case "=":
-        this.run("zoom-in");
+        this.invoke("zoom-in");
         return;
       case "-":
-        this.run("zoom-out");
+        this.invoke("zoom-out");
         return;
       case "0":
-        this.run("fit");
+        this.invoke("fit");
         return;
     }
     if (this.view !== "edit") return;
     if (meta && event.key.toLowerCase() === "z") {
       event.preventDefault();
-      this.run(event.shiftKey ? "redo" : "undo");
+      this.invoke(event.shiftKey ? "redo" : "undo");
       return;
     }
     if (meta && event.key.toLowerCase() === "s") {
       event.preventDefault();
-      this.run(event.shiftKey ? "save-as" : "save");
+      this.invoke(event.shiftKey ? "save-as" : "save");
       return;
     }
     // A symbol on its way out of the palette takes the same two keys the
@@ -552,20 +556,20 @@ export class TcApp extends LitElement {
         return;
       case "r":
       case "R":
-        this.run("rotate");
+        this.invoke("rotate");
         return;
       case "f":
       case "F":
-        this.run("flip");
+        this.invoke("flip");
         return;
       case "Delete":
       case "Backspace":
         event.preventDefault();
-        this.run("delete");
+        this.invoke("delete");
         return;
       case "n":
       case "N":
-        this.run("netlist");
+        this.invoke("netlist");
         return;
       default:
         return;

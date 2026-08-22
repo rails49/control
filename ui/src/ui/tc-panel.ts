@@ -57,7 +57,7 @@ import {
   Live,
   placement,
   reversal,
-  wanted,
+  runWanted,
   type Power,
   type Run,
 } from "../model/trace.js";
@@ -372,7 +372,7 @@ export class TcPanel extends LitElement {
     // for a release the dispatcher never heard.
     if (this.socket === null || !this.connected || this.panel === null) return;
     this.released = run === "running" ? outstanding(this.panel.disputes()) : null;
-    this.socket.send(wanted(run));
+    this.socket.send(runWanted(run));
   }
 
   private leave(): void {

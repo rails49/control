@@ -265,12 +265,12 @@ export class Panel {
   /** How the run stands, as the dispatcher last said, `null` before it has
    *  said anything (ADR-0037). Read and never derived: a held run is a
    *  decision the dispatcher publishes, not something a picture shows. */
-  private state: Run | null = null;
+  private runWord: Run | null = null;
   /** Whether the layout says a train may move at all, `null` before it has
    *  said anything (ADR-0041). The layout states it from its constructor, so
    *  a session that has joined has been told; silence is a page that has not
    *  joined one, and not a claim that the rails are dead. */
-  private supply: Power | null = null;
+  private powerWord: Power | null = null;
   private requests = new Map<string, Request>();
   /** Whether the first boundary has passed: a lock on a block before it is
    *  the trace's opening placement, there being no occupancy event for a
@@ -310,8 +310,8 @@ export class Panel {
     this.crossing.clear();
     this.heading.clear();
     this.disputed = { trains: new Set(), blocks: new Set() };
-    this.state = null;
-    this.supply = null;
+    this.runWord = null;
+    this.powerWord = null;
     this.requests.clear();
     this.started = false;
   }
@@ -443,7 +443,7 @@ export class Panel {
         // reads this, so what it offers is the run's own answer rather than
         // the last press's.
         const { run } = event as unknown as { run: Run };
-        this.state = run;
+        this.runWord = run;
         return;
       }
       case "power": {
@@ -452,7 +452,7 @@ export class Panel {
         // `on`; the panel says which of the two it is, the person recovering
         // clearing an emergency stop or switching a supply back on.
         const { power } = event as unknown as { power: Power };
-        this.supply = power;
+        this.powerWord = power;
         return;
       }
       case "disputed": {
@@ -548,7 +548,7 @@ export class Panel {
 
   /** How the run stands, `null` before the dispatcher has said (ADR-0037). */
   get run(): Run | null {
-    return this.state;
+    return this.runWord;
   }
 
   /** Whether a train may move at all, as the layout last said, `null` before
@@ -556,7 +556,7 @@ export class Panel {
    *  rails is refused by the dispatcher, so the button that would ask for it
    *  is greyed. */
   get power(): Power | null {
-    return this.supply;
+    return this.powerWord;
   }
 
   /** What the detectors dispute, as the dispatcher last said (#153): trains
