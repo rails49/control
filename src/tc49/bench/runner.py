@@ -155,12 +155,11 @@ def assemble_live(
     arrive as gestures (ADR-0039).
 
     Locking is **incremental** here, where `assemble` keeps the `FullRoute`
-    baseline (#165). Incremental is what the panel's two colours mean: a
-    grant is the next transit with the block beyond it, so green creeps
-    along a cyan path and its length says how far the train may go
-    (ui/PANEL.md, ADR-0026). `FullRoute` is the measurement baseline the
-    research core compares against, and holding a whole route at launch is
-    not the behaviour to hand an operator on a shared railroad.
+    baseline (#165). It is what the panel's two colours mean: an increment
+    is the next transit with the block beyond it, so green creeps along a
+    cyan path and its length says how far the train may go (ui/PANEL.md).
+    Claiming a whole route up front is a measurement baseline, not the
+    behaviour to hand an operator on a shared railroad.
 
     `state` makes the session outlive the process (#123): the bus keeps its
     retained values there and each app adopts its own coming up, so placement

@@ -124,16 +124,23 @@ UNCOMPOSABLE: list[object] = [
 ]
 
 
-def test_a_live_run_locks_incrementally(assembly: Assembly) -> None:
+def test_a_live_run_locks_incrementally() -> None:
     """The default `assemble_live` runs, pinned (#165). A live session locks
     the next transit plus the block beyond it and commits the rest, which is
     what the panel's two colours mean: green creeps along a cyan path as the
     train advances (ui/PANEL.md). `FullRoute`, the batch harness's baseline,
     would lock the whole route here and the route would come up all green.
+
+    The assembly is built here rather than taken from the fixture: what is
+    pinned is the strategy `assemble_live` picks when no caller names one,
+    so this test has to be the one leaving it unnamed.
     """
+    layout, _roster, scenario = load("crossover-yard/meet")
+    assembly = assemble_live(layout, _roster, scenario.trains)
     assembly.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
     assembly.bus.drain()
     tick_until(assembly, lambda: bool(events(assembly.trace, "route_chosen")))
+    assert events(assembly.trace, "route_chosen"), "the request never launched"
 
     lines = events(assembly.trace)
     at = next(i for i, line in enumerate(lines) if line["event"] == "route_chosen")
