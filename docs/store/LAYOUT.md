@@ -1,4 +1,4 @@
-# The layout, and the scenario file
+# The layout, the roster, and the scenario file
 
 The layout is the durable railroad as the apps consume it: blocks, connections,
 transits, and which transits are `concurrent`. It is **derived**, never

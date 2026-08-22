@@ -29,7 +29,7 @@ Top level is repo-wide; each app's implementation details sit in its own subfold
 │   │   ├── SAFETY.md                       ← the deadlock-freedom argument
 │   │   └── INTERNALS.md                    ← state, the locking seam
 │   ├── store/
-│   │   └── LAYOUT.md                       ← layout and scenario file formats
+│   │   └── LAYOUT.md                       ← layout, roster and scenario formats
 │   └── bench/
 │       ├── BENCHMARKS.md                   ← layouts, workloads, sweep axes
 │       └── METRICS.md                      ← how each number is derived

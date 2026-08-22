@@ -23,8 +23,9 @@ Each app's implementation details live beside it:
   [internals](docs/dispatcher/INTERNALS.md).
 - [Store](docs/store) — the [drawing format and
   derivation](docs/store/DRAWING.md), the only committed topology, and the
-  [derived layout and the scenario file](docs/store/LAYOUT.md) it feeds; the
-  drawn railroads live in [layouts/](layouts) and [scenarios/](scenarios).
+  [derived layout, the roster and the scenario file](docs/store/LAYOUT.md) it
+  feeds; the drawn railroads and their rosters live in
+  [layouts/](layouts) and their scenarios in [scenarios/](scenarios).
 - [Bench](docs/bench) — the [benchmark suite](docs/bench/BENCHMARKS.md) and
   the [metrics derivations](docs/bench/METRICS.md).
 - [UI](docs/ui) — one app with two views of the loaded railroad, the [layout
