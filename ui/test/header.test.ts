@@ -149,6 +149,27 @@ describe("what the band marks as unsaved", () => {
 });
 
 describe("the status the band takes over", () => {
+  /** A region with room in it rather than a string: per-container and
+   *  hardware reachability belong beside the store and the bridge, and the
+   *  slot is where `2a-docker` puts them (#167). */
+  it("gathers what is answering into one area with room in it", async () => {
+    const header = await band({
+      joined: true,
+      linked: true,
+      boundary: 3,
+      derives: false,
+      trouble: "the store is not answering",
+    });
+    const health = header.renderRoot.querySelector(".health")!;
+    expect([...health.querySelectorAll("span")].map((one) => one.className)).toEqual([
+      "refused",
+      "trouble",
+      "link joined",
+      "boundary",
+    ]);
+    expect(health.querySelector("slot[name=health]")).not.toBeNull();
+  });
+
   /** The store not answering is not one of the author's mistakes, so it
    *  reads here rather than on the drawing (#84). */
   it("reads the trouble the page is in", async () => {
