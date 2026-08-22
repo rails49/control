@@ -34,6 +34,33 @@ buttons as the editor — `+`, `−`, `0`. It had none of the three while it dre
 its own picture fitted to the sheet, which is what a railroad too large to see
 at once cost.
 
+**The trains it has are listed in the left pane.** The shell has one left-pane
+slot and each view fills it: the editor's palette, this view's `tc-roster`
+([#169](https://github.com/rails49/control/issues/169)). A row is a train's
+name, its length, and the block it stands in — *crossing* where it stands in
+none, that being a train holding a transit and on the layout all the same —
+ordered by name, so the list does not reshuffle as the railroad moves. With
+nothing placed it says so.
+
+It is called the roster because that is what it is becoming, and it is not one
+yet. A railroad's **roster** is every train it owns, whether on the layout or
+off it ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)), and there is
+nothing to read one from: the store serves no roster, and
+`tc49/dispatch/state/allocation` carries the placed trains alone. So the pane
+lists what the run holds. A train's **length** has no source on the bus either
+— the dispatcher's own `train_lengths` is built from the scenario and published
+nowhere — so it is read off the scenario the session was joined on, which is
+where a run's stock is written down today.
+
+The pane is **read-only here**, and its drags are
+[#170](https://github.com/rails49/control/issues/170)'s along with the roster
+they need: a row dragged onto a block places or repositions a train, and a
+train's marker dragged onto the pane takes it off the layout. Until then
+nothing in the browser takes a train off the layout, which is worth saying
+plainly because it is also what unfreezes the drawing
+([EDITOR.md](EDITOR.md#trains-on-the-layout-freeze-the-drawing)): while a
+session has trains placed, the editing view is read-only.
+
 **A train between two blocks is drawn on the connection**, midway between the
 two block ends its transit joins, and stands in no block. The picture's
 `crossing` is what says so, train to the transit taking it out of the block
@@ -326,11 +353,16 @@ routes and live requests come from the dispatcher's retained picture;
 ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)), comes from the
 scheduler's own retained topic. Both are written by apps that are always
 running, so there is no cold start to seed: the view reads the scenario from
-the store (`GET /scenarios`, `GET /scenarios/<id>`) for one thing only, which
-railroad to ask the app to load, and no topic describes the run, a topic that did being the
-bridge describing itself (#67). Everything else is derived from the bus: the
-state topics carry the whole picture, facing included, so the model is fed by
-`apply` and by nothing else.
+the store (`GET /scenarios`, `GET /scenarios/<id>`) for which railroad to ask
+the app to load, and no topic describes the run, a topic that did being the
+bridge describing itself (#67). The one other thing it reads there is how long
+each train is, the bus carrying no stock and the store serving no roster until
+[#170](https://github.com/rails49/control/issues/170) — an asset off the
+store's HTTP face rather than a fact about the run, which is the line
+[ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)
+already draws. Everything else is derived from the bus: the state topics carry
+the whole picture, facing included, so the model is fed by `apply` and by
+nothing else.
 
 A railroad the session has just built needs no handshake either. Its
 `last_values` are empty, so there is nothing to seed: the client is
@@ -406,7 +438,8 @@ else. `tc-menu` renders the items it is given, the editor and the run view
 each working out their own list. `model/scene.ts` is what the drawing alone
 answers: the frame a fit and an export are drawn in, an arrow's pose, and
 which symbol an address is worn by. `tc-panel` holds the session, feeds the
-model, hands the canvas an overlay, and sends.
+model, hands the canvas an overlay, hands `tc-roster` the trains the run has,
+and sends.
 
 The railroad it paints is not its own: the app holds it and hands over the
 drawing and the review (ADR-0038). Joining a session names a railroad, so this
@@ -418,7 +451,8 @@ The chrome is two rows the editor also wears (#84,
 [EDITOR.md](EDITOR.md#the-band)). The **band** is the whole system's: the
 railroad the app has loaded and the picker that loads another, the unsaved
 dot, the health area — the store not answering, the bridge, whether the rails
-have power, how far the run has got — and the view toggle. The **bar** is this
+have power, how far the run has got, whether the trains standing here have
+frozen the drawing — and the view toggle. The **bar** is this
 view's document's: a `View` menu carrying zoom and fit, those three pinned as
 icon buttons at its right end, and **HOLD/GO**.
 

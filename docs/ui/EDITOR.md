@@ -84,6 +84,13 @@ drawing with an overlap or a turnout still lacking an address leaves it clean,
 both being drawings that derive
 ([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
 
+And beside that, the other thing the band says about the drawing: that it is
+**frozen**, trains being on the layout ([Trains on the layout freeze the
+drawing](#trains-on-the-layout-freeze-the-drawing)). It reads as the boundary
+count does rather than as the refusal above it — a railroad with trains on it
+is the ordinary state and nothing about it is wrong — and it is what explains
+an Edit menu of dead verbs to whoever opens one.
+
 **The view toggle is at the right end.** The views are a list with one current
 entry, `{id, label, icon}` in `model/views.ts`, and two of them render as a
 single icon-button wearing the other one's name — which is what a toggle is. A
@@ -820,27 +827,59 @@ placement: deleting one portal of a pair still strands the other, and that is
 left to the mark on the canvas, being a deliberate act
 ([ADR-0020](../adr/0020-a-portal-is-placed-as-a-pair.md)).
 
-Editing and running the same railroad at once is not prevented. The store
-snapshots at startup, so a run in progress keeps the layout it began with and
-an edit lands for the next one.
+## Trains on the layout freeze the drawing
 
-> **Superseded** by
-> [ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md):
-> trains on the layout freeze the drawing. With editing and running one toggle
-> apart, this permission becomes a trap — the run view would paint the store's
-> current drawing under a dispatcher state that refers to the topology the run
-> began with. Landed by
-> [#169](https://github.com/rails49/control/issues/169), which also deletes
-> *Scenario editing* below: placing trains is the run view's gesture now
-> ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)).
+With any train placed, this view is read-only: look, zoom, inspect the
+netlist, do not draw. You do not rewire track with locomotives standing on it
+([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md),
+[#169](https://github.com/rails49/control/issues/169)).
 
-## Scenario editing
+It replaces the permission this page carried — "Editing and running the same
+railroad at once is not prevented. The store snapshots at startup, so a run in
+progress keeps the layout it began with and an edit lands for the next one" —
+which was safe when editing and running were two pages a person navigated
+between deliberately. Behind a toggle it is a trap: move a turnout, switch
+view, and the run view paints the store's *current* drawing under a dispatcher
+state that refers to the topology the run began with. The picture would be a
+lie at exactly the place a person looks to see whether a route is safe.
+Serving the run its own snapshot is the more permissive answer and was
+rejected there: it needs a second source of every drawing and a way to serve
+one, and the freeze is what the railroad does anyway.
 
-Placing trains is dragging onto blocks; train length is set in the same
-properties dialog that sets block length, keeping the flat
-`{length: n, at: block}` scenario shape. The composed loco-and-car roster of
-[GOALS.md](../GOALS.md) is deferred; the `trains:` key is unchanged either
-way.
+**It is a document rule and not a chrome rule.** What is dead is not the bar's
+to decide ([The bar](#the-bar)), so the rule sits in `model/commands.ts` with
+the rest of them and every command that changes the document is declared
+through it — a verb joins the frozen category by wearing it rather than by
+someone remembering the condition. The bar and the keyboard are the one path
+through that module, so a frozen `r` does nothing wherever it is pressed. Zoom,
+fit and Netlist stay alive, a frozen drawing being read-only rather than gone,
+and so does Save: it writes the document out rather than changing it, and the
+edits it carries were made before the train arrived.
+
+The gestures answer the same rule rather than a second copy of it. The canvas's
+machine abandons every press while the drawing is frozen ([Canvas](#canvas)),
+so a gesture the freeze lands in the middle of leaves the sheet as it found it
+and writes nothing. A palette drag starts on a tile rather than on the sheet,
+so this view refuses that one itself and the tiles are greyed while it holds
+([Palette](#palette)).
+
+**Putting every train away thaws it.** The rule is read off the count of placed
+trains afresh and nothing latches it. There is no gesture that takes a train
+off the layout from the browser yet — that is
+[#170](https://github.com/rails49/control/issues/170)'s, along with the roster
+it needs ([PANEL.md](PANEL.md)) — so what lifts the freeze today is the run's
+own picture coming back with nothing placed.
+
+Which trains are placed is the run's knowledge, and it reaches this view
+through the shell, as everything the two views share does. The band says so in
+one quiet phrase, which is what explains a menu full of dead verbs
+([The band](#the-band)).
+
+**Scenario editing** stood here and is gone with it. Placing trains is the run
+view's gesture now, and a train's length belongs to the railroad's roster
+([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md),
+[#170](https://github.com/rails49/control/issues/170)) rather than to the
+properties dialog that sets a block's.
 
 ## Implementation
 
@@ -1013,7 +1052,7 @@ loaded and saved drawing keeps its comments.
 
 The first cut is what the netlist needs: place, move, rotate, flip, wires,
 junction regions, leg naming, the live netlist, the inspector, red pins, undo.
-Scenario editing, portals, group selection and overlap warnings come after.
+Portals, group selection and overlap warnings come after.
 None of them can change a derived netlist, which is why they wait.
 
 No committed drawing has any placement and there is no auto-layout, so each
