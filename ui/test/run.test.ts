@@ -6,119 +6,30 @@
  * view holds, and a release with disputes outstanding says what was accepted
  * (ADR-0037, #152, #153).
  *
- * A DOM test because it crosses three components and the bridge. The bridge is
- * the one thing standing in: a fake `WebSocket` that records what was sent and
- * lets a test deliver the frames a session would.
+ * A DOM test because it crosses three components and the bridge. The session
+ * itself — the toy railroad, the fake bridge and the app joined to it — is
+ * `support/session.ts`, shared with the other suites that need one.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
-import type { Drawing } from "../src/model/drawing.js";
 import { centreOf } from "../src/model/geometry.js";
-import type { Explained, Layout, Review } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { CLEAN, band, bar, mounted, running, serving, settled } from "./support/shell.js";
+import { band, bar, running, settled } from "./support/shell.js";
+import {
+  Bridge,
+  bridging,
+  joined,
+  said,
+  stored,
+  unbridged,
+  written,
+} from "./support/session.js";
 
-/** Two blocks and nothing joining them: enough to derive, enough to paint, and
- *  enough for a train to be disputed in. */
-const LAYOUT: Layout = {
-  layout: "toy",
-  blocks: { a: { length: 1000 }, b: { length: 1000 } },
-  connections: {},
-};
+beforeEach(bridging);
 
-const EXPLAIN: Explained = { layout: "toy", connections: {} };
-
-const DERIVES: Review = { ...CLEAN, layout: LAYOUT, explain: EXPLAIN };
-
-function stored(name: string): Drawing {
-  return {
-    drawing: name,
-    symbols: { a: { kind: "block", at: [0, 0] }, b: { kind: "block", at: [4, 0] } },
-    wires: [],
-  };
-}
-
-/** The bridge, as far as the run view uses one: it opens, it is sent frames,
- *  and it delivers them. */
-class Bridge {
-  static last: Bridge | null = null;
-
-  readonly sent: string[] = [];
-  private readonly listeners = new Map<string, ((event: unknown) => void)[]>();
-
-  constructor(readonly url: string) {
-    Bridge.last = this;
-  }
-
-  addEventListener(name: string, listener: (event: unknown) => void): void {
-    this.listeners.set(name, [...(this.listeners.get(name) ?? []), listener]);
-  }
-
-  send(frame: string): void {
-    this.sent.push(frame);
-  }
-
-  close(): void {
-    this.raise("close", {});
-  }
-
-  /** What the session says, in the frames the relay carries. */
-  says(topic: string, payload: Record<string, unknown>): void {
-    this.raise("message", { data: JSON.stringify({ topic, payload }) });
-  }
-
-  raise(name: string, event: Record<string, unknown>): void {
-    for (const listener of this.listeners.get(name) ?? []) listener(event);
-  }
-}
-
-const REAL = globalThis.WebSocket;
-
-beforeEach(() => {
-  Bridge.last = null;
-  globalThis.WebSocket = Bridge as unknown as typeof WebSocket;
-  serving({
-    drawings: ["toy"],
-    scenarios: ["toy/test"],
-    read: stored,
-    review: () => Promise.resolve(DERIVES),
-  });
-});
-
-afterEach(() => {
-  globalThis.WebSocket = REAL;
-  document.body.replaceChildren();
-});
-
-/** An app in the run view, joined to the one session the store offers, with
- *  the bridge open. */
-async function joined(): Promise<TcApp> {
-  const shell = await mounted("run");
-  // The session select is Shoelace's, and what the view reads off it is the
-  // value it carries when it says it changed.
-  const select = running(shell).renderRoot.querySelector("sl-select") as unknown as {
-    value: string;
-    dispatchEvent: (event: Event) => boolean;
-  };
-  select.value = "toy/test";
-  select.dispatchEvent(new CustomEvent("sl-change"));
-  await settled(shell);
-  Bridge.last!.raise("open", {});
-  await settled(shell);
-  return shell;
-}
-
-/** What the session has published, applied. */
-async function said(
-  shell: TcApp,
-  topic: string,
-  payload: Record<string, unknown>,
-): Promise<void> {
-  Bridge.last!.says(topic, payload);
-  await settled(shell);
-}
+afterEach(unbridged);
 
 /** The HOLD/GO button on the bar. */
 function press(shell: TcApp): HTMLButtonElement {
@@ -130,11 +41,6 @@ function press(shell: TcApp): HTMLButtonElement {
 function notice(shell: TcApp): string | null {
   const said = running(shell).renderRoot.querySelector(".released");
   return said === null ? null : said.textContent!.trim();
-}
-
-/** The payloads the browser has written to the bus. */
-function written(): unknown[] {
-  return (Bridge.last?.sent ?? []).map((frame) => JSON.parse(frame));
 }
 
 describe("joining a session", () => {
