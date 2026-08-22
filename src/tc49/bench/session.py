@@ -30,11 +30,13 @@ import threading
 from pathlib import Path
 from typing import TextIO
 
+from tc49.bench.replay import Replay
 from tc49.bench.runner import assemble_live, railroad
 from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Bus
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
+from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 
 
@@ -73,7 +75,12 @@ class Session:
         # which is what cuts a boundary's sleep short: picking a railroad in
         # the panel must not wait out a ten-second period.
         self._swap = threading.Event()
-        self._wanted: tuple[str, Layout, Roster] | None = None
+        # The railroad to build next, and the scenario to replay onto it once
+        # it is up, or None for the empty layout a run ordinarily starts from.
+        # A replay is the harness's own way in and never a browser's, so it
+        # is recorded here with the railroad rather than reached for later:
+        # a client naming another railroad replaces both.
+        self._wanted: tuple[str, Layout, Roster, Scenario | None] | None = None
         # A bridge wants a bus, and an idle session has no assembly to give
         # it: this one is relayed until the first `rebind` replaces it, and
         # nothing ever publishes to it.
@@ -94,8 +101,33 @@ class Session:
         except ValueError as refused:
             return f"railroad '{name}': {refused}"
         with self._lock:
-            self._wanted = (name, *wanted)
+            self._wanted = (name, *wanted, None)
             self._swap.set()
+        return None
+
+    def plays(self, scenario_id: str) -> str | None:
+        """Run the railroad a scenario names, and replay the scenario onto it
+        as gestures: a refusal in words, or `None` to accept.
+
+        `tc49 live --scenario`, and nothing else — a scenario is CLI-only and
+        never browser-reachable (#171). It is played once, onto the assembly
+        it named; a client that names another railroad replaces it, and the
+        railroad it left behind is not replayed a second time.
+        """
+        try:
+            scenario = self._store.get(scenario_id)
+        except FileNotFoundError:
+            return f"no scenario '{scenario_id}'"
+        except ValueError as refused:
+            return f"scenario '{scenario_id}': {refused}"
+        if not isinstance(scenario, Scenario):
+            return f"no scenario '{scenario_id}'"
+        refusal = self.wants(scenario.layout)
+        if refusal is not None:
+            return refusal
+        with self._lock:
+            assert self._wanted is not None
+            self._wanted = (*self._wanted[:3], scenario)
         return None
 
     def stop(self) -> None:
@@ -121,10 +153,15 @@ class Session:
                 wanted = self._wanted
             if wanted is None:
                 return
-            name, layout, roster = wanted
+            name, layout, roster, scenario = wanted
             kept = None if self._state is None else state_for(self._state, name)
             assembly = assemble_live(layout, roster, state=kept)
             self.bridge.rebind(assembly.bus, name)
+            # After the rebind, so a client that named this railroad is
+            # already registered and sees the replay's gestures and their
+            # answers as the live frames they are.
+            if scenario is not None:
+                Replay(assembly.bus, layout, scenario)
             out.write(f"  running {name}\n")
             out.flush()
             assembly.simulator.run_live(

@@ -7,8 +7,10 @@ boundaries, the bridge relaying `tc49/#` out and gestures in, the store served
 over HTTP, and no timetable while `at` is a boundary count (ADR-0036). It is
 built from a **railroad** — a drawing, its roster, and a person who places the
 trains (#171) — and the railroad it comes up on is an argument the panel may
-override, the socket path naming the one a client wants (#148). `sweep` takes
-no arguments:
+override, the socket path naming the one a client wants (#148). `--scenario`
+is the harness's own test run: it comes up on the railroad the scenario names
+and replays the document as gestures (`bench/replay.py`). `sweep` takes no
+arguments:
 the grid of BENCHMARKS.md is the research design, not a knob, and that page is
 its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
@@ -164,11 +166,20 @@ def command_line() -> argparse.ArgumentParser:
     live_parser = commands.add_parser(
         "live", help="run a live session an outside client can join (ui/PANEL.md)"
     )
-    live_parser.add_argument(
+    # One or the other, never both: a scenario names the railroad it is over,
+    # so giving one alongside it could only agree or contradict.
+    coming_up = live_parser.add_mutually_exclusive_group()
+    coming_up.add_argument(
         "railroad",
         nargs="?",
         help="the railroad to come up on, e.g. gotthard; with none the session"
         " waits to be told, and either way the panel may switch it",
+    )
+    coming_up.add_argument(
+        "--scenario",
+        help="run a scenario as a test run, e.g. gotthard/meet: the session"
+        " comes up on the railroad it names and replays it as gestures —"
+        " a placement per train, then its requests at their boundaries",
     )
     live_parser.add_argument(
         "--period",
@@ -241,11 +252,14 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
 
     if args.command == "live":
         session = Session(ROOT, args.period, args.port, args.state)
-        if args.railroad is not None:
-            refusal = session.wants(args.railroad)
-            if refusal is not None:
-                out.write(f"{refusal}\n")
-                return 2
+        opening = (
+            session.plays(args.scenario)
+            if args.scenario is not None
+            else session.wants(args.railroad) if args.railroad is not None else None
+        )
+        if opening is not None:
+            out.write(f"{opening}\n")
+            return 2
         # A session carries a store so that one command is all a browser
         # needs. Where one is already serving — scripts/dev.sh, whose store
         # outlives any session — a second would only fail to bind the port.
