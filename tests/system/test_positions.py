@@ -18,13 +18,16 @@ hand-written `align` (#150). It cannot read either asset, so the last test here
 holds a mirror of what that copy encodes and fails when the run or the drawing
 stops agreeing with it.
 
-The strategy is the default one, `FullRoute`, because that is what a live
-session runs (`tc49 live`) and this scenario exists to be watched.
+The strategy is `Incremental`, because that is what a live session runs
+(`tc49 live`, #165) and this scenario exists to be watched. It is named here
+rather than defaulted: `run` is the batch loop, whose own default is the
+`FullRoute` baseline.
 """
 
 from dataclasses import dataclass
 from typing import Any
 
+from tc49.dispatcher import Incremental
 from tc49.store import AssetStore
 from tc49.store.drawing import POSITIONS
 from tests.harness import ROOT, events, load, run
@@ -35,7 +38,7 @@ UI_SUITE = "ui/test/points.test.ts"  # the suite that copies part of this one
 
 def trace() -> str:
     layout, _roster, scenario = load(SCENARIO)
-    return run(layout, _roster, scenario)
+    return run(layout, _roster, scenario, Incremental)
 
 
 def commanded(trace: str) -> dict[str, str]:

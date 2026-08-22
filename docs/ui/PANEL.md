@@ -127,6 +127,15 @@ forward along a cyan path as the train advances, and the length of the green
 says how far the train may go. It agrees with the signal at the block end,
 which the dispatcher reads off the same locks.
 
+A live session is the one that locks that way: `tc49 live` assembles its
+dispatcher with `Incremental`, so a page joining a session is watching an
+incremental run
+([#165](https://github.com/rails49/control/issues/165)). `FullRoute`, which
+locks a whole route at launch, is the baseline the batch harness measures
+against ([BENCHMARKS.md](../bench/BENCHMARKS.md)) and is not a discipline the
+panel ever draws: under it a route would come up green end to end and cyan
+would appear only as the locks release behind the train.
+
 Green is read from the lock ledger alone, not from the committed route
 intersected with it, which is how the block view already works. A lock the
 dispatcher still holds after its request completes therefore stays green
