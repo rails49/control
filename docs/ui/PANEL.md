@@ -15,10 +15,24 @@ Terminology follows [CONTEXT.md](../../CONTEXT.md).
 
 ## What it shows
 
-The panel renders the drawing ([DRAWING.md](../store/DRAWING.md)) with live
+The run view renders the drawing ([DRAWING.md](../store/DRAWING.md)) with live
 state on top. Blocks show colour for state, a label for the train, an arrow
 for direction. A locked but empty block gets a fill of its own, so a committed
 route reads as a lit path.
+
+**It draws none of it itself.** The surface is `tc-canvas` in **run mode** —
+the same canvas the editor draws on, one of two modes of one component
+([EDITOR.md](EDITOR.md#canvas),
+[#168](https://github.com/rails49/control/issues/168)). Everything below is
+what run mode adds over the drawing both modes paint: the state colours, the
+labels, the arrows, the aspects, the markers and the drag's rings. It arrives
+as one overlay object worked out in `model/panel.ts`, so the component still
+computes nothing.
+
+**So the run view has zoom, pan and fit**, on the same keys and the same bar
+buttons as the editor — `+`, `−`, `0`. It had none of the three while it drew
+its own picture fitted to the sheet, which is what a railroad too large to see
+at once cost.
 
 **A train between two blocks is drawn on the connection**, midway between the
 two block ends its transit joins, and stands in no block. The picture's
@@ -383,10 +397,15 @@ its topic and ids arrive on `request_submitted`. `model/drag.ts` turns pointer p
 into an arrival-end set or a cancel, DOM-free and tested the way the editor's
 gesture model is; `trainAt` there is the one question the press and the
 right-click share, so the two can never disagree about which train was
-clicked. `tc-menu` renders the items it is given, the editor and the panel
-each working out their own list. `model/scene.ts` is what the drawing alone answers: the
-viewBox, an arrow's pose, and which symbol an address is worn by. `tc-panel`
-converts pixels into squares, paints, and sends.
+clicked. It answers the same `Machine` (`model/machine.ts`) the editor's
+`Gesture` does, so the canvas drives one gesture sequence and converts pixels
+into squares in one place; composing the drop into a frame and writing it to
+the bus stays this view's, the model naming the train and the ends and nothing
+else. `tc-menu` renders the items it is given, the editor and the run view
+each working out their own list. `model/scene.ts` is what the drawing alone
+answers: the frame a fit and an export are drawn in, an arrow's pose, and
+which symbol an address is worn by. `tc-panel` holds the session, feeds the
+model, hands the canvas an overlay, and sends.
 
 The railroad it paints is not its own: the app holds it and hands over the
 drawing and the review (ADR-0038). Joining a session names a railroad, so this
@@ -398,8 +417,9 @@ The chrome is two rows the editor also wears (#84,
 [EDITOR.md](EDITOR.md#the-band)). The **band** is the whole system's: the
 railroad the app has loaded and the picker that loads another, the unsaved
 dot, the health area — the store not answering, the bridge, whether the rails
-have power, how far the run has got — and the view toggle. The **bar** is this view's document's: a `View` menu
-and **HOLD/GO**.
+have power, how far the run has got — and the view toggle. The **bar** is this
+view's document's: a `View` menu carrying zoom and fit, those three pinned as
+icon buttons at its right end, and **HOLD/GO**.
 
 **HOLD and GO are one press and no confirmation.** The button says HOLD while
 the run is running and GO while it is held, which is what the press will do,

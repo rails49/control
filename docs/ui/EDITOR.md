@@ -131,10 +131,11 @@ and the band picks it, with the tick rule this menu used to carry
 page and cannot be `preventDefault`ed. A blank is better than a binding the
 browser eats. `⌘S` and `⇧⌘S` are the editor's.
 
-**Zoom and fit stay one click.** They are pressed constantly while drawing and
+**Zoom and fit stay one click.** They are pressed constantly — while drawing,
+and while following a train across a railroad too large to see at once — and
 `View ▸ Zoom in` is three clicks for what is now one, so those three are also
-icon buttons at the right end of the bar. Undo and redo are not: `⌘Z` and
-`⇧⌘Z` are known, and the `Edit` menu is where they are read.
+icon buttons at the right end of the bar, in **both** views. Undo and redo are
+not: `⌘Z` and `⇧⌘Z` are known, and the `Edit` menu is where they are read.
 
 **Sliding along the bar reads the next menu.** With one menu down, the pointer
 crossing onto a neighbouring title puts that menu down, as every menu bar does,
@@ -158,8 +159,8 @@ What is dead and what is alive is not the bar's to decide. Save is dead with
 nothing open or nothing to write, Rotate, Flip and Delete are dead on an empty
 selection, Properties on anything but one symbol that has some, Undo and Redo
 at the ends of the snapshot stack, Export SVG… with nothing to export, and the
-zoom commands on a surface with no viewport — which is the run view's picture
-until the two canvases become one (#168). Those rules
+and nothing else — the zoom commands are alive always, both views drawing on
+the one canvas and an empty sheet still zooming. Those rules
 are `model/commands.ts` with a test and no DOM, which is the rule
 [below](#tests): the model owns the document, a component owns the DOM, and a
 rule that is neither is a module in `model/`. The keyboard asks the same module
@@ -172,6 +173,29 @@ Export SVG… writes the drawing to a file; what it writes is under
 [Files](#files).
 
 ## Canvas
+
+**There is one canvas and it has two modes.** The editor and the run view are
+two views of one railroad
+([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)), and
+both are looking at the same drawing: the viewport, the artwork, the wires,
+where every symbol sits and how a block is labelled are the same question
+twice, so `tc-canvas` answers it once. `mode` decides what only one of them
+draws — **edit** has the pins, the face marks a wire in flight asks for, the
+ghost and the rubber band; **run** has the live state painted over the
+drawing, which arrives as data and is [PANEL.md](PANEL.md)'s. Two components
+was an accident of build order, and its price was that the run view had no
+zoom and no fit at all ([#168](https://github.com/rails49/control/issues/168)).
+
+**What a press means is the view's, not the canvas's.** Each hands over a
+gesture machine (`model/machine.ts`) — the editor's `Gesture`
+(`model/gesture.ts`), the run view's `Drag` (`model/drag.ts`) — and the canvas
+converts the pointer's pixels into squares, calls one method per event, and
+draws what the machine says is in flight. It decides no meaning, which is the
+rule this document already states for the model and the DOM
+([Tests](#tests)) applied to the pointer. The viewport is the exception in the
+other direction: zoom, the wheel and the pan are the same picture-moving in
+either view and a machine cannot reach the `viewBox`, so they are the canvas's
+own and neither machine is asked.
 
 The canvas is a grid of squares, and the grid is not negotiable. A symbol
 occupies one or more whole squares; each square is free or occupied by exactly
@@ -213,7 +237,11 @@ after opening a file that already had one.
 Zoom and pan are the SVG `viewBox`: the wheel zooms about the pointer and the
 middle button pans. Both directions of the wheel were there from the start and
 neither was findable, so the bar carries a minus and a plus beside Fit and the
-keyboard has `+`, `-` and `0`.
+keyboard has `+`, `-` and `0`. All of it is both modes': the run view gained
+every bit of it by being drawn here. **Fit** frames `scene.fitBox`, which is
+also what an exported file is drawn in, so a view fitted and a file written
+frame the same thing — the marks that sit on the sheet without being pins, a
+lone portal's label among them, included.
 
 A bend is placed by the same two keys as any other symbol, `at` naming a cell
 and `rot` turning its one pin onto a face of it
@@ -943,10 +971,12 @@ entirely in `tc-canvas.ts`.
 Nothing in that component was reachable from a test: every pointer handler
 began by converting pixels to grid squares through `getScreenCTM`, which
 happy-dom does not implement. The pointer-gesture machine — press, drag, band,
-pan, and the right-click rules — is now `model/gesture.ts` (#63). It takes the
+and the right-click rules — is now `model/gesture.ts` (#63). It takes the
 editor per call and answers with an outcome the component maps onto rendering
 and events; the component keeps the pixel conversion and the viewBox, and
-`gesture.test.ts` drives the rules from grid points.
+`gesture.test.ts` drives the rules from grid points. `model/machine.ts` is the
+interface the component drives it through, so the run view's `Drag` is driven
+the same way over the same surface (#168).
 
 The same happened to the app. `tc-editor.ts` had grown a drawing lifecycle —
 new, open, save, save as, the names it refuses, and the `/review` it re-asks on

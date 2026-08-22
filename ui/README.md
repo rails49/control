@@ -53,14 +53,18 @@ src/
     drawing.ts   the document, exactly as the store serves and takes it back
     geometry.ts  footprints, pin anchors, quarter turns, the 15 degree snap
     editor.ts    the editing session: selection, wires, snapshots, undo
-    gesture.ts   what a pointer gesture means: press, drag, band, pan
+    gesture.ts   what a pointer gesture means in the editor: press, drag, band
+    machine.ts   what the canvas asks of whatever decides what a press means
+    drag.ts      what a drag on a run means: a train, and where to put it
     naming.ts    connection names, minted and written into the drawing
     store.ts     the four routes
     trace.ts     the bridge's frames read as events, and the gestures written
                  back
     views.ts     the views the app has of the railroad, and the hash they are
                  bookmarked by
-    panel.ts     the panel model: bus payloads in, render state out
+    panel.ts     the run's model: bus payloads in, render state out
+    scene.ts     what the drawing alone answers: the frame a fit and an export
+                 are drawn in, an arrow's pose, which symbol wears an address
   render/
     artwork.ts   what each symbol looks like, hand-written against the
                  generated pin names
@@ -71,15 +75,17 @@ src/
     tc-menubar.ts  the bar: the current view's menus, and HOLD/GO
     tc-editor.ts   the editing view: palette, canvas, netlist, dialogs
     tc-palette.ts  one tile per placeable kind
-    tc-canvas.ts   the surface: pointer events, viewBox zoom and pan
+    tc-canvas.ts   the one drawing surface, in either of its two modes: the
+                   viewport, the artwork, and what only edit or only run draws
     tc-netlist.ts  the derived netlist, and why each pair does or does not
                    run together
     tc-properties.ts  the properties dialog
     tc-menu.ts     the right-click menu
-    tc-panel.ts    the run view: a live session painted over the drawing
+    tc-panel.ts    the run view: the session, and the overlay it hands the
+                   canvas to paint
     <component>.styles.ts  a component's styles, beside it
     shared.styles.ts   what more than one of them wears: the palette, the
-                   symbol rules, the lit way, and what a menu is made of
+                   symbol rules, and what a menu is made of
 test/            vitest; the suites that mount a component need a DOM
                  (happy-dom), the rest run without one
 ```

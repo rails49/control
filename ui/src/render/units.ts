@@ -168,15 +168,15 @@ export const RING = {
   gap: 0.12,
 };
 
-/** A note beside a marker on the panel. It is not text on a symbol and has no
+/** A note beside a marker on a run. It is not text on a symbol and has no
  *  rectangle to fit, so it keeps a size of its own rather than following the
  *  label's. */
 export const NOTE = 0.22;
 
 /**
  * The palette, as the custom properties the stylesheets read. Track is black
- * and a block's rectangle white in edit mode; run mode, out of scope for now,
- * recolours by toggling classes rather than by editing these.
+ * and a block's rectangle white in edit mode; run mode recolours by toggling
+ * classes rather than by editing these.
  */
 export const COLOURS: Record<string, string> = {
   "--ink": "#1c1f24",
@@ -202,7 +202,7 @@ export const COLOURS: Record<string, string> = {
   "--amber": "#e8a021",
   "--lit": "#a55b12",
   "--lit-body": "#f4e3cd",
-  // The two colours a committed route wears on the panel (ui/PANEL.md): green
+  // The two colours a committed route wears on a run (ui/PANEL.md): green
   // where the dispatcher holds a lock and the train may move, cyan where the
   // route is chosen and the claim has not been made yet.
   //

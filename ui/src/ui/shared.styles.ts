@@ -113,8 +113,8 @@ export const symbols = css`
     stroke-linecap: round;
   }
 
-  /* White in edit mode; run mode, out of scope for now, recolours it by
-     occupancy through the same class. */
+  /* White in edit mode; run mode recolours it by occupancy through the same
+     class, in the canvas's own sheet. */
   .block-body {
     fill: var(--body);
     stroke: var(--track);
