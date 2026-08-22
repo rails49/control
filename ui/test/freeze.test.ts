@@ -25,15 +25,15 @@ import { centreOf } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { TcProperties } from "../src/ui/tc-properties.js";
+import { band, editing, inside, session, settled } from "./support/shell.js";
 import {
-  band,
-  editing,
-  inside,
-  running,
-  session,
-  settled,
-} from "./support/shell.js";
-import { bridging, joined, said, stored, unbridged } from "./support/session.js";
+  bridging,
+  joined,
+  loads,
+  said,
+  stored,
+  unbridged,
+} from "./support/session.js";
 
 const ALLOCATION = "tc49/dispatch/state/allocation";
 
@@ -211,16 +211,17 @@ describe("a train standing on the railroad", () => {
   });
 });
 
-describe("leaving the session", () => {
-  /** The freeze rests on what a joined session is saying. A page that has left
-   *  one is told nothing, and a page reloaded is not frozen either, so leaving
-   *  must not lock the editor with no way back but a reload. */
-  it("thaws the drawing, having nothing left to say about the layout", async () => {
+describe("loading another railroad", () => {
+  /** The freeze rests on what a joined session is saying about *this*
+   *  railroad. Loading another is how a session ends now that the loaded
+   *  railroad is the session (#171), and the new run has said nothing yet — so
+   *  the drawing must thaw rather than stay locked on a picture of somewhere
+   *  else. */
+  it("thaws the drawing, the new run having said nothing yet", async () => {
     const shell = await frozen();
     expect(says(shell)).toBe("drawing frozen");
 
-    running(shell).renderRoot.querySelector<HTMLElement>("sl-button")!.click();
-    await settled(shell);
+    await loads(shell, "other");
 
     expect(says(shell)).toBeNull();
     expect(editing(shell).hasAttribute("frozen")).toBe(false);

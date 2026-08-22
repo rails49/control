@@ -28,11 +28,11 @@ than `127.0.0.1`.
 
 It also brings up the session the run view joins — a `tc49 live` on
 `ws://127.0.0.1:8766`, started `--no-store` because the store is already up
-and outlives any one session. The run view names the session, picking it from
-the live session menu, and the session runs whichever is picked; a scenario
-given to the script — `../scripts/dev.sh gotthard/meet` — is the one it comes
-up running rather than the one it is stuck with. Joining one loads the railroad
-it names, which is interim until a run needs no scenario (#171).
+and outlives any one session. **The band's picker is the only thing that loads
+a railroad**, and the run view joins whatever is loaded: the socket path names
+it and the session builds it (#171). A railroad given to the script —
+`../scripts/dev.sh gotthard` — is the one the session comes up on rather than
+the one it is stuck with.
 
 `../scripts/dev.sh stop` puts down everything the script started and leaves
 alone anything it did not.

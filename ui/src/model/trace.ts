@@ -31,7 +31,7 @@ export type Heard = { event: TraceEvent } | { error: string };
  * boundary seen, which is what the bench tap does when it writes a trace.
  *
  * The relay's one other frame is `{error}`: a refused inbound frame, or a
- * socket path naming no scenario (#148). It is the whole of what a session
+ * socket path naming no railroad (#148, #171). It is the whole of what a session
  * says about itself going wrong, so it comes back to be shown as trouble
  * rather than being dropped. A frame that is neither is dropped rather than
  * thrown — a session must not end because a stray one arrived.

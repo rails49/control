@@ -76,7 +76,7 @@ export function pinsOf(spec: SymbolSpec): readonly string[] {
  * The kinds whose name is the user's to choose. A name is typed only where a
  * person has to say it out loud
  * ([ADR-0023](../../../docs/adr/0023-internal-names-are-minted-and-hidden.md)):
- * a block, which the operator names, the bus carries and a scenario places
+ * a block, which the operator names, the bus carries and a person places
  * trains in. Every other name is minted and hidden — a turnout and a slip are
  * addressed by `addr` rather than by their key
  * ([ADR-0022](../../../docs/adr/0022-a-symbol-carries-its-hardware-address.md)),

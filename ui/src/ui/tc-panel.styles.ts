@@ -19,7 +19,7 @@ export const panelStyles = css`
     grid-template-columns: var(--pane) 1fr;
     grid-template-rows: auto 1fr;
     grid-template-areas:
-      "roster session"
+      "roster notice"
       "roster sheet";
   }
 
@@ -29,17 +29,14 @@ export const panelStyles = css`
     overflow-y: auto;
   }
 
+  /* Only drawn while there is something to say, so the row collapses and the
+     sheet starts at the top of the view. */
   header {
-    grid-area: session;
+    grid-area: notice;
     display: flex;
-    gap: 0.5rem;
     align-items: center;
     padding: 0.4rem 0.6rem;
     border-bottom: 1px solid var(--rule);
-  }
-
-  header .spacer {
-    flex: 1;
   }
 
   /* A grid so the canvas fills the row: it is a block element and takes the

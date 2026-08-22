@@ -44,11 +44,12 @@ function notice(shell: TcApp): string | null {
 }
 
 describe("joining a session", () => {
-  /** The run view names the session and the app holds the railroad, so the
-   *  scenario's layout is asked for rather than read a second time (#167). */
-  it("loads the railroad the scenario names", async () => {
+  /** The loaded railroad is the session (#171): the band's picker loads it,
+   *  the socket path names it, and there is no second choice to disagree
+   *  with. */
+  it("opens the socket on the railroad the band loaded", async () => {
     const shell = await joined();
-    expect(Bridge.last!.url).toMatch(/toy\/test$/);
+    expect(Bridge.last!.url).toMatch(/\/toy$/);
     const named = band(shell).renderRoot.querySelector(".drawing")!;
     expect(named.textContent!.trim()).toBe("toy");
   });

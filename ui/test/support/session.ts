@@ -15,12 +15,12 @@
 import type { Drawing } from "../../src/model/drawing.js";
 import type { Explained, Layout, Review } from "../../src/model/store.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
-import { CLEAN, mounted, running, serving, settled } from "./shell.js";
+import { band, CLEAN, mounted, serving, settled } from "./shell.js";
 
 /** The toy railroad's roster: two trains, long enough to be a number on the
- *  pane and short enough for either block. `goods` is the one the scenarios
- *  below place; `shunter` is the train that is off the layout, which is an
- *  ordinary state and not a fault (ADR-0039). */
+ *  pane and short enough for either block. `goods` is the one the suites below
+ *  place; `shunter` is the train that is off the layout, which is an ordinary
+ *  state and not a fault (ADR-0039). */
 export const STOCK = { goods: { length: 400 }, shunter: { length: 200 } };
 
 /** Two blocks and nothing joining them: enough to derive, enough to paint, and
@@ -89,7 +89,6 @@ export function bridging(): void {
   globalThis.WebSocket = Bridge as unknown as typeof WebSocket;
   serving({
     drawings: ["toy"],
-    scenarios: ["toy/test"],
     rosterOf: () => STOCK,
     read: stored,
     review: () => Promise.resolve(DERIVES),
@@ -102,21 +101,26 @@ export function unbridged(): void {
   document.body.replaceChildren();
 }
 
-/** An app in the run view, joined to the one session the store offers, with
- *  the bridge open. */
-export async function joined(): Promise<TcApp> {
-  const shell = await mounted("run");
-  // The session select is Shoelace's, and what the view reads off it is the
-  // value it carries when it says it changed.
-  const select = running(shell).renderRoot.querySelector("sl-select") as unknown as {
-    value: string;
-    dispatchEvent: (event: Event) => boolean;
-  };
-  select.value = "toy/test";
-  select.dispatchEvent(new CustomEvent("sl-change"));
+/** The band's picker, pressed. It is the only thing that loads a railroad
+ *  (#171), and the run view joins whatever the app holds — so a session is
+ *  stood up, and swapped, by loading a railroad and nothing else. */
+export async function loads(shell: TcApp, railroad: string): Promise<void> {
+  band(shell).dispatchEvent(
+    new CustomEvent<string>("railroad-wanted", {
+      detail: railroad,
+      bubbles: true,
+      composed: true,
+    }),
+  );
   await settled(shell);
   Bridge.last!.raise("open", {});
   await settled(shell);
+}
+
+/** An app in the run view with the toy railroad loaded and the bridge open. */
+export async function joined(): Promise<TcApp> {
+  const shell = await mounted("run");
+  await loads(shell, "toy");
   return shell;
 }
 

@@ -6,10 +6,11 @@
  * The railroad it is painting is not its own — the app holds it and hands over
  * the drawing and the review
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
- * A session is still named by a scenario, so joining one names a railroad too:
- * this asks the app for it and waits, rather than reading a second copy. Which
- * of the two happened last is what the app has loaded, until a run needs no
- * scenario at all (#171).
+ * **The loaded railroad is the session**: a run is built from a railroad and
+ * nothing else ([#171](https://github.com/rails49/control/issues/171)), so the
+ * band's picker is the only thing that sets which one, and this joins whatever
+ * it has loaded. There is no session of its own to pick, and no way for the
+ * two to name different railroads.
  *
  * **It draws none of it.** `tc-canvas` in run mode is the surface, the same one
  * the editor draws on, so the viewport, the wires, the symbols and the labels
@@ -30,9 +31,6 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import "@shoelace-style/shoelace/dist/components/button/button.js";
-import "@shoelace-style/shoelace/dist/components/select/select.js";
-import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import {
@@ -53,13 +51,7 @@ import {
   type RosterRow,
 } from "../model/panel.js";
 import { positionsBySymbol } from "../model/scene.js";
-import {
-  listScenarios,
-  readRoster,
-  readScenario,
-  UNREVIEWED,
-  type Review,
-} from "../model/store.js";
+import { readRoster, UNREVIEWED, type Review } from "../model/store.js";
 import {
   gesture,
   Live,
@@ -136,16 +128,11 @@ export class TcPanel extends LitElement {
    *  has no layout to paint on, and the band already says so. */
   @property({ attribute: false }) review: Review | null = null;
 
-  @state() private scenarios: string[] = [];
-  /** The scenario a live session was started from, `null` while none is. */
+  /** The railroad a live session is joined on, `null` while none is. It is
+   *  the loaded railroad or nothing (#171). */
   @state() private session: string | null = null;
   @state() private connected = false;
   @state() private trouble: string | null = null;
-  /** The scenario whose railroad has been asked for and not yet arrived. The
-   *  socket is opened once it has: a frame heard before there is a model to
-   *  apply it to would be a frame lost, and the drain a join opens with is the
-   *  whole of the run's picture. */
-  private joining: { id: string; railroad: string } | null = null;
   /** The railroad's roster: every train it owns and how long each is, read
    *  off the store when the session is joined (ADR-0039). The bus says where
    *  the trains are and never what there is to place. */
@@ -168,8 +155,8 @@ export class TcPanel extends LitElement {
    *  another and kept when anything else changes. */
   private built: string | null = null;
   /** Whether the canvas wants fitting once it has drawn: a railroad arrives
-   *  here by joining a session as well as by the band's picker, and either way
-   *  there is nowhere else the viewport should be looking. */
+   *  here when the band's picker loads one, and there is nowhere else the
+   *  viewport should be looking. */
   private fitting = false;
   private live: Live | null = null;
   private socket: WebSocket | null = null;
@@ -184,22 +171,9 @@ export class TcPanel extends LitElement {
     onRoster: (screen) => this.overRoster(screen),
   });
 
-  override connectedCallback(): void {
-    super.connectedCallback();
-    void this.start();
-  }
-
   override disconnectedCallback(): void {
     this.leave();
     super.disconnectedCallback();
-  }
-
-  private async start(): Promise<void> {
-    try {
-      this.scenarios = await listScenarios();
-    } catch {
-      this.trouble = "the store is not answering — run `tc49 serve`";
-    }
   }
 
   /**
@@ -219,16 +193,22 @@ export class TcPanel extends LitElement {
       if (name !== this.built) this.gone();
       return;
     }
-    if (name === this.built) return;
+    if (name === this.built) {
+      // Loaded again with no session on it — the store was not answering when
+      // it first arrived, or the session went — is the one way back in, there
+      // being no picker of this view's own to re-pick (#171).
+      if (this.session === null) void this.join(name);
+      return;
+    }
     // A railroad swapped under a joined session would paint one railroad's
     // events on another's picture, which is what naming the session in the
     // socket path was for (#148).
-    if (this.session !== null && this.joining?.railroad !== name) this.leave();
+    this.leave();
     this.panel = new Panel(layout, explain, this.drawing!.wires);
     this.built = name;
     this.fitting = true;
     this.beat++;
-    this.finish();
+    void this.join(name);
   }
 
   /** The railroad went away, or stopped deriving. There is nothing to paint
@@ -243,67 +223,38 @@ export class TcPanel extends LitElement {
   // --- joining a live session -----------------------------------------------
 
   /**
-   * Join the session on a scenario: its railroad, then the bridge on the path
-   * that names it.
+   * Join the session on the railroad the app has loaded: its roster, then the
+   * bridge on the path that names it.
    *
-   * The view names the session (#148). The scenario says which railroad to
-   * render *and* which railroad to be fed, those being one choice: a socket
-   * opened without it would render one railroad on another's events. The
-   * railroad is the app's to load, so it is asked for and the socket waits on
-   * it; everything else comes off the bus — placement, locks and live requests
-   * off the dispatcher's retained picture, facing off the scheduler's
-   * (ADR-0032, ADR-0036), both written by apps that are always running, so
-   * there is no cold start to seed.
+   * The railroad is the whole of the choice (#171): the socket path names it
+   * and the session builds it, so what is rendered and what is fed can never
+   * be two railroads. The roster is read here because it is the railroad's
+   * asset and not the run's — what stock there is to place, which no topic
+   * carries (ADR-0039). Everything else comes off the bus: placement, locks
+   * and live requests off the dispatcher's retained picture, facing off the
+   * scheduler's (ADR-0032, ADR-0036).
+   *
+   * A join the loaded railroad has moved on from is dropped: the picker may
+   * be pressed twice before a store answers, and the second press is the one
+   * on screen.
    */
-  private async join(id: string): Promise<void> {
-    if (id === "") return; // the select clears itself on leaving
-    // Rejoining the session already on screen keeps what the bus has shown;
-    // anything else starts from nothing, so another scenario's state is not
-    // mistaken for this railroad's.
-    const rejoining = this.session === id && this.panel !== null;
-    this.leave();
+  private async join(railroad: string): Promise<void> {
     try {
-      const scenario = await readScenario(id);
-      // The roster is the railroad's, so it is read for the railroad the
-      // scenario names rather than for the session (ADR-0039). Both reads
-      // land before anything is set, so a store that fails halfway leaves no
-      // half-joined session behind.
-      const stock = await readRoster(scenario.layout);
-      this.joining = { id, railroad: scenario.layout };
+      const stock = await readRoster(railroad);
+      if (this.built !== railroad) return;
       this.stock = stock.trains;
-      if (!rejoining) this.panel?.reset();
-      if (this.built === scenario.layout) {
-        this.finish();
-        return;
-      }
-      this.dispatchEvent(
-        new CustomEvent<string>("railroad-wanted", {
-          detail: scenario.layout,
-          bubbles: true,
-          composed: true,
-        }),
-      );
-    } catch (error) {
-      this.trouble = String(error instanceof Error ? error.message : error);
+      this.session = railroad;
+      this.trouble = null;
+      this.listen();
+      this.beat++;
+    } catch {
+      this.trouble = "the store is not answering — run `tc49 serve`";
     }
   }
 
-  /** The railroad the join was waiting on is on screen, so the socket may be
-   *  opened. A join the app answered with another railroad — the question
-   *  before unsaved edits was declined, or a picker press overtook it — never
-   *  finishes, and the select is left showing nothing joined. */
-  private finish(): void {
-    const waiting = this.joining;
-    if (waiting === null || waiting.railroad !== this.built) return;
-    this.joining = null;
-    this.session = waiting.id;
-    this.listen();
-    this.beat++;
-  }
-
-  /** Open the socket on the scenario's own path: the session runs the
+  /** Open the socket on the railroad's own path: the session runs the
    *  railroad named there, building it if it is running another, and
-   *  switching is the `leave` and `listen` `join` already does. */
+   *  switching is the `leave` and `listen` `willUpdate` already does. */
   private listen(): void {
     this.live = new Live();
     const at = `${BRIDGE}/${this.session}`;
@@ -327,7 +278,7 @@ export class TcPanel extends LitElement {
     if (this.live === null || this.panel === null) return;
     const heard = this.live.read(message);
     if (heard === null) return;
-    // The session refusing something — a scenario it does not have, a frame
+    // The session refusing something — a railroad it does not have, a frame
     // it will not relay — is shown rather than swallowed: it is the only
     // answer a gesture or a join ever gets when it goes wrong.
     if ("error" in heard) {
@@ -373,7 +324,6 @@ export class TcPanel extends LitElement {
   private leave(): void {
     this.drag.cancel();
     this.menu = null;
-    this.joining = null;
     this.stock = {};
     this.released = null;
     this.wasRunning = false;
@@ -539,27 +489,9 @@ export class TcPanel extends LitElement {
         @roster-dropped=${this.dropped}
       ></tc-roster>
 
-      <header>
-        <sl-select
-          size="small"
-          placeholder="live session…"
-          hoist
-          .value=${this.session ?? ""}
-          @sl-change=${(event: Event) =>
-            this.join((event.target as HTMLSelectElement).value)}
-        >
-          ${this.scenarios.map(
-            (name) => html`<sl-option value=${name}>${name}</sl-option>`,
-          )}
-        </sl-select>
-        ${this.released === null
-          ? nothing
-          : html`<span class="released">${this.released}</span>`}
-        <span class="spacer"></span>
-        ${this.session === null
-          ? nothing
-          : html`<sl-button size="small" @click=${this.leave}>Leave</sl-button>`}
-      </header>
+      ${this.released === null
+        ? nothing
+        : html`<header><span class="released">${this.released}</span></header>`}
       <main>
         ${drawing === null || live === null
           ? nothing

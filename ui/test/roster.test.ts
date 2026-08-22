@@ -25,6 +25,7 @@ import { running, settled } from "./support/shell.js";
 import {
   bridging,
   joined,
+  loads,
   said,
   stored,
   unbridged,
@@ -154,11 +155,11 @@ describe("what fills it in a live session", () => {
     ]);
   });
 
-  /** The roster belongs to a joined session as much as the picture does. A
-   *  page that has left one is being told nothing, so the pane says nothing
-   *  rather than listing the trains of a run it is no longer watching — and
-   *  claiming every one of them is off the layout, which it cannot know. */
-  it("empties when the session is left", async () => {
+  /** The loaded railroad is the session (#171), so loading another is how a
+   *  session ends. Where the last one's trains stood goes with it: this run
+   *  has said nothing yet, and a pane still showing block `a` would be
+   *  another railroad's picture under this railroad's roster. */
+  it("forgets where the last railroad's trains stood when another is loaded", async () => {
     const shell = await joined();
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
@@ -166,10 +167,12 @@ describe("what fills it in a live session", () => {
       requests: [],
     });
 
-    running(shell).renderRoot.querySelector<HTMLElement>("sl-button")!.click();
-    await settled(shell);
+    await loads(shell, "other");
 
-    expect(rows(paneOf(shell))).toEqual([]);
+    expect(rows(paneOf(shell))).toEqual([
+      ["goods", "400", "off the layout"],
+      ["shunter", "200", "off the layout"],
+    ]);
   });
 });
 

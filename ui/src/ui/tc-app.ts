@@ -17,11 +17,11 @@
  * decides what is dead, and an item and the key printed beside it cannot come
  * to mean different things.
  *
- * Which railroad is loaded is set by whichever happened last: the band's
- * picker, or a session joined in the run view. That is interim — a session is
- * named by a scenario until [#171](https://github.com/rails49/control/issues/171),
- * after which the picker is the only setter — and it needs no mechanism beyond
- * the question this already asks before edits are thrown away.
+ * **The band's picker is the only thing that loads a railroad**
+ * ([#171](https://github.com/rails49/control/issues/171)). A run is built from
+ * a railroad and nothing else, so the run view has no session of its own to
+ * pick: it joins whatever this holds, and the two cannot come to name
+ * different railroads.
  */
 
 import { LitElement, html, nothing } from "lit";
@@ -162,7 +162,6 @@ export class TcApp extends LitElement {
         class=${this.view === "run" ? "" : "off"}
         .drawing=${this.editor.drawing}
         .review=${this.filing.reviewed}
-        @railroad-wanted=${(event: CustomEvent<string>) => this.discard(event.detail)}
         @run-status=${(event: CustomEvent<RunStatus>) => {
           this.status = event.detail;
         }}
@@ -370,8 +369,8 @@ export class TcApp extends LitElement {
    *  (#101). What is asked about is `edits` and not `saved`: a canvas just
    *  started is unsaved and has nothing on it (#136).
    *
-   *  It guards the band's picker and a session joined in the run view alike,
-   *  both being ways the loaded railroad changes. */
+   *  It guards the band's picker, which is the one way the loaded railroad
+   *  changes (#171). */
   private discard(wanted: string | null): void {
     if (this.filing.edits) this.discarding = { wanted };
     else void this.opening(wanted);
@@ -401,8 +400,7 @@ export class TcApp extends LitElement {
    * prompt answered and then a discard declined would have asked for nothing.
    * Fitting the editor's canvas is what is left over for the app — the two DOM
    * touches `Filing` cannot take with it, and it says whether a railroad
-   * arrived to fit to. The run view fits its own, a railroad reaching it by
-   * joining a session as well as by the picker.
+   * arrived to fit to. The run view fits its own.
    */
   private async opening(wanted: string | null): Promise<void> {
     this.netlist = false;
