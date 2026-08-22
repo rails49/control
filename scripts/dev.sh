@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 #
-# Bring up the servers the editor and the panel need, and leave alone
-# whichever is already up.
+# Bring up the servers the app needs, and leave alone whichever is already up.
 #
 #   store   http://127.0.0.1:8765   `tc49 serve`, the store's HTTP face
 #   ui      http://localhost:5173   vite, which proxies the store's routes
-#   bridge  ws://127.0.0.1:8766     `tc49 live`, the session the panel joins
+#   bridge  ws://127.0.0.1:8766     `tc49 live`, the session the run view joins
 #
-#   scripts/dev.sh                     all three; pick the railroad in the
-#                                      panel
+#   scripts/dev.sh                     all three; pick the session in the
+#                                      run view
 #   scripts/dev.sh gotthard/meet       and the session comes up running that
 #                                      one
 #   scripts/dev.sh gotthard/meet --period 1
@@ -19,13 +18,13 @@
 # `scripts/dev.sh start gotthard/meet`. A scenario is `folder/name`, so a
 # first word that is bare `start` or `stop` is never one.
 #
-# The panel names the session, so the bridge always comes up: a scenario here
-# is the railroad it starts on and not the one it is fixed to, and the panel
-# may switch it at any time (#148).
+# The run view names the session, so the bridge always comes up: a scenario
+# here is the railroad it starts on and not the one it is fixed to, and the run
+# view may switch it at any time (#148).
 #
 # The store is always this script's, never a session's. `tc49 live` carries
 # one, which would find the port taken, so the session is started with
-# --no-store; the editor then survives ending a session and starting another,
+# --no-store; the app then survives ending a session and starting another,
 # which is the way round that matters.
 #
 # The three are written differently on purpose: vite binds [::1] and nothing
@@ -180,11 +179,11 @@ serve bridge "$BRIDGE" "$BRIDGE_URL" \
 
 cat <<EOF
 
-  editor  http://localhost:$UI/
-  panel   http://localhost:$UI/panel.html
+  app     http://localhost:$UI/          the run view
+          http://localhost:$UI/#edit     the editor
 
-          pick a railroad in the panel's live session menu; the session runs
-          whichever one is picked
+          pick a session in the run view's live session menu; the session runs
+          whichever railroad it names, and the app loads it
 
 logs in out/dev; stop them with: scripts/dev.sh stop
 EOF

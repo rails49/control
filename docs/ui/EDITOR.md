@@ -46,70 +46,88 @@ marked on the drawing.
 
 ## The band
 
-A band across the top of the page, above the controls, naming what is open and
-saying what is going on outside the drawing. The panel wears the same one
-(`tc-header`, [PANEL.md](PANEL.md#implementation)), both pages having the same
-two things to say: which railroad is on screen, and what is wrong that is not
-the author's doing.
+A band across the top of the page, above the bar, carrying **what is true of
+the whole system** — as against the bar below it, which acts on the current
+view's document
+([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)). The
+editor is one view of the app and the run view is the other
+([PANEL.md](PANEL.md)); the band is the app's and is the same band in both.
 
-It names the drawing, or says plainly that none is open, and marks it with a
-dot while it holds edits the store has not been given. That state had no
-indicator at all before: it was inferrable only from the Save button being
-enabled, which is a control's affordance doing a status line's job, and #85
-took that button off the screen entirely.
+**The railroad the app has loaded is named here, and picked here.** It is not
+the editor's `File ▸ Open` with the run view guessing separately: both views
+are of one railroad, so one control loads it. The picker lists what the store
+has and ticks the one that is loaded, and the tick is all that entry is —
+choosing it closes the list and changes nothing (#101). Re-reading the loaded
+railroad would throw away whatever has been drawn since, which is a lot to ask
+of a click that looks like it does nothing.
 
-**The store not answering reads here.** That is what is wrong that is not the
-author's doing; what the author has to fix is marked on the drawing
-([Validation](#validation)). A name no drawing can wear is the one refusal that
-joins it: it is typed at a prompt that is gone by the time it is refused, and
-nothing on the canvas is wrong ([Files](#files)).
+The name is marked with a dot while the railroad holds edits the store has not
+been given. That state had no indicator at all before: it was inferrable only
+from the Save button being enabled, which is a control's affordance doing a
+status line's job, and #85 took that button off the screen entirely.
 
-Beside it, one coarse indicator: this drawing derives, or it does not. It names
-no fault and counts nothing, the canvas being where you find out where. A drawing
-with an overlap or a turnout still lacking an address leaves it clean, both
-being drawings that derive
+**Whether what the app talks to is answering reads here**, in a health area at
+the right. That is what is wrong that is not the author's doing — the store not
+answering, the bridge on a joined session — and what the author has to fix is
+marked on the drawing ([Validation](#validation)). A name no drawing can wear is
+the one refusal that joins it: it is typed at a prompt that is gone by the time
+it is refused, and nothing on the canvas is wrong ([Files](#files)). It is a
+region with room in it rather than a string, because per-container and
+eventually hardware reachability belong beside those, and the slot in it is
+where they go.
+
+Beside them, one coarse indicator: this drawing derives, or it does not. It
+names no fault and counts nothing, the canvas being where you find out where. A
+drawing with an overlap or a turnout still lacking an address leaves it clean,
+both being drawings that derive
 ([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
 
-The band names the page it is on and links to the other, which is the whole of
-the navigation.
+**The view toggle is at the right end.** The views are a list with one current
+entry, `{id, label, icon}` in `model/views.ts`, and two of them render as a
+single icon-button wearing the other one's name — which is what a toggle is. A
+third entry makes it a selector, so a stock screen and a schedule table add a
+line rather than force a redesign. Which view is current is in the location
+hash, so a reload and a bookmark keep it, and a hash naming no view is the run
+view.
 
-> **Superseded** by
-> [ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md): the
-> editor and the run view become two views of one app, the band grows the
-> railroad picker and the view toggle, and the rule that it "shows status and
-> nothing else" becomes *the band is the system, the bar is the document*. What
-> stood here — that the two are "separate entries and separate apps
-> ([ADR-0016](../adr/0016-the-panel-is-a-scheduler.md))" — rested on a claim
-> [ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)
-> reversed. This section is rewritten by
-> [#167](https://github.com/rails49/control/issues/167).
+The rule this section carried — that the band "shows status and nothing else",
+everything pressable staying in the row below — is amended rather than kept.
+The line that survives is *what it is about*, not *whether it is pressable*:
+the navigation link that stood at this end already broke it, and it has no
+answer for track power, which is pressable and is a fact about the whole
+railroad. What stood here besides — that the editor and the panel are "separate
+entries and separate apps
+([ADR-0016](../adr/0016-the-panel-is-a-scheduler.md))" — rested on a claim
+[ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)
+reversed, and ADR-0038 retired it.
 
 It costs about 2rem off a full-height grid, and that is accepted: the rows
 become the band, the bar, and the work.
 
 ## The bar
 
-Under the band, a menu bar: `File`, `Edit` and `View` at the left, and the zoom
-and fit buttons pinned at its right end. Every command the editor has is in it,
-with the key that does the same thing printed beside the item.
+Under the band, a menu bar carrying **the current view's document**: in the
+editor `File`, `Edit` and `View` at the left, and the zoom and fit buttons
+pinned at its right end. Every command the editor has is in it, with the key
+that does the same thing printed beside the item.
 
-    File   New…  ·  Open ▸ (the drawings, ✓ on the open one)  ·  Save ⌘S
-           ·  Save As… ⇧⌘S  ·  ──  ·  Export SVG…
+    File   New…  ·  Save ⌘S  ·  Save As… ⇧⌘S  ·  ──  ·  Export SVG…
     Edit   Undo ⌘Z  ·  Redo ⇧⌘Z  ·  ──  ·  Rotate R  ·  Flip F  ·  Delete ⌫
            ·  ──  ·  Properties…
     View   Zoom in +  ·  Zoom out −  ·  Fit 0  ·  ──  ·  Netlist N
 
-**Open is a submenu, not a dialog.** Layouts are edited rarely, so the list of
-drawings is short and stays short, and a submenu is one gesture where a dialog
-is three. The drawing that is open is ticked, and the tick is all that entry
-is: choosing it closes the menu as any item does and changes nothing else
-(#101). Re-reading the open drawing would throw away whatever has been drawn
-since, which is a lot to ask of a click that looks like it does nothing.
+The run view's bar is a `View` menu and HOLD/GO ([PANEL.md](PANEL.md)). Its
+document is a railroad somebody else is running, so it has no `File` and no
+`Edit`, and `MENUS` in `model/commands.ts` is a record keyed by view rather
+than one list.
 
-**New… and Open show no key.** Chrome keeps `⌘N` for a new window; it never
-reaches the page and cannot be `preventDefault`ed, and `⌘O` is unreliable for
-the same reason. A blank is better than a binding the browser eats. `⌘S` and
-`⇧⌘S` are the editor's.
+**There is no `File ▸ Open`.** Which railroad is loaded is the whole system's
+and the band picks it, with the tick rule this menu used to carry
+([The band](#the-band)).
+
+**New… shows no key.** Chrome keeps `⌘N` for a new window; it never reaches the
+page and cannot be `preventDefault`ed. A blank is better than a binding the
+browser eats. `⌘S` and `⇧⌘S` are the editor's.
 
 **Zoom and fit stay one click.** They are pressed constantly while drawing and
 `View ▸ Zoom in` is three clicks for what is now one, so those three are also
@@ -137,8 +155,9 @@ the app.
 What is dead and what is alive is not the bar's to decide. Save is dead with
 nothing open or nothing to write, Rotate, Flip and Delete are dead on an empty
 selection, Properties on anything but one symbol that has some, Undo and Redo
-at the ends of the snapshot stack, Open with no drawing to open, Export SVG…
-with nothing to export. Those rules
+at the ends of the snapshot stack, Export SVG… with nothing to export, and the
+zoom commands on a surface with no viewport — which is the run view's picture
+until the two canvases become one (#168). Those rules
 are `model/commands.ts` with a test and no DOM, which is the rule
 [below](#tests): the model owns the document, a component owns the DOM, and a
 rule that is neither is a module in `model/`. The keyboard asks the same module
@@ -805,7 +824,16 @@ and drop API, which cannot do it: during a native drag the browser owns the
 keyboard, so `r` and `f` never arrive and Escape is spoken for, and the drag
 image is one static bitmap, so a ghost cannot turn. The palette and the canvas
 are sibling shadow roots and see none of each other's pointer stream, so the
-editor shell listens on the window and routes.
+editing view listens on the window and routes.
+
+**The page is one entry**, `index.html`, and `tc-app` is what it holds
+(ADR-0038). The app owns the loaded railroad — the `Editor`, the `Filing` that
+talks to the store, and the question asked before unsaved edits are thrown
+away — and the two rows of chrome; `tc-editor` is the editing view and holds
+what only editing has. Both views stay on the page and the one that is not
+current is hidden rather than taken away: taking it away would close the live
+session on every toggle, and `visibility` leaves the hidden view its real
+shape, so a canvas fitted while hidden fits to what it will be seen at.
 
 The pending placement — the kind and its orientation — lives on the editor
 document beside the half-drawn wire, which is the same sort of thing: a gesture
@@ -918,14 +946,15 @@ editor per call and answers with an outcome the component maps onto rendering
 and events; the component keeps the pixel conversion and the viewBox, and
 `gesture.test.ts` drives the rules from grid points.
 
-The same happened to the shell. `tc-editor.ts` had grown a drawing lifecycle —
+The same happened to the app. `tc-editor.ts` had grown a drawing lifecycle —
 new, open, save, save as, the names it refuses, and the `/review` it re-asks on
 every edit — that six test files could only reach by mounting the component,
 stubbing `fetch` and `window.prompt`, and casting through it to its private
 `Editor`. It is now `model/filing.ts` (#105), which owns what is open, whether
 it is saved, what the store last said, and what went wrong: files and review
 together, because a refusal and the unsaved dot are written from both and
-splitting them puts the pair back in the shell. It takes the store as a
+splitting them puts the pair back in the shell. It is the app's now, the
+railroad being the app's. It takes the store as a
 dependency so a test hands it a fake rather than forging an HTTP answer, and
 takes the editor per call as `Gesture` does. The prompt stays in the component,
 a modal question being the DOM's; the component asks and `Filing` vets what

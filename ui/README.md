@@ -1,39 +1,41 @@
-# Layout editor and dispatch panel
+# The app
 
-The visual editor for drawings, designed in [EDITOR.md](../docs/ui/EDITOR.md),
-and the dispatch panel that replays a recorded trace over a drawing
-([PANEL.md](../docs/ui/PANEL.md), #70). TypeScript, pnpm, Lit and Shoelace;
-the drawing surface is SVG in the DOM.
+One app, one loaded railroad, and a list of views of it
+([ADR-0038](../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)):
+the run view, which paints a live session over the drawing
+([PANEL.md](../docs/ui/PANEL.md)), and the editor, which draws it
+([EDITOR.md](../docs/ui/EDITOR.md)). TypeScript, pnpm, Lit and Shoelace; the
+drawing surface is SVG in the DOM.
 
 ## Running it
 
-Both pages talk to the store's HTTP face, which runs separately:
+The page talks to the store's HTTP face, which runs separately:
 
 ```
 uv run tc49 serve          # the store, on 127.0.0.1:8765
 pnpm install
-pnpm dev                   # the editor at /, the panel at /panel.html
+pnpm dev                   # the app at /, opening in the run view
 ```
+
+The view is in the hash — `#run` and `#edit` — so a reload and a bookmark keep
+it, and a link naming no view opens on the run view.
 
 `../scripts/dev.sh` does all of it and starts only what is not already up,
 which is worth having because vite holds 5173 strictly: a second `pnpm dev`
 fails rather than moving to 5174, leaving an open tab talking to a server that
-has gone. Vite binds `[::1]`, so the pages are reached as `localhost` rather
+has gone. Vite binds `[::1]`, so the page is reached as `localhost` rather
 than `127.0.0.1`.
 
-It also brings up the session the panel joins — a `tc49 live` on
+It also brings up the session the run view joins — a `tc49 live` on
 `ws://127.0.0.1:8766`, started `--no-store` because the store is already up
-and outlives any one session. The panel names the railroad, picking it from
+and outlives any one session. The run view names the session, picking it from
 the live session menu, and the session runs whichever is picked; a scenario
 given to the script — `../scripts/dev.sh gotthard/meet` — is the one it comes
-up running rather than the one it is stuck with.
+up running rather than the one it is stuck with. Joining one loads the railroad
+it names, which is interim until a run needs no scenario (#171).
 
 `../scripts/dev.sh stop` puts down everything the script started and leaves
 alone anything it did not.
-
-The panel picks a railroad from the store and opens a trace file from disk —
-`tc49 bench crossover-yard/meet --trace Incremental` prints one — then plays
-or steps it one grant boundary at a time.
 
 ```
 pnpm check                 # tsc --noEmit
@@ -54,25 +56,32 @@ src/
     gesture.ts   what a pointer gesture means: press, drag, band, pan
     naming.ts    connection names, minted and written into the drawing
     store.ts     the four routes
-    trace.ts     a recorded trace, parsed and stepped by grant boundary
+    trace.ts     the bridge's frames read as events, and the gestures written
+                 back
+    views.ts     the views the app has of the railroad, and the hash they are
+                 bookmarked by
     panel.ts     the panel model: bus payloads in, render state out
   render/
     artwork.ts   what each symbol looks like, hand-written against the
                  generated pin names
   ui/
-    tc-editor.ts   the shell: menus, keys, dialogs, talking to the store
+    tc-app.ts      the app: the loaded railroad, the views, the band, the bar,
+                   the keys and the question before edits are thrown away
+    tc-header.ts   the band: what is true of the whole system
+    tc-menubar.ts  the bar: the current view's menus, and HOLD/GO
+    tc-editor.ts   the editing view: palette, canvas, netlist, dialogs
     tc-palette.ts  one tile per placeable kind
     tc-canvas.ts   the surface: pointer events, viewBox zoom and pan
     tc-netlist.ts  the derived netlist, and why each pair does or does not
                    run together
     tc-properties.ts  the properties dialog
     tc-menu.ts     the right-click menu
-    tc-panel.ts    the dispatch panel: trace replay painted over the drawing
+    tc-panel.ts    the run view: a live session painted over the drawing
     <component>.styles.ts  a component's styles, beside it
     shared.styles.ts   what more than one of them wears: the palette, the
                    symbol rules, the lit way, and what a menu is made of
-test/            vitest; keys.test.ts and menu.test.ts need a DOM (happy-dom),
-                 the rest run without one
+test/            vitest; the suites that mount a component need a DOM
+                 (happy-dom), the rest run without one
 ```
 
 **The front end knows no topology.** Pin degrees, junction membership, the

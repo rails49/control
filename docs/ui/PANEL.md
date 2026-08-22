@@ -1,7 +1,10 @@
-# Dispatch panel
+# Run view
 
 The live panel: watching the railroad in real time and asking for trains to be
-moved. Built after the [editor](EDITOR.md), as the order of work had it.
+moved. It is one of the app's two views of the loaded railroad, the
+[editor](EDITOR.md) being the other
+([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)); it
+was built after the editor, as the order of work had it.
 Decisions that bind it:
 [ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md), which
 made it a view rather than the scheduler it began as
@@ -280,7 +283,7 @@ store operation and does not live with one. Validation stays in the existing
 Python validator. The MQTT transport switch later changes only what the bridge
 subscribes to. The front end shares the editor's stack and symbol library.
 
-**The panel names the session.** The scenario picked there rides in the
+**The run view names the session.** The scenario picked there rides in the
 socket path — `ws://127.0.0.1:8766/gotthard/test1` — so the one choice
 says both which drawing to render and which railroad feeds it. A socket
 opened without it would render one railroad on another's events, which is
@@ -305,9 +308,9 @@ routes and live requests come from the dispatcher's retained picture;
 **facing**, which is scheduler state and on no dispatcher topic at all
 ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)), comes from the
 scheduler's own retained topic. Both are written by apps that are always
-running, so there is no cold start to seed: the panel reads the scenario from
+running, so there is no cold start to seed: the view reads the scenario from
 the store (`GET /scenarios`, `GET /scenarios/<id>`) for one thing only, which
-drawing to render, and no topic describes the run, a topic that did being the
+railroad to ask the app to load, and no topic describes the run, a topic that did being the
 bridge describing itself (#67). Everything else is derived from the bus: the
 state topics carry the whole picture, facing included, so the model is fed by
 `apply` and by nothing else.
@@ -383,10 +386,42 @@ each working out their own list. `model/scene.ts` is what the drawing alone answ
 viewBox, an arrow's pose, and which symbol an address is worn by. `tc-panel`
 converts pixels into squares, paints, and sends.
 
-The header is two rows (#84). The top one is the band the editor also wears
-(`tc-header`, [EDITOR.md](EDITOR.md#the-band)): the railroad's name and the
-status that is nobody's mistake — the bridge link, the boundary, and the
-trouble message. The row below keeps the things you press.
+The railroad it paints is not its own: the app holds it and hands over the
+drawing and the review (ADR-0038). Joining a session names a railroad, so this
+view asks the app for it and opens the socket once it is on screen — which is
+also what keeps a frame from arriving before there is a model to apply it to,
+the drain a join opens with being the whole of the run's picture.
+
+The chrome is two rows the editor also wears (#84,
+[EDITOR.md](EDITOR.md#the-band)). The **band** is the whole system's: the
+railroad the app has loaded and the picker that loads another, the unsaved
+dot, the health area — the store not answering, the bridge, how far the run has
+got — and the view toggle. The **bar** is this view's document's: a `View` menu
+and **HOLD/GO**.
+
+**HOLD and GO are one press and no confirmation.** The button says HOLD while
+the run is running and GO while it is held, which is what the press will do,
+and a clearly labelled button is the explicit GO
+([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
+It draws `tc49/dispatch/state/run` off the picture rather than the last press,
+so a gesture that did not land leaves the word where it was, and it is dead
+with no session joined and until the dispatcher has said where the run stands.
+The gesture is `tc49/ui/run_wanted`, which names where the run should stand
+rather than asking for a change: two presses of the same word are not a race.
+
+**A release says what is still disputed.** Pressing GO with the disputed set
+non-empty is allowed and nothing is blocked — the person decides, not the
+check — and the view writes what was outstanding beside the press, in the same
+words the marks under the blocks use. It has to be words: `state/disputed` is
+empty while the run is running, so the amber marks go with the hold and the
+sentence is what is left of them. It stands as long as the run it was a
+decision about is running, and a fresh hold is a fresh decision
+([#153](https://github.com/rails49/control/issues/153)).
+
+The one control of this view's own is the session select, which is where a
+scenario is joined. That is interim: a session named by a scenario is what
+[#171](https://github.com/rails49/control/issues/171) retires, after which the
+band's picker is the only thing that says which railroad is on screen.
 
 **The run view's one source is the bus.** It could read a recorded trace and
 step through it, which is how it was built before `tc49 live` and the bridge

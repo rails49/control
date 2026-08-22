@@ -11,8 +11,11 @@ its own page: the dispatcher's are
 ## Apps
 
 An **app** is a unit that will run as its own container
-([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are five:
-store, scheduler, dispatcher, driver, simulator. A UI is expected later.
+([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are five in
+Python — store, scheduler, dispatcher, driver, simulator — and one in the
+browser: `ui/`, which is **one** app, one page holding one loaded railroad and
+a list of views of it
+([ADR-0038](adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
 
 Apps import `tc49.lib` and themselves, **never each other**. They meet only
 over the event bus and the asset store's CRUD contract, so each one can be
