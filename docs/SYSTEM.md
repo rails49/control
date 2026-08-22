@@ -189,6 +189,19 @@ because the dispatcher writes it: setting the route is its responsibility, and
 the driver moves locomotives
 ([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)).
 
+**Adding a `tc49/ui` event row grants the browser write access to it.** The
+inbound set is read off this table rather than listed a second time, so a new
+`tc49/ui/<leaf>` event topic is writable from any page the day the row is
+added, and that is the grant a broker's ACL will carry once the relay is gone
+([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
+The default is deliberate: a topic under `ui` is one a person's page writes,
+that being what the role means
+([ADR-0035](adr/0035-a-topic-has-one-writing-role.md)). The human driver's
+throttle is the case the default is right for
+([#124](https://github.com/rails49/control/issues/124)): it arrives as a
+`tc49/ui` leaf and is meant to be writable. A topic under `tc49/ui` that should
+not be writable is misfiled, and belongs to the role that may write it.
+
 | Topic | Kind | Publisher | Payload gist |
 | --- | --- | --- | --- |
 | `tc49/layout/boundary` | event | layout | deterministic counter |

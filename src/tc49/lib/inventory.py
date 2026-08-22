@@ -4,6 +4,10 @@ Mirrors the inventory table of SYSTEM.md. The trace's canonical key order
 depends on this module; leaf names are globally unique across all topics
 (tested), because the trace's ``event`` field is the leaf alone.
 
+Adding a ``tc49/ui`` event row grants the browser write access to it, because
+``INBOUND`` below is read off this table rather than listed (SYSTEM.md, event
+inventory).
+
 Where a field's *values* are a closed set the contract names, they live here
 too, beside the field they belong to: ``run`` and ``power`` are those fields,
 and their words are read by the apps that write them and by the payload

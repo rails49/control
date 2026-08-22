@@ -115,6 +115,12 @@ def test_the_inbound_topics_are_the_ui_roles_own_event_leaves() -> None:
     what says so (ADR-0035): the set is read off the inventory rather than
     listed, so a leaf added there is inbound without a second edit.
 
+    The equality below is where that stops being silent (#158). Deriving the
+    set means a new `tc49/ui` row widens the browser's write surface with no
+    diff line saying so; pinning it exactly means the row fails here instead,
+    and whoever adds it grants the write deliberately by naming it. Do not
+    relax this to a subset check.
+
     Event leaves only. A role with concurrent instances may not write a state
     topic, and the bridge relies on it: a client's frame is published from
     that client's own handler thread, and a state topic would write the bus's
