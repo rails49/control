@@ -395,8 +395,8 @@ the drain a join opens with being the whole of the run's picture.
 The chrome is two rows the editor also wears (#84,
 [EDITOR.md](EDITOR.md#the-band)). The **band** is the whole system's: the
 railroad the app has loaded and the picker that loads another, the unsaved
-dot, the health area — the store not answering, the bridge, how far the run has
-got — and the view toggle. The **bar** is this view's document's: a `View` menu
+dot, the health area — the store not answering, the bridge, whether the rails
+have power, how far the run has got — and the view toggle. The **bar** is this view's document's: a `View` menu
 and **HOLD/GO**.
 
 **HOLD and GO are one press and no confirmation.** The button says HOLD while
@@ -408,6 +408,24 @@ so a gesture that did not land leaves the word where it was, and it is dead
 with no session joined and until the dispatcher has said where the run stands.
 The gesture is `tc49/ui/run_wanted`, which names where the run should stand
 rather than asking for a change: two presses of the same word are not a race.
+
+**The band says whether the rails have power**, reading
+`tc49/layout/state/power` beside the bridge and the boundary, and it says
+which of the two ways of standing still it is: *emergency stop* for `stopped`
+and *power off* for `off`. The person recovering clears the one and switches
+the other back on, which are different actions
+([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move.md)). With no
+session joined it says nothing, a drawing having no rails to have power.
+
+**GO is greyed while the power is not `on`.** The dispatcher drops such a
+release, so a live button would be one that does nothing. It carries no
+explanation of its own: the band beside it says which, the way the greyed
+*Turn around* says *this train is busy* by being greyed at all. HOLD is
+untouched — it asks for less, and there is no state of the rails in which a
+person may not ask for it. A session that has said where the run stands and
+nothing about power still offers GO: the dispatcher takes `on` until the
+layout says otherwise, and the button says what it would do rather than
+guessing at silence.
 
 **A release says what is still disputed.** Pressing GO with the disputed set
 non-empty is allowed and nothing is blocked — the person decides, not the

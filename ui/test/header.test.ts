@@ -157,6 +157,7 @@ describe("the status the band takes over", () => {
       joined: true,
       linked: true,
       boundary: 3,
+      power: "on",
       derives: false,
       trouble: "the store is not answering",
     });
@@ -165,6 +166,7 @@ describe("the status the band takes over", () => {
       "refused",
       "trouble",
       "link joined",
+      "power on",
       "boundary",
     ]);
     expect(health.querySelector("slot[name=health]")).not.toBeNull();
@@ -193,6 +195,22 @@ describe("the status the band takes over", () => {
   /** With no session joined there is no bridge to be answering. */
   it("says nothing about a bridge off a joined session", async () => {
     expect(reads(await band({ linked: true }), ".link")).toBeNull();
+  });
+
+  /** Which of the two it is, and not only that something is wrong: the
+   *  person recovering clears an emergency stop or switches a supply back on,
+   *  which are different actions (ADR-0041). It is also the reason the bar's
+   *  GO is greyed beside it. */
+  it("says whether the rails have power, and which way they have not", async () => {
+    expect(reads(await band({ power: "on" }), ".power")).toBe("power on");
+    expect(reads(await band({ power: "off" }), ".power")).toBe("power off");
+    expect(reads(await band({ power: "stopped" }), ".power")).toBe("emergency stop");
+  });
+
+  /** With no session joined nothing has said, and a drawing has no rails to
+   *  have power. */
+  it("says nothing about power off a joined session", async () => {
+    expect(reads(await band({ power: null }), ".power")).toBeNull();
   });
 
   it("stamps how far the run has got", async () => {

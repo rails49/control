@@ -81,6 +81,15 @@ export const RUN_WANTED = "tc49/ui/run_wanted";
  *  A word and not a boolean, on the topic and here. */
 export type Run = "held" | "running";
 
+/** What the layout says about whether a train may move at all: `on`, or one
+ *  of the two ways of standing still — `stopped` is an emergency stop, every
+ *  locomotive told to stand with the track still live, and `off` is the supply
+ *  removed
+ *  ([ADR-0041](../../../docs/adr/0041-the-layout-says-whether-a-train-may-move.md)).
+ *  The two differ for the person recovering, who clears one and switches the
+ *  other back on, which is why the panel says which. */
+export type Power = "on" | "stopped" | "off";
+
 /** A `request_wanted` payload: what a drag means. A request minus the two
  *  fields the scheduler owns — no `id`, because the scheduler is the single
  *  minter, and no `depart`, because facing is scheduler state and the drag

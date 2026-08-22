@@ -60,6 +60,7 @@ const QUIET: RunStatus = {
   linked: false,
   boundary: null,
   run: null,
+  power: null,
   trouble: null,
 };
 
@@ -126,6 +127,7 @@ export class TcApp extends LitElement {
         .joined=${this.status.joined}
         .linked=${this.status.linked}
         .boundary=${this.status.boundary}
+        .power=${this.status.power}
         .view=${this.view}
         @railroad-wanted=${(event: CustomEvent<string>) => this.discard(event.detail)}
         @view-wanted=${(event: CustomEvent<ViewId>) => this.showing(event.detail)}
@@ -138,6 +140,7 @@ export class TcApp extends LitElement {
         .view=${this.view}
         .standing=${this.standing}
         .run=${this.status.run}
+        .power=${this.status.power}
         @command=${(event: CustomEvent<CommandId>) => this.run(event.detail)}
         @run-wanted=${(event: CustomEvent<Run>) => this.held(event.detail)}
         @menu-open=${(event: CustomEvent<boolean>) => {

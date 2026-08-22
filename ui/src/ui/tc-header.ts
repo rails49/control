@@ -9,8 +9,9 @@
  * The line is *what it is about*, not *whether it is pressable*. The rule this
  * carried — "it shows status and nothing else. Everything a person presses
  * stays in the row below" — was already broken by the navigation link that
- * stood at this end, and it has no answer for track power, which is pressable
- * and is a fact about the whole railroad rather than about a document.
+ * stood at this end, and it has no answer for track power, which is a fact
+ * about the whole railroad rather than about a document. Power reads here as
+ * the observation it is (ADR-0041); commanding it is nobody's button yet.
  *
  * Two things the author is answerable for read here anyway
  * ([ADR-0024](../../../docs/adr/0024-the-drawing-shows-its-own-faults.md)).
@@ -24,9 +25,19 @@
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
+import type { Power } from "../model/trace.js";
 import { VIEWS, type ViewId } from "../model/views.js";
 import { ICONS } from "./icons.js";
 import { headerStyles } from "./tc-header.styles.js";
+
+/** What each power word reads as. `stopped` says the thing rather than the
+ *  token: what a person does about it is clear an emergency stop, and what
+ *  they do about `off` is switch the supply back on. */
+const POWERED: Record<Power, string> = {
+  on: "power on",
+  stopped: "emergency stop",
+  off: "power off",
+};
 
 @customElement("tc-header")
 export class TcHeader extends LitElement {
@@ -66,6 +77,13 @@ export class TcHeader extends LitElement {
    *  with no run to have reached one: a drawing is not a run. */
   @property({ type: Number }) boundary: number | null = null;
 
+  /** Whether the layout says a train may move at all, `null` with no session
+   *  joined ([ADR-0041](../../../docs/adr/0041-the-layout-says-whether-a-train-may-move.md)).
+   *  It is the band's because it is the whole railroad's, and it says which of
+   *  the two ways of standing still it is: an emergency stop is cleared and a
+   *  supply is switched back on, which are different actions by a person. */
+  @property() power: Power | null = null;
+
   /** Whether the picker's list is down. */
   @state() private picking = false;
 
@@ -88,8 +106,9 @@ export class TcHeader extends LitElement {
    * A region rather than a string, with room in it: per-container reachability
    * and eventually the hardware's belong here too, and what fills the slot is
    * the deployment design's (`2a-docker`). What is here today is the store not
-   * answering, the bridge on a joined session, how far the run has got, and
-   * the one coarse mark the loaded railroad makes about itself.
+   * answering, the bridge on a joined session, whether the rails have power,
+   * how far the run has got, and the one coarse mark the loaded railroad makes
+   * about itself.
    */
   private health() {
     return html`
@@ -106,6 +125,11 @@ export class TcHeader extends LitElement {
               </span>
             `
           : nothing}
+        ${this.power === null
+          ? nothing
+          : html`
+              <span class=${`power ${this.power}`}>${POWERED[this.power]}</span>
+            `}
         ${this.boundary === null
           ? nothing
           : html`<span class="boundary">boundary ${this.boundary}</span>`}

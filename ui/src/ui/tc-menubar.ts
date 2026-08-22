@@ -33,7 +33,7 @@ import {
   type Menu,
   type Standing,
 } from "../model/commands.js";
-import type { Run } from "../model/trace.js";
+import type { Power, Run } from "../model/trace.js";
 import type { ViewId } from "../model/views.js";
 import { GLYPHS } from "./icons.js";
 import { menubarStyles } from "./tc-menubar.styles.js";
@@ -53,6 +53,11 @@ export class TcMenubar extends LitElement {
    *  key, its word is the run's rather than a verb's, and what it writes is a
    *  gesture on the bus (ADR-0037). */
   @property() run: Run | null = null;
+
+  /** Whether the layout says a train may move at all, `null` with no session
+   *  joined and before it has said (ADR-0041). GO is greyed while it is
+   *  anything but `on`; the band is where the word itself reads. */
+  @property() power: Power | null = null;
 
   /** The menu that is down, `null` while none is. */
   @state() private showing: string | null = null;
@@ -136,14 +141,24 @@ export class TcMenubar extends LitElement {
    * Dead with no session joined, there being no run to hold, and dead until
    * the dispatcher has said where the run stands: a button guessing would
    * offer to hold a run that is already held.
+   *
+   * **GO is greyed while the rails are dead**, because the dispatcher drops
+   * such a release: letting it through would grant moves and publish `cross`
+   * over track nothing can move on, and strand the next train (ADR-0041).
+   * Greyed and not hidden, and with no explanation of its own — the band
+   * beside it says `power off` or `emergency stop`, which is the reason, the
+   * way the panel's greyed "Turn around" says *this train is busy* by being
+   * greyed at all. HOLD is never greyed: it asks for less, and there is no
+   * state of the rails in which a person may not ask for it.
    */
   private holding() {
     const going = this.run === "running";
     const said = going ? "HOLD" : "GO";
+    const dead = !going && this.power !== null && this.power !== "on";
     return html`
       <button
         class=${`run ${going ? "hold" : "go"}`}
-        ?disabled=${this.run === null}
+        ?disabled=${this.run === null || dead}
         @click=${() =>
           this.dispatchEvent(
             new CustomEvent<Run>("run-wanted", {

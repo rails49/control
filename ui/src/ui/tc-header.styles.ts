@@ -139,6 +139,23 @@ export const headerStyles = css`
     color: var(--wrong);
   }
 
+  /* Whether a train may move at all. Power on is the quiet case and reads as
+     the boundary beside it does; the two ways of standing still are the
+     operator's to act on, so they take the alarm the trouble beside them
+     takes. */
+  .power.on {
+    color: var(--hint);
+  }
+
+  .power.stopped,
+  .power.off {
+    flex: none;
+    padding: 0 0.35rem;
+    border-radius: 0.2rem;
+    background: var(--wrong-body);
+    color: var(--wrong);
+  }
+
   /* The view toggle: square around its icon, as the bar's tools are. */
   .view {
     display: flex;

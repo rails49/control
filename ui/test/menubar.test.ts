@@ -354,6 +354,54 @@ describe("holding the run and releasing it", () => {
     expect(press(menubar)!.disabled).toBe(false);
   });
 
+  /**
+   * GO is greyed while the rails are dead (ADR-0041). The dispatcher drops
+   * such a release, so a live button would be one that does nothing; the
+   * reason reads on the band beside it, as the panel's greyed "Turn around"
+   * says *this train is busy* by being greyed at all.
+   */
+  it("greys GO while the layout says a train may not move", async () => {
+    const menubar = await bar(LIVE, "run");
+    menubar.run = "held";
+    menubar.power = "on";
+    await menubar.updateComplete;
+    expect(press(menubar)!.disabled).toBe(false);
+
+    for (const word of ["off", "stopped"] as const) {
+      menubar.power = word;
+      await menubar.updateComplete;
+      expect(press(menubar)!.textContent!.trim()).toBe("GO");
+      expect(press(menubar)!.disabled).toBe(true);
+    }
+
+    menubar.power = "on";
+    await menubar.updateComplete;
+    expect(press(menubar)!.disabled).toBe(false);
+  });
+
+  /** It asks for less than the railroad is already doing, so there is no
+   *  state of the rails it can be refused in. */
+  it("leaves HOLD alone whatever the power is doing", async () => {
+    const menubar = await bar(LIVE, "run");
+    menubar.run = "running";
+    menubar.power = "off";
+    await menubar.updateComplete;
+
+    expect(press(menubar)!.textContent!.trim()).toBe("HOLD");
+    expect(press(menubar)!.disabled).toBe(false);
+  });
+
+  /** A session that has said where the run stands but not what the supply is
+   *  doing is one the dispatcher would honour a GO from: it takes `on` until
+   *  the layout says otherwise, and the button says what the dispatcher would
+   *  do rather than guessing at silence. */
+  it("offers GO while the layout has said nothing", async () => {
+    const menubar = await bar(LIVE, "run");
+    menubar.run = "held";
+    await menubar.updateComplete;
+    expect(press(menubar)!.disabled).toBe(false);
+  });
+
   /** The editor's document is a drawing; nothing there runs. */
   it("is not on the editor's bar", async () => {
     const menubar = await bar(LIVE, "edit");

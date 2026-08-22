@@ -178,6 +178,62 @@ describe("the word on the button", () => {
 });
 
 /**
+ * The layout's half of the same button (ADR-0041, #159). The dispatcher drops
+ * a release while the rails are dead, so the page does not offer one — and the
+ * band says which of the two ways of standing still it is, which is what the
+ * person recovering acts on.
+ */
+describe("what the rails say about the button", () => {
+  /** What the band says about power, `null` while it says nothing. */
+  function supply(shell: TcApp): string | null {
+    const said = band(shell).renderRoot.querySelector(".power");
+    return said === null ? null : said.textContent!.trim();
+  }
+
+  it("greys GO and says why, and lets go of both when the power returns", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/run", { run: "held" });
+    await said(shell, "tc49/layout/state/power", { power: "on" });
+    expect(press(shell).disabled).toBe(false);
+    expect(supply(shell)).toBe("power on");
+
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+    expect(press(shell).textContent!.trim()).toBe("GO");
+    expect(press(shell).disabled).toBe(true);
+    expect(supply(shell)).toBe("power off");
+
+    await said(shell, "tc49/layout/state/power", { power: "on" });
+    expect(press(shell).disabled).toBe(false);
+  });
+
+  /** An emergency stop is the other word, and the band tells them apart. */
+  it("names an emergency stop as one", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/run", { run: "held" });
+    await said(shell, "tc49/layout/state/power", { power: "stopped" });
+
+    expect(supply(shell)).toBe("emergency stop");
+    expect(press(shell).disabled).toBe(true);
+  });
+
+  /** HOLD asks for less, and the dispatcher honours it whatever the supply is
+   *  doing. */
+  it("leaves HOLD pressable with the rails dead", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/run", { run: "running" });
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+
+    expect(press(shell).textContent!.trim()).toBe("HOLD");
+    expect(press(shell).disabled).toBe(false);
+
+    press(shell).click();
+    expect(written()).toEqual([
+      { topic: "tc49/ui/run_wanted", payload: { run: "held" } },
+    ]);
+  });
+});
+
+/**
  * #153's other half. Releasing with disputes outstanding is allowed — the
  * person decides, not the check — and the panel says what is still disputed at
  * the moment of release. The amber marks go with the hold, so the words are

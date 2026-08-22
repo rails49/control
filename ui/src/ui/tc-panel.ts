@@ -53,7 +53,14 @@ import {
 } from "../model/panel.js";
 import { anchorAt, arrowPose, fitBox, positionsBySymbol } from "../model/scene.js";
 import { listScenarios, readScenario, type Review } from "../model/store.js";
-import { gesture, Live, reversal, wanted, type Run } from "../model/trace.js";
+import {
+  gesture,
+  Live,
+  reversal,
+  wanted,
+  type Power,
+  type Run,
+} from "../model/trace.js";
 import type { Position } from "../symbols.generated.js";
 import { pointOf } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
@@ -75,6 +82,10 @@ export interface RunStatus {
   /** How the run stands, `null` while no session is joined or before the
    *  dispatcher has said (ADR-0037). It is what the bar's HOLD/GO reads. */
   run: Run | null;
+  /** Whether a train may move at all, `null` while no session is joined or
+   *  before the layout has said (ADR-0041). The band says which it is, and
+   *  the bar's GO is greyed while it is anything but `on`. */
+  power: Power | null;
   /** What a session refused, or the store not answering. Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
   trouble: string | null;
@@ -493,6 +504,7 @@ export class TcPanel extends LitElement {
       linked: this.connected,
       boundary: this.live?.boundary ?? null,
       run: this.session === null ? null : (this.panel?.run ?? null),
+      power: this.session === null ? null : (this.panel?.power ?? null),
       trouble: this.trouble,
     };
   }
@@ -510,6 +522,7 @@ export class TcPanel extends LitElement {
       was.linked === now.linked &&
       was.boundary === now.boundary &&
       was.run === now.run &&
+      was.power === now.power &&
       was.trouble === now.trouble
     ) {
       return;
