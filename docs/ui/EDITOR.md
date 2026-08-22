@@ -71,9 +71,18 @@ being drawings that derive
 ([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
 
 The band names the page it is on and links to the other, which is the whole of
-the navigation. The editor and the panel are separate entries and separate
-apps ([ADR-0016](../adr/0016-the-panel-is-a-scheduler.md)) and nothing here
-merges them.
+the navigation.
+
+> **Superseded** by
+> [ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md): the
+> editor and the run view become two views of one app, the band grows the
+> railroad picker and the view toggle, and the rule that it "shows status and
+> nothing else" becomes *the band is the system, the bar is the document*. What
+> stood here — that the two are "separate entries and separate apps
+> ([ADR-0016](../adr/0016-the-panel-is-a-scheduler.md))" — rested on a claim
+> [ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)
+> reversed. This section is rewritten by
+> [#167](https://github.com/rails49/control/issues/167).
 
 It costs about 2rem off a full-height grid, and that is accepted: the rows
 become the band, the bar, and the work.
@@ -765,6 +774,16 @@ left to the mark on the canvas, being a deliberate act
 Editing and running the same railroad at once is not prevented. The store
 snapshots at startup, so a run in progress keeps the layout it began with and
 an edit lands for the next one.
+
+> **Superseded** by
+> [ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md):
+> trains on the layout freeze the drawing. With editing and running one toggle
+> apart, this permission becomes a trap — the run view would paint the store's
+> current drawing under a dispatcher state that refers to the topology the run
+> began with. Landed by
+> [#169](https://github.com/rails49/control/issues/169), which also deletes
+> *Scenario editing* below: placing trains is the run view's gesture now
+> ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)).
 
 ## Scenario editing
 
