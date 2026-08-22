@@ -139,23 +139,42 @@ export interface Painted {
 }
 
 /**
+ * What the run view does with a drag that began on the canvas, handed to the
+ * machine below.
+ *
+ * `submit` and `remove` are the two things a drop can mean, and `onRoster`
+ * is what tells them apart: **where the drag ended** decides, as where it
+ * began decides that it is a drag of a marker at all
+ * ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)).
+ * Whether a screen point is over the pane is the view's knowledge, the pane
+ * being an element; what it means is here.
+ */
+export interface Gestures {
+  /** What is on screen for a gesture to be about, `null` where nothing is. */
+  painted(): Painted | null;
+  /** A drop on a block: one `request_wanted`. */
+  submit(drop: Drop): void;
+  /** A drop on the roster pane: the train comes off the layout. */
+  remove(train: string): void;
+  /** Whether a screen point is over the roster pane. */
+  onRoster(screen: Point): boolean;
+}
+
+/**
  * The run view's machine as the canvas drives it (model/machine.ts).
  *
  * The same call sequence the editor's `Gesture` is driven by, so the canvas
  * converts pixels to squares once and asks. What a drop asks for is the
- * gesture's; writing it to the bus is the view's, which is why `submit` is
- * handed in — this model names the train and the ends and nothing else
- * (ADR-0036).
+ * gesture's; writing it to the bus is the view's, which is why the two
+ * handlers are handed in — this model names the train and the ends and
+ * nothing else (ADR-0036).
  *
  * `painted` answers `null` while there is nothing to gesture at: no railroad
  * on screen, or no session to submit to. Every call is then quiet, which is
  * the whole of the gate.
  */
-export function schedulingMachine(
-  drag: Drag,
-  painted: () => Painted | null,
-  submit: (drop: Drop) => void,
-): Machine {
+export function schedulingMachine(drag: Drag, view: Gestures): Machine {
+  const painted = view.painted.bind(view);
   return {
     down: (point) => {
       const now = painted();
@@ -170,11 +189,21 @@ export function schedulingMachine(
       drag.moved(now.drawing, now.review, point);
       return "render";
     },
-    up: (point) => {
+    up: (point, screen) => {
       const now = painted();
       if (now === null || drag.train === null) return "quiet";
+      // Let go over the roster pane, and the train comes off the layout: the
+      // marker was dragged out of the picture rather than to somewhere in it.
+      // Read before the drop, because the pane is not the canvas and the grid
+      // point under it names whatever the viewport happens to have there.
+      const held = drag.train;
+      if (view.onRoster(screen)) {
+        drag.cancel();
+        view.remove(held);
+        return "render";
+      }
       const drop = drag.up(now.drawing, now.review, point);
-      if (drop !== null) submit(drop);
+      if (drop !== null) view.submit(drop);
       return "render";
     },
     left: () => {
@@ -238,8 +267,14 @@ export function trainAt(
 
 /** The block symbol under a point, where the point is on one. The question is
  *  asked in one place for the whole front end (#62), so the answer here is
- *  `under`'s, narrowed to blocks — the only thing a drag can grab or land on. */
-function blockAt(drawing: Drawing, review: Review, point: Point): string | null {
+ *  `under`'s, narrowed to blocks — the only thing a drag can grab or land on.
+ *  A drag out of the roster pane asks it too: the pane says where the pointer
+ *  let go and what is under it is the drawing's answer (#170). */
+export function blockAt(
+  drawing: Drawing,
+  review: Review,
+  point: Point,
+): string | null {
   const { symbol, kind } = under(drawing, review, point);
   return kind === "block" ? symbol : null;
 }

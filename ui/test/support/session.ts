@@ -17,9 +17,11 @@ import type { Explained, Layout, Review } from "../../src/model/store.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
 import { CLEAN, mounted, running, serving, settled } from "./shell.js";
 
-/** The stock the toy session runs: one train, long enough to be a number on
- *  the roster pane and short enough for either block. */
-export const STOCK = { goods: { length: 400 } };
+/** The toy railroad's roster: two trains, long enough to be a number on the
+ *  pane and short enough for either block. `goods` is the one the scenarios
+ *  below place; `shunter` is the train that is off the layout, which is an
+ *  ordinary state and not a fault (ADR-0039). */
+export const STOCK = { goods: { length: 400 }, shunter: { length: 200 } };
 
 /** Two blocks and nothing joining them: enough to derive, enough to paint, and
  *  enough for a train to stand, be dragged and be disputed in. */
@@ -88,7 +90,7 @@ export function bridging(): void {
   serving({
     drawings: ["toy"],
     scenarios: ["toy/test"],
-    stockOf: () => STOCK,
+    rosterOf: () => STOCK,
     read: stored,
     review: () => Promise.resolve(DERIVES),
   });

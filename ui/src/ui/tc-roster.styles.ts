@@ -10,6 +10,12 @@ import { css } from "lit";
  * A row is a name, where the train is, and how long it is: three columns, so
  * the blocks read down the pane rather than sitting wherever the name before
  * them ended. The length is right-aligned and tabular, being the one number.
+ *
+ * A row is also something to pick up — a drag onto a block places the train
+ * ([#170](https://github.com/rails49/control/issues/170)) — so it takes the
+ * grab cursor while the run is held and none while it is running. A train off
+ * the layout is dimmed rather than hidden: it is on the roster, which is what
+ * the pane lists.
  */
 export const rosterStyles = css`
   :host {
@@ -37,10 +43,27 @@ export const rosterStyles = css`
     column-gap: 0.5rem;
     align-items: baseline;
     padding: 0.25rem 0.2rem;
+    cursor: grab;
+    touch-action: none; /* a drag on a touch screen is a drag, not a scroll */
+    user-select: none;
   }
 
   li + li {
     border-top: 1px solid var(--rule);
+  }
+
+  /* No drag to start: the run is running, or there is no session at all. */
+  li.still {
+    cursor: default;
+  }
+
+  li.held {
+    background: var(--rule);
+  }
+
+  /* Off the layout: on the roster and not on the rails. */
+  li.off .name {
+    color: var(--hint);
   }
 
   .name {

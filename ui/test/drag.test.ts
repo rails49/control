@@ -227,13 +227,27 @@ describe("the run view's machine", () => {
     blocks: BLOCKS,
   };
 
-  /** A machine over the drawing above, with the drops it submitted. */
+  /** Where the roster pane is, in the screen pixels the machine reads: a drop
+   *  at the origin is on it and one anywhere else is not. */
+  const OVER_ROSTER = { x: 0, y: 0 };
+  const OVER_CANVAS = { x: 500, y: 500 };
+
+  /** A machine over the drawing above, with the drops it submitted and the
+   *  trains it took off the layout. */
   function machine(painting: Painted | null = PAINTED) {
     const sent: Drop[] = [];
-    const it = schedulingMachine(new Drag(), () => painting, (drop) => {
-      sent.push(drop);
+    const lifted: string[] = [];
+    const it = schedulingMachine(new Drag(), {
+      painted: () => painting,
+      submit: (drop) => {
+        sent.push(drop);
+      },
+      remove: (train) => {
+        lifted.push(train);
+      },
+      onRoster: (screen) => screen.x === OVER_ROSTER.x && screen.y === OVER_ROSTER.y,
     });
-    return { sent, it };
+    return { sent, lifted, it };
   }
 
   const press = { button: 0, shift: false, screen: { x: 0, y: 0 } };
@@ -244,7 +258,7 @@ describe("the run view's machine", () => {
     const { sent, it } = machine(null);
     expect(it.down(on("a", 0.5), press)).toBe("quiet");
     expect(it.moved(on("b", 0.5), { x: 0, y: 0 })).toBe("quiet");
-    expect(it.up(on("b", 0.5))).toBe("quiet");
+    expect(it.up(on("b", 0.5), OVER_CANVAS)).toBe("quiet");
     expect(it.left()).toBe("quiet");
     expect(it.marks).toBeNull();
     expect(it.menu(on("a", 0.5)).found).toBeNull();
@@ -267,12 +281,12 @@ describe("the run view's machine", () => {
   it("submits the drop, and nothing where the release cancels", () => {
     const { sent, it } = machine();
     it.down(on("a", 0.5), press);
-    expect(it.up(on("b", 0.5))).toBe("render");
+    expect(it.up(on("b", 0.5), OVER_CANVAS)).toBe("render");
     expect(sent).toEqual([{ train: "t1", block: "b", dest: ["b.A", "b.B"] }]);
     expect(it.marks).toBeNull();
 
     it.down(on("a", 0.5), press);
-    it.up(on("a", 0.1));
+    it.up(on("a", 0.1), OVER_CANVAS);
     expect(sent).toHaveLength(1);
   });
 

@@ -79,6 +79,47 @@ export interface Placed {
   block: string | null;
 }
 
+/**
+ * One row of the roster pane: a train the railroad owns, how long it is, and
+ * where the run has it.
+ *
+ * `placed` is the whole of being on the layout, `block` saying where within
+ * it — `null` for a train holding a transit and standing in no block. A train
+ * that is not placed is **off the layout**, which is an ordinary state and
+ * not a fault ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)).
+ */
+export interface RosterRow extends Placed {
+  /** Its length, `null` where nothing the page has read names one — a train
+   *  the picture has and the railroad's roster does not. */
+  length: number | null;
+  placed: boolean;
+}
+
+/**
+ * The roster pane's rows: every train the railroad owns, and every train the
+ * run has, ordered by name.
+ *
+ * Two sources because they are two things — the store says which trains the
+ * railroad owns and how long each is, the bus says where they are
+ * (ADR-0010) — and one list, because a person looking at the pane is looking
+ * for a train and does not care which half named it. A train the picture has
+ * and the roster does not still gets a row: it is on the layout, and a pane
+ * that hid it would hide the thing the operator can see.
+ */
+export function roster(
+  stock: Record<string, { length: number }>,
+  placed: readonly Placed[],
+): RosterRow[] {
+  const where = new Map(placed.map((train) => [train.train, train.block]));
+  const names = new Set([...Object.keys(stock), ...where.keys()]);
+  return [...names].sort().map((train) => ({
+    train,
+    length: stock[train]?.length ?? null,
+    block: where.get(train) ?? null,
+    placed: where.has(train),
+  }));
+}
+
 export interface BlockView {
   state: "free" | "occupied" | "locked" | "planned";
   /** The train standing, holding or heading here, where one is. */

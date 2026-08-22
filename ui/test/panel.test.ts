@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Wire } from "../src/model/drawing.js";
 import { WHOLE } from "../src/model/inspect.js";
-import { outstanding, Panel } from "../src/model/panel.js";
+import { outstanding, Panel, roster } from "../src/model/panel.js";
 import type { Explained, Layout } from "../src/model/store.js";
 import type { TraceEvent } from "../src/model/trace.js";
 
@@ -1087,6 +1087,37 @@ describe("the trains the run has placed", () => {
     expect(model.placed()).toEqual([]);
     feed(model, { event: "allocation", trains: {}, locks: {}, requests: [] });
     expect(model.placed()).toEqual([]);
+  });
+});
+
+/**
+ * The roster pane's rows: what the railroad owns joined to what the run has
+ * (#170). Two sources because they are two things — the store says what stock
+ * there is, the bus says where it stands (ADR-0010).
+ */
+describe("the roster's rows", () => {
+  const STOCK = { goods: { length: 400 }, shunter: { length: 200 } };
+
+  it("marks the placed trains and leaves the rest off the layout", () => {
+    expect(roster(STOCK, [{ train: "goods", block: "a" }])).toEqual([
+      { train: "goods", block: "a", length: 400, placed: true },
+      { train: "shunter", block: null, length: 200, placed: false },
+    ]);
+  });
+
+  /** A railroad at rest says what stock it has without saying where any of it
+   *  stands (ADR-0039). */
+  it("lists the whole roster with nothing on the layout", () => {
+    expect(roster(STOCK, []).map((row) => row.placed)).toEqual([false, false]);
+  });
+
+  /** A train the picture has and the roster does not is on the layout, and a
+   *  pane that hid it would hide what the operator can see. Its length is
+   *  blank rather than nought: nothing the page has read names one. */
+  it("keeps a placed train the roster does not name", () => {
+    expect(roster({}, [{ train: "ghost", block: null }])).toEqual([
+      { train: "ghost", block: null, length: null, placed: true },
+    ]);
   });
 });
 

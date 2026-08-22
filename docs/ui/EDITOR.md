@@ -864,11 +864,11 @@ so this view refuses that one itself and the tiles are greyed while it holds
 ([Palette](#palette)).
 
 **Putting every train away thaws it.** The rule is read off the count of placed
-trains afresh and nothing latches it. There is no gesture that takes a train
-off the layout from the browser yet — that is
-[#170](https://github.com/rails49/control/issues/170)'s, along with the roster
-it needs ([PANEL.md](PANEL.md)) — so what lifts the freeze today is the run's
-own picture coming back with nothing placed. Leaving the session lifts it too:
+trains afresh and nothing latches it. Dragging a train's marker onto the run
+view's roster pane takes it off the layout
+([PANEL.md](PANEL.md), [#170](https://github.com/rails49/control/issues/170)),
+so the freeze lifts when the last one is put away — that, or the run's own
+picture coming back with nothing placed. Leaving the session lifts it too:
 the freeze rests on what a joined session is saying, and a page that has left
 one is told nothing about the layout, exactly as a page that has just loaded
 is. It does not rest on the last thing the page happened to hear, which would

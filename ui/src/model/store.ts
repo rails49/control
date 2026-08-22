@@ -147,23 +147,29 @@ export async function review(drawing: Drawing): Promise<Review> {
 /**
  * The scenario a live session was started from.
  *
- * The panel reads it for two things: which drawing to render — nothing
- * retained says which railroad a session runs, and a topic that did would be
- * the bridge describing the run (#67, ADR-0036) — and how long each train is.
- *
- * The second is interim. A train's length belongs to the railroad's **roster**
- * and the store will serve one
- * ([#170](https://github.com/rails49/control/issues/170)); until it does, the
- * scenario is where the stock of a run is written down, and it is where the
- * dispatcher's own `train_lengths` comes from — the bus carries neither. Where
- * each train *is* comes off the bus, as it always did.
+ * The panel reads it for one thing: which drawing to render, nothing retained
+ * saying which railroad a session runs and a topic that did being the bridge
+ * describing the run (#67, ADR-0036). Where each train is comes off the bus,
+ * and what trains there are comes off the roster below.
  */
 export interface ScenarioDoc {
   name: string;
   layout: string;
-  /** The stock the session runs, by train. Absent from a document written
-   *  before it was read for this. */
-  trains?: Record<string, { length: number }>;
+}
+
+/**
+ * A railroad's roster: every train it owns, whether on the layout or off it
+ * ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)).
+ *
+ * An asset of the railroad rather than a fact about the run, which is the line
+ * [ADR-0010](../../../docs/adr/0010-asset-store-serves-coarse-read-only-documents.md)
+ * draws: the store says what stock there is and how long each train is, the
+ * bus says where it stands. Read-only here — editing a roster is another
+ * screen's.
+ */
+export interface RosterDoc {
+  roster: string;
+  trains: Record<string, { length: number }>;
 }
 
 export async function listScenarios(): Promise<string[]> {
@@ -172,6 +178,10 @@ export async function listScenarios(): Promise<string[]> {
 
 export async function readScenario(id: string): Promise<ScenarioDoc> {
   return await ask<ScenarioDoc>("GET", `/scenarios/${id}`);
+}
+
+export async function readRoster(railroad: string): Promise<RosterDoc> {
+  return await ask<RosterDoc>("GET", `/rosters/${encodeURIComponent(railroad)}`);
 }
 
 async function ask<T>(method: string, path: string, body?: unknown): Promise<T> {

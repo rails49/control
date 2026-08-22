@@ -74,6 +74,7 @@ export class Live {
 export const REQUEST_WANTED = "tc49/ui/request_wanted";
 export const REVERSAL_WANTED = "tc49/ui/reversal_wanted";
 export const RUN_WANTED = "tc49/ui/run_wanted";
+export const PLACEMENT_WANTED = "tc49/ui/placement_wanted";
 
 /** How a run stands: the dispatcher will commit nothing while it is `held`,
  *  and a person moves it either way
@@ -109,6 +110,17 @@ export function gesture(wanted: Gesture): string {
  *  ([ADR-0019](../../../docs/adr/0019-facing-is-scheduler-state.md)). */
 export function reversal(train: string): string {
   return JSON.stringify({ topic: REVERSAL_WANTED, payload: { train } });
+}
+
+/** A `placement_wanted` frame: where a train actually is, said by the person
+ *  who can see it. `null` is off the layout — one gesture in two directions,
+ *  because putting a locomotive on the track and lifting it off are the same
+ *  act with a different destination
+ *  ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)). The
+ *  key is always written: the dispatcher reads it for presence, and a frame
+ *  without it is not a train taken off the layout. */
+export function placement(train: string, block: string | null): string {
+  return JSON.stringify({ topic: PLACEMENT_WANTED, payload: { train, block } });
 }
 
 /** A `run_wanted` frame: hold the run, or release it. It says where the run

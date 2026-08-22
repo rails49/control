@@ -726,7 +726,7 @@ export class TcCanvas extends LitElement {
   }
 
   private down(event: PointerEvent): void {
-    const point = this.gridAt(event);
+    const point = this.squareAt(event);
     // On the sheet rather than on whatever node is under the pointer: run mode
     // redraws on every frame off the bus, and a symbol whose markup changed
     // shape mid-drag would take the capture with it.
@@ -746,7 +746,7 @@ export class TcCanvas extends LitElement {
   }
 
   private moved(event: PointerEvent): void {
-    const point = this.gridAt(event);
+    const point = this.squareAt(event);
     if (this.panning !== null) {
       this.view = {
         ...this.view,
@@ -769,9 +769,12 @@ export class TcCanvas extends LitElement {
   }
 
   private up(event: PointerEvent): void {
-    const point = this.gridAt(event);
+    const point = this.squareAt(event);
     this.panning = null;
-    this.apply(this.machine.up(point), point);
+    this.apply(
+      this.machine.up(point, { x: event.clientX, y: event.clientY }),
+      point,
+    );
   }
 
   /** The pointer left the sheet, or the gesture under it was cancelled. */
@@ -789,7 +792,7 @@ export class TcCanvas extends LitElement {
    */
   private menu(event: MouseEvent): void {
     event.preventDefault();
-    const point = this.gridAt(event);
+    const point = this.squareAt(event);
     const { outcome, found } = this.machine.menu(point);
     this.apply(outcome, point);
     if (found === null) return;
@@ -804,7 +807,7 @@ export class TcCanvas extends LitElement {
 
   private wheel(event: WheelEvent): void {
     event.preventDefault();
-    const point = this.gridAt(event);
+    const point = this.squareAt(event);
     const scale = Math.exp(event.deltaY / 400);
     this.view = {
       x: point.x - (point.x - this.view.x) * scale,
@@ -816,13 +819,25 @@ export class TcCanvas extends LitElement {
 
   // --- reading the drawing under the pointer ------------------------------
 
-  private gridAt(event: MouseEvent): Point {
-    const matrix = this.renderRoot.querySelector("svg")!.getScreenCTM();
-    if (matrix === null) return { x: 0, y: 0 };
-    const grid = new DOMPoint(event.clientX, event.clientY).matrixTransform(
-      matrix.inverse(),
-    );
+  /**
+   * The grid point a client pixel position falls on, `null` where the sheet
+   * has no transform yet.
+   *
+   * Public because a drag that began somewhere else ends here: a row dragged
+   * out of the roster pane is let go over this surface, and where a pixel
+   * lands on the drawing is the surface's answer and nobody else's (#170).
+   */
+  gridAt(x: number, y: number): Point | null {
+    const matrix = this.renderRoot.querySelector("svg")?.getScreenCTM() ?? null;
+    if (matrix === null) return null;
+    const grid = new DOMPoint(x, y).matrixTransform(matrix.inverse());
     return { x: grid.x, y: grid.y };
+  }
+
+  /** Where a pointer event is on the drawing, which is what every gesture
+   *  call is given. */
+  private squareAt(event: MouseEvent): Point {
+    return this.gridAt(event.clientX, event.clientY) ?? { x: 0, y: 0 };
   }
 
   /**

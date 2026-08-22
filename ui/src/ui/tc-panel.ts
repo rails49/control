@@ -36,16 +36,25 @@ import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import {
+  blockAt,
   Drag,
   schedulingMachine,
   type Drop,
   type Painted,
 } from "../model/drag.js";
 import type { Drawing } from "../model/drawing.js";
-import { outstanding, Panel, type Overlay, type Placed } from "../model/panel.js";
+import {
+  outstanding,
+  Panel,
+  roster,
+  type Overlay,
+  type Placed,
+  type RosterRow,
+} from "../model/panel.js";
 import { positionsBySymbol } from "../model/scene.js";
 import {
   listScenarios,
+  readRoster,
   readScenario,
   UNREVIEWED,
   type Review,
@@ -53,6 +62,7 @@ import {
 import {
   gesture,
   Live,
+  placement,
   reversal,
   wanted,
   type Power,
@@ -64,7 +74,7 @@ import "./tc-menu.js";
 import "./tc-roster.js";
 import type { TcCanvas } from "./tc-canvas.js";
 import type { MenuItem } from "./tc-menu.js";
-import type { RosterRow } from "./tc-roster.js";
+import type { RosterDrag, TcRoster } from "./tc-roster.js";
 
 /**
  * What the run view knows about the run that the band and the bar do not:
@@ -135,9 +145,9 @@ export class TcPanel extends LitElement {
    *  apply it to would be a frame lost, and the drain a join opens with is the
    *  whole of the run's picture. */
   private joining: { id: string; railroad: string } | null = null;
-  /** How long each train of the joined session is, by name. The stock is the
-   *  scenario's until the store serves a roster (#170); the bus says where
-   *  the trains are and never how long they are. */
+  /** The railroad's roster: every train it owns and how long each is, read
+   *  off the store when the session is joined (ADR-0039). The bus says where
+   *  the trains are and never what there is to place. */
   @state() private stock: Record<string, { length: number }> = {};
   /** What was still disputed at the moment the hold was released, in words,
    *  `null` while there is nothing to say. */
@@ -166,11 +176,12 @@ export class TcPanel extends LitElement {
   /** What a press on the canvas means here (model/drag.ts), bound to what is
    *  on screen. It answers quiet while there is no session to submit to,
    *  which is the whole of the gate on gesturing. */
-  private readonly machine = schedulingMachine(
-    this.drag,
-    () => this.painted,
-    (drop) => this.submit(drop),
-  );
+  private readonly machine = schedulingMachine(this.drag, {
+    painted: () => this.painted,
+    submit: (drop) => this.submit(drop),
+    remove: (train) => this.lift(train),
+    onRoster: (screen) => this.overRoster(screen),
+  });
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -253,7 +264,9 @@ export class TcPanel extends LitElement {
     try {
       const scenario = await readScenario(id);
       this.joining = { id, railroad: scenario.layout };
-      this.stock = scenario.trains ?? {};
+      // The roster is the railroad's, so it is read for the railroad the
+      // scenario names rather than for the session (ADR-0039).
+      this.stock = (await readRoster(scenario.layout)).trains;
       if (!rejoining) this.panel?.reset();
       if (this.built === scenario.layout) {
         this.finish();
@@ -403,6 +416,61 @@ export class TcPanel extends LitElement {
     this.socket?.send(gesture(this.panel.compose(drop.train, drop.dest)));
   }
 
+  // --- putting a train on the layout, and taking it off ---------------------
+  //
+  // The roster's two drags (ADR-0039). **The source decides what a drag
+  // means**, never the run's state: a row picked up in the pane places its
+  // train, a marker picked up on the canvas asks for a request, and one motion
+  // cannot come to mean two things depending on a word in the band. Both of
+  // these are refused while the run is running, which the pane says.
+
+  /**
+   * A row let go somewhere: one `placement_wanted` naming the block under the
+   * pointer, or nothing where there is no block there.
+   *
+   * The pane says a row was dragged and where the pointer let go; what is
+   * under it is the canvas's to answer, which is the same question the drag of
+   * a marker asks (model/drag.ts). Dropping a row back on the pane is how a
+   * drag started by mistake is abandoned: there is no block there.
+   */
+  private dropped(event: CustomEvent<RosterDrag>): void {
+    const { train, x, y } = event.detail;
+    const painted = this.painted;
+    const at = this.canvas?.gridAt(x, y) ?? null;
+    if (painted === null || at === null || this.panel?.run !== "held") return;
+    const block = blockAt(painted.drawing, painted.review, at);
+    if (block === null) return;
+    this.socket?.send(placement(train, block));
+  }
+
+  /**
+   * A marker dropped on the pane: the train comes off the layout, one
+   * `placement_wanted` with no block.
+   *
+   * The dispatcher releases what it held and answers `train_removed`, and the
+   * marker leaves the canvas because the picture no longer has the train —
+   * this view retracts nothing of its own.
+   */
+  private lift(train: string): void {
+    if (this.panel?.run !== "held") return;
+    this.socket?.send(placement(train, null));
+  }
+
+  /** Whether a screen point is over the roster pane, which is what makes a
+   *  drop on it mean anything. The pane is an element and its box is the
+   *  browser's answer, so nothing here works out where it is. */
+  private overRoster(screen: { x: number; y: number }): boolean {
+    const pane = this.renderRoot.querySelector<TcRoster>("tc-roster");
+    if (pane === null) return false;
+    const box = pane.getBoundingClientRect();
+    return (
+      screen.x >= box.left &&
+      screen.x <= box.right &&
+      screen.y >= box.top &&
+      screen.y <= box.bottom
+    );
+  }
+
   // --- turning a train around -----------------------------------------------
 
   /**
@@ -457,7 +525,11 @@ export class TcPanel extends LitElement {
     const drawing = this.drawing;
     const live = this.overlay;
     return html`
-      <tc-roster .trains=${this.roster}></tc-roster>
+      <tc-roster
+        .trains=${this.roster}
+        .run=${this.session === null ? null : (this.panel?.run ?? null)}
+        @roster-dropped=${this.dropped}
+      ></tc-roster>
 
       <header>
         <sl-select
@@ -537,15 +609,12 @@ export class TcPanel extends LitElement {
     return this.panel?.placed() ?? [];
   }
 
-  /** What the roster pane draws: the run's placed trains with the length the
-   *  session's stock gives each. Two sources because they are two things — the
-   *  bus says where a train is, the store's document says how long it is
+  /** What the roster pane draws: every train the railroad owns, marked with
+   *  where the run has it (`model/panel.ts`). Two sources because they are two
+   *  things — the store says what stock there is, the bus says where it stands
    *  (ADR-0010) — and the pane is handed the answer rather than either. */
   private get roster(): RosterRow[] {
-    return this.standing.map((placed) => ({
-      ...placed,
-      length: this.stock[placed.train]?.length ?? null,
-    }));
+    return roster(this.stock, this.standing);
   }
 
   /** The last status the app was told, so it is told again only when one of

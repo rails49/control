@@ -34,32 +34,32 @@ buttons as the editor — `+`, `−`, `0`. It had none of the three while it dre
 its own picture fitted to the sheet, which is what a railroad too large to see
 at once cost.
 
-**The trains it has are listed in the left pane.** The shell has one left-pane
-slot and each view fills it: the editor's palette, this view's `tc-roster`
-([#169](https://github.com/rails49/control/issues/169)). A row is a train's
-name, its length, and the block it stands in — *crossing* where it stands in
-none, that being a train holding a transit and on the layout all the same —
-ordered by name, so the list does not reshuffle as the railroad moves. With
-nothing placed it says so.
+**The railroad's roster is listed in the left pane.** The shell has one
+left-pane slot and each view fills it: the editor's palette, this view's
+`tc-roster` ([#169](https://github.com/rails49/control/issues/169)). A row is a
+train's name, its length, and where the run has it — the block it stands in,
+*crossing* where it stands in none (a train holding a transit, and on the
+layout all the same), or *off the layout*. Ordered by name, so the list does
+not reshuffle as the railroad moves.
 
-It is called the roster because that is what it is becoming, and it is not one
-yet. A railroad's **roster** is every train it owns, whether on the layout or
-off it ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)), and there is
-nothing to read one from: the store serves no roster, and
-`tc49/dispatch/state/allocation` carries the placed trains alone. So the pane
-lists what the run holds. A train's **length** has no source on the bus either
-— the dispatcher's own `train_lengths` is built from the scenario and published
-nowhere — so it is read off the scenario the session was joined on, which is
-where a run's stock is written down today.
+A railroad's **roster** is every train it owns, whether on the layout or off it
+([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)), so the pane is fed
+from two places: `GET /rosters/<railroad>` for what there is and how long each
+train is, and `tc49/dispatch/state/allocation` for which of them the run has.
+Two sources because they are two things — the store serves the railroad's
+assets, the bus carries the run
+([ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)) —
+and the pane is handed one list. A train the picture has and the roster does
+not still gets a row: it is on the layout, and hiding it would hide what the
+operator can see. The roster is read when the session is joined and forgotten
+when it is left: a page told nothing must not claim every train is off the
+layout.
 
-The pane is **read-only here**, and its drags are
-[#170](https://github.com/rails49/control/issues/170)'s along with the roster
-they need: a row dragged onto a block places or repositions a train, and a
-train's marker dragged onto the pane takes it off the layout. Until then
-nothing in the browser takes a train off the layout, which is worth saying
-plainly because it is also what unfreezes the drawing
+Trains standing nowhere have rows because those rows are what there is to drag
+back onto the railroad. It is also the pane that unfreezes the drawing
 ([EDITOR.md](EDITOR.md#trains-on-the-layout-freeze-the-drawing)): while a
-session has trains placed, the editing view is read-only.
+session has trains placed the editing view is read-only, and taking the last
+one off is what ends that.
 
 **A train between two blocks is drawn on the connection**, midway between the
 two block ends its transit joins, and stands in no block. The picture's
@@ -215,9 +215,24 @@ it, so the panel draws none — no rule here, just an end absent from the map.
 
 ## What it does
 
-The panel is read-only apart from gesturing, and it gestures in two ways: a
-drag, which asks for a train to be moved, and a right-click, which turns one
-around where it stands.
+The panel is read-only apart from gesturing, and it gestures in three ways: a
+drag on the canvas, which asks for a train to be moved; a drag between the
+canvas and the roster pane, which says where a train actually is; and a
+right-click, which turns one around where it stands.
+
+**Where a drag began is what it means**, never the run's state:
+
+| From | To | Means |
+| --- | --- | --- |
+| a roster row | a block | place the train there, or move it there by hand |
+| a train's marker | the roster pane | take the train off the layout |
+| a train's marker | another block | a request for that train |
+| a train's marker | its own block | nothing: the cancel gesture |
+
+Deciding by the run's state instead would make one motion mean two things
+depending on a word in the band, and would cost queuing a request while the
+run is held, which the hold deliberately keeps working for a timetable
+([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 
 **Dragging** a train from its block to a destination block publishes
 `tc49/ui/request_wanted` — `{train, dest}` — and the scheduler composes the
@@ -239,8 +254,10 @@ feasibility authority, and a rejection renders at the request's endpoints
 with its reason spelled out (`no_fit`, `no_entry`, `unreachable`,
 `no_origin`, `wrong_origin`, `unknown_train`, `unknown_block`,
 `malformed`). `no_origin` is a train that is known but off the layout
-([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)), which a drag can
-name because the roster draws it a row. The last three answer a payload the
+([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)); a drag of the
+canvas cannot ask for one — a train off the layout has no marker to pick up,
+and the scheduler drops a gesture it cannot compose a departure end for — so
+it answers a timetable or a stale page. The last three answer a payload the
 dispatcher could not read as a request; an honest drag cannot produce one, and
 the page that can is a stale one, a race or a
 bug ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
@@ -263,6 +280,27 @@ A gesture the scheduler cannot compose is **dropped in silence** and lives in
 the trace. It carries no id, so there is nothing to address an answer to, and
 the panel renders the roster from the run — so an honest drag cannot produce
 one ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
+
+**Dragging a roster row onto a block**, and **dragging a train's marker onto
+the pane**, are the two directions of one gesture: `tc49/ui/placement_wanted`,
+`{train, block}`, with `block: null` for off the layout
+([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)). Putting a
+locomotive on the track and lifting it off are the same act with a different
+destination, so there is one leaf and one answer — `train_placed` or
+`train_removed`, which the picture follows.
+
+Both are **greyed while the run is running** and the pane says why. A placement
+is accepted only while the run is **held**: the dispatcher grants against its
+picture of where the trains are, and a block that fills or empties under it
+invalidates what it has already granted. This is a second pre-judgement beside
+the right-click's, and it earns the exception for the same reason — a still row
+says the run is running, where a swallowed gesture says nothing. A drop with no
+block under it — back on the pane, or on bare paper — writes nothing.
+
+A train **mid-request cannot be lifted off**: nothing cancels a request, so the
+way out is to release the hold and let the train run. That is the derailment
+case, and cancelling is
+[#123](https://github.com/rails49/control/issues/123)'s.
 
 **Right-clicking** the block a train stands in opens a menu with one item,
 **Turn around**, which publishes `tc49/ui/reversal_wanted` (`{train}`). The
@@ -355,10 +393,9 @@ scheduler's own retained topic. Both are written by apps that are always
 running, so there is no cold start to seed: the view reads the scenario from
 the store (`GET /scenarios`, `GET /scenarios/<id>`) for which railroad to ask
 the app to load, and no topic describes the run, a topic that did being the
-bridge describing itself (#67). The one other thing it reads there is how long
-each train is, the bus carrying no stock and the store serving no roster until
-[#170](https://github.com/rails49/control/issues/170) — an asset off the
-store's HTTP face rather than a fact about the run, which is the line
+bridge describing itself (#67). It reads that railroad's roster there too
+(`GET /rosters/<railroad>`) — what stock there is and how long each train is,
+an asset rather than a fact about the run, which is the line
 [ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)
 already draws. Everything else is derived from the bus: the state topics carry
 the whole picture, facing included, so the model is fed by `apply` and by
@@ -438,8 +475,10 @@ else. `tc-menu` renders the items it is given, the editor and the run view
 each working out their own list. `model/scene.ts` is what the drawing alone
 answers: the frame a fit and an export are drawn in, an arrow's pose, and
 which symbol an address is worn by. `tc-panel` holds the session, feeds the
-model, hands the canvas an overlay, hands `tc-roster` the trains the run has,
-and sends.
+model, hands the canvas an overlay, hands `tc-roster` the railroad's roster marked
+with where the run has each train, and sends. Where a drag from the pane
+landed is asked of the canvas, which is what turns a client pixel into a point
+on the drawing.
 
 The railroad it paints is not its own: the app holds it and hands over the
 drawing and the review (ADR-0038). Joining a session names a railroad, so this

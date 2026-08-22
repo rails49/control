@@ -573,11 +573,12 @@ describe("what each mode draws", () => {
     canvas.drawing = structuredClone(RAILROAD);
     canvas.review = reviewed([]);
     canvas.live = live;
-    canvas.machine = schedulingMachine(
-      new Drag(),
-      () => null,
-      () => undefined,
-    );
+    canvas.machine = schedulingMachine(new Drag(), {
+      painted: () => null,
+      submit: () => undefined,
+      remove: () => undefined,
+      onRoster: () => false,
+    });
     document.body.append(canvas);
     await canvas.updateComplete;
     return canvas;

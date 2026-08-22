@@ -49,10 +49,12 @@ export interface Answers {
   drawings: string[];
   /** The ids `/scenarios` lists, which is what the run view asks for. */
   scenarios: string[];
-  /** Which railroad a scenario names, and how long each of its trains is:
-   *  what the run view reads a scenario for. */
+  /** Which railroad a scenario names: what the run view reads a scenario
+   *  for. */
   layoutOf: (id: string) => string;
-  stockOf: (id: string) => Record<string, { length: number }>;
+  /** The trains a railroad owns, which is what `/rosters/<name>` answers
+   *  (ADR-0039). */
+  rosterOf: (railroad: string) => Record<string, { length: number }>;
   /** What `/drawings/<name>` answers with. */
   read: (name: string) => Drawing;
   /** What `/review` answers with. */
@@ -73,7 +75,7 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     drawings: [],
     scenarios: [],
     layoutOf: (id) => id.split("/")[0]!,
-    stockOf: () => ({}),
+    rosterOf: () => ({}),
     read: (name) => {
       throw new Error(`no drawing '${name}'`);
     },
@@ -102,11 +104,11 @@ function answered(store: Answers, path: string): Promise<unknown> {
   }
   if (path.startsWith("/scenarios/")) {
     const id = decodeURIComponent(path.slice("/scenarios/".length));
-    return Promise.resolve({
-      name: id,
-      layout: store.layoutOf(id),
-      trains: store.stockOf(id),
-    });
+    return Promise.resolve({ name: id, layout: store.layoutOf(id) });
+  }
+  if (path.startsWith("/rosters/")) {
+    const railroad = decodeURIComponent(path.slice("/rosters/".length));
+    return Promise.resolve({ roster: railroad, trains: store.rosterOf(railroad) });
   }
   const name = decodeURIComponent(path.slice("/drawings/".length));
   return Promise.resolve(store.read(name));

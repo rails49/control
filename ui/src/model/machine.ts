@@ -56,7 +56,11 @@ export interface Marks {
 export interface Machine {
   down(point: Point, input: Input): Outcome;
   moved(point: Point, screen: Point): Outcome;
-  up(point: Point): Outcome;
+  /** The release. `screen` is where the pointer let go in client pixels,
+   *  which is what says whether it let go over something that is not the
+   *  canvas — the roster pane is another element, and a drag onto it means
+   *  something (model/drag.ts). */
+  up(point: Point, screen: Point): Outcome;
   /** The pointer left the sheet, or the gesture under it was cancelled. */
   left(): Outcome;
   /** A right-click, and what it found for the view to build a menu about —
