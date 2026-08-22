@@ -1,0 +1,248 @@
+// @vitest-environment happy-dom
+
+/**
+ * Holding the run and releasing it, end to end through the app: the bar draws
+ * the word the dispatcher published, the press goes out on the socket the run
+ * view holds, and a release with disputes outstanding says what was accepted
+ * (ADR-0037, #152, #153).
+ *
+ * A DOM test because it crosses three components and the bridge. The bridge is
+ * the one thing standing in: a fake `WebSocket` that records what was sent and
+ * lets a test deliver the frames a session would.
+ */
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import "../src/ui/tc-app.js";
+import type { Drawing } from "../src/model/drawing.js";
+import type { Explained, Layout, Review } from "../src/model/store.js";
+import type { TcApp } from "../src/ui/tc-app.js";
+import { CLEAN, band, bar, mounted, running, serving, settled } from "./support/shell.js";
+
+/** Two blocks and nothing joining them: enough to derive, enough to paint, and
+ *  enough for a train to be disputed in. */
+const LAYOUT: Layout = {
+  layout: "toy",
+  blocks: { a: { length: 1000 }, b: { length: 1000 } },
+  connections: {},
+};
+
+const EXPLAIN: Explained = { layout: "toy", connections: {} };
+
+const DERIVES: Review = { ...CLEAN, layout: LAYOUT, explain: EXPLAIN };
+
+function stored(name: string): Drawing {
+  return {
+    drawing: name,
+    symbols: { a: { kind: "block", at: [0, 0] }, b: { kind: "block", at: [4, 0] } },
+    wires: [],
+  };
+}
+
+/** The bridge, as far as the run view uses one: it opens, it is sent frames,
+ *  and it delivers them. */
+class Bridge {
+  static last: Bridge | null = null;
+
+  readonly sent: string[] = [];
+  private readonly listeners = new Map<string, ((event: unknown) => void)[]>();
+
+  constructor(readonly url: string) {
+    Bridge.last = this;
+  }
+
+  addEventListener(name: string, listener: (event: unknown) => void): void {
+    this.listeners.set(name, [...(this.listeners.get(name) ?? []), listener]);
+  }
+
+  send(frame: string): void {
+    this.sent.push(frame);
+  }
+
+  close(): void {
+    this.raise("close", {});
+  }
+
+  /** What the session says, in the frames the relay carries. */
+  says(topic: string, payload: Record<string, unknown>): void {
+    this.raise("message", { data: JSON.stringify({ topic, payload }) });
+  }
+
+  raise(name: string, event: Record<string, unknown>): void {
+    for (const listener of this.listeners.get(name) ?? []) listener(event);
+  }
+}
+
+const REAL = globalThis.WebSocket;
+
+beforeEach(() => {
+  Bridge.last = null;
+  globalThis.WebSocket = Bridge as unknown as typeof WebSocket;
+  serving({
+    drawings: ["toy"],
+    scenarios: ["toy/test"],
+    read: stored,
+    review: () => Promise.resolve(DERIVES),
+  });
+});
+
+afterEach(() => {
+  globalThis.WebSocket = REAL;
+  document.body.replaceChildren();
+});
+
+/** An app in the run view, joined to the one session the store offers, with
+ *  the bridge open. */
+async function joined(): Promise<TcApp> {
+  const shell = await mounted("run");
+  // The session select is Shoelace's, and what the view reads off it is the
+  // value it carries when it says it changed.
+  const select = running(shell).renderRoot.querySelector("sl-select") as unknown as {
+    value: string;
+    dispatchEvent: (event: Event) => boolean;
+  };
+  select.value = "toy/test";
+  select.dispatchEvent(new CustomEvent("sl-change"));
+  await settled(shell);
+  Bridge.last!.raise("open", {});
+  await settled(shell);
+  return shell;
+}
+
+/** What the session has published, applied. */
+async function said(
+  shell: TcApp,
+  topic: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  Bridge.last!.says(topic, payload);
+  await settled(shell);
+}
+
+/** The HOLD/GO button on the bar. */
+function press(shell: TcApp): HTMLButtonElement {
+  return bar(shell).renderRoot.querySelector<HTMLButtonElement>("button.run")!;
+}
+
+/** What the run view is saying about the release, `null` while it says
+ *  nothing. */
+function notice(shell: TcApp): string | null {
+  const said = running(shell).renderRoot.querySelector(".released");
+  return said === null ? null : said.textContent!.trim();
+}
+
+/** The payloads the browser has written to the bus. */
+function written(): unknown[] {
+  return (Bridge.last?.sent ?? []).map((frame) => JSON.parse(frame));
+}
+
+describe("joining a session", () => {
+  /** The run view names the session and the app holds the railroad, so the
+   *  scenario's layout is asked for rather than read a second time (#167). */
+  it("loads the railroad the scenario names", async () => {
+    const shell = await joined();
+    expect(Bridge.last!.url).toMatch(/toy\/test$/);
+    const named = band(shell).renderRoot.querySelector(".drawing")!;
+    expect(named.textContent!.trim()).toBe("toy");
+  });
+});
+
+describe("the word on the button", () => {
+  it("is dead until the session says where the run stands", async () => {
+    const shell = await joined();
+    expect(press(shell).disabled).toBe(true);
+  });
+
+  it("offers GO on a held run and HOLD on a running one", async () => {
+    const shell = await joined();
+
+    await said(shell, "tc49/dispatch/state/run", { run: "held" });
+    expect(press(shell).textContent!.trim()).toBe("GO");
+
+    await said(shell, "tc49/dispatch/state/run", { run: "running" });
+    expect(press(shell).textContent!.trim()).toBe("HOLD");
+  });
+
+  /** One press, no confirmation: a clearly labelled button is the explicit
+   *  GO. */
+  it("writes the gesture the word names", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/run", { run: "held" });
+
+    press(shell).click();
+
+    expect(written()).toEqual([
+      { topic: "tc49/ui/run_wanted", payload: { run: "running" } },
+    ]);
+  });
+});
+
+/**
+ * #153's other half. Releasing with disputes outstanding is allowed — the
+ * person decides, not the check — and the panel says what is still disputed at
+ * the moment of release. The amber marks go with the hold, so the words are
+ * what is left of them.
+ */
+describe("releasing with disputes outstanding", () => {
+  async function held(): Promise<TcApp> {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/run", { run: "held" });
+    return shell;
+  }
+
+  it("says what is disputed, and lets the release through", async () => {
+    const shell = await held();
+    await said(shell, "tc49/dispatch/state/disputed", {
+      trains: ["t1"],
+      blocks: ["b"],
+    });
+
+    press(shell).click();
+    await settled(shell);
+
+    expect(notice(shell)).toBe(
+      "released with t1 in a block that reads clear, b reads occupied",
+    );
+    expect(written()).toEqual([
+      { topic: "tc49/ui/run_wanted", payload: { run: "running" } },
+    ]);
+  });
+
+  it("says nothing where nothing is disputed", async () => {
+    const shell = await held();
+    await said(shell, "tc49/dispatch/state/disputed", { trains: [], blocks: [] });
+
+    press(shell).click();
+    await settled(shell);
+
+    expect(notice(shell)).toBeNull();
+  });
+
+  /** The notice stands through the run it was a decision about, and a fresh
+   *  hold is a fresh decision. Not the value but the transition: the run is
+   *  still `held` between the press and the dispatcher's answer. */
+  it("stands while that run runs, and goes with the next hold", async () => {
+    const shell = await held();
+    await said(shell, "tc49/dispatch/state/disputed", { trains: ["t1"], blocks: [] });
+    press(shell).click();
+    await settled(shell);
+
+    await said(shell, "tc49/dispatch/state/run", { run: "running" });
+    expect(notice(shell)).not.toBeNull();
+
+    await said(shell, "tc49/dispatch/state/run", { run: "held" });
+    expect(notice(shell)).toBeNull();
+  });
+
+  /** Holding is not a decision about anything outstanding. */
+  it("says nothing when the run is held rather than released", async () => {
+    const shell = await held();
+    await said(shell, "tc49/dispatch/state/disputed", { trains: ["t1"], blocks: [] });
+    await said(shell, "tc49/dispatch/state/run", { run: "running" });
+
+    press(shell).click();
+    await settled(shell);
+
+    expect(notice(shell)).toBeNull();
+  });
+});

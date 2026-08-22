@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Wire } from "../src/model/drawing.js";
 import { WHOLE } from "../src/model/inspect.js";
-import { Panel } from "../src/model/panel.js";
+import { outstanding, Panel } from "../src/model/panel.js";
 import type { Explained, Layout } from "../src/model/store.js";
 import type { TraceEvent } from "../src/model/trace.js";
 
@@ -1070,11 +1070,78 @@ describe("the detectors' dispute", () => {
     expect(model.blocks().get("b")?.dispute).toBeUndefined();
   });
 
-  it("is forgotten when a replay starts over", () => {
+  it("is forgotten when the model starts over", () => {
     const model = panel();
     feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: ["b"] });
     model.reset();
     expect(model.blocks().get("a")?.dispute).toBeUndefined();
     expect(model.blocks().get("b")?.dispute).toBeUndefined();
+  });
+
+  /** The same set in one answer, which is what a release reads: the marks go
+   *  with the hold, so the words are the only record of what was outstanding
+   *  when it was let go (#153). */
+  it("hands back what is outstanding, trains and blocks apart", () => {
+    const model = panel();
+    feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: ["b"] });
+    expect(model.disputes()).toEqual({ trains: ["t1"], blocks: ["b"] });
+  });
+
+  it("is outstanding in nothing where the two agree", () => {
+    expect(panel().disputes()).toEqual({ trains: [], blocks: [] });
+  });
+});
+
+/**
+ * What a release leaves behind in words (#153). Releasing the hold with
+ * disputes outstanding is allowed — the person decides, not the check — and
+ * the amber marks go with the hold, `state/disputed` being empty while the run
+ * is running. The sentence is what is left to say what was accepted.
+ */
+describe("what is still disputed, in words", () => {
+  it("says nothing where the detectors and the placement agree", () => {
+    expect(outstanding({ trains: [], blocks: [] })).toBeNull();
+  });
+
+  /** The same two words the marks under the blocks use, so the sentence reads
+   *  as what was on screen a moment before. */
+  it("says which of the two contradictions each one is", () => {
+    expect(outstanding({ trains: ["t1"], blocks: [] })).toBe(
+      "released with t1 in a block that reads clear",
+    );
+    expect(outstanding({ trains: [], blocks: ["b"] })).toBe(
+      "released with b reads occupied",
+    );
+  });
+
+  it("names every one of them", () => {
+    expect(outstanding({ trains: ["t1", "t2"], blocks: ["b"] })).toBe(
+      "released with t1 in a block that reads clear, " +
+        "t2 in a block that reads clear, b reads occupied",
+    );
+  });
+});
+
+/** How the run stands (ADR-0037): the dispatcher's own word, read and never
+ *  derived. The button that moves it draws what this says, so a press that
+ *  did not land leaves the word where it was. */
+describe("whether the run is held", () => {
+  it("says nothing before the dispatcher has", () => {
+    expect(panel().run).toBeNull();
+  });
+
+  it("takes the word the topic carries", () => {
+    const model = panel();
+    feed(model, { event: "run", run: "held" });
+    expect(model.run).toBe("held");
+    feed(model, { event: "run", run: "running" });
+    expect(model.run).toBe("running");
+  });
+
+  it("is forgotten when the model starts over", () => {
+    const model = panel();
+    feed(model, { event: "run", run: "running" });
+    model.reset();
+    expect(model.run).toBeNull();
   });
 });

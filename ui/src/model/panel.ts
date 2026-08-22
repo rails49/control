@@ -25,7 +25,7 @@ import type { Position } from "../symbols.generated.js";
 import type { Wire } from "./drawing.js";
 import { WHOLE, wiresOn } from "./inspect.js";
 import type { Explained, Layout } from "./store.js";
-import type { Gesture, Submission, TraceEvent } from "./trace.js";
+import type { Gesture, Run, Submission, TraceEvent } from "./trace.js";
 
 /** A block end, written `<block>.<end>` as the bus writes it. */
 export type EndRef = string;
@@ -134,6 +134,23 @@ function spell(table: Partial<Record<Reason, string>>, reason: string): string {
   return wordings[reason] ?? reason;
 }
 
+/**
+ * What is still disputed, in the words the marks on the blocks use, or `null`
+ * where the detectors and the placement agree.
+ *
+ * Each entry says which of the two contradictions it is rather than only that
+ * something is wrong, which is what the mark under the block says too — so the
+ * sentence a release leaves behind reads as what was on screen a moment
+ * before (#153).
+ */
+export function outstanding(disputes: { trains: string[]; blocks: string[] }): string | null {
+  const said = [
+    ...disputes.trains.map((train) => `${train} in a block that reads clear`),
+    ...disputes.blocks.map((block) => `${block} reads occupied`),
+  ];
+  return said.length === 0 ? null : `released with ${said.join(", ")}`;
+}
+
 /** The two halves of an end ref, `<block>.<end>`. */
 export function blockOf(end: EndRef): string {
   return end.slice(0, end.lastIndexOf("."));
@@ -167,6 +184,10 @@ export class Panel {
    *  reported on at all is knowledge only the dispatcher holds, and a panel
    *  working it out would call every unreported block clear. */
   private disputed = { trains: new Set<string>(), blocks: new Set<string>() };
+  /** How the run stands, as the dispatcher last said, `null` before it has
+   *  said anything (ADR-0037). Read and never derived: a held run is a
+   *  decision the dispatcher publishes, not something a picture shows. */
+  private state: Run | null = null;
   private requests = new Map<string, Request>();
   /** Whether the first boundary has passed: a lock on a block before it is
    *  the trace's opening placement, there being no occupancy event for a
@@ -206,6 +227,7 @@ export class Panel {
     this.crossing.clear();
     this.heading.clear();
     this.disputed = { trains: new Set(), blocks: new Set() };
+    this.state = null;
     this.requests.clear();
     this.started = false;
   }
@@ -332,6 +354,14 @@ export class Panel {
         this.started = true;
         return;
       }
+      case "run": {
+        // Held or running, whole from the topic. The button that moves it
+        // reads this, so what it offers is the run's own answer rather than
+        // the last press's.
+        const { run } = event as unknown as { run: Run };
+        this.state = run;
+        return;
+      }
       case "disputed": {
         // Where the placement and the detectors contradict each other, while
         // the run is held (#153). Last-value like every other state topic, so
@@ -421,6 +451,20 @@ export class Panel {
       default:
         return; // boundaries aside, the panel reads a subset of the bus
     }
+  }
+
+  /** How the run stands, `null` before the dispatcher has said (ADR-0037). */
+  get run(): Run | null {
+    return this.state;
+  }
+
+  /** What the detectors dispute, as the dispatcher last said (#153): trains
+   *  standing in a block that reads clear, and blocks that read occupied with
+   *  nothing claiming them. Empty unless the run is held, so a release is
+   *  where this is worth reading — it is what the person is deciding to
+   *  accept, and the marks go with the hold. */
+  disputes(): { trains: string[]; blocks: string[] } {
+    return { trains: [...this.disputed.trains], blocks: [...this.disputed.blocks] };
   }
 
   /** Every block of the layout, at the strongest state that holds for it:

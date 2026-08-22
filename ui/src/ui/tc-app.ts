@@ -34,6 +34,7 @@ import { COMMANDS, type CommandId, type Standing } from "../model/commands.js";
 import { emptyDrawing } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { Filing } from "../model/filing.js";
+import type { Run } from "../model/trace.js";
 import { hashOf, viewOf, VIEWS, type ViewId } from "../model/views.js";
 import { appStyles } from "./tc-app.styles.js";
 import "./tc-editor.js";
@@ -58,6 +59,7 @@ const QUIET: RunStatus = {
   joined: false,
   linked: false,
   boundary: null,
+  run: null,
   trouble: null,
 };
 
@@ -132,7 +134,9 @@ export class TcApp extends LitElement {
       <tc-menubar
         .view=${this.view}
         .standing=${this.standing}
+        .run=${this.status.run}
         @command=${(event: CustomEvent<CommandId>) => this.run(event.detail)}
+        @run-wanted=${(event: CustomEvent<Run>) => this.held(event.detail)}
         @menu-open=${(event: CustomEvent<boolean>) => {
           this.barMenu = event.detail;
         }}
@@ -182,6 +186,13 @@ export class TcApp extends LitElement {
 
   private get edit(): TcEditor | null {
     return this.renderRoot.querySelector<TcEditor>("tc-editor");
+  }
+
+  /** HOLD or GO, pressed on the bar. The socket is the run view's, so the
+   *  press goes there: the bar draws the run's word and this carries it, and
+   *  neither decides anything about the run. */
+  private held(run: Run): void {
+    this.renderRoot.querySelector<TcPanel>("tc-panel")?.press(run);
   }
 
   // --- the bar and the keyboard --------------------------------------------

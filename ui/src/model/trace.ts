@@ -73,6 +73,13 @@ export class Live {
  *  requests ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). */
 export const REQUEST_WANTED = "tc49/ui/request_wanted";
 export const REVERSAL_WANTED = "tc49/ui/reversal_wanted";
+export const RUN_WANTED = "tc49/ui/run_wanted";
+
+/** How a run stands: the dispatcher will commit nothing while it is `held`,
+ *  and a person moves it either way
+ *  ([ADR-0037](../../../docs/adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
+ *  A word and not a boolean, on the topic and here. */
+export type Run = "held" | "running";
 
 /** A `request_wanted` payload: what a drag means. A request minus the two
  *  fields the scheduler owns — no `id`, because the scheduler is the single
@@ -93,6 +100,14 @@ export function gesture(wanted: Gesture): string {
  *  ([ADR-0019](../../../docs/adr/0019-facing-is-scheduler-state.md)). */
 export function reversal(train: string): string {
   return JSON.stringify({ topic: REVERSAL_WANTED, payload: { train } });
+}
+
+/** A `run_wanted` frame: hold the run, or release it. It says where the run
+ *  should stand rather than asking for a change, so a press that agrees with
+ *  where it already stands is not a race — and the dispatcher is the one
+ *  writer of `state/run`, this being a gesture like the other two. */
+export function wanted(run: Run): string {
+  return JSON.stringify({ topic: RUN_WANTED, payload: { run } });
 }
 
 /** A `request_submitted` payload: what the scheduler composes out of a

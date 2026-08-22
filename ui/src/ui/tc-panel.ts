@@ -44,6 +44,7 @@ import {
   type Point,
 } from "../model/geometry.js";
 import {
+  outstanding,
   Panel,
   type Aspect,
   type BlockView,
@@ -52,7 +53,7 @@ import {
 } from "../model/panel.js";
 import { anchorAt, arrowPose, fitBox, positionsBySymbol } from "../model/scene.js";
 import { listScenarios, readScenario, type Review } from "../model/store.js";
-import { gesture, Live, reversal } from "../model/trace.js";
+import { gesture, Live, reversal, wanted, type Run } from "../model/trace.js";
 import type { Position } from "../symbols.generated.js";
 import { pointOf } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
@@ -71,6 +72,9 @@ export interface RunStatus {
   joined: boolean;
   linked: boolean;
   boundary: number | null;
+  /** How the run stands, `null` while no session is joined or before the
+   *  dispatcher has said (ADR-0037). It is what the bar's HOLD/GO reads. */
+  run: Run | null;
   /** What a session refused, or the store not answering. Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
   trouble: string | null;
@@ -108,6 +112,9 @@ export class TcPanel extends LitElement {
    *  apply it to would be a frame lost, and the drain a join opens with is the
    *  whole of the run's picture. */
   private joining: { id: string; railroad: string } | null = null;
+  /** What was still disputed at the moment the hold was released, in words,
+   *  `null` while there is nothing to say. */
+  @state() private released: string | null = null;
   /** Bumped after each step: the model mutates in place, so rendering is
    *  asked for rather than observed. */
   @state() private beat = 0;
@@ -121,6 +128,9 @@ export class TcPanel extends LitElement {
   } | null = null;
 
   private panel: Panel | null = null;
+  /** Whether the run was running when the last frame was applied, which is
+   *  what says a fresh hold has begun. */
+  private wasRunning = false;
   /** The railroad the model was built for, so it is rebuilt when the app loads
    *  another and kept when anything else changes. */
   private built: string | null = null;
@@ -278,13 +288,41 @@ export class TcPanel extends LitElement {
     // that train stands there.
     const at = this.menu;
     if (at !== null && !this.panel.standsIn(at.train, at.block)) this.menu = null;
+    // A fresh hold is a fresh decision, so what the last release was told
+    // about goes with it. The transition and not the value: the run is still
+    // `held` between the press and the dispatcher's answer, and clearing on
+    // the value would take the notice down before it was read.
+    const running = this.panel.run === "running";
+    if (this.wasRunning && !running) this.released = null;
+    this.wasRunning = running;
     this.beat++;
+  }
+
+  /**
+   * Hold the run, or release it: one `run_wanted` naming where it should
+   * stand (ADR-0037). The app presses it on the bar, the socket is here, and
+   * the dispatcher's answer comes back on `state/run` and redraws the button.
+   *
+   * Releasing with disputes outstanding is allowed — the person decides, not
+   * the check — and the panel says what is still disputed at the moment of
+   * release ([#153](https://github.com/rails49/control/issues/153)). It is a
+   * notice beside the press and not a question: nothing is blocked, and the
+   * amber marks the panel was carrying go with the hold, so this is the same
+   * answer in words for as long as the run they were released into is
+   * running.
+   */
+  press(run: Run): void {
+    if (this.socket === null || this.panel === null) return;
+    this.released = run === "running" ? outstanding(this.panel.disputes()) : null;
+    this.socket.send(wanted(run));
   }
 
   private leave(): void {
     this.drag.cancel();
     this.menu = null;
     this.joining = null;
+    this.released = null;
+    this.wasRunning = false;
     this.socket?.close();
     this.socket = null;
     this.live = null;
@@ -426,6 +464,9 @@ export class TcPanel extends LitElement {
             (name) => html`<sl-option value=${name}>${name}</sl-option>`,
           )}
         </sl-select>
+        ${this.released === null
+          ? nothing
+          : html`<span class="released">${this.released}</span>`}
         <span class="spacer"></span>
         ${this.session === null
           ? nothing
@@ -451,6 +492,7 @@ export class TcPanel extends LitElement {
       joined: this.session !== null,
       linked: this.connected,
       boundary: this.live?.boundary ?? null,
+      run: this.session === null ? null : (this.panel?.run ?? null),
       trouble: this.trouble,
     };
   }
@@ -467,6 +509,7 @@ export class TcPanel extends LitElement {
       was.joined === now.joined &&
       was.linked === now.linked &&
       was.boundary === now.boundary &&
+      was.run === now.run &&
       was.trouble === now.trouble
     ) {
       return;
@@ -667,5 +710,11 @@ export class TcPanel extends LitElement {
           : svg`<circle class="marker hover" cx=${at.x} cy=${at.y} r="0.34" />`;
       })}
     `;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "tc-panel": TcPanel;
   }
 }

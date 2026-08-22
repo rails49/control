@@ -33,6 +33,7 @@ import {
   type Menu,
   type Standing,
 } from "../model/commands.js";
+import type { Run } from "../model/trace.js";
 import type { ViewId } from "../model/views.js";
 import { GLYPHS } from "./icons.js";
 import { menubarStyles } from "./tc-menubar.styles.js";
@@ -46,6 +47,12 @@ export class TcMenubar extends LitElement {
 
   /** Where that view stands, as far as an item needs to know to be alive. */
   @property({ attribute: false }) standing: Standing = NOTHING;
+
+  /** How the run stands, `null` with no session joined. The run view's own
+   *  press, and the one thing on this bar that is not a command: it has no
+   *  key, its word is the run's rather than a verb's, and what it writes is a
+   *  gesture on the bus (ADR-0037). */
+  @property() run: Run | null = null;
 
   /** The menu that is down, `null` while none is. */
   @state() private showing: string | null = null;
@@ -63,6 +70,7 @@ export class TcMenubar extends LitElement {
       ${MENUS[this.view].map((menu) => this.dropdown(menu))}
       <span class="spacer"></span>
       ${TOOLS[this.view].map((id) => this.tool(id))}
+      ${this.view === "run" ? this.holding() : nothing}
     `;
   }
 
@@ -110,6 +118,37 @@ export class TcMenubar extends LitElement {
             : html`<kbd>${command.key}</kbd>`}
         </button>
       </li>
+    `;
+  }
+
+  /**
+   * HOLD while the run is running and GO while it is held: one press, and the
+   * word is what the press will do (ADR-0037). No confirmation — a clearly
+   * labelled button is the explicit GO, and asking twice for the same answer
+   * is how a person learns to click through the question.
+   *
+   * Dead with no session joined, there being no run to hold, and dead until
+   * the dispatcher has said where the run stands: a button guessing would
+   * offer to hold a run that is already held.
+   */
+  private holding() {
+    const going = this.run === "running";
+    const said = going ? "HOLD" : "GO";
+    return html`
+      <button
+        class=${`run ${going ? "hold" : "go"}`}
+        ?disabled=${this.run === null}
+        @click=${() =>
+          this.dispatchEvent(
+            new CustomEvent<Run>("run-wanted", {
+              detail: going ? "held" : "running",
+              bubbles: true,
+              composed: true,
+            }),
+          )}
+      >
+        ${said}
+      </button>
     `;
   }
 

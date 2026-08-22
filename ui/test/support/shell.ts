@@ -26,6 +26,7 @@ import type { TcApp } from "../../src/ui/tc-app.js";
 import type { TcEditor } from "../../src/ui/tc-editor.js";
 import type { TcHeader } from "../../src/ui/tc-header.js";
 import type { TcMenubar } from "../../src/ui/tc-menubar.js";
+import type { TcPanel } from "../../src/ui/tc-panel.js";
 
 /** A drawing the store is happy with: nothing to report. */
 export const CLEAN: Review = {
@@ -48,6 +49,9 @@ export interface Answers {
   drawings: string[];
   /** The ids `/scenarios` lists, which is what the run view asks for. */
   scenarios: string[];
+  /** Which railroad a scenario names, which is the one thing the run view
+   *  reads a scenario for. */
+  layoutOf: (id: string) => string;
   /** What `/drawings/<name>` answers with. */
   read: (name: string) => Drawing;
   /** What `/review` answers with. */
@@ -67,6 +71,7 @@ export function serving(answers: Partial<Answers> = {}): Answers {
   const store: Answers = {
     drawings: [],
     scenarios: [],
+    layoutOf: (id) => id.slice(0, id.indexOf("/")),
     read: (name) => {
       throw new Error(`no drawing '${name}'`);
     },
@@ -92,6 +97,10 @@ function answered(store: Answers, path: string): Promise<unknown> {
   if (path === "/drawings") return Promise.resolve({ drawings: [...store.drawings] });
   if (path === "/scenarios") {
     return Promise.resolve({ scenarios: [...store.scenarios] });
+  }
+  if (path.startsWith("/scenarios/")) {
+    const id = decodeURIComponent(path.slice("/scenarios/".length));
+    return Promise.resolve({ name: id, layout: store.layoutOf(id) });
   }
   const name = decodeURIComponent(path.slice("/drawings/".length));
   return Promise.resolve(store.read(name));
@@ -165,6 +174,11 @@ export function bar(shell: TcApp): TcMenubar {
 /** The editing view, and whatever it has drawn inside itself. */
 export function editing(shell: TcApp): TcEditor {
   return shell.renderRoot.querySelector("tc-editor")!;
+}
+
+/** The run view, and whatever it has drawn inside itself. */
+export function running(shell: TcApp): TcPanel {
+  return shell.renderRoot.querySelector("tc-panel")!;
 }
 
 /** One of the editing view's own parts, by tag. The views nest inside the app,

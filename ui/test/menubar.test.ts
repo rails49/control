@@ -302,3 +302,63 @@ describe("sliding along the bar", () => {
     expect(showing(menubar)).toBeNull();
   });
 });
+
+/**
+ * HOLD and GO (ADR-0037): the run view's own press, and the one thing on the
+ * bar that is not a command. One press, and the word is what the press will
+ * do — a clearly labelled button is the explicit GO, so there is no second
+ * question to click through.
+ */
+describe("holding the run and releasing it", () => {
+  /** The button, wherever it is on the bar. */
+  function press(menubar: TcMenubar): HTMLButtonElement | null {
+    return menubar.renderRoot.querySelector<HTMLButtonElement>("button.run");
+  }
+
+  it("says HOLD while the run is running and GO while it is held", async () => {
+    const running = await bar(LIVE, "run");
+    running.run = "running";
+    await running.updateComplete;
+    expect(press(running)!.textContent!.trim()).toBe("HOLD");
+
+    running.run = "held";
+    await running.updateComplete;
+    expect(press(running)!.textContent!.trim()).toBe("GO");
+  });
+
+  it("asks for the state the word names", async () => {
+    const menubar = await bar(LIVE, "run");
+    menubar.run = "held";
+    await menubar.updateComplete;
+    const heard: string[] = [];
+    menubar.addEventListener("run-wanted", (event) => {
+      heard.push((event as CustomEvent<string>).detail);
+    });
+
+    press(menubar)!.click();
+    menubar.run = "running";
+    await menubar.updateComplete;
+    press(menubar)!.click();
+
+    expect(heard).toEqual(["running", "held"]);
+  });
+
+  /** With no session joined there is no run to hold, and before the
+   *  dispatcher has said there is no word to offer the other of. */
+  it("is dead until a session says where the run stands", async () => {
+    const menubar = await bar(LIVE, "run");
+    expect(press(menubar)!.disabled).toBe(true);
+
+    menubar.run = "held";
+    await menubar.updateComplete;
+    expect(press(menubar)!.disabled).toBe(false);
+  });
+
+  /** The editor's document is a drawing; nothing there runs. */
+  it("is not on the editor's bar", async () => {
+    const menubar = await bar(LIVE, "edit");
+    menubar.run = "running";
+    await menubar.updateComplete;
+    expect(press(menubar)).toBeNull();
+  });
+});

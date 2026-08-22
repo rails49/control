@@ -135,4 +135,35 @@ export const menubarStyles = css`
   .tool:hover {
     background: #f0eeea;
   }
+
+  /* The run's own press: a word and not a glyph, because what it does is the
+     one thing on this bar that stops the railroad or lets it go. */
+  .run {
+    min-width: 4rem;
+    padding: 0.2rem 0.7rem;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--paper);
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+  }
+
+  .run.go {
+    border-color: var(--lit);
+    color: var(--lit);
+  }
+
+  .run.hold {
+    border-color: var(--wrong);
+    color: var(--wrong);
+  }
+
+  .run:disabled {
+    border-color: var(--rule);
+    color: var(--hint);
+    cursor: default;
+  }
 `;
