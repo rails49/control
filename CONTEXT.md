@@ -43,7 +43,10 @@ same connection may be in use simultaneously only if the connection declares
 them `concurrent`. The same concept one level down: a symbol declares transits
 between its pins, usually unnamed, and derivation composes symbol transits
 into connection transits.
-_Avoid_: route (reserved for the request-level path), path, crossing
+_Avoid_: route (reserved for the request-level path), path, crossing — the
+noun, for a transit or for the symbol kind of that name; the verb is
+sanctioned, and `tc49/dispatch/state/allocation`'s `crossing` maps a train to
+the transit it is crossing.
 
 **Signal**:
 What stands at a block end and tells a driver whether to go and how fast. Shows
