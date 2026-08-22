@@ -150,13 +150,13 @@ def test_the_session_survives_every_unreadable_payload(assembly: Assembly) -> No
     assert events(assembly.trace, "request_completed", rid="freight_1-1")
 
 
-def test_a_request_for_a_train_in_the_closet_is_answered(tmp_path: Path) -> None:
+def test_a_request_for_a_train_off_the_layout_is_answered(tmp_path: Path) -> None:
     """A known train that stands nowhere has no origin to depart from, so the
     request is answered rather than indexed for (ADR-0039, #175).
 
     Adoption takes the picture a train at a time (#164), so a train whose
-    picture block *and* whose starting block are both taken comes up in the
-    closet. That is the first state in which a known train has no block, and
+    picture block *and* whose starting block are both taken comes up off the
+    layout. That is the first state in which a known train has no block, and
     every launch lookup reads `block_of` expecting one — so without this the
     answer is a `KeyError` on a payload a browser can send, which is the one
     thing this module exists to rule out.
@@ -179,7 +179,7 @@ def test_a_request_for_a_train_in_the_closet_is_answered(tmp_path: Path) -> None
     )
     layout, _ = load("crossover-yard/meet")
     scenario = Scenario(
-        name="closet",
+        name="unplaced",
         layout="crossover-yard",
         trains={
             "freight_1": TrainSpec(1100, "yard_w", "B"),

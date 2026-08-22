@@ -94,7 +94,7 @@ def coherent(dispatcher: Dispatcher) -> None:
     """The invariant every adoption keeps, whatever it took from the picture:
     one train to a block, and the standing lock CONTEXT.md says every parked
     train always has (#164). A train placed by neither holds nothing, which
-    is the closet and not a fault (ADR-0039)."""
+    is off the layout and not a fault (ADR-0039)."""
     placed = dispatcher.state.block_of
     assert len(set(placed.values())) == len(placed), "two trains in one block"
     assert dispatcher.state.locks == {block: train for train, block in placed.items()}
@@ -246,7 +246,7 @@ def test_only_the_colliding_train_gives_up_its_restored_position(
 
 
 def test_a_train_with_nowhere_left_is_placed_by_neither(tmp_path: Path) -> None:
-    """Both answers taken, so the train comes up in the closet (ADR-0039).
+    """Both answers taken, so the train comes up off the layout (ADR-0039).
 
     `local_3` takes the block the picture stands `freight_1` in, and the
     picture has meanwhile parked `express_2` in `freight_1`'s own starting

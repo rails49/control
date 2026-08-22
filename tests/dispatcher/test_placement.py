@@ -243,7 +243,7 @@ def test_a_train_adoption_placed_nowhere_can_be_put_on_the_layout(
 
     Adoption takes the picture a train at a time, so a train whose picture
     block *and* whose starting block are both taken comes up placed nowhere
-    at all — in the closet (ADR-0039), holding no lock, with a person the
+    at all — off the layout (ADR-0039), holding no lock, with a person the
     only way out. Here `leviathan` was added to the roster since the picture
     was taken and stands in `dn_e`, which is where the picture left
     `freight_1`; `railcar_3` is parked in `freight_1`'s own starting block,
@@ -265,7 +265,7 @@ def test_a_train_adoption_placed_nowhere_can_be_put_on_the_layout(
     )
     layout, _ = load("crossover-yard/meet")
     scenario = Scenario(
-        name="closet",
+        name="unplaced",
         layout="crossover-yard",
         trains={
             "freight_1": TrainSpec(1100, "yard_w", "B"),

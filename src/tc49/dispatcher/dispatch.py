@@ -349,7 +349,7 @@ def restored(
     picture does not name has only the document and nowhere else to stand,
     while one it does name still has its own starting block to fall back to.
     A train both of whose answers are taken is placed by neither and comes up
-    in the closet (ADR-0039) — nothing is resolved automatically, and #153 is
+    off the layout (ADR-0039) — nothing is resolved automatically, and #153 is
     what points a person at what is left. A train that did not keep its
     restored position loses its crossing hint with it: the hint names a
     transit the placement it came with was consistent with, and says nothing
@@ -525,13 +525,12 @@ class Dispatcher:
             self._reject(rid, Reason.UNKNOWN_BLOCK)
             return
         if request.train not in self._state.block_of:
-            # On the roster but not on the layout: the closet (ADR-0039), which
-            # adoption reaches when a train's picture block and its starting
-            # block are both taken (#164). Answered here rather than guarded at
-            # each launch lookup, because this is the only way in: nothing
-            # unplaces a train once the constructor has run, so a request that
-            # gets past this line names a train with a block, and `_pending`
-            # holds none that did not.
+            # Known but off the layout (ADR-0039), which adoption reaches when
+            # a train's picture block and its starting block are both taken
+            # (#164). Answered here rather than guarded at each launch lookup,
+            # because this is the only way in: nothing unplaces a train once the
+            # constructor has run, so a request that gets past this line names a
+            # train with a block, and `_pending` holds none that did not.
             self._reject(rid, Reason.NO_ORIGIN)
             return
         expected = self._expected_block(request.train)
@@ -769,8 +768,8 @@ class Dispatcher:
         if self._has_pending(wanted.train) or wanted.train in state.active:
             return
         # A train adoption placed nowhere holds no standing lock and has none
-        # to give up: it is in the closet, and this gesture is what takes it
-        # out (ADR-0039, #164). Placing one is otherwise the same act.
+        # to give up: it is off the layout, and this gesture is what puts it
+        # back on (ADR-0039, #164). Placing one is otherwise the same act.
         standing = state.block_of.get(wanted.train)
         if standing is not None:
             del state.locks[standing]
@@ -1046,7 +1045,7 @@ class Dispatcher:
         Setting the route is the dispatcher's responsibility — it answers for
         the route being free and correctly set up — so `align` is its command
         and not the driver's (ADR-0022). It carries the points the transit
-        needs, read off the layout (ADR-0031), so the layout interface throws
+        needs, read from the layout (ADR-0031), so the layout interface throws
         what it is told and holds no table of its own. Always `points`, `[]`
         where nothing needs throwing: the document is quiet, the wire explicit.
         """

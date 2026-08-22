@@ -298,7 +298,7 @@ def end_on(layout: Layout, block: str, transit: str) -> str:
     signal the aspect belongs to; entering, it is the arrival end the train
     comes in through. Neither is on the bus — `move_granted` names the transit
     and the block, and `route_chosen` names the route — so both the dispatcher
-    and the scheduler read it off the layout here.
+    and the scheduler read it from the layout here.
     """
     connection, _, name = transit.partition(".")
     first, second = layout.connections[connection].transits[name]

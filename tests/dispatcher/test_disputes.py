@@ -213,7 +213,7 @@ def test_a_train_adoption_placed_nowhere_is_disputed_as_a_block(
     """The other side of the per-train adoption of #164.
 
     `freight_1` had both its answers taken, so it is placed nowhere and the
-    check has no block of its own to read against: a train in the closet
+    check has no block of its own to read against: a train off the layout
     stands in nothing and contradicts nothing. The steel is still somewhere,
     though, and wherever it reads occupied nothing claims it — so it comes
     out as the stray *block* it is, which is exactly where a person is sent.

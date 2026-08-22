@@ -130,7 +130,7 @@ const REJECTED: Record<Reason, string> = {
   no_entry: "no arrival end is enterable",
   unreachable: "no path exists",
   wrong_origin: "the train is elsewhere",
-  no_origin: "the train is not on the layout",
+  no_origin: "the train is off the layout",
   unknown_train: "the session has no such train",
   unknown_block: "the layout has no such block",
   malformed: "the request could not be read",
