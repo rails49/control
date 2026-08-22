@@ -72,6 +72,11 @@ export interface BlockView {
   train?: string;
   /** The end the occupying train faces, as the scheduler says. */
   toward?: string;
+  /** What the detectors say about this block where the dispatcher has said
+   *  that contradicts its own placement (#153): `clear` under a train
+   *  standing here, `occupied` with nothing claiming it. Absent otherwise,
+   *  which covers both agreement and a block nothing has reported on. */
+  dispute?: "clear" | "occupied";
 }
 
 /** One endpoint of a request still worth marking: a pending or rejected
@@ -157,6 +162,11 @@ export class Panel {
    *  scheduler last said. Read, never derived: facing is scheduler state
    *  (ADR-0019), and the topic carries it whole. */
   private heading = new Map<string, { block: string; toward: string }>();
+  /** The trains and the blocks the detectors dispute, as the dispatcher last
+   *  said (#153). Read and never derived: which blocks the layout has
+   *  reported on at all is knowledge only the dispatcher holds, and a panel
+   *  working it out would call every unreported block clear. */
+  private disputed = { trains: new Set<string>(), blocks: new Set<string>() };
   private requests = new Map<string, Request>();
   /** Whether the first boundary has passed: a lock on a block before it is
    *  the trace's opening placement, there being no occupancy event for a
@@ -195,6 +205,7 @@ export class Panel {
     this.standing.clear();
     this.crossing.clear();
     this.heading.clear();
+    this.disputed = { trains: new Set(), blocks: new Set() };
     this.requests.clear();
     this.started = false;
   }
@@ -321,6 +332,19 @@ export class Panel {
         this.started = true;
         return;
       }
+      case "disputed": {
+        // Where the placement and the detectors contradict each other, while
+        // the run is held (#153). Last-value like every other state topic, so
+        // this replaces the set rather than adding to it — which is how it
+        // empties as a person walks the railroad placing trains, and how a
+        // release clears it.
+        const { trains, blocks } = event as unknown as {
+          trains: string[];
+          blocks: string[];
+        };
+        this.disputed = { trains: new Set(trains), blocks: new Set(blocks) };
+        return;
+      }
       case "aspects": {
         const { aspects } = event as unknown as {
           aspects: Record<EndRef, Aspect>;
@@ -415,26 +439,37 @@ export class Panel {
     const views = new Map<string, BlockView>();
     for (const block of Object.keys(this.layout.blocks)) {
       const train = this.standing.get(block);
+      // What the detectors dispute rides on the block whatever else is true
+      // of it, rather than being a fifth state: a dispute is about the block
+      // being other than the picture says, so hiding the picture behind it
+      // would take away the half a person is checking. Never both readings —
+      // one detector says one thing.
+      const dispute: Pick<BlockView, "dispute"> = this.disputed.blocks.has(block)
+        ? { dispute: "occupied" }
+        : train !== undefined && this.disputed.trains.has(train)
+          ? { dispute: "clear" }
+          : {};
       if (train !== undefined) {
         const heading = this.heading.get(train);
         views.set(block, {
           state: "occupied",
           train,
           ...(heading?.block === block ? { toward: heading.toward } : {}),
+          ...dispute,
         });
         continue;
       }
       const holder = this.locks.get(block);
       if (holder !== undefined) {
-        views.set(block, { state: "locked", train: holder });
+        views.set(block, { state: "locked", train: holder, ...dispute });
         continue;
       }
       const expecting = planned.get(block);
       if (expecting !== undefined) {
-        views.set(block, { state: "planned", train: expecting });
+        views.set(block, { state: "planned", train: expecting, ...dispute });
         continue;
       }
-      views.set(block, { state: "free" });
+      views.set(block, { state: "free", ...dispute });
     }
     return views;
   }

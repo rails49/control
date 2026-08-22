@@ -567,7 +567,7 @@ export class TcPanel extends LitElement {
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
         ${this.wires(lit)} ${this.symbols(blocks, lit, aspects, positions)}
         ${this.labels(blocks)} ${this.arrows(blocks)} ${this.crossings()}
-        ${this.markers()}
+        ${this.disputes(blocks)} ${this.markers()}
         ${this.gesture()}
       </svg>
     `;
@@ -614,7 +614,12 @@ export class TcPanel extends LitElement {
       // the two never meet on one symbol. Occupancy outranks both all the
       // same, which is what reading the block's state first says.
       const state = block?.state ?? lit.state.get(name) ?? "";
-      const classes = ["symbol", state, name === target ? "target" : ""]
+      const classes = [
+        "symbol",
+        state,
+        block?.dispute === undefined ? "" : "disputed",
+        name === target ? "target" : "",
+      ]
         .filter((one) => one !== "" && one !== "free")
         .join(" ");
       return svg`
@@ -638,6 +643,22 @@ export class TcPanel extends LitElement {
       return svg`<text class=${occupied ? "name train" : "name"} x=${x} y=${y}
         font-size=${fitted(text, BLOCK.body.w)}
         transform=${`rotate(${labelTurn(spec)} ${x} ${y})`}>${text}</text>`;
+    });
+  }
+
+  /** What the detectors dispute, in words under the block it is about: the
+   *  reading that contradicts the picture, since the picture itself is
+   *  already on screen (#153). These are where a person is sent first, so
+   *  they say which of the two contradictions this is rather than only that
+   *  something is wrong. */
+  private disputes(blocks: Map<string, BlockView>) {
+    return [...blocks].map(([name, view]) => {
+      const spec = this.drawing!.symbols[name];
+      if (spec === undefined || view.dispute === undefined) return nothing;
+      const { x, y } = centreOf(spec);
+      return svg`<text class="note disputed" x=${x} y=${y + 1}>
+        reads ${view.dispute}
+      </text>`;
     });
   }
 

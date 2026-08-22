@@ -1017,3 +1017,64 @@ describe("a crossing train", () => {
     expect(model.crossings()).toEqual([]);
   });
 });
+
+/**
+ * What the detectors dispute (#153). While the run is held the dispatcher
+ * compares its placement against the occupancy the layout has reported and
+ * publishes the two contradictions; the panel marks them, because they are
+ * where a person is sent first. It judges none of it — which blocks were
+ * reported on at all is knowledge only the dispatcher has.
+ */
+describe("the detectors' dispute", () => {
+  const STANDING = {
+    event: "allocation",
+    trains: { t1: "a" },
+    crossing: {},
+    locks: { a: "t1" },
+    requests: [],
+  };
+
+  it("says the block under a disputed train reads clear", () => {
+    const model = panel();
+    feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: [] });
+    expect(model.blocks().get("a")).toMatchObject({
+      state: "occupied",
+      train: "t1",
+      dispute: "clear",
+    });
+  });
+
+  it("says a disputed block reads occupied, with nothing in it", () => {
+    const model = panel();
+    feed(model, STANDING, { event: "disputed", trains: [], blocks: ["b"] });
+    expect(model.blocks().get("b")).toEqual({ state: "free", dispute: "occupied" });
+  });
+
+  it("marks nothing else on the railroad", () => {
+    const model = panel();
+    feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: ["b"] });
+    expect(model.blocks().get("c")?.dispute).toBeUndefined();
+  });
+
+  it("replaces the whole set, the topic being last-value", () => {
+    // Which is how it empties as the railroad is walked: each placement
+    // republishes what is left, and an entry resolved simply is not in it.
+    const model = panel();
+    feed(
+      model,
+      STANDING,
+      { event: "disputed", trains: ["t1"], blocks: ["b"] },
+      { event: "disputed", trains: [], blocks: [] },
+    );
+    expect(model.blocks().get("a")?.dispute).toBeUndefined();
+    expect(model.blocks().get("b")?.dispute).toBeUndefined();
+  });
+
+  it("is forgotten when a replay starts over", () => {
+    const model = panel();
+    feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: ["b"] });
+    model.reset();
+    expect(model.blocks().get("a")?.dispute).toBeUndefined();
+    expect(model.blocks().get("b")?.dispute).toBeUndefined();
+  });
+});

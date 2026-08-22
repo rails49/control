@@ -194,6 +194,22 @@ export const panelStyles = css`
     fill: var(--wrong);
   }
 
+  /* What the detectors dispute (#153). The outline rides over whatever state
+     the block is in rather than replacing its colour: the dispute is that the
+     block is other than the picture says, and the picture is the half a
+     person is checking. Amber, not the red a rejection wears — nothing is
+     broken, and the railroad is as likely to be right as the software. It is
+     the last stroke declared for a block body, so it wins on specificity ties
+     without a rule of its own for each state. */
+  .symbol.disputed .block-body {
+    stroke: var(--amber);
+    stroke-width: ${2 * W};
+  }
+
+  .note.disputed {
+    fill: var(--amber);
+  }
+
   /* Scheduling by drag (#72). A live session is the only one that can submit,
      so only there does a train look like something to pick up. */
   svg.scheduling .symbol.occupied {

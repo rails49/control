@@ -24,6 +24,27 @@ two block ends its transit joins, and stands in no block. The picture's
 its lock and its colour and loses the name and the arrow
 ([#154](https://github.com/rails49/control/issues/154)).
 
+**What the detectors dispute is marked on the block it is about.** While the
+run is held the dispatcher compares its placement against the occupancy the
+layout has reported and publishes the two contradictions on
+`tc49/dispatch/state/disputed`: a train standing in a block that reads clear,
+and a block that reads occupied with nothing claiming it
+([#153](https://github.com/rails49/control/issues/153)). Each wears an amber
+outline over whatever state it already has — the dispute is that the block is
+other than the picture says, and the picture is the half a person is checking
+— and the reading that contradicts it is written under the block in words:
+*reads clear*, *reads occupied*. Amber, not the red a rejection wears: nothing
+is broken, and the railroad is as likely to be right as the software.
+
+These are where a person is sent first, and walking the railroad is what
+empties them: each `placement_wanted` republishes what is left. The panel
+derives none of it — which blocks the layout has reported on at all is
+knowledge only the dispatcher holds, and a panel working it out would call
+every block nothing has said anything about clear. Releasing the hold with
+entries outstanding is allowed, and the set empties with the press; what the
+panel is still marking at that moment is what the person is deciding to
+accept.
+
 A request renders in three layers, each appearing when the bus first makes it
 true. **Requested** (from `request_submitted`): the train, its departure end,
 and the candidate arrival ends, endpoints only, since no route exists yet and
