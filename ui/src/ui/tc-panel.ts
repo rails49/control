@@ -11,48 +11,45 @@
  * of the two happened last is what the app has loaded, until a run needs no
  * scenario at all (#171).
  *
- * Everything shown is the panel model's answer (model/panel.ts) and everything
- * a drag means is the drag model's (model/drag.ts). This component converts
- * the pointer's pixels into squares, paints, and sends the frames the relay
- * accepts. It computes nothing: occupancy, aspects, markers, the lit route,
- * arrival ends and whether a train is busy all arrive as data.
+ * **It draws none of it.** `tc-canvas` in run mode is the surface, the same one
+ * the editor draws on, so the viewport, the wires, the symbols and the labels
+ * are written once and this view has zoom, pan and fit for free
+ * ([#168](https://github.com/rails49/control/issues/168)). What this holds is
+ * what only a run has: the session, the model the bus feeds, the overlay it
+ * hands the canvas, and the machine that says what a drag means
+ * (model/drag.ts).
+ *
+ * Everything shown is the panel model's answer (model/panel.ts). It computes
+ * nothing: occupancy, aspects, markers, the lit route, arrival ends and
+ * whether a train is busy all arrive as data.
  *
  * Its one source is the bus (ADR-0038). Reading a recorded trace was how this
  * view was built before `tc49 live` existed; a trace is the harness's now, and
  * a session is the only thing that feeds a picture.
  */
 
-import { LitElement, html, svg, nothing } from "lit";
+import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/select/select.js";
 import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
-import { Drag, trainAt } from "../model/drag.js";
 import {
-  wireKey,
-  wirePins,
-  type Drawing,
-  type Wire,
-} from "../model/drawing.js";
-import { dark, litLast } from "../model/inspect.js";
+  Drag,
+  schedulingMachine,
+  type Drop,
+  type Painted,
+} from "../model/drag.js";
+import type { Drawing } from "../model/drawing.js";
+import { outstanding, Panel, type Overlay } from "../model/panel.js";
+import { positionsBySymbol } from "../model/scene.js";
 import {
-  centreOf,
-  labelTurn,
-  transformOf,
-  type Point,
-} from "../model/geometry.js";
-import {
-  outstanding,
-  Panel,
-  type Aspect,
-  type BlockView,
-  type LitRoute,
-  type Marker,
-} from "../model/panel.js";
-import { anchorAt, arrowPose, fitBox, positionsBySymbol } from "../model/scene.js";
-import { listScenarios, readScenario, type Review } from "../model/store.js";
+  listScenarios,
+  readScenario,
+  UNREVIEWED,
+  type Review,
+} from "../model/store.js";
 import {
   gesture,
   Live,
@@ -61,12 +58,10 @@ import {
   type Power,
   type Run,
 } from "../model/trace.js";
-import type { Position } from "../symbols.generated.js";
-import { pointOf } from "../model/under.js";
-import { artwork, DEFS } from "../render/artwork.js";
-import { BLOCK, fitted } from "../render/units.js";
 import { panelStyles } from "./tc-panel.styles.js";
+import "./tc-canvas.js";
 import "./tc-menu.js";
+import type { TcCanvas } from "./tc-canvas.js";
 import type { MenuItem } from "./tc-menu.js";
 
 /**
@@ -148,6 +143,14 @@ export class TcPanel extends LitElement {
   private live: Live | null = null;
   private socket: WebSocket | null = null;
   private readonly drag = new Drag();
+  /** What a press on the canvas means here (model/drag.ts), bound to what is
+   *  on screen. It answers quiet while there is no session to submit to,
+   *  which is the whole of the gate on gesturing. */
+  private readonly machine = schedulingMachine(
+    this.drag,
+    () => this.painted,
+    (drop) => this.submit(drop),
+  );
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -344,28 +347,23 @@ export class TcPanel extends LitElement {
   // --- scheduling by drag ---------------------------------------------------
 
   /** Whether a drag means anything: only a joined session has anywhere to
-   *  gesture at. */
+   *  gesture at, and only there does a train look like something to pick up. */
   private get scheduling(): boolean {
     return this.connected && this.drawing !== null && this.panel !== null;
   }
 
-  private down(event: PointerEvent): void {
-    if (!this.scheduling) return;
-    const took = this.drag.down(
-      this.drawing!,
-      this.review!,
-      this.panel!.blocks(),
-      this.gridAt(event),
-    );
-    if (!took) return;
-    (event.target as Element).setPointerCapture?.(event.pointerId);
-    this.beat++;
-  }
-
-  private moved(event: PointerEvent): void {
-    if (this.drag.train === null) return;
-    this.drag.moved(this.drawing!, this.review!, this.gridAt(event));
-    this.beat++;
+  /** What is on screen for a gesture to be about, `null` where nothing is.
+   *  Read afresh on each call by the machine: the bus moves under a gesture in
+   *  flight, and a session may go while one is. */
+  private get painted(): Painted | null {
+    const drawing = this.drawing;
+    const model = this.panel;
+    if (!this.scheduling || drawing === null || model === null) return null;
+    return {
+      drawing,
+      review: this.review ?? UNREVIEWED,
+      blocks: model.blocks(),
+    };
   }
 
   /**
@@ -373,46 +371,29 @@ export class TcPanel extends LitElement {
    * names the train and where to put it, and the scheduler composes the
    * request — the id and the departure end are its (ADR-0036). The
    * dispatcher's answer comes back over the same socket and renders itself.
+   *
+   * The machine calls it, the canvas having driven the gesture: writing to the
+   * bus is this view's and no model's.
    */
-  private up(event: PointerEvent): void {
-    if (this.drag.train === null) return;
-    const drop = this.drag.up(this.drawing!, this.review!, this.gridAt(event));
-    this.beat++;
-    if (drop === null) return;
-    this.socket?.send(gesture(this.panel!.compose(drop.train, drop.dest)));
-  }
-
-  private abandon(): void {
-    if (this.drag.train === null) return;
-    this.drag.cancel();
-    this.beat++;
+  private submit(drop: Drop): void {
+    if (this.panel === null) return;
+    this.socket?.send(gesture(this.panel.compose(drop.train, drop.dest)));
   }
 
   // --- turning a train around -----------------------------------------------
 
   /**
-   * The right-click: the menu over the block a train stands in, and nothing
-   * anywhere else (#124).
+   * The right-click, as the canvas passes it on: the menu over the block a
+   * train stands in, and nothing anywhere else (#124).
    *
-   * The native menu is suppressed over the whole drawing, the way `tc-canvas`
-   * suppresses it, so a right-click on paper is not half this gesture and
-   * half the browser's. The press that opened this may have started a drag —
-   * a long press on a touch screen raises `contextmenu` — and the menu takes
-   * it over.
+   * Which train was clicked is `trainAt`'s answer, the same question the press
+   * that takes hold of one asks (model/drag.ts), so the two can never
+   * disagree. A press that had started a drag — a long press on a touch screen
+   * raises `contextmenu` — has been abandoned by the machine, the menu taking
+   * the gesture over.
    */
-  private offer(event: MouseEvent): void {
-    event.preventDefault();
-    this.abandon();
-    this.menu = null;
-    if (!this.scheduling) return;
-    const standing = trainAt(
-      this.drawing!,
-      this.review!,
-      this.panel!.blocks(),
-      this.gridAt(event),
-    );
-    if (standing === null) return;
-    this.menu = { x: event.clientX, y: event.clientY, ...standing };
+  private offer(event: CustomEvent<{ x: number; y: number; train: string; block: string }>): void {
+    this.menu = event.detail;
   }
 
   /**
@@ -447,20 +428,11 @@ export class TcPanel extends LitElement {
     this.socket?.send(reversal(train));
   }
 
-  private gridAt(event: MouseEvent): Point {
-    const element = this.renderRoot.querySelector("svg")!;
-    const matrix = element.getScreenCTM();
-    if (matrix === null) return { x: 0, y: 0 };
-    const point = element.createSVGPoint();
-    point.x = event.clientX;
-    point.y = event.clientY;
-    const grid = point.matrixTransform(matrix.inverse());
-    return { x: grid.x, y: grid.y };
-  }
-
   // --- painting -------------------------------------------------------------
 
   override render() {
+    const drawing = this.drawing;
+    const live = this.overlay;
     return html`
       <header>
         <sl-select
@@ -483,7 +455,21 @@ export class TcPanel extends LitElement {
           ? nothing
           : html`<sl-button size="small" @click=${this.leave}>Leave</sl-button>`}
       </header>
-      <main>${this.canvas()}</main>
+      <main>
+        ${drawing === null || live === null
+          ? nothing
+          : html`
+              <tc-canvas
+                mode="run"
+                class=${this.scheduling ? "scheduling" : ""}
+                .drawing=${drawing}
+                .review=${this.review}
+                .live=${live}
+                .machine=${this.machine}
+                @canvas-menu=${this.offer}
+              ></tc-canvas>
+            `}
+      </main>
 
       <tc-menu
         .at=${this.menu}
@@ -537,192 +523,43 @@ export class TcPanel extends LitElement {
     );
   }
 
-  private canvas() {
-    if (this.drawing === null || this.panel === null) return nothing;
-    const { x, y, w, h } = fitBox(this.drawing);
-    const blocks = this.panel.blocks();
-    const lit = this.panel.lit();
-    const aspects = this.panel.aspects();
-    // Where each point lies: the addresses the alignment command carried, read
-    // back as the symbols wearing them (ui/PANEL.md).
-    const positions = positionsBySymbol(
-      this.drawing,
-      this.panel.positionsByAddress(),
-    );
-    return svg`
-      <svg
-        viewBox=${`${x} ${y} ${w} ${h}`}
-        class=${this.scheduling ? "scheduling" : ""}
-        @pointerdown=${this.down}
-        @pointermove=${this.moved}
-        @pointerup=${this.up}
-        @pointercancel=${this.abandon}
-        @contextmenu=${this.offer}
-      >
-        <defs>${DEFS}</defs>
-        <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
-        ${this.wires(lit)} ${this.symbols(blocks, lit, aspects, positions)}
-        ${this.labels(blocks)} ${this.arrows(blocks)} ${this.crossings()}
-        ${this.disputes(blocks)} ${this.markers()}
-        ${this.gesture()}
-      </svg>
-    `;
-  }
-
-  /** Every wire, in the order `inspect.litLast` puts them in, each lit one
-   *  carrying the state of the transit it is on. */
-  private wires(lit: LitRoute) {
-    const drawing = this.drawing!;
-    const alight = (wire: Wire) => lit.wires.has(wireKey(wire));
-    return litLast(drawing.wires, alight).map((wire) => {
-      const [a, b] = wirePins(wire);
-      const from = pointOf(drawing, a);
-      const to = pointOf(drawing, b);
-      if (from === null || to === null) return nothing;
-      // A wire sits outside every symbol's group, so the state rides on the
-      // line itself rather than being inherited from one.
-      const held = lit.wires.get(wireKey(wire));
-      return svg`<line class=${held === undefined ? "wire" : `wire lit ${held}`}
-                       x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />`;
-    });
-  }
-
-  private symbols(
-    blocks: Map<string, BlockView>,
-    lit: LitRoute,
-    aspects: ReadonlyMap<string, Aspect>,
-    positions: ReadonlyMap<string, Position>,
-  ) {
-    const target = this.drag.drop?.block;
-    const blind = dark(this.review!);
-    return Object.entries(this.drawing!.symbols).map(([name, spec]) => {
-      const block = blocks.get(name);
-      // Keyed by end letter, which is what the artwork puts on each signal's
-      // group; an end the dispatcher never named simply has no aspect.
-      const showing = new Map(
-        (["A", "B"] as const).flatMap((end) => {
-          const shown = aspects.get(`${name}.${end}`);
-          return shown === undefined ? [] : [[end, shown] as const];
-        }),
-      );
-      // A block wears its own state and a junction symbol the strongest claim
-      // any transit through it carries; a block is on no transit's way, so
-      // the two never meet on one symbol. Occupancy outranks both all the
-      // same, which is what reading the block's state first says.
-      const state = block?.state ?? lit.state.get(name) ?? "";
-      const classes = [
-        "symbol",
-        state,
-        block?.dispute === undefined ? "" : "disputed",
-        name === target ? "target" : "",
-      ]
-        .filter((one) => one !== "" && one !== "free")
-        .join(" ");
-      return svg`
-        <g class=${classes} transform=${transformOf(spec)}>
-          ${artwork(spec, lit.legs.get(name), blind.get(name), showing, positions.get(name))}
-        </g>
-      `;
-    });
-  }
-
-  /** A block's text, turned with the block as the editor turns it: its train
-   *  when one stands there, its own name dimly otherwise. A train's name is
-   *  the longer of the two, so this is where the fit is usually doing work. */
-  private labels(blocks: Map<string, BlockView>) {
-    return Object.entries(this.drawing!.symbols).map(([name, spec]) => {
-      if (spec.kind !== "block") return nothing;
-      const view = blocks.get(name);
-      const { x, y } = centreOf(spec);
-      const occupied = view?.state === "occupied" && view.train !== undefined;
-      const text = occupied ? view!.train! : name;
-      return svg`<text class=${occupied ? "name train" : "name"} x=${x} y=${y}
-        font-size=${fitted(text, BLOCK.body.w)}
-        transform=${`rotate(${labelTurn(spec)} ${x} ${y})`}>${text}</text>`;
-    });
-  }
-
-  /** What the detectors dispute, in words under the block it is about: the
-   *  reading that contradicts the picture, since the picture itself is
-   *  already on screen (#153). These are where a person is sent first, so
-   *  they say which of the two contradictions this is rather than only that
-   *  something is wrong. */
-  private disputes(blocks: Map<string, BlockView>) {
-    return [...blocks].map(([name, view]) => {
-      const spec = this.drawing!.symbols[name];
-      if (spec === undefined || view.dispute === undefined) return nothing;
-      const { x, y } = centreOf(spec);
-      return svg`<text class="note disputed" x=${x} y=${y + 1}>
-        reads ${view.dispute}
-      </text>`;
-    });
-  }
-
-  /** A train the picture says is between two blocks: its name on the
-   *  connection it is crossing, midway between the two block ends that
-   *  transit joins, and in no block (ui/PANEL.md, #154). No arrow — the
-   *  block it faces out of is one it has left. */
-  private crossings() {
-    return this.panel!.crossings().map(({ train, between }) => {
-      const from = anchorAt(this.drawing!, between[0]);
-      const to = anchorAt(this.drawing!, between[1]);
-      if (from === null || to === null) return nothing;
-      return svg`<text class="name train crossing"
-        x=${(from.x + to.x) / 2} y=${(from.y + to.y) / 2}
-        font-size=${fitted(train, BLOCK.body.w)}>${train}</text>`;
-    });
-  }
-
-  /** The direction arrow: on the track, ahead of the block's centre, pointing
-   *  at the end the train faces. Unknown until a granted move has said. */
-  private arrows(blocks: Map<string, BlockView>) {
-    return [...blocks].map(([name, view]) => {
-      const spec = this.drawing!.symbols[name];
-      if (spec === undefined || view.toward === undefined) return nothing;
-      const { x, y, angle } = arrowPose(spec, view.toward);
-      return svg`<path class="arrow" d="M0.28 0 L-0.14 0.17 L-0.14 -0.17 Z"
-        transform=${`translate(${x} ${y}) rotate(${angle})`} />`;
-    });
-  }
-
-  /** Request endpoints, ring by ring, with the reasons the model worded. */
-  private markers() {
-    return (this.panel?.markers() ?? []).map((marker) => this.marked(marker));
-  }
-
-  private marked(marker: Marker) {
-    const at = anchorAt(this.drawing!, marker.at);
-    if (at === null) return nothing;
-    const { x, y } = at;
-    return svg`
-      <circle class=${`marker ${marker.role}`} cx=${x} cy=${y} r="0.3" />
-      ${
-        marker.note === undefined
-          ? nothing
-          : svg`<text class=${`note ${marker.role}`} x=${x} y=${y + 0.7}>
-              ${marker.note}
-            </text>`
-      }
-    `;
-  }
-
   /**
-   * The drag in flight: a line from where the train was taken hold of, and a
-   * ring at each arrival end a drop here would ask for — so the gesture's
-   * meaning is on screen before the release (ui/PANEL.md).
+   * What the run has painted over the drawing, for the canvas to draw (#168).
+   *
+   * Every entry is the panel model's own answer, worked out afresh on each
+   * render because each is the last frame's. Point positions are the one thing
+   * the model cannot answer alone: they are commanded by address, and the
+   * drawing is what turns an address back into a symbol (ADR-0022,
+   * ui/PANEL.md).
    */
-  private gesture() {
-    const { from, to, drop } = this.drag;
-    if (from === null || to === null) return nothing;
-    return svg`
-      <line class="reach" x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />
-      ${(drop?.dest ?? []).map((end) => {
-        const at = anchorAt(this.drawing!, end);
-        return at === null
-          ? nothing
-          : svg`<circle class="marker hover" cx=${at.x} cy=${at.y} r="0.34" />`;
-      })}
-    `;
+  private get overlay(): Overlay | null {
+    const model = this.panel;
+    if (model === null || this.drawing === null) return null;
+    return {
+      blocks: model.blocks(),
+      lit: model.lit(),
+      aspects: model.aspects(),
+      positions: positionsBySymbol(this.drawing, model.positionsByAddress()),
+      crossings: model.crossings(),
+      markers: model.markers(),
+    };
+  }
+
+  // --- the viewport, which is the canvas's ----------------------------------
+
+  /** Zoom and fit, pressed on the bar or typed on the keyboard. The app asks
+   *  whichever view is current, and the surface is the same one the editor
+   *  draws on. */
+  zoom(scale: number): void {
+    this.canvas?.zoom(scale);
+  }
+
+  fit(): void {
+    this.canvas?.fit();
+  }
+
+  private get canvas(): TcCanvas | null {
+    return this.renderRoot.querySelector<TcCanvas>("tc-canvas");
   }
 }
 

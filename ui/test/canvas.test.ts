@@ -14,10 +14,12 @@
 import { describe, expect, it } from "vitest";
 
 import "../src/ui/tc-canvas.js";
+import { Drag, schedulingMachine } from "../src/model/drag.js";
 import type { Drawing } from "../src/model/drawing.js";
 import { Editor } from "../src/model/editor.js";
 import { editingMachine, Gesture } from "../src/model/gesture.js";
 import type { Chosen } from "../src/model/inspect.js";
+import type { Overlay } from "../src/model/panel.js";
 import {
   UNREVIEWED,
   type Review,
@@ -59,11 +61,13 @@ function reviewed(unpaired: UnpairedPortal[]): Review {
  *  (model/machine.ts). */
 async function canvasOn(drawing: Drawing, review: Review): Promise<TcCanvas> {
   const canvas = document.createElement("tc-canvas");
-  canvas.editor = new Editor(structuredClone(drawing));
+  const editor = new Editor(structuredClone(drawing));
+  canvas.drawing = editor.drawing;
+  canvas.editor = editor;
   canvas.review = review;
   canvas.machine = editingMachine(
     new Gesture(),
-    () => canvas.editor,
+    () => editor,
     () => canvas.review ?? UNREVIEWED,
   );
   document.body.append(canvas);
@@ -256,8 +260,8 @@ describe("the drawing as a standalone file", () => {
   it("leaves out a selection and a wire in flight", async () => {
     const canvas = await drawn();
     const quiet = canvas.exported();
-    canvas.editor.select(["west"]);
-    canvas.editor.startWire("east.B");
+    canvas.editor!.select(["west"]);
+    canvas.editor!.startWire("east.B");
     canvas.requestUpdate();
     await canvas.updateComplete;
     expect(canvas.renderRoot.querySelector(".symbol.selected")).not.toBeNull();
@@ -518,11 +522,143 @@ describe("the mark a symbol with no address wears", () => {
 
   it("clears on the keystroke, no second review being asked for", async () => {
     const canvas = await drawn();
-    const spec = canvas.editor.drawing.symbols.sw2!;
-    canvas.editor.edit("sw2", "sw2", { ...spec, addr: "32" });
+    const spec = canvas.editor!.drawing.symbols.sw2!;
+    canvas.editor!.edit("sw2", "sw2", { ...spec, addr: "32" });
     canvas.requestUpdate();
     await canvas.updateComplete;
     expect(worn(canvas)).toEqual(["ss1"]);
     canvas.remove();
+  });
+});
+
+/**
+ * The two modes (#168). One canvas paints the drawing for both views, and
+ * `mode` decides what only one of them has: the editor's pins and face marks,
+ * and the run's live state.
+ *
+ * A DOM test because that is the whole of the claim — which marks are on the
+ * sheet — and because a mode that painted nothing at all would leave every
+ * model test green.
+ */
+describe("what each mode draws", () => {
+  /** Two blocks and the wire between them. */
+  const RAILROAD: Drawing = {
+    drawing: "two-blocks",
+    symbols: {
+      west: { kind: "block", at: [0, 0], length: 1000 },
+      east: { kind: "block", at: [6, 0], length: 1000 },
+    },
+    wires: [["west.B", "east.A"]],
+  };
+
+  /** A run mid-move: a train standing in `west` facing B, the signal there
+   *  clear, and a request marked at the end it is going to. */
+  const LIVE: Overlay = {
+    blocks: new Map([
+      ["west", { state: "occupied", train: "goods", toward: "B" }],
+      ["east", { state: "locked", train: "goods" }],
+    ]),
+    lit: { legs: new Map(), state: new Map(), wires: new Map() },
+    aspects: new Map([["west.B", "clear"]]),
+    positions: new Map(),
+    crossings: [],
+    markers: [{ id: "goods-1", train: "goods", at: "east.A", role: "arrival" }],
+  };
+
+  /** The run view's surface: the same canvas, told it is running, with the
+   *  run view's own machine — which is quiet with nothing to gesture at. */
+  async function running(live: Overlay = LIVE): Promise<TcCanvas> {
+    const canvas = document.createElement("tc-canvas");
+    canvas.mode = "run";
+    canvas.drawing = structuredClone(RAILROAD);
+    canvas.review = reviewed([]);
+    canvas.live = live;
+    canvas.machine = schedulingMachine(
+      new Drag(),
+      () => null,
+      () => undefined,
+    );
+    document.body.append(canvas);
+    await canvas.updateComplete;
+    return canvas;
+  }
+
+  /** What a symbol's group is wearing. */
+  function worn(canvas: TcCanvas, name: string): string[] {
+    return [
+      ...canvas.renderRoot.querySelector(`g[data-symbol="${name}"]`)!.classList,
+    ];
+  }
+
+  it("draws every pin while editing and none on a run", async () => {
+    const editing = await canvasOn(RAILROAD, reviewed([]));
+    expect(editing.renderRoot.querySelectorAll("circle.pin").length).toBe(4);
+    editing.remove();
+
+    const run = await running();
+    expect(run.renderRoot.querySelectorAll("circle.pin")).toHaveLength(0);
+    run.remove();
+  });
+
+  it("paints the run's state on a run and nothing of it while editing", async () => {
+    const run = await running();
+    expect(worn(run, "west")).toContain("occupied");
+    expect(worn(run, "east")).toContain("locked");
+    expect(run.renderRoot.querySelector(".signal.end-B.clear")).not.toBeNull();
+    expect(run.renderRoot.querySelectorAll("circle.marker.arrival")).toHaveLength(1);
+    expect(run.renderRoot.querySelectorAll("path.arrow")).toHaveLength(1);
+    run.remove();
+
+    const editing = await canvasOn(RAILROAD, reviewed([]));
+    expect(worn(editing, "west")).toEqual(["symbol"]);
+    expect(editing.renderRoot.querySelector(".signal.end-B.clear")).toBeNull();
+    expect(editing.renderRoot.querySelectorAll(".marker")).toHaveLength(0);
+    expect(editing.renderRoot.querySelectorAll("path.arrow")).toHaveLength(0);
+    editing.remove();
+  });
+
+  /** The label is one rule with two answers: a block's own name in the editor,
+   *  and the train standing in it on a run, which is the thing worth reading. */
+  it("labels a block with its train on a run and with its name while editing", async () => {
+    const run = await running();
+    const names = [...run.renderRoot.querySelectorAll("text.name")].map(
+      (text) => [text.textContent!.trim(), [...text.classList].join(" ")],
+    );
+    expect(names).toEqual([
+      ["goods", "name train"],
+      ["east", "name dim"],
+    ]);
+    run.remove();
+
+    const editing = await canvasOn(RAILROAD, reviewed([]));
+    expect(
+      [...editing.renderRoot.querySelectorAll("text.name")].map((text) => [
+        text.textContent!.trim(),
+        [...text.classList].join(" "),
+      ]),
+    ).toEqual([
+      ["west", "name"],
+      ["east", "name"],
+    ]);
+    editing.remove();
+  });
+
+  /** The rule that puts lit wires last is one rule for both modes (#142), so a
+   *  route's wire cannot be half hidden by a crossing unlit one either. */
+  it("draws a route's lit wires last, in the colour the claim reads in", async () => {
+    const run = await running({
+      ...LIVE,
+      lit: {
+        legs: new Map(),
+        state: new Map(),
+        wires: new Map([["east.A west.B", "locked"]]),
+      },
+    });
+    expect(
+      [...run.renderRoot.querySelectorAll("line.wire")].map((line) =>
+        [...line.classList].join(" "),
+      ),
+    ).toEqual(["wire lit locked"]);
+    run.remove();
   });
 });

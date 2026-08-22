@@ -20,7 +20,7 @@ import type { Explained, Layout } from "../src/model/store.js";
 import type { TraceEvent } from "../src/model/trace.js";
 import { TRANSITS, type Position } from "../src/symbols.generated.js";
 import { artwork } from "../src/render/artwork.js";
-import { panelStyles } from "../src/ui/tc-panel.styles.js";
+import { canvasStyles } from "../src/ui/tc-canvas.styles.js";
 
 /** Every stroke the symbol draws, in the order drawn. */
 function drawn(
@@ -199,7 +199,7 @@ describe("the fade itself", () => {
     // that rule leaves every test above green with nothing faint on screen.
     // The opacity is #98's to choose; that it is below full is the language.
     const rules = [
-      ...panelStyles.cssText
+      ...canvasStyles.cssText
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .matchAll(/([^{}]*)\{([^{}]*)\}/g),
     ].filter(([, selector]) => selector.includes(".against"));

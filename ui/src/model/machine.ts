@@ -37,6 +37,11 @@ export interface Span {
 export interface Marks {
   /** The box a rubber band is being pulled out to. */
   band?: Span;
+  /** The line from where a train was taken hold of to the pointer. */
+  reach?: Span;
+  /** The block a drop where the pointer is would ask for, and where each end
+   *  it would name sits. */
+  target?: { block: string; ends: Point[] };
 }
 
 /**

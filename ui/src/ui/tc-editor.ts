@@ -124,6 +124,8 @@ export class TcEditor extends LitElement {
       <tc-palette @take=${this.take}></tc-palette>
 
       <tc-canvas
+        mode="edit"
+        .drawing=${this.editor.drawing}
         .editor=${this.editor}
         .review=${this.review}
         .chosen=${this.chosen}

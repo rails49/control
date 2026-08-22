@@ -147,6 +147,40 @@ describe("joining a session", () => {
   });
 });
 
+/**
+ * What the run view shows, now that it shows it on the shared canvas (#168).
+ *
+ * The view draws none of the picture itself: it hands `tc-canvas` the overlay
+ * the panel model worked out and the canvas paints it in run mode. So the one
+ * thing worth walking end to end is that the picture still arrives — a frame
+ * off the bus, through the model, onto the sheet.
+ */
+describe("the picture on the shared canvas", () => {
+  /** The drawing surface the run view is rendering through. */
+  function sheet(shell: TcApp): ShadowRoot {
+    return running(shell).renderRoot.querySelector("tc-canvas")!.renderRoot as ShadowRoot;
+  }
+
+  it("stands the train the dispatcher's picture places, and marks its block", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { goods: "a" },
+      locks: { a: "goods" },
+      requests: [],
+    });
+
+    const drawn = sheet(shell);
+    expect([...drawn.querySelector('g[data-symbol="a"]')!.classList]).toContain(
+      "occupied",
+    );
+    expect(drawn.querySelector("text.name.train")!.textContent!.trim()).toBe(
+      "goods",
+    );
+    // The editor's marks are not on a run's sheet, whatever it is showing.
+    expect(drawn.querySelectorAll("circle.pin")).toHaveLength(0);
+  });
+});
+
 describe("the word on the button", () => {
   it("is dead until the session says where the run stands", async () => {
     const shell = await joined();

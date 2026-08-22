@@ -1,21 +1,32 @@
 /**
- * The drawing surface: SVG in the DOM, one user unit to one grid square.
+ * The drawing surface, in either of its two modes: SVG in the DOM, one user
+ * unit to one grid square
+ * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
  *
- * The viewport is this component's — zoom, the wheel, the middle-button pan
- * and fit — and what a press means is not. The view hands over a gesture
- * machine (model/machine.ts) and this converts pixels to squares, feeds it one
- * call per event, and maps each outcome onto rendering and events. It holds a
- * pointer position for the wireline and the ghost, and none of it survives the
- * gesture.
+ * There is one railroad and two views of it, so there is one canvas. The
+ * viewport — zoom, the wheel, the middle-button pan and fit — is the same for
+ * both and is this component's, and so are the artwork, the wires and where
+ * every symbol sits. `mode` decides what only one of them draws: **edit**
+ * has the pins, the face marks a wire in flight asks for, the ghost and the
+ * rubber band, and **run** has what the run has painted over the drawing,
+ * which arrives as data in `live` and is worked out in `model/panel.ts`.
+ *
+ * What a press means is neither mode's business here. The view hands over a
+ * gesture machine (model/machine.ts) — the editor's `Gesture`, the run view's
+ * `Drag` — and this converts pixels into squares, feeds it one call per event,
+ * and maps each outcome onto rendering and events. It holds a pointer position
+ * for the wireline and the ghost, and none of it survives the gesture.
  */
 
 import { LitElement, html, svg, nothing, type SVGTemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import {
+  emptyDrawing,
   symbolOf,
   wireKey,
   wirePins,
+  type Drawing,
   type PinRef,
   type SymbolSpec,
   type Wire,
@@ -32,7 +43,6 @@ import {
   transformOf,
   type Point,
 } from "../model/geometry.js";
-import type { Machine, Outcome } from "../model/machine.js";
 import {
   chosenWay,
   dark,
@@ -42,19 +52,33 @@ import {
   unpaired,
   type Chosen,
 } from "../model/inspect.js";
-import { fitBox } from "../model/scene.js";
+import type { Machine, Outcome } from "../model/machine.js";
+import type { Aspect, Marker, Overlay } from "../model/panel.js";
+import { anchorAt, arrowPose, fitBox } from "../model/scene.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { BLOCK, FACE, PIN, PORTAL, RING, fitted } from "../render/units.js";
 import { canvasStyles, exportStyles } from "./tc-canvas.styles.js";
 
-/** What the canvas lights, worked out once a render: the legs of the symbols
- *  on the way, the wires it is drawn over, and whether the way is one a
- *  refusal is about rather than one chosen. */
-interface Shown {
+/** Which of the two surfaces this is. */
+export type Mode = "edit" | "run";
+
+/**
+ * What the canvas lights, worked out once a render: the legs of the symbols on
+ * a way, and the classes each lit wire carries.
+ *
+ * Both modes light a way, and one rule emits it. The editor lights the transit
+ * chosen in the netlist pane, or the way a refusal is about, in the red that
+ * means derivation stopped (ADR-0024); the run view lights a committed route
+ * in the two colours the dispatcher's claim on it reads in (ui/PANEL.md).
+ */
+interface Lighting {
   legs: Map<string, Set<string>>;
-  wires: Set<string>;
+  /** Wire, as `wireKey` names it → the classes it wears beyond `wire`. A wire
+   *  that is not lit is absent. */
+  wires: Map<string, string>;
+  /** Whether the way is one a refusal is about rather than one chosen. */
   refused: boolean;
 }
 
@@ -69,10 +93,28 @@ interface Box {
 export class TcCanvas extends LitElement {
   static override styles = canvasStyles;
 
-  @property({ attribute: false }) editor!: Editor;
+  /** Which surface this is. Reflected, so the stylesheet can say what only one
+   *  of the two wears without a class the template has to remember. */
+  @property({ reflect: true }) mode: Mode = "edit";
+
+  /** The document painted, whichever mode is drawing it. */
+  @property({ attribute: false }) drawing: Drawing = emptyDrawing("untitled");
+
+  /** The editing session over that document, which only edit mode has. A run
+   *  view hands over none, and nothing that only editing draws is on the
+   *  sheet. */
+  @property({ attribute: false }) editor: Editor | null = null;
+
+  /** What the store says the drawing means, `null` before it has been asked. */
   @property({ attribute: false }) review: Review | null = null;
+
   /** The transit whose way is lit, chosen in the netlist pane. */
   @property({ attribute: false }) chosen: Chosen | null = null;
+
+  /** What a run has painted over the drawing, which only run mode has. Data
+   *  and nothing else: occupancy, aspects, markers, the lit route, point
+   *  positions and a train between two blocks all arrive worked out. */
+  @property({ attribute: false }) live: Overlay | null = null;
 
   /** What a press means, which is the view's and never this component's. */
   @property({ attribute: false }) machine!: Machine;
@@ -96,9 +138,20 @@ export class TcCanvas extends LitElement {
     super.disconnectedCallback();
   }
 
+  /** The editing session, where the mode has one: the one place `mode` and
+   *  `editor` are tied together, so no drawing method has to check both. */
+  private get editing(): Editor | null {
+    return this.mode === "edit" ? this.editor : null;
+  }
+
+  /** What the run has painted, where the mode has a run. */
+  private get painted(): Overlay | null {
+    return this.mode === "run" ? this.live : null;
+  }
+
   override render() {
     const { x, y, w, h } = this.view;
-    const shown = this.shown();
+    const lighting = this.lighting();
     return html`
       <svg
         viewBox=${`${x} ${y} ${w} ${h}`}
@@ -126,29 +179,55 @@ export class TcCanvas extends LitElement {
           ${DEFS}
         </defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
-        ${this.faces()} ${this.wires(shown)} ${this.symbols(shown)} ${this.pins()}
-        ${this.stacked()} ${this.wireline()} ${this.rubberBand()} ${this.ghost()}
+        ${this.faces()} ${this.wires(lighting)} ${this.symbols(lighting)}
+        ${this.pins()} ${this.stacked()} ${this.arrows()} ${this.crossings()}
+        ${this.disputes()} ${this.markers()} ${this.wireline()} ${this.reach()}
+        ${this.rubberBand()} ${this.ghost()}
       </svg>
     `;
   }
 
+  // --- the viewport -------------------------------------------------------
+
   /** Fit the whole drawing, with a margin. Placement is the document's, so
-   *  there is nothing to lay out — only somewhere to look. */
+   *  there is nothing to lay out — only somewhere to look. The frame is
+   *  `fitBox`, which is also what an export is drawn in, so a view fitted and
+   *  a file written frame the same thing. */
   fit(): void {
-    const box = this.getBoundingClientRect();
-    const shape = box.width > 0 ? box.height / box.width : 0.7;
-    const points: Point[] = [...this.editor.allPins(), ...this.marks()];
-    if (points.length === 0) {
-      this.view = { x: -1, y: -1, w: 16, h: 16 * shape };
-      return;
-    }
-    const xs = points.map((point) => point.x);
-    const ys = points.map((point) => point.y);
-    const [x, y] = [Math.min(...xs) - 1, Math.min(...ys) - 1];
-    const [across, down] = [Math.max(...xs) - x + 1, Math.max(...ys) - y + 1];
-    const w = Math.max(across, down / shape);
+    const pane = this.getBoundingClientRect();
+    const shape = pane.width > 0 ? pane.height / pane.width : 0.7;
+    const frame = fitBox(this.drawing, this.marks());
+    const w = Math.max(frame.w, frame.h / shape);
     const h = w * shape;
-    this.view = { x: x - (w - across) / 2, y: y - (h - down) / 2, w, h };
+    this.view = {
+      x: frame.x - (w - frame.w) / 2,
+      y: frame.y - (h - frame.h) / 2,
+      w,
+      h,
+    };
+  }
+
+  /** Zoom about the middle of the view, which is what a button can mean —
+   *  the wheel zooms about the pointer, having one. */
+  zoom(scale: number): void {
+    const { x, y, w, h } = this.view;
+    this.view = {
+      x: x + (w * (1 - scale)) / 2,
+      y: y + (h * (1 - scale)) / 2,
+      w: w * scale,
+      h: h * scale,
+    };
+  }
+
+  /** Keep a grid square square: the viewBox takes the element's own shape, so
+   *  the sheet fills it and a wheel zoom scales both ways at once. */
+  private square(): void {
+    const box = this.getBoundingClientRect();
+    if (box.width === 0 || box.height === 0) return;
+    const wanted = (this.view.w * box.height) / box.width;
+    if (Math.abs(wanted - this.view.h) > 1e-6) {
+      this.view = { ...this.view, h: wanted };
+    }
   }
 
   /** Where the labels of the portals pairing with nothing are drawn, which
@@ -158,7 +237,7 @@ export class TcCanvas extends LitElement {
    *  from. */
   private marks(): Point[] {
     return [...unpaired(this.review ?? UNREVIEWED).keys()].flatMap((name) => {
-      const spec = this.editor.drawing.symbols[name];
+      const spec = this.drawing.symbols[name];
       return spec === undefined ? [] : [gridPointOf(spec, PORTAL.mark)];
     });
   }
@@ -178,7 +257,7 @@ export class TcCanvas extends LitElement {
    * so the same drawing gives the same bytes whatever is under way.
    */
   exported(): string {
-    const box = fitBox(this.editor.drawing);
+    const box = fitBox(this.drawing, this.marks());
     const clone = this.renderRoot
       .querySelector("svg")!
       .cloneNode(true) as SVGSVGElement;
@@ -206,111 +285,134 @@ export class TcCanvas extends LitElement {
     return svgFile({ box, styles: exportStyles.cssText, body: clone.innerHTML });
   }
 
-  /** Zoom about the middle of the view, which is what a button can mean —
-   *  the wheel zooms about the pointer, having one. */
-  zoom(scale: number): void {
-    const { x, y, w, h } = this.view;
-    this.view = {
-      x: x + (w * (1 - scale)) / 2,
-      y: y + (h * (1 - scale)) / 2,
-      w: w * scale,
-      h: h * scale,
-    };
-  }
+  // --- what both modes draw -----------------------------------------------
 
-  /** Keep a grid square square: the viewBox takes the element's own shape, so
-   *  the sheet fills it and a wheel zoom scales both ways at once. */
-  private square(): void {
-    const box = this.getBoundingClientRect();
-    if (box.width === 0 || box.height === 0) return;
-    const wanted = (this.view.w * box.height) / box.width;
-    if (Math.abs(wanted - this.view.h) > 1e-6) {
-      this.view = { ...this.view, h: wanted };
+  /**
+   * The way lit on the drawing, as the legs of the symbols it crosses and the
+   * classes the wires under it wear.
+   *
+   * In edit mode it is the transit chosen in the netlist pane, or the way a
+   * refusal is about. Naming the frog that makes two transits exclusive is a
+   * claim about the drawing, and this is where it is checked by looking; a
+   * refusal is the same kind of claim, so it lights the same way, in the red
+   * that means derivation stopped (ADR-0024). The two never arrive together: a
+   * drawing that refuses has no netlist to choose from.
+   *
+   * In run mode it is the committed route, already walked and already coloured
+   * by the panel model — the same claim, made by the dispatcher instead of the
+   * pointer.
+   */
+  private lighting(): Lighting {
+    const live = this.painted;
+    if (live !== null) {
+      return {
+        legs: live.lit.legs,
+        wires: new Map(
+          [...live.lit.wires].map(([key, held]) => [key, `lit ${held}`]),
+        ),
+        refused: false,
+      };
     }
-  }
-
-  // --- what is drawn ------------------------------------------------------
-
-  /**
-   * Where a wire can land, drawn only while one is in flight.
-   *
-   * A dot sits on every face centre, which is every point `faceAt` can return
-   * and every point a pin occupies, so the marks and the landing sites are the
-   * same set. They answer a question that is only asked between the click that
-   * starts a wire and the one that ends it, so the sheet is bare otherwise.
-   */
-  private faces(): unknown {
-    if (this.editor.pendingFrom === null) return nothing;
-    const { x, y, w, h } = this.view;
-    return svg`<rect class="faces" x=${x} y=${y} width=${w} height=${h}
-                     fill="url(#faces)" />`;
-  }
-
-  /**
-   * The way lit on the drawing: the transit chosen in the netlist pane, or the
-   * way a refusal is about, as the legs of the symbols it crosses and the
-   * wires it is drawn over.
-   *
-   * Naming the frog that makes two transits exclusive is a claim about the
-   * drawing, and this is where it is checked by looking. A refusal is the same
-   * kind of claim — it is about a route, and a sentence beside the drawing
-   * cannot point at one — so it lights the same way, in the red that means
-   * derivation stopped (ADR-0024). The two never arrive together: a drawing
-   * that refuses has no netlist to choose from.
-   */
-  private shown(): Shown {
     const review = this.review ?? UNREVIEWED;
     const refused = review.offending.length > 0;
     const ways = refused ? review.offending : chosenWay(review, this.chosen);
+    // A wire sits outside every symbol's group, so a refusal is marked on the
+    // line itself rather than inherited from one.
+    const marked = refused ? "lit offending" : "lit";
     return {
       legs: lit(ways),
-      wires: litWires(ways, this.editor.drawing.wires),
+      wires: new Map(
+        [...litWires(ways, this.drawing.wires)].map((key) => [key, marked]),
+      ),
       refused,
     };
   }
 
-  /** Every wire, in the order `inspect.litLast` puts them in, lit where the
-   *  shown way runs over it. */
-  private wires(shown: Shown): unknown {
-    const alight = (wire: Wire) => shown.wires.has(wireKey(wire));
-    return litLast(this.editor.drawing.wires, alight).map((wire) => {
+  /** Every wire, in the order `inspect.litLast` puts them in, so a crossing
+   *  unlit one cannot half hide a lit one. */
+  private wires(lighting: Lighting): unknown {
+    const alight = (wire: Wire) => lighting.wires.has(wireKey(wire));
+    return litLast(this.drawing.wires, alight).map((wire) => {
       const [a, b] = wirePins(wire);
       const from = this.point(a);
       const to = this.point(b);
       if (from === null || to === null) return nothing;
-      // A wire sits outside every symbol's group, so a refusal is marked on
-      // the line itself rather than inherited from one.
-      const marked = shown.refused ? "wire lit offending" : "wire lit";
-      return svg`<line class=${alight(wire) ? marked : "wire"}
+      const worn = lighting.wires.get(wireKey(wire));
+      return svg`<line class=${worn === undefined ? "wire" : `wire ${worn}`}
                        x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />`;
     });
   }
 
-  private symbols(shown: Shown): unknown {
+  private symbols(lighting: Lighting): unknown {
     const review = this.review ?? UNREVIEWED;
-    const way = shown.legs;
+    const live = this.painted;
     const blind = dark(review);
     const lone = unpaired(review);
-    const unset = new Set(this.editor.unaddressed());
-    return Object.entries(this.editor.drawing.symbols).map(([name, spec]) => {
-      const chosen = this.editor.selection.has(name);
+    const unset = new Set(this.editing?.unaddressed() ?? []);
+    return Object.entries(this.drawing.symbols).map(([name, spec]) => {
       const shifted = this.shift(name);
       return svg`
         <g
-          class=${`symbol ${chosen ? "selected" : ""} ${
-            shown.refused && way.has(name) ? "offending" : ""
-          }`}
+          class=${this.worn(name, lighting)}
           data-symbol=${name}
           transform=${`translate(${shifted.x} ${shifted.y})`}
         >
           <g transform=${transformOf(spec)}>
-            ${artwork(spec, way.get(name), blind.get(name))}
+            ${artwork(
+              spec,
+              lighting.legs.get(name),
+              blind.get(name),
+              this.showing(name),
+              live?.positions.get(name),
+            )}
           </g>
           ${this.label(name, spec, lone.get(name))}
           ${unset.has(name) ? this.unaddressed(spec) : nothing}
         </g>
       `;
     });
+  }
+
+  /**
+   * What a symbol's group wears beyond `symbol`.
+   *
+   * Edit mode marks what is selected and what a refusal is about. Run mode
+   * marks how strong a claim the run has on it: a block wears its own state
+   * and a junction symbol the strongest claim any transit through it carries,
+   * and a block being on no transit's way, the two never meet on one symbol.
+   * Occupancy outranks both, which is what reading the block's state first
+   * says (ui/PANEL.md).
+   */
+  private worn(name: string, lighting: Lighting): string {
+    const live = this.painted;
+    const marked =
+      live === null
+        ? [
+            this.editing?.selection.has(name) === true ? "selected" : "",
+            lighting.refused && lighting.legs.has(name) ? "offending" : "",
+          ]
+        : [
+            live.blocks.get(name)?.state ?? live.lit.state.get(name) ?? "",
+            live.blocks.get(name)?.dispute === undefined ? "" : "disputed",
+            name === this.machine.marks?.target?.block ? "target" : "",
+          ];
+    return ["symbol", ...marked]
+      .filter((one) => one !== "" && one !== "free")
+      .join(" ");
+  }
+
+  /** The aspects a block's two signals show, keyed by end letter, which is what
+   *  the artwork puts on each signal's group. An end the dispatcher never named
+   *  simply has no aspect, and edit mode names none at all. */
+  private showing(name: string): ReadonlyMap<string, Aspect> | undefined {
+    const live = this.painted;
+    if (live === null) return undefined;
+    return new Map(
+      (["A", "B"] as const).flatMap((end) => {
+        const shown = live.aspects.get(`${name}.${end}`);
+        return shown === undefined ? [] : [[end, shown] as const];
+      }),
+    );
   }
 
   /**
@@ -337,14 +439,18 @@ export class TcCanvas extends LitElement {
   }
 
   /**
-   * The text a symbol carries: a block's name always, and the label of a
-   * portal that pairs with nothing.
+   * The text a symbol carries: a block's name or, on a run, the train standing
+   * in it, and the label of a portal that pairs with nothing.
    *
    * A block's label is the only text a *correct* drawing carries
    * (EDITOR.md#symbol-geometry) — every other name is read in the properties
    * dialog and in the netlist pane, portals included. The unpaired portal's
    * label is a fault mark rather than a name the symbol wears: it is drawn in
    * red and it goes away when the label pairs.
+   *
+   * On a run the name is the train's when one stands there and the block's own
+   * dimly otherwise, a train's name being the thing worth reading. A train's
+   * name is the longer of the two, so this is where the fit usually does work.
    */
   private label(
     name: string,
@@ -353,22 +459,27 @@ export class TcCanvas extends LitElement {
   ): unknown {
     if (spec.kind === "portal") return this.portalLabel(spec, lone);
     if (spec.kind !== "block") return nothing;
-    return this.blockName(name, spec);
+    const live = this.painted;
+    const view = live?.blocks.get(name);
+    const train = view?.state === "occupied" ? view.train : undefined;
+    const worn =
+      train !== undefined ? "name train" : live === null ? "name" : "name dim";
+    return this.blockName(train ?? name, worn, spec);
   }
 
   /**
-   * A block's name, centred in its rectangle and turned outside the artwork's
+   * A block's label, centred in its rectangle and turned outside the artwork's
    * own group: upright on a horizontal block and read bottom to top on a
    * vertical one (`labelTurn`).
    *
    * The label turns with the block, so the rectangle's long side is the width
    * it has to fit whichever way the block stands.
    */
-  private blockName(name: string, spec: SymbolSpec): unknown {
+  private blockName(text: string, worn: string, spec: SymbolSpec): unknown {
     const { x, y } = centreOf(spec);
-    return svg`<text class="name" x=${x} y=${y}
-      font-size=${fitted(name, BLOCK.body.w)}
-      transform=${`rotate(${labelTurn(spec)} ${x} ${y})`}>${name}</text>`;
+    return svg`<text class=${worn} x=${x} y=${y}
+      font-size=${fitted(text, BLOCK.body.w)}
+      transform=${`rotate(${labelTurn(spec)} ${x} ${y})`}>${text}</text>`;
   }
 
   /**
@@ -396,16 +507,36 @@ export class TcCanvas extends LitElement {
       font-size=${PORTAL.mark.size}>${lone}</text>`;
   }
 
+  // --- what only the editor draws -----------------------------------------
+
+  /**
+   * Where a wire can land, drawn only while one is in flight.
+   *
+   * A dot sits on every face centre, which is every point `faceAt` can return
+   * and every point a pin occupies, so the marks and the landing sites are the
+   * same set. They answer a question that is only asked between the click that
+   * starts a wire and the one that ends it, so the sheet is bare otherwise.
+   */
+  private faces(): unknown {
+    if (this.editing?.pendingFrom == null) return nothing;
+    const { x, y, w, h } = this.view;
+    return svg`<rect class="faces" x=${x} y=${y} width=${w} height=${h}
+                     fill="url(#faces)" />`;
+  }
+
   /** Every pin, green where `/review` is satisfied with it and red where it is
    *  not. The front end computes no topology, so which are red is the store's
    *  answer and not this component's. */
   private pins(): unknown {
+    const editor = this.editing;
+    if (editor === null) return nothing;
     const red = new Set(this.review?.red_pins ?? []);
-    return this.editor.allPins().map(({ pin, x, y }) => {
+    return editor.allPins().map(({ pin, x, y }) => {
       const shifted = this.shift(symbolOf(pin));
-      const pending = this.editor.pendingFrom === pin;
+      const worn = ["pin", red.has(pin) ? "red" : ""];
+      if (editor.pendingFrom === pin) worn.push("pending");
       return svg`<circle
-        class=${`pin ${red.has(pin) ? "red" : ""} ${pending ? "pending" : ""}`}
+        class=${worn.filter((one) => one !== "").join(" ")}
         data-pin=${pin}
         cx=${x + shifted.x}
         cy=${y + shifted.y}
@@ -418,7 +549,7 @@ export class TcCanvas extends LitElement {
    *  Placing and dragging cannot make one; rotate and flip can, and this is
    *  where they say so (EDITOR.md#canvas). */
   private stacked(): unknown {
-    return this.editor.overlaps().map(
+    return (this.editing?.overlaps() ?? []).map(
       ({ cell: [c, r] }) =>
         svg`<rect class="stacked" x=${c} y=${r} width="1" height="1" />`,
     );
@@ -436,7 +567,7 @@ export class TcCanvas extends LitElement {
    * wire got.
    */
   private wireline(): unknown {
-    const from = this.editor.pendingFrom;
+    const from = this.editing?.pendingFrom ?? null;
     if (from === null || this.pointer === null) return nothing;
     const start = this.point(from);
     if (start === null) return nothing;
@@ -462,9 +593,12 @@ export class TcCanvas extends LitElement {
    * and nothing is drawn, there being nowhere to place it there.
    */
   private ghost(): unknown {
-    const pending = this.editor.pending;
-    if (pending === null || this.pointer === null) return nothing;
-    const landing = this.editor.placementAt(this.pointer.x, this.pointer.y);
+    const editor = this.editing;
+    const pending = editor?.pending ?? null;
+    if (editor === null || pending === null || this.pointer === null) {
+      return nothing;
+    }
+    const landing = editor.placementAt(this.pointer.x, this.pointer.y);
     if (landing === null) return nothing;
     const spec = { ...pending, at: landing.at };
     const blocked = landing.blocked.length > 0;
@@ -488,6 +622,88 @@ export class TcCanvas extends LitElement {
       width=${Math.abs(to.x - from.x)} height=${Math.abs(to.y - from.y)} />`;
   }
 
+  // --- what only a run draws ----------------------------------------------
+
+  /** The direction arrow: on the track, ahead of the block's centre, pointing
+   *  at the end the train faces. Unknown until the scheduler has said. */
+  private arrows(): unknown {
+    return [...(this.painted?.blocks ?? [])].map(([name, view]) => {
+      const spec = this.drawing.symbols[name];
+      if (spec === undefined || view.toward === undefined) return nothing;
+      const { x, y, angle } = arrowPose(spec, view.toward);
+      return svg`<path class="arrow" d="M0.28 0 L-0.14 0.17 L-0.14 -0.17 Z"
+        transform=${`translate(${x} ${y}) rotate(${angle})`} />`;
+    });
+  }
+
+  /** A train the picture says is between two blocks: its name on the
+   *  connection it is crossing, midway between the two block ends that transit
+   *  joins, and in no block (ui/PANEL.md, #154). No arrow — the block it faces
+   *  out of is one it has left. */
+  private crossings(): unknown {
+    return (this.painted?.crossings ?? []).map(({ train, between }) => {
+      const from = anchorAt(this.drawing, between[0]);
+      const to = anchorAt(this.drawing, between[1]);
+      if (from === null || to === null) return nothing;
+      return svg`<text class="name train crossing"
+        x=${(from.x + to.x) / 2} y=${(from.y + to.y) / 2}
+        font-size=${fitted(train, BLOCK.body.w)}>${train}</text>`;
+    });
+  }
+
+  /** What the detectors dispute, in words under the block it is about: the
+   *  reading that contradicts the picture, since the picture itself is already
+   *  on screen (#153). These are where a person is sent first, so they say
+   *  which of the two contradictions this is rather than only that something is
+   *  wrong. */
+  private disputes(): unknown {
+    return [...(this.painted?.blocks ?? [])].map(([name, view]) => {
+      const spec = this.drawing.symbols[name];
+      if (spec === undefined || view.dispute === undefined) return nothing;
+      const { x, y } = centreOf(spec);
+      return svg`<text class="note disputed" x=${x} y=${y + 1}>
+        reads ${view.dispute}
+      </text>`;
+    });
+  }
+
+  /** Request endpoints, ring by ring, with the reasons the model worded. */
+  private markers(): unknown {
+    return (this.painted?.markers ?? []).map((marker) => this.marked(marker));
+  }
+
+  private marked(marker: Marker): unknown {
+    const at = anchorAt(this.drawing, marker.at);
+    if (at === null) return nothing;
+    const { x, y } = at;
+    return svg`
+      <circle class=${`marker ${marker.role}`} cx=${x} cy=${y} r="0.3" />
+      ${
+        marker.note === undefined
+          ? nothing
+          : svg`<text class=${`note ${marker.role}`} x=${x} y=${y + 0.7}>
+              ${marker.note}
+            </text>`
+      }
+    `;
+  }
+
+  /** The drag in flight: a line from where the train was taken hold of, and a
+   *  ring at each arrival end a drop here would ask for — so the gesture's
+   *  meaning is on screen before the release (ui/PANEL.md). Both are the
+   *  machine's answer, never a guess about feasibility. */
+  private reach(): unknown {
+    const marks = this.machine.marks;
+    if (marks?.reach === undefined) return nothing;
+    const { from, to } = marks.reach;
+    return svg`
+      <line class="reach" x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />
+      ${(marks.target?.ends ?? []).map(
+        (at) => svg`<circle class="marker hover" cx=${at.x} cy=${at.y} r="0.34" />`,
+      )}
+    `;
+  }
+
   // --- gestures -----------------------------------------------------------
 
   /** What the machine said back, mapped onto rendering and events. After any
@@ -495,7 +711,7 @@ export class TcCanvas extends LitElement {
    *  wireline starts at the press before the first move arrives. */
   private apply(outcome: Outcome, point: Point): void {
     if (outcome === "quiet") return;
-    if (this.editor.pendingFrom !== null) this.pointer = point;
+    if (this.editing?.pendingFrom != null) this.pointer = point;
     if (outcome === "picked") this.picked();
     else if (outcome === "changed") this.changed();
     else this.requestUpdate();
@@ -531,7 +747,8 @@ export class TcCanvas extends LitElement {
     // Only the wireline and the ghost read the pointer, and `pointer` is state:
     // assigning it on every move would re-render the whole sheet to draw
     // nothing.
-    if (this.editor.pendingFrom !== null || this.editor.pending !== null) {
+    const editor = this.editing;
+    if (editor !== null && (editor.pendingFrom !== null || editor.pending !== null)) {
       this.pointer = point;
     }
     this.apply(
@@ -550,14 +767,14 @@ export class TcCanvas extends LitElement {
   private left(): void {
     this.pointer = null;
     this.panning = null;
-    this.machine.left();
+    if (this.machine.left() !== "quiet") this.requestUpdate();
   }
 
   /**
-   * The right-click menu, told what was clicked: the symbol, the junction it
-   * belongs to, the joint a wire under the pointer is, and the wire itself.
-   * What the click means is `Gesture`'s ruling; a null `found` is a right
-   * button that ended a palette drag instead, so no menu opens.
+   * The right-click, told what was clicked: the machine's ruling, passed on to
+   * the view with where the pointer was. What is in it is the machine's — the
+   * symbol and the joint in the editor, the train standing there on a run —
+   * and a null `found` opens no menu.
    */
   private menu(event: MouseEvent): void {
     event.preventDefault();
@@ -606,14 +823,14 @@ export class TcCanvas extends LitElement {
    * what the document says.
    */
   private at(point: Point): Under {
-    return under(this.editor.drawing, this.review ?? UNREVIEWED, point, (name) =>
+    return under(this.drawing, this.review ?? UNREVIEWED, point, (name) =>
       this.shift(name),
     );
   }
 
   /** Where a pin is drawn, which is where a wire has to end. */
   private point(pin: PinRef): Point | null {
-    return pointOf(this.editor.drawing, pin, (name) => this.shift(name));
+    return pointOf(this.drawing, pin, (name) => this.shift(name));
   }
 
   /** How far a symbol is drawn from where the document puts it, which the

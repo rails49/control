@@ -79,6 +79,25 @@ export interface BlockView {
   dispute?: "clear" | "occupied";
 }
 
+/**
+ * What a run paints over the drawing: everything the canvas draws in run mode
+ * and nothing it works out for itself (ui/PANEL.md, #168).
+ *
+ * One object because the canvas takes it in one go and because the parts move
+ * together — every one of them is the next frame's answer. Point positions are
+ * the one entry that is not this model's own: they arrive by address and the
+ * drawing is what turns an address back into a symbol
+ * (`scene.positionsBySymbol`, ADR-0022).
+ */
+export interface Overlay {
+  blocks: Map<string, BlockView>;
+  lit: LitRoute;
+  aspects: ReadonlyMap<EndRef, Aspect>;
+  positions: ReadonlyMap<string, Position>;
+  crossings: Crossing[];
+  markers: Marker[];
+}
+
 /** One endpoint of a request still worth marking: a pending or rejected
  *  request renders as endpoints only, never as a predicted path. */
 export interface Marker {

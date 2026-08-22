@@ -1,6 +1,6 @@
 /**
- * What more than one component wears: the palette, the symbol rules, the lit
- * way, and what a menu is made of — its box, its rows, the key set beside a
+ * What more than one component wears: the palette, the symbol rules, and what
+ * a menu is made of — its box, its rows, the key set beside a
  * label, the overlay a press outside lands on, and the row under the pointer.
  *
  * The page is not here. There is one page, and `tc-app.styles.ts` is it
@@ -178,66 +178,6 @@ export const symbols = css`
   }
 `;
 
-
-/**
- * Whole rule sets. Track that is not a symbol, and the lit way: shared by the
- * editor's canvas and the panel, which paint the same drawing.
- */
-export const way = css`
-  /* A wire is track: same width, same round cap, so it joins a symbol's leg
-     seamlessly at whatever angle its two pins give it. */
-  .wire {
-    stroke: var(--track);
-    stroke-width: ${W};
-    stroke-linecap: round;
-  }
-
-  /* The generic connection symbol shows no turnout detail, which is what it
-     says about itself. */
-  .opaque {
-    fill: #edeae4;
-    stroke: var(--track);
-    stroke-width: ${0.5 * W};
-    stroke-dasharray: ${2 * W} ${W};
-  }
-
-  /* A lit way, leg by leg: the legs of the symbols on it. On the canvas it is
-     the transit chosen in the netlist pane; on the panel it is a committed
-     route — the same claim, made by the dispatcher instead of the pointer. */
-  .symbol .track.lit {
-    stroke: var(--lit);
-    stroke-width: ${1.6 * W};
-  }
-
-  /* The wires between those legs, at the same weight, so a way reads as one
-     continuous run rather than as scattered lit frogs — and so a way across a
-     joint, which crosses no symbol declaring a transit, lights at all. Which
-     wires those are is model/inspect.ts, per way. */
-  .wire.lit {
-    stroke: var(--lit);
-    stroke-width: ${1.6 * W};
-  }
-
-  .symbol .bend.lit {
-    fill: var(--lit);
-  }
-
-  /* A slip's tick is the only thing telling its road from the through route, so
-     it lights with the transit. It stays a mark: half again its own weight is
-     enough to read beside track three times as thick. */
-  .symbol .tick.lit {
-    stroke: var(--lit);
-    stroke-width: ${SLIP.lit};
-  }
-
-  /* A block's body covers all but the stubs of its track, so the end of a lit
-     transit would otherwise be two orange flecks. */
-  .symbol .block-body.lit,
-  .symbol .opaque.lit {
-    fill: var(--lit-body);
-    stroke: var(--lit);
-  }
-`;
 
 /**
  * Whole rule set. The overlay a menu drops over the page: a press anywhere

@@ -20,7 +20,9 @@
 
 import type { Drawing } from "./drawing.js";
 import { anchorOf, type Point } from "./geometry.js";
+import type { Machine } from "./machine.js";
 import type { BlockView, EndRef } from "./panel.js";
+import { anchorAt } from "./scene.js";
 import type { Review } from "./store.js";
 import { under } from "./under.js";
 
@@ -120,6 +122,95 @@ export class Drag {
     if (block === null || block === this.held.block) return null;
     return { train: this.held.train, block, dest: endsOf(drawing, block, point) };
   }
+}
+
+/** Nothing on a run's sheet is drawn out of place: a train's marker moves with
+ *  the pointer and the drawing under it does not. */
+const STILL: Point = { x: 0, y: 0 };
+
+/** What the run view is painting, as a drag has to read it: the document, what
+ *  the store says it means, and where the trains are. Read afresh on each call
+ *  rather than captured — the bus moves under a gesture in flight, and a
+ *  session may go while one is. */
+export interface Painted {
+  drawing: Drawing;
+  review: Review;
+  blocks: Map<string, BlockView>;
+}
+
+/**
+ * The run view's machine as the canvas drives it (model/machine.ts).
+ *
+ * The same call sequence the editor's `Gesture` is driven by, so the canvas
+ * converts pixels to squares once and asks. What a drop asks for is the
+ * gesture's; writing it to the bus is the view's, which is why `submit` is
+ * handed in — this model names the train and the ends and nothing else
+ * (ADR-0036).
+ *
+ * `painted` answers `null` while there is nothing to gesture at: no railroad
+ * on screen, or no session to submit to. Every call is then quiet, which is
+ * the whole of the gate.
+ */
+export function schedulingMachine(
+  drag: Drag,
+  painted: () => Painted | null,
+  submit: (drop: Drop) => void,
+): Machine {
+  return {
+    down: (point) => {
+      const now = painted();
+      if (now === null) return "quiet";
+      return drag.down(now.drawing, now.review, now.blocks, point)
+        ? "render"
+        : "quiet";
+    },
+    moved: (point) => {
+      const now = painted();
+      if (now === null || drag.train === null) return "quiet";
+      drag.moved(now.drawing, now.review, point);
+      return "render";
+    },
+    up: (point) => {
+      const now = painted();
+      if (now === null || drag.train === null) return "quiet";
+      const drop = drag.up(now.drawing, now.review, point);
+      if (drop !== null) submit(drop);
+      return "render";
+    },
+    left: () => {
+      if (drag.train === null) return "quiet";
+      drag.cancel();
+      return "render";
+    },
+    // The right-click asks the same question of the same point the press does,
+    // so the two can never disagree about which train was clicked. A drag the
+    // press had started is abandoned: the menu takes the gesture over.
+    menu: (point) => {
+      const now = painted();
+      drag.cancel();
+      return {
+        outcome: "render",
+        found: now === null ? null : trainAt(now.drawing, now.review, now.blocks, point),
+      };
+    },
+    shift: () => STILL,
+    get marks() {
+      const { from, to, drop } = drag;
+      if (from === null || to === null) return null;
+      const now = painted();
+      if (drop === null || now === null) return { reach: { from, to } };
+      return {
+        reach: { from, to },
+        target: {
+          block: drop.block,
+          ends: drop.dest.flatMap((end) => {
+            const at = anchorAt(now.drawing, end);
+            return at === null ? [] : [at];
+          }),
+        },
+      };
+    },
+  };
 }
 
 /**

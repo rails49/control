@@ -22,12 +22,24 @@ export interface Box {
 const MARGIN = 1;
 const HEADROOM = 1.5;
 
-/** The whole drawing with a margin, as a fixed viewBox: the panel is a
- *  watching surface, so there is no zoom or pan to hold. */
-export function fitBox(drawing: Drawing): Box {
-  const points = Object.values(drawing.symbols).flatMap((spec: SymbolSpec) =>
+/** Every pin on a drawing, where it is drawn. */
+export function pinPoints(drawing: Drawing): Point[] {
+  return Object.values(drawing.symbols).flatMap((spec: SymbolSpec) =>
     pinsOf(spec).map((pin) => anchorOf(spec, pin)),
   );
+}
+
+/**
+ * The whole drawing with a margin, as a box.
+ *
+ * It is what fit looks at and what an exported file is framed to, so it is the
+ * one answer to "where is the drawing" and neither view has its own. `extra`
+ * carries points that are on the sheet without being pins — the label a portal
+ * pairing with nothing wears sits a whole square past the pin the margin is
+ * measured from, and it is the very mark that wants looking at.
+ */
+export function fitBox(drawing: Drawing, extra: readonly Point[] = []): Box {
+  const points = [...pinPoints(drawing), ...extra];
   if (points.length === 0) return { x: -1, y: -1, w: 16, h: 11 };
   const xs = points.map((point) => point.x);
   const ys = points.map((point) => point.y);

@@ -39,7 +39,6 @@ import {
   menuShortcut,
   palette,
   symbols,
-  way,
 } from "../src/ui/shared.styles.js";
 import { appStyles } from "../src/ui/tc-app.styles.js";
 import { canvasStyles, exportStyles } from "../src/ui/tc-canvas.styles.js";
@@ -108,14 +107,18 @@ describe("the drawing's own rules", () => {
   it("are worn by everything that draws a symbol", () => {
     expect(paletteStyles.cssText).toContain(symbols.cssText);
     expect(canvasStyles.cssText).toContain(symbols.cssText);
-    expect(panelStyles.cssText).toContain(symbols.cssText);
   });
 
-  /** The tiles show one symbol each and have no wire or lit way on them. */
-  it("carry the way on the two surfaces that paint a whole drawing", () => {
-    expect(canvasStyles.cssText).toContain(way.cssText);
-    expect(panelStyles.cssText).toContain(way.cssText);
-    expect(paletteStyles.cssText).not.toContain(way.cssText);
+  /** There is one surface that paints a whole drawing (#168), so the wires and
+   *  the lit way are its own rules rather than something shared. The run view
+   *  is that surface in run mode and declares none of it; the tiles show one
+   *  symbol each and have no wire or lit way on them. */
+  it("keep the wires and the lit way on the one surface that paints them", () => {
+    for (const selector of [".wire", ".symbol .track.lit", ".wire.lit"]) {
+      expect(canvasStyles.cssText).toContain(selector);
+      expect(panelStyles.cssText).not.toContain(selector);
+      expect(paletteStyles.cssText).not.toContain(selector);
+    }
   });
 });
 
@@ -151,9 +154,9 @@ describe("what a menu is made of", () => {
  * happens to match — a stroke left behind is a route that reads as two.
  */
 describe("the two colours a route's state is read in", () => {
-  /** The panel's rules without the palette it carries, so that the entries'
-   *  own declarations are not mistaken for a rule hardcoding one. */
-  const panel = panelStyles.cssText.replace(palette.cssText, "");
+  /** The canvas's rules without the palette an export carries, so that the
+   *  entries' own declarations are not mistaken for a rule hardcoding one. */
+  const panel = canvasStyles.cssText.replace(palette.cssText, "");
 
   it("are two named entries, and neither is the signal lamp's green", () => {
     expect(COLOURS["--locked"]).toBeDefined();
@@ -206,11 +209,13 @@ describe("the two colours a route's state is read in", () => {
     expect(wire.slice(0, wire.indexOf("}"))).not.toContain("dasharray");
   });
 
-  /** The editor is not in this: only the panel gets two colours, and a way
-   *  chosen in the netlist pane keeps the one it has. */
+  /** Edit mode is not in this: only a run gets two colours, and a way chosen
+   *  in the netlist pane keeps the one it has. The two modes' rules are
+   *  declared apart, and an exported file is of the edit mode's sheet, so what
+   *  a run paints is the one place to look for it. */
   it("leave the editor's chosen way and refused way as they were", () => {
-    expect(canvasStyles.cssText).not.toContain("var(--locked)");
-    expect(canvasStyles.cssText).not.toContain("var(--planned)");
+    expect(exportStyles.cssText).not.toContain("var(--locked)");
+    expect(exportStyles.cssText).not.toContain("var(--planned)");
   });
 });
 
@@ -303,7 +308,7 @@ describe("the two weights a fault is marked in", () => {
  * the mark declared where a block's own state outranks it.
  */
 describe("the mark on a disputed block", () => {
-  const panel = panelStyles.cssText.replace(palette.cssText, "");
+  const panel = canvasStyles.cssText.replace(palette.cssText, "");
 
   it("is the amber entry rather than a hex", () => {
     const body = panel.slice(panel.indexOf(".symbol.disputed .block-body"));
