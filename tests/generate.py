@@ -57,11 +57,11 @@ Document = dict[str, Any]
 def scenario_documents(
     draw: st.DrawFn, max_trains: int = 3, max_workings: int = 2
 ) -> Document:
-    """One scenario document: placements, then chained workings per train.
+    """One scenario document: placements, then chained requests per train.
 
     Draw order mirrors the sweep generator of BENCHMARKS.md — placements
     first, then per train in id order a chain in which only the first
-    working states a departure block. Every request arrives at boundary 0, so
+    request states a departure block. Every request arrives at boundary 0, so
     contention is maximal and makespan is drain time.
     """
     layout_id = draw(st.sampled_from(LIBRARY))
@@ -99,7 +99,7 @@ def scenario_documents(
             requests.append(
                 {
                     "train": train,
-                    # A chained working cannot state its block: where the
+                    # A chained request cannot state its block: where the
                     # previous one parked the train is a dispatcher choice.
                     "from": f"{placement}.{end}" if working == 0 else end,
                     "to": sorted(arrivals),  # the list is unordered (LAYOUT.md)

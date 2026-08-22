@@ -18,7 +18,7 @@ That is what the layout read is for — `move_granted` names a transit and the
 block entered, not the end entered through — and why the scheduler subscribes
 `tc49/dispatch/#` (ADR-0028's growth, spent on facing). Into a terminal block
 there is no end to face away towards, so seeding and arrival both go through
-`connected_end`, which gives back the block's connected end (#145). The
+`connected_end`, which corrects a candidate that names a wall (#145). The
 last-value topic it publishes is what every view reads to draw a direction
 arrow, a train that has never moved having no other source for one. Where
 the bus binding has kept that topic across a restart the scheduler adopts

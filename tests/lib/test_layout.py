@@ -163,10 +163,10 @@ def test_a_transit_names_one_end_of_each_block_it_joins() -> None:
     assert end_on(layout, block_of(second), transit_id) == second
 
 
-def test_the_end_a_train_can_leave_by_is_the_candidate_where_it_is_connected(
+def test_a_block_with_both_ends_connected_answers_the_candidate(
     store: AssetStore,
 ) -> None:
-    """On any block with both ends connected the candidate stands: the
+    """Where a connection holds the candidate the candidate stands: the
     question only has a second answer on a terminal block (#145)."""
     layout = store.get("crossover-yard")
     assert isinstance(layout, Layout)
@@ -175,11 +175,11 @@ def test_the_end_a_train_can_leave_by_is_the_candidate_where_it_is_connected(
     assert connected_end(layout, "yard_w.B") == "yard_w.B"
 
 
-def test_the_end_a_train_can_leave_a_terminal_block_by_is_its_connected_one(
+def test_a_terminal_blocks_wall_is_answered_with_its_connected_end(
     store: AssetStore,
 ) -> None:
     """A terminal block has exactly one connected end, so a candidate naming
-    the wall is answered with the one end a train can leave by."""
+    the wall is answered with that one — never with a second wall."""
     layout = store.get("crossover-yard")
     assert isinstance(layout, Layout)
     assert connected_end(layout, "yard_w.A") == "yard_w.B"

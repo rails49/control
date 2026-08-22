@@ -49,8 +49,10 @@ def departure_end(layout: Layout, route: Route) -> str:
     other end of the one it entered through, or a terminal block's single
     connected end.
 
-    `lib`'s rule, asked here by its second caller — the scheduler asks it of
-    a train's facing (#145), the dispatcher of a route it chose itself.
+    The composed rule: `lib`'s `connected_end` applied to the far side of the
+    end the route came in through. The primitive is a question about the
+    layout alone and the scheduler asks it of a train's facing (#145); this
+    asks it of a route the dispatcher chose itself.
     """
     return connected_end(
         layout, opposite_end(end_on(layout, route.arrival_block, route.transits[-1]))

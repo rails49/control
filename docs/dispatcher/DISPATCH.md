@@ -11,7 +11,7 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
 - **Admission** — a request is rejected if no arrival end survives: none
   is a block the train fits, none is an end any route can enter through, or
   none is reachable from the origin — settled where the request arrives, or,
-  where a request of the same train is still pending, at the first launch
+  where an earlier one of the same train is still pending, at the first launch
   attempt. A request stating a departure block its train is not standing in
   is rejected too, as is a payload the dispatcher cannot read as a request at
   all. All other requests are accepted and queued.
@@ -67,8 +67,8 @@ need different information:
   A disagreement rejects the request with reason `wrong_origin` rather than
   raising, since the submitter may be a stale browser
   ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)). A request
-  naming no block, as a chained request does, can state no disagreement.
-  The stated block is no longer a routing input — what it leaves by is
+  naming no block, as a chained one does, can state no disagreement.
+  The stated block is no longer a routing input — what the train leaves by is
   settled below — so this check now does one thing only: it is a **staleness
   assertion**, catching a panel that composed against an out-of-date position.
   This stage is also where the payload is **read**, rather than trusted:
@@ -145,8 +145,8 @@ case where the arrival end is vacuous. Treating it as degenerate rather than as 
 keeps the admission rule free of special cases.
 
 A request may be pending for a train that is already active on an earlier
-request; chained requests make this routine. It needs no mechanism — an active
-train is not idle, so its next request simply cannot launch yet.
+one; chaining makes this routine. It needs no mechanism — an active train is
+not idle, so its next simply cannot launch yet.
 
 ### Route selection
 
@@ -210,7 +210,7 @@ The scan order is most-refused first, admission order among equals (#34;
 plain arrival order starved through-traffic). Aging gives a starved request
 first claim on whatever just freed. The refusal count is dispatcher state,
 never wall-clock, so the order stays deterministic; a train's chained
-requests keep their order for free, since an untried later request has no
+requests keep their order for free, since an untried later one has no
 refusals and a later seq. The ordering key remains an explicit policy point:
 it only chooses which *safe* launch is tried first, and could change again
 without touching the safety core.
