@@ -23,10 +23,9 @@ from typing import Any
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.lib.layout import block_of
 from tc49.simulator import placement_file
-from tests.harness import events, load
+from tests.harness import RUN_WANTED, events, load
 
 WANTED = "tc49/ui/request_wanted"
-RUN_WANTED = "tc49/ui/run_wanted"
 PLACED = "tc49/ui/placement_wanted"
 
 
