@@ -31,7 +31,7 @@ import {
   type SymbolSpec,
   type Wire,
 } from "../model/drawing.js";
-import { Editor } from "../model/editor.js";
+import type { Editor } from "../model/editor.js";
 import { GESTURING, TRANSIENT, svgFile } from "../model/export.js";
 import {
   centreOf,
@@ -54,7 +54,7 @@ import {
 } from "../model/inspect.js";
 import type { Machine, Outcome } from "../model/machine.js";
 import type { Aspect, Marker, Overlay } from "../model/panel.js";
-import { anchorAt, arrowPose, fitBox } from "../model/scene.js";
+import { anchorAt, arrowPose, fitBox, type Box } from "../model/scene.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
@@ -82,13 +82,6 @@ interface Lighting {
   refused: boolean;
 }
 
-interface Box {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
 @customElement("tc-canvas")
 export class TcCanvas extends LitElement {
   static override styles = canvasStyles;
@@ -97,10 +90,11 @@ export class TcCanvas extends LitElement {
    *  of the two wears without a class the template has to remember. */
   @property({ reflect: true }) mode: Mode = "edit";
 
-  /** The document painted, whichever mode is drawing it. */
+  /** The document painted, in run mode. Edit mode has an `editor` and the
+   *  document is that session's, so there is one of it either way. */
   @property({ attribute: false }) drawing: Drawing = emptyDrawing("untitled");
 
-  /** The editing session over that document, which only edit mode has. A run
+  /** The editing session over the document, which only edit mode has. A run
    *  view hands over none, and nothing that only editing draws is on the
    *  sheet. */
   @property({ attribute: false }) editor: Editor | null = null;
@@ -145,8 +139,15 @@ export class TcCanvas extends LitElement {
   }
 
   /** What the run has painted, where the mode has a run. */
-  private get painted(): Overlay | null {
+  private get running(): Overlay | null {
     return this.mode === "run" ? this.live : null;
+  }
+
+  /** The document on the sheet: the editing session's where there is one, and
+   *  the one handed over otherwise. Asked here rather than read off two
+   *  properties that would then have to agree. */
+  private get document(): Drawing {
+    return this.editing?.drawing ?? this.drawing;
   }
 
   override render() {
@@ -196,7 +197,7 @@ export class TcCanvas extends LitElement {
   fit(): void {
     const pane = this.getBoundingClientRect();
     const shape = pane.width > 0 ? pane.height / pane.width : 0.7;
-    const frame = fitBox(this.drawing, this.marks());
+    const frame = fitBox(this.document, this.marks());
     const w = Math.max(frame.w, frame.h / shape);
     const h = w * shape;
     this.view = {
@@ -237,7 +238,7 @@ export class TcCanvas extends LitElement {
    *  from. */
   private marks(): Point[] {
     return [...unpaired(this.review ?? UNREVIEWED).keys()].flatMap((name) => {
-      const spec = this.drawing.symbols[name];
+      const spec = this.document.symbols[name];
       return spec === undefined ? [] : [gridPointOf(spec, PORTAL.mark)];
     });
   }
@@ -257,7 +258,7 @@ export class TcCanvas extends LitElement {
    * so the same drawing gives the same bytes whatever is under way.
    */
   exported(): string {
-    const box = fitBox(this.drawing, this.marks());
+    const box = fitBox(this.document, this.marks());
     const clone = this.renderRoot
       .querySelector("svg")!
       .cloneNode(true) as SVGSVGElement;
@@ -269,10 +270,10 @@ export class TcCanvas extends LitElement {
         node.classList.remove(gesturing);
       }
     }
-    // Lit writes a class attribute as its template composes it, blanks and
-    // all (`class="pin  "`), so dropping a class would leave the blank where
-    // it was and the same drawing would export differently mid-gesture. Every
-    // class is written back as its tokens.
+    // `classList.remove` above rewrites only the attributes it touched, and
+    // Lit writes the rest as its template composed them. Every class is
+    // written back as its tokens so the same drawing gives the same bytes
+    // whichever nodes a gesture happened to be on.
     for (const node of clone.querySelectorAll("[class]")) {
       node.setAttribute("class", [...node.classList].join(" "));
     }
@@ -303,7 +304,7 @@ export class TcCanvas extends LitElement {
    * pointer.
    */
   private lighting(): Lighting {
-    const live = this.painted;
+    const live = this.running;
     if (live !== null) {
       return {
         legs: live.lit.legs,
@@ -322,7 +323,7 @@ export class TcCanvas extends LitElement {
     return {
       legs: lit(ways),
       wires: new Map(
-        [...litWires(ways, this.drawing.wires)].map((key) => [key, marked]),
+        [...litWires(ways, this.document.wires)].map((key) => [key, marked]),
       ),
       refused,
     };
@@ -332,7 +333,7 @@ export class TcCanvas extends LitElement {
    *  unlit one cannot half hide a lit one. */
   private wires(lighting: Lighting): unknown {
     const alight = (wire: Wire) => lighting.wires.has(wireKey(wire));
-    return litLast(this.drawing.wires, alight).map((wire) => {
+    return litLast(this.document.wires, alight).map((wire) => {
       const [a, b] = wirePins(wire);
       const from = this.point(a);
       const to = this.point(b);
@@ -345,14 +346,14 @@ export class TcCanvas extends LitElement {
 
   private symbols(lighting: Lighting): unknown {
     const review = this.review ?? UNREVIEWED;
-    const live = this.painted;
+    const live = this.running;
     const blind = dark(review);
     const lone = unpaired(review);
     const unset = new Set(this.editing?.unaddressed() ?? []);
     // Asked once rather than per symbol: the machine works its marks out
     // afresh on every read, and a drop names one block.
     const target = this.machine.marks?.target?.block;
-    return Object.entries(this.drawing.symbols).map(([name, spec]) => {
+    return Object.entries(this.document.symbols).map(([name, spec]) => {
       const shifted = this.shift(name);
       return svg`
         <g
@@ -391,7 +392,7 @@ export class TcCanvas extends LitElement {
     lighting: Lighting,
     target: string | undefined,
   ): string {
-    const live = this.painted;
+    const live = this.running;
     const marked =
       live === null
         ? [
@@ -412,7 +413,7 @@ export class TcCanvas extends LitElement {
    *  the artwork puts on each signal's group. An end the dispatcher never named
    *  simply has no aspect, and edit mode names none at all. */
   private showing(name: string): ReadonlyMap<string, Aspect> | undefined {
-    const live = this.painted;
+    const live = this.running;
     if (live === null) return undefined;
     return new Map(
       (["A", "B"] as const).flatMap((end) => {
@@ -466,7 +467,7 @@ export class TcCanvas extends LitElement {
   ): unknown {
     if (spec.kind === "portal") return this.portalLabel(spec, lone);
     if (spec.kind !== "block") return nothing;
-    const live = this.painted;
+    const live = this.running;
     const view = live?.blocks.get(name);
     const train = view?.state === "occupied" ? view.train : undefined;
     const worn =
@@ -525,7 +526,7 @@ export class TcCanvas extends LitElement {
    * starts a wire and the one that ends it, so the sheet is bare otherwise.
    */
   private faces(): unknown {
-    if (this.editing?.pendingFrom == null) return nothing;
+    if ((this.editing?.pendingFrom ?? null) === null) return nothing;
     const { x, y, w, h } = this.view;
     return svg`<rect class="faces" x=${x} y=${y} width=${w} height=${h}
                      fill="url(#faces)" />`;
@@ -634,8 +635,8 @@ export class TcCanvas extends LitElement {
   /** The direction arrow: on the track, ahead of the block's centre, pointing
    *  at the end the train faces. Unknown until the scheduler has said. */
   private arrows(): unknown {
-    return [...(this.painted?.blocks ?? [])].map(([name, view]) => {
-      const spec = this.drawing.symbols[name];
+    return [...(this.running?.blocks ?? [])].map(([name, view]) => {
+      const spec = this.document.symbols[name];
       if (spec === undefined || view.toward === undefined) return nothing;
       const { x, y, angle } = arrowPose(spec, view.toward);
       return svg`<path class="arrow" d="M0.28 0 L-0.14 0.17 L-0.14 -0.17 Z"
@@ -648,9 +649,9 @@ export class TcCanvas extends LitElement {
    *  joins, and in no block (ui/PANEL.md, #154). No arrow — the block it faces
    *  out of is one it has left. */
   private crossings(): unknown {
-    return (this.painted?.crossings ?? []).map(({ train, between }) => {
-      const from = anchorAt(this.drawing, between[0]);
-      const to = anchorAt(this.drawing, between[1]);
+    return (this.running?.crossings ?? []).map(({ train, between }) => {
+      const from = anchorAt(this.document, between[0]);
+      const to = anchorAt(this.document, between[1]);
       if (from === null || to === null) return nothing;
       return svg`<text class="name train crossing"
         x=${(from.x + to.x) / 2} y=${(from.y + to.y) / 2}
@@ -664,8 +665,8 @@ export class TcCanvas extends LitElement {
    *  which of the two contradictions this is rather than only that something is
    *  wrong. */
   private disputes(): unknown {
-    return [...(this.painted?.blocks ?? [])].map(([name, view]) => {
-      const spec = this.drawing.symbols[name];
+    return [...(this.running?.blocks ?? [])].map(([name, view]) => {
+      const spec = this.document.symbols[name];
       if (spec === undefined || view.dispute === undefined) return nothing;
       const { x, y } = centreOf(spec);
       return svg`<text class="note disputed" x=${x} y=${y + 1}>
@@ -676,11 +677,11 @@ export class TcCanvas extends LitElement {
 
   /** Request endpoints, ring by ring, with the reasons the model worded. */
   private markers(): unknown {
-    return (this.painted?.markers ?? []).map((marker) => this.marked(marker));
+    return (this.running?.markers ?? []).map((marker) => this.marked(marker));
   }
 
   private marked(marker: Marker): unknown {
-    const at = anchorAt(this.drawing, marker.at);
+    const at = anchorAt(this.document, marker.at);
     if (at === null) return nothing;
     const { x, y } = at;
     return svg`
@@ -718,7 +719,7 @@ export class TcCanvas extends LitElement {
    *  wireline starts at the press before the first move arrives. */
   private apply(outcome: Outcome, point: Point): void {
     if (outcome === "quiet") return;
-    if (this.editing?.pendingFrom != null) this.pointer = point;
+    if ((this.editing?.pendingFrom ?? null) !== null) this.pointer = point;
     if (outcome === "picked") this.picked();
     else if (outcome === "changed") this.changed();
     else this.requestUpdate();
@@ -726,7 +727,10 @@ export class TcCanvas extends LitElement {
 
   private down(event: PointerEvent): void {
     const point = this.gridAt(event);
-    (event.target as Element).setPointerCapture?.(event.pointerId);
+    // On the sheet rather than on whatever node is under the pointer: run mode
+    // redraws on every frame off the bus, and a symbol whose markup changed
+    // shape mid-drag would take the capture with it.
+    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
     if (event.button === 1) {
       this.panning = point;
       return;
@@ -830,14 +834,14 @@ export class TcCanvas extends LitElement {
    * what the document says.
    */
   private at(point: Point): Under {
-    return under(this.drawing, this.review ?? UNREVIEWED, point, (name) =>
+    return under(this.document, this.review ?? UNREVIEWED, point, (name) =>
       this.shift(name),
     );
   }
 
   /** Where a pin is drawn, which is where a wire has to end. */
   private point(pin: PinRef): Point | null {
-    return pointOf(this.drawing, pin, (name) => this.shift(name));
+    return pointOf(this.document, pin, (name) => this.shift(name));
   }
 
   /** How far a symbol is drawn from where the document puts it, which the

@@ -6,7 +6,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { Drag, trainAt } from "../src/model/drag.js";
+import {
+  Drag,
+  schedulingMachine,
+  trainAt,
+  type Drop,
+  type Painted,
+} from "../src/model/drag.js";
 import type { Drawing } from "../src/model/drawing.js";
 import type { BlockView } from "../src/model/panel.js";
 import type { Review } from "../src/model/store.js";
@@ -205,5 +211,100 @@ describe("what the drag draws", () => {
     drag.cancel();
     expect(drag.train).toBeNull();
     expect(drag.from).toBeNull();
+  });
+});
+
+/**
+ * The same rules driven the way the canvas drives them (#168): one call per
+ * pointer event, an `Outcome` back, and the gesture in flight as marks in grid
+ * squares. `Drag` answers the same `Machine` the editor's `Gesture` does, so
+ * the surface asks one question of both and this is the run view's half of it.
+ */
+describe("the run view's machine", () => {
+  const PAINTED: Painted = {
+    drawing: DRAWING,
+    review: REVIEW,
+    blocks: BLOCKS,
+  };
+
+  /** A machine over the drawing above, with the drops it submitted. */
+  function machine(painting: Painted | null = PAINTED) {
+    const sent: Drop[] = [];
+    const it = schedulingMachine(new Drag(), () => painting, (drop) => {
+      sent.push(drop);
+    });
+    return { sent, it };
+  }
+
+  const press = { button: 0, shift: false, screen: { x: 0, y: 0 } };
+
+  it("is quiet through and through with nothing to gesture at", () => {
+    // No railroad on screen, or no session to submit to: every call answers
+    // quiet and nothing is drawn or written. That is the whole of the gate.
+    const { sent, it } = machine(null);
+    expect(it.down(on("a", 0.5), press)).toBe("quiet");
+    expect(it.moved(on("b", 0.5), { x: 0, y: 0 })).toBe("quiet");
+    expect(it.up(on("b", 0.5))).toBe("quiet");
+    expect(it.left()).toBe("quiet");
+    expect(it.marks).toBeNull();
+    expect(it.menu(on("a", 0.5)).found).toBeNull();
+    expect(sent).toEqual([]);
+  });
+
+  it("draws the reach and the ends a drop would ask for", () => {
+    const { it } = machine();
+    expect(it.down(on("a", 0.5), press)).toBe("render");
+    expect(it.marks).toEqual({ reach: { from: on("a", 0.5), to: on("a", 0.5) } });
+
+    it.moved(on("b", 0.9), { x: 0, y: 0 });
+    // The outer third asks for one end, and the mark is where that end sits.
+    expect(it.marks).toEqual({
+      reach: { from: on("a", 0.5), to: on("b", 0.9) },
+      target: { block: "b", ends: [{ x: 6, y: 2.5 }] },
+    });
+  });
+
+  it("submits the drop, and nothing where the release cancels", () => {
+    const { sent, it } = machine();
+    it.down(on("a", 0.5), press);
+    expect(it.up(on("b", 0.5))).toBe("render");
+    expect(sent).toEqual([{ train: "t1", block: "b", dest: ["b.A", "b.B"] }]);
+    expect(it.marks).toBeNull();
+
+    it.down(on("a", 0.5), press);
+    it.up(on("a", 0.1));
+    expect(sent).toHaveLength(1);
+  });
+
+  /** The pointer left the sheet, or the gesture under it was cancelled. */
+  it("abandons a drag in flight and nothing otherwise", () => {
+    const { sent, it } = machine();
+    it.down(on("a", 0.5), press);
+    expect(it.left()).toBe("render");
+    expect(it.marks).toBeNull();
+    expect(sent).toEqual([]);
+    expect(it.left()).toBe("quiet");
+  });
+
+  /** The right-click asks the same question of the same point the press does,
+   *  and takes the gesture over from a drag the press had started. */
+  it("finds the train under a right-click, abandoning any drag", () => {
+    const { it } = machine();
+    it.down(on("a", 0.5), press);
+    expect(it.menu(on("a", 0.5))).toEqual({
+      outcome: "render",
+      found: { train: "t1", block: "a" },
+    });
+    expect(it.marks).toBeNull();
+    expect(it.menu(on("b", 0.5)).found).toBeNull();
+  });
+
+  /** Nothing on a run's sheet is drawn out of place: a train's marker moves
+   *  with the pointer and the drawing under it does not. */
+  it("shifts no symbol", () => {
+    const { it } = machine();
+    it.down(on("a", 0.5), press);
+    it.moved(on("b", 0.5), { x: 0, y: 0 });
+    expect(it.shift("a")).toEqual({ x: 0, y: 0 });
   });
 });

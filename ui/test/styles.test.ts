@@ -302,12 +302,6 @@ describe("the two weights a fault is marked in", () => {
 });
 
 /**
- * What the detectors dispute (#153). A block wearing the mark is one a person
- * is being sent to, so the two ways it can go wrong silently are worth
- * pinning: the mark written in a hex nobody can move from the palette, and
- * the mark declared where a block's own state outranks it.
- */
-/**
  * What one mode's rules must not reach (#168).
  *
  * The two modes share a stylesheet now, and nearly every rule in the run's
@@ -335,6 +329,12 @@ describe("a signal's lamps", () => {
   });
 });
 
+/**
+ * What the detectors dispute (#153). A block wearing the mark is one a person
+ * is being sent to, so the two ways it can go wrong silently are worth
+ * pinning: the mark written in a hex nobody can move from the palette, and
+ * the mark declared where a block's own state outranks it.
+ */
 describe("the mark on a disputed block", () => {
   const panel = canvasStyles.cssText.replace(palette.cssText, "");
 

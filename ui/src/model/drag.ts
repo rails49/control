@@ -198,7 +198,7 @@ export function schedulingMachine(
     get marks() {
       const { from, to, drop } = drag;
       if (from === null || to === null) return null;
-      const now = painted();
+      const now = drop === null ? null : painted();
       if (drop === null || now === null) return { reach: { from, to } };
       return {
         reach: { from, to },

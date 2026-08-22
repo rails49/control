@@ -62,7 +62,6 @@ function reviewed(unpaired: UnpairedPortal[]): Review {
 async function canvasOn(drawing: Drawing, review: Review): Promise<TcCanvas> {
   const canvas = document.createElement("tc-canvas");
   const editor = new Editor(structuredClone(drawing));
-  canvas.drawing = editor.drawing;
   canvas.editor = editor;
   canvas.review = review;
   canvas.machine = editingMachine(
