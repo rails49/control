@@ -217,7 +217,7 @@ export const COLOURS: Record<string, string> = {
   // The pale ground a block body wears is mixed from these in the stylesheet
   // rather than named here, so a colour and its wash cannot drift apart.
   "--locked": "#3f9c35",
-  "--planned": "#0d9bb8",
+  "--committed": "#0d9bb8",
   // A way lit because derivation refused over it wears the red every other
   // stopping fault wears, and a block on it takes the pale ground of that red
   // as a chosen transit takes the pale ground of `--lit`.

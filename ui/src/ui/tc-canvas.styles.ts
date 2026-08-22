@@ -285,9 +285,9 @@ const running = css`
      deficiency, and whether the train may move is the distinction worth a
      channel that is not hue. Track and wires stay solid — a dash's spacing
      would vary with a wire's angle, which is why track is never patterned. */
-  .symbol.planned .block-body {
-    fill: color-mix(in srgb, var(--planned) 18%, white);
-    stroke: var(--planned);
+  .symbol.committed .block-body {
+    fill: color-mix(in srgb, var(--committed) 18%, white);
+    stroke: var(--committed);
     stroke-dasharray: ${2 * W} ${W};
   }
 
@@ -304,14 +304,14 @@ const running = css`
     fill: var(--locked);
   }
 
-  .symbol.planned .track.lit,
-  .symbol.planned .tick.lit,
-  .wire.lit.planned {
-    stroke: var(--planned);
+  .symbol.committed .track.lit,
+  .symbol.committed .tick.lit,
+  .wire.lit.committed {
+    stroke: var(--committed);
   }
 
-  .symbol.planned .bend.lit {
-    fill: var(--planned);
+  .symbol.committed .bend.lit {
+    fill: var(--committed);
   }
 
   /* Where a point lies (CONTEXT.md): the road its position does not offer is

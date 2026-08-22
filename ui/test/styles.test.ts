@@ -177,19 +177,19 @@ describe("the two colours a route's state is read in", () => {
 
   it("are two named entries, and neither is the signal lamp's green", () => {
     expect(COLOURS["--locked"]).toBeDefined();
-    expect(COLOURS["--planned"]).toBeDefined();
+    expect(COLOURS["--committed"]).toBeDefined();
     expect(COLOURS["--locked"]).not.toBe(COLOURS["--green"]);
-    expect(COLOURS["--planned"]).not.toBe(COLOURS["--chosen"]);
+    expect(COLOURS["--committed"]).not.toBe(COLOURS["--chosen"]);
   });
 
   it("are never written as a hex in a rule", () => {
-    for (const entry of ["--locked", "--planned"] as const) {
+    for (const entry of ["--locked", "--committed"] as const) {
       expect(panel).not.toContain(COLOURS[entry]!);
     }
   });
 
   it("paint the block body, the track, the tick, the bend and the wire", () => {
-    for (const state of ["locked", "planned"]) {
+    for (const state of ["locked", "committed"]) {
       for (const selector of [
         `.symbol.${state} .block-body`,
         `.symbol.${state} .track.lit`,
@@ -206,7 +206,7 @@ describe("the two colours a route's state is read in", () => {
   /** One value moves a colour and its wash together, so the two cannot end up
    *  disagreeing about which state a block is in. */
   it("derive a block's pale fill from its own stroke", () => {
-    for (const state of ["locked", "planned"]) {
+    for (const state of ["locked", "committed"]) {
       const body = panel.slice(panel.indexOf(`.symbol.${state} .block-body`));
       const fill = body.slice(body.indexOf("fill:"), body.indexOf(";"));
       expect(fill).toContain("color-mix");
@@ -220,8 +220,8 @@ describe("the two colours a route's state is read in", () => {
   it("dash a committed block body and leave a locked one solid", () => {
     const locked = panel.slice(panel.indexOf(".symbol.locked .block-body"));
     expect(locked.slice(0, locked.indexOf("}"))).not.toContain("dasharray");
-    const planned = panel.slice(panel.indexOf(".symbol.planned .block-body"));
-    expect(planned.slice(0, planned.indexOf("}"))).toContain("dasharray");
+    const committed = panel.slice(panel.indexOf(".symbol.committed .block-body"));
+    expect(committed.slice(0, committed.indexOf("}"))).toContain("dasharray");
     const wire = panel.slice(panel.indexOf(".wire.lit.locked"));
     expect(wire.slice(0, wire.indexOf("}"))).not.toContain("dasharray");
   });
@@ -232,7 +232,7 @@ describe("the two colours a route's state is read in", () => {
    *  a run paints is the one place to look for it. */
   it("leave the editor's chosen way and refused way as they were", () => {
     expect(exportStyles.cssText).not.toContain("var(--locked)");
-    expect(exportStyles.cssText).not.toContain("var(--planned)");
+    expect(exportStyles.cssText).not.toContain("var(--committed)");
   });
 });
 
@@ -367,7 +367,7 @@ describe("the mark on a disputed block", () => {
     // a rule moved above these would take the mark off the blocks that carry
     // it most.
     const disputed = panel.indexOf(".symbol.disputed .block-body");
-    for (const state of ["occupied", "locked", "planned"]) {
+    for (const state of ["occupied", "locked", "committed"]) {
       expect(disputed).toBeGreaterThan(
         panel.indexOf(`.symbol.${state} .block-body`),
       );

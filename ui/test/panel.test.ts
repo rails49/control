@@ -234,7 +234,7 @@ describe("request layers", () => {
     expect(model.markers()).toEqual([]);
     expect(model.lit().legs.get("sw1")).toEqual(new Set(["diverging"]));
     expect(model.lit().legs.get("p1")).toEqual(new Set([WHOLE]));
-    expect(model.blocks().get("c")).toMatchObject({ state: "planned", train: "t1" });
+    expect(model.blocks().get("c")).toMatchObject({ state: "committed", train: "t1" });
   });
 
   it("lights the wires the route's transits run over, junction and all", () => {
@@ -304,10 +304,10 @@ describe("request layers", () => {
     expect(lit.state.get("sw1")).toBe("locked");
     expect(lit.state.get("p1")).toBe("locked");
     expect(lit.wires.get(wire("a.B", "sw1.toe"))).toBe("locked");
-    expect(model.blocks().get("c")).toMatchObject({ state: "planned" });
+    expect(model.blocks().get("c")).toMatchObject({ state: "committed" });
   });
 
-  it("plans a committed route the dispatcher has not claimed yet", () => {
+  it("lights a committed route the dispatcher has not claimed yet", () => {
     const model = panel();
     placed(model);
     feed(model, submitted, {
@@ -316,13 +316,13 @@ describe("request layers", () => {
       route: ["a", "sw.side", "c"],
     });
     const lit = model.lit();
-    expect(lit.state.get("sw1")).toBe("planned");
-    expect([...lit.wires.values()]).toEqual(["planned", "planned", "planned"]);
+    expect(lit.state.get("sw1")).toBe("committed");
+    expect([...lit.wires.values()]).toEqual(["committed", "committed", "committed"]);
   });
 
   it("advances the lock along the route, and drops it when released", () => {
     // Locking is incremental (ADR-0026), so the locked stretch creeping
-    // forward along a planned one is a reading of how far the train may go.
+    // forward along a committed one is a reading of how far the train may go.
     const model = panel();
     placed(model);
     feed(model, submitted, {
@@ -330,11 +330,11 @@ describe("request layers", () => {
       id: "t1-1",
       route: ["a", "sw.side", "c"],
     });
-    expect(model.lit().state.get("sw1")).toBe("planned");
+    expect(model.lit().state.get("sw1")).toBe("committed");
     feed(model, { event: "lock_granted", train: "t1", resources: ["sw.side"] });
     expect(model.lit().state.get("sw1")).toBe("locked");
     feed(model, { event: "lock_released", train: "t1", resources: ["sw.side"] });
-    expect(model.lit().state.get("sw1")).toBe("planned");
+    expect(model.lit().state.get("sw1")).toBe("committed");
   });
 
   it("keeps a lock the dispatcher still holds after its request completes", () => {
@@ -369,7 +369,7 @@ describe("request layers", () => {
     );
     expect(model.lit().state.get("sw1")).toBe("locked");
     expect(model.lit().wires.get(wire("a.B", "sw1.toe"))).toBe("locked");
-    // The leg the planned way takes is still lit; only the colour is shared.
+    // The leg the committed way takes is still lit; only the colour is shared.
     expect(model.lit().legs.get("sw1")).toEqual(
       new Set(["diverging", "straight"]),
     );

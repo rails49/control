@@ -309,7 +309,7 @@ export class TcCanvas extends LitElement {
       return {
         legs: live.lit.legs,
         wires: new Map(
-          [...live.lit.wires].map(([key, held]) => [key, `lit ${held}`]),
+          [...live.lit.wires].map(([key, claim]) => [key, `lit ${claim}`]),
         ),
         refused: false,
       };

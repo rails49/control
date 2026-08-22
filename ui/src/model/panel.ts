@@ -32,12 +32,16 @@ export type EndRef = string;
 
 /**
  * How strong a claim the dispatcher has on a resource a route runs over:
- * `locked` where it holds the lock and the train may move, `planned` where
+ * `locked` where it holds the lock and the train may move, `committed` where
  * the route is chosen and the claim has not been made yet. The same two words
  * a block view uses, so blocks, transits and wires take their colour from one
  * rule (ui/PANEL.md).
+ *
+ * Named for the pair and not for one of them: ui/PANEL.md builds a request out
+ * of three layers and defines the third as the locked one specifically, so a
+ * union spanning the last two must not wear that layer's name.
  */
-export type Held = "locked" | "planned";
+export type Claim = "locked" | "committed";
 
 /** What a committed route lights: the legs of each symbol its transits cross,
  *  the wires those transits are drawn over, and how strong a claim each
@@ -48,9 +52,9 @@ export interface LitRoute {
    *  legs of its own. */
   legs: Map<string, Set<string>>;
   /** symbol → the strongest claim any transit through it carries. */
-  state: Map<string, Held>;
+  state: Map<string, Claim>;
   /** wire, as `wireKey` names it → the claim its transit carries. */
-  wires: Map<string, Held>;
+  wires: Map<string, Claim>;
 }
 
 export type { Aspect };
@@ -121,7 +125,7 @@ export function roster(
 }
 
 export interface BlockView {
-  state: "free" | "occupied" | "locked" | "planned";
+  state: "free" | "occupied" | "locked" | "committed";
   /** The train standing, holding or heading here, where one is. */
   train?: string;
   /** The end the occupying train faces, as the scheduler says. */
@@ -570,11 +574,11 @@ export class Panel {
    *  standing train is still a lock, and the picture must never lose which
    *  block a train is actually in (ui/PANEL.md). */
   blocks(): Map<string, BlockView> {
-    const planned = new Map<string, string>();
+    const committed = new Map<string, string>();
     for (const request of this.requests.values()) {
       if (request.phase !== "committed") continue;
       for (const resource of request.route ?? []) {
-        if (resource in this.layout.blocks) planned.set(resource, request.train);
+        if (resource in this.layout.blocks) committed.set(resource, request.train);
       }
     }
     const views = new Map<string, BlockView>();
@@ -605,9 +609,9 @@ export class Panel {
         views.set(block, { state: "locked", train: holder, ...dispute });
         continue;
       }
-      const expecting = planned.get(block);
+      const expecting = committed.get(block);
       if (expecting !== undefined) {
-        views.set(block, { state: "planned", train: expecting, ...dispute });
+        views.set(block, { state: "committed", train: expecting, ...dispute });
         continue;
       }
       views.set(block, { state: "free", ...dispute });
@@ -682,25 +686,25 @@ export class Panel {
    */
   lit(): LitRoute {
     const legs = new Map<string, Set<string>>();
-    const state = new Map<string, Held>();
-    const wires = new Map<string, Held>();
-    const light = (resource: string, held: Held) => {
+    const state = new Map<string, Claim>();
+    const wires = new Map<string, Claim>();
+    const light = (resource: string, claim: Claim) => {
       const way = this.ways.get(resource);
       if (way === undefined) return; // a block, or a transit off this drawing
       for (const [symbol, leg] of way.legs) {
         const taken = legs.get(symbol) ?? new Set<string>();
         taken.add(leg === "" ? WHOLE : leg);
         legs.set(symbol, taken);
-        if (held === "locked" || !state.has(symbol)) state.set(symbol, held);
+        if (claim === "locked" || !state.has(symbol)) state.set(symbol, claim);
       }
       for (const wire of way.wires) {
-        if (held === "locked" || !wires.has(wire)) wires.set(wire, held);
+        if (claim === "locked" || !wires.has(wire)) wires.set(wire, claim);
       }
     };
     for (const resource of this.locks.keys()) light(resource, "locked");
     for (const request of this.requests.values()) {
       if (request.phase !== "committed") continue;
-      for (const resource of request.route ?? []) light(resource, "planned");
+      for (const resource of request.route ?? []) light(resource, "committed");
     }
     return { legs, state, wires };
   }

@@ -96,10 +96,10 @@ describe("the train under a point", () => {
 
   /** A block locked ahead of a train is not a train standing:
    *  the arrow it would turn belongs to a block somewhere else. */
-  it("names none over a block merely locked or planned", () => {
+  it("names none over a block merely locked or committed", () => {
     const ahead = new Map<string, BlockView>([
       ["a", { state: "locked", train: "t1" }],
-      ["b", { state: "planned", train: "t1" }],
+      ["b", { state: "committed", train: "t1" }],
     ]);
     expect(trainAt(DRAWING, REVIEW, ahead, on("a", 0.5))).toBeNull();
     expect(trainAt(DRAWING, REVIEW, ahead, on("b", 0.5))).toBeNull();
