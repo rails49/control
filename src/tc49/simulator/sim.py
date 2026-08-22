@@ -60,12 +60,29 @@ class Simulator:
         self._exhausted = False
         bus.subscribe("tc49/drive/+", self._on_command)
         bus.subscribe("tc49/dispatch/align", self._on_command)
+        bus.subscribe("tc49/dispatch/train_placed", self._on_placed)
         bus.subscribe("tc49/schedule/state/exhausted", self._on_exhausted)
 
     def _on_command(self, topic: str, payload: Payload) -> None:
         self._saw_command = True
         if topic.endswith("/cross"):
             self._crosses.append(payload)
+
+    def _on_placed(self, topic: str, payload: Payload) -> None:
+        """A hand lifted a locomotive and put it somewhere else (#152).
+
+        The one thing that moves a train and is not a `cross`. On a real
+        railroad the steel simply is where the hand left it and nobody has to
+        say so; the simulator stands in for the steel, so it has to be told,
+        and `train_placed` is the dispatcher having accepted that it was.
+        Without it the next `cross` would vacate the block the train used to
+        be in and the sensors would describe a railroad nobody is on. It is
+        not a command and not a tick: nothing is buffered, and no boundary
+        moves.
+        """
+        self._position[payload["train"]] = payload["block"]
+        if self._placement is not None:
+            durable.write(self._placement, self._position)
 
     def _on_exhausted(self, topic: str, payload: Payload) -> None:
         self._exhausted = payload["exhausted"]

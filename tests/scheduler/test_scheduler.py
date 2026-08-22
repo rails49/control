@@ -453,3 +453,68 @@ def test_a_reversal_that_cannot_be_read_is_dropped() -> None:
     ]:
         reversal(bus, payload)
     assert len(seen) == published
+
+
+PLACED = "tc49/dispatch/train_placed"
+PLACEMENT_WANTED = "tc49/ui/placement_wanted"
+
+
+def placed(bus: Bus, payload: Payload) -> None:
+    bus.publish(PLACED, payload)
+    bus.drain()
+
+
+def test_facing_follows_a_train_the_dispatcher_has_accepted_as_placed() -> None:
+    """The end letter is carried into the new block (#152). Arbitrary,
+    because the layout is topological and there is nothing better to derive
+    from; `reversal_wanted` is the correction where it lands the train the
+    wrong way round, which is the shape the eventual roster drag wants
+    anyway."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+
+    placed(bus, {"train": "freight_1", "block": "up_w"})
+    assert seen[-1][1]["facing"] == {"express_2": "up_e.A", "freight_1": "up_w.B"}
+
+
+def test_a_train_placed_into_a_terminal_block_faces_its_connected_end() -> None:
+    """`yard_e.B` is the buffer stop. Every facing site goes through
+    `leaving_end`, so the letter carried over is corrected to the one end the
+    train can leave by rather than pointing it at the wall (#145)."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+
+    placed(bus, {"train": "express_2", "block": "yard_e"})
+    assert seen[-1][1]["facing"]["express_2"] == "yard_e.A"
+
+
+def test_the_scheduler_never_reads_the_placement_gesture() -> None:
+    """One gesture, one authority (ADR-0037). Whether the block is free is
+    knowledge only the dispatcher has, so the scheduler follows the fact it
+    publishes and not the gesture — two apps reading one payload would have
+    to agree on every precondition, and the picture would split exactly where
+    a real operator works."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    bus.drain()
+    published = len(seen)
+
+    bus.publish(PLACEMENT_WANTED, {"train": "freight_1", "block": "up_w"})
+    bus.drain()
+    assert len(seen) == published
+
+
+def test_a_placement_of_a_train_this_session_lacks_is_dropped() -> None:
+    """The dispatcher refuses one first, so this is the stale-page case: the
+    scheduler holds no facing to carry and leaves the map alone."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    bus.drain()
+    published = len(seen)
+
+    placed(bus, {"train": "ghost", "block": "up_w"})
+    assert len(seen) == published

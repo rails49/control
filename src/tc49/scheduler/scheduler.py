@@ -30,7 +30,7 @@ it arrives as its own gesture on `tc49/ui/reversal_wanted` (#124).
 from collections import Counter
 
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.layout import Layout, end_on, leaving_end, opposite_end
+from tc49.lib.layout import Layout, end_letter, end_on, leaving_end, opposite_end
 from tc49.lib.payload import gesture, reversal
 from tc49.lib.scenario import Scenario
 
@@ -194,9 +194,27 @@ class Scheduler:
             route = payload["route"]
             if train is not None and len(route) > 1:
                 self._facing[train] = end_on(self._layout, route[0], route[1])
+        elif leaf == "train_placed":
+            self._placed(payload["train"], payload["block"])
         elif leaf in ("request_completed", "request_rejected"):
             self._train_of.pop(payload["id"], None)
         self._publish_facing()
+
+    def _placed(self, train: str, block: str) -> None:
+        """Facing after a person has said where a train actually stands.
+
+        The scheduler follows `train_placed` and never `placement_wanted`:
+        whether the block was free is knowledge only the dispatcher has, and
+        two apps reading one gesture would have to agree on every
+        precondition (ADR-0037). The end letter is carried into the new
+        block, which is arbitrary — the layout is topological and there is
+        nothing better to derive from — and `reversal_wanted` is the
+        correction where it lands the wrong way round (ADR-0019).
+        """
+        facing = self._facing.get(train)
+        if facing is None:  # a train this session does not hold
+            return
+        self._facing[train] = leaving_end(self._layout, f"{block}.{end_letter(facing)}")
 
     def _publish_facing(self) -> None:
         facing = {"facing": dict(sorted(self._facing.items()))}

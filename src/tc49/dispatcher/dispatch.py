@@ -26,7 +26,7 @@ from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import HELD, RUNNING
 from tc49.lib.layout import Layout, block_of, end_on, leaving_end, opposite_end
-from tc49.lib.payload import gesture, run_state
+from tc49.lib.payload import gesture, placement, run_state
 from tc49.lib.rejection import Reason
 from tc49.lib.scenario import Scenario
 
@@ -561,6 +561,8 @@ class Dispatcher:
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "run_wanted":
             self._set_run(payload)
+        elif leaf == "placement_wanted":
+            self._place(payload)
 
     def _set_run(self, payload: Payload) -> None:
         """Hold the run, or release it.
@@ -578,6 +580,42 @@ class Dispatcher:
         self._state.run = wanted
         self._publish_run()
         self._publish_aspects()
+
+    def _place(self, payload: Payload) -> None:
+        """Where a train actually stands, said by the person who can see it.
+
+        Accepted only when every precondition holds: the run is held, the
+        train is known, the block exists and is free, the train fits it, and
+        the train has no request in flight. The last mirrors
+        `reversal_wanted` and adds a worse reason of its own — on release the
+        grant phase launches from `block_of`, so a pending request would
+        depart from wherever the train was just put, having been admitted
+        against the block it was in when it was asked for.
+
+        Having accepted, the dispatcher moves the train's standing lock and
+        announces `train_placed`. That event is the ledger line for a
+        placement: a `lock_released` and a `lock_granted` would say a route
+        gave a block up and took another, which is not what happened — a hand
+        lifted a locomotive, and the fact has its own leaf so a reader can
+        tell the two apart.
+        """
+        wanted = placement(payload)
+        state = self._state
+        if wanted is None or state.run != HELD:
+            return
+        if wanted.train not in state.train_lengths:
+            return
+        if wanted.block in state.locks or wanted.block not in state.layout.blocks:
+            return
+        if state.train_lengths[wanted.train] > state.layout.blocks[wanted.block]:
+            return
+        if self._has_pending(wanted.train) or wanted.train in state.active:
+            return
+        del state.locks[state.block_of[wanted.train]]
+        state.locks[wanted.block] = wanted.train
+        state.block_of[wanted.train] = wanted.block
+        self._publish("train_placed", {"train": wanted.train, "block": wanted.block})
+        self._publish_allocation()
 
     # -- the grant phase ---------------------------------------------------
 

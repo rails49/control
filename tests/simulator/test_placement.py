@@ -89,6 +89,28 @@ def test_a_restarted_simulator_starts_from_the_file(tmp_path: Path) -> None:
     assert ("tc49/layout/block_vacated", {"block": "dn_w"}) in seen
 
 
+def test_a_hand_that_lifts_a_train_moves_the_steel_under_it(tmp_path: Path) -> None:
+    """`train_placed` is the one thing besides a `cross` that moves a train
+    (#152): a person lifted a locomotive and the dispatcher accepted it. On
+    the real railroad nobody has to say so — the steel simply is where it was
+    left — and the simulator stands in for the steel, so it is told. Without
+    it the next move would vacate the block the train used to be in and the
+    sensors would describe a railroad nobody is on."""
+    _, scenario = load("crossover-yard/meet")
+    path = tmp_path / "placement.json"
+    bus = Bus()
+    simulator = Simulator(bus, scenario, path)
+    bus.publish("tc49/dispatch/train_placed", {"train": "freight_1", "block": "up_w"})
+    bus.drain()
+
+    assert json.loads(path.read_text()) == {"express_2": "up_e", "freight_1": "up_w"}
+
+    seen = sensors(bus)
+    cross(bus, "freight_1", "dn_w")
+    tick(simulator)
+    assert ("tc49/layout/block_vacated", {"block": "up_w"}) in seen
+
+
 def test_the_placement_reaches_no_topic(tmp_path: Path) -> None:
     """The whole of what keeps simulation out of the contract (ADR-0030): the
     inventory names no simulator topic, and the file is the app's own."""
