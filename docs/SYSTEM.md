@@ -194,7 +194,7 @@ the driver moves locomotives
 | `tc49/layout/boundary` | event | layout | deterministic counter |
 | `tc49/layout/block_occupied` | event | layout | block |
 | `tc49/layout/block_vacated` | event | layout | block |
-| `tc49/layout/state/power` | state | layout | last-value word, `on`, `stopped` or `off` — whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move.md)) |
+| `tc49/layout/state/power` | state | layout | last-value word, `on`, `stopped` or `off` — whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
 | `tc49/schedule/request_submitted` | event | scheduler | id, train, depart, dest ends |
 | `tc49/schedule/state/exhausted` | state | scheduler | last-value flag |
 | `tc49/schedule/state/facing` | state | scheduler | last-value map of train to the end it would depart through |
@@ -435,7 +435,7 @@ returning to `on` releases nothing — the operator presses GO — and a
 `run_wanted` of `running` is **dropped** while it is anything else, releasing
 into dead rails being how the next train is stranded like the first. A hold is
 honoured whatever the power is doing
-([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move.md)).
+([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 
 **It alone reads `tc49/ui/placement_wanted`**, a person saying where a train
 actually stands. Whether the block is free is knowledge only it has, so a
@@ -567,7 +567,7 @@ rather than left to read one out of an absence
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
 `stopped` is an emergency stop and `off` is the supply removed; they differ
 for the person recovering and not for the dispatcher, which holds the run on
-either ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move.md)).
+either ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 Commanding power is not here: today the operator's ON is a physical action,
 and an emergency stop worth the name is a hardwired contact rather than a
 message. The milestone-1 **simulator** publishes `on` and never changes it,
@@ -586,12 +586,13 @@ locomotive on a detected block, or a train pushed while the power was off — is
 not something it can read, and it raises rather than guessing. The simulator
 publishes no sensors for a placement, which is what makes the gesture safe
 today. A layout that detects occupancy will need the dispatcher told what an
-unexpected sensor means, which is
-[#159](https://github.com/rails49/control/issues/159)'s half of this and is
-not settled here. The **dispute check** is not that answer either: it records
-every reading as it arrives, explained or not, and compares — comparing
-commits nothing. What the *boundary* then does with a reading no grant
-accounts for is the half still open.
+unexpected sensor means, and that is still open: track power
+([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md))
+answers the observation and not the assert, so a `block_occupied` no grant
+accounts for still raises at the next boundary. The **dispute check** is not
+that answer either: it records every reading as it arrives, explained or not,
+and compares — comparing commits nothing. What the *boundary* then does with a
+reading no grant accounts for is the half still open.
 
 ### Asset store
 

@@ -78,7 +78,7 @@ export class TcHeader extends LitElement {
   @property({ type: Number }) boundary: number | null = null;
 
   /** Whether the layout says a train may move at all, `null` with no session
-   *  joined ([ADR-0041](../../../docs/adr/0041-the-layout-says-whether-a-train-may-move.md)).
+   *  joined ([ADR-0041](../../../docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
    *  It is the band's because it is the whole railroad's, and it says which of
    *  the two ways of standing still it is: an emergency stop is cleared and a
    *  supply is switched back on, which are different actions by a person. */

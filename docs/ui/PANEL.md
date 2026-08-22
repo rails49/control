@@ -414,7 +414,7 @@ rather than asking for a change: two presses of the same word are not a race.
 which of the two ways of standing still it is: *emergency stop* for `stopped`
 and *power off* for `off`. The person recovering clears the one and switches
 the other back on, which are different actions
-([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move.md)). With no
+([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)). With no
 session joined it says nothing, a drawing having no rails to have power.
 
 **GO is greyed while the power is not `on`.** The dispatcher drops such a

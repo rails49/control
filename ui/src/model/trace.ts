@@ -85,7 +85,7 @@ export type Run = "held" | "running";
  *  of the two ways of standing still — `stopped` is an emergency stop, every
  *  locomotive told to stand with the track still live, and `off` is the supply
  *  removed
- *  ([ADR-0041](../../../docs/adr/0041-the-layout-says-whether-a-train-may-move.md)).
+ *  ([ADR-0041](../../../docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
  *  The two differ for the person recovering, who clears one and switches the
  *  other back on, which is why the panel says which. */
 export type Power = "on" | "stopped" | "off";

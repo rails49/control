@@ -281,6 +281,10 @@ order it accumulated. Releasing sets the word and nothing else; the next
 boundary runs an ordinary phase, which is what keeps the boundary the sole
 trigger
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
+The layout holds it too: `tc49/layout/state/power` arriving as anything but
+`on` sets the word to `held` by the same path, and a release is dropped until
+it is back
+([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 
 **A held run also asks the detectors.** The sensor readings the layout has
 reported are compared against the placement, and the two contradictions — a

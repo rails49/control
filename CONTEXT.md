@@ -244,7 +244,10 @@ granted, no lock taken — until a person releases it. The run's own state,
 ([ADR-0037](docs/adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 A brake and not an emergency stop: a move already granted runs to its sensor,
 and what keeps a railroad still after a power cut is track power, one layer
-down. Admission is untouched — requests queue up while held. A **restored**
+down. The layout holds it too: `tc49/layout/state/power` arriving as anything
+but `on` sets the word to `held`, and a release is refused until it is back
+([ADR-0041](docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
+Admission is untouched — requests queue up while held. A **restored**
 session comes up held and a cold one comes up running.
 _Avoid_: paused, stopped, frozen. Not the `held` **grant_refused** reason,
 which says a resource is locked by another train: a different thing, on a
@@ -342,6 +345,8 @@ _Avoid_: event id (there is no universal envelope id)
 Three failures look alike and differ in who still holds the truth. Naming
 them apart is what keeps a page reload from being sized like a power cut
 ([ADR-0032](docs/adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
+The two hardware controls below are a fourth thing again: the apps stay up
+throughout, so nothing is lost and nothing is recovered.
 
 **Rejoin**:
 A client reconnecting to a session that never stopped. Nothing was lost: the
@@ -362,6 +367,27 @@ was believed is now *suspect*: a train that stalled in a tunnel gets lifted
 out by hand. Ends with a person confirming placement however much was
 persisted; persistence makes that cheaper, never automatic.
 _Avoid_: restart, resync
+
+**Emergency stop**:
+Every locomotive told to stand, with the track still live. The locos stop;
+points hold their positions and the decoders keep their state. A control on
+the command station, reported to the app as `stopped` on
+`tc49/layout/state/power`, and the run **holds** on it
+([ADR-0041](docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
+It ends with a person clearing the stop and pressing GO; power returning
+releases nothing by itself.
+_Avoid_: e-stop, stop (the aspect), hold (the run's own state, which a person
+moves)
+
+**Power off**:
+The track supply removed. Nothing moves, and the accessory decoders lose it
+too, so no point position can be trusted afterwards. Reported as `off` on the
+same topic and holding the run the same way — the two differ for the person
+recovering, not for the dispatcher. Not **recovery**: the apps stayed up and
+their picture is only as stale as the steel that stopped moving. What is lost
+is a train granted a move when the supply went: it is stranded between blocks
+and no sensor will ever say where it stopped.
+_Avoid_: shutdown, blackout, emergency stop (the track stays live for that)
 
 ### Contracts
 
