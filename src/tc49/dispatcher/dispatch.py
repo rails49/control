@@ -820,6 +820,13 @@ class Dispatcher:
         elif leaf == "power":
             self._on_power(payload)
         else:
+            # Still a bare subscript, and the only one on this role left: an
+            # occupancy frame the binding got wrong raises here and takes the
+            # dispatcher down once the bus is not in-process. The power word
+            # was read first because it is the one whose *drop* would be
+            # unsafe — the run must hold on it — where a dropped occupancy
+            # reading is a dispute the next report settles. Reading the whole
+            # layout role is #173's sweep, not this fix's (#175).
             block = payload["block"]
             self._buffered.append((leaf, block))
             # Recorded where it arrives rather than where the buffer is

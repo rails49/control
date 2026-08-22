@@ -21,6 +21,11 @@ no page writes it, but the layout binding is another process, and a dispatcher
 that raised on a frame it sent would be taken down by that binding's bug the
 moment the bus stops being in-process (#173). It is the one reader here that
 answers a word rather than `None`, and `power` says why (#175).
+
+It is also the only leaf of that role read here so far. Occupancy is still
+subscripted where it arrives, and reading the whole layout role is #173's
+sweep: the power word came first because it is the one whose *drop* would be
+unsafe.
 """
 
 from dataclasses import dataclass
