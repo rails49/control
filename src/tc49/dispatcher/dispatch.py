@@ -727,13 +727,15 @@ class Dispatcher:
 
         Accepted only when every precondition holds: the run is held, the
         train is known, the block exists and is free of every claim, the
-        train fits it, and the train has no request in flight. Where the
-        train stands now is not one of them — a train adoption placed nowhere
-        is exactly the one a person has to say something about. The last
+        train fits it, and the train has no request in flight. The last
         mirrors `reversal_wanted` and adds a worse reason of its own — on release the
         grant phase launches from `block_of`, so a pending request would
         depart from wherever the train was just put, having been admitted
         against the block it was in when it was asked for.
+
+        Where the train stands *now* is no precondition at all: one adoption
+        placed nowhere (`restored`) is exactly the train a person has to say
+        something about.
 
         Having accepted, the dispatcher moves the train's standing lock and
         announces `train_placed`. That event is the ledger line for a

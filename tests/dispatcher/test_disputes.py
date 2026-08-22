@@ -16,12 +16,14 @@ railroad.
 """
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from tc49.bench.runner import DEFAULT_K
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.scenario import TrainSpec
 from tests.harness import load
 
 ALLOCATION = "tc49/dispatch/state/allocation"
@@ -41,13 +43,30 @@ MOVED: dict[str, Any] = {
 
 
 def restored(
-    tmp_path: Path, picture: dict[str, Any] | None = None
+    tmp_path: Path,
+    picture: dict[str, Any] | None = None,
+    added: dict[str, str] | None = None,
 ) -> tuple[Bus, Dispatcher]:
     """A dispatcher on a bus whose file already holds that picture, which is
-    the session that comes up held (#154) and so the one the check runs in."""
+    the session that comes up held (#154) and so the one the check runs in.
+
+    `added` is stock the scenario has gained since the picture was taken,
+    train to starting block: the trains a collision is made of (#164).
+    """
     path = tmp_path / "session.json"
     path.write_text(json.dumps({} if picture is None else {ALLOCATION: picture}))
     layout, scenario = load("crossover-yard/meet")
+    if added is not None:
+        scenario = replace(
+            scenario,
+            trains={
+                **scenario.trains,
+                **{
+                    train: TrainSpec(length=600, at=at, facing="A")
+                    for train, at in added.items()
+                },
+            },
+        )
     bus = Bus(path)
     dispatcher = Dispatcher(bus, layout, scenario, FullRoute(layout, DEFAULT_K))
     bus.drain()
@@ -186,3 +205,23 @@ def test_a_crossing_train_leaves_no_dispute_behind_it(tmp_path: Path) -> None:
     reports(bus, clear=("dn_e",))
 
     assert disputed(bus) == {"trains": [], "blocks": []}
+
+
+def test_a_train_adoption_placed_nowhere_is_disputed_as_a_block(
+    tmp_path: Path,
+) -> None:
+    """The other side of the per-train adoption of #164.
+
+    `freight_1` had both its answers taken, so it is placed nowhere and the
+    check has no block of its own to read against: a train in the closet
+    stands in nothing and contradicts nothing. The steel is still somewhere,
+    though, and wherever it reads occupied nothing claims it — so it comes
+    out as the stray *block* it is, which is exactly where a person is sent.
+    """
+    parked = {**MOVED, "trains": {"express_2": "yard_w", "freight_1": "dn_e"}}
+    bus, dispatcher = restored(tmp_path, parked, added={"local_3": "dn_e"})
+    assert "freight_1" not in dispatcher.state.block_of
+
+    reports(bus, occupied=("dn_e", "dn_w"), clear=("up_e", "up_w"))
+
+    assert disputed(bus) == {"trains": [], "blocks": ["dn_w"]}
