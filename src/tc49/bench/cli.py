@@ -179,7 +179,8 @@ def command_line() -> argparse.ArgumentParser:
         "--scenario",
         help="run a scenario as a test run, e.g. gotthard/meet: the session"
         " comes up on the railroad it names and replays it as gestures —"
-        " a placement per train, then its requests at their boundaries",
+        " a placement per train, then its requests at their boundaries."
+        " Not with --state, which comes up on the last session's placement",
     )
     live_parser.add_argument(
         "--period",
@@ -252,11 +253,25 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
 
     if args.command == "live":
         session = Session(ROOT, args.period, args.port, args.state)
-        opening = (
-            session.plays(args.scenario)
-            if args.scenario is not None
-            else session.wants(args.railroad) if args.railroad is not None else None
-        )
+        # What the session comes up on, and the refusal if it cannot: a
+        # scenario names its own railroad and replays onto it, a railroad
+        # comes up empty, and with neither the session waits to be told.
+        # Two sources for one placement, and no reason to choose between
+        # them: `--state` comes up standing the trains where the last session
+        # left them, and a replay's placements would then be refused one by
+        # one for the blocks those trains hold — a run silently unlike the
+        # document, with no diagnostic (#171).
+        if args.scenario is not None and args.state is not None:
+            out.write(
+                "--scenario replays a document onto an empty layout and"
+                " --state comes up on the last session's placement; name one\n"
+            )
+            return 2
+        opening: str | None = None
+        if args.scenario is not None:
+            opening = session.plays(args.scenario)
+        elif args.railroad is not None:
+            opening = session.wants(args.railroad)
         if opening is not None:
             out.write(f"{opening}\n")
             return 2

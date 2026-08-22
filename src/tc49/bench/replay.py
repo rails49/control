@@ -17,6 +17,13 @@ a train and where to put it, and the scheduler supplies the end off facing
 (ADR-0036) — so a scenario whose `from` contradicts its facing replays by the
 facing. That is the whole of the difference, and it is a difference a browser
 has too.
+
+A gesture the dispatcher cannot act on is **dropped in silence** (ADR-0034),
+which is right for a person and wrong for a document: a placement it refused
+would leave that train off the layout and every request for it answered
+`no_origin`, a run silently unlike the one the file describes. So a replay
+raises where a placement was not taken. It is the harness, and a fixture that
+cannot be stood up is a broken fixture rather than a run to report on.
 """
 
 from tc49.lib.bus import Bus, Payload
@@ -53,12 +60,20 @@ class Replay:
     def __init__(self, bus: Bus, layout: Layout, scenario: Scenario) -> None:
         self._bus = bus
         self._pending = list(scenario.requests)
+        self._standing: set[str] = set()
+        bus.subscribe("tc49/dispatch/train_placed", self._on_placed)
         for train, spec in scenario.trains.items():
             # Each gesture drains before the next: the scheduler learns a
             # train's facing from the `train_placed` the dispatcher answers a
             # placement with, and a reversal published ahead of that answer
             # would name a train it holds no facing for.
             self._send(PLACEMENT_WANTED, {"train": train, "block": spec.at})
+            if train not in self._standing:
+                raise ValueError(
+                    f"scenario '{scenario.name}': the dispatcher would not"
+                    f" stand '{train}' in '{spec.at}' — the block is taken,"
+                    f" or the train does not fit it"
+                )
             # A placement carries no facing: the scheduler gives a train that
             # was off the layout the letter `A`, and turning it around is the
             # correction (ADR-0019, ADR-0039). Both ends go through
@@ -72,6 +87,9 @@ class Replay:
         # while held and dropped while running (ADR-0037).
         self._send(RUN_WANTED, {"run": RUNNING})
         bus.subscribe("tc49/layout/boundary", self._on_boundary)
+
+    def _on_placed(self, topic: str, payload: Payload) -> None:
+        self._standing.add(payload["train"])
 
     def _send(self, topic: str, payload: Payload) -> None:
         self._bus.publish(topic, payload)

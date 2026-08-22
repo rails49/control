@@ -160,6 +160,8 @@ export class TcPanel extends LitElement {
   private fitting = false;
   private live: Live | null = null;
   private socket: WebSocket | null = null;
+  /** Joins started, so an overtaken one can tell that it has been. */
+  private joins = 0;
   private readonly drag = new Drag();
   /** What a press on the canvas means here (model/drag.ts), bound to what is
    *  on screen. It answers quiet while there is no session to submit to,
@@ -195,9 +197,14 @@ export class TcPanel extends LitElement {
     }
     if (name === this.built) {
       // Loaded again with no session on it — the store was not answering when
-      // it first arrived, or the session went — is the one way back in, there
-      // being no picker of this view's own to re-pick (#171).
-      if (this.session === null) void this.join(name);
+      // it first arrived, or the session dropped this client — is how a page
+      // gets back in, there being no picker of this view's own to re-press
+      // (#171). The model is reused, so what the last session left in it that
+      // no retained topic will replace goes first.
+      if (this.session === null) {
+        this.panel?.reset();
+        void this.join(name);
+      }
       return;
     }
     // A railroad swapped under a joined session would paint one railroad's
@@ -234,14 +241,19 @@ export class TcPanel extends LitElement {
    * and live requests off the dispatcher's retained picture, facing off the
    * scheduler's (ADR-0032, ADR-0036).
    *
-   * A join the loaded railroad has moved on from is dropped: the picker may
-   * be pressed twice before a store answers, and the second press is the one
-   * on screen.
+   * **Only the latest join opens a socket.** The picker may be pressed
+   * several times before a store answers, including back onto the railroad
+   * already asked for, and an overtaken join that went on to `listen` would
+   * leave a second socket open on the same run — every frame applied twice,
+   * and its eventual close flipping a live session to disconnected. So each
+   * join takes a number and drops itself if another has been started since;
+   * `leave` takes one too, which is what abandons a join in flight.
    */
   private async join(railroad: string): Promise<void> {
+    const mine = ++this.joins;
     try {
       const stock = await readRoster(railroad);
-      if (this.built !== railroad) return;
+      if (mine !== this.joins || this.built !== railroad) return;
       this.stock = stock.trains;
       this.session = railroad;
       this.trouble = null;
@@ -269,8 +281,17 @@ export class TcPanel extends LitElement {
     });
     socket.addEventListener("message", (frame) => this.heard(String(frame.data)));
     socket.addEventListener("close", () => {
-      this.connected = false;
-      this.menu = null; // nowhere left to send what it offers
+      // Only for the socket still on screen: a swap closes the old one after
+      // the new one is open, and that late close must not take the live
+      // session down with it.
+      if (socket !== this.socket) return;
+      // The session has dropped this client — it switched railroads under one
+      // operator, or the process went. What it was saying is no longer being
+      // said, so the page holds no session at all: the roster empties, the
+      // drawing thaws, and pressing the band's picker is what gets back in
+      // (#171). Exactly what leaving one was, which is why it is that.
+      this.leave();
+      this.beat++;
     });
     socket.addEventListener("error", () => {
       this.trouble = `no session at ${at} — run \`tc49 live\``;
@@ -320,19 +341,27 @@ export class TcPanel extends LitElement {
    * running.
    */
   press(run: Run): void {
-    if (this.socket === null || this.panel === null) return;
+    // `connected` and not merely a socket: sending on a closed one is
+    // discarded rather than thrown, and the notice below would then stand
+    // for a release the dispatcher never heard.
+    if (this.socket === null || !this.connected || this.panel === null) return;
     this.released = run === "running" ? outstanding(this.panel.disputes()) : null;
     this.socket.send(wanted(run));
   }
 
   private leave(): void {
+    this.joins++; // whatever join is in flight is not this railroad's
     this.drag.cancel();
     this.menu = null;
     this.stock = {};
     this.released = null;
     this.wasRunning = false;
-    this.socket?.close();
+    // Let go of it before closing it, so the `close` that follows is one this
+    // no longer owns: the handler's own guard is what keeps a late close off
+    // a live session, and it reads this field.
+    const going = this.socket;
     this.socket = null;
+    going?.close();
     this.live = null;
     this.session = null;
     this.connected = false;

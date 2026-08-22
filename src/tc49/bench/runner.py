@@ -160,24 +160,17 @@ def assemble_live(
     keeps the steel's own memory beside it, which is its business and on no
     topic (ADR-0030).
     """
-    stood = trains or {}
+    document = trains or {}
+    stood = placement(document)
     bus = Bus(state)
     out = io.StringIO()
     TraceTap(bus, out)
-    Scheduler(bus, layout, facing(layout, stood))
-    dispatcher = Dispatcher(
-        bus, layout, roster, placement(stood), make_strategy(layout, k)
-    )
+    Scheduler(bus, layout, facing(layout, document))
+    dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
     steel = None if state is None else placement_file(state)
     return Assembly(
-        bus,
-        dispatcher,
-        Simulator(bus, placement(stood), steel),
-        layout,
-        roster,
-        k,
-        out,
+        bus, dispatcher, Simulator(bus, stood, steel), layout, roster, k, out
     )
 
 

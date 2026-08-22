@@ -12,12 +12,18 @@ replay produces is the run the same scenario produced when the apps were
 handed the document.
 """
 
+import io
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Any
 
+import pytest
+
+from tc49.bench.cli import main
 from tc49.bench.replay import Replay, arrival_ends
 from tc49.bench.runner import Assembly, assemble, assemble_live
 from tc49.bench.session import Session
+from tc49.lib.scenario import TrainSpec
 from tests.harness import ROOT, events, load
 
 SCENARIO = "crossover-yard/meet"
@@ -127,6 +133,32 @@ def test_the_replayed_run_is_the_one_the_document_produced() -> None:
     assert [line["id"] for line in events(replay.trace, "request_completed")] == [
         line["id"] for line in events(document.trace, "request_completed")
     ]
+
+
+def test_a_placement_the_dispatcher_refuses_stops_the_replay() -> None:
+    """Dropped in silence is right for a person and wrong for a document
+    (ADR-0034): the train would be left off the layout and every request for
+    it answered `no_origin`, a run silently unlike the file. The harness says
+    so instead."""
+    layout, roster, scenario = load(SCENARIO)
+    doubled = replace(
+        scenario,
+        trains={train: TrainSpec("yard_w", "B") for train in scenario.trains},
+    )
+    assembly = assemble_live(layout, roster)
+
+    with pytest.raises(ValueError, match="would not stand"):
+        Replay(assembly.bus, layout, doubled)
+
+
+def test_a_replay_and_a_kept_picture_are_two_placements_and_the_cli_refuses() -> None:
+    """`--state` comes up standing the trains where the last session left
+    them, and the replay's placements would then be refused one by one for the
+    blocks those trains hold. Two sources for one placement, and no reason to
+    choose between them."""
+    out = io.StringIO()
+    assert main(["live", "--scenario", SCENARIO, "--state", "run.json"], out) == 2
+    assert "name one" in out.getvalue()
 
 
 def test_a_scenario_is_the_only_thing_the_cli_may_replay() -> None:

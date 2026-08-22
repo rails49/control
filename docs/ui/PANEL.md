@@ -381,8 +381,11 @@ keeps ADR-0036's single-minter argument holding.
 idle on its port waiting to be told; with one it starts running that railroad
 and the band may still switch it. Naming the running railroad joins it
 mid-run. Naming another tears the assembly down, builds a fresh one for that
-railroad, and closes any client still on the old path so it re-picks — one
-operator, one railroad. Naming a railroad that does not exist gets an
+railroad, and closes any client still on the old path — one operator, one
+railroad. **A client the session closes lets go of it entirely**: it holds no
+run, so the roster empties and the drawing thaws rather than freezing on a
+picture nobody is maintaining, and pressing the band's picker is the way back
+in. Naming a railroad that does not exist gets an
 `{"error": …}` frame and a close, with the running railroad untouched: a typo
 must not take a live session down. A run outlives its clients, so closing the
 browser leaves the railroad running and Ctrl-C ends the session.
@@ -541,7 +544,8 @@ decision about is running, and a fresh hold is a fresh decision
 
 **This view has no control of its own.** The session select it used to carry
 is gone: the band's picker is the only thing that says which railroad is on
-screen, and the run view joins whatever is loaded
+screen, and pressing it is also what rejoins a session that dropped the page.
+The run view joins whatever is loaded
 ([#171](https://github.com/rails49/control/issues/171)). What its header still
 draws is the release notice, and only while there is one.
 

@@ -7,8 +7,8 @@ buffered until the boundary and treated as a set, so grants are a pure
 function of the buffered set, never of delivery order (DISPATCH.md, time
 model). Standing locks are seeded and published at startup — from the last
 picture where the bus binding has kept one across a restart, and from the
-placement the run was built with where it has not (#123). The locking discipline is the pluggable
-strategy of locking.py.
+placement the run was built with where it has not (#123). The locking
+discipline is the pluggable strategy of locking.py.
 
 It is also the sole payload authority (SYSTEM.md, dispatcher footprint):
 anything at all may be published on the inbound topic, so admission reads a

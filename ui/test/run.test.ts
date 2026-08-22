@@ -16,11 +16,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import "../src/ui/tc-app.js";
 import { centreOf } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { band, bar, running, settled } from "./support/shell.js";
+import { band, bar, mounted, running, settled } from "./support/shell.js";
 import {
   Bridge,
   bridging,
   joined,
+  loads,
   said,
   stored,
   unbridged,
@@ -52,6 +53,65 @@ describe("joining a session", () => {
     expect(Bridge.last!.url).toMatch(/\/toy$/);
     const named = band(shell).renderRoot.querySelector(".drawing")!;
     expect(named.textContent!.trim()).toBe("toy");
+  });
+
+  /** The bridge closes a client when the session switches railroads under one
+   *  operator, and the process can simply go. The view has no session select
+   *  to re-pick any more (#171), so it must let the session go and let the
+   *  band's picker be the way back in — and a press in between must not
+   *  pretend to have been heard: sending on a closed socket is discarded, not
+   *  thrown. */
+  it("lets the session go when the bridge closes it, and the picker gets back in", async () => {
+    const shell = await joined();
+    const dropped = Bridge.last!;
+    await said(shell, "tc49/dispatch/state/run", { run: "held" });
+
+    dropped.close();
+    await settled(shell);
+
+    running(shell).press("running");
+    expect(written()).toEqual([]);
+    expect(notice(shell)).toBeNull();
+
+    await loads(shell, "toy");
+    expect(Bridge.last).not.toBe(dropped);
+    expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(1);
+  });
+
+  /** A press away and back while the store is still answering: the join the
+   *  first press started must not go on to open a socket of its own. Two on
+   *  one run applies every frame twice, and the older one's close would flip a
+   *  live session to disconnected.
+   *
+   *  The roster reads are held open so the joins genuinely overlap — released
+   *  one at a time, each press settles before the next and there is never a
+   *  second join in flight to overtake. */
+  it("leaves one socket open when the picker is pressed away and back", async () => {
+    const shell = await mounted("run");
+    const answering = globalThis.fetch;
+    const holding: (() => void)[] = [];
+    globalThis.fetch = ((path: string, init?: RequestInit) => {
+      const answer = answering(path, init);
+      if (!String(path).startsWith("/rosters/")) return answer;
+      return new Promise((resolve) => holding.push(() => resolve(answer)));
+    }) as typeof fetch;
+
+    for (const railroad of ["toy", "other", "toy"]) {
+      band(shell).dispatchEvent(
+        new CustomEvent<string>("railroad-wanted", {
+          detail: railroad,
+          bubbles: true,
+          composed: true,
+        }),
+      );
+      await settled(shell);
+    }
+    expect(holding).toHaveLength(3);
+    for (const release of holding) release();
+    await settled(shell);
+
+    expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(1);
+    expect(Bridge.last!.url).toMatch(/\/toy$/);
   });
 });
 

@@ -50,12 +50,17 @@ export function stored(name: string): Drawing {
  *  and it delivers them. */
 export class Bridge {
   static last: Bridge | null = null;
+  /** Every socket the view has opened this test, so a suite can ask how many
+   *  it left open — one live run must be fed by exactly one. */
+  static opened: Bridge[] = [];
 
   readonly sent: string[] = [];
+  closed = false;
   private readonly listeners = new Map<string, ((event: unknown) => void)[]>();
 
   constructor(readonly url: string) {
     Bridge.last = this;
+    Bridge.opened.push(this);
   }
 
   addEventListener(name: string, listener: (event: unknown) => void): void {
@@ -67,6 +72,7 @@ export class Bridge {
   }
 
   close(): void {
+    this.closed = true;
     this.raise("close", {});
   }
 
@@ -86,6 +92,7 @@ const REAL = globalThis.WebSocket;
  *  store: what a suite about a live session needs before each test. */
 export function bridging(): void {
   Bridge.last = null;
+  Bridge.opened = [];
   globalThis.WebSocket = Bridge as unknown as typeof WebSocket;
   serving({
     drawings: ["toy"],
