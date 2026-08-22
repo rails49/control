@@ -86,6 +86,16 @@ export interface RunStatus {
   trouble: string | null;
 }
 
+/** What the right-click found, as the canvas hands it over: `trainAt`'s answer
+ *  with the pointer's position on it (model/drag.ts). It is also what the open
+ *  menu is, there being nothing else to remember about one. */
+interface Clicked {
+  x: number;
+  y: number;
+  block: string;
+  train: string;
+}
+
 /** The one action the panel's menu offers, named once so the item and the
  *  handler cannot drift apart. */
 const TURN_AROUND = "turn-around";
@@ -126,12 +136,7 @@ export class TcPanel extends LitElement {
   @state() private beat = 0;
   /** The open right-click menu: where it hangs, and the block and train it
    *  is about, `null` for none. */
-  @state() private menu: {
-    x: number;
-    y: number;
-    block: string;
-    train: string;
-  } | null = null;
+  @state() private menu: Clicked | null = null;
 
   private panel: Panel | null = null;
   /** Whether the run was running when the last frame was applied, which is
@@ -397,7 +402,7 @@ export class TcPanel extends LitElement {
    * raises `contextmenu` — has been abandoned by the machine, the menu taking
    * the gesture over.
    */
-  private offer(event: CustomEvent<{ x: number; y: number; train: string; block: string }>): void {
+  private offer(event: CustomEvent<Clicked>): void {
     this.menu = event.detail;
   }
 

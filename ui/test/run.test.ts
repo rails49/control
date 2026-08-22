@@ -157,8 +157,8 @@ describe("joining a session", () => {
  */
 describe("the picture on the shared canvas", () => {
   /** The drawing surface the run view is rendering through. */
-  function sheet(shell: TcApp): ShadowRoot {
-    return running(shell).renderRoot.querySelector("tc-canvas")!.renderRoot as ShadowRoot;
+  function sheet(shell: TcApp): ParentNode {
+    return running(shell).renderRoot.querySelector("tc-canvas")!.renderRoot;
   }
 
   it("stands the train the dispatcher's picture places, and marks its block", async () => {

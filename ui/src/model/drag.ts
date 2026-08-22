@@ -188,10 +188,11 @@ export function schedulingMachine(
     menu: (point) => {
       const now = painted();
       drag.cancel();
-      return {
-        outcome: "render",
-        found: now === null ? null : trainAt(now.drawing, now.review, now.blocks, point),
-      };
+      const standing =
+        now === null
+          ? null
+          : trainAt(now.drawing, now.review, now.blocks, point);
+      return { outcome: "render", found: standing };
     },
     shift: () => STILL,
     get marks() {
