@@ -12,15 +12,21 @@ Adoption is **selective** (#123): placement and the crossing hint are taken,
 `locks` and `requests` are not. The lock table is rebuilt one block per train
 exactly as a cold start builds it, the queue comes back empty, and no request
 id resumes — ADR-0033 is untouched.
+
+It is also **per train** (#164): a collision costs the trains in it and no
+others, and what it protects — one train to a block, and no train standing in
+a block nothing holds — holds train by train.
 """
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from tc49.bench.runner import DEFAULT_K
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.scenario import TrainSpec
 from tests.harness import load
 
 ALLOCATION = "tc49/dispatch/state/allocation"
@@ -42,6 +48,7 @@ def restarted(
     picture: dict[str, Any] | None,
     aspects: dict[str, str] | None = None,
     run: str | None = None,
+    added: dict[str, str] | None = None,
 ) -> tuple[Bus, Dispatcher, list[Payload]]:
     """A dispatcher on a bus whose file already holds that picture — and the
     aspects and the run word the last session left, where a test wants them —
@@ -49,6 +56,10 @@ def restarted(
 
     No picture at all is the first session of all naming a path: a file that
     exists with nothing of the dispatcher's in it, which is a cold start.
+
+    `added` is stock the scenario has gained since that picture was taken,
+    train to starting block: a train no picture can name, which is where a
+    collision comes from (#164).
     """
     path = tmp_path / "session.json"
     kept: dict[str, Any] = {} if picture is None else {ALLOCATION: picture}
@@ -58,6 +69,17 @@ def restarted(
         kept[RUN] = {"run": run}
     path.write_text(json.dumps(kept))
     layout, scenario = load("crossover-yard/meet")
+    if added is not None:
+        scenario = replace(
+            scenario,
+            trains={
+                **scenario.trains,
+                **{
+                    train: TrainSpec(length=600, at=at, facing="A")
+                    for train, at in added.items()
+                },
+            },
+        )
     bus = Bus(path)
     dispatcher = Dispatcher(bus, layout, scenario, FullRoute(layout, DEFAULT_K))
     said: list[Payload] = []
@@ -66,6 +88,16 @@ def restarted(
     )
     bus.drain()
     return bus, dispatcher, said
+
+
+def coherent(dispatcher: Dispatcher) -> None:
+    """The invariant every adoption keeps, whatever it took from the picture:
+    one train to a block, and the standing lock CONTEXT.md says every parked
+    train always has (#164). A train placed by neither holds nothing, which
+    is the closet and not a fault (ADR-0039)."""
+    placed = dispatcher.state.block_of
+    assert len(set(placed.values())) == len(placed), "two trains in one block"
+    assert dispatcher.state.locks == {block: train for train, block in placed.items()}
 
 
 def test_placement_is_adopted_in_place_of_the_scenario(tmp_path: Path) -> None:
@@ -175,35 +207,114 @@ def test_a_train_the_scenario_does_not_carry_is_not_adopted(tmp_path: Path) -> N
     assert dispatcher.state.block_of == {"express_2": "up_e", "freight_1": "dn_e"}
 
 
-def test_a_picture_that_would_stack_two_trains_is_not_adopted(tmp_path: Path) -> None:
-    """Where the picture and the scenario contradict each other, the document
-    wins whole.
+def test_a_train_the_scenario_gained_starts_where_the_document_says(
+    tmp_path: Path,
+) -> None:
+    """A train added since the picture was taken is a cold start of one, and
+    contests nothing while its block is free: the two trains the picture
+    names keep their restored positions beside it."""
+    _, dispatcher, _ = restarted(tmp_path, MOVED, added={"local_3": "dn_w"})
 
-    A train the file does not name falls back to its placement — a train
-    added to the scenario since the last run is a cold start of one — and
-    that placement can be the very block the picture stands another train in.
-    Adopting anyway would write one lock for two trains and leave the second
-    standing in a block nothing holds, which is the standing lock CONTEXT.md
-    says every parked train always has. Half a placement is worse than the
-    document's, so none of it is taken.
+    assert dispatcher.state.block_of == {
+        "express_2": "up_w",
+        "freight_1": "dn_e",
+        "local_3": "dn_w",
+    }
+    coherent(dispatcher)
+
+
+def test_only_the_colliding_train_gives_up_its_restored_position(
+    tmp_path: Path,
+) -> None:
+    """The picture is taken a train at a time (#164).
+
+    `local_3` was added to the document since the last run, so no picture can
+    name it and its starting block is the only answer it has — and that block
+    is where the picture stands `freight_1`. The train with a second answer
+    is the one that yields: `freight_1` falls back to its own starting block,
+    and `express_2`, which the collision has nothing to do with, comes back up
+    where the last session left it.
+    """
+    _, dispatcher, _ = restarted(tmp_path, MOVED, added={"local_3": "dn_e"})
+
+    assert dispatcher.state.block_of == {
+        "local_3": "dn_e",  # the document's, the only word for it
+        "freight_1": "yard_w",  # the document's, its picture block taken
+        "express_2": "up_w",  # the picture's, untouched by the collision
+    }
+    coherent(dispatcher)
+
+
+def test_a_train_with_nowhere_left_is_placed_by_neither(tmp_path: Path) -> None:
+    """Both answers taken, so the train comes up in the closet (ADR-0039).
+
+    `local_3` takes the block the picture stands `freight_1` in, and the
+    picture has meanwhile parked `express_2` in `freight_1`'s own starting
+    block — a completed working, which is where the scenario sends it. There
+    is nothing left to place `freight_1` in, and standing it in a block
+    another train holds is the one thing adoption may not do. The rest of the
+    railroad is restored around it, and #153 is what points a person at it.
+    """
+    parked = {**MOVED, "trains": {"express_2": "yard_w", "freight_1": "dn_e"}}
+    _, dispatcher, _ = restarted(tmp_path, parked, added={"local_3": "dn_e"})
+
+    assert dispatcher.state.block_of == {"local_3": "dn_e", "express_2": "yard_w"}
+    assert "freight_1" not in dispatcher.state.locks.values()
+    coherent(dispatcher)
+
+
+def test_a_colliding_pair_that_is_the_whole_railroad_ends_at_the_document(
+    tmp_path: Path,
+) -> None:
+    """The picture #151 refused whole, now refused a train at a time — and
+    with only two trains on the railroad the answer is the same one.
+
+    `express_2` is what the picture does not name, so its starting block is
+    all it has, and the picture stands `freight_1` in exactly that block.
+    `freight_1` falls back and there is no third train left holding a
+    restored position. What changed is that this is now a consequence of the
+    per-train rule rather than a rule of its own.
     """
     stacked = {**MOVED, "trains": {"freight_1": "up_e"}}  # express_2's own block
     _, dispatcher, _ = restarted(tmp_path, stacked)
 
     assert dispatcher.state.block_of == {"freight_1": "yard_w", "express_2": "up_e"}
-    assert dispatcher.state.locks == {"yard_w": "freight_1", "up_e": "express_2"}
+    coherent(dispatcher)
 
 
-def test_a_refused_placement_takes_its_crossing_hints_with_it(tmp_path: Path) -> None:
-    """The hint belongs to the picture: refuse the placement and the transit
-    it named is not a fact about this railroad either."""
-    stacked = {
+def test_the_train_that_falls_back_leaves_its_crossing_hint_behind(
+    tmp_path: Path,
+) -> None:
+    """The hint belongs to the placement it came with: it names the transit
+    that placement was consistent with, so a train standing where the
+    document says instead is not on it. The hint of a train that kept its
+    restored position is untouched — the collision is not its business.
+    """
+    crossing = {
         **MOVED,
-        "trains": {"freight_1": "up_e"},
+        "crossing": {
+            "freight_1": "crossover.dn_straight",
+            "express_2": "crossover.up_straight",
+        },
+    }
+    _, dispatcher, _ = restarted(tmp_path, crossing, added={"local_3": "dn_e"})
+
+    assert dispatcher.state.block_of["freight_1"] == "yard_w"
+    assert dispatcher.state.crossing == {"express_2": "crossover.up_straight"}
+
+
+def test_a_train_placed_by_neither_carries_no_crossing_hint(tmp_path: Path) -> None:
+    """The same rule for the train nothing places at all: it is standing
+    somewhere a person has to find, and naming a transit it was crossing
+    would be the picture speaking for a placement that was refused."""
+    parked = {
+        **MOVED,
+        "trains": {"express_2": "yard_w", "freight_1": "dn_e"},
         "crossing": {"freight_1": "crossover.dn_straight"},
     }
-    _, dispatcher, _ = restarted(tmp_path, stacked)
+    _, dispatcher, _ = restarted(tmp_path, parked, added={"local_3": "dn_e"})
 
+    assert "freight_1" not in dispatcher.state.block_of
     assert dispatcher.state.crossing == {}
 
 
@@ -268,7 +379,7 @@ def test_a_picture_the_document_overruled_holds_the_run_all_the_same(
     tmp_path: Path,
 ) -> None:
     """Where the picture contradicts the scenario the document wins the
-    placement whole (`restored`) — and the steel does not go back to the
+    contested block (`restored`) — and the steel does not go back to the
     document with it. There was a session here and it was cut off, which is
     exactly what a person has to come and look at."""
     stacked = {**MOVED, "trains": {"freight_1": "up_e"}}  # express_2's own block

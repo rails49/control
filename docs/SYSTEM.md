@@ -417,7 +417,13 @@ event, and `request_submitted` carries no length. Where a **retained
 its `trains` and `crossing`, adopted before the standing locks are published;
 lengths stay the scenario's, and `locks` and `requests` are not adopted at
 all, so the lock table is rebuilt one block per train and the queue comes
-back empty. *Subscribes*
+back empty. The placement is taken **per train**: a train the picture does
+not name starts where the document says, and where that is the block the
+picture stands another train in the contested block goes to the train with
+nowhere else to stand. The other falls back to its own starting block, or —
+both of its answers taken — comes up placed nowhere at all, which the
+picture then shows as a train with no block
+([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). *Subscribes*
 `tc49/layout/#`,
 `tc49/schedule/request_submitted` and `tc49/ui/#`. *Publishes* the nine
 `tc49/dispatch/*` events, plus `state/run`, `state/aspects`,
