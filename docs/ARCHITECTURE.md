@@ -106,7 +106,8 @@ ui/                         the layout editor: TypeScript, pnpm, Lit
 layouts/                    <layout>.drawing.yaml — the drawn railroads,
                             the only committed topology; the store derives
                             each layout from its drawing
-scenarios/<layout>/         <scenario>.scenario.yaml — stock and requests
+                            <layout>.roster.yaml — the trains it owns
+scenarios/<layout>/         <scenario>.scenario.yaml — placement and requests
 benchmarks/expected/        <name>.json — golden numbers, asserted in pytest
 out/                        sweep JSONL, gitignored
 ```

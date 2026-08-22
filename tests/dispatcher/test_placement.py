@@ -520,8 +520,17 @@ def test_a_request_for_a_train_just_taken_off_the_layout_is_answered(
 def test_a_run_may_come_up_with_an_empty_layout() -> None:
     """The cold start once a scenario places nothing: every train known and
     off the layout, nothing on the rails, and nothing to do but place them
-    (ADR-0039). No adoption and no picture, so the run comes up running and
-    the hold is a press like any other."""
+    (ADR-0039).
+
+    It comes up **running**, because the word a session opens with is settled
+    by whether there was a picture to adopt and not by what is on the rails
+    (ADR-0037, CONTEXT.md: a cold session comes up running). Nothing commits
+    either way with no train placed, so the cost is one press of HOLD before
+    the first placement, which the roster pane says out loud. ADR-0039's
+    consequence describes that start as held; making it so is a change to the
+    opening word, which belongs with the run that needs no scenario at all
+    (#171).
+    """
     layout, _roster, _ = load("crossover-yard/meet")
     empty = Scenario(name="empty", layout="crossover-yard", trains={}, requests=())
     assembly = assemble_live(layout, STOCK, empty)

@@ -565,12 +565,14 @@ class Dispatcher:
             self._reject(rid, Reason.UNKNOWN_BLOCK)
             return
         if request.train not in self._state.block_of:
-            # Known but off the layout (ADR-0039), which adoption reaches when
-            # a train's picture block and its starting block are both taken
-            # (#164). Answered here rather than guarded at each launch lookup,
-            # because this is the only way in: nothing unplaces a train once the
-            # constructor has run, so a request that gets past this line names a
-            # train with a block, and `_pending` holds none that did not.
+            # Known but off the layout (ADR-0039): a train the scenario
+            # placed nowhere, one adoption could not place (#164), or one a
+            # person has lifted off. Answered here rather than guarded at
+            # each launch lookup, because this is the only way in — the one
+            # thing that unplaces a train, `_remove`, refuses a train with a
+            # request in flight, so a request that gets past this line names a
+            # train with a block and `_pending` holds none that stopped
+            # having one.
             self._reject(rid, Reason.NO_ORIGIN)
             return
         expected = self._expected_block(request.train)

@@ -18,6 +18,15 @@ starts ([ADR-0038](0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
 block name means nowhere, no facing has to spell nowhere, and nothing acquires a
 second meaning.
 
+That is about what the dispatcher *holds*. The **gesture** that asks for it
+carries `block: null`, and that is not the sentinel this rules out: a gesture
+has to name a destination, and nowhere is one of the destinations. It is also
+the safer of the two readings on an inbound topic, where nothing is trusted
+(`lib/payload.py`): an omitted key cannot be told from a frame that lost one,
+where an explicit `null` a page wrote is a positive statement. So the key's
+presence is load-bearing — a missing `block` fails the read, an explicit
+`null` succeeds.
+
 ADR-0037's issue ([#152](https://github.com/rails49/control/issues/152)) parked
 this and quoted
 four costs. Re-priced against the code, they come to less than the quote, which
