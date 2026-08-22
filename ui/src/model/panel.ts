@@ -66,6 +66,19 @@ export interface Crossing {
   between: [EndRef, EndRef];
 }
 
+/**
+ * A train on the layout, and where it is standing: the block, or `null` while
+ * it is crossing and standing in none (CONTEXT.md, **Placed**).
+ *
+ * Presence in the run's picture is the whole of being placed, absence being
+ * off the layout rather than a sentinel
+ * ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)).
+ */
+export interface Placed {
+  train: string;
+  block: string | null;
+}
+
 export interface BlockView {
   state: "free" | "occupied" | "locked" | "planned";
   /** The train standing, holding or heading here, where one is. */
@@ -649,6 +662,29 @@ export class Panel {
       for (const resource of request.route ?? []) light(resource, "planned");
     }
     return { legs, state, wires };
+  }
+
+  /**
+   * Every train the run has placed, with the block it stands in, ordered by
+   * name so the pane that lists them does not reshuffle as the railroad
+   * moves (#169).
+   *
+   * One answer for two readers: the roster pane draws a row each, and the
+   * freeze rule counts them — trains on the layout freeze the drawing
+   * (ADR-0038). A crossing train is one of them and stands in no block: it is
+   * holding a transit, which is as on the layout as a train gets.
+   *
+   * A train whose head is in the next block while its tail has not cleared
+   * the last is named against both, and is one train: the newer block wins,
+   * `standing` being written in the order the sensors reported.
+   */
+  placed(): Placed[] {
+    const where = new Map<string, string | null>();
+    for (const [block, train] of this.standing) where.set(train, block);
+    for (const train of this.crossing.keys()) where.set(train, null);
+    return [...where.keys()]
+      .sort()
+      .map((train) => ({ train, block: where.get(train)! }));
   }
 
   /** Whether that train still stands in that block. The right-click menu is

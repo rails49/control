@@ -42,7 +42,7 @@ import {
   type Painted,
 } from "../model/drag.js";
 import type { Drawing } from "../model/drawing.js";
-import { outstanding, Panel, type Overlay } from "../model/panel.js";
+import { outstanding, Panel, type Overlay, type Placed } from "../model/panel.js";
 import { positionsBySymbol } from "../model/scene.js";
 import {
   listScenarios,
@@ -84,6 +84,11 @@ export interface RunStatus {
   /** What a session refused, or the store not answering. Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
   trouble: string | null;
+  /** How many trains the run has on the layout. The bar reads it as the rule
+   *  that trains on the layout freeze the drawing (`model/commands.ts`,
+   *  ADR-0038): only this view knows, and the editing view is where it is
+   *  felt. */
+  placed: number;
 }
 
 /** What the right-click found, as the canvas hands it over: `trainAt`'s answer
@@ -502,7 +507,15 @@ export class TcPanel extends LitElement {
       run: this.session === null ? null : (this.panel?.run ?? null),
       power: this.session === null ? null : (this.panel?.power ?? null),
       trouble: this.trouble,
+      placed: this.standing.length,
     };
+  }
+
+  /** The trains the run has on the layout, and where each stands
+   *  (model/panel.ts). Worked out afresh on each render, being the last
+   *  frame's answer like everything else the picture says. */
+  private get standing(): Placed[] {
+    return this.panel?.placed() ?? [];
   }
 
   /** The last status the app was told, so it is told again only when one of
@@ -523,7 +536,8 @@ export class TcPanel extends LitElement {
       was.boundary === now.boundary &&
       was.run === now.run &&
       was.power === now.power &&
-      was.trouble === now.trouble
+      was.trouble === now.trouble &&
+      was.placed === now.placed
     ) {
       return;
     }

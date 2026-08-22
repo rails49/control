@@ -1029,6 +1029,67 @@ describe("a crossing train", () => {
  * where a person is sent first. It judges none of it — which blocks were
  * reported on at all is knowledge only the dispatcher has.
  */
+/**
+ * Which trains are on the layout, and where each of them stands (#169).
+ *
+ * The roster pane lists them and the freeze rule counts them, and both read
+ * this one answer: **placed** is presence in the run's picture, and a train
+ * that is not in it is off the layout
+ * ([ADR-0039](../../docs/adr/0039-a-train-may-be-off-the-layout.md)).
+ */
+describe("the trains the run has placed", () => {
+  it("names each with the block it stands in, in one order", () => {
+    const model = panel();
+    feed(model, {
+      event: "allocation",
+      trains: { t2: "b", t1: "a" },
+      locks: { a: "t1", b: "t2" },
+      requests: [],
+    });
+    expect(model.placed()).toEqual([
+      { train: "t1", block: "a" },
+      { train: "t2", block: "b" },
+    ]);
+  });
+
+  /** A train between two blocks is on the layout as much as a standing one —
+   *  it is holding a transit — and stands in none, which is what the pane
+   *  says of it and what the freeze counts. */
+  it("keeps a crossing train, standing in no block", () => {
+    const model = panel();
+    feed(model, {
+      event: "allocation",
+      trains: { t1: "a" },
+      crossing: { t1: "sw.main" },
+      locks: { a: "t1", "sw.main": "t1", b: "t1" },
+      requests: [],
+    });
+    expect(model.placed()).toEqual([{ train: "t1", block: null }]);
+  });
+
+  /** A train whose head is in the next block and whose tail has not cleared
+   *  the last one is in two blocks at once, and is one train: the pane draws
+   *  it one row, in the block it is arriving in. */
+  it("draws a train holding two blocks once, in the newer of them", () => {
+    const model = panel();
+    feed(
+      model,
+      { event: "lock_granted", train: "t1", resources: ["a"] },
+      { event: "boundary" },
+      { event: "lock_granted", train: "t1", resources: ["b"] },
+      { event: "block_occupied", block: "b" },
+    );
+    expect(model.placed()).toEqual([{ train: "t1", block: "b" }]);
+  });
+
+  it("has nothing to say about an empty layout", () => {
+    const model = panel();
+    expect(model.placed()).toEqual([]);
+    feed(model, { event: "allocation", trains: {}, locks: {}, requests: [] });
+    expect(model.placed()).toEqual([]);
+  });
+});
+
 describe("the detectors' dispute", () => {
   const STANDING = {
     event: "allocation",

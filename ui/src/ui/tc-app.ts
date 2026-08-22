@@ -62,6 +62,7 @@ const QUIET: RunStatus = {
   run: null,
   power: null,
   trouble: null,
+  placed: 0,
 };
 
 @customElement("tc-app")
