@@ -196,6 +196,11 @@ class Scheduler:
                 self._facing[train] = end_on(self._layout, route[0], route[1])
         elif leaf == "train_placed":
             self._placed(payload["train"], payload["block"])
+        elif leaf == "train_removed":
+            # An unplaced train has no facing: facing is the end of *its
+            # block* a parked train would depart through, and there is no
+            # block for it to be an end of (ADR-0019, ADR-0039).
+            self._facing.pop(payload["train"], None)
         elif leaf in ("request_completed", "request_rejected"):
             self._train_of.pop(payload["id"], None)
         self._publish_facing()
@@ -210,11 +215,15 @@ class Scheduler:
         block, which is arbitrary — the layout is topological and there is
         nothing better to derive from — and `reversal_wanted` is the
         correction where it lands the wrong way round (ADR-0019).
+
+        A train that was **off the layout** has no letter to carry, so it
+        gets `A` and the same correction: it is one more arbitrary choice of
+        the kind the carry already is, and the dispatcher accepting the
+        placement is what says the train is known (ADR-0039).
         """
         facing = self._facing.get(train)
-        if facing is None:  # a train this session does not hold
-            return
-        self._facing[train] = leaving_end(self._layout, f"{block}.{end_letter(facing)}")
+        letter = "A" if facing is None else end_letter(facing)
+        self._facing[train] = leaving_end(self._layout, f"{block}.{letter}")
 
     def _publish_facing(self) -> None:
         facing = {"facing": dict(sorted(self._facing.items()))}

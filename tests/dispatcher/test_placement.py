@@ -62,6 +62,16 @@ def place(assembly: Assembly, train: str, block: str) -> None:
     press(assembly, PLACEMENT_WANTED, {"train": train, "block": block})
 
 
+def remove(assembly: Assembly, train: str) -> None:
+    """The same gesture in the other direction: nowhere is one of the places
+    a train can be said to be (ADR-0039)."""
+    press(assembly, PLACEMENT_WANTED, {"train": train, "block": None})
+
+
+def removals(assembly: Assembly) -> list[dict[str, Any]]:
+    return events(assembly.trace, "train_removed")
+
+
 def last(assembly: Assembly, leaf: str) -> dict[str, Any]:
     return events(assembly.trace, leaf)[-1]
 
@@ -340,3 +350,190 @@ def test_a_placement_into_a_committed_block_is_dropped() -> None:
 
     assert placements(assembly) == []
     assert last(assembly, "allocation")["trains"]["shunter"] == "dn_e"
+
+
+# -- taking a train off the layout ------------------------------------------
+#
+# The other direction of the one gesture (ADR-0039, #170). A train off the
+# layout is known and standing nowhere: absence from the picture's `trains`,
+# nothing on the canvas, and its locks given up.
+
+
+def test_a_removal_takes_the_train_out_of_the_picture_and_frees_what_it_held(
+    held: Assembly,
+) -> None:
+    """A hand lifting a locomotive out of a block. The block is free the
+    moment it is gone, so the release is a ledger line of its own — that is
+    what happened, and nothing took the block."""
+    assert last(held, "allocation")["locks"]["yard_w"] == "freight_1"
+
+    remove(held, "freight_1")
+
+    assert removals(held) == [
+        {"boundary": 0, "event": "train_removed", "train": "freight_1"}
+    ]
+    assert last(held, "lock_released") == {
+        "boundary": 0,
+        "event": "lock_released",
+        "train": "freight_1",
+        "resources": ["yard_w"],
+    }
+    picture = last(held, "allocation")
+    assert "freight_1" not in picture["trains"]
+    assert picture["locks"] == {"dn_e": "leviathan"}
+
+
+def test_a_train_off_the_layout_has_no_facing(held: Assembly) -> None:
+    """Facing is the end of *its block* a parked train would depart through,
+    so with no block there is none to hold (ADR-0019, ADR-0039)."""
+    assert facing(held, "freight_1") == "yard_w.B"
+
+    remove(held, "freight_1")
+
+    assert "freight_1" not in last(held, "facing")["facing"]
+
+
+def test_a_train_put_back_on_the_layout_gains_a_facing_again(
+    held: Assembly,
+) -> None:
+    """Removal is not deletion: the train is still on the roster, and placing
+    it is what gives it a block and a facing back."""
+    remove(held, "freight_1")
+
+    place(held, "freight_1", "up_w")
+
+    assert last(held, "allocation")["trains"]["freight_1"] == "up_w"
+    assert facing(held, "freight_1") == "up_w.A"
+
+
+def test_a_removal_releases_everything_the_train_held(tmp_path: Path) -> None:
+    """The sweep is by holder and not of one block. A restored crossing train
+    is the one whose lock set is not obviously its standing block — it is
+    between two of them (#154) — and it is also the train an operator most
+    wants to lift out, there being no sensor that will ever say where it
+    stopped."""
+    state = tmp_path / "session.json"
+    durable.write(
+        state,
+        {
+            "tc49/dispatch/state/allocation": {
+                "trains": {"freight_1": "yard_w", "leviathan": "dn_e"},
+                "crossing": {"freight_1": "west_ladder.to_dn"},
+                "locks": {},
+                "requests": [],
+            }
+        },
+    )
+    layout, _roster, _ = load("crossover-yard/meet")
+    assembly = assemble_live(layout, STOCK, two_trains(), state=state)
+    assembly.bus.drain()
+
+    remove(assembly, "freight_1")
+
+    after = last(assembly, "allocation")
+    assert "freight_1" not in after["trains"]
+    assert after["crossing"] == {}
+    assert "freight_1" not in after["locks"].values()
+
+
+def test_a_removal_is_dropped_while_the_run_is_running() -> None:
+    """The same precondition as placing, for the same reason: the dispatcher
+    is granting against the picture, and a block that empties under it
+    invalidates what it has already granted."""
+    layout, _roster, _ = load("crossover-yard/meet")
+    running = assemble_live(layout, STOCK, two_trains())
+
+    remove(running, "freight_1")
+
+    assert removals(running) == []
+    assert last(running, "allocation")["trains"]["freight_1"] == "yard_w"
+
+
+def test_a_removal_of_a_train_with_a_request_in_flight_is_dropped(
+    held: Assembly,
+) -> None:
+    """A train mid-request cannot be taken off the layout: nothing cancels a
+    request, so the way out is to release the hold and let it run (#123)."""
+    press(held, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    assert events(held.trace, "request_admitted")
+
+    remove(held, "freight_1")
+
+    assert removals(held) == []
+    assert last(held, "allocation")["trains"]["freight_1"] == "yard_w"
+
+
+def test_a_removal_naming_stock_the_railroad_lacks_is_dropped(
+    held: Assembly,
+) -> None:
+    """Dropped rather than answered, a gesture having no id an answer could
+    be addressed to (ADR-0034)."""
+    remove(held, "ghost")
+
+    assert removals(held) == []
+
+
+def test_removing_a_train_that_is_already_off_the_layout_says_nothing(
+    held: Assembly,
+) -> None:
+    """The gesture asks for the state the train is in. There is no fact to
+    announce, and announcing one would put a second removal in the trace and
+    on every view."""
+    remove(held, "freight_1")
+
+    remove(held, "freight_1")
+
+    assert len(removals(held)) == 1
+
+
+def test_a_request_for_a_train_just_taken_off_the_layout_is_answered(
+    held: Assembly,
+) -> None:
+    """Off the layout is a place a train can be, so a request naming one is
+    answered rather than raised — `no_origin`, there being no block to depart
+    from (ADR-0039, ADR-0021).
+
+    Submitted at the dispatcher's own topic, because a *gesture* for such a
+    train never becomes a request: the scheduler composes the departure end
+    out of facing, and a train off the layout has none, so it drops the drag
+    in silence (ADR-0036). What gets this far is a timetable, or a page whose
+    frame reached the bus by another road.
+    """
+    remove(held, "freight_1")
+    press(held, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    assert events(held.trace, "request_submitted") == []
+
+    press(
+        held,
+        "tc49/schedule/request_submitted",
+        {
+            "id": "freight_1-9",
+            "train": "freight_1",
+            "depart": "yard_w.B",
+            "dest": ["yard_e.A"],
+        },
+    )
+
+    assert last(held, "request_rejected")["reason"] == "no_origin"
+
+
+def test_a_run_may_come_up_with_an_empty_layout() -> None:
+    """The cold start once a scenario places nothing: every train known and
+    off the layout, nothing on the rails, and nothing to do but place them
+    (ADR-0039). No adoption and no picture, so the run comes up running and
+    the hold is a press like any other."""
+    layout, _roster, _ = load("crossover-yard/meet")
+    empty = Scenario(name="empty", layout="crossover-yard", trains={}, requests=())
+    assembly = assemble_live(layout, STOCK, empty)
+    assembly.bus.drain()
+
+    opening = last(assembly, "allocation")
+    assert opening["trains"] == {} and opening["locks"] == {}
+    assert events(assembly.trace, "lock_granted") == []
+    assert last(assembly, "facing")["facing"] == {}
+
+    press(assembly, RUN_WANTED, {"run": "held"})
+    place(assembly, "freight_1", "yard_w")
+
+    assert last(assembly, "allocation")["trains"] == {"freight_1": "yard_w"}
+    assert facing(assembly, "freight_1") == "yard_w.B"

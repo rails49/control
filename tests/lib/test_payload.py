@@ -116,13 +116,22 @@ def test_a_placement_reads_as_the_train_and_the_block_it_names() -> None:
     )
 
 
+def test_a_null_block_is_a_train_off_the_layout() -> None:
+    """One gesture in two directions: nowhere is one of the places a train can
+    be said to be, and an explicit `null` is how a page says it (ADR-0039)."""
+    assert placement({"train": "freight_1", "block": None}) == Placement(
+        "freight_1", None
+    )
+
+
 def test_a_payload_naming_no_placement_reads_as_none() -> None:
     refused: list[object] = [
         "freight_1 in up_w",  # not an object at all
         ["freight_1", "up_w"],  # nor a list of its fields
         {"block": "up_w"},  # no train
-        {"train": "freight_1"},  # no block
-        {"train": "freight_1", "block": None},
+        # A frame that lost the key: not a train taken off the layout, which
+        # is what makes the key's presence load-bearing here.
+        {"train": "freight_1"},
         {"train": 7, "block": "up_w"},
         {"train": "freight_1", "block": ["up_w"]},
     ]

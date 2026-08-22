@@ -111,6 +111,26 @@ def test_a_hand_that_lifts_a_train_moves_the_steel_under_it(tmp_path: Path) -> N
     assert ("tc49/layout/block_vacated", {"block": "up_w"}) in seen
 
 
+def test_a_hand_that_lifts_a_train_off_the_layout_takes_the_steel_with_it(
+    tmp_path: Path,
+) -> None:
+    """The other half of the same gesture (#170): the train is gone, so the
+    steel this binding stands in for is gone, and the file it is kept in says
+    so. Nothing is reported on any detector — this binding reports occupancy
+    when a train crosses, and this train crosses nothing now."""
+    _, _roster, scenario = load("crossover-yard/meet")
+    path = tmp_path / "placement.json"
+    bus = Bus()
+    Simulator(bus, scenario, path)
+    seen = sensors(bus)
+
+    bus.publish("tc49/dispatch/train_removed", {"train": "freight_1"})
+    bus.drain()
+
+    assert json.loads(path.read_text()) == {"express_2": "up_e"}
+    assert seen == []
+
+
 def test_the_placement_reaches_no_topic(tmp_path: Path) -> None:
     """The whole of what keeps simulation out of the contract (ADR-0030): the
     inventory names no simulator topic, and the file is the app's own."""

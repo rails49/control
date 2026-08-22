@@ -464,6 +464,11 @@ def placed(bus: Bus, payload: Payload) -> None:
     bus.drain()
 
 
+def facing(seen: list[tuple[str, Payload]]) -> dict[str, str]:
+    """The facing map as the scheduler last published it."""
+    return cast(dict[str, str], seen[-1][1]["facing"])
+
+
 def test_facing_follows_a_train_the_dispatcher_has_accepted_as_placed() -> None:
     """The end letter is carried into the new block (#152). Arbitrary,
     because the layout is topological and there is nothing better to derive
@@ -507,14 +512,31 @@ def test_the_scheduler_never_reads_the_placement_gesture() -> None:
     assert len(seen) == published
 
 
-def test_a_placement_of_a_train_this_session_lacks_is_dropped() -> None:
-    """The dispatcher refuses one first, so this is the stale-page case: the
-    scheduler holds no facing to carry and leaves the map alone."""
+def test_a_train_the_scenario_placed_nowhere_gains_a_facing_when_placed() -> None:
+    """A train off the layout has no facing, there being no block for one to
+    be an end of. Placing it is where its facing begins: `train_placed` is the
+    dispatcher having accepted the train as known, so the scheduler carries no
+    letter across and starts from `A`, which `reversal_wanted` corrects
+    (ADR-0019, ADR-0039)."""
     bus = Bus()
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), two_train_scenario(), timetable=False)
     bus.drain()
-    published = len(seen)
+    assert "shunter" not in facing(seen)
 
-    placed(bus, {"train": "ghost", "block": "up_w"})
-    assert len(seen) == published
+    placed(bus, {"train": "shunter", "block": "up_w"})
+    assert facing(seen)["shunter"] == "up_w.A"
+
+
+def test_a_train_taken_off_the_layout_loses_its_facing() -> None:
+    """The other direction of the same gesture: no block, no facing to hold
+    (ADR-0039)."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    bus.drain()
+    assert "freight_1" in facing(seen)
+
+    bus.publish("tc49/dispatch/train_removed", {"train": "freight_1"})
+    bus.drain()
+    assert "freight_1" not in facing(seen)

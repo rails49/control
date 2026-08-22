@@ -769,26 +769,27 @@ class Dispatcher:
         self._publish_disputed()
 
     def _place(self, payload: Payload) -> None:
-        """Where a train actually stands, said by the person who can see it.
+        """Where a train actually is, said by the person who can see it: the
+        block it stands in, or nowhere at all.
 
-        Accepted only when every precondition holds: the run is held, the
-        train is known, the block exists and is free of every claim, the
-        train fits it, and the train has no request in flight. The last
-        mirrors `reversal_wanted` and adds a worse reason of its own — on release the
+        **One gesture in two directions** (ADR-0039). Putting a locomotive on
+        the track and lifting it off are the same act said with a different
+        destination, so `block: null` is a placement whose answer is *off the
+        layout* rather than a leaf of its own.
+
+        Three preconditions are the same either way: the run is held, the
+        train is known, and it has no request in flight. The last mirrors
+        `reversal_wanted` and adds a worse reason of its own — on release the
         grant phase launches from `block_of`, so a pending request would
         depart from wherever the train was just put, having been admitted
-        against the block it was in when it was asked for.
+        against the block it was in when it was asked for. It is also what
+        keeps every queued request naming a train with a block: nothing here
+        can unplace a train that has one queued, so admission's `no_origin`
+        answer stays the only way in.
 
         Where the train stands *now* is no precondition at all: one adoption
         placed nowhere (`restored`) is exactly the train a person has to say
         something about.
-
-        Having accepted, the dispatcher moves the train's standing lock and
-        announces `train_placed`. That event is the ledger line for a
-        placement: a `lock_released` and a `lock_granted` would say a route
-        gave a block up and took another, which is not what happened — a hand
-        lifted a locomotive, and the fact has its own leaf so a reader can
-        tell the two apart.
         """
         wanted = placement(payload)
         state = self._state
@@ -796,33 +797,89 @@ class Dispatcher:
             return
         if wanted.train not in state.roster:
             return
-        if wanted.block not in state.layout.blocks:
-            return
-        if not state.free(wanted.block):
-            return
-        if state.roster[wanted.train] > state.layout.blocks[wanted.block]:
-            return
         if self._has_pending(wanted.train) or wanted.train in state.active:
             return
-        # A train adoption placed nowhere holds no standing lock and has none
-        # to give up: it is off the layout, and this gesture is what puts it
-        # back on (ADR-0039, #164). Placing one is otherwise the same act.
-        standing = state.block_of.get(wanted.train)
+        if wanted.block is None:
+            self._remove(wanted.train)
+        else:
+            self._stand(wanted.train, wanted.block)
+
+    def _stand(self, train: str, block: str) -> None:
+        """A train put on the layout, or moved by hand from where it was.
+
+        The block has to exist, be free of every claim, and fit the train.
+        Having accepted, the dispatcher moves the train's standing lock and
+        announces `train_placed`. That event is the ledger line for a
+        placement: a `lock_released` and a `lock_granted` would say a route
+        gave a block up and took another, which is not what happened — a hand
+        lifted a locomotive, and the fact has its own leaf so a reader can
+        tell the two apart.
+        """
+        state = self._state
+        if block not in state.layout.blocks:
+            return
+        if not state.free(block):
+            return
+        if state.roster[train] > state.layout.blocks[block]:
+            return
+        # A train that is off the layout holds no standing lock and has none
+        # to give up: this gesture is what puts it back on (ADR-0039, #164).
+        # Placing one is otherwise the same act.
+        standing = state.block_of.get(train)
         if standing is not None:
             del state.locks[standing]
-        state.locks[wanted.block] = wanted.train
-        state.block_of[wanted.train] = wanted.block
+        state.locks[block] = train
+        state.block_of[train] = block
         # Whatever the last picture said this train was crossing, it is not
         # crossing it now: a person has said where it stands. The hint is
         # restored with no route behind it (`restored`), so this train is
         # exactly the one whose hint nothing else will ever clear — and
         # affirming the block the dispatcher already believes in is not a way
         # out, that block not being free.
-        state.crossing.pop(wanted.train, None)
-        self._publish("train_placed", {"train": wanted.train, "block": wanted.block})
+        state.crossing.pop(train, None)
+        self._publish("train_placed", {"train": train, "block": block})
+        self._settled()
+
+    def _remove(self, train: str) -> None:
+        """A train taken off the layout: lifted out of its block by hand.
+
+        It is not deletion. The train stays on the roster and can be placed
+        again; what it loses is its place on the rails, which is absence from
+        `block_of` and not a sentinel (ADR-0039).
+
+        **What it held is released**, all of it. A train at rest holds its
+        standing block, and a restored crossing train holds the transit it
+        was on and the block behind it as well (#154) — which is exactly the
+        train an operator most wants to lift out, so the sweep is by holder
+        rather than of one block. `lock_released` is the ledger line, because
+        that is what happened: the resources are free and nothing took them.
+
+        A train that is already off the layout is left alone. The gesture
+        asks for a state it is in, and there is no fact to announce.
+        """
+        state = self._state
+        if train not in state.block_of and train not in state.crossing:
+            return
+        released = sorted(
+            resource for resource, holder in state.locks.items() if holder == train
+        )
+        for resource in released:
+            del state.locks[resource]
+        state.block_of.pop(train, None)
+        # A crossing train stands in no block, and off the layout it is not on
+        # a transit either: the hint goes with the placement it belonged to.
+        state.crossing.pop(train, None)
+        if released:
+            self._publish("lock_released", {"train": train, "resources": released})
+        self._publish("train_removed", {"train": train})
+        self._settled()
+
+    def _settled(self) -> None:
+        """What a placement changes besides the lock table: the picture a
+        joining client draws from, and the disputed set — the entry the person
+        just resolved leaves it, which is what empties it as the railroad is
+        walked (#153)."""
         self._publish_allocation()
-        # The entry the person just resolved leaves the set, which is what
-        # empties it as the railroad is walked (#153).
         self._publish_disputed()
 
     # -- the grant phase ---------------------------------------------------

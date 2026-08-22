@@ -36,6 +36,7 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "tc49/dispatch/lock_granted": ("train", "resources"),
     "tc49/dispatch/lock_released": ("train", "resources"),
     "tc49/dispatch/train_placed": ("train", "block"),
+    "tc49/dispatch/train_removed": ("train",),
     "tc49/dispatch/state/run": ("run",),
     "tc49/dispatch/state/aspects": ("aspects",),
     "tc49/dispatch/state/disputed": ("trains", "blocks"),

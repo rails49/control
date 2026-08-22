@@ -215,7 +215,7 @@ not be writable is misfiled, and belongs to the role that may write it.
 | `tc49/ui/request_wanted` | event | UI | train, dest ends — a request minus the id and depart the scheduler owns |
 | `tc49/ui/reversal_wanted` | event | UI | train — turn it around where it stands, the scheduler flipping its facing and composing nothing |
 | `tc49/ui/run_wanted` | event | UI | run (`held`, `running`) — hold the run or release it |
-| `tc49/ui/placement_wanted` | event | UI | train, block — where a train actually stands, said by the person who can see it |
+| `tc49/ui/placement_wanted` | event | UI | train, block — where a train actually is, said by the person who can see it; `block: null` is off the layout ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
 | `tc49/dispatch/request_admitted` | event | dispatcher | id, surviving dest ends, pruned |
 | `tc49/dispatch/request_rejected` | event | dispatcher | id, reason (`no_fit`, `no_entry`, `unreachable`, `no_origin`, `wrong_origin`, `unknown_train`, `unknown_block`, `malformed` — the set is `tc49.lib.rejection`, and the UI's copy of it is generated) |
 | `tc49/dispatch/request_completed` | event | dispatcher | id |
@@ -225,6 +225,7 @@ not be writable is misfiled, and belongs to the role that may write it.
 | `tc49/dispatch/lock_granted` | event | dispatcher | train, resources |
 | `tc49/dispatch/lock_released` | event | dispatcher | train, resources |
 | `tc49/dispatch/train_placed` | event | dispatcher | train, block — a placement accepted, the standing lock moved with it |
+| `tc49/dispatch/train_removed` | event | dispatcher | train — taken off the layout, what it held released first |
 | `tc49/dispatch/state/run` | state | dispatcher | last-value word, `held` or `running` ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | last-value map of signalled block end to aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | last-value picture of the run: standing trains, the transit each crossing train is on, locks and holders, committed routes, live requests |
@@ -237,7 +238,7 @@ not be writable is misfiled, and belongs to the role that may write it.
 | Scheduler | `tc49/layout/boundary`, `tc49/dispatch/#` **and** `tc49/ui/#` |
 | Dispatcher | `tc49/layout/#`, `tc49/schedule/request_submitted` **and** `tc49/ui/#` |
 | Driver | `tc49/dispatch/move_granted` |
-| Layout interface | `tc49/drive/+`, `tc49/dispatch/align` **and** `tc49/dispatch/train_placed` |
+| Layout interface | `tc49/drive/+`, `tc49/dispatch/align` **and** `tc49/dispatch/train_placed` / `train_removed` |
 | Trace tap | `tc49/#` |
 
 Two invariants the inventory must maintain:
@@ -248,8 +249,8 @@ Two invariants the inventory must maintain:
   role, as the scheduler's three do; a consumer needing a list of individual
   topics is a design smell. The count is not the invariant — the shape is.
   The layout interface is the one exception and stays one: it acts on a
-  named command and on `train_placed`, and hearing the whole `dispatch` role
-  would mean discarding most of it — and its quiescence rule counts the
+  named command and on the two placement facts, and hearing the whole
+  `dispatch` role would mean discarding most of it — and its quiescence rule counts the
   commands it was sent.
 
 **Payload conventions.** Correlate by request id, don't repeat: lifecycle
@@ -437,7 +438,7 @@ both of its answers taken — comes up placed nowhere at all, which the
 picture then shows as a train with no block
 ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). *Subscribes*
 `tc49/layout/#`,
-`tc49/schedule/request_submitted` and `tc49/ui/#`. *Publishes* the nine
+`tc49/schedule/request_submitted` and `tc49/ui/#`. *Publishes* the ten
 `tc49/dispatch/*` events, plus `state/run`, `state/aspects`,
 `state/disputed` and
 `state/allocation` — the last its picture of the run, serialized from the
@@ -469,18 +470,33 @@ honoured whatever the power is doing
 ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 
 **It alone reads `tc49/ui/placement_wanted`**, a person saying where a train
-actually stands. Whether the block is free is knowledge only it has, so a
-second reader would have to agree with it on every precondition. Accepted
-while held, for a known train, into a block that exists, fits the train and is
-free of every claim — no lock, and on no committed route, which under
-`Incremental` are not the same set — and only where that train has no request
-in flight; anything else is dropped in silence and to the trace. Where the
-train stands now is no precondition at all — one adoption placed nowhere is
-exactly the train a person has to say something about, and it has no standing
-lock to move, only one to take. Having accepted, it moves the train's
-standing lock and publishes `train_placed`, which the scheduler follows to
-carry facing into the new block and the layout interface to move the steel
-under it.
+actually is. Whether the block is free is knowledge only it has, so a
+second reader would have to agree with it on every precondition. Three
+preconditions hold whichever way the gesture points: the run is **held**, the
+train is known, and it has no request in flight. Anything else is dropped in
+silence and to the trace.
+
+Naming a **block** puts the train there: the block has to exist, fit the
+train and be free of every claim — no lock, and on no committed route, which
+under `Incremental` are not the same set. Where the train stands now is no
+precondition at all — one adoption placed nowhere is exactly the train a
+person has to say something about, and it has no standing lock to move, only
+one to take. Having accepted, it moves the train's standing lock and
+publishes `train_placed`, which the scheduler follows to carry facing into
+the new block and the layout interface to move the steel under it.
+
+Naming **`block: null`** takes the train off the layout
+([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)): one gesture in two
+directions, because putting a locomotive on the track and lifting it off are
+the same act with a different destination. The train leaves `block_of`,
+whatever it held is released as one `lock_released`, and `train_removed`
+says so — the scheduler drops its facing on it and the layout interface
+forgets the steel. It is not deletion: the train stays on the roster and can
+be placed again. A train mid-request cannot be lifted off, the in-flight
+precondition being the same one, so the way out of a derailment mid-route is
+to release the hold and let the train run. The key is read for **presence**:
+an explicit `null` says nowhere, and a frame that lost the field is refused
+rather than read as one.
 
 **While held it publishes what the detectors dispute**, on `state/disputed`:
 the trains its placement stands in a block the layout reports clear, and the

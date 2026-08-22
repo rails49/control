@@ -70,6 +70,7 @@ class Simulator:
         bus.subscribe("tc49/drive/+", self._on_command)
         bus.subscribe("tc49/dispatch/align", self._on_command)
         bus.subscribe("tc49/dispatch/train_placed", self._on_placed)
+        bus.subscribe("tc49/dispatch/train_removed", self._on_removed)
         bus.subscribe("tc49/schedule/state/exhausted", self._on_exhausted)
 
     def _on_command(self, topic: str, payload: Payload) -> None:
@@ -90,6 +91,18 @@ class Simulator:
         moves.
         """
         self._position[payload["train"]] = payload["block"]
+        if self._placement is not None:
+            durable.write(self._placement, self._position)
+
+    def _on_removed(self, topic: str, payload: Payload) -> None:
+        """A hand lifted a train off the layout (#170).
+
+        The other half of `_on_placed`: the steel is no longer there, so the
+        simulator forgets where it was. Its detectors say nothing about it —
+        the binding reports occupancy when a train crosses, and this train
+        crosses nothing now.
+        """
+        self._position.pop(payload["train"], None)
         if self._placement is not None:
             durable.write(self._placement, self._position)
 

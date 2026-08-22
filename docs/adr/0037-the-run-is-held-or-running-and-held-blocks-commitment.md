@@ -96,6 +96,10 @@ and having accepted it publishes `tc49/dispatch/train_placed`, a past-tense
 fact like every other dispatcher leaf. The scheduler follows that event and
 never the gesture.
 
+[ADR-0039](0039-a-train-may-be-off-the-layout.md) later gave the gesture its
+other direction: `block: null` takes the train **off the layout**, answered
+by `train_removed`. Everything below holds for both.
+
 Two apps reading one payload would have to agree on every precondition, and
 "is that block free" is knowledge only the dispatcher has. The picture would
 split exactly where a real operator is working.

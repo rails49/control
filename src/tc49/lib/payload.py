@@ -114,12 +114,21 @@ def power(payload: object) -> str:
 
 @dataclass(frozen=True)
 class Placement:
-    """The train a placement gesture names and the block it says it stands
-    in. No facing: the gesture says where, and `reversal_wanted` is the
-    correction where the train lands the wrong way round (ADR-0019)."""
+    """The train a placement gesture names and where it says the train is:
+    the block it stands in, or `None` for **off the layout**.
+
+    One gesture in two directions, so nowhere is one of the places a train
+    can be said to be (ADR-0039). No facing either way: the gesture says
+    where, and `reversal_wanted` is the correction where the train lands the
+    wrong way round (ADR-0019).
+
+    The `None` here is the gesture's own, and is not the `None` `placement`
+    answers with a line below: that one says the payload could not be read at
+    all.
+    """
 
     train: str
-    block: str
+    block: str | None
 
 
 def placement(payload: object) -> Placement | None:
@@ -127,13 +136,23 @@ def placement(payload: object) -> Placement | None:
 
     Whether the block exists, is free and fits the train is not read here:
     that is knowledge only the dispatcher holds, and it drops what it cannot
-    accept. This says only that a train and a block were named.
+    accept. This says only that a train and a place were named.
+
+    A **missing** `block` fails the read and an explicit `null` succeeds, so
+    the key's presence is load-bearing. `tc49/ui/*` is read and never trusted,
+    and a frame that lost a field on the way is indistinguishable from one
+    that never carried it — taking a train off the layout is too much to read
+    into an absence, where a `null` a page wrote is a positive statement that
+    the train is nowhere. That is not a sentinel in the ADR's sense: the
+    dispatcher's own record of off-the-layout is absence from `block_of`, and
+    this is a gesture naming a destination, which has to have one.
     """
     if not isinstance(payload, dict):
         return None
-    train, block = (
-        cast(dict[str, object], payload).get(key) for key in ("train", "block")
-    )
-    if not isinstance(train, str) or not isinstance(block, str):
+    fields = cast(dict[str, object], payload)
+    if "block" not in fields:
+        return None
+    train, block = fields.get("train"), fields.get("block")
+    if not isinstance(train, str) or not (block is None or isinstance(block, str)):
         return None
     return Placement(train, block)
