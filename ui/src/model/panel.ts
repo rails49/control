@@ -24,7 +24,7 @@ import type { Aspect } from "../render/artwork.js";
 import type { Position } from "../symbols.generated.js";
 import type { Wire } from "./drawing.js";
 import { WHOLE, wiresOn } from "./inspect.js";
-import type { Explained, Layout } from "./store.js";
+import { transitEnds, type Explained, type Layout } from "./store.js";
 import type { Gesture, Power, Run, Submission, TraceEvent } from "./trace.js";
 
 /** A block end, written `<block>.<end>` as the bus writes it. */
@@ -575,8 +575,7 @@ export class Panel {
   crossings(): Crossing[] {
     const found: Crossing[] = [];
     for (const [train, resource] of this.crossing) {
-      const [at, name] = resource.split(".");
-      const between = this.layout.connections[at]?.transits[name];
+      const between = transitEnds(this.layout, resource);
       if (between !== undefined) found.push({ train, between });
     }
     return found;

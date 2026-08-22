@@ -1005,8 +1005,12 @@ describe("a crossing train", () => {
   it("is dropped where the drawing on screen has no such transit", () => {
     // The picture is a railroad's, and a page can be showing another one:
     // one train the panel cannot place, rather than a panel that cannot draw.
+    // Either half of the resource can be the one this layout does not have.
     const model = panel();
     feed(model, { ...CROSSING, crossing: { t1: "elsewhere.main" } });
+    expect(model.crossings()).toEqual([]);
+
+    feed(model, { ...CROSSING, crossing: { t1: "sw.elsewhere" } });
     expect(model.crossings()).toEqual([]);
   });
 

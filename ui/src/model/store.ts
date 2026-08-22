@@ -1,5 +1,6 @@
 /**
- * The store's routes (EDITOR.md, PANEL.md), and nothing else.
+ * The store's routes (EDITOR.md, PANEL.md), the shapes they answer with, and
+ * nothing else.
  *
  * `review` is the whole of the editor's view of topology: red pins, the portal
  * labels that pair with nothing, the junctions as symbol groups, the derived
@@ -57,6 +58,24 @@ export interface Layout {
     string,
     { transits: Record<string, [string, string]>; concurrent?: [string, string][] }
   >;
+}
+
+/**
+ * The pair of block ends a transit resource joins, or `undefined` where this
+ * layout has no such connection or no such transit within it.
+ *
+ * A resource is written `<connection>.<transit>` on the bus, and what that
+ * means is the layout's: a view that split the string and walked the two
+ * levels itself would be a second party deciding it. `undefined` is not a
+ * fault — a page can be showing another railroad than the picture is about
+ * (#175).
+ */
+export function transitEnds(
+  layout: Layout,
+  resource: string,
+): [string, string] | undefined {
+  const [connection, transit] = resource.split(".");
+  return layout.connections[connection]?.transits[transit];
 }
 
 /** A portal label not worn by exactly two portals — worn once, or worn three
