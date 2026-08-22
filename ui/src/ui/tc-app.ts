@@ -123,6 +123,9 @@ export class TcApp extends LitElement {
 
   override render() {
     const name = this.filing.opened === "" ? null : this.filing.opened;
+    // One reading of the rule for the two that wear it: the band says why, and
+    // the editing view is what it is about (model/commands.ts).
+    const still = frozen(this.standing);
     return html`
       <tc-header
         .drawing=${name}
@@ -134,7 +137,7 @@ export class TcApp extends LitElement {
         .linked=${this.status.linked}
         .boundary=${this.status.boundary}
         .power=${this.status.power}
-        .frozen=${frozen(this.standing)}
+        .frozen=${still}
         .view=${this.view}
         @railroad-wanted=${(event: CustomEvent<string>) => this.discard(event.detail)}
         @view-wanted=${(event: CustomEvent<ViewId>) => this.showing(event.detail)}
@@ -170,7 +173,7 @@ export class TcApp extends LitElement {
         .editor=${this.editor}
         .review=${this.filing.reviewed}
         .netlist=${this.netlist}
-        .frozen=${frozen(this.standing)}
+        .frozen=${still}
         @edit=${this.edited}
         @picked=${() => this.redraw()}
       ></tc-editor>
