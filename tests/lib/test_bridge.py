@@ -22,6 +22,8 @@ from tc49.lib.inventory import INBOUND, is_state_topic
 
 WANTED = "tc49/ui/request_wanted"
 REVERSAL = "tc49/ui/reversal_wanted"
+RUN = "tc49/ui/run_wanted"
+PLACEMENT = "tc49/ui/placement_wanted"
 
 TIMEOUT = 5.0  # generous: a loaded CI box, not a slow relay
 
@@ -117,7 +119,7 @@ def test_the_inbound_topics_are_the_ui_roles_own_event_leaves() -> None:
     topic, and the bridge relies on it: a client's frame is published from
     that client's own handler thread, and a state topic would write the bus's
     last-value map from there."""
-    assert INBOUND == {WANTED, REVERSAL}
+    assert INBOUND == {WANTED, REVERSAL, RUN, PLACEMENT}
     assert not any(is_state_topic(topic) for topic in INBOUND)
     assert is_state_topic("tc49/ui/state/throttle")  # what the filter keeps out
 

@@ -1,6 +1,14 @@
 """Reading a payload from outside, in the one place both apps read one (#127)."""
 
-from tc49.lib.payload import Gesture, gesture, reversal
+from tc49.lib.inventory import HELD, RUNNING
+from tc49.lib.payload import (
+    Gesture,
+    Placement,
+    gesture,
+    placement,
+    reversal,
+    run_state,
+)
 
 
 def test_a_well_formed_payload_reads_as_the_gesture_it_names() -> None:
@@ -44,3 +52,49 @@ def test_a_payload_naming_no_reversal_reads_as_none() -> None:
     ]
     for payload in refused:
         assert reversal(payload) is None, payload
+
+
+def test_a_run_gesture_reads_as_the_state_it_asks_for() -> None:
+    """The whole payload is which of the two the operator pressed for: a
+    hold takes the brake off granting, a release puts it back (#152)."""
+    assert run_state({"run": "held"}) == HELD
+    assert run_state({"run": "running"}) == RUNNING
+
+
+def test_a_payload_naming_no_run_state_reads_as_none() -> None:
+    """A third word is not a third state. The topic carries a word rather
+    than a boolean so the drain can add `draining` later, and until it does
+    anything else is dropped — a gesture has no id to answer to (ADR-0034)."""
+    refused: list[object] = [
+        "held",  # not an object at all
+        ["held"],  # nor a list of its fields
+        {},  # no run
+        {"run": None},
+        {"run": "draining"},  # the third value, not this issue's (#123)
+        {"run": True},  # the boolean the topic deliberately is not
+    ]
+    for payload in refused:
+        assert run_state(payload) is None, payload
+
+
+def test_a_placement_reads_as_the_train_and_the_block_it_names() -> None:
+    """Where a train actually stands, said by the person who can see it. No
+    facing: the gesture names a train and a block, and `reversal_wanted` is
+    the correction if it lands the wrong way round (#152)."""
+    assert placement({"train": "freight_1", "block": "up_w"}) == Placement(
+        "freight_1", "up_w"
+    )
+
+
+def test_a_payload_naming_no_placement_reads_as_none() -> None:
+    refused: list[object] = [
+        "freight_1 in up_w",  # not an object at all
+        ["freight_1", "up_w"],  # nor a list of its fields
+        {"block": "up_w"},  # no train
+        {"train": "freight_1"},  # no block
+        {"train": "freight_1", "block": None},
+        {"train": 7, "block": "up_w"},
+        {"train": "freight_1", "block": ["up_w"]},
+    ]
+    for payload in refused:
+        assert placement(payload) is None, payload

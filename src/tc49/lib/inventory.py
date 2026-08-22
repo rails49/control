@@ -3,6 +3,11 @@
 Mirrors the inventory table of SYSTEM.md. The trace's canonical key order
 depends on this module; leaf names are globally unique across all topics
 (tested), because the trace's ``event`` field is the leaf alone.
+
+Where a field's *values* are a closed set the contract names, they live here
+too, beside the field they belong to: ``run`` is the one such field, and its
+two words are read by the dispatcher that writes them and by the payload
+reader that refuses everything else.
 """
 
 TOPICS: dict[str, tuple[str, ...]] = {
@@ -14,6 +19,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "tc49/schedule/state/facing": ("facing",),
     "tc49/ui/request_wanted": ("train", "dest"),
     "tc49/ui/reversal_wanted": ("train",),
+    "tc49/ui/run_wanted": ("run",),
+    "tc49/ui/placement_wanted": ("train", "block"),
     "tc49/dispatch/request_admitted": ("id", "dest", "pruned"),
     "tc49/dispatch/request_rejected": ("id", "reason"),
     "tc49/dispatch/request_completed": ("id",),
@@ -22,11 +29,22 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "tc49/dispatch/grant_refused": ("id", "reason", "obstacles"),
     "tc49/dispatch/lock_granted": ("train", "resources"),
     "tc49/dispatch/lock_released": ("train", "resources"),
+    "tc49/dispatch/train_placed": ("train", "block"),
+    "tc49/dispatch/state/run": ("run",),
     "tc49/dispatch/state/aspects": ("aspects",),
     "tc49/dispatch/state/allocation": ("trains", "crossing", "locks", "requests"),
     "tc49/dispatch/align": ("connection", "transit", "points"),
     "tc49/drive/cross": ("train", "connection", "transit", "into"),
 }
+
+
+HELD = "held"
+RUNNING = "running"
+"""The two values of ``tc49/dispatch/state/run``. A word and not a boolean:
+the ordinary-shutdown drain adds ``draining`` as a third value here rather
+than inventing a state of its own (#123). Not to be read as the ``held``
+``grant_refused`` reason, which says a resource is locked by another train
+and is a different thing on a different topic (CONTEXT.md)."""
 
 
 def is_state_topic(topic: str) -> bool:
