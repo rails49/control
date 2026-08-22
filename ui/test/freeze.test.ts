@@ -23,6 +23,7 @@ import type { Drawing } from "../src/model/drawing.js";
 import { centreOf } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
+import type { TcProperties } from "../src/ui/tc-properties.js";
 import { band, editing, inside, session, settled } from "./support/shell.js";
 import { bridging, joined, said, stored, unbridged } from "./support/session.js";
 
@@ -77,6 +78,13 @@ async function pressed(shell: TcApp, at: { x: number; y: number }): Promise<void
   await settled(shell);
 }
 
+/** The properties dialog, `null` while none is open. */
+function dialog(shell: TcApp): Element | null {
+  return (inside(shell, "tc-properties") as TcProperties).renderRoot.querySelector(
+    "sl-dialog",
+  );
+}
+
 /** What the band says about the freeze, `null` while it says nothing. */
 function says(shell: TcApp): string | null {
   const said = band(shell).renderRoot.querySelector(".frozen");
@@ -122,6 +130,19 @@ describe("a train standing on the railroad", () => {
     await settled(shell);
 
     expect(session(shell).pending).toBeNull();
+  });
+
+  /** The freeze can land under an open dialog, whose Apply is an edit. */
+  it("takes down a properties dialog it lands under", async () => {
+    const shell = await editor();
+    session(shell).select(["a"]);
+    editing(shell).editSelected();
+    await settled(shell);
+    expect(dialog(shell)).not.toBeNull();
+
+    await said(shell, ALLOCATION, STANDING);
+
+    expect(dialog(shell)).toBeNull();
   });
 
   /** Looking is what a frozen drawing is still for. */

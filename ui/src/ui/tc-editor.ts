@@ -126,6 +126,11 @@ export class TcEditor extends LitElement {
     // unlight one, so a way left lit with the pane gone would stay lit with
     // nothing to clear it.
     if (changed.has("netlist") && !this.netlist) this.chosen = null;
+    // A train arriving on the layout freezes the drawing under whatever is
+    // open (#169). What the properties dialog would apply is an edit, so it
+    // goes rather than standing there with an Apply button that has stopped
+    // meaning anything.
+    if (changed.has("frozen") && this.frozen) this.editing = null;
   }
 
   override render() {
