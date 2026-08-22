@@ -263,10 +263,13 @@ export class TcPanel extends LitElement {
     this.leave();
     try {
       const scenario = await readScenario(id);
-      this.joining = { id, railroad: scenario.layout };
       // The roster is the railroad's, so it is read for the railroad the
-      // scenario names rather than for the session (ADR-0039).
-      this.stock = (await readRoster(scenario.layout)).trains;
+      // scenario names rather than for the session (ADR-0039). Both reads
+      // land before anything is set, so a store that fails halfway leaves no
+      // half-joined session behind.
+      const stock = await readRoster(scenario.layout);
+      this.joining = { id, railroad: scenario.layout };
+      this.stock = stock.trains;
       if (!rejoining) this.panel?.reset();
       if (this.built === scenario.layout) {
         this.finish();
