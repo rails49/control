@@ -49,7 +49,7 @@ race against the very first tick."""
 @pytest.fixture
 def assembly() -> Assembly:
     layout, _roster, scenario = load("crossover-yard/meet")
-    return assemble_live(layout, _roster, scenario)
+    return assemble_live(layout, _roster, scenario.trains)
 
 
 @pytest.fixture

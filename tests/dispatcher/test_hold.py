@@ -10,8 +10,8 @@ Driven at the bus, which is where a person's press arrives: `run_wanted` in,
 `state/run` and the trace out.
 """
 
-from tc49.bench.runner import Assembly, assemble_live
-from tests.harness import RUN_WANTED, leaves, load, press, run_wanted, runs, ticks
+from tc49.bench.runner import Assembly
+from tests.harness import RUN_WANTED, leaves, live, press, run_wanted, runs, ticks
 
 REQUEST_WANTED = "tc49/ui/request_wanted"
 
@@ -125,7 +125,7 @@ def test_the_same_word_twice_republishes_nothing(timetabled: Assembly) -> None:
 def test_a_request_wanted_is_still_admitted_while_held() -> None:
     """Held blocks commitment, not admission: a person can queue work
     against a railroad at rest and watch it leave when they release it."""
-    assembly = assemble_live(*load("crossover-yard/meet"))
+    assembly = live("crossover-yard/meet")
     press(assembly, RUN_WANTED, {"run": "held"})
     press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
     ticks(assembly, 3)
@@ -154,7 +154,7 @@ def test_a_degenerate_request_waits_for_the_release_too() -> None:
     completes without moving a wheel, and still waits: "no `route_chosen`" is
     read literally, and a phase that answered one working would be a phase
     that ran."""
-    assembly = assemble_live(*load("crossover-yard/meet"))
+    assembly = live("crossover-yard/meet")
     press(assembly, RUN_WANTED, {"run": "held"})
     press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_w.B"]})
     ticks(assembly, 3)

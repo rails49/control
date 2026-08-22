@@ -6,6 +6,7 @@ convenience the tests want.
 """
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -14,6 +15,7 @@ from tc49.bench.runner import (
     Assembly,
     StrategyFactory,
     assemble,
+    assemble_live,
     find_root,
     run_scenario,
 )
@@ -32,6 +34,7 @@ __all__ = [
     "build",
     "events",
     "leaves",
+    "live",
     "load",
     "press",
     "run",
@@ -51,6 +54,18 @@ run = run_scenario
 def load(scenario_id: str) -> tuple[Layout, Roster, Scenario]:
     """The wiring module's loader against the one root the suite uses."""
     return load_scenario(AssetStore(ROOT), scenario_id)
+
+
+def live(scenario_id: str, state: Path | None = None) -> Assembly:
+    """A live run over the railroad a scenario names, its trains stood where
+    that document stands them.
+
+    `tc49 live` builds a run from a railroad alone and lets a person place the
+    trains (#171); a test that wants a railroad already laid out asks the
+    harness to stand them, which is what `--scenario` replays as gestures.
+    """
+    layout, roster, scenario = load(scenario_id)
+    return assemble_live(layout, roster, scenario.trains, state=state)
 
 
 def stock(**lengths: int) -> Roster:

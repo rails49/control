@@ -20,7 +20,7 @@ import pytest
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.dispatcher import Incremental
 from tc49.lib import durable
-from tc49.lib.scenario import Scenario, TrainSpec
+from tc49.lib.scenario import TrainSpec
 from tests.harness import RUN_WANTED, events, load, press, stock, ticks
 
 PLACEMENT_WANTED = "tc49/ui/placement_wanted"
@@ -32,22 +32,17 @@ STOCK = stock(freight_1=1100, leviathan=2000, railcar_3=600, shunter=600)
 neither yard block (1400mm), so the fit rule has something to refuse."""
 
 
-def two_trains() -> Scenario:
+def two_trains() -> dict[str, TrainSpec]:
     """`crossover-yard` with no timetable at all: a railroad standing still,
     which is what a person correcting a placement is looking at.
 
     `leviathan` stands in `dn_e`, so the occupancy rule has something to
     refuse too.
     """
-    return Scenario(
-        name="placing",
-        layout="crossover-yard",
-        trains={
-            "freight_1": TrainSpec("yard_w", "B"),
-            "leviathan": TrainSpec("dn_e", "A"),
-        },
-        requests=(),
-    )
+    return {
+        "freight_1": TrainSpec("yard_w", "B"),
+        "leviathan": TrainSpec("dn_e", "A"),
+    }
 
 
 @pytest.fixture
@@ -277,17 +272,12 @@ def test_a_train_adoption_placed_nowhere_can_be_put_on_the_layout(
         },
     )
     layout, _roster, _ = load("crossover-yard/meet")
-    scenario = Scenario(
-        name="unplaced",
-        layout="crossover-yard",
-        trains={
-            "freight_1": TrainSpec("yard_w", "B"),
-            "railcar_3": TrainSpec("dn_w", "A"),
-            "leviathan": TrainSpec("dn_e", "A"),
-        },
-        requests=(),
-    )
-    assembly = assemble_live(layout, STOCK, scenario, state=state)
+    stood = {
+        "freight_1": TrainSpec("yard_w", "B"),
+        "railcar_3": TrainSpec("dn_w", "A"),
+        "leviathan": TrainSpec("dn_e", "A"),
+    }
+    assembly = assemble_live(layout, STOCK, stood, state=state)
     assembly.bus.drain()  # the opening statement, which no boundary has yet
     opening = last(assembly, "allocation")
     assert "freight_1" not in opening["trains"]
@@ -323,16 +313,11 @@ def test_a_placement_into_a_committed_block_is_dropped() -> None:
     layout, _roster, _ = load("crossover-yard/meet")
     # `shunter` is short enough for either yard block, so the fit rule cannot
     # do this test's work for it.
-    scenario = Scenario(
-        name="committed",
-        layout="crossover-yard",
-        trains={
-            "freight_1": TrainSpec("yard_w", "B"),
-            "shunter": TrainSpec("dn_e", "A"),
-        },
-        requests=(),
-    )
-    assembly = assemble_live(layout, STOCK, scenario, Incremental)
+    stood = {
+        "freight_1": TrainSpec("yard_w", "B"),
+        "shunter": TrainSpec("dn_e", "A"),
+    }
+    assembly = assemble_live(layout, STOCK, stood, Incremental)
     press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
     ticks(assembly, 1)
     press(assembly, RUN_WANTED, {"run": "held"})
@@ -531,8 +516,7 @@ def test_a_run_may_come_up_with_an_empty_layout_and_comes_up_held() -> None:
     is now the harness's alone (#171).
     """
     layout, _roster, _ = load("crossover-yard/meet")
-    empty = Scenario(name="empty", layout="crossover-yard", trains={}, requests=())
-    assembly = assemble_live(layout, STOCK, empty)
+    assembly = assemble_live(layout, STOCK)
     assembly.bus.drain()
 
     opening = last(assembly, "allocation")
@@ -560,11 +544,11 @@ def test_a_run_whose_document_stands_its_trains_comes_up_running() -> None:
     assert last(assembly, "run")["run"] == "running"
 
 
-def test_a_hand_placed_train_the_scenario_never_placed_survives_a_restart(
+def test_a_hand_placed_train_no_document_placed_survives_a_restart(
     tmp_path: Path,
 ) -> None:
     """Adoption keeps the picture's word for every train the **railroad**
-    owns, not only for the ones the scenario placed (ADR-0039).
+    owns, not only for the ones a document placed (ADR-0039).
 
     The train an operator put on the rails by hand is exactly the one no
     document names, and it is standing there: a session that came back up
@@ -584,8 +568,7 @@ def test_a_hand_placed_train_the_scenario_never_placed_survives_a_restart(
         },
     )
     layout, _roster, _ = load("crossover-yard/meet")
-    empty = Scenario(name="empty", layout="crossover-yard", trains={}, requests=())
-    assembly = assemble_live(layout, STOCK, empty, state=state)
+    assembly = assemble_live(layout, STOCK, state=state)
     assembly.bus.drain()
 
     picture = last(assembly, "allocation")
@@ -611,8 +594,7 @@ def test_a_picture_naming_stock_the_railroad_lacks_is_not_adopted(
         },
     )
     layout, _roster, _ = load("crossover-yard/meet")
-    empty = Scenario(name="empty", layout="crossover-yard", trains={}, requests=())
-    assembly = assemble_live(layout, STOCK, empty, state=state)
+    assembly = assemble_live(layout, STOCK, state=state)
     assembly.bus.drain()
 
     assert last(assembly, "allocation")["trains"] == {}

@@ -45,7 +45,7 @@ UNREADABLE: list[Payload] = [
 @pytest.fixture
 def assembly() -> Assembly:
     layout, roster, scenario = load("crossover-yard/meet")
-    return assemble_live(layout, roster, scenario)
+    return assemble_live(layout, roster, scenario.trains)
 
 
 def submit(assembly: Assembly, payload: Payload) -> None:
@@ -193,7 +193,7 @@ def test_a_request_for_a_train_off_the_layout_is_answered(tmp_path: Path) -> Non
     assembly = assemble_live(
         layout,
         stock(freight_1=1100, railcar_3=600, leviathan=2000),
-        scenario,
+        scenario.trains,
         state=state,
     )
     assembly.bus.drain()

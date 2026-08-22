@@ -90,7 +90,6 @@ class Assembly:
     simulator: Simulator
     layout: Layout
     roster: Roster
-    scenario: Scenario
     k: int
     _out: io.StringIO
 
@@ -113,47 +112,55 @@ def assemble(
     Scheduler(bus, layout, facing(layout, scenario.trains), scenario.requests)
     dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
-    return Assembly(
-        bus, dispatcher, Simulator(bus, stood), layout, roster, scenario, k, out
-    )
+    return Assembly(bus, dispatcher, Simulator(bus, stood), layout, roster, k, out)
 
 
 def assemble_live(
     layout: Layout,
     roster: Roster,
-    scenario: Scenario,
+    trains: dict[str, TrainSpec] | None = None,
     make_strategy: StrategyFactory = FullRoute,
     k: int = DEFAULT_K,
     state: Path | None = None,
 ) -> Assembly:
-    """The live-session wiring (#71): the batch assembly with the timetable
-    off. Which sources a session has is configuration rather than a rule
-    (ADR-0036) — a scenario's `at` is still a boundary count, so releasing it
-    into a two-second wall clock would dump a timetable on an operator in the
-    first minute. The scenario contributes stock, placement, and facing; the
-    bridge a caller attaches to the bus is the only inbound path.
+    """The live-session wiring (#71): **a railroad and its roster**, and no
+    timetable. That is the whole of what `tc49 live` builds a run from (#171)
+    — a drawing, the trains the railroad owns, and a person who places them.
+    The bridge a caller attaches to the bus is the only inbound path.
+
+    Which sources a run has is configuration rather than a rule (ADR-0036), and
+    a live run is given no timetable at all: a scenario's `at` is a boundary
+    count, so releasing one into a ten-second wall clock would dump a
+    timetable on an operator in the first minute.
+
+    `trains` stands them before the first boundary instead, and is the
+    harness's own: the suite's runs, and the baseline `tc49 live --scenario`'s
+    replay is measured against. `tc49 live` itself passes none — a run an
+    operator drives comes up with an empty layout and held, and the trains
+    arrive as gestures (ADR-0039).
 
     `state` makes the session outlive the process (#123): the bus keeps its
     retained values there and each app adopts its own coming up, so placement
-    and facing are the last session's rather than the scenario's. The
-    simulator keeps the steel's own memory beside it, which is its business
-    and on no topic (ADR-0030).
+    and facing are the last session's rather than the seed's. The simulator
+    keeps the steel's own memory beside it, which is its business and on no
+    topic (ADR-0030).
     """
+    stood = trains or {}
     bus = Bus(state)
     out = io.StringIO()
     TraceTap(bus, out)
-    stood = placement(scenario.trains)
-    Scheduler(bus, layout, facing(layout, scenario.trains))
-    dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
+    Scheduler(bus, layout, facing(layout, stood))
+    dispatcher = Dispatcher(
+        bus, layout, roster, placement(stood), make_strategy(layout, k)
+    )
     Driver(bus)
     steel = None if state is None else placement_file(state)
     return Assembly(
         bus,
         dispatcher,
-        Simulator(bus, stood, steel),
+        Simulator(bus, placement(stood), steel),
         layout,
         roster,
-        scenario,
         k,
         out,
     )

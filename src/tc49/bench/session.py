@@ -123,7 +123,7 @@ class Session:
             kept = (
                 None if self._state is None else state_for(self._state, scenario.layout)
             )
-            assembly = assemble_live(layout, roster, scenario, state=kept)
+            assembly = assemble_live(layout, roster, scenario.trains, state=kept)
             self.bridge.rebind(assembly.bus, scenario_id)
             out.write(f"  running {scenario_id}\n")
             out.flush()
