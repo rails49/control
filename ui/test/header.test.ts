@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 
 /**
- * The band across the top of both pages: what is open, which mode it is being
- * looked at in, and the status that is nobody's mistake — the store not
- * answering, the bridge, the boundary.
+ * The band across the top of both pages: what is open, and the status that is
+ * nobody's mistake — the store not answering, the bridge, the boundary.
  *
  * A DOM test, the whole of the behaviour being what the component renders,
  * as `tc-menu`'s is.
@@ -62,27 +61,6 @@ describe("what the band marks as unsaved", () => {
   });
 });
 
-describe("which mode the band says you are in", () => {
-  it("says the editor", async () => {
-    expect(reads(await band({ mode: "editor" }), ".mode")).toBe("editor");
-  });
-
-  /** Replay and live are exclusive (ADR-0016), and which one you are in was
-   *  inferrable only from whichever select was last touched. */
-  it("tells replay from live from nothing joined", async () => {
-    expect(reads(await band({ mode: "replay" }), ".mode")).toBe("replay");
-    expect(reads(await band({ mode: "live" }), ".mode")).toBe("live");
-    expect(reads(await band({ mode: "unjoined" }), ".mode")).toBe("nothing joined");
-  });
-
-  /** A replay reads a file, and the file's name is what says which run is on
-   *  screen; the railroad's name says only which railroad. */
-  it("names the trace a replay is reading", async () => {
-    const header = await band({ mode: "replay", trace: "gotthard.jsonl" });
-    expect(reads(header, ".trace")).toBe("gotthard.jsonl");
-  });
-});
-
 describe("the status the band takes over", () => {
   /** The store not answering is not one of the author's mistakes, so it
    *  reads here rather than on the drawing (#84). */
@@ -95,26 +73,27 @@ describe("the status the band takes over", () => {
     expect(reads(await band(), ".trouble")).toBeNull();
   });
 
-  it("says whether the bridge is answering a live session", async () => {
-    expect(reads(await band({ mode: "live", linked: true }), ".link")).toBe("connected");
-    expect(reads(await band({ mode: "live", linked: false }), ".link")).toBe(
+  it("says whether the bridge is answering a joined session", async () => {
+    expect(reads(await band({ joined: true, linked: true }), ".link")).toBe(
+      "connected",
+    );
+    expect(reads(await band({ joined: true, linked: false }), ".link")).toBe(
       "not connected",
     );
   });
 
-  /** A replay has no bridge to be answering, and neither has the editor. */
-  it("says nothing about a bridge off a live session", async () => {
-    expect(reads(await band({ mode: "replay", linked: true }), ".link")).toBeNull();
+  /** With no session joined there is no bridge to be answering, and the
+   *  editor never has one. */
+  it("says nothing about a bridge off a joined session", async () => {
+    expect(reads(await band({ mode: "run", linked: true }), ".link")).toBeNull();
     expect(reads(await band({ mode: "editor", linked: true }), ".link")).toBeNull();
   });
 
   it("stamps the boundary, and a dash before the first one", async () => {
-    expect(reads(await band({ mode: "replay", boundary: 7 }), ".boundary")).toBe(
+    expect(reads(await band({ mode: "run", boundary: 7 }), ".boundary")).toBe(
       "boundary 7",
     );
-    expect(reads(await band({ mode: "replay", boundary: null }), ".boundary")).toBe(
-      "—",
-    );
+    expect(reads(await band({ mode: "run", boundary: null }), ".boundary")).toBe("—");
   });
 
   /** The editor has no clock: a drawing is not a run. */
@@ -154,17 +133,15 @@ describe("whether the drawing derives", () => {
 });
 
 describe("the way to the other page", () => {
-  it("sends the editor to the panel", async () => {
+  it("sends the editor to the run view", async () => {
     const other = (await band({ mode: "editor" })).renderRoot.querySelector("a.other")!;
     expect(other.getAttribute("href")).toBe("/panel.html");
-    expect(other.textContent!.trim()).toBe("panel");
+    expect(other.textContent!.trim()).toBe("run");
   });
 
-  it("sends the panel to the editor, in every one of its modes", async () => {
-    for (const mode of ["replay", "live", "unjoined"] as const) {
-      const other = (await band({ mode })).renderRoot.querySelector("a.other")!;
-      expect(other.getAttribute("href")).toBe("/");
-      expect(other.textContent!.trim()).toBe("editor");
-    }
+  it("sends the run view to the editor", async () => {
+    const other = (await band({ mode: "run" })).renderRoot.querySelector("a.other")!;
+    expect(other.getAttribute("href")).toBe("/");
+    expect(other.textContent!.trim()).toBe("editor");
   });
 });

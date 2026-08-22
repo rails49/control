@@ -308,10 +308,9 @@ scheduler's own retained topic. Both are written by apps that are always
 running, so there is no cold start to seed: the panel reads the scenario from
 the store (`GET /scenarios`, `GET /scenarios/<id>`) for one thing only, which
 drawing to render, and no topic describes the run, a topic that did being the
-bridge describing itself (#67). Everything else is derived from the bus
-exactly as a replay derives it, which is why one panel model serves both — a
-trace carries the state topics too, so a replay gets facing from the same
-place a live session does.
+bridge describing itself (#67). Everything else is derived from the bus: the
+state topics carry the whole picture, facing included, so the model is fed by
+`apply` and by nothing else.
 
 A railroad the session has just built needs no handshake either. Its
 `last_values` are empty, so there is nothing to seed: the client is
@@ -324,8 +323,7 @@ scenario and nothing else and the rate control stays off while it is joined.
 The default is 10 seconds, picked by watching the panel rather than by
 argument: a boundary moves trains, grants and releases locks, realigns points
 and changes aspects, and at the 2 seconds this started out as the next one
-landed before a person had finished reading the last. The replay transport is
-a different number — a rate in boundaries per second — and keeps its own.
+landed before a person had finished reading the last.
 
 **A panel may join a session already running.** On connect, the path naming
 the scenario that is running, the bridge sends each state topic's last value
@@ -386,18 +384,19 @@ viewBox, an arrow's pose, and which symbol an address is worn by. `tc-panel`
 converts pixels into squares, paints, and sends.
 
 The header is two rows (#84). The top one is the band the editor also wears
-(`tc-header`, [EDITOR.md](EDITOR.md#the-band)): the railroad's name, the mode,
-and the status that is nobody's mistake — the bridge link, the boundary, and
-the trouble message. The row below keeps the things you press. The editor's menu
-bar (#85) is not repeated here; the panel has no File to fill.
+(`tc-header`, [EDITOR.md](EDITOR.md#the-band)): the railroad's name and the
+status that is nobody's mistake — the bridge link, the boundary, and the
+trouble message. The row below keeps the things you press.
 
-The mode is the half of the band only the panel has. Replay and live are
-exclusive — a page shows a recorded run or a running one — and which one
-you were in was inferrable only from whichever select you last touched. The
-band says it, and says *nothing joined* where neither source is feeding — a
-railroad picked with no trace open and no session joined. A replay names its
-trace file beside the mode, that being what says which run is on screen rather
-than merely which railroad.
-
-A first panel can render a recorded trace file with no server at all, which
-is immediately useful for reviewing past benchmark runs.
+**The run view's one source is the bus.** It could read a recorded trace and
+step through it, which is how it was built before `tc49 live` and the bridge
+existed and how its colours were looked at afterwards. Both reasons expired,
+and the chrome that took — a drawings list, a file opener, a transport and a
+rate in boundaries per second — is most of what made this view's row hard to
+merge into a shell's, all of it meaningless to an operator
+([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
+Traces stay exactly as
+[ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md) has
+them: the tap records every event, metrics derive from recordings, and
+benchmarks assert byte-identical replays. That is analysis, and analysis is
+the harness's.

@@ -1,72 +1,20 @@
 /**
- * A recorded trace: the JSONL the bench tap writes (SYSTEM.md), parsed and
- * stepped one grant boundary at a time.
+ * The live feed's payloads: the frames the bridge relays, read as the events
+ * the panel model applies, and the frames the browser may write back.
  *
- * Each line is one bus event stamped with the latest boundary the tap had
- * seen, so a step is simply every line sharing the next stamp: the placement
- * locks a trace opens with belong to boundary 0's step, and everything a
- * boundary caused lands in that boundary's.
+ * The run view's one source is the bus (ADR-0038). A recorded trace is the
+ * harness's — the tap writes it, metrics derive from it and benchmarks assert
+ * byte-identical replays — and the browser no longer reads one.
  */
 
-/** One recorded bus event: the tap's boundary stamp, the topic leaf, and the
- *  payload's own fields flattened beside them. */
+/** One bus event as the model reads it: the boundary the run had reached, the
+ *  topic leaf, and the payload's own fields flattened beside them. The shape
+ *  the bench tap writes a trace line in, which is what lets one model serve a
+ *  recording and a running railroad alike. */
 export interface TraceEvent {
   boundary: number;
   event: string;
   [field: string]: unknown;
-}
-
-/** Parse a trace file. A line that is not an event is refused by line number:
- *  a trace is a machine-written artefact, and a bad line is the wrong file
- *  rather than something to skim past. */
-export function parseTrace(text: string): TraceEvent[] {
-  const events: TraceEvent[] = [];
-  const lines = text.split("\n");
-  for (let at = 0; at < lines.length; at++) {
-    const line = lines[at]!.trim();
-    if (line === "") continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      throw new Error(`line ${at + 1} is not JSON`);
-    }
-    const event = parsed as TraceEvent;
-    if (typeof event?.boundary !== "number" || typeof event?.event !== "string") {
-      throw new Error(`line ${at + 1} is not a trace event`);
-    }
-    events.push(event);
-  }
-  return events;
-}
-
-/** A cursor over a parsed trace, advanced one boundary stamp at a time. */
-export class Replay {
-  private at = 0;
-
-  constructor(private readonly events: readonly TraceEvent[]) {}
-
-  /** The stamp of the last step taken, `null` before the first. */
-  get boundary(): number | null {
-    return this.at === 0 ? null : this.events[this.at - 1]!.boundary;
-  }
-
-  get done(): boolean {
-    return this.at >= this.events.length;
-  }
-
-  /** Every event of the next stamp, empty at the end. */
-  step(): TraceEvent[] {
-    if (this.done) return [];
-    const stamp = this.events[this.at]!.boundary;
-    const from = this.at;
-    while (!this.done && this.events[this.at]!.boundary === stamp) this.at++;
-    return this.events.slice(from, this.at);
-  }
-
-  restart(): void {
-    this.at = 0;
-  }
 }
 
 /** What a frame from the relay turned out to be: an event to apply, or the
@@ -74,14 +22,13 @@ export class Replay {
 export type Heard = { event: TraceEvent } | { error: string };
 
 /**
- * The live feed: the bridge's frames read as the same events a trace holds
- * (ui/PANEL.md, #72).
+ * The live feed: the bridge's frames read as the events the panel model
+ * applies (ui/PANEL.md, #72).
  *
  * The relay carries `{topic, payload}` and nothing else — the topic leaf is
  * the event, exactly as SYSTEM.md's inventory has it — so the whole of the
- * browser's side of the contract is here, and `Panel.apply` cannot tell a
- * live session from a replay. Frames are stamped with the latest boundary
- * seen, which is what the bench tap does when it writes a trace.
+ * browser's side of the contract is here. Frames are stamped with the latest
+ * boundary seen, which is what the bench tap does when it writes a trace.
  *
  * The relay's one other frame is `{error}`: a refused inbound frame, or a
  * socket path naming no scenario (#148). It is the whole of what a session

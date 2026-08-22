@@ -1,6 +1,6 @@
 /**
- * The band across the top of both pages: what is open, which mode it is being
- * looked at in, and the status that is nobody's mistake.
+ * The band across the top of both pages: what is open, and the status that is
+ * nobody's mistake.
  *
  * Two things the author is answerable for read here anyway
  * ([ADR-0024](../../../docs/adr/0024-the-drawing-shows-its-own-faults.md)).
@@ -28,17 +28,9 @@ import { customElement, property } from "lit/decorators.js";
 
 import { headerStyles } from "./tc-header.styles.js";
 
-/** Which page the band is on and, on the panel, which of the two exclusive
- *  sources — a recorded run or a running one — is feeding it. */
-export type Mode = "editor" | "replay" | "live" | "unjoined";
-
-/** What each mode is called on screen. */
-const MODES: Record<Mode, string> = {
-  editor: "editor",
-  replay: "replay",
-  live: "live",
-  unjoined: "nothing joined",
-};
+/** Which page the band is on. The run view's one source is the bus, so there
+ *  is no second one to name (ADR-0038). */
+export type Mode = "editor" | "run";
 
 @customElement("tc-header")
 export class TcHeader extends LitElement {
@@ -52,8 +44,9 @@ export class TcHeader extends LitElement {
 
   @property() mode: Mode = "editor";
 
-  /** The trace file a replay is reading, `null` when none is open. */
-  @property() trace: string | null = null;
+  /** Whether a session is joined, which is what makes the bridge a thing to
+   *  report on at all. */
+  @property({ type: Boolean }) joined = false;
 
   /** What the page could not do — the store not answering, a bridge that is
    *  not there, a name no drawing can wear. Never a fault of the drawing
@@ -82,8 +75,6 @@ export class TcHeader extends LitElement {
             ●
           </span>`
         : nothing}
-      <span class="mode">${MODES[this.mode]}</span>
-      ${this.trace === null ? nothing : html`<span class="trace">${this.trace}</span>`}
       <span class="spacer"></span>
       ${this.derives
         ? nothing
@@ -91,7 +82,7 @@ export class TcHeader extends LitElement {
       ${this.trouble === null
         ? nothing
         : html`<span class="trouble" title=${this.trouble}>${this.trouble}</span>`}
-      ${this.mode === "live"
+      ${this.joined
         ? html`
             <span class=${`link ${this.linked ? "joined" : "gone"}`}>
               ${this.linked ? "connected" : "not connected"}
@@ -104,7 +95,7 @@ export class TcHeader extends LitElement {
             ${this.boundary === null ? "—" : `boundary ${this.boundary}`}
           </span>`}
       <a class="other" href=${editing ? "/panel.html" : "/"}>
-        ${editing ? "panel" : "editor"}
+        ${editing ? "run" : "editor"}
       </a>
     `;
   }

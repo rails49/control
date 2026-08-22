@@ -3,7 +3,7 @@ import { css } from "lit";
 import { NOTE, W } from "../render/units.js";
 import { page, symbols, way } from "./shared.styles.js";
 
-/** The dispatch panel (`tc-panel`): trace replay painted over the drawing. */
+/** The dispatch panel (`tc-panel`): a live session painted over the drawing. */
 export const panelStyles = css`
   :host {
     ${page}
@@ -19,13 +19,6 @@ export const panelStyles = css`
 
   header .spacer {
     flex: 1;
-  }
-
-  header label.rate {
-    display: flex;
-    gap: 0.4rem;
-    align-items: center;
-    color: var(--hint);
   }
 
   main {

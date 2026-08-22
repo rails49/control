@@ -25,8 +25,6 @@ export const headerStyles = css`
     color: var(--lit);
   }
 
-  .mode,
-  .trace,
   .boundary {
     color: var(--hint);
   }
