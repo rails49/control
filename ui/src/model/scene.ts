@@ -1,5 +1,5 @@
 /**
- * What the panel's static view derives from the drawing: the fitted viewBox,
+ * What the drawing alone answers: the frame a fit and an export are drawn in,
  * the pose of a direction arrow, and which symbol an address is worn by. Pure
  * reading of the document — no DOM, so it lives here and not in the component
  * (README.md).
@@ -22,13 +22,6 @@ export interface Box {
 const MARGIN = 1;
 const HEADROOM = 1.5;
 
-/** Every pin on a drawing, where it is drawn. */
-export function pinPoints(drawing: Drawing): Point[] {
-  return Object.values(drawing.symbols).flatMap((spec: SymbolSpec) =>
-    pinsOf(spec).map((pin) => anchorOf(spec, pin)),
-  );
-}
-
 /**
  * The whole drawing with a margin, as a box.
  *
@@ -39,7 +32,12 @@ export function pinPoints(drawing: Drawing): Point[] {
  * measured from, and it is the very mark that wants looking at.
  */
 export function fitBox(drawing: Drawing, extra: readonly Point[] = []): Box {
-  const points = [...pinPoints(drawing), ...extra];
+  const points = [
+    ...Object.values(drawing.symbols).flatMap((spec: SymbolSpec) =>
+      pinsOf(spec).map((pin) => anchorOf(spec, pin)),
+    ),
+    ...extra,
+  ];
   if (points.length === 0) return { x: -1, y: -1, w: 16, h: 11 };
   const xs = points.map((point) => point.x);
   const ys = points.map((point) => point.y);
