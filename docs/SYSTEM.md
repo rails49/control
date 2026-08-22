@@ -316,15 +316,17 @@ The milestone-1 binding is a Python library over the YAML files of
 [DRAWING.md](store/DRAWING.md) and [LAYOUT.md](store/LAYOUT.md); a future REST
 binding slots under the same names and verbs without appearing in the contract.
 
-- **Two coarse document types** — `drawing` and `roster`, fetched and stored
-  whole. Symbols, wires and trains live inside documents and are not
-  independently addressable. A layout is **derived** from a drawing at `get`
-  and is not a document type of its own
+- **Three coarse document types** — `drawing`, `roster` and `scenario`,
+  fetched and stored whole. Symbols, wires, trains and requests live inside
+  documents and are not independently addressable. A layout is **derived**
+  from a drawing at `get` and is not a document type of its own
   ([ADR-0015](adr/0015-drawing-is-the-source-of-truth.md)), so a railroad has
-  one committed description. A **scenario** file exists too and is not served:
-  it is the harness's, read off disk by `tc49 bench` and `tc49 live
-  --scenario` and never browser-reachable
-  ([#171](https://github.com/rails49/control/issues/171)).
+  one committed description.
+- **A scenario is the harness's, and is not on the HTTP face** — `tc49 bench`
+  and `tc49 live --scenario` read one through the library binding off disk, and
+  no browser can reach one
+  ([#171](https://github.com/rails49/control/issues/171)). The two document
+  types a run is built from are the other two.
 - **A railroad owns its roster** — the trains it has, each a name and a
   length, beside its drawing and under the same name
   ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). A railroad with no
@@ -333,21 +335,23 @@ binding slots under the same names and verbs without appearing in the contract.
   placement is what puts it on the rails — a train nothing places comes up
   **off the layout**. **The drawing and the roster are the whole of what a run
   is built from** (#171).
-- **Names as ids** — `crossover-yard` for railroads and their rosters. Verbs:
-  `get`, `put` (whole-document create-or-replace), `delete`, `list`. No partial
-  update.
+- **Names as ids** — `crossover-yard` for railroads and their rosters,
+  layout-qualified `crossover-yard/meet` for the harness's scenarios. Verbs:
+  `get`, `put` (whole-document create-or-replace), `delete`, `list` (all
+  railroads; scenarios of one). No partial update.
 - **Components are read-only** — scheduler, dispatcher, driver, and the
   layout interface only `get`/`list`. Writes belong to authoring tools.
-  Runtime truth is bus state, history is the trace.
+  Runtime truth is bus state, history is the trace; a scenario that mutates
+  when run is a broken benchmark fixture.
 - **Snapshot at startup** — assets are immutable for the duration of a run.
   The contract offers no change notification and no asset-change events
   exist on the bus; editing an asset means a new session. This is what makes
   read-only safe: a mid-run topology change would invalidate committed
   routes and locks.
 - **The store validates, consumers derive** — `get` never returns an
-  invalid document. Schema conformance and referential integrity (named
-  blocks exist, connection endpoints are real block ends) are enforced at
-  whichever verb a document enters through:
+  invalid document. Schema conformance and referential integrity (a scenario's
+  layout exists, named blocks exist, connection endpoints are real block ends)
+  are enforced at whichever verb a document enters through:
   `put` rejects invalid documents, and the milestone-1 YAML binding runs the
   same validator at `get`, because its documents are hand-authored files
   that never passed through `put`. The layout derived from a drawing goes
