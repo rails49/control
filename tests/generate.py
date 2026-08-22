@@ -17,7 +17,7 @@ from typing import Any
 import yaml
 from hypothesis import strategies as st
 
-from tc49.lib.layout import Layout, end_letter, leaving_end
+from tc49.lib.layout import Layout, connected_end, end_letter
 from tc49.lib.roster import Roster
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
@@ -75,11 +75,11 @@ def scenario_documents(
     # Facing is scheduler state nothing in a batch run reads (ADR-0019), so a
     # constant keeps the search pressure on interleaving — except on a
     # terminal block, where A may be the end no connection holds and the
-    # store refuses the placement (#145). `leaving_end` picks the letter.
+    # store refuses the placement (#145). `connected_end` picks the letter.
     trains = {
         f"t{i + 1}": {
             "at": block,
-            "facing": end_letter(leaving_end(layout, f"{block}.A")),
+            "facing": end_letter(connected_end(layout, f"{block}.A")),
         }
         for i, block in enumerate(placements)
     }

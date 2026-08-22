@@ -15,7 +15,7 @@ from pathlib import Path
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental, LockingStrategy
 from tc49.driver import Driver
 from tc49.lib.bus import Bus
-from tc49.lib.layout import Layout, leaving_end
+from tc49.lib.layout import Layout, connected_end
 from tc49.lib.roster import Roster
 from tc49.lib.scenario import Scenario, TrainSpec
 from tc49.lib.trace import TraceTap
@@ -87,11 +87,11 @@ def placement(trains: dict[str, TrainSpec]) -> dict[str, str]:
 
 def facing(layout: Layout, trains: dict[str, TrainSpec]) -> dict[str, str]:
     """Train to the end it would leave by: what the scheduler takes of the
-    same placement. Through `leaving_end`, so a train standing in a terminal
+    same placement. Through `connected_end`, so a train standing in a terminal
     block faces its one connected end however the document writes it (#145).
     """
     return {
-        train: leaving_end(layout, f"{spec.at}.{spec.facing}")
+        train: connected_end(layout, f"{spec.at}.{spec.facing}")
         for train, spec in sorted(trains.items())
     }
 

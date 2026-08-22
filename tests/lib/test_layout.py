@@ -8,9 +8,9 @@ from tc49.lib.layout import (
     Layout,
     Point,
     block_of,
+    connected_end,
     end_letter,
     end_on,
-    leaving_end,
     opposite_end,
 )
 from tc49.store import AssetStore
@@ -170,9 +170,9 @@ def test_the_end_a_train_can_leave_by_is_the_candidate_where_it_is_connected(
     question only has a second answer on a terminal block (#145)."""
     layout = store.get("crossover-yard")
     assert isinstance(layout, Layout)
-    assert leaving_end(layout, "dn_w.A") == "dn_w.A"
-    assert leaving_end(layout, "dn_w.B") == "dn_w.B"
-    assert leaving_end(layout, "yard_w.B") == "yard_w.B"
+    assert connected_end(layout, "dn_w.A") == "dn_w.A"
+    assert connected_end(layout, "dn_w.B") == "dn_w.B"
+    assert connected_end(layout, "yard_w.B") == "yard_w.B"
 
 
 def test_the_end_a_train_can_leave_a_terminal_block_by_is_its_connected_one(
@@ -182,5 +182,5 @@ def test_the_end_a_train_can_leave_a_terminal_block_by_is_its_connected_one(
     the wall is answered with the one end a train can leave by."""
     layout = store.get("crossover-yard")
     assert isinstance(layout, Layout)
-    assert leaving_end(layout, "yard_w.A") == "yard_w.B"
-    assert leaving_end(layout, "yard_e.B") == "yard_e.A"
+    assert connected_end(layout, "yard_w.A") == "yard_w.B"
+    assert connected_end(layout, "yard_e.B") == "yard_e.A"

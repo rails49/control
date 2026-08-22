@@ -13,8 +13,8 @@ outside — Layout is a data structure, not a policy.
 The ``check_*`` helpers are shared with the scenario validation in
 ``store.py``. The ``<block>.<A|B>`` end form is parsed here and nowhere else:
 ``check_end`` validates one, ``block_of``, ``end_letter`` and ``opposite_end``
-take one apart, ``end_on`` reads one off a transit, and ``leaving_end`` says
-which end of a block a train can leave by.
+take one apart, ``end_on`` reads one off a transit, and ``connected_end`` says
+which end of a block a connection holds.
 """
 
 from collections.abc import Container
@@ -272,22 +272,22 @@ def opposite_end(end: str) -> str:
     return f"{block_of(end)}.{'B' if end_letter(end) == 'A' else 'A'}"
 
 
-def leaving_end(layout: Layout, end: str) -> str:
-    """The end of `end`'s block a train can leave by, given `end` as the
-    candidate: `end` itself where a connection holds it, the block's other
-    end where none does.
+def connected_end(layout: Layout, candidate: str) -> str:
+    """The end of `candidate`'s block that a connection holds: `candidate`
+    itself where one holds it, the block's other end otherwise.
 
-    A terminal block is the only block where the candidate can be a wall and
-    an end a train can leave by still exists, and it has exactly one of
-    those, so the answer is never a second wall. It is the physical railroad
-    settling what the pass-through rule leaves open: a train that entered a
-    stub faces away from its entry end, there is no such end, and one end is
-    all it can leave by (#145). Both the scheduler, which
-    holds facing, and the dispatcher, which supplies a departure end for a
-    working queued behind a route it has yet to choose (#135), ask the same
-    question, so it is answered once here.
+    A pure layout question, and the reason it is asked is that a **terminal
+    block** is defined as a block with only one connected end. A terminal
+    block is the only block where the candidate can be a wall and a connected
+    end still exists, and it has exactly one of those, so the answer is never
+    a second wall. It is the physical railroad settling what the pass-through
+    rule leaves open: a train that entered a stub faces away from its entry
+    end, there is no such end, and one end is all it can leave by (#145).
+    Both the scheduler, which holds facing, and the dispatcher, which supplies
+    a departure end for a request queued behind a route it has yet to choose
+    (#135), ask the same question, so it is answered once here.
     """
-    return end if end in layout.end_connection else opposite_end(end)
+    return candidate if candidate in layout.end_connection else opposite_end(candidate)
 
 
 def end_on(layout: Layout, block: str, transit: str) -> str:

@@ -111,7 +111,7 @@ def test_the_scheduler_carries_facing_into_the_new_block(held: Assembly) -> None
 
 def test_facing_never_names_the_wall_of_a_terminal_block(held: Assembly) -> None:
     """`yard_e.B` is the buffer stop and is in no connection. Every facing
-    site goes through `leaving_end`, so the letter carried over is corrected
+    site goes through `connected_end`, so the letter carried over is corrected
     to the one end the train can leave by (#145) rather than pointing it at
     the wall."""
     place(held, "freight_1", "yard_e")

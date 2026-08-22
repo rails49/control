@@ -367,7 +367,7 @@ def test_a_reversal_turns_the_train_around_where_it_stands() -> None:
 def test_a_reversal_on_a_terminal_block_leaves_the_arrow_alone() -> None:
     """`freight_1` stands in `yard_w`, whose `A` end no connection holds. The
     other end of the block is the wall, so the flip goes through
-    `leaving_end` and gives back the end it started on: one end is all the
+    `connected_end` and gives back the end it started on: one end is all the
     train can leave by, whichever way it is pointed (#145).
 
     Turned around with a bare `opposite_end` it faced `yard_w.A`, which is
@@ -483,7 +483,7 @@ def test_facing_follows_a_train_the_dispatcher_has_accepted_as_placed() -> None:
 
 def test_a_train_placed_into_a_terminal_block_faces_its_connected_end() -> None:
     """`yard_e.B` is the buffer stop. Every facing site goes through
-    `leaving_end`, so the letter carried over is corrected to the one end the
+    `connected_end`, so the letter carried over is corrected to the one end the
     train can leave by rather than pointing it at the wall (#145)."""
     bus = Bus()
     seen = collect(bus, FACING)

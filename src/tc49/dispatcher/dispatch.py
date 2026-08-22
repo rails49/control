@@ -25,7 +25,7 @@ from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import HELD, ON, RUNNING
-from tc49.lib.layout import Layout, block_of, end_on, leaving_end, opposite_end
+from tc49.lib.layout import Layout, block_of, connected_end, end_on, opposite_end
 from tc49.lib.payload import gesture, placement, power, run_state
 from tc49.lib.rejection import Reason
 from tc49.lib.roster import Roster
@@ -52,7 +52,7 @@ def departure_end(layout: Layout, route: Route) -> str:
     `lib`'s rule, asked here by its second caller — the scheduler asks it of
     a train's facing (#145), the dispatcher of a route it chose itself.
     """
-    return leaving_end(
+    return connected_end(
         layout, opposite_end(end_on(layout, route.arrival_block, route.transits[-1]))
     )
 
