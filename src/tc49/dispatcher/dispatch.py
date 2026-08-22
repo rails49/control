@@ -30,7 +30,11 @@ from tc49.lib.payload import gesture, placement, power, run_state
 from tc49.lib.rejection import Reason
 from tc49.lib.roster import Roster
 
+# The two state topics named in full, because each is read as well as
+# written: the allocation by a dispatcher coming back up, and either by a
+# test seeding the file a session comes up on.
 ALLOCATION = "tc49/dispatch/state/allocation"
+ASPECTS = "tc49/dispatch/state/aspects"
 
 
 @dataclass
@@ -1194,7 +1198,7 @@ class Dispatcher:
         shown = aspects(self._state)
         if shown != self._aspects:
             self._aspects = shown
-            self._publish("state/aspects", {"aspects": shown})
+            self._bus.publish(ASPECTS, {"aspects": shown})
 
     def _publish_allocation(self) -> None:
         """The run's picture, on a last-value topic, when any of what it
@@ -1203,7 +1207,7 @@ class Dispatcher:
         picture = allocation(self._state, self._pending)
         if picture != self._allocation:
             self._allocation = picture
-            self._publish("state/allocation", picture)
+            self._bus.publish(ALLOCATION, picture)
 
     def _publish_disputed(self) -> None:
         """What the detectors make of the placement, on a last-value topic,
