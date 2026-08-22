@@ -11,7 +11,7 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
 - **Admission** — a request is rejected if no arrival end survives: none
   is a block the train fits, none is an end any route can enter through, or
   none is reachable from the origin — settled where the request arrives, or,
-  where a working of the same train is still pending, at the first launch
+  where a request of the same train is still pending, at the first launch
   attempt. A request stating a departure block its train is not standing in
   is rejected too, as is a payload the dispatcher cannot read as a request at
   all. All other requests are accepted and queued.
@@ -67,8 +67,8 @@ need different information:
   A disagreement rejects the request with reason `wrong_origin` rather than
   raising, since the submitter may be a stale browser
   ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)). A request
-  naming no block, as a chained working does, can state no disagreement.
-  The stated block is no longer a routing input — what a working leaves by is
+  naming no block, as a chained request does, can state no disagreement.
+  The stated block is no longer a routing input — what it leaves by is
   settled below — so this check now does one thing only: it is a **staleness
   assertion**, catching a panel that composed against an out-of-date position.
   This stage is also where the payload is **read**, rather than trusted:
@@ -81,7 +81,7 @@ need different information:
   is a line in the trace by virtue of having been published
   ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 - Arrival ends not reachable from the origin are pruned wherever the origin
-  is known, which is everywhere except behind a working of the same train
+  is known, which is everywhere except behind a request of the same train
   that is **still pending**. Behind an **active** route the origin is known:
   a route is fixed once chosen
   ([ADR-0002](../adr/0002-fixed-route-per-request.md)), so the block it
@@ -95,7 +95,7 @@ need different information:
   predecessor is still pending** — so `request_rejected` can also be
   published at the first launch attempt, and rejection is not purely an
   admission-time answer. The departure block is re-checked there for the same
-  reason, so `wrong_origin` is not an admission-only answer either: a working
+  reason, so `wrong_origin` is not an admission-only answer either: a request
   whose train ran no route at all — its work ahead having been degenerate, or
   refused — has only the block it stated, and one that has gone stale while
   it waited is refused rather than routed from.
@@ -110,7 +110,7 @@ because a prune that leaves candidates standing changes nothing observable: the
 chooser simply has fewer routes to order, and `route_chosen`'s `k_tried`
 already says how many it examined.
 
-**A working queued behind another does not state its own departure end.** It
+**A request queued behind another does not state its own departure end.** It
 was composed against the block its train stood in at the time of asking, and
 where the train will really depart from is a choice the dispatcher had not
 yet made — so a stated block that turns out not to be the origin is not an
@@ -133,7 +133,7 @@ and states a real end, and a reversal at rest cannot slip in between the two
 A request naming the train's current block is accepted with an empty route,
 whichever end that arrival names. Whether a request is degenerate is decided
 at the **first launch attempt** — it depends on the origin block, which for a
-working queued behind a pending one is unknown until the predecessor
+request queued behind a pending one is unknown until the predecessor
 completes, and an end in the origin block is therefore never pruned for
 reachability. The launch commits an empty route and completes in the same grant
 phase, moving nothing and locking nothing, so the request's latency is the
@@ -145,7 +145,7 @@ case where the arrival end is vacuous. Treating it as degenerate rather than as 
 keeps the admission rule free of special cases.
 
 A request may be pending for a train that is already active on an earlier
-request; chained workings make this routine. It needs no mechanism — an active
+request; chained requests make this routine. It needs no mechanism — an active
 train is not idle, so its next request simply cannot launch yet.
 
 ### Route selection
@@ -210,7 +210,7 @@ The scan order is most-refused first, admission order among equals (#34;
 plain arrival order starved through-traffic). Aging gives a starved request
 first claim on whatever just freed. The refusal count is dispatcher state,
 never wall-clock, so the order stays deterministic; a train's chained
-workings keep their order for free, since an untried later working has no
+requests keep their order for free, since an untried later request has no
 refusals and a later seq. The ordering key remains an explicit policy point:
 it only chooses which *safe* launch is tried first, and could change again
 without touching the safety core.

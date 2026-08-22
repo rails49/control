@@ -256,7 +256,7 @@ def test_a_train_with_nowhere_left_is_placed_by_neither(tmp_path: Path) -> None:
 
     `local_3` takes the block the picture stands `freight_1` in, and the
     picture has meanwhile parked `express_2` in `freight_1`'s own starting
-    block — a completed working, which is where the scenario sends it. There
+    block — a completed request, which is where the scenario sends it. There
     is nothing left to place `freight_1` in, and standing it in a block
     another train holds is the one thing adoption may not do. The rest of the
     railroad is restored around it, and #153 is what points a person at it.

@@ -55,7 +55,7 @@ class LockingStrategy(Protocol):
         """Try to launch; None means no candidate routes exist (unreachable).
 
         The departure end comes from the dispatcher rather than off the
-        request: which end a working leaves by is admission's question and
+        request: which end a train leaves by is admission's question and
         not the strategy's."""
         ...
 

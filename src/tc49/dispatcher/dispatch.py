@@ -163,7 +163,7 @@ class State:
         `Incremental` a fixed route runs on ahead of its locks, and reading
         the lock table alone would call those blocks free.
 
-        Placing a train into one strands the working that owns it: the route
+        Placing a train into one strands the request that owns it: the route
         is fixed (ADR-0002), the placed train is idle and its standing lock
         is therefore a permanent obstacle (SAFETY.md), and nothing cancels a
         request — so the committed train is refused `unsafe` at every
@@ -676,7 +676,7 @@ class Dispatcher:
         return any(block not in self._state.layout.blocks for block in blocks)
 
     def _has_pending(self, train: str) -> bool:
-        """Whether a working of the train's own is still queued, which is
+        """Whether a request of the train's own is still queued, which is
         what makes both where it will stand and where it will depart from a
         future dispatcher choice."""
         return any(req.train == train for req in self._pending)
@@ -687,8 +687,8 @@ class Dispatcher:
         return None if self._has_pending(train) else self._state.block_of[train]
 
     def _launch_to_come(self, request: Submission) -> tuple[str, str] | None:
-        """The origin and departure end the working will launch from, or None
-        where an earlier working of its own train leaves them a future
+        """The origin and departure end the request will launch from, or None
+        where an earlier request of its own train leaves them a future
         dispatcher choice.
 
         Behind an **active** route both are already settled: a route is fixed
@@ -997,14 +997,14 @@ class Dispatcher:
             if active.outstanding is not None:
                 continue
             self._apply_move(active, self._strategy.grant(train, state))
-        # A train's chained workings run in order: once one of them is left
+        # A train's chained requests run in order: once one of them is left
         # pending — refused, or launched and now active — the rest of that
-        # train's queue waits. Letting a later working overtake a refused one
+        # train's queue waits. Letting a later request overtake a refused one
         # would run a train's chain out of order and from the wrong origin.
         # Across trains the scan ages (#34): a request refused N times is
         # tried before fresher ones, so a starved request gets first claim on
         # whatever just freed. A train's own chain order is preserved for
-        # free — an untried later working has no refusals and a later seq.
+        # free — an untried later request has no refusals and a later seq.
         waiting: set[str] = set(state.active)
         for req in sorted(self._pending, key=aging_order):
             if req.train in waiting:
@@ -1021,7 +1021,7 @@ class Dispatcher:
                 # an end off the origin returns a route claiming to start
                 # where the train stands and leave somewhere else (#146).
                 # Asked ahead of the degenerate arrival below, as admission
-                # asks it ahead of pruning: a stale working is refused, not
+                # asks it ahead of pruning: a stale request is refused, not
                 # completed because the train happens to be there already.
                 self._pending.remove(req)
                 self._reject(req.id, Reason.WRONG_ORIGIN)
@@ -1095,7 +1095,7 @@ class Dispatcher:
         self._state.active[req.train] = Active(req, launched.route, 0, None)
         # A route is fixed once chosen (ADR-0002), so the end it leaves the
         # train facing is settled here rather than on arrival — which is what
-        # lets a working dragged in mid-route be answered while it is asked.
+        # lets a request dragged in mid-route be answered while it is asked.
         self._state.departure[req.train] = departure_end(
             self._state.layout, launched.route
         )

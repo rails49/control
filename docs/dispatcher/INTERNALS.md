@@ -30,7 +30,7 @@ class LockingStrategy(Protocol):
 ```
 
 `launch` is handed the origin and the departure end to route from rather than
-reading either off the request: which end a working leaves by is the
+reading either off the request: which end a train leaves by is the
 dispatcher's answer, not the strategy's (DISPATCH.md, requests).
 `Launched` carries the committed route, `k_tried`, and the resources newly
 locked; `Refused` carries the reason and one `{resource, holder}` obstacle

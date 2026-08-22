@@ -27,9 +27,9 @@ TICK_LIMIT = 100  # a backstop against live-lock, never the normal stop
 EXAMPLES = settings(deadline=None, max_examples=200)
 
 
-def first_workings(pending: tuple[Request, ...]) -> list[Request]:
+def first_requests(pending: tuple[Request, ...]) -> list[Request]:
     """The oldest still-pending request of each train — the only ones the
-    dispatcher can act on, since a train's chained workings run in order."""
+    dispatcher can act on, since a train's chained requests run in order."""
     seen: set[str] = set()
     oldest: list[Request] = []
     for req in pending:
@@ -85,7 +85,7 @@ def assert_quiescence_is_a_permanent_obstacle(assembly: Assembly) -> None:
     state = assembly.dispatcher.state
     assert not state.active, "quiesced with a train part-way through its route"
 
-    for req in first_workings(assembly.dispatcher.pending):
+    for req in first_requests(assembly.dispatcher.pending):
         note(f"pending: {req}")
         assert events(
             assembly.trace, "grant_refused", rid=req.id

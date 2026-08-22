@@ -35,7 +35,7 @@ def test_a_held_run_grants_nothing_while_a_timetable_mints_into_it(
     timetabled: Assembly,
 ) -> None:
     """The whole of the guarantee, on the events that would move a train:
-    the workings arrive and are admitted, and no route is committed."""
+    the requests arrive and are admitted, and no route is committed."""
     ticks(timetabled, 14, at={0: run_wanted("held")})
 
     assert len(ids(timetabled, "request_admitted")) == 3
@@ -52,7 +52,7 @@ def test_a_held_run_grants_nothing_while_a_timetable_mints_into_it(
 
 def test_the_boundary_keeps_counting_while_held(timetabled: Assembly) -> None:
     """`_phases` stamps an admission with the grant order it joined at, and a
-    held run is still a run: the return working, minted at boundary 12, must
+    held run is still a run: the return request, minted at boundary 12, must
     reach the queue at all."""
     ticks(timetabled, 14, at={0: run_wanted("held")})
     assert ids(timetabled, "request_admitted") == [
@@ -152,7 +152,7 @@ def test_an_outstanding_move_completes_and_releases_its_locks(
 def test_a_degenerate_request_waits_for_the_release_too() -> None:
     """A request whose train already stands in one of its own arrival blocks
     completes without moving a wheel, and still waits: "no `route_chosen`" is
-    read literally, and a phase that answered one working would be a phase
+    read literally, and a phase that answered one request would be a phase
     that ran."""
     assembly = live("crossover-yard/meet")
     press(assembly, RUN_WANTED, {"run": "held"})

@@ -255,7 +255,7 @@ def test_a_train_adoption_placed_nowhere_can_be_put_on_the_layout(
     only way out. Here `leviathan` was added to the roster since the picture
     was taken and stands in `dn_e`, which is where the picture left
     `freight_1`; `railcar_3` is parked in `freight_1`'s own starting block,
-    a working of an evening ago that completed.
+    a request of an evening ago that completed.
 
     So the placement has no standing lock to move, only one to take.
     """
@@ -305,7 +305,7 @@ def test_a_placement_into_a_committed_block_is_dropped() -> None:
     `Incremental` a fixed route runs on ahead of its locks, so reading the
     lock table alone would call those blocks free.
 
-    Placing a train into one strands the working that owns it: the route is
+    Placing a train into one strands the request that owns it: the route is
     fixed (ADR-0002), the placed train is idle and its standing lock is a
     permanent obstacle (SAFETY.md), and nothing cancels a request — so the
     committed train would be refused for the rest of the session.

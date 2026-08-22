@@ -131,7 +131,7 @@ def test_a_stranded_train_keeps_its_locks_and_its_crossing_entry(
 
     Admission goes on answering, as the hold's own rule has it (ADR-0037),
     and what it answers says how far the strandedness reaches: the return
-    working the timetable mints at boundary 12 departs from a block its train
+    request the timetable mints at boundary 12 departs from a block its train
     never reached, so it is refused `wrong_origin` rather than queued.
     """
     ticks(timetabled, 2)  # boundary 1: the grants go out, the crosses buffer

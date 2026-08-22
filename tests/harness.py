@@ -133,7 +133,7 @@ dispatcher suite that drives the run names it, so it is named here once."""
 
 @pytest.fixture
 def timetabled() -> Assembly:
-    """`crossover-yard/meet` with its timetable on: three workings minted
+    """`crossover-yard/meet` with its timetable on: three requests minted
     into the run, two at boundary 0 and freight_1's return at boundary 12."""
     return build(*load("crossover-yard/meet"))
 

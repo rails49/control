@@ -140,7 +140,7 @@ def test_a_completed_train_obstructs_exactly_as_a_parked_one_does() -> None:
     assert refusals[-1]["obstacles"] == [{"resource": "dn_e", "holder": "arriver"}]
 
 
-def test_a_train_may_re_enter_blocks_its_previous_working_released() -> None:
+def test_a_train_may_re_enter_blocks_its_previous_request_released() -> None:
     # Boundary condition 5. A route is a simple path, so what self-intersects
     # is the train across two requests — and `feasible` checks blocks against
     # other trains only, so its own recent footprint is not an obstacle.
@@ -153,7 +153,7 @@ def test_a_train_may_re_enter_blocks_its_previous_working_released() -> None:
     assert back["route"] == list(reversed(out["route"]))
 
     # Every step of the return route beyond its origin is ground the outward
-    # working released — the self-intersection is total, not incidental.
+    # request released — the self-intersection is total, not incidental.
     [done] = events(trace, "request_completed", rid="shuttle-1")
     released = {
         resource

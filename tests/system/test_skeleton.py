@@ -108,11 +108,11 @@ def test_a_stated_departure_the_train_is_not_at_is_rejected() -> None:
     assert events(trace, "request_completed", rid="express-1")
 
 
-def second_working(layout: Layout, depart: str, dest: tuple[str, ...], at: int) -> str:
+def second_request(layout: Layout, depart: str, dest: tuple[str, ...], at: int) -> str:
     """The trace of freight — placed in yard_w, routed to yard_e at boundary
-    0, and given a second working `freight-2` at boundary `at`, departing
+    0, and given a second request `freight-2` at boundary `at`, departing
     `depart` for `dest`. #99's repro, with the boundary of that second
-    working and the ends it names left to the caller: at 0 it is queued
+    request and the ends it names left to the caller: at 0 it is queued
     behind one still pending, later it is a drag on a train under way."""
     scenario = Scenario(
         "midroute",
@@ -127,10 +127,10 @@ def second_working(layout: Layout, depart: str, dest: tuple[str, ...], at: int) 
 
 
 def admission_answer(trace: str, rid: str) -> tuple[str, str | None]:
-    """Admission's answer to a working, with the reason where it rejected.
+    """Admission's answer to a request, with the reason where it rejected.
 
     The first of the two events that answer a submission and no more: a
-    working admitted mid-route is launched only once the active route
+    request admitted mid-route is launched only once the active route
     completes, and the launch stage judges it again from the origin the train
     has by then (DISPATCH.md), so anything later is that second stage's.
     """
@@ -145,11 +145,11 @@ def admission_answer(trace: str, rid: str) -> tuple[str, str | None]:
 def test_a_mid_route_drag_is_judged_against_where_the_train_stands() -> None:
     """The departure block is checked against where the train stands, active
     route or not (#99). freight launches at boundary 1 and is standing in dn_w
-    when the second working is released at boundary 2, so dn_w is the one block
-    that working may state: not the block the train has left, not a block
+    when the second request is released at boundary 2, so dn_w is the one block
+    that request may state: not the block the train has left, not a block
     further along its route, and not the block the route arrives at.
 
-    The arrival end is one reachable from yard_e, where the working would
+    The arrival end is one reachable from yard_e, where the request would
     launch from, so the departure block is the only thing under test here.
     """
     layout, _roster, _ = load("crossover-yard/meet")
@@ -161,7 +161,7 @@ def test_a_mid_route_drag_is_judged_against_where_the_train_stands() -> None:
     }
     for depart, fate in fates.items():
         answer, reason = admission_answer(
-            second_working(layout, depart, ("up_w.B",), 2), "freight-2"
+            second_request(layout, depart, ("up_w.B",), 2), "freight-2"
         )
         assert answer == fate, depart
         if fate == "request_rejected":
@@ -171,7 +171,7 @@ def test_a_mid_route_drag_is_judged_against_where_the_train_stands() -> None:
 def test_a_mid_route_drag_before_the_train_has_moved_states_its_origin() -> None:
     """The same rule at the tick #99 reported it from (#134). freight commits
     to yard_e in boundary 1's grant phase and crosses only on the tick after,
-    so a working released that same boundary is read while the train is still
+    so a request released that same boundary is read while the train is still
     standing in yard_w, active route and all: the repro's four departures,
     with yard_w as where the train stands rather than the block it has left.
 
@@ -189,7 +189,7 @@ def test_a_mid_route_drag_before_the_train_has_moved_states_its_origin() -> None
     }
     for depart, fate in fates.items():
         answer, reason = admission_answer(
-            second_working(layout, depart, ("up_w.B",), 1), "freight-2"
+            second_request(layout, depart, ("up_w.B",), 1), "freight-2"
         )
         assert answer == fate, depart
         if fate == "request_rejected":
@@ -203,7 +203,7 @@ def assert_routes_leave_by_their_departure_end(layout: Layout, trace: str) -> No
     The enumerator walks from the departure end while recording the origin as
     the route's first block, so an end on any other block yields a route that
     claims to start where the train stands and leaves somewhere else (#146).
-    Which end that was is read off the trace alone. A working that states the
+    Which end that was is read off the trace alone. A request that states the
     origin, or no block at all, was routed from the end it stated; one that
     states another block had its end supplied by the dispatcher, and the
     train's previous committed route says which — it leaves the train facing
@@ -232,8 +232,8 @@ def assert_routes_leave_by_their_departure_end(layout: Layout, trace: str) -> No
         assert first in reachable, chosen
 
 
-def test_a_working_queued_behind_a_pending_one_settles_reachability_late() -> None:
-    """Both workings are queued at boundary 0, so admission can judge neither
+def test_a_request_queued_behind_a_pending_one_settles_reachability_late() -> None:
+    """Both requests are queued at boundary 0, so admission can judge neither
     the second's origin nor its reachability: while an earlier request for the
     train is pending, the block it will depart from is a future dispatcher
     choice. freight-1 takes the train to yard_e, the launch stage supplies
@@ -247,19 +247,19 @@ def test_a_working_queued_behind_a_pending_one_settles_reachability_late() -> No
     block — a committed route whose first transit is nowhere near the train.
     """
     layout, _roster, _ = load("crossover-yard/meet")
-    trace = second_working(layout, "yard_w.B", ("up_w.A",), 0)
+    trace = second_request(layout, "yard_w.B", ("up_w.A",), 0)
     assert admission_answer(trace, "freight-2") == ("request_admitted", None)
     [rejected] = events(trace, "request_rejected", rid="freight-2")
     assert rejected["reason"] == Reason.UNREACHABLE
     assert events(trace, "route_chosen", rid="freight-2") == []
-    # The train's earlier working is untouched and the run carries on.
+    # The train's earlier request is untouched and the run carries on.
     assert events(trace, "request_completed", rid="freight-1")
     assert_routes_leave_by_their_departure_end(layout, trace)
 
 
 def test_a_drag_mid_route_runs_from_the_block_its_train_arrives_in() -> None:
     """#135's ruling: a drag on a moving train means "finish what you are
-    doing, then go there". The working queues behind the one in flight and
+    doing, then go there". The request queues behind the one in flight and
     the dispatcher supplies its departure end from the route the train
     arrives on — nobody else could, the origin having been a future
     dispatcher choice at the moment of the drag.
@@ -271,7 +271,7 @@ def test_a_drag_mid_route_runs_from_the_block_its_train_arrives_in() -> None:
     leave by — the same helper the scheduler asks of facing (#145).
     """
     layout, _roster, _ = load("crossover-yard/meet")
-    trace = second_working(layout, "dn_w.B", ("yard_w.B",), 2)
+    trace = second_request(layout, "dn_w.B", ("yard_w.B",), 2)
     [chosen] = events(trace, "route_chosen", rid="freight-2")
     assert chosen["route"] == [
         "yard_e",
@@ -291,11 +291,11 @@ def test_a_drag_mid_route_to_an_end_out_of_reach_is_answered_at_admission() -> N
     is not a future choice at all — a route is fixed once chosen (ADR-0002) —
     so admission derives yard_e, derives the end, and finds no route: the
     operator is answered at the boundary the request arrives at rather than
-    several boundaries later, when the train has finished a working nobody
+    several boundaries later, when the train has finished a request nobody
     can now redirect.
     """
     layout, _roster, _ = load("crossover-yard/meet")
-    trace = second_working(layout, "dn_w.B", ("up_w.A",), 2)
+    trace = second_request(layout, "dn_w.B", ("up_w.A",), 2)
     assert admission_answer(trace, "freight-2") == (
         "request_rejected",
         Reason.UNREACHABLE,
@@ -304,13 +304,13 @@ def test_a_drag_mid_route_to_an_end_out_of_reach_is_answered_at_admission() -> N
     assert_routes_leave_by_their_departure_end(layout, trace)
 
 
-def test_an_idle_trains_working_departs_by_the_end_it_states() -> None:
+def test_an_idle_trains_request_departs_by_the_end_it_states() -> None:
     """A train with no work ahead of it states its own departure end and
     keeps it, including one that contradicts facing: facing is a scheduler
     discipline and not a system invariant (ADR-0019), and reversal at rest is
     exactly the change routes do not account for.
 
-    freight runs yard_w -> dn_e, entering through A, and its next working —
+    freight runs yard_w -> dn_e, entering through A, and its next request —
     submitted long after that one completed — departs dn_e.A, back the way it
     came. Had the dispatcher supplied the end it would be dn_e.B and the
     route would leave by the east ladder.
@@ -331,14 +331,14 @@ def test_an_idle_trains_working_departs_by_the_end_it_states() -> None:
     assert events(trace, "request_completed", rid="freight-2")
 
 
-def test_a_working_behind_work_that_moved_nothing_keeps_its_stated_end() -> None:
+def test_a_request_behind_work_that_moved_nothing_keeps_its_stated_end() -> None:
     """There is an end to supply only where the dispatcher chose a route.
     freight-1 is degenerate — it names the block the train is already in — so
     it completes without moving anything, and freight-2, queued behind it,
     has nothing but the end it stated. That end names yard_e, the train is in
     yard_w, and the launch stage refuses it rather than routing from it
     (#146). Its arrival end is degenerate too, and the departure is judged
-    first: a stale working is refused, not completed on the grounds that the
+    first: a stale request is refused, not completed on the grounds that the
     train happens to be there already.
     """
     layout, _roster, _ = load("crossover-yard/meet")
@@ -358,13 +358,13 @@ def test_a_working_behind_work_that_moved_nothing_keeps_its_stated_end() -> None
     assert events(trace, "route_chosen", rid="freight-2") == []
 
 
-def test_a_chained_working_resolves_its_bare_end_against_the_origin() -> None:
+def test_a_chained_request_resolves_its_bare_end_against_the_origin() -> None:
     """A bare end letter states no block, so it cannot go stale: it resolves
     against whatever origin the launch stage finds, which is the whole reason
-    a chained working writes one. freight-2 departs `A` — yard_e.A, once the
+    a chained request writes one. freight-2 departs `A` — yard_e.A, once the
     train is there — and routes as before."""
     layout, _roster, _ = load("crossover-yard/meet")
-    trace = second_working(layout, "A", ("up_e.B",), 0)
+    trace = second_request(layout, "A", ("up_e.B",), 0)
     [chosen] = events(trace, "route_chosen", rid="freight-2")
     assert chosen["route"] == ["yard_e", "east_ladder.from_up", "up_e"]
     assert events(trace, "request_completed", rid="freight-2")
@@ -372,13 +372,13 @@ def test_a_chained_working_resolves_its_bare_end_against_the_origin() -> None:
 
 
 def test_a_drag_to_where_the_train_is_already_going_completes_on_arrival() -> None:
-    """A working queued behind a route that ends where the working asks the
+    """A request queued behind a route that ends where the request asks the
     train to go. The end it states is no longer a routing input, so there is
     no staleness to refuse: the train arrives, the arrival end names the
-    block it is standing in, and the working completes with an empty route
+    block it is standing in, and the request completes with an empty route
     exactly as any other degenerate one does."""
     layout, _roster, _ = load("crossover-yard/meet")
-    trace = second_working(layout, "yard_w.B", ("yard_e.A",), 0)
+    trace = second_request(layout, "yard_w.B", ("yard_e.A",), 0)
     assert events(trace, "request_rejected", rid="freight-2") == []
     [chosen] = events(trace, "route_chosen", rid="freight-2")
     assert chosen["route"] == ["yard_e"] and chosen["k_tried"] == 0
@@ -401,12 +401,12 @@ def test_an_arrival_end_in_the_routes_arrival_block_is_still_checked() -> None:
     """
     layout, _roster, _ = load("crossover-yard/meet")
     answer, reason = admission_answer(
-        second_working(layout, "yard_w.B", ("yard_e.B",), 1), "freight-2"
+        second_request(layout, "yard_w.B", ("yard_e.B",), 1), "freight-2"
     )
     assert (answer, reason) == ("request_rejected", Reason.NO_ENTRY)
-    # Named beside the end that can be entered, it is pruned and the working
+    # Named beside the end that can be entered, it is pruned and the request
     # lives on the survivor — the ends of that block judged one by one.
-    trace = second_working(layout, "yard_w.B", ("yard_e.A", "yard_e.B"), 1)
+    trace = second_request(layout, "yard_w.B", ("yard_e.A", "yard_e.B"), 1)
     [admitted] = events(trace, "request_admitted", rid="freight-2")
     assert admitted["dest"] == ["yard_e.A"]
     assert admitted["pruned"] == [{"end": "yard_e.B", "reason": Reason.NO_ENTRY}]
@@ -429,11 +429,11 @@ def test_degenerate_request_completes_without_moving_whichever_end() -> None:
         assert chosen["route"] == ["yard_w"] and chosen["k_tried"] == 0
 
 
-def test_a_refused_working_is_not_overtaken_by_the_trains_next_one() -> None:
-    # Found by the Hypothesis differential (#28): a train's chained workings
-    # must run in order. freight's first working is refused — express is
+def test_a_refused_request_is_not_overtaken_by_the_trains_next_one() -> None:
+    # Found by the Hypothesis differential (#28): a train's chained requests
+    # must run in order. freight's first request is refused — express is
     # parked in dn_w and an idle train's block is permanently unavailable —
-    # and its second working, to a free block, must not launch past it and
+    # and its second request, to a free block, must not launch past it and
     # move the train out from under the request still waiting.
     layout, _roster, _ = load("crossover-yard/meet")
     scenario = Scenario(
