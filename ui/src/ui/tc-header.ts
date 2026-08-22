@@ -158,7 +158,7 @@ export class TcHeader extends LitElement {
     const name = this.drawing ?? "no railroad";
     return html`
       ${this.picking
-        ? html`<div class="dismiss" @pointerdown=${() => (this.picking = false)}></div>`
+        ? html`<div class="dismiss" @pointerdown=${() => this.pick(false)}></div>`
         : nothing}
       <div class="picker">
         <button
@@ -166,7 +166,7 @@ export class TcHeader extends LitElement {
           aria-haspopup="true"
           aria-expanded=${this.picking}
           ?disabled=${this.drawings.length === 0}
-          @click=${() => (this.picking = !this.picking)}
+          @click=${() => this.pick(!this.picking)}
         >
           <span class="drawing">${name}</span>
           <span class="more">▾</span>
@@ -191,11 +191,27 @@ export class TcHeader extends LitElement {
     `;
   }
 
+  /** Put the list down, or take it up. The app is told either way: the band
+   *  sits above the bar, so a press here lands on the picker rather than on
+   *  the overlay a menu on the bar is waiting for, and the menu would be left
+   *  down with the keyboard still its. */
+  private pick(down: boolean): void {
+    if (this.picking === down) return;
+    this.picking = down;
+    this.dispatchEvent(
+      new CustomEvent<boolean>("picker-open", {
+        detail: down,
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
   /** One of the railroads was chosen. The band says which is wanted and stops
    *  there — the shell is what loads it, and what it asks first is the shell's
    *  question too (#137). */
   private wanting(name: string): void {
-    this.picking = false;
+    this.pick(false);
     if (name === this.drawing) return;
     this.dispatchEvent(
       new CustomEvent<string>("railroad-wanted", {

@@ -189,6 +189,24 @@ describe("switching view", () => {
   });
 });
 
+describe("the band's picker against the bar's menus", () => {
+  /** The band sits above the bar, so a press on the picker lands on it rather
+   *  than on the overlay the open menu is waiting for. The menu would be left
+   *  down with the keyboard still its, so the picker takes it up. */
+  it("takes a menu on the bar up when the picker goes down", async () => {
+    const shell = await mounted("edit");
+    (bar(shell).renderRoot.querySelector("button.title") as HTMLElement).click();
+    await settled(shell);
+    expect(bar(shell).renderRoot.querySelector("menu")).not.toBeNull();
+
+    (band(shell).renderRoot.querySelector("button.chosen") as HTMLElement).click();
+    await settled(shell);
+
+    expect(bar(shell).renderRoot.querySelector("menu")).toBeNull();
+    expect(band(shell).renderRoot.querySelector("menu.drawings")).not.toBeNull();
+  });
+});
+
 describe("the picker over unsaved edits", () => {
   /** The question is the app's, because what it guards is the app's: the
    *  railroad, not one view's document (#101). */

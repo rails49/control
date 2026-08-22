@@ -129,6 +129,9 @@ export class TcApp extends LitElement {
         .view=${this.view}
         @railroad-wanted=${(event: CustomEvent<string>) => this.discard(event.detail)}
         @view-wanted=${(event: CustomEvent<ViewId>) => this.showing(event.detail)}
+        @picker-open=${(event: CustomEvent<boolean>) => {
+          if (event.detail) this.renderRoot.querySelector<TcMenubar>("tc-menubar")?.close();
+        }}
       ></tc-header>
 
       <tc-menubar

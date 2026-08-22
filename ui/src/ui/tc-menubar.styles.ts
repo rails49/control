@@ -151,9 +151,13 @@ export const menubarStyles = css`
     cursor: pointer;
   }
 
+  /* Green for the press that lets the railroad go and red for the one that
+     stops it, which is what a machine's buttons wear. The semantic green and
+     not the lamp green: this is a control, and a panel that draws signal lamps
+     must not have a lamp colour meaning something else on its chrome. */
   .run.go {
-    border-color: var(--lit);
-    color: var(--lit);
+    border-color: var(--good);
+    color: var(--good);
   }
 
   .run.hold {
