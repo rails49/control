@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
+import { centreOf } from "../src/model/geometry.js";
 import type { Explained, Layout, Review } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import { CLEAN, band, bar, mounted, running, serving, settled } from "./support/shell.js";
@@ -178,6 +179,46 @@ describe("the picture on the shared canvas", () => {
     );
     // The editor's marks are not on a run's sheet, whatever it is showing.
     expect(drawn.querySelectorAll("circle.pin")).toHaveLength(0);
+  });
+
+  /**
+   * The drag, driven the way the canvas drives it. `Drag` answers the same
+   * `Machine` the editor's `Gesture` does now, so the press, the move and the
+   * release all arrive through the shared surface — and what the drop is worth
+   * is one frame on the bus, which is what this walks (#168).
+   *
+   * happy-dom's `getScreenCTM` is the identity, so a client pixel reads as a
+   * grid square and a block's centre is the point to press at.
+   */
+  it("submits the request a drag across the canvas asks for", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { goods: "a" },
+      locks: { a: "goods" },
+      requests: [],
+    });
+
+    const drawing = stored("toy");
+    const from = centreOf(drawing.symbols.a!);
+    const to = centreOf(drawing.symbols.b!);
+    const surface = sheet(shell).querySelector("svg")!;
+    for (const [name, at] of [
+      ["pointerdown", from],
+      ["pointermove", to],
+      ["pointerup", to],
+    ] as const) {
+      surface.dispatchEvent(
+        new PointerEvent(name, { bubbles: true, clientX: at.x, clientY: at.y }),
+      );
+    }
+    await settled(shell);
+
+    expect(written()).toEqual([
+      {
+        topic: "tc49/ui/request_wanted",
+        payload: { train: "goods", dest: ["b.A", "b.B"] },
+      },
+    ]);
   });
 });
 
