@@ -125,13 +125,13 @@ def test_a_live_session_paces_itself_slowly_enough_to_watch() -> None:
     assert args.period == 10.0
 
 
-def test_a_live_session_may_come_up_with_no_scenario_at_all() -> None:
+def test_a_live_session_may_come_up_with_no_railroad_at_all() -> None:
     """The panel names the session (#148). `tc49 live` comes up idle on its
-    port waiting to be told, and a scenario on the command line is the
-    railroad it comes up running rather than the one it is fixed to."""
-    assert command_line().parse_args(["live"]).scenario is None
-    named = command_line().parse_args(["live", "gotthard-v0/meet"])
-    assert named.scenario == "gotthard-v0/meet"
+    port waiting to be told, and a railroad on the command line is the one it
+    comes up on rather than the one it is fixed to."""
+    assert command_line().parse_args(["live"]).railroad is None
+    named = command_line().parse_args(["live", "gotthard-v0"])
+    assert named.railroad == "gotthard-v0"
 
 
 def test_the_period_flag_still_sets_the_period_and_says_the_default(
@@ -155,7 +155,7 @@ def test_a_session_is_told_where_to_keep_the_run(
     kept = command_line().parse_args(["live", "--state", "run.json"])
     assert kept.state == Path("run.json")
 
-    assert "fresh from the scenario" in restart_note(None)
+    assert "an empty layout" in restart_note(None)
     assert restart_note(Path("run.json")) == (
         "a restart adopts the placement and facing kept beside run.json"
     )

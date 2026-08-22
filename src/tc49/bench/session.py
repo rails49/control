@@ -1,39 +1,40 @@
 """A live session: the bridge on a port, and one railroad at a time behind it.
 
-`tc49 live` is a session. The scenario is not fixed at launch — the panel
+`tc49 live` is a session. The railroad is not fixed at launch — the panel
 names it in the socket path, and switching is a reconnect (#148, ui/PANEL.md)
 — so this holds the swap loop that the bridge's `rebind` is the other half
 of.
 
-`assemble_live` builds bus, scheduler, dispatcher, driver and simulator *from*
-a scenario, so a switch is a new assembly and never a mutation. The thread
-that calls `run` owns every one of them: it waits to be told which railroad,
-builds it, hands the bus to the bridge, and runs it until somebody names
-another. A client's handler thread only calls `wants`, which is one scenario
-recorded and one event set — the same size as the `publish` it already makes.
+`assemble_live` builds bus, scheduler, dispatcher, driver and simulator from
+**a railroad**: its drawing and its roster, and nothing else (#171). A switch
+is a new assembly and never a mutation. The thread that calls `run` owns every
+one of them: it waits to be told which railroad, builds it, hands the bus to
+the bridge, and runs it until somebody names another. A client's handler
+thread only calls `wants`, which is one railroad recorded and one event set —
+the same size as the `publish` it already makes.
 
-A scenario that does not exist is refused there, on the handler's own thread
-and before anything is recorded, so a typo cannot take down a live railroad.
-A run outlives its clients: closing the browser leaves the railroad running,
-and it is the process ending that ends the session.
+A railroad that does not exist, or whose drawing does not derive, is refused
+there, on the handler's own thread and before anything is recorded, so a typo
+cannot take down a live railroad. A run outlives its clients: closing the
+browser leaves the railroad running, and it is the process ending that ends
+the session.
 
 This is milestone-1 wiring and stays small. There is no session registry and
 no run manager; what persists is the bus's own retained state, where the
 session was given a file to keep it in (#123). When the bus becomes a real
 broker the bridge is deleted, the panel subscribes to the broker, and there
-is no scenario to pick (ADR-0013 wiring note).
+is no railroad to pick (ADR-0013 wiring note).
 """
 
 import threading
 from pathlib import Path
 from typing import TextIO
 
-from tc49.bench.runner import assemble_live, load
+from tc49.bench.runner import assemble_live, railroad
 from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Bus
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
-from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 
 
@@ -68,31 +69,32 @@ class Session:
         # the railroad it is of (#123).
         self._state = state
         self._lock = threading.Lock()
-        # Set while a scenario is waiting to be built, and again by `stop`,
+        # Set while a railroad is waiting to be built, and again by `stop`,
         # which is what cuts a boundary's sleep short: picking a railroad in
         # the panel must not wait out a ten-second period.
         self._swap = threading.Event()
-        self._wanted: tuple[str, Layout, Roster, Scenario] | None = None
+        self._wanted: tuple[str, Layout, Roster] | None = None
         # A bridge wants a bus, and an idle session has no assembly to give
         # it: this one is relayed until the first `rebind` replaces it, and
         # nothing ever publishes to it.
         self.bridge = Bridge(Bus(), port, wants=self.wants)
 
-    def wants(self, scenario_id: str) -> str | None:
-        """Run this scenario next: a refusal in words, or `None` to accept.
+    def wants(self, name: str) -> str | None:
+        """Run this railroad next: a refusal in words, or `None` to accept.
 
-        Called on a client's own handler thread. A scenario the store does
-        not have is refused here and nothing is recorded, so the railroad
-        already running is untouched by a typo.
+        Called on a client's own handler thread. A railroad the store does
+        not have, or whose drawing does not derive, is refused here and
+        nothing is recorded, so the railroad already running is untouched by
+        a typo.
         """
-        if scenario_id not in self._store.scenarios():
-            return f"no scenario '{scenario_id}'"
         try:
-            wanted = load(self._store, scenario_id)
+            wanted = railroad(self._store, name)
+        except FileNotFoundError:
+            return f"no railroad '{name}'"
         except ValueError as refused:
-            return f"scenario '{scenario_id}': {refused}"
+            return f"railroad '{name}': {refused}"
         with self._lock:
-            self._wanted = (scenario_id, *wanted)
+            self._wanted = (name, *wanted)
             self._swap.set()
         return None
 
@@ -119,13 +121,11 @@ class Session:
                 wanted = self._wanted
             if wanted is None:
                 return
-            scenario_id, layout, roster, scenario = wanted
-            kept = (
-                None if self._state is None else state_for(self._state, scenario.layout)
-            )
-            assembly = assemble_live(layout, roster, scenario.trains, state=kept)
-            self.bridge.rebind(assembly.bus, scenario_id)
-            out.write(f"  running {scenario_id}\n")
+            name, layout, roster = wanted
+            kept = None if self._state is None else state_for(self._state, name)
+            assembly = assemble_live(layout, roster, state=kept)
+            self.bridge.rebind(assembly.bus, name)
+            out.write(f"  running {name}\n")
             out.flush()
             assembly.simulator.run_live(
                 self._period_s, sleep=self._pause, stop=self._swap.is_set

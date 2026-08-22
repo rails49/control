@@ -1,12 +1,14 @@
-"""`tc49 bench <scenario>`, `tc49 sweep`, `tc49 live [scenario]`,
+"""`tc49 bench <scenario>`, `tc49 sweep`, `tc49 live [railroad]`,
 `tc49 layout show <layout>`, `tc49 serve`, `tc49 generate`.
 
 `bench` runs one named scenario under both locking strategies and prints the
 comparison. `live` runs a session an outside client can join: wall-clock
 boundaries, the bridge relaying `tc49/#` out and gestures in, the store served
-over HTTP, and the scheduler's timetable off while `at` is a boundary count
-(ADR-0036). Its scenario is an argument the panel may override, the socket
-path naming the railroad a client wants (#148). `sweep` takes no arguments:
+over HTTP, and no timetable while `at` is a boundary count (ADR-0036). It is
+built from a **railroad** — a drawing, its roster, and a person who places the
+trains (#171) — and the railroad it comes up on is an argument the panel may
+override, the socket path naming the one a client wants (#148). `sweep` takes
+no arguments:
 the grid of BENCHMARKS.md is the research design, not a knob, and that page is
 its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
@@ -163,10 +165,10 @@ def command_line() -> argparse.ArgumentParser:
         "live", help="run a live session an outside client can join (ui/PANEL.md)"
     )
     live_parser.add_argument(
-        "scenario",
+        "railroad",
         nargs="?",
-        help="the railroad to come up running, e.g. gotthard-v0/meet; with none"
-        " the session waits to be told, and either way the panel may switch it",
+        help="the railroad to come up on, e.g. gotthard; with none the session"
+        " waits to be told, and either way the panel may switch it",
     )
     live_parser.add_argument(
         "--period",
@@ -182,8 +184,8 @@ def command_line() -> argparse.ArgumentParser:
         "--state",
         type=Path,
         help="keep the runs' pictures beside this path, one file per railroad,"
-        " so a restart comes up where each railroad stopped rather than where"
-        " its scenario starts it",
+        " so a restart comes up where each railroad stopped rather than with an"
+        " empty layout",
     )
     live_parser.add_argument(
         "--store-port", type=int, default=8765, help="the store's HTTP port"
@@ -224,7 +226,7 @@ def restart_note(state: Path | None) -> str:
     said so since #71; with one it comes up where the railroad stopped, and
     the banner must stop promising the other thing (#151)."""
     if state is None:
-        return "a restart comes up fresh from the scenario"
+        return "a restart comes up with an empty layout"
     return f"a restart adopts the placement and facing kept beside {state}"
 
 
@@ -239,8 +241,8 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
 
     if args.command == "live":
         session = Session(ROOT, args.period, args.port, args.state)
-        if args.scenario is not None:
-            refusal = session.wants(args.scenario)
+        if args.railroad is not None:
+            refusal = session.wants(args.railroad)
             if refusal is not None:
                 out.write(f"{refusal}\n")
                 return 2
@@ -256,10 +258,10 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
             store_line = f"  store   http://127.0.0.1:{args.store_port}\n"
         out.write(
             f"live: {args.period}s per boundary\n"
-            f"  bridge  ws://127.0.0.1:{session.bridge.port}/<scenario>\n"
+            f"  bridge  ws://127.0.0.1:{session.bridge.port}/<railroad>\n"
             f"{store_line}"
-            "the panel names the railroad and may switch it; the timetable is"
-            f" off; Ctrl-C ends the session, and {restart_note(args.state)}\n"
+            "the panel names the railroad and may switch it; there is no"
+            f" timetable; Ctrl-C ends the session, and {restart_note(args.state)}\n"
         )
         out.flush()
         try:

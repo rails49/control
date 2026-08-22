@@ -64,6 +64,21 @@ def load(store: AssetStore, scenario_id: str) -> tuple[Layout, Roster, Scenario]
     return layout, store.roster(scenario.layout), scenario
 
 
+def railroad(store: AssetStore, name: str) -> tuple[Layout, Roster]:
+    """A railroad: the layout its drawing derives to, and the trains it owns.
+
+    The whole of what a live run is built from (#171). A drawing that does not
+    derive raises `ValueError` here, where a session can refuse the name on
+    the joining client's own thread instead of taking a running railroad down
+    with it; a name the store answers with anything but a layout is not a
+    railroad's, and reads as one that is not there.
+    """
+    layout = store.get(name)
+    if not isinstance(layout, Layout):
+        raise FileNotFoundError(f"no railroad '{name}'")
+    return layout, store.roster(name)
+
+
 def placement(trains: dict[str, TrainSpec]) -> dict[str, str]:
     """Train to the block it starts in: what the dispatcher and the simulator
     take of a document's placement. Neither reads facing (ADR-0019)."""

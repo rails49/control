@@ -9,13 +9,13 @@ writes gestures and never requests, so the scheduler stays the single minter
 and the dispatcher the sole feasibility authority precisely because nothing
 else can reach the bus (ADR-0036).
 
-**A client names the scenario it wants in the socket path** —
-``ws://127.0.0.1:8766/gotthard/test1`` — and hears that railroad or
+**A client names the railroad it wants in the socket path** —
+``ws://127.0.0.1:8766/gotthard`` — and hears that railroad or
 none. The relay outlives the assembly it relays: ``rebind`` points it at a
 freshly built bus and settles every client on the swap, whoever named the
-new scenario starting to hear it and whoever was on the old one being closed
+new railroad starting to hear it and whoever was on the old one being closed
 so it re-picks rather than rendering one railroad fed by another's events
-(#148). A client that names a scenario other than the running one is asked
+(#148). A client that names a railroad other than the running one is asked
 for by ``wants`` and waits out of earshot until its swap lands; naming one
 that does not exist is an error frame and a close, the running railroad
 untouched. No inbound topic carries any of this: the set stays exactly the
@@ -40,7 +40,7 @@ session's loop next drains, exactly as a scheduler's would be. Restricting
 inbound to event topics keeps that cross-thread surface to the append —
 a state topic would also write the last-value map. ``wants`` is the second
 and last such handoff, and the same size: the handler thread says which
-scenario, and the thread that owns the assembly does the building.
+railroad, and the thread that owns the assembly does the building.
 """
 
 import json
@@ -54,7 +54,7 @@ from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import INBOUND
 
 Wants = Callable[[str], str | None]
-"""Asked for a scenario a client named, on that client's own handler thread:
+"""Asked for a railroad a client named, on that client's own handler thread:
 a refusal in words, or ``None`` to accept, the swap arriving later as a
 ``rebind``. A bridge given none runs one railroad and can switch to no
 other."""
@@ -66,7 +66,7 @@ class Bridge:
     def __init__(self, bus: Bus, port: int = 0, wants: Wants | None = None) -> None:
         self._bus = bus
         self._wants = wants
-        # The scenario the bus being relayed is running, and what each client
+        # The railroad the bus being relayed is running, and what each client
         # named in its path; `''` is nothing named, which is what a client
         # reaching a bridge with no session behind it says.
         self._running = ""
@@ -94,11 +94,11 @@ class Bridge:
     def close(self) -> None:
         self._server.shutdown()
 
-    def rebind(self, bus: Bus, scenario: str) -> None:
+    def rebind(self, bus: Bus, railroad: str) -> None:
         """Relay a freshly assembled railroad, and settle every client on it.
 
         One operator, one railroad, and afterwards that is exactly true:
-        whoever named this scenario is registered here — before the assembly's
+        whoever named this railroad is registered here — before the assembly's
         opening drain, so the startup cascade is their first frames and there
         is nothing to seed — and every other client, on the railroad this one
         replaces or waiting on a third, is closed. Closing is what has them
@@ -108,15 +108,15 @@ class Bridge:
         self._bus = bus
         bus.subscribe("tc49/#", self._relay)
         with self._clients_lock:
-            self._running = scenario
+            self._running = railroad
             # Registered and waiting settle by the same rule, which is what
-            # makes the rule one sentence: named this scenario, or gone.
+            # makes the rule one sentence: named this railroad, or gone.
             settling = self._clients | self._waiting
             self._clients = {
-                one: scenario for one in settling if settling[one] == scenario
+                one: railroad for one in settling if settling[one] == railroad
             }
             self._waiting = {}
-            parting = [one for one in settling if settling[one] != scenario]
+            parting = [one for one in settling if settling[one] != railroad]
         for one in parting:
             one.close()
 
@@ -131,7 +131,7 @@ class Bridge:
                 pass  # its handler thread is already on the way out
 
     def _serve_client(self, connection: ServerConnection) -> None:
-        # The scenario the client named, off the socket path. A handler runs
+        # The railroad the client named, off the socket path. A handler runs
         # only once the handshake has produced a request; naming nothing is
         # what a client reaching a bridge with no session behind it does.
         request = connection.request
@@ -155,14 +155,14 @@ class Bridge:
         """Register the client for the railroad it named, or refuse it.
 
         Everything here is under the lock the relay takes. For the running
-        scenario that is what orders the last values against live frames: a
+        railroad that is what orders the last values against live frames: a
         frame published while this runs either lands in the picture sent here
         or is relayed after, so a client is never served one that has already
         been overtaken by the events it sits behind. For any other it is what
         keeps `wants` from being answered by a swap that lands before the
         client is on the list to be woken by it. The relay waits for the
-        length of the callback, so `wants` reads a scenario and does not build
-        a railroad — a fraction of one boundary, once per join.
+        length of the callback, so `wants` reads a railroad's documents and
+        does not build one — a fraction of one boundary, once per join.
         """
         with self._clients_lock:
             if named == self._running:

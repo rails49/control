@@ -6,21 +6,19 @@
 #   ui      http://localhost:5173   vite, which proxies the store's routes
 #   bridge  ws://127.0.0.1:8766     `tc49 live`, the session the run view joins
 #
-#   scripts/dev.sh                     all three; pick the session in the
-#                                      run view
-#   scripts/dev.sh gotthard/meet       and the session comes up running that
-#                                      one
-#   scripts/dev.sh gotthard/meet --period 1
+#   scripts/dev.sh                     all three; load a railroad in the band
+#   scripts/dev.sh gotthard            and the session comes up on that one
+#   scripts/dev.sh gotthard --period 1
 #                                      anything further is the session's
 #   scripts/dev.sh stop                every one of them down again
 #
 # `start` is the word for what it does without one, and may be said —
-# `scripts/dev.sh start gotthard/meet`. A scenario is `folder/name`, so a
-# first word that is bare `start` or `stop` is never one.
+# `scripts/dev.sh start gotthard`. No railroad is named `start` or `stop`, so
+# a first word that is one of those is never a railroad.
 #
-# The run view names the session, so the bridge always comes up: a scenario
-# here is the railroad it starts on and not the one it is fixed to, and the run
-# view may switch it at any time (#148).
+# The band names the railroad, so the bridge always comes up: a railroad here
+# is the one the session starts on and not the one it is fixed to, and the
+# band may switch it at any time (#148, #171).
 #
 # The store is always this script's, never a session's. `tc49 live` carries
 # one, which would find the port taken, so the session is started with
@@ -55,11 +53,11 @@ case ${1-} in
     ;;
 esac
 
-SCENARIO=${1-}
+RAILROAD=${1-}
 [ $# -gt 0 ] && shift # what is left over belongs to `tc49 live`
 
-if [ "$ACTION" = stop ] && [ -n "$SCENARIO" ]; then
-  echo "stop takes nothing further: $SCENARIO" >&2
+if [ "$ACTION" = stop ] && [ -n "$RAILROAD" ]; then
+  echo "stop takes nothing further: $RAILROAD" >&2
   exit 2
 fi
 
@@ -89,7 +87,7 @@ listening() {
 }
 
 # Start it, then wait for it to answer. A server that dies on startup — a port
-# taken between the check and the bind, a scenario that does not exist — is
+# taken between the check and the bind, a railroad that does not exist — is
 # reported with its log rather than left to fail later as a browser error, and
 # a process already gone is not waited on for the rest of the ten seconds.
 start() {
@@ -172,18 +170,18 @@ fi
 echo "servers:"
 serve store "$STORE" "$STORE_URL" uv run tc49 serve
 serve ui "$UI" "$UI_URL" pnpm --dir ui dev
-# An empty scenario is no scenario at all, not the empty string: `tc49 live`
+# An empty railroad is no railroad at all, not the empty string: `tc49 live`
 # takes it as optional, and comes up idle waiting to be told.
 serve bridge "$BRIDGE" "$BRIDGE_URL" \
-  uv run tc49 live ${SCENARIO:+"$SCENARIO"} --port "$BRIDGE" --no-store "$@"
+  uv run tc49 live ${RAILROAD:+"$RAILROAD"} --port "$BRIDGE" --no-store "$@"
 
 cat <<EOF
 
   app     http://localhost:$UI/          the run view
           http://localhost:$UI/#edit     the editor
 
-          pick a session in the run view's live session menu; the session runs
-          whichever railroad it names, and the app loads it
+          load a railroad with the band's picker; the session runs whichever
+          one is loaded
 
 logs in out/dev; stop them with: scripts/dev.sh stop
 EOF

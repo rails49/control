@@ -1,6 +1,6 @@
 """The live-session assembly (#71), at the assembly-over-the-bus seam.
 
-`assemble_live` is the wiring `tc49 live` runs: the timetable off, the bridge
+`assemble_live` is the wiring `tc49 live` runs: no timetable, the bridge
 the only way in. The tests here attach a real bridge and client to that
 assembly and walk the whole loop — a gesture in, the request the scheduler
 composes from it, the dispatcher's answer and the run's events back out over
@@ -13,8 +13,10 @@ reads the id off the trace rather than choosing one.
 
 The last section is `Session`, the loop `tc49 live` actually runs (#148): a
 whole session on a port, its railroad named by whoever joins and swapped by
-whoever names another. That one is paced by a real, very short period,
-because the loop under test is the one that owns the clock.
+whoever names another. It comes up with an empty layout and held, so the
+trains are put on it by gesture, which is what an operator does (#171). That
+one is paced by a real, very short period, because the loop under test is the
+one that owns the clock.
 """
 
 import io
@@ -37,6 +39,7 @@ from tests.harness import ROOT, events, load
 
 WANTED = "tc49/ui/request_wanted"
 REVERSAL = "tc49/ui/reversal_wanted"
+PLACEMENT = "tc49/ui/placement_wanted"
 
 TIMEOUT = 5.0
 
@@ -121,14 +124,14 @@ UNCOMPOSABLE: list[object] = [
 ]
 
 
-def test_the_timetable_is_off_and_facing_is_still_published(
+def test_there_is_no_timetable_and_facing_is_still_published(
     assembly: Assembly,
 ) -> None:
     """crossover-yard/meet schedules three workings from boundary 0; a live
-    session runs the same scheduler with the timetable off (ADR-0036), so
-    nothing is submitted and the railroad just ticks. Facing is not off with
-    it: it is the scenario's placement, and a joining page has no other
-    source for a direction arrow."""
+    run is given no timetable at all (ADR-0036), so nothing is submitted and
+    the railroad just ticks. Facing is not off with it: it is where the trains
+    were stood, and a joining page has no other source for a direction
+    arrow."""
     tick_until(assembly, lambda: False, limit=10)
     assert events(assembly.trace, "boundary")
     assert events(assembly.trace, "request_submitted") == []
@@ -315,7 +318,7 @@ def test_a_reversal_naming_a_train_the_session_lacks_is_dropped(
 @pytest.fixture
 def session() -> Iterator[Session]:
     """A whole session, idle, its loop on a thread of its own — which is what
-    `tc49 live` with no scenario is."""
+    `tc49 live` with no railroad named is."""
     live = Session(ROOT, PERIOD_S)
     thread = threading.Thread(target=live.run, args=(io.StringIO(),), daemon=True)
     thread.start()
@@ -325,9 +328,28 @@ def session() -> Iterator[Session]:
     live.bridge.close()
 
 
-def joining(live: Session, scenario_id: str) -> ClientConnection:
+def joining(live: Session, railroad: str) -> ClientConnection:
     """A client naming the railroad it wants, the way the panel does."""
-    return connect(f"ws://127.0.0.1:{live.bridge.port}/{scenario_id}")
+    return connect(f"ws://127.0.0.1:{live.bridge.port}/{railroad}")
+
+
+def put(client: ClientConnection, train: str, block: str) -> dict[str, Any]:
+    """A train taken out of the closet and stood on a block, answered with the
+    `train_placed` that says the dispatcher accepted it.
+
+    The gesture a session's railroad is laid out with, since a run is built
+    from a railroad and nothing places its trains for the operator (#171).
+
+    A boundary is waited for first. A session builds each assembly on its own
+    thread and hands it to the bridge afterwards, so a frame sent between the
+    handshake and the swap would be published onto the bus being torn down —
+    and one boundary is proof this client is being fed the new one.
+    """
+    payload_of(client, "boundary")
+    client.send(
+        json.dumps({"topic": PLACEMENT, "payload": {"train": train, "block": block}})
+    )
+    return payload_of(client, "train_placed")
 
 
 def payload_of(client: ClientConnection, leaf: str) -> dict[str, Any]:
@@ -338,26 +360,36 @@ def payload_of(client: ClientConnection, leaf: str) -> dict[str, Any]:
 def test_a_client_names_the_railroad_and_the_session_builds_it(
     session: Session,
 ) -> None:
-    """An idle session runs nothing until a path names a scenario. What comes
+    """An idle session runs nothing until a path names a railroad. What comes
     back first is the new assembly's opening drain — the startup cascade — so
-    placement and facing arrive as live frames and there is nothing to seed
-    (ADR-0032)."""
-    with joining(session, "crossover-yard/meet") as client:
-        assert payload_of(client, "facing")["facing"] == {
-            "express_2": "up_e.A",
-            "freight_1": "yard_w.B",
-        }
+    the run's word and its empty picture arrive as live frames and there is
+    nothing to seed (ADR-0032).
+
+    The layout is empty and the run is **held**, which is the ordinary cold
+    start of a run an operator drives (#171, ADR-0039): every train the
+    railroad owns is in the closet, and there is nothing to do but place them
+    and press GO."""
+    with joining(session, "crossover-yard") as client:
+        assert payload_of(client, "run")["run"] == "held"
+        assert payload_of(client, "allocation")["trains"] == {}
         assert payload_of(client, "boundary")["boundary"] == 0
+
+        assert put(client, "freight_1", "yard_w") == {
+            "train": "freight_1",
+            "block": "yard_w",
+        }
+        assert payload_of(client, "facing")["facing"] == {"freight_1": "yard_w.B"}
 
 
 def test_the_same_path_rejoins_the_run_already_going(session: Session) -> None:
     """A reloaded tab restarts nothing: the path is the one already running,
     so the client is served the picture and drops into the run where it is,
     the boundary counter never rewinding to zero."""
-    with joining(session, "crossover-yard/meet") as client:
+    with joining(session, "crossover-yard") as client:
+        put(client, "freight_1", "yard_w")
         while payload_of(client, "boundary")["boundary"] < 2:
             pass
-        with joining(session, "crossover-yard/meet") as rejoined:
+        with joining(session, "crossover-yard") as rejoined:
             assert payload_of(rejoined, "allocation")["trains"]["freight_1"]
             assert payload_of(rejoined, "boundary")["boundary"] >= 2
         # And the first client is still being served the same run.
@@ -368,29 +400,28 @@ def test_naming_another_railroad_swaps_the_assembly_and_closes_the_old_client(
     session: Session,
 ) -> None:
     """One operator, one railroad. The session tears the assembly down and
-    builds a fresh one from the scenario named, so the counter starts again;
+    builds a fresh one for the railroad named, so the counter starts again;
     the client left on the old path is closed rather than fed another
     railroad's events."""
-    with joining(session, "crossover-yard/meet") as first:
+    with joining(session, "crossover-yard") as first:
         assert payload_of(first, "boundary")["boundary"] == 0
-        with joining(session, "gotthard-v0/meet") as second:
-            assert set(payload_of(second, "facing")["facing"]) == {"north", "south"}
-            assert payload_of(second, "boundary")["boundary"] == 0
+        with joining(session, "gotthard-v0") as second:
+            assert put(second, "north", "airolo_1")["block"] == "airolo_1"
             with pytest.raises(ConnectionClosed):
                 while True:
                     first.recv(timeout=TIMEOUT)
 
 
-def test_a_path_naming_no_scenario_is_refused_and_the_run_lives(
+def test_a_path_naming_no_railroad_is_refused_and_the_run_lives(
     session: Session,
 ) -> None:
     """A typo must not take down a live railroad: the client is answered with
     an error frame and closed, and the run it never named ticks on."""
-    with joining(session, "crossover-yard/meet") as client:
+    with joining(session, "crossover-yard") as client:
         assert payload_of(client, "boundary")["boundary"] == 0
-        with joining(session, "crossover-yard/nonesuch") as mistaken:
+        with joining(session, "nonesuch") as mistaken:
             assert json.loads(mistaken.recv(timeout=TIMEOUT)) == {
-                "error": "no scenario 'crossover-yard/nonesuch'"
+                "error": "no railroad 'nonesuch'"
             }
             with pytest.raises(ConnectionClosed):
                 mistaken.recv(timeout=TIMEOUT)
@@ -416,10 +447,10 @@ def test_each_railroad_the_session_runs_keeps_its_own_picture(
     thread = threading.Thread(target=live.run, args=(io.StringIO(),), daemon=True)
     thread.start()
     try:
-        with joining(live, "crossover-yard/meet") as client:
-            assert payload_of(client, "allocation")["trains"]["freight_1"]
-        with joining(live, "gotthard-v0/meet") as other:
-            assert payload_of(other, "allocation")["trains"]["north"]
+        with joining(live, "crossover-yard") as client:
+            assert put(client, "freight_1", "yard_w")["train"] == "freight_1"
+        with joining(live, "gotthard-v0") as other:
+            assert put(other, "north", "airolo_1")["train"] == "north"
     finally:
         live.stop()
         thread.join(TIMEOUT)
@@ -431,8 +462,8 @@ def test_each_railroad_the_session_runs_keeps_its_own_picture(
         ]
         for layout in ("crossover-yard", "gotthard-v0")
     }
-    assert set(pictures["crossover-yard"]["trains"]) == {"express_2", "freight_1"}
-    assert set(pictures["gotthard-v0"]["trains"]) == {"north", "south"}
+    assert set(pictures["crossover-yard"]["trains"]) == {"freight_1"}
+    assert set(pictures["gotthard-v0"]["trains"]) == {"north"}
 
 
 def test_a_railroads_file_is_named_beside_the_session_path() -> None:
