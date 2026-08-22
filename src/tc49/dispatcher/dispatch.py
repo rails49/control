@@ -147,6 +147,29 @@ class State:
                     return ("transit_conflict", locked, by)
         return None
 
+    def free(self, block: str) -> bool:
+        """Whether nothing at all has a claim on `block`.
+
+        Both claims a route carries, not just the stronger one: a resource is
+        **committed** when it is on a route the dispatcher has chosen and not
+        yet locked, and that is a claim (CONTEXT.md). Under `FullRoute` the
+        two sets coincide, since a launch locks the whole route; under
+        `Incremental` a fixed route runs on ahead of its locks, and reading
+        the lock table alone would call those blocks free.
+
+        Placing a train into one strands the working that owns it: the route
+        is fixed (ADR-0002), the placed train is idle and its standing lock
+        is therefore a permanent obstacle (SAFETY.md), and nothing cancels a
+        request — so the committed train is refused `unsafe` at every
+        boundary for the rest of the session.
+        """
+        if block in self.locks:
+            return False
+        return not any(
+            block in active.route.blocks[active.cur_index :]
+            for active in self.active.values()
+        )
+
 
 def departure(origin: str, depart: str, leaving: str | None) -> str | None:
     """The end a working leaves `origin` by, or None where the end it states
@@ -761,7 +784,7 @@ class Dispatcher:
             return
         if wanted.block not in state.layout.blocks:
             return
-        if not self._free(wanted.block):
+        if not state.free(wanted.block):
             return
         if state.train_lengths[wanted.train] > state.layout.blocks[wanted.block]:
             return
@@ -787,29 +810,6 @@ class Dispatcher:
         # The entry the person just resolved leaves the set, which is what
         # empties it as the railroad is walked (#153).
         self._publish_disputed()
-
-    def _free(self, block: str) -> bool:
-        """Whether nothing else has a claim on `block`.
-
-        Both claims a route carries, not just the stronger one: a resource is
-        **committed** when it is on a route the dispatcher has chosen and not
-        yet locked, and that is a claim (CONTEXT.md). Under `FullRoute` the
-        two sets coincide, since a launch locks the whole route; under
-        `Incremental` a fixed route runs on ahead of its locks, and reading
-        the lock table alone would call those blocks free.
-
-        Placing a train into one strands the working that owns it: the route
-        is fixed (ADR-0002), the placed train is idle and its standing lock
-        is therefore a permanent obstacle (SAFETY.md), and nothing cancels a
-        request — so the committed train is refused `unsafe` at every
-        boundary for the rest of the session.
-        """
-        if block in self._state.locks:
-            return False
-        return not any(
-            block in active.route.blocks[active.cur_index :]
-            for active in self._state.active.values()
-        )
 
     # -- the grant phase ---------------------------------------------------
 
