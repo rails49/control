@@ -21,11 +21,13 @@ from pathlib import Path
 from typing import Any
 
 from tc49.bench.runner import Assembly, assemble_live
+from tc49.lib.layout import block_of
 from tc49.simulator import placement_file
 from tests.harness import events, load
 
 WANTED = "tc49/ui/request_wanted"
 RUN_WANTED = "tc49/ui/run_wanted"
+PLACED = "tc49/ui/placement_wanted"
 
 
 def tick_until(assembly: Assembly, done: Callable[[], bool], limit: int = 50) -> None:
@@ -169,27 +171,48 @@ def test_the_simulator_comes_back_to_the_same_railroad(tmp_path: Path) -> None:
     assert events(restarted.trace, "block_vacated")[0]["block"] == parked
 
 
-def test_a_train_restored_mid_crossing_waits_for_a_person(tmp_path: Path) -> None:
-    """The limit of a placement hint, pinned rather than discovered later.
+def test_a_train_restored_mid_crossing_is_resolved_by_placing_it(
+    tmp_path: Path,
+) -> None:
+    """What the crossing entry is *for* (#154).
 
     Facing follows the grant and the lock table follows the sensor, so a
     session cut off mid-crossing restores a train whose facing names one block
-    and whose placement names the one behind it. A drag composed off that
-    facing is answered `wrong_origin` — the answer a moving train has always
-    got (ADR-0021) — and here it does not pass, no route having been restored
-    to carry the train on. That is what the crossing entry is *for*: a person
-    places the train at one end, which is #154.
+    and whose placement names the one behind it, with no route restored to
+    carry it on. The way out is the person: they drive it out of the
+    connection by hand if it really is stuck between, and place it at
+    whichever end it now stands. That clears the crossing entry, and the
+    railroad runs from there.
     """
     state = tmp_path / "session.json"
     cut_off_crossing(state)
 
     layout, scenario = load("crossover-yard/meet")
     restarted = assemble_live(layout, scenario, state=state)
-    restarted.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    restarted.bus.drain()
+    transit = picture(restarted)["crossing"]["freight_1"]
+    connection, _, name = transit.partition(".")
+    behind = picture(restarted)["trains"]["freight_1"]
+    ahead = next(
+        block_of(end)
+        for end in layout.connections[connection].transits[name]
+        if block_of(end) != behind
+    )
+
+    restarted.bus.publish(PLACED, {"train": "freight_1", "block": ahead})
     restarted.bus.drain()
 
-    [refused] = events(restarted.trace, "request_rejected")
-    assert refused["reason"] == "wrong_origin"
+    assert picture(restarted)["crossing"] == {}
+    assert picture(restarted)["trains"]["freight_1"] == ahead
+    assert events(restarted.trace, "train_placed")[-1]["block"] == ahead
+
+    release(restarted)
+    restarted.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    restarted.bus.drain()
+    tick_until(restarted, lambda: bool(events(restarted.trace, "request_completed")))
+
+    assert events(restarted.trace, "request_rejected") == []
+    assert events(restarted.trace, "request_completed")
 
 
 def test_a_session_with_no_file_leaves_nothing_behind(tmp_path: Path) -> None:

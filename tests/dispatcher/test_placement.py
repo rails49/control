@@ -197,29 +197,43 @@ def test_a_placement_clears_whatever_the_train_was_crossing(tmp_path: Path) -> N
     crossing nothing, and the picture has to say so: the hint would otherwise
     ride out to every view and be persisted again, and affirming the block
     the dispatcher already believes in is no way out, that block not being
-    free."""
+    free.
+
+    One entry, and no more: the gesture names one train, and every other one
+    the last session left between two blocks is still between them.
+    """
     state = tmp_path / "session.json"
     durable.write(
         state,
         {
             "tc49/dispatch/state/allocation": {
                 "trains": {"freight_1": "yard_w", "leviathan": "dn_e"},
-                "crossing": {"freight_1": "west_ladder.to_dn"},
+                "crossing": {
+                    "freight_1": "west_ladder.to_dn",
+                    "leviathan": "east_ladder.from_dn",
+                },
                 "locks": {},
                 "requests": [],
             }
         },
     )
     layout, _ = load("crossover-yard/meet")
+    # No press: a session that adopted a picture comes up held (#154), which
+    # is what makes the placement below acceptable at all.
     assembly = assemble_live(layout, two_trains(), state=state)
-    press(assembly, RUN_WANTED, {"run": "held"})
+    assembly.bus.drain()  # the opening statement, which no boundary has yet
+    assert last(assembly, "run")["run"] == "held"
     assert last(assembly, "allocation")["crossing"] == {
-        "freight_1": "west_ladder.to_dn"
+        "freight_1": "west_ladder.to_dn",
+        "leviathan": "east_ladder.from_dn",
     }
 
     place(assembly, "freight_1", "up_w")
 
-    assert last(assembly, "allocation")["crossing"] == {}
+    after = last(assembly, "allocation")
+    assert after["crossing"] == {"leviathan": "east_ladder.from_dn"}
+    assert after["trains"] == {"freight_1": "up_w", "leviathan": "dn_e"}
+    assert after["locks"] == {"up_w": "freight_1", "dn_e": "leviathan"}
 
 
 def test_a_placement_into_a_committed_block_is_dropped() -> None:
