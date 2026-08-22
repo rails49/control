@@ -198,7 +198,8 @@ The default is deliberate: a topic under `ui` is one a person's page writes,
 that being what the role means
 ([ADR-0035](adr/0035-a-topic-has-one-writing-role.md)). The human driver's
 throttle is the case the default is right for
-([#124](https://github.com/rails49/control/issues/124)): it arrives as a
+([#124](https://github.com/rails49/control/issues/124),
+[#148](https://github.com/rails49/control/issues/148)): it arrives as a
 `tc49/ui` leaf and is meant to be writable. A topic under `tc49/ui` that should
 not be writable is misfiled, and belongs to the role that may write it.
 

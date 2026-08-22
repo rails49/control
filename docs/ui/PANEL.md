@@ -338,8 +338,8 @@ registered, the swap requested, and the new run's opening drain delivers
 placement, facing and aspects as live frames, in order.
 
 A session ticks on a wall clock, one knob: `tc49 live --period`. The knob is
-the session's and applies to every railroad it runs, so the panel names the
-scenario and nothing else and the rate control stays off while it is joined.
+the session's and applies to every railroad it runs, so it is not the panel's
+to turn: a joined panel names the scenario and nothing else.
 The default is 10 seconds, picked by watching the panel rather than by
 argument: a boundary moves trains, grants and releases locks, realigns points
 and changes aspects, and at the 2 seconds this started out as the next one
