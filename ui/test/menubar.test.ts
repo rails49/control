@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 
 /**
- * The bar under the band: what each menu carries, what a dead item does, and
- * the three commands that stay one click.
+ * The bar under the band: what each view's menus carry, what a dead item does,
+ * and the three commands that stay one click.
  *
  * A DOM test, the whole of the behaviour being what the component renders, as
  * `tc-menu`'s and `tc-header`'s are. What is dead and what is alive is
@@ -14,23 +14,27 @@ import { describe, expect, it } from "vitest";
 import "../src/ui/tc-menubar.js";
 import type { TcMenubar } from "../src/ui/tc-menubar.js";
 import { NOTHING, type CommandId, type Standing } from "../src/model/commands.js";
+import type { ViewId } from "../src/model/views.js";
 
 /** A drawing open with edits in it, one symbol selected that has properties,
  *  and a snapshot either way: everything alive at once. */
 const LIVE: Standing = {
   opened: "gotthard",
   saved: false,
-  drawings: 3,
   selection: 1,
   editable: true,
   undo: true,
   redo: true,
+  zoomable: true,
 };
 
-async function bar(standing: Standing = LIVE): Promise<TcMenubar> {
+async function bar(
+  standing: Standing = LIVE,
+  view: ViewId = "edit",
+): Promise<TcMenubar> {
   const menubar = document.createElement("tc-menubar");
+  menubar.view = view;
   menubar.standing = standing;
-  menubar.drawings = ["crossover-yard", "facing-pair", "gotthard"];
   document.body.append(menubar);
   await menubar.updateComplete;
   return menubar;
@@ -53,26 +57,6 @@ async function click(menubar: TcMenubar, name: string): Promise<TcMenubar> {
 /** Slide the pointer onto one of the bar's titles. */
 async function onto(menubar: TcMenubar, name: string): Promise<TcMenubar> {
   title(menubar, name).dispatchEvent(new Event("pointerenter"));
-  await menubar.updateComplete;
-  return menubar;
-}
-
-/** Put `File` down and its drawings out beside it, which is where a drawing is
- *  chosen. */
-async function listing(menubar: TcMenubar): Promise<TcMenubar> {
-  await click(menubar, "File");
-  (menubar.renderRoot.querySelector("li.submenu button") as HTMLElement).click();
-  await menubar.updateComplete;
-  return menubar;
-}
-
-/** Click one of the drawings `Open` lists. */
-async function choose(menubar: TcMenubar, name: string): Promise<TcMenubar> {
-  const entries = [...menubar.renderRoot.querySelectorAll("menu.drawings li button")];
-  const entry = entries.find(
-    (one) => one.querySelector(".label")!.textContent!.trim() === name,
-  ) as HTMLElement;
-  entry.click();
   await menubar.updateComplete;
   return menubar;
 }
@@ -116,7 +100,6 @@ describe("what each menu carries", () => {
   it("names the file commands and the keys that do the same thing", async () => {
     expect(reads(await click(await bar(), "File"))).toEqual([
       "New…",
-      "Open",
       "Save ⌘S",
       "Save As… ⇧⌘S",
       "──",
@@ -147,17 +130,14 @@ describe("what each menu carries", () => {
     ]);
   });
 
-  /** Chrome keeps ⌘N for a new window and never lets the page have it, and ⌘O
-   *  is unreliable for the same reason. A blank is better than a binding the
-   *  browser eats. */
-  it("shows no key for the two the browser would eat", async () => {
+  /** Chrome keeps ⌘N for a new window and never lets the page have it. A
+   *  blank is better than a binding the browser eats. */
+  it("shows no key for the one the browser would eat", async () => {
     const menu = (await click(await bar(), "File")).renderRoot.querySelector("menu")!;
-    for (const label of ["New…", "Open"]) {
-      const item = [...menu.children].find(
-        (one) => one.querySelector(".label")?.textContent!.trim() === label,
-      )!;
-      expect(item.querySelector("kbd")).toBeNull();
-    }
+    const item = [...menu.children].find(
+      (one) => one.querySelector(".label")?.textContent!.trim() === "New…",
+    )!;
+    expect(item.querySelector("kbd")).toBeNull();
   });
 
   it("puts one menu down at a time", async () => {
@@ -167,69 +147,29 @@ describe("what each menu carries", () => {
   });
 });
 
-describe("opening a drawing", () => {
-  /** A submenu rather than a dialog: layouts are edited rarely, so the list is
-   *  short and stays short. */
-  it("lists the drawings and marks the one that is open", async () => {
+describe("whose menus the bar carries", () => {
+  /** The bar is the document's and the document is the current view's
+   *  (ADR-0038), so which titles are on it is the view's answer. */
+  it("gives the editor File, Edit and View", async () => {
+    const titles = [
+      ...(await bar()).renderRoot.querySelectorAll("button.title"),
+    ].map((one) => one.textContent!.trim());
+    expect(titles).toEqual(["File", "Edit", "View"]);
+  });
+
+  it("gives the run view View alone", async () => {
+    const titles = [
+      ...(await bar(LIVE, "run")).renderRoot.querySelectorAll("button.title"),
+    ].map((one) => one.textContent!.trim());
+    expect(titles).toEqual(["View"]);
+  });
+
+  /** Which railroad is loaded is the whole system's and the band picks it, so
+   *  there is no way to one from here (#167). */
+  it("offers no way to another railroad", async () => {
     const menubar = await click(await bar(), "File");
-    const open = menubar.renderRoot.querySelector("li.submenu button")!;
-    (open as HTMLElement).click();
-    await menubar.updateComplete;
-
-    const listed = [
-      ...menubar.renderRoot.querySelectorAll("menu.drawings li"),
-    ].map((one) => [
-      one.querySelector(".label")!.textContent!.trim(),
-      one.querySelector(".tick")!.textContent!.trim(),
-    ]);
-    expect(listed).toEqual([
-      ["crossover-yard", ""],
-      ["facing-pair", ""],
-      ["gotthard", "✓"],
-    ]);
-  });
-
-  it("says which drawing was chosen, and puts the menu up", async () => {
-    const menubar = await listing(await bar());
-    const heard: string[] = [];
-    menubar.addEventListener("open-drawing", (event) => {
-      heard.push((event as CustomEvent<string>).detail);
-    });
-
-    await choose(menubar, "crossover-yard");
-
-    expect(heard).toEqual(["crossover-yard"]);
-    expect(menubar.renderRoot.querySelector("menu")).toBeNull();
-  });
-
-  /** The tick says which drawing is open, and that is all it is: re-reading it
-   *  would throw away whatever has been drawn since (#101). The bar asks for
-   *  nothing, so nothing downstream has to know to ignore it. */
-  it("asks for nothing when the drawing already open is chosen", async () => {
-    const menubar = await listing(await bar({ ...LIVE, saved: true }));
-    const heard: string[] = [];
-    menubar.addEventListener("open-drawing", (event) => {
-      heard.push((event as CustomEvent<string>).detail);
-    });
-
-    await choose(menubar, "gotthard");
-
-    expect(heard).toEqual([]);
-    expect(menubar.renderRoot.querySelector("menu")).toBeNull();
-  });
-
-  /** Unsaved edits are what a re-read would cost, and the entry is no more a
-   *  way to lose them than it is with none in hand. */
-  it("asks for nothing either when there are edits to lose", async () => {
-    const menubar = await listing(await bar());
-    const heard: string[] = [];
-    menubar.addEventListener("open-drawing", (event) => {
-      heard.push((event as CustomEvent<string>).detail);
-    });
-
-    await choose(menubar, "gotthard");
-
-    expect(heard).toEqual([]);
+    expect(reads(menubar)).not.toContain("Open");
+    expect(menubar.renderRoot.querySelector("menu.drawings")).toBeNull();
   });
 });
 
@@ -239,13 +179,13 @@ describe("what a dead item does", () => {
     const dead = [...menubar.renderRoot.querySelectorAll("menu > li button")]
       .filter((one) => (one as HTMLButtonElement).disabled)
       .map((one) => one.querySelector(".label")!.textContent!.trim());
-    expect(dead).toEqual(["Open", "Save", "Save As…", "Export SVG…"]);
+    expect(dead).toEqual(["Save", "Save As…", "Export SVG…"]);
   });
 
-  /** The zoom commands are the canvas's own and stay alive on an empty page;
+  /** The zoom commands are the surface's own and stay alive on an empty page;
    *  the netlist is of a drawing, and there is none. */
   it("draws the netlist dead while the zoom commands stay alive", async () => {
-    const menubar = await click(await bar(NOTHING), "View");
+    const menubar = await click(await bar({ ...NOTHING, zoomable: true }), "View");
     const items = [...menubar.renderRoot.querySelectorAll("menu > li button")];
     const dead = items
       .filter((one) => (one as HTMLButtonElement).disabled)
@@ -266,7 +206,7 @@ describe("what a dead item does", () => {
 describe("what stays one click", () => {
   /** Zoom and fit are pressed constantly while drawing, and `View ▸ Zoom in`
    *  is three clicks for what is now one. */
-  it("pins zoom out, zoom in and fit at the right end", async () => {
+  it("pins zoom out, zoom in and fit at the editor's right end", async () => {
     const menubar = await bar();
     const tools = [...menubar.renderRoot.querySelectorAll("button.tool")];
     expect(tools.map((one) => one.getAttribute("aria-label"))).toEqual([

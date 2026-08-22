@@ -24,7 +24,7 @@
  */
 
 import { LitElement, html, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 
 import { headerStyles } from "./tc-header.styles.js";
 
@@ -36,8 +36,11 @@ export type Mode = "editor" | "run";
 export class TcHeader extends LitElement {
   static override styles = headerStyles;
 
-  /** The drawing the page has open, `null` while none is. */
+  /** The railroad the app has loaded, `null` while none is. */
   @property() drawing: string | null = null;
+
+  /** The railroads there are to load, as the store lists them. */
+  @property({ attribute: false }) drawings: readonly string[] = [];
 
   /** Whether the open drawing holds edits the store has not been given. */
   @property({ type: Boolean }) unsaved = false;
@@ -66,10 +69,13 @@ export class TcHeader extends LitElement {
    *  Read on the panel only: a drawing is not a run. */
   @property({ type: Number }) boundary: number | null = null;
 
+  /** Whether the picker's list is down. */
+  @state() private picking = false;
+
   override render() {
     const editing = this.mode === "editor";
     return html`
-      <span class="drawing">${this.drawing ?? "no drawing"}</span>
+      ${this.picker()}
       ${this.unsaved
         ? html`<span class="unsaved" role="img" title="unsaved" aria-label="unsaved">
             ●
@@ -98,6 +104,69 @@ export class TcHeader extends LitElement {
         ${editing ? "run" : "editor"}
       </a>
     `;
+  }
+
+  /**
+   * Which railroad is loaded, and the way to another (#167). It is the band's
+   * because it is the whole system's: both views are of it, and a menu on one
+   * view's bar would be the editor deciding what the run view is looking at.
+   *
+   * The railroad that is loaded is ticked, and the tick is all that entry is:
+   * choosing it closes the list and asks for nothing (#101). Re-reading it
+   * would throw away whatever has been drawn since, which is a lot to ask of a
+   * click that looks like it does nothing. The rule moves here whole from
+   * `File ▸ Open`.
+   */
+  private picker() {
+    const name = this.drawing ?? "no railroad";
+    return html`
+      ${this.picking
+        ? html`<div class="dismiss" @pointerdown=${() => (this.picking = false)}></div>`
+        : nothing}
+      <div class="picker">
+        <button
+          class="chosen"
+          aria-haspopup="true"
+          aria-expanded=${this.picking}
+          ?disabled=${this.drawings.length === 0}
+          @click=${() => (this.picking = !this.picking)}
+        >
+          <span class="drawing">${name}</span>
+          <span class="more">▾</span>
+        </button>
+        ${this.picking
+          ? html`
+              <menu class="drawings">
+                ${this.drawings.map(
+                  (one) => html`
+                    <li>
+                      <button @click=${() => this.wanting(one)}>
+                        <span class="tick">${one === this.drawing ? "✓" : ""}</span>
+                        <span class="label">${one}</span>
+                      </button>
+                    </li>
+                  `,
+                )}
+              </menu>
+            `
+          : nothing}
+      </div>
+    `;
+  }
+
+  /** One of the railroads was chosen. The band says which is wanted and stops
+   *  there — the shell is what loads it, and what it asks first is the shell's
+   *  question too (#137). */
+  private wanting(name: string): void {
+    this.picking = false;
+    if (name === this.drawing) return;
+    this.dispatchEvent(
+      new CustomEvent<string>("railroad-wanted", {
+        detail: name,
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 }
 

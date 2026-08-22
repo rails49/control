@@ -130,16 +130,17 @@ export class TcEditor extends LitElement {
       <tc-header
         mode="editor"
         .drawing=${this.filing.opened === "" ? null : this.filing.opened}
+        .drawings=${this.filing.drawings}
         .unsaved=${!this.filing.saved}
         .derives=${this.filing.derives}
         .trouble=${this.filing.trouble}
+        @railroad-wanted=${(event: CustomEvent<string>) => this.discard(event.detail)}
       ></tc-header>
 
       <tc-menubar
+        view="edit"
         .standing=${this.standing}
-        .drawings=${this.filing.drawings}
         @command=${(event: CustomEvent<CommandId>) => this.run(event.detail)}
-        @open-drawing=${(event: CustomEvent<string>) => this.discard(event.detail)}
         @menu-open=${(event: CustomEvent<boolean>) => {
           this.barMenu = event.detail;
         }}
@@ -239,11 +240,12 @@ export class TcEditor extends LitElement {
     return {
       opened: this.filing.opened,
       saved: this.filing.saved,
-      drawings: this.filing.drawings.length,
       selection: this.editor.selection.size,
       editable: spec !== undefined && editable(spec.kind),
       undo: this.editor.canUndo,
       redo: this.editor.canRedo,
+      // The editor's canvas has a viewport, always.
+      zoomable: true,
     };
   }
 
@@ -255,10 +257,6 @@ export class TcEditor extends LitElement {
     switch (id) {
       case "new":
         this.discard(null);
-        return;
-      // The drawings are the submenu's own items, so `Open` itself is only
-      // ever the thing they hang off.
-      case "open":
         return;
       case "save":
         void this.filing.save(this.editor);

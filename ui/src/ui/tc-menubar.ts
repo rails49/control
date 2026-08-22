@@ -1,16 +1,20 @@
 /**
- * The bar under the band: `File`, `Edit` and `View`, and the three buttons
- * pressed too often to be in a menu.
+ * The bar under the band: the menus of the view that is current, and the
+ * buttons pressed too often to be in one.
  *
- * Every verb the editor has lives in a menu here, with its key printed beside
- * it. That is what EDITOR.md#editing asks for — the header carries no bare
- * verb button, and a shortcut is learnt where it is conventionally read — and
- * it is why the drawing select, New…, Save As… and Save are no longer buttons
- * on the page.
+ * The bar is the document's (ADR-0038): it acts on what the current view has
+ * open, and which view that is decides which menus it carries. The band above
+ * carries what is true of the whole system, the loaded railroad included, so
+ * no menu here opens one.
  *
- * Zoom out, zoom in and fit stay one click at the right end. They are pressed
- * constantly while drawing and `View ▸ Zoom in` is three clicks for what is
- * now one.
+ * Every verb a view has lives in a menu, with its key printed beside it. That
+ * is what EDITOR.md#editing asks for — the band carries no bare verb button,
+ * and a shortcut is learnt where it is conventionally read — and it is why
+ * New…, Save As… and Save are no longer buttons on the page.
+ *
+ * Zoom out, zoom in and fit stay one click at the right end of the editor's
+ * bar. They are pressed constantly while drawing and `View ▸ Zoom in` is three
+ * clicks for what is now one.
  *
  * What is dead and what is alive is `model/commands.ts`, tested with no DOM.
  * This component draws what that module says and dispatches an id; it decides
@@ -29,6 +33,7 @@ import {
   type Menu,
   type Standing,
 } from "../model/commands.js";
+import type { ViewId } from "../model/views.js";
 import { GLYPHS } from "./icons.js";
 import { menubarStyles } from "./tc-menubar.styles.js";
 
@@ -36,17 +41,14 @@ import { menubarStyles } from "./tc-menubar.styles.js";
 export class TcMenubar extends LitElement {
   static override styles = menubarStyles;
 
-  /** What the editor has, as far as an item needs to know to be alive. */
-  @property({ attribute: false }) standing: Standing = NOTHING;
+  /** The view whose menus the bar is carrying. */
+  @property() view: ViewId = "edit";
 
-  /** The drawings `Open` lists. */
-  @property({ attribute: false }) drawings: string[] = [];
+  /** Where that view stands, as far as an item needs to know to be alive. */
+  @property({ attribute: false }) standing: Standing = NOTHING;
 
   /** The menu that is down, `null` while none is. */
   @state() private showing: string | null = null;
-
-  /** Whether `Open`'s drawings are showing beside the `File` menu. */
-  @state() private listing = false;
 
   /** Whether the menu that is down was opened by the pointer sliding onto its
    *  title rather than by a click on it, and the click the hand is about to
@@ -58,9 +60,9 @@ export class TcMenubar extends LitElement {
       ${this.showing === null
         ? nothing
         : html`<div class="dismiss" @pointerdown=${() => this.show(null)}></div>`}
-      ${MENUS.map((menu) => this.dropdown(menu))}
+      ${MENUS[this.view].map((menu) => this.dropdown(menu))}
       <span class="spacer"></span>
-      ${TOOLS.map((id) => this.tool(id))}
+      ${TOOLS[this.view].map((id) => this.tool(id))}
     `;
   }
 
@@ -96,11 +98,10 @@ export class TcMenubar extends LitElement {
 
   private item(id: CommandId | null) {
     if (id === null) return html`<li class="divider" role="separator"></li>`;
-    if (id === "open") return this.opener();
     const command = COMMANDS[id];
     const alive = command.enabled(this.standing);
     return html`
-      <li @pointerenter=${() => (this.listing = false)}>
+      <li>
         <button ?disabled=${!alive} @click=${() => this.choose(id)}>
           <span class="glyph">${GLYPHS[id]}</span>
           <span class="label">${command.label}</span>
@@ -112,46 +113,8 @@ export class TcMenubar extends LitElement {
     `;
   }
 
-  /** `Open` is a submenu rather than a dialog: layouts are edited rarely
-   *  (EDITOR.md), so the list is short and stays short. The drawing that is
-   *  open is ticked. */
-  private opener() {
-    const command = COMMANDS["open"];
-    const alive = command.enabled(this.standing);
-    return html`
-      <li
-        class="submenu"
-        @pointerenter=${() => (this.listing = alive)}
-      >
-        <button ?disabled=${!alive} @click=${() => (this.listing = alive)}>
-          <span class="glyph">${GLYPHS["open"]}</span>
-          <span class="label">${command.label}</span>
-          <span class="more">▸</span>
-        </button>
-        ${this.listing
-          ? html`
-              <menu class="drawings">
-                ${this.drawings.map(
-                  (name) => html`
-                    <li>
-                      <button @click=${() => this.wanting(name)}>
-                        <span class="tick"
-                          >${name === this.standing.opened ? "✓" : ""}</span
-                        >
-                        <span class="label">${name}</span>
-                      </button>
-                    </li>
-                  `,
-                )}
-              </menu>
-            `
-          : nothing}
-      </li>
-    `;
-  }
-
-  /** One of the three the bar pins at its right end. The glyph is the whole
-   *  of it, so the label and its key are what a pointer resting there says. */
+  /** One of the ones the bar pins at its right end. The glyph is the whole of
+   *  it, so the label and its key are what a pointer resting there says. */
   private tool(id: CommandId) {
     const command = COMMANDS[id];
     const said = `${command.label}  ${command.key ?? ""}`.trim();
@@ -192,26 +155,6 @@ export class TcMenubar extends LitElement {
     );
   }
 
-  /** One of the drawings `Open` lists was clicked. The bar announces which
-   *  drawing is wanted and stops there — the shell is what opens it, and the
-   *  two are not the same method (#137).
-   *
-   *  The tick says which one is open, and that is all it says: choosing it
-   *  asks for nothing, the menu closing being the whole of what a click on it
-   *  does (#101). Re-reading the open drawing would throw away whatever has
-   *  been drawn since. */
-  private wanting(name: string): void {
-    this.show(null);
-    if (name === this.standing.opened) return;
-    this.dispatchEvent(
-      new CustomEvent<string>("open-drawing", {
-        detail: name,
-        bubbles: true,
-        composed: true,
-      }),
-    );
-  }
-
   /** Put a menu down, or take them all up. The editor is told either way: with
    *  a menu down the keyboard is the menu's, and `r` reaching the canvas from
    *  under an open `File` would rotate the selection behind it. `hovered` says
@@ -221,7 +164,6 @@ export class TcMenubar extends LitElement {
     if (this.showing === name) return;
     this.showing = name;
     this.hovered = hovered;
-    this.listing = false;
     this.dispatchEvent(
       new CustomEvent<boolean>("menu-open", {
         detail: name !== null,

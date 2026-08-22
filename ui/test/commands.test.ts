@@ -1,5 +1,5 @@
 /**
- * What the editor offers and what is dead, with no DOM.
+ * What a view offers and what is dead, with no DOM.
  *
  * The enablement rules are neither the document nor the DOM, so they are a
  * module in `model/` with a test (EDITOR.md#tests). Every one of them is a
@@ -27,9 +27,9 @@ function on(id: CommandId, parts: Partial<Standing> = {}): boolean {
 }
 
 describe("the menus", () => {
-  it("carries the items in the order the bar draws them", () => {
-    expect(MENUS.map((menu) => [menu.name, menu.items])).toEqual([
-      ["File", ["new", "open", "save", "save-as", null, "export-svg"]],
+  it("carries the editor's items in the order the bar draws them", () => {
+    expect(MENUS.edit.map((menu) => [menu.name, menu.items])).toEqual([
+      ["File", ["new", "save", "save-as", null, "export-svg"]],
       [
         "Edit",
         ["undo", "redo", null, "rotate", "flip", "delete", null, "properties"],
@@ -38,11 +38,29 @@ describe("the menus", () => {
     ]);
   });
 
-  it("puts every command in exactly one menu", () => {
-    const placed = MENUS.flatMap((menu) => menu.items).filter(
-      (item) => item !== null,
-    );
+  /** The run view's document is a railroad somebody else is running, so it
+   *  has no File and no Edit; what it presses instead is HOLD and GO, which
+   *  is a gesture on the bus rather than a verb of this app's. */
+  it("gives the run view a View menu and nothing else", () => {
+    expect(MENUS.run.map((menu) => [menu.name, menu.items])).toEqual([
+      ["View", ["zoom-in", "zoom-out", "fit"]],
+    ]);
+  });
+
+  it("puts every command in exactly one of the editor's menus", () => {
+    const placed = MENUS.edit
+      .flatMap((menu) => menu.items)
+      .filter((item) => item !== null);
     expect([...placed].sort()).toEqual(Object.keys(COMMANDS).sort());
+  });
+
+  /** Every item a view draws has to be a command, or the bar would look one
+   *  up and find nothing. */
+  it("names only commands in the run view's menu", () => {
+    const placed = MENUS.run
+      .flatMap((menu) => menu.items)
+      .filter((item) => item !== null);
+    for (const id of placed) expect(COMMANDS[id]).toBeDefined();
   });
 });
 
@@ -53,7 +71,6 @@ describe("the key beside the label", () => {
     );
     expect(keys).toEqual({
       new: undefined,
-      open: undefined,
       save: "⌘S",
       "save-as": "⇧⌘S",
       "export-svg": undefined,
@@ -96,12 +113,6 @@ describe("what a drawing has to be open for", () => {
     expect(on("new")).toBe(true);
   });
 
-  /** A submenu of no drawings is an empty box that looks broken — the lesson
-   *  the right-click menu already learnt (tc-menu). */
-  it("opens a drawing only where there is one to open", () => {
-    expect(on("open")).toBe(false);
-    expect(on("open", { drawings: 5 })).toBe(true);
-  });
 });
 
 describe("what the selection has to hold", () => {
@@ -132,12 +143,15 @@ describe("the ends of the snapshot stack", () => {
   });
 });
 
-/** The view is the canvas's own, so it is there to be changed whatever the
- *  drawing is: an empty sheet still zooms. */
+/** The view is the surface's own, so it is there to be changed whatever the
+ *  drawing is: an empty sheet still zooms. What it needs is a surface with a
+ *  viewport, which the run view's picture has not got until the two canvases
+ *  become one (#168). */
 describe("the view", () => {
-  it("is always there to change", () => {
+  it("is there to change wherever there is a viewport", () => {
     for (const id of ["zoom-in", "zoom-out", "fit"] as const) {
-      expect(on(id)).toBe(true);
+      expect(on(id, { zoomable: true })).toBe(true);
+      expect(on(id, { zoomable: false })).toBe(false);
     }
   });
 

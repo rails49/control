@@ -1,6 +1,6 @@
 /**
- * Every command the editor offers: what it is called, the key that does the
- * same thing, the menu it sits in, and when it is dead.
+ * Every command a view offers: what it is called, the key that does the same
+ * thing, the menu it sits in, and when it is dead.
  *
  * The menu bar and the keyboard both come through here, so an item and the key
  * printed beside it cannot come to mean different things. That is what makes a
@@ -18,9 +18,10 @@
  * command without a glyph is a compile error rather than a drift.
  */
 
+import type { ViewId } from "./views.js";
+
 export type CommandId =
   | "new"
-  | "open"
   | "save"
   | "save-as"
   | "export-svg"
@@ -41,8 +42,6 @@ export interface Standing {
   opened: string;
   /** Whether the store has been given every edit. */
   saved: boolean;
-  /** How many drawings there are to open. */
-  drawings: number;
   /** How many symbols are selected. */
   selection: number;
   /** Whether the one selected symbol has anything to set. False wherever the
@@ -52,6 +51,11 @@ export interface Standing {
   /** Whether there is a snapshot behind, and one ahead. */
   undo: boolean;
   redo: boolean;
+  /** Whether the current view's drawing surface has a viewport to change. The
+   *  editor's canvas has one; the run view's picture is fitted to the sheet
+   *  and gains one when the two become one canvas
+   *  ([#168](https://github.com/rails49/control/issues/168)). */
+  zoomable: boolean;
 }
 
 /** Where the editor stands before it has been told anything: nothing open,
@@ -59,26 +63,25 @@ export interface Standing {
 export const NOTHING: Standing = {
   opened: "",
   saved: true,
-  drawings: 0,
   selection: 0,
   editable: false,
   undo: false,
   redo: false,
+  zoomable: false,
 };
 
 export interface Command {
   label: string;
   /** The key that does the same thing, as it reads beside the label.
    *  Undefined where there is none to name: Chrome keeps `⌘N` for a new
-   *  window and it never reaches the page, `⌘O` is unreliable for the same
-   *  reason, and a blank is better than a binding the browser eats. */
+   *  window and it never reaches the page, so a blank is better than a
+   *  binding the browser eats. */
   key?: string;
   enabled(standing: Standing): boolean;
 }
 
 export const COMMANDS: Record<CommandId, Command> = {
   new: { label: "New…", enabled: () => true },
-  open: { label: "Open", enabled: ({ drawings }) => drawings > 0 },
   save: {
     label: "Save",
     key: "⌘S",
@@ -104,11 +107,12 @@ export const COMMANDS: Record<CommandId, Command> = {
     label: "Properties…",
     enabled: ({ selection, editable }) => selection === 1 && editable,
   },
-  // The view is the canvas's own, so it is there to be changed whatever the
-  // drawing is: an empty sheet still zooms.
-  "zoom-in": { label: "Zoom in", key: "+", enabled: () => true },
-  "zoom-out": { label: "Zoom out", key: "−", enabled: () => true },
-  fit: { label: "Fit", key: "0", enabled: () => true },
+  // The view is the surface's own, so it is there to be changed whatever the
+  // drawing is: an empty sheet still zooms. What it needs is a surface that
+  // has a viewport at all.
+  "zoom-in": { label: "Zoom in", key: "+", enabled: zooms },
+  "zoom-out": { label: "Zoom out", key: "−", enabled: zooms },
+  fit: { label: "Fit", key: "0", enabled: zooms },
   // Not the canvas's view but what the drawing derives to, so this one does
   // need a drawing: with none open there is nothing derived to consult, and
   // the pane would open on a hint and take a fifth of the width to say it
@@ -125,23 +129,47 @@ function hasSelection({ selection }: Standing): boolean {
   return selection > 0;
 }
 
+/** A verb that moves a viewport is dead on a surface that has none. */
+function zooms({ zoomable }: Standing): boolean {
+  return zoomable;
+}
+
 export interface Menu {
   name: string;
   /** The items in order, `null` where a divider parts two groups. */
   items: (CommandId | null)[];
 }
 
-/** The bar, left to right. Zoom and fit are named here and pressed elsewhere:
- *  they are also the three buttons pinned at the bar's right end, being the
- *  commands pressed constantly while drawing. */
-export const MENUS: Menu[] = [
-  { name: "File", items: ["new", "open", "save", "save-as", null, "export-svg"] },
-  {
-    name: "Edit",
-    items: ["undo", "redo", null, "rotate", "flip", "delete", null, "properties"],
-  },
-  { name: "View", items: ["zoom-in", "zoom-out", "fit", null, "netlist"] },
-];
+/**
+ * The bar, left to right, for each view.
+ *
+ * The bar is the shell's and its menus are the current view's: it acts on the
+ * document that view has open (ADR-0038). The editor's document is a drawing,
+ * so it has a `File` and an `Edit`; the run view's is a railroad somebody else
+ * is running, so it has neither, and what it presses instead — HOLD and GO —
+ * is not a command and has no key, being a gesture on the bus rather than a
+ * verb of this app's.
+ *
+ * Which railroad is loaded is not here either. That is the whole system's and
+ * the band's picker sets it, so `File ▸ Open` is gone from both views
+ * ([#167](https://github.com/rails49/control/issues/167)).
+ */
+export const MENUS: Record<ViewId, Menu[]> = {
+  edit: [
+    { name: "File", items: ["new", "save", "save-as", null, "export-svg"] },
+    {
+      name: "Edit",
+      items: ["undo", "redo", null, "rotate", "flip", "delete", null, "properties"],
+    },
+    { name: "View", items: ["zoom-in", "zoom-out", "fit", null, "netlist"] },
+  ],
+  run: [{ name: "View", items: ["zoom-in", "zoom-out", "fit"] }],
+};
 
-/** The three pinned at the right end of the bar, in the order they sit in. */
-export const TOOLS: CommandId[] = ["zoom-out", "zoom-in", "fit"];
+/** What each view pins at the right end of the bar, in the order they sit in.
+ *  Zoom and fit are pressed constantly while drawing, and `View ▸ Zoom in` is
+ *  three clicks for what is then one. */
+export const TOOLS: Record<ViewId, CommandId[]> = {
+  edit: ["zoom-out", "zoom-in", "fit"],
+  run: [],
+};

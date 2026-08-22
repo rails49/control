@@ -38,8 +38,8 @@ beforeEach(() => {
 async function open(): Promise<TcEditor> {
   const shell = await mounted();
   shell.renderRoot
-    .querySelector("tc-menubar")!
-    .dispatchEvent(new CustomEvent("open-drawing", { detail: "gotthard" }));
+    .querySelector("tc-header")!
+    .dispatchEvent(new CustomEvent("railroad-wanted", { detail: "gotthard" }));
   await settled(shell);
   return shell;
 }
@@ -101,8 +101,8 @@ describe("the column the netlist sits in", () => {
     await asked(shell, "netlist");
 
     shell.renderRoot
-      .querySelector("tc-menubar")!
-      .dispatchEvent(new CustomEvent("open-drawing", { detail: "gotthard" }));
+      .querySelector("tc-header")!
+      .dispatchEvent(new CustomEvent("railroad-wanted", { detail: "gotthard" }));
     await settled(shell);
 
     expect(showing(shell)).toBe(false);

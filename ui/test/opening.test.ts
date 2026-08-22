@@ -48,26 +48,23 @@ async function opened(): Promise<TcEditor> {
   return shell;
 }
 
-/** Choose a drawing on the bar, which is the one way one is opened. */
+/** Choose a railroad in the band, which is the one way one is loaded. */
 async function choose(shell: TcEditor, name: string): Promise<void> {
   shell.renderRoot
-    .querySelector("tc-menubar")!
-    .dispatchEvent(new CustomEvent<string>("open-drawing", { detail: name }));
+    .querySelector("tc-header")!
+    .dispatchEvent(new CustomEvent<string>("railroad-wanted", { detail: name }));
   await settled(shell);
 }
 
-/** Choose a drawing the way the operator does: the bar's `File` menu, the
- *  drawings `Open` lists, and a click on the entry. `choose` hands the shell
- *  the event the bar would have sent, which is past the bar's own guard on the
- *  ticked entry; this goes through it. */
+/** Choose a railroad the way the operator does: the band's picker, and a
+ *  click on the entry. `choose` hands the shell the event the band would have
+ *  sent, which is past the band's own guard on the ticked entry; this goes
+ *  through it. */
 async function picked(shell: TcEditor, name: string): Promise<void> {
-  const bar = shell.renderRoot.querySelector("tc-menubar")!;
-  const titles = [...bar.renderRoot.querySelectorAll("button.title")];
-  (titles.find((one) => one.textContent!.trim() === "File") as HTMLElement).click();
+  const band = shell.renderRoot.querySelector("tc-header")!;
+  (band.renderRoot.querySelector("button.chosen") as HTMLElement).click();
   await settled(shell);
-  (bar.renderRoot.querySelector("li.submenu button") as HTMLElement).click();
-  await settled(shell);
-  const entries = [...bar.renderRoot.querySelectorAll("menu.drawings li button")];
+  const entries = [...band.renderRoot.querySelectorAll("menu.drawings li button")];
   const entry = entries.find(
     (one) => one.querySelector(".label")!.textContent!.trim() === name,
   ) as HTMLElement;

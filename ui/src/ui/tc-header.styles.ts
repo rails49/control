@@ -1,9 +1,12 @@
 import { css } from "lit";
 
+import { dismiss, menuBox, menuRow, menuRowChosen } from "./shared.styles.js";
+
 /**
- * The band both pages wear across the top (`tc-header`). It shows status and
- * nothing else, so it has no control in it to size — the spacer parts what is
- * open from what is going on, and the rest is text.
+ * The band across the top (`tc-header`): what is true of the whole system, and
+ * the two controls that act on it — the railroad picker at the left and the
+ * view toggle at the right. The spacer parts what is loaded from what is going
+ * on, and the rest is text.
  */
 export const headerStyles = css`
   :host {
@@ -12,6 +15,66 @@ export const headerStyles = css`
     align-items: center;
     padding: 0.3rem 0.6rem;
     border-bottom: 1px solid var(--rule);
+  }
+
+  ${dismiss}
+
+  /* The picker's list hangs off the name, so the name is what it is
+     positioned against, and both sit above the overlay that dismisses it. */
+  .picker {
+    position: relative;
+    z-index: 12;
+  }
+
+  .chosen {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.4rem;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .chosen:hover:not(:disabled) {
+    background: #f0eeea;
+  }
+
+  /* Nothing to pick, so the name is text again and reads as text. */
+  .chosen:disabled {
+    cursor: default;
+  }
+
+  menu.drawings {
+    position: absolute;
+    top: calc(100% + 0.2rem);
+    left: 0;
+    z-index: 13;
+    min-width: 10rem;
+    ${menuBox}
+  }
+
+  menu.drawings li button {
+    ${menuRow}
+  }
+
+  ${menuRowChosen}
+
+  /* A name is one word however long it is, and never wraps. */
+  .label {
+    flex: 1;
+    white-space: nowrap;
+  }
+
+  .tick {
+    width: 16px;
+  }
+
+  .more {
+    color: var(--hint);
   }
 
   .drawing {

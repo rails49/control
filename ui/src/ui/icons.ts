@@ -79,7 +79,7 @@ export const NEW = icon(svg`
   <path d="M9 2.5V6h3.5" />
 `);
 
-/** A folder: the drawings there are to open. */
+/** A folder: the railroads the store has, which the band's picker lists. */
 export const OPEN = icon(svg`
   <path d="M2 12.5v-9h4l1.5 2H14v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
 `);
@@ -147,7 +147,6 @@ export const NETLIST = icon(svg`
  *  pins at its right end. Exhaustive over `CommandId` by its type. */
 export const GLYPHS: Record<CommandId, SVGTemplateResult> = {
   new: NEW,
-  open: OPEN,
   save: SAVE,
   "save-as": SAVE_AS,
   "export-svg": EXPORT,
