@@ -440,18 +440,18 @@ under it.
 **While held it publishes what the detectors dispute**, on `state/disputed`:
 the trains its placement stands in a block the layout reports clear, and the
 blocks the layout reports occupied with nothing claiming them. On power-up
-the detectors assert at once, anonymously, at exactly the moment a restored
-placement is least trustworthy, and naming the two contradictions turns
-walking the whole railroad into checking a handful of trains. The set
-**resolves nothing** — no sensor says *which* train — so a person ends each
-entry with a `placement_wanted`, and it empties as they do. Only blocks the
-layout has actually reported on take part: **silence is not a clear reading**,
-and a binding that reports no occupancy at all disputes nothing rather than
+the detectors assert at once, anonymously, at the moment a restored placement
+is least trustworthy, and naming the two contradictions turns walking the
+whole railroad into checking a handful of trains. The set **resolves
+nothing**, no sensor saying *which* train: a person ends each entry with a
+`placement_wanted`, and it empties as they do. Only blocks the layout has
+actually reported on take part. **Silence is not a clear reading**, and a
+binding that reports no occupancy at all disputes nothing rather than
 disputing the whole railroad. A train the picture says is crossing takes no
 part either, standing in no block. Releasing the hold with entries
-outstanding is allowed — the person decides, not the check — and empties the
-set, a running dispatcher's placement being what its sensors have just told
-it ([#153](https://github.com/rails49/control/issues/153)).
+outstanding is allowed, the person deciding rather than the check, and
+empties the set: a running dispatcher's placement is what its sensors have
+just told it ([#153](https://github.com/rails49/control/issues/153)).
 
 It is also the **sole payload authority**: a browser can publish anything on
 an inbound topic, and after the relay is deleted nothing stands in front

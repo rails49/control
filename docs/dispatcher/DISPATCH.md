@@ -282,6 +282,16 @@ boundary runs an ordinary phase, which is what keeps the boundary the sole
 trigger
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 
+**A held run also asks the detectors.** The sensor readings the layout has
+reported are compared against the placement, and the two contradictions — a
+train standing in a block that reads clear, a block reading occupied with
+nothing claiming it — go out on `tc49/dispatch/state/disputed` for a person to
+walk. A reading is recorded where it arrives rather than where the buffer is
+applied: the buffer exists so that *grants* are a function of a whole period's
+sensors, and comparing grants nothing. Blocks nothing has reported on take no
+part, so a layout binding that publishes no occupancy disputes nothing
+([#153](https://github.com/rails49/control/issues/153)).
+
 **Lock footprint.** A train moving from `X` through `T` into `Y` holds
 `{X, T, Y}` for the move and releases `X` and `T` atomically on arrival. `T`
 and `Y` are granted together, which is what makes a transit never held across a

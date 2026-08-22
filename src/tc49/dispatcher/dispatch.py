@@ -32,10 +32,6 @@ from tc49.lib.scenario import Scenario
 
 ALLOCATION = "tc49/dispatch/state/allocation"
 
-EMPTY: Payload = {"trains": [], "blocks": []}
-"""Nothing disputed: what a running run says, and what a held one says of a
-railroad whose detectors agree with it."""
-
 
 @dataclass
 class Request:
@@ -277,7 +273,15 @@ def disputed(state: State) -> Payload:
     handful of trains. It **resolves** nothing: the check points, and a
     person ends every entry with a `placement_wanted`.
 
-    Only blocks `reported` carries take part, which is the whole of AC 3:
+    **Only while held**, which is the moment it is about: before anything
+    commits, over a placement nobody has looked at. A running dispatcher's
+    placement is what its sensors have just told it, so the two agree by
+    construction and a comparison would catch nothing but itself mid-transit.
+    Releasing therefore empties the set rather than freezing it — the person
+    has decided, and a set left standing would go on disputing a railroad
+    they accepted.
+
+    Only blocks `reported` carries take part, which is the load-bearing rule:
     a block the layout has said nothing about is not clear, it is unknown.
 
     Two exclusions, both of them the picture agreeing with itself rather
@@ -295,6 +299,8 @@ def disputed(state: State) -> Payload:
       the block a train has been granted a move into, which reads occupied
       the moment it arrives and is not a stray.
     """
+    if state.run != HELD:
+        return {"trains": [], "blocks": []}
     return {
         "trains": sorted(
             train
@@ -430,7 +436,7 @@ class Dispatcher:
         self._buffered: list[tuple[str, str]] = []
         self._aspects: dict[str, str] = {}  # last published, so only changes go
         self._allocation: Payload = {}  # likewise: the picture, when it moves
-        self._disputed: Payload = {}  # and the detectors' quarrel with it
+        self._disputed: Payload = {}  # and what the detectors dispute
         # The opening statement is the whole of what the dispatcher holds, in
         # the order a grant phase says it. Aspects are in it because a restart
         # has a previous value on that topic too: the last session's
@@ -441,7 +447,7 @@ class Dispatcher:
         # in, and a joining client is served the word rather than left to
         # read one out of an absence (ADR-0032). The disputed set closes it
         # for the same reason again: nothing has been reported yet, so the
-        # set is empty, and saying so is what clears the quarrel the last
+        # set is empty, and saying so is what clears whatever the last
         # session left standing on that topic.
         self._publish_run()
         self._publish_aspects()
@@ -739,7 +745,7 @@ class Dispatcher:
         if leaf == "boundary":
             self._grant_phase()
         else:
-            block = str(payload["block"])
+            block = payload["block"]
             self._buffered.append((leaf, block))
             # Recorded where it arrives rather than where the buffer is
             # applied. A reading is a fact the moment the layout states it,
@@ -983,16 +989,10 @@ class Dispatcher:
     def _publish_disputed(self) -> None:
         """What the detectors make of the placement, on a last-value topic,
         when it moves — the panel points a person at it, and a panel joining
-        later must find it there (ADR-0032).
-
-        **Only while held.** The check runs before anything commits, which is
-        the moment it is about: a running dispatcher's placement is what the
-        sensors have just told it, so the two agree by construction and a
-        comparison would only catch itself mid-transit. Releasing therefore
-        empties the set rather than freezing it — the person has decided, and
-        a set left standing would go on disputing a railroad they accepted.
-        """
-        found = disputed(self._state) if self._state.run == HELD else EMPTY
+        later must find it there (ADR-0032). Published from every place that
+        moves either side of the comparison: a reading arriving, the sensors
+        applied at a boundary, a placement, and the hold itself."""
+        found = disputed(self._state)
         if found != self._disputed:
             self._disputed = found
             self._publish("state/disputed", found)

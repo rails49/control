@@ -132,7 +132,7 @@ def test_placing_the_train_resolves_both_entries(tmp_path: Path) -> None:
     assert disputed(bus) == {"trains": [], "blocks": []}
 
 
-def test_the_opening_statement_carries_the_word(tmp_path: Path) -> None:
+def test_the_opening_statement_carries_the_set(tmp_path: Path) -> None:
     """Stated from the constructor as `state/run` and `state/allocation` are:
     a joining client is served the set rather than left to read one out of an
     absence, and a value the last session left is cleared rather than

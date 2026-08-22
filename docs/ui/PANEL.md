@@ -30,11 +30,12 @@ layout has reported and publishes the two contradictions on
 `tc49/dispatch/state/disputed`: a train standing in a block that reads clear,
 and a block that reads occupied with nothing claiming it
 ([#153](https://github.com/rails49/control/issues/153)). Each wears an amber
-outline over whatever state it already has — the dispute is that the block is
-other than the picture says, and the picture is the half a person is checking
-— and the reading that contradicts it is written under the block in words:
-*reads clear*, *reads occupied*. Amber, not the red a rejection wears: nothing
-is broken, and the railroad is as likely to be right as the software.
+outline over whatever state it already has, and the reading that contradicts
+the picture is written under the block in words: *reads clear*, *reads
+occupied*. The outline rides over the state rather than replacing it, because
+the dispute is that the block is other than the picture says and the picture
+is the half a person is checking. Amber, not the red a rejection wears:
+nothing is broken, and the railroad is as likely to be right as the software.
 
 These are where a person is sent first, and walking the railroad is what
 empties them: each `placement_wanted` republishes what is left. The panel
@@ -330,7 +331,8 @@ a different number — a rate in boundaries per second — and keeps its own.
 the scenario that is running, the bridge sends each state topic's last value
 before any live frame, so the page opens on the dispatcher's own picture —
 standing trains, locks, committed routes, live requests off
-`tc49/dispatch/state/allocation`, aspects off `state/aspects`, facing off
+`tc49/dispatch/state/allocation`, aspects off `state/aspects`, what the
+detectors dispute off `state/disputed`, facing off
 `tc49/schedule/state/facing` — rather than on
 where the scenario says the railroad started
 ([ADR-0032](../adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).

@@ -294,3 +294,32 @@ describe("the two weights a fault is marked in", () => {
     );
   });
 });
+
+/**
+ * What the detectors dispute (#153). A block wearing the mark is one a person
+ * is being sent to, so the two ways it can go wrong silently are worth
+ * pinning: the mark written in a hex nobody can move from the palette, and
+ * the mark declared where a block's own state outranks it.
+ */
+describe("the mark on a disputed block", () => {
+  const panel = panelStyles.cssText.replace(palette.cssText, "");
+
+  it("is the amber entry rather than a hex", () => {
+    const body = panel.slice(panel.indexOf(".symbol.disputed .block-body"));
+    expect(body.slice(0, body.indexOf("}"))).toContain("var(--amber)");
+    expect(panel).not.toContain(COLOURS["--amber"]!);
+  });
+
+  it("is declared after the states it rides over", () => {
+    // Equal specificity, so source order is the whole of what decides it: a
+    // disputed block is nearly always an occupied or a free one as well, and
+    // a rule moved above these would take the mark off the blocks that carry
+    // it most.
+    const disputed = panel.indexOf(".symbol.disputed .block-body");
+    for (const state of ["occupied", "locked", "planned"]) {
+      expect(disputed).toBeGreaterThan(
+        panel.indexOf(`.symbol.${state} .block-body`),
+      );
+    }
+  });
+});
