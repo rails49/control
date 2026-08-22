@@ -19,5 +19,13 @@ export default defineConfig({
   },
   test: {
     include: ["test/**/*.test.ts"],
+    // Six times vitest's default, and for every suite rather than the three
+    // that happened to lose a race (#157). A gate run once took 979s and the
+    // suites that timed out were not special — the load was — so pinning a
+    // number on those three leaves the next one exposed. A green run is
+    // unaffected, the whole suite finishing in seconds, and the only cost is
+    // a slower report on a genuine hang. What is bought is that an unattended
+    // gate cannot go red for a reason indistinguishable from a regression.
+    testTimeout: 30000,
   },
 });
