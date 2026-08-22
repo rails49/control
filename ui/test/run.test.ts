@@ -147,6 +147,11 @@ describe("joining a session", () => {
   it("shows what the session refused rather than swallowing it", async () => {
     const shell = await joined();
     await said(shell, "tc49/dispatch/state/run", { run: "held" });
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { goods: "a" },
+      locks: { a: "goods" },
+      requests: [],
+    });
 
     Bridge.last!.raise("message", {
       data: JSON.stringify({ error: "cannot publish tc49/dispatch/request" }),
@@ -154,7 +159,16 @@ describe("joining a session", () => {
     await settled(shell);
 
     expect(health(shell)).toBe("cannot publish tc49/dispatch/request");
+    // Live and not merely labelled: the word and whether it can be pressed are
+    // two bindings, and a refusal must move neither.
     expect(press(shell).textContent!.trim()).toBe("GO");
+    expect(press(shell).disabled).toBe(false);
+    expect(
+      running(shell)
+        .renderRoot.querySelector("tc-canvas")!
+        .renderRoot.querySelector("text.name.train")!
+        .textContent!.trim(),
+    ).toBe("goods");
   });
 });
 
@@ -242,19 +256,19 @@ describe("the picture on the shared canvas", () => {
    * a lock off the bus rather than as a hand-written overlay.
    *
    * The toy railroad has no connection to light, so this one has: two blocks
-   * through a turnout, with a third off its diverging road so that a wire
-   * crosses the way without being on it. The lit wires are written **first**
-   * in the document, so drawing them in the order they are written would put
-   * the unlit one on top.
+   * through a turnout, and a third off its diverging road to own a wire that
+   * the way does not run over. That unlit wire is written **between** the two
+   * lit ones, so emitting them in the order they are written would leave it
+   * drawn over the second — which is the whole of what the rule is for.
    */
   it("draws a locked route's wires last, in the colour the claim reads in", async () => {
     const YARD: Drawing = {
       drawing: "yard",
       symbols: {
         a: { kind: "block", at: [0, 0], length: 1000 },
-        sw: { kind: "turnout", at: [6, 0] },
-        b: { kind: "block", at: [9, 0], length: 1000 },
-        north: { kind: "block", at: [9, 3], length: 1000 },
+        sw: { kind: "turnout", at: [7, 0] },
+        b: { kind: "block", at: [10, 0], length: 1000 },
+        north: { kind: "block", at: [10, 3], length: 1000 },
       },
       wires: [
         ["a.B", "sw.toe"],
