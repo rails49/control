@@ -605,7 +605,12 @@ class Dispatcher:
             return
         if wanted.train not in state.train_lengths:
             return
-        if wanted.block in state.locks or wanted.block not in state.layout.blocks:
+        if wanted.block not in state.layout.blocks:
+            return
+        # Free means unlocked, and every parked train holds the lock on the
+        # block it stands in — so the train's own block is not free either,
+        # and placing it where it already is is a silent no-op.
+        if wanted.block in state.locks:
             return
         if state.train_lengths[wanted.train] > state.layout.blocks[wanted.block]:
             return
