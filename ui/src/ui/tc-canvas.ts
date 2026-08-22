@@ -349,11 +349,14 @@ export class TcCanvas extends LitElement {
     const blind = dark(review);
     const lone = unpaired(review);
     const unset = new Set(this.editing?.unaddressed() ?? []);
+    // Asked once rather than per symbol: the machine works its marks out
+    // afresh on every read, and a drop names one block.
+    const target = this.machine.marks?.target?.block;
     return Object.entries(this.drawing.symbols).map(([name, spec]) => {
       const shifted = this.shift(name);
       return svg`
         <g
-          class=${this.worn(name, lighting)}
+          class=${this.worn(name, lighting, target)}
           data-symbol=${name}
           transform=${`translate(${shifted.x} ${shifted.y})`}
         >
@@ -383,7 +386,11 @@ export class TcCanvas extends LitElement {
    * Occupancy outranks both, which is what reading the block's state first
    * says (ui/PANEL.md).
    */
-  private worn(name: string, lighting: Lighting): string {
+  private worn(
+    name: string,
+    lighting: Lighting,
+    target: string | undefined,
+  ): string {
     const live = this.painted;
     const marked =
       live === null
@@ -394,7 +401,7 @@ export class TcCanvas extends LitElement {
         : [
             live.blocks.get(name)?.state ?? live.lit.state.get(name) ?? "",
             live.blocks.get(name)?.dispute === undefined ? "" : "disputed",
-            name === this.machine.marks?.target?.block ? "target" : "",
+            name === target ? "target" : "",
           ];
     return ["symbol", ...marked]
       .filter((one) => one !== "" && one !== "free")
