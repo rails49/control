@@ -17,7 +17,7 @@ import "../src/ui/tc-roster.js";
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { RosterRow, TcRoster } from "../src/ui/tc-roster.js";
-import { running } from "./support/shell.js";
+import { running, settled } from "./support/shell.js";
 import { bridging, joined, said, unbridged } from "./support/session.js";
 
 /** The pane, holding the rows it was handed. */
@@ -113,5 +113,22 @@ describe("what fills it in a live session", () => {
     });
 
     expect(rows(paneOf(shell))).toEqual([["goods", "400", "a"]]);
+  });
+
+  /** The picture belongs to a joined session. A page that has left one is
+   *  being told nothing, so the pane says nothing rather than listing the
+   *  trains of a run it is no longer watching. */
+  it("empties when the session is left", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { goods: "a" },
+      locks: { a: "goods" },
+      requests: [],
+    });
+
+    running(shell).renderRoot.querySelector<HTMLElement>("sl-button")!.click();
+    await settled(shell);
+
+    expect(rows(paneOf(shell))).toEqual([]);
   });
 });

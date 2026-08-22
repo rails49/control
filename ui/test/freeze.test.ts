@@ -16,6 +16,7 @@
  * dispatcher publishes with nothing placed.
  */
 
+import type { LitElement } from "lit";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
@@ -24,7 +25,14 @@ import { centreOf } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { TcProperties } from "../src/ui/tc-properties.js";
-import { band, editing, inside, session, settled } from "./support/shell.js";
+import {
+  band,
+  editing,
+  inside,
+  running,
+  session,
+  settled,
+} from "./support/shell.js";
 import { bridging, joined, said, stored, unbridged } from "./support/session.js";
 
 const ALLOCATION = "tc49/dispatch/state/allocation";
@@ -76,6 +84,24 @@ async function pressed(shell: TcApp, at: { x: number; y: number }): Promise<void
       new PointerEvent("pointerdown", { bubbles: true, clientX: at.x, clientY: at.y }),
     );
   await settled(shell);
+}
+
+/** A right-click on the canvas, where the press helper clicks. */
+async function clicked(shell: TcApp, at: { x: number; y: number }): Promise<void> {
+  (inside(shell, "tc-canvas") as TcCanvas).renderRoot
+    .querySelector("svg")!
+    .dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, clientX: at.x, clientY: at.y }),
+    );
+  await settled(shell);
+}
+
+/** What the editing view's right-click menu is offering. */
+function items(shell: TcApp): string[] {
+  const menu = inside(shell, "tc-menu") as LitElement;
+  return [...menu.renderRoot.querySelectorAll("li button span")].map((one) =>
+    one.textContent!.trim(),
+  );
 }
 
 /** The properties dialog, `null` while none is open. */
@@ -145,6 +171,33 @@ describe("a train standing on the railroad", () => {
     expect(dialog(shell)).toBeNull();
   });
 
+  /** The right-click menu is the one edit path that does not go through
+   *  `model/commands.ts`, so a menu the freeze lands under would still act on
+   *  the drawing. It goes with the dialog. */
+  it("takes down a right-click menu it lands under", async () => {
+    const shell = await editor();
+    await clicked(shell, centreOf(stored("toy").symbols.a!));
+    expect(items(shell)).not.toEqual([]);
+
+    await said(shell, ALLOCATION, STANDING);
+
+    expect(items(shell)).toEqual([]);
+  });
+
+  /** A wire in flight is the document's rather than the gesture's, so
+   *  abandoning presses does not reach it: it would go on following the
+   *  pointer across a drawing nobody may draw on, and land on the first click
+   *  after the thaw. */
+  it("cancels a wire left in flight", async () => {
+    const shell = await editor();
+    await pressed(shell, centreOf(stored("toy").symbols.a!)); // selects it
+    session(shell).startWire("a.B");
+
+    await said(shell, ALLOCATION, STANDING);
+
+    expect(session(shell).pendingFrom).toBeNull();
+  });
+
   /** Looking is what a frozen drawing is still for. */
   it("leaves the netlist and the viewport alone", async () => {
     const shell = await frozen();
@@ -155,6 +208,22 @@ describe("a train standing on the railroad", () => {
   it("is what the band says, in the words the rest of it uses", async () => {
     const shell = await frozen();
     expect(says(shell)).toBe("drawing frozen");
+  });
+});
+
+describe("leaving the session", () => {
+  /** The freeze rests on what a joined session is saying. A page that has left
+   *  one is told nothing, and a page reloaded is not frozen either, so leaving
+   *  must not lock the editor with no way back but a reload. */
+  it("thaws the drawing, having nothing left to say about the layout", async () => {
+    const shell = await frozen();
+    expect(says(shell)).toBe("drawing frozen");
+
+    running(shell).renderRoot.querySelector<HTMLElement>("sl-button")!.click();
+    await settled(shell);
+
+    expect(says(shell)).toBeNull();
+    expect(editing(shell).hasAttribute("frozen")).toBe(false);
   });
 });
 

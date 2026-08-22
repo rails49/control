@@ -521,10 +521,19 @@ export class TcPanel extends LitElement {
     };
   }
 
-  /** The trains the run has on the layout, and where each stands
-   *  (model/panel.ts). Worked out afresh on each render, being the last
-   *  frame's answer like everything else the picture says. */
+  /**
+   * The trains the run has on the layout, and where each stands
+   * (model/panel.ts). Worked out afresh on each render, being the last frame's
+   * answer like everything else the picture says.
+   *
+   * Nothing, with no session joined, as the run's word and the supply's are.
+   * `leave` keeps the model so that rejoining does not flash, but a page that
+   * has left a session is being told nothing — and what this answers freezes
+   * the drawing, which must not outlive the knowledge it rests on: a page
+   * reloaded is not frozen, and a page that has left is in the same position.
+   */
   private get standing(): Placed[] {
+    if (this.session === null) return [];
     return this.panel?.placed() ?? [];
   }
 

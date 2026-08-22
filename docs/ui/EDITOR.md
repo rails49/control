@@ -868,7 +868,11 @@ trains afresh and nothing latches it. There is no gesture that takes a train
 off the layout from the browser yet — that is
 [#170](https://github.com/rails49/control/issues/170)'s, along with the roster
 it needs ([PANEL.md](PANEL.md)) — so what lifts the freeze today is the run's
-own picture coming back with nothing placed.
+own picture coming back with nothing placed. Leaving the session lifts it too:
+the freeze rests on what a joined session is saying, and a page that has left
+one is told nothing about the layout, exactly as a page that has just loaded
+is. It does not rest on the last thing the page happened to hear, which would
+be a state no reload could reproduce and nothing could clear.
 
 Which trains are placed is the run's knowledge, and it reaches this view
 through the shell, as everything the two views share does. The band says so in

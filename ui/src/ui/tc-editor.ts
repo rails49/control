@@ -127,10 +127,19 @@ export class TcEditor extends LitElement {
     // nothing to clear it.
     if (changed.has("netlist") && !this.netlist) this.chosen = null;
     // A train arriving on the layout freezes the drawing under whatever is
-    // open (#169). What the properties dialog would apply is an edit, so it
-    // goes rather than standing there with an Apply button that has stopped
-    // meaning anything.
-    if (changed.has("frozen") && this.frozen) this.editing = null;
+    // open (#169), and each of the three would still write to it. The
+    // properties dialog and the right-click menu are edits this view offers
+    // outside `model/commands.ts`, so they go rather than standing there with
+    // buttons that have stopped meaning anything; the half-drawn wire is the
+    // document's rather than the gesture machine's, so abandoning presses does
+    // not reach it and it is cancelled here. The canvas is asked to redraw
+    // because it holds the same `Editor` and sees no property change.
+    if (changed.has("frozen") && this.frozen) {
+      this.editing = null;
+      this.menu = null;
+      this.editor.cancelWire();
+      this.canvas?.requestUpdate();
+    }
   }
 
   override render() {
