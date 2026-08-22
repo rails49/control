@@ -12,11 +12,14 @@ is dropped, in silence and to the trace: a gesture carries no id and there is
 nothing to address an answer to (ADR-0034).
 """
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from tc49.bench.runner import Assembly, assemble_live
+from tc49.dispatcher import Incremental
+from tc49.lib import durable
 from tc49.lib.scenario import Scenario, TrainSpec
 from tests.harness import events, load, press, ticks
 
@@ -185,3 +188,79 @@ def test_the_released_run_departs_from_where_the_train_was_put(
     assert events(held.trace, "request_rejected") == []
     assert last(held, "request_completed")["id"] == "freight_1-1"
     assert last(held, "allocation")["trains"]["freight_1"] == "yard_e"
+
+
+def test_a_placement_clears_whatever_the_train_was_crossing(tmp_path: Path) -> None:
+    """A restored crossing hint is a train the last session left between two
+    blocks, with no route behind it (#123) — exactly the train a person has
+    to say something about. Once they have, it is standing in a block and
+    crossing nothing, and the picture has to say so: the hint would otherwise
+    ride out to every view and be persisted again, and affirming the block
+    the dispatcher already believes in is no way out, that block not being
+    free."""
+    state = tmp_path / "session.json"
+    durable.write(
+        state,
+        {
+            "tc49/dispatch/state/allocation": {
+                "trains": {"freight_1": "yard_w", "leviathan": "dn_e"},
+                "crossing": {"freight_1": "west_ladder.to_dn"},
+                "locks": {},
+                "requests": [],
+            }
+        },
+    )
+    layout, _ = load("crossover-yard/meet")
+    assembly = assemble_live(layout, two_trains(), state=state)
+    press(assembly, RUN_WANTED, {"run": "held"})
+    assert last(assembly, "allocation")["crossing"] == {
+        "freight_1": "west_ladder.to_dn"
+    }
+
+    place(assembly, "freight_1", "up_w")
+
+    assert last(assembly, "allocation")["crossing"] == {}
+
+
+def test_a_placement_into_a_committed_block_is_dropped() -> None:
+    """A resource is claimed when it is **committed** — on a route the
+    dispatcher has chosen, with no lock on it yet — and that is the weaker of
+    the two claims a route carries (CONTEXT.md), not no claim at all. Under
+    `Incremental` a fixed route runs on ahead of its locks, so reading the
+    lock table alone would call those blocks free.
+
+    Placing a train into one strands the working that owns it: the route is
+    fixed (ADR-0002), the placed train is idle and its standing lock is a
+    permanent obstacle (SAFETY.md), and nothing cancels a request — so the
+    committed train would be refused for the rest of the session.
+    """
+    layout, _ = load("crossover-yard/meet")
+    # `shunter` is short enough for either yard block, so the fit rule cannot
+    # do this test's work for it.
+    scenario = Scenario(
+        name="committed",
+        layout="crossover-yard",
+        trains={
+            "freight_1": TrainSpec(1100, "yard_w", "B"),
+            "shunter": TrainSpec(600, "dn_e", "A"),
+        },
+        requests=(),
+    )
+    assembly = assemble_live(layout, scenario, Incremental)
+    press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    ticks(assembly, 1)
+    press(assembly, RUN_WANTED, {"run": "held"})
+
+    picture = last(assembly, "allocation")
+    [committed] = picture["requests"]
+    ahead = [
+        block for block in committed["route"][::2] if block not in picture["locks"]
+    ]
+    assert ahead, "Incremental committed no block beyond its locks"
+    target = ahead[0]
+    assert layout.blocks[target] >= 600, "the fit rule would drop this anyway"
+
+    place(assembly, "shunter", target)
+
+    assert placements(assembly) == []
+    assert last(assembly, "allocation")["trains"]["shunter"] == "dn_e"

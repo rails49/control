@@ -101,7 +101,21 @@ Two apps reading one payload would have to agree on every precondition, and
 split exactly where a real operator is working.
 
 It is accepted only when the run is held, the train is known, the block exists
-and is free, the train fits it, and the train has **no request in flight**.
+and is **free of every claim**, the train fits it, and the train has **no
+request in flight**.
+
+*Free* means both claims a route carries, not only the stronger one. A
+resource is **committed** when it is on a route the dispatcher has chosen and
+has not locked yet ([CONTEXT.md](../../CONTEXT.md#dispatch)), and that is a
+claim. Under `FullRoute` the two sets coincide, a launch locking the whole
+route; under `Incremental` a fixed route runs on ahead of its locks, and
+reading the lock table alone would call those blocks free. Placing a train
+into one strands the working that owns it — the route is fixed
+([ADR-0002](0002-fixed-route-per-request.md)), the placed train is idle and
+its standing lock is therefore a permanent obstacle
+([SAFETY.md](../dispatcher/SAFETY.md)), and nothing cancels a request, so the
+committed train is refused for the rest of the session. So the check reads the
+committed routes and not just the lock table.
 The last mirrors `tc49/ui/reversal_wanted` and adds a worse reason of its own:
 on release the grant phase launches from the block the dispatcher believes the
 train is in, so a pending request would silently depart from wherever the train
@@ -126,6 +140,15 @@ roster drag wants anyway
 free block lands facing some way, and the operator turns it if it is wrong.
 
 **Placement is resolved a train at a time**, not by editing a saved file.
+
+**A placement clears whatever the train was crossing.** The crossing mark is
+restored across a restart with no route behind it, as a placement hint
+([#123](https://github.com/rails49/control/issues/123)) — which makes such a
+train exactly the one a person has to say something about. Once they have, it
+is standing in a block and crossing nothing, and the picture says so. Leaving
+the hint would carry it out to every view and persist it again, and there is
+no way to clear it by hand: affirming the block the dispatcher already
+believes in is not accepted, that block not being free.
 
 ## Consequences
 

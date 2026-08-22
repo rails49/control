@@ -585,9 +585,9 @@ class Dispatcher:
         """Where a train actually stands, said by the person who can see it.
 
         Accepted only when every precondition holds: the run is held, the
-        train is known, the block exists and is free, the train fits it, and
-        the train has no request in flight. The last mirrors
-        `reversal_wanted` and adds a worse reason of its own — on release the
+        train is known, the block exists and is free of every claim, the
+        train fits it, and the train has no request in flight. The last
+        mirrors `reversal_wanted` and adds a worse reason of its own — on release the
         grant phase launches from `block_of`, so a pending request would
         depart from wherever the train was just put, having been admitted
         against the block it was in when it was asked for.
@@ -607,10 +607,7 @@ class Dispatcher:
             return
         if wanted.block not in state.layout.blocks:
             return
-        # Free means unlocked, and every parked train holds the lock on the
-        # block it stands in — so the train's own block is not free either,
-        # and placing it where it already is is a silent no-op.
-        if wanted.block in state.locks:
+        if not self._free(wanted.block):
             return
         if state.train_lengths[wanted.train] > state.layout.blocks[wanted.block]:
             return
@@ -619,8 +616,38 @@ class Dispatcher:
         del state.locks[state.block_of[wanted.train]]
         state.locks[wanted.block] = wanted.train
         state.block_of[wanted.train] = wanted.block
+        # Whatever the last picture said this train was crossing, it is not
+        # crossing it now: a person has said where it stands. The hint is
+        # restored with no route behind it (`restored`), so this train is
+        # exactly the one whose hint nothing else will ever clear — and
+        # affirming the block the dispatcher already believes in is not a way
+        # out, that block not being free.
+        state.crossing.pop(wanted.train, None)
         self._publish("train_placed", {"train": wanted.train, "block": wanted.block})
         self._publish_allocation()
+
+    def _free(self, block: str) -> bool:
+        """Whether nothing else has a claim on `block`.
+
+        Both claims a route carries, not just the stronger one: a resource is
+        **committed** when it is on a route the dispatcher has chosen and not
+        yet locked, and that is a claim (CONTEXT.md). Under `FullRoute` the
+        two sets coincide, since a launch locks the whole route; under
+        `Incremental` a fixed route runs on ahead of its locks, and reading
+        the lock table alone would call those blocks free.
+
+        Placing a train into one strands the working that owns it: the route
+        is fixed (ADR-0002), the placed train is idle and its standing lock
+        is therefore a permanent obstacle (SAFETY.md), and nothing cancels a
+        request — so the committed train is refused `unsafe` at every
+        boundary for the rest of the session.
+        """
+        if block in self._state.locks:
+            return False
+        return not any(
+            block in active.route.blocks[active.cur_index :]
+            for active in self._state.active.values()
+        )
 
     # -- the grant phase ---------------------------------------------------
 

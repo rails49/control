@@ -141,9 +141,10 @@ over a WebSocket relay ([ui/PANEL.md](ui/PANEL.md#implementation)): every
 `tc49/#` event goes out to every client as one JSON frame,
 `{"topic": …, "payload": …}`, and the inbound topics are the `tc49/ui`
 leaves — `request_wanted`, `reversal_wanted`, `run_wanted` and
-`placement_wanted` — whose frames are published as the events they name. That set is the `ui` role's own, which is what a
-broker's ACL will grant a page once the relay is gone, so it is read off the
-inventory rather than listed a second time.
+`placement_wanted` — whose frames are published as the events they name. That
+set is the `ui` role's own, which is what a broker's ACL will grant a page
+once the relay is gone, so it is read off the inventory rather than listed a
+second time.
 **A client names the scenario it wants in the socket path**,
 `ws://host:port/<layout>/<scenario>`, and hears that railroad or none. The
 relay outlives the assembly it relays: naming one it is not running rebuilds
@@ -424,9 +425,10 @@ and nothing else; the next boundary grants
 **It alone reads `tc49/ui/placement_wanted`**, a person saying where a train
 actually stands. Whether the block is free is knowledge only it has, so a
 second reader would have to agree with it on every precondition. Accepted
-while held, for a known train, into a block that exists, is free and fits the
-train, and only where that train has no request in flight; anything else is
-dropped in silence and to the trace. Having accepted, it moves the train's
+while held, for a known train, into a block that exists, fits the train and is
+free of every claim — no lock, and on no committed route, which under
+`Incremental` are not the same set — and only where that train has no request
+in flight; anything else is dropped in silence and to the trace. Having accepted, it moves the train's
 standing lock and publishes `train_placed`, which the scheduler follows to
 carry facing into the new block and the layout interface to move the steel
 under it.
@@ -527,11 +529,22 @@ terminates. Sensor events report moves only: initial occupancy is never
 published — the dispatcher seeds its standing locks from the scenario, and
 the occupancy topics are event topics, facts that happened, not state.
 
-`train_placed` is the one thing besides a `cross` that moves a train, and a
-binding takes it or ignores it as its own nature decides: on a physical
-railroad the steel simply is where the hand left it and there is nothing to
-do, while the simulator stands in for that steel and has to be told. Not a
-command — nothing is buffered, and no boundary moves.
+`train_placed` is the one thing besides a `cross` that moves a train, and what
+a binding does with it is its own business: the simulator stands in for steel
+that would simply be where a hand left it, so it is told where the hand put
+it. Not a command — nothing is buffered, and no boundary moves.
+
+It comes with a **standing assumption** about the sensor stream, which
+milestone 1 makes and does not yet enforce: every sensor event explains a move
+the dispatcher granted. The dispatcher recovers train identity from its lock
+table, so a `block_occupied` no grant accounts for — a hand putting a
+locomotive on a detected block, or a train pushed while the power was off — is
+not something it can read, and it raises rather than guessing. The simulator
+publishes no sensors for a placement, which is what makes the gesture safe
+today. A layout that detects occupancy will need the dispatcher told what an
+unexpected sensor means, which is
+[#159](https://github.com/rails49/control/issues/159)'s half of this and is
+not settled here.
 
 ### Asset store
 
