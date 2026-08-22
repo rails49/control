@@ -166,13 +166,14 @@ class Scheduler:
         A **rejected** request leaves the train idle — `_train_of` has dropped
         it — and that is precisely when you want to turn around.
 
-        The flip goes through `lib`'s `departure_end`, read backwards — a
-        train turned around leaves by the end it would have come in through —
-        so a terminal block is a no-op rather than a train pointed at the wall
-        (#145): there is one end it can leave by either way, and facing never
-        names an end that leads nowhere. Without it the gesture reaches the
-        state `validate_scenario` refuses at load, and the next drag departs
-        by the wall and is rejected `unreachable` for the rest of the session.
+        The flip goes through `lib`'s `departure_end`, asked of the facing
+        itself: a train turned around departs as though it had entered
+        through the end it was facing. So a terminal block is a no-op rather
+        than a train pointed at the wall (#145): there is one end it can
+        leave by either way, and facing never names an end that leads
+        nowhere. Without it the gesture reaches the state `validate_scenario`
+        refuses at load, and the next drag departs by the wall and is
+        rejected `unreachable` for the rest of the session.
         """
         train = reversal(payload)
         if train is None:
@@ -195,9 +196,9 @@ class Scheduler:
         it will leave by, which a request departing against facing is allowed
         to state (ADR-0019 makes facing a discipline, not an invariant).
 
-        Both of those are `lib`'s `departure_end`, which is that rule for one
-        block: into a terminal block there is no end to face away towards and
-        it gives back the one end a connection holds (#145). A route's
+        The first of those is `lib`'s `departure_end`: into a terminal block
+        there is no end to face away towards, and it gives back the one end a
+        connection holds (#145). The second needs no correction — a route's
         departure end is a transit's end and so always connected.
         """
         leaf = topic.rsplit("/", 1)[-1]

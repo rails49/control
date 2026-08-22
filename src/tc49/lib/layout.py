@@ -14,8 +14,8 @@ The ``check_*`` helpers are shared with the scenario validation in
 ``store.py``. The ``<block>.<A|B>`` end form is parsed here and nowhere else:
 ``check_end`` validates one, ``block_of``, ``end_letter`` and ``opposite_end``
 take one apart, ``end_on`` reads one off a transit, ``connected_end`` says
-which end of a block a connection holds, and ``departure_end`` composes the
-two into the end a train leaves a block by.
+which end of a block a connection holds, and ``departure_end`` composes that
+over ``opposite_end`` into the end a train leaves a block by.
 """
 
 from collections.abc import Container
@@ -297,7 +297,7 @@ def departure_end(layout: Layout, entered: str) -> str:
 
     The composed rule — `connected_end` applied to the far side of the end
     the train entered through — and the whole of what a strict pass-through
-    means for one block (ADR-0002, CONTEXT.md **facing**). Everything that
+    means for one block (ADR-0001, CONTEXT.md **facing**). Everything that
     settles where a train goes out asks it: the scheduler of a move it saw
     granted and of a train turned around at rest, the dispatcher of the route
     it has just committed to. It takes the end and not a route, since `lib`

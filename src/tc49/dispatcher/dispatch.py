@@ -1091,8 +1091,11 @@ class Dispatcher:
         # lets a request dragged in mid-route be answered while it is asked.
         # Which end the route comes in through is read here: `lib` states the
         # rule and takes the end, knowing nothing of routes (#155).
-        route = launched.route
-        entered = end_on(self._state.layout, route.arrival_block, route.transits[-1])
+        entered = end_on(
+            self._state.layout,
+            launched.route.arrival_block,
+            launched.route.transits[-1],
+        )
         self._state.departure[req.train] = departure_end(self._state.layout, entered)
         move = self._strategy.grant(req.train, self._state)
         assert isinstance(move, Move)  # the launch just granted the first increment
