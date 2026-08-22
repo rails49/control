@@ -54,6 +54,8 @@ Issues live as GitHub issues in `rails49/control`, driven by the `gh` CLI. See `
 
 The five canonical triage roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
 
+What `ready-for-agent` asserts, and why an issue does not carry it: `docs/agents/ready-for-agent.md`.
+
 ### Domain docs
 
 Single-context: `CONTEXT.md` at the root plus `docs/adr/`. See `docs/agents/domain.md`.
