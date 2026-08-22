@@ -48,14 +48,20 @@ class Simulator:
         self, bus: Bus, scenario: Scenario, placement: Path | None = None
     ) -> None:
         """`placement`: the file this railroad's steel stands in for, or None
-        to forget everything when the process ends. A train the file does not
-        name — one added to the scenario since — starts where it places it."""
+        to forget everything when the process ends.
+
+        The file is the steel's own memory and comes first: a train it names
+        is where it was left, including one no scenario places, which is a
+        train a hand put on the rails (ADR-0039). A train the file does not
+        name — one added to the scenario since, or a first run — starts where
+        the scenario places it.
+        """
         self._bus = bus
         self._placement = placement
         stood = durable.read(placement) if placement is not None else {}
         self._position = {
-            train: stood.get(train, spec.at) for train, spec in scenario.trains.items()
-        }
+            train: spec.at for train, spec in scenario.trains.items()
+        } | dict(stood)
         self._crosses: list[Payload] = []
         self._saw_command = False
         self._exhausted = False

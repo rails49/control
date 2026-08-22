@@ -142,9 +142,10 @@ export interface Painted {
  * What the run view does with a drag that began on the canvas, handed to the
  * machine below.
  *
- * `submit` and `remove` are the two things a drop can mean, and `onRoster`
- * is what tells them apart: **where the drag ended** decides, as where it
- * began decides that it is a drag of a marker at all
+ * `submit` and `remove` are the two things a drop of a **marker** can mean.
+ * Where the drag began has already said it is a marker's — never the run's
+ * state — and where it ended says what it names: a block, or the roster pane,
+ * which is nowhere on the railroad
  * ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)).
  * Whether a screen point is over the pane is the view's knowledge, the pane
  * being an element; what it means is here.

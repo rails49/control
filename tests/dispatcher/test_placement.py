@@ -546,3 +546,61 @@ def test_a_run_may_come_up_with_an_empty_layout() -> None:
 
     assert last(assembly, "allocation")["trains"] == {"freight_1": "yard_w"}
     assert facing(assembly, "freight_1") == "yard_w.B"
+
+
+def test_a_hand_placed_train_the_scenario_never_placed_survives_a_restart(
+    tmp_path: Path,
+) -> None:
+    """Adoption keeps the picture's word for every train the **railroad**
+    owns, not only for the ones the scenario placed (ADR-0039).
+
+    The train an operator put on the rails by hand is exactly the one no
+    document names, and it is standing there: a session that came back up
+    without it would believe the block free and hand it to the next train,
+    with a locomotive in it.
+    """
+    state = tmp_path / "session.json"
+    durable.write(
+        state,
+        {
+            "tc49/dispatch/state/allocation": {
+                "trains": {"shunter": "up_w"},
+                "crossing": {},
+                "locks": {},
+                "requests": [],
+            }
+        },
+    )
+    layout, _roster, _ = load("crossover-yard/meet")
+    empty = Scenario(name="empty", layout="crossover-yard", trains={}, requests=())
+    assembly = assemble_live(layout, STOCK, empty, state=state)
+    assembly.bus.drain()
+
+    picture = last(assembly, "allocation")
+    assert picture["trains"] == {"shunter": "up_w"}
+    assert picture["locks"] == {"up_w": "shunter"}
+
+
+def test_a_picture_naming_stock_the_railroad_lacks_is_not_adopted(
+    tmp_path: Path,
+) -> None:
+    """The roster is what makes a train known, so a name the railroad does not
+    own is a picture from another railroad or another day."""
+    state = tmp_path / "session.json"
+    durable.write(
+        state,
+        {
+            "tc49/dispatch/state/allocation": {
+                "trains": {"ghost": "up_w"},
+                "crossing": {},
+                "locks": {},
+                "requests": [],
+            }
+        },
+    )
+    layout, _roster, _ = load("crossover-yard/meet")
+    empty = Scenario(name="empty", layout="crossover-yard", trains={}, requests=())
+    assembly = assemble_live(layout, STOCK, empty, state=state)
+    assembly.bus.drain()
+
+    assert last(assembly, "allocation")["trains"] == {}

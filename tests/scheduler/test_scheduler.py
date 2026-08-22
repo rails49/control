@@ -528,6 +528,24 @@ def test_a_train_the_scenario_placed_nowhere_gains_a_facing_when_placed() -> Non
     assert facing(seen)["shunter"] == "up_w.A"
 
 
+def test_a_restart_keeps_the_facing_of_a_train_no_scenario_places(
+    tmp_path: Path,
+) -> None:
+    """A train a hand put on the rails has a facing and no placement in any
+    document (ADR-0039). Dropping it on a restart would leave every drag of
+    that train uncomposable — the departure end is read off facing — and the
+    operator would find one train on the railroad that can be sent
+    nowhere."""
+    path = tmp_path / "session.json"
+    path.write_text(json.dumps({FACING: {"facing": {"shunter": "up_w.B"}}}))
+    bus = Bus(path)
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), two_train_scenario(), timetable=False)
+    bus.drain()
+
+    assert facing(seen)["shunter"] == "up_w.B"
+
+
 def test_a_train_taken_off_the_layout_loses_its_facing() -> None:
     """The other direction of the same gesture: no block, no facing to hold
     (ADR-0039)."""

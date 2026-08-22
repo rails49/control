@@ -201,6 +201,28 @@ describe("its drags", () => {
     return shell;
   }
 
+  /** Where the two parts of the view sit, which is what says whether a
+   *  release landed on the sheet or on the pane. happy-dom gives every element
+   *  a zero box, so the suite states the layout the browser would: the pane
+   *  beside the sheet, and the blocks of the toy drawing inside the sheet. */
+  function laid(shell: TcApp): void {
+    const boxes: [Element, DOMRect][] = [
+      [paneOf(shell), { left: 500, right: 600, top: 0, bottom: 800 } as DOMRect],
+      [
+        running(shell).renderRoot.querySelector("tc-canvas")!,
+        { left: 0, right: 400, top: 0, bottom: 800 } as DOMRect,
+      ],
+    ];
+    for (const [part, box] of boxes) part.getBoundingClientRect = () => box;
+  }
+
+  /** The SVG the drawing is painted on. */
+  function surfaceOf(shell: TcApp): SVGSVGElement {
+    return running(shell)
+      .renderRoot.querySelector("tc-canvas")!
+      .renderRoot.querySelector("svg")!;
+  }
+
   /** One row of the pane, by the train it is about. */
   function row(shell: TcApp, train: string): HTMLElement {
     const index = paneOf(shell).trains.findIndex((one) => one.train === train);
@@ -209,6 +231,7 @@ describe("its drags", () => {
 
   /** A drag of a row, let go at a client point. */
   async function dragRow(shell: TcApp, train: string, at: Point): Promise<void> {
+    laid(shell);
     for (const [name, point] of [
       ["pointerdown", at],
       ["pointerup", at],
@@ -226,14 +249,11 @@ describe("its drags", () => {
   }
 
   /** A drag of a train's marker across the canvas, let go at a client point.
-   *  The pane is put somewhere the blocks are not, so that where the drag
-   *  ended is what decides what it meant. */
+   *  The pane sits beside the sheet, so where the drag ended is what decides
+   *  what it meant. */
   async function dragMarker(shell: TcApp, from: Point, to: Point): Promise<void> {
-    paneOf(shell).getBoundingClientRect = () =>
-      ({ left: 500, right: 600, top: 0, bottom: 800 }) as DOMRect;
-    const surface = running(shell)
-      .renderRoot.querySelector("tc-canvas")!
-      .renderRoot.querySelector("svg")!;
+    laid(shell);
+    const surface = surfaceOf(shell);
     for (const [name, at] of [
       ["pointerdown", from],
       ["pointermove", to],
@@ -257,12 +277,29 @@ describe("its drags", () => {
     });
   });
 
-  /** A row let go over the pane, or over bare paper: there is no block under
-   *  it, so the drag was about nothing and says nothing. */
+  /** Over bare paper: on the sheet, and no block under the pointer. */
   it("writes nothing for a row let go where no block is", async () => {
     const shell = await held();
 
-    await dragRow(shell, "shunter", { x: 500, y: 500 });
+    await dragRow(shell, "shunter", { x: 300, y: 700 });
+
+    expect(written()).toEqual([]);
+  });
+
+  /** Off the sheet: how a drag started by mistake is abandoned. Whether the
+   *  release was on the sheet is read off the surface's own box and never off
+   *  the drawing, because the drawing runs past the viewport: the transform
+   *  below is a pan that parks block `b` behind the pane's own pixels, and a
+   *  release read through it alone would place the train in a block nobody
+   *  can see. */
+  it("writes nothing for a row let go back on the pane", async () => {
+    const shell = await held();
+    const at = { x: 550, y: 400 };
+    const b = centreOf(stored("toy").symbols.b!);
+    surfaceOf(shell).getScreenCTM = () =>
+      new DOMMatrix([1, 0, 0, 1, at.x - b.x, at.y - b.y]);
+
+    await dragRow(shell, "shunter", at);
 
     expect(written()).toEqual([]);
   });

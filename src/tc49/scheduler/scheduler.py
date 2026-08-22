@@ -28,6 +28,7 @@ it arrives as its own gesture on `tc49/ui/reversal_wanted` (#124).
 """
 
 from collections import Counter
+from typing import cast
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import Layout, end_letter, end_on, leaving_end, opposite_end
@@ -46,14 +47,17 @@ class Scheduler:
         # Facing as the last session left it, where the bus binding kept it
         # across the process: the scheduler's own state topic, found waiting
         # exactly as it would be against a broker that outlived the app
-        # (#123). The scenario's placement is what seeds a cold start, and a
-        # train the file does not name — one added since — is a cold start of
-        # one.
+        # (#123). It comes first, and for every train it names — including one
+        # no scenario places, which a person put on the rails by hand
+        # (ADR-0039); dropping that one would leave its drags uncomposable
+        # for want of a departure end. The scenario's placement seeds a cold
+        # start, and a train the retained value does not name — one added
+        # since — is a cold start of one.
         restored = bus.last_values.get(FACING, {}).get("facing", {})
         self._facing: dict[str, str] = {
-            train: restored.get(train, leaving_end(layout, f"{spec.at}.{spec.facing}"))
+            train: leaving_end(layout, f"{spec.at}.{spec.facing}")
             for train, spec in sorted(scenario.trains.items())
-        }
+        } | dict(sorted(cast(dict[str, str], restored).items()))
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
         self._counters: Counter[str] = Counter()  # one undivided minter
         self._pending: list[tuple[int, Payload]] = []

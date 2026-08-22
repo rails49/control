@@ -353,7 +353,7 @@ def disputed(state: State) -> Payload:
 
 
 def restored(
-    picture: Payload, scenario: Scenario
+    picture: Payload, roster: Roster, scenario: Scenario
 ) -> tuple[dict[str, str], dict[str, str]]:
     """Placement and crossing hints off the last picture the bus kept across
     a restart, or the scenario's own placement where there is none (#123).
@@ -387,7 +387,7 @@ def restored(
     """
     cold = {train: spec.at for train, spec in scenario.trains.items()}
     named: Payload = picture.get("trains", {})
-    pictured = {train: named[train] for train in cold if train in named}
+    pictured = {train: at for train, at in named.items() if train in roster.trains}
     settled: dict[str, str] = {}
 
     def place(train: str, block: str) -> None:
@@ -400,11 +400,14 @@ def restored(
     for train, at in pictured.items():  # the picture's word, where it is free
         place(train, at)
     for train in pictured:  # pushed off it: the document, or nowhere
-        if train not in settled:
+        if train not in settled and train in cold:
             place(train, cold[train])
-    # Back into the document's order, whatever order they were settled in:
-    # the standing locks are published one train at a time from this.
-    standing = {train: settled[train] for train in cold if train in settled}
+    # Back into one stated order, whatever order they were settled in: the
+    # standing locks are published one train at a time from this. The
+    # document's trains first, then whatever else the picture placed, so a
+    # railroad the scenario describes reads as it always did.
+    order = list(cold) + [train for train in pictured if train not in cold]
+    standing = {train: settled[train] for train in order if train in settled}
     kept = {train for train, at in pictured.items() if standing.get(train) == at}
     return standing, {
         train: transit
@@ -476,7 +479,7 @@ class Dispatcher:
         # the standing locks below are published, and a subscription delivers
         # at the drain.
         picture = bus.last_values.get(ALLOCATION, {})
-        standing, crossing = restored(picture, scenario)
+        standing, crossing = restored(picture, roster, scenario)
         self._state = State(
             layout,
             roster.lengths(),

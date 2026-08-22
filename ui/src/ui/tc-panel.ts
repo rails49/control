@@ -43,6 +43,7 @@ import {
   type Painted,
 } from "../model/drag.js";
 import type { Drawing } from "../model/drawing.js";
+import type { Point } from "../model/geometry.js";
 import {
   outstanding,
   Panel,
@@ -433,13 +434,20 @@ export class TcPanel extends LitElement {
    *
    * The pane says a row was dragged and where the pointer let go; what is
    * under it is the canvas's to answer, which is the same question the drag of
-   * a marker asks (model/drag.ts). Dropping a row back on the pane is how a
-   * drag started by mistake is abandoned: there is no block there.
+   * a marker asks (model/drag.ts). Letting go anywhere but on the sheet is how
+   * a drag started by mistake is abandoned.
+   *
+   * That the release was **on the sheet** is asked of the element's own box,
+   * not left to the transform: the drawing extends past the viewport and
+   * `gridAt` reads any client point through the same matrix, so a point over
+   * the pane maps onto whatever the pan has parked off-screen to the left. A
+   * row let go over the pane would then place its train in a block nobody can
+   * see.
    */
   private dropped(event: CustomEvent<RosterDrag>): void {
     const { train, x, y } = event.detail;
     const painted = this.painted;
-    const at = this.canvas?.gridAt(x, y) ?? null;
+    const at = this.onCanvas({ x, y }) ? (this.canvas?.gridAt(x, y) ?? null) : null;
     if (painted === null || at === null || this.panel?.run !== "held") return;
     const block = blockAt(painted.drawing, painted.review, at);
     if (block === null) return;
@@ -460,18 +468,15 @@ export class TcPanel extends LitElement {
   }
 
   /** Whether a screen point is over the roster pane, which is what makes a
-   *  drop on it mean anything. The pane is an element and its box is the
-   *  browser's answer, so nothing here works out where it is. */
-  private overRoster(screen: { x: number; y: number }): boolean {
-    const pane = this.renderRoot.querySelector<TcRoster>("tc-roster");
-    if (pane === null) return false;
-    const box = pane.getBoundingClientRect();
-    return (
-      screen.x >= box.left &&
-      screen.x <= box.right &&
-      screen.y >= box.top &&
-      screen.y <= box.bottom
-    );
+   *  marker dropped there mean the train comes off the layout. */
+  private overRoster(screen: Point): boolean {
+    return within(this.renderRoot.querySelector<TcRoster>("tc-roster"), screen);
+  }
+
+  /** Whether a screen point is over the drawing surface, which is what makes
+   *  a row dropped there mean a placement. */
+  private onCanvas(screen: Point): boolean {
+    return within(this.canvas, screen);
   }
 
   // --- turning a train around -----------------------------------------------
@@ -697,4 +702,18 @@ declare global {
   interface HTMLElementTagNameMap {
     "tc-panel": TcPanel;
   }
+}
+
+/** Whether a client point is inside an element's box. Where each part of the
+ *  view sits is the browser's answer and nothing this file works out; an
+ *  element that is not there holds no point at all. */
+function within(part: Element | null, screen: Point): boolean {
+  if (part === null) return false;
+  const box = part.getBoundingClientRect();
+  return (
+    screen.x >= box.left &&
+    screen.x <= box.right &&
+    screen.y >= box.top &&
+    screen.y <= box.bottom
+  );
 }

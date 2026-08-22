@@ -88,6 +88,12 @@ instead would make one motion mean two things depending on a word in the band,
 and would cost queuing a request while held, which ADR-0037 deliberately keeps
 working for a timetable.
 
+Where it **ends** is what the gesture names, as a drop on a block names that
+block. The one drop that is not a place on the railroad is the roster pane
+itself, and a marker dropped there names nowhere — which is this decision's
+own removal, reached by the drag that is already the operator's word for
+"put this train there".
+
 ## Consequences
 
 **A run may come up with an empty layout.** That is the cold start once a

@@ -131,6 +131,23 @@ def test_a_hand_that_lifts_a_train_off_the_layout_takes_the_steel_with_it(
     assert seen == []
 
 
+def test_the_file_names_the_steel_the_scenario_never_placed(tmp_path: Path) -> None:
+    """The file is the steel's own memory, so it comes first: a train a hand
+    put on the rails is one no scenario places, and a restart that dropped it
+    would move a locomotive nobody touched (ADR-0039, ADR-0030)."""
+    _, _roster, scenario = load("crossover-yard/meet")
+    path = tmp_path / "placement.json"
+    path.write_text(json.dumps({"shunter": "up_w"}))
+    bus = Bus()
+    simulator = Simulator(bus, scenario, path)
+
+    seen = sensors(bus)
+    cross(bus, "shunter", "dn_w")
+    tick(simulator)
+
+    assert ("tc49/layout/block_vacated", {"block": "up_w"}) in seen
+
+
 def test_the_placement_reaches_no_topic(tmp_path: Path) -> None:
     """The whole of what keeps simulation out of the contract (ADR-0030): the
     inventory names no simulator topic, and the file is the app's own."""
