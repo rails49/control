@@ -724,7 +724,9 @@ class Dispatcher:
 
         Accepted only when every precondition holds: the run is held, the
         train is known, the block exists and is free of every claim, the
-        train fits it, and the train has no request in flight. The last
+        train fits it, and the train has no request in flight. Where the
+        train stands now is not one of them — a train adoption placed nowhere
+        is exactly the one a person has to say something about. The last
         mirrors `reversal_wanted` and adds a worse reason of its own — on release the
         grant phase launches from `block_of`, so a pending request would
         depart from wherever the train was just put, having been admitted
@@ -751,7 +753,12 @@ class Dispatcher:
             return
         if self._has_pending(wanted.train) or wanted.train in state.active:
             return
-        del state.locks[state.block_of[wanted.train]]
+        # A train adoption placed nowhere holds no standing lock and has none
+        # to give up: it is in the closet, and this gesture is what takes it
+        # out (ADR-0039, #164). Placing one is otherwise the same act.
+        standing = state.block_of.get(wanted.train)
+        if standing is not None:
+            del state.locks[standing]
         state.locks[wanted.block] = wanted.train
         state.block_of[wanted.train] = wanted.block
         # Whatever the last picture said this train was crossing, it is not

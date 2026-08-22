@@ -462,7 +462,10 @@ second reader would have to agree with it on every precondition. Accepted
 while held, for a known train, into a block that exists, fits the train and is
 free of every claim — no lock, and on no committed route, which under
 `Incremental` are not the same set — and only where that train has no request
-in flight; anything else is dropped in silence and to the trace. Having accepted, it moves the train's
+in flight; anything else is dropped in silence and to the trace. Where the
+train stands now is no precondition at all — one adoption placed nowhere is
+exactly the train a person has to say something about, and it has no standing
+lock to move, only one to take. Having accepted, it moves the train's
 standing lock and publishes `train_placed`, which the scheduler follows to
 carry facing into the new block and the layout interface to move the steel
 under it.

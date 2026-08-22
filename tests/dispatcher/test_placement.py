@@ -236,6 +236,65 @@ def test_a_placement_clears_whatever_the_train_was_crossing(tmp_path: Path) -> N
     assert after["locks"] == {"up_w": "freight_1", "dn_e": "leviathan"}
 
 
+def test_a_train_adoption_placed_nowhere_can_be_put_on_the_layout(
+    tmp_path: Path,
+) -> None:
+    """The gesture is how the leftovers of a collision are ended (#164).
+
+    Adoption takes the picture a train at a time, so a train whose picture
+    block *and* whose starting block are both taken comes up placed nowhere
+    at all — in the closet (ADR-0039), holding no lock, with a person the
+    only way out. Here `leviathan` was added to the roster since the picture
+    was taken and stands in `dn_e`, which is where the picture left
+    `freight_1`; `railcar_3` is parked in `freight_1`'s own starting block,
+    a working of an evening ago that completed.
+
+    So the placement has no standing lock to move, only one to take.
+    """
+    state = tmp_path / "session.json"
+    durable.write(
+        state,
+        {
+            "tc49/dispatch/state/allocation": {
+                "trains": {"freight_1": "dn_e", "railcar_3": "yard_w"},
+                "crossing": {},
+                "locks": {},
+                "requests": [],
+            }
+        },
+    )
+    layout, _ = load("crossover-yard/meet")
+    scenario = Scenario(
+        name="closet",
+        layout="crossover-yard",
+        trains={
+            "freight_1": TrainSpec(1100, "yard_w", "B"),
+            "railcar_3": TrainSpec(600, "dn_w", "A"),
+            "leviathan": TrainSpec(2000, "dn_e", "A"),
+        },
+        requests=(),
+    )
+    assembly = assemble_live(layout, scenario, state=state)
+    assembly.bus.drain()  # the opening statement, which no boundary has yet
+    opening = last(assembly, "allocation")
+    assert "freight_1" not in opening["trains"]
+    assert "freight_1" not in opening["locks"].values()
+
+    place(assembly, "freight_1", "up_w")
+
+    after = last(assembly, "allocation")
+    assert after["trains"] == {
+        "freight_1": "up_w",
+        "railcar_3": "yard_w",
+        "leviathan": "dn_e",
+    }
+    assert after["locks"] == {
+        "up_w": "freight_1",
+        "yard_w": "railcar_3",
+        "dn_e": "leviathan",
+    }
+
+
 def test_a_placement_into_a_committed_block_is_dropped() -> None:
     """A resource is claimed when it is **committed** — on a route the
     dispatcher has chosen, with no lock on it yet — and that is the weaker of
