@@ -272,8 +272,8 @@ the one writer of requests is the scheduler app
 tabs are two views and harmless, which is what the earlier arrangement could
 not manage — it made them two holders of facing and two minters of ids. Modes
 stop being exclusive: a timetable and a person are two sources of one
-scheduler, and which of them a session has is configuration. Scenario runs
-keep byte-identical replay; a run carrying gestures makes no such claim, and a
+scheduler, and which of them a run has is configuration. Batch runs keep
+byte-identical replay; a run carrying gestures makes no such claim, and a
 benchmark run receives none.
 
 A gesture the scheduler cannot compose is **dropped in silence** and lives in
@@ -365,35 +365,44 @@ store operation and does not live with one. Validation stays in the existing
 Python validator. The MQTT transport switch later changes only what the bridge
 subscribes to. The front end shares the editor's stack and symbol library.
 
-**The run view names the session.** The scenario picked there rides in the
-socket path — `ws://127.0.0.1:8766/gotthard/test1` — so the one choice
-says both which drawing to render and which railroad feeds it. A socket
-opened without it would render one railroad on another's events, which is
-what a session whose scenario was fixed at launch allowed (#148). Switching
-is a reconnect, which is what joining already was. No inbound topic carries
-any of it: the set stays exactly the `tc49/ui` leaves that ADR-0034's broker
-ACL will grant, and that is what keeps ADR-0036's single-minter argument
-holding.
+**The loaded railroad is the session.** A run is built from a railroad and
+nothing else ([#171](https://github.com/rails49/control/issues/171)), so the
+band's picker is the only thing that sets which one, and the run view has no
+session of its own to pick. The loaded railroad rides in the socket path —
+`ws://127.0.0.1:8766/gotthard` — so the one choice says both which drawing to
+render and which railroad feeds it. A socket opened without it would render
+one railroad on another's events, which is what a session whose railroad was
+fixed at launch allowed (#148). Switching is a reconnect, which is what
+joining already was. No inbound topic carries any of it: the set stays exactly
+the `tc49/ui` leaves that ADR-0034's broker ACL will grant, and that is what
+keeps ADR-0036's single-minter argument holding.
 
-`tc49 live` takes the scenario as an optional argument. With none it comes up
+`tc49 live` takes the railroad as an optional argument. With none it comes up
 idle on its port waiting to be told; with one it starts running that railroad
-and the panel may still switch it. Naming the running scenario joins it
-mid-run. Naming another tears the assembly down, builds a fresh one from that
-scenario, and closes any client still on the old path so it re-picks — one
-operator, one railroad. Naming a scenario that does not exist gets an
+and the band may still switch it. Naming the running railroad joins it
+mid-run. Naming another tears the assembly down, builds a fresh one for that
+railroad, and closes any client still on the old path so it re-picks — one
+operator, one railroad. Naming a railroad that does not exist gets an
 `{"error": …}` frame and a close, with the running railroad untouched: a typo
 must not take a live session down. A run outlives its clients, so closing the
 browser leaves the railroad running and Ctrl-C ends the session.
+
+**A run comes up with an empty layout and held.** There is nothing on the
+rails until a person puts something there: every train the railroad owns is in
+the roster pane, and the run is held so the placing gesture is honoured
+([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md),
+[ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)). A **scenario** is
+the harness's file and never reaches the browser: `tc49 live --scenario`
+replays one as the gestures a person would make, over these same topics.
 
 Beyond the name, joining takes everything off the bus. Placement, locks,
 routes and live requests come from the dispatcher's retained picture;
 **facing**, which is scheduler state and on no dispatcher topic at all
 ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)), comes from the
 scheduler's own retained topic. Both are written by apps that are always
-running, so there is no cold start to seed: the view reads the scenario from
-the store (`GET /scenarios`, `GET /scenarios/<id>`) for which railroad to ask
-the app to load, and no topic describes the run, a topic that did being the
-bridge describing itself (#67). It reads that railroad's roster there too
+running, so there is no cold start to seed, and no topic describes the run — a
+topic that did would be the bridge describing itself (#67). The one thing the
+view reads from the store is the loaded railroad's roster
 (`GET /rosters/<railroad>`) — what stock there is and how long each train is,
 an asset rather than a fact about the run, which is the line
 [ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)
@@ -408,29 +417,27 @@ placement, facing and aspects as live frames, in order.
 
 A session ticks on a wall clock, one knob: `tc49 live --period`. The knob is
 the session's and applies to every railroad it runs, so it is not the panel's
-to turn: a joined panel names the scenario and nothing else.
+to turn: a joined panel names the railroad and nothing else.
 The default is 10 seconds, picked by watching the panel rather than by
 argument: a boundary moves trains, grants and releases locks, realigns points
 and changes aspects, and at the 2 seconds this started out as the next one
 landed before a person had finished reading the last.
 
 **A panel may join a session already running.** On connect, the path naming
-the scenario that is running, the bridge sends each state topic's last value
+the railroad that is running, the bridge sends each state topic's last value
 before any live frame, so the page opens on the dispatcher's own picture —
 standing trains, locks, committed routes, live requests off
 `tc49/dispatch/state/allocation`, aspects off `state/aspects`, what the
 detectors dispute off `state/disputed`, facing off
-`tc49/schedule/state/facing` — rather than on
-where the scenario says the railroad started
+`tc49/schedule/state/facing` — rather than on an empty layout
 ([ADR-0032](../adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
-The scenario seeds a cold start only, where there is no retained value to
-prefer. Rejoining is not recovery: nothing was lost, and the dispatcher was
+Rejoining is not recovery: nothing was lost, and the dispatcher was
 holding the truth the whole time ([CONTEXT.md](../../CONTEXT.md#interruptions)).
 
 **A session may outlive its process**, `tc49 live --state <file>`. The bus
 keeps its retained values there and each app adopts its own coming up, so a
 restart opens on the placement and facing the last session left rather than
-on the scenario's (SYSTEM.md, the bus). The path names **one file per
+on an empty layout (SYSTEM.md, the bus). The path names **one file per
 railroad**: a picture belongs to the railroad it is a picture of, and an
 operator switching railroads all evening must not be handed the last one's
 placement — train names do not tell two layouts apart. The panel reads nothing new for it:
@@ -445,7 +452,7 @@ Restart is not rejoin and neither is recovery
 ([CONTEXT.md](../../CONTEXT.md#interruptions)).
 
 The relay's `{"error": …}` frames reach the band as trouble rather than being
-dropped: a refused inbound frame and a path naming no scenario are the only
+dropped: a refused inbound frame and a path naming no railroad are the only
 answers a page ever gets when a session says no.
 
 `wrong_origin` still stands
@@ -532,10 +539,11 @@ sentence is what is left of them. It stands as long as the run it was a
 decision about is running, and a fresh hold is a fresh decision
 ([#153](https://github.com/rails49/control/issues/153)).
 
-The one control of this view's own is the session select, which is where a
-scenario is joined. That is interim: a session named by a scenario is what
-[#171](https://github.com/rails49/control/issues/171) retires, after which the
-band's picker is the only thing that says which railroad is on screen.
+**This view has no control of its own.** The session select it used to carry
+is gone: the band's picker is the only thing that says which railroad is on
+screen, and the run view joins whatever is loaded
+([#171](https://github.com/rails49/control/issues/171)). What its header still
+draws is the release notice, and only while there is one.
 
 **The run view's one source is the bus.** It could read a recorded trace and
 step through it, which is how it was built before `tc49 live` and the bridge

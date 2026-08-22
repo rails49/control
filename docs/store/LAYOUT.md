@@ -5,10 +5,14 @@ transits, and which transits are `concurrent`. It is **derived**, never
 authored — the drawing is the source of truth
 ([DRAWING.md](DRAWING.md), [ADR-0015](../adr/0015-drawing-is-the-source-of-truth.md)),
 and `get` derives the layout from it and runs the validator, so components read
-it unchecked. A **roster** file names the trains the railroad owns, and a
-**scenario** file names a layout and adds where its trains stand and the fixed
-request list; they are the authored documents besides the drawing. The split is what lets one railroad carry many benchmark runs, and it
-makes the benchmark CLI's argument a single scenario path.
+it unchecked. A **roster** file names the trains the railroad owns, and with the drawing it
+is the whole of what a run is built from
+([#171](https://github.com/rails49/control/issues/171)). A **scenario** file
+names a layout and adds where its trains stand and a fixed request list: it is
+the **harness's** document, read off disk by `tc49 bench` and `tc49 live
+--scenario` and served on no route. The split is what lets one railroad carry
+many benchmark runs, and it makes the benchmark CLI's argument a single
+scenario path.
 
 Terminology follows [CONTEXT.md](../../CONTEXT.md); the semantics of what these
 describe are in [GOALS.md](../GOALS.md) and
@@ -120,10 +124,10 @@ trains:
   train fits a block, so total length is the whole of what milestone 1 reads;
   [GOALS.md](../GOALS.md)'s composed loco-and-car model, with types, addresses
   and priority, arrives when something consumes it.
-- **Being on the roster is being *known*, which is not being *placed*.** A
-  railroad with a roster and no scenario has every train off the layout, and
-  a railroad with no roster file owns nothing yet — a drawing made this
-  morning, which is not a missing railroad.
+- **Being on the roster is being *known*, which is not being *placed*.** A run
+  built from a railroad has every train off the layout until a person puts one
+  on it, and a railroad with no roster file owns nothing yet — a drawing made
+  this morning, which is not a missing railroad.
 
 ## Scenario schema
 
@@ -143,10 +147,17 @@ requests:
   drawing's own `drawing:` key carries. The loader resolves it to
   `layouts/<id>.drawing.yaml`, so a scenario can move between directories
   without rewriting.
+- **A scenario reaches a run two ways, and both are the harness's**:
+  `tc49 bench` builds a batch run from it, and `tc49 live --scenario` replays
+  it as the gestures a person would make — a placement per train, then the
+  requests at their `at` boundaries
+  ([#171](https://github.com/rails49/control/issues/171)). A gesture carries no
+  departure end, so a replay cannot state `from` and a scenario whose `from`
+  contradicts its facing replays by the facing.
 - **A scenario places trains it does not own** — id, starting block, facing.
   The train itself is the railroad's roster's and so is its length, so a
   scenario naming a train the roster does not have is refused at load. A train
-  the roster has and the scenario does not place comes up **off the layout**,
+  the roster has and the scenario does not place starts **off the layout**,
   which is an ordinary state rather than a fault
   ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)).
 - **`to` is a list of arrival ends**, any one of which satisfies the request

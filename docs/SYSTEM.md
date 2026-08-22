@@ -15,7 +15,7 @@ reading another component's internals. Terminology follows
 
 ```
           ┌───────────────────── asset store ─────────────────────┐
-          │  layout + roster + scenario docs — read-only, snapshot│
+          │  drawing + roster documents — read-only, snapshot     │
           └───────┬─────────────┬─────────────────────┬───────────┘
                   │             │                     │
           ┌───────┴───┐  ┌──────┴─────┐  ┌────────┐  ┌┴─────────────────┐
@@ -29,8 +29,8 @@ reading another component's internals. Terminology follows
                                 └────────┘
 ```
 
-- **Scheduler** — turns the scenario's request list into request events,
-  released at their `at` boundaries.
+- **Scheduler** — the one writer of requests: it composes a person's gestures
+  into them, and releases a timetable's at its `at` boundaries.
 - **Dispatcher** — admits requests, chooses routes, grants moves
   deadlock-free; the research core ([DISPATCH.md](dispatcher/DISPATCH.md),
   [SAFETY.md](dispatcher/SAFETY.md)).
@@ -40,9 +40,9 @@ reading another component's internals. Terminology follows
 - **Layout interface** — the boundary to whatever runs the track: sensor
   readings and the grant boundary come out, turnout and throttle commands go
   in. A simulator implements it in milestone 1, a hardware adapter later.
-- **Asset store** — serves the layout, roster and scenario documents; the one
-  contract that is not the bus, because it answers queries and the bus
-  refuses to.
+- **Asset store** — serves the drawing a layout derives from and the
+  railroad's roster; the one contract that is not the bus, because it answers
+  queries and the bus refuses to.
 - **UI** — the panel, and a throttle later: watches the bus and writes
   **gestures** under `tc49/ui/*`. A gesture is not a request — it names a
   train and where to put it, and the scheduler composes the request
@@ -145,8 +145,8 @@ leaves — `request_wanted`, `reversal_wanted`, `run_wanted` and
 set is the `ui` role's own, which is what a broker's ACL will grant a page
 once the relay is gone, so it is read off the inventory rather than listed a
 second time.
-**A client names the scenario it wants in the socket path**,
-`ws://host:port/<layout>/<scenario>`, and hears that railroad or none. The
+**A client names the railroad it wants in the socket path**,
+`ws://host:port/<railroad>`, and hears that railroad or none. The
 relay outlives the assembly it relays: naming one it is not running rebuilds
 behind it and closes whoever is still on the old path, and naming one that
 does not exist is an error frame and a close with the running railroad
@@ -316,37 +316,38 @@ The milestone-1 binding is a Python library over the YAML files of
 [DRAWING.md](store/DRAWING.md) and [LAYOUT.md](store/LAYOUT.md); a future REST
 binding slots under the same names and verbs without appearing in the contract.
 
-- **Three coarse document types** — `drawing`, `roster` and `scenario`,
-  fetched and stored whole. Symbols, wires, trains, and requests live inside
-  documents and are not independently addressable. A layout is **derived**
-  from a drawing at `get` and is not a document type of its own
+- **Two coarse document types** — `drawing` and `roster`, fetched and stored
+  whole. Symbols, wires and trains live inside documents and are not
+  independently addressable. A layout is **derived** from a drawing at `get`
+  and is not a document type of its own
   ([ADR-0015](adr/0015-drawing-is-the-source-of-truth.md)), so a railroad has
-  one committed description.
+  one committed description. A **scenario** file exists too and is not served:
+  it is the harness's, read off disk by `tc49 bench` and `tc49 live
+  --scenario` and never browser-reachable
+  ([#171](https://github.com/rails49/control/issues/171)).
 - **A railroad owns its roster** — the trains it has, each a name and a
   length, beside its drawing and under the same name
-  ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). A scenario places
-  trains from it and states no length, so one train has one length however
-  many scenarios name it; a railroad with no roster file owns nothing yet,
-  which is what a drawing made this morning is. Being on the roster is what
-  makes a train **known**, and the scenario is what places it — a train on the
-  roster that no scenario places comes up **off the layout**.
-- **Names as ids** — `crossover-yard` for railroads and their rosters,
-  layout-qualified `crossover-yard/meet` for scenarios. Verbs: `get`, `put` (whole-document
-  create-or-replace), `delete`, `list` (all layouts; scenarios of a layout).
-  No partial update.
+  ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). A railroad with no
+  roster file owns nothing yet, which is what a drawing made this morning is.
+  Being on the roster is what makes a train **known**, and a person's
+  placement is what puts it on the rails — a train nothing places comes up
+  **off the layout**. **The drawing and the roster are the whole of what a run
+  is built from** (#171).
+- **Names as ids** — `crossover-yard` for railroads and their rosters. Verbs:
+  `get`, `put` (whole-document create-or-replace), `delete`, `list`. No partial
+  update.
 - **Components are read-only** — scheduler, dispatcher, driver, and the
   layout interface only `get`/`list`. Writes belong to authoring tools.
-  Runtime truth is bus state, history is the trace; a scenario that mutates
-  when run is a broken benchmark fixture.
+  Runtime truth is bus state, history is the trace.
 - **Snapshot at startup** — assets are immutable for the duration of a run.
   The contract offers no change notification and no asset-change events
   exist on the bus; editing an asset means a new session. This is what makes
   read-only safe: a mid-run topology change would invalidate committed
   routes and locks.
 - **The store validates, consumers derive** — `get` never returns an
-  invalid document. Schema conformance and referential integrity (the
-  scenario's layout exists, named blocks exist, connection endpoints are
-  real block ends) are enforced at whichever verb a document enters through:
+  invalid document. Schema conformance and referential integrity (named
+  blocks exist, connection endpoints are real block ends) are enforced at
+  whichever verb a document enters through:
   `put` rejects invalid documents, and the milestone-1 YAML binding runs the
   same validator at `get`, because its documents are hand-authored files
   that never passed through `put`. The layout derived from a drawing goes
@@ -364,7 +365,7 @@ justifies exactly that footprint.
 
 ### Scheduler
 
-*Reads* the scenario and the layout. *Subscribes* `tc49/layout/boundary`,
+*Reads* the layout. *Subscribes* `tc49/layout/boundary`,
 `tc49/dispatch/#` and `tc49/ui/#`. *Publishes* `request_submitted` and the
 `state/exhausted` and `state/facing` last-value topics.
 
@@ -373,28 +374,28 @@ timetable released at its `at` boundaries, a person gesturing on the panel,
 and a generator inventing traffic later — "three sources inside one
 scheduler, not three publishers"
 ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md),
-[GOALS.md](GOALS.md#scheduling)). Which of them a session has is
-configuration, not a rule: `tc49 live` runs with the timetable off while `at`
-is still a boundary count
+[GOALS.md](GOALS.md#scheduling)). Which of them a run has is configuration,
+not a rule: `tc49 live` is given no timetable at all while `at` is still a
+boundary count
 ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 
 A boundary count is the milestone binding of "at a stated time" and not the
 model's answer, since a boundary count means nothing to a timetable once a
 hardware adapter is picking the cadence
-([MILESTONE-1.md](MILESTONE-1.md#scope)). From a scenario request the
+([MILESTONE-1.md](MILESTONE-1.md#scope)). From a timetable request the
 scheduler performs only the *mechanical* arrival-end expansion
 (`to: [yard_e]` → `yard_e.A, yard_e.B` — pure syntax, no layout needed); from
 a **gesture** it supplies the two fields the gesture omits, the id and the
 departure end. It mints each request's **id**, which is opaque to every
 consumer and need only be unique
 ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)), from one
-undivided counter in scenario order (`<train>-1`, `<train>-2`), which
+undivided counter in the timetable's order (`<train>-1`, `<train>-2`), which
 byte-identical replay requires of it — a run carrying gestures makes no such
 claim, and a benchmark run receives none. Never clock-derived.
 
 It **holds facing**, which is scheduler state
-([ADR-0019](adr/0019-facing-is-scheduler-state.md)): seeded from the
-scenario's placement, carried forward from the entry end of each
+([ADR-0019](adr/0019-facing-is-scheduler-state.md)): begun at the placement
+the dispatcher accepts for a train, carried forward from the entry end of each
 `move_granted` and from a committed route's departure end, and published as a
 last-value topic that every view reads to draw a train's direction arrow
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
@@ -412,20 +413,19 @@ nothing to address an answer to and the frame is already a line in the trace
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 Like the dispatcher, it never raises on a bus payload. When the last timetable
 request is out it sets `exhausted`, the milestone-1 termination signal.
-Where a **retained `state/facing` survived a restart** it adopts that in
-place of the scenario's placement, a train the retained value does not name
-falling back to it.
+Where a **retained `state/facing` survived a restart** it adopts that, and a
+train the retained value does not name has no facing until it is placed.
 
 ### Dispatcher
 
 *Reads* the layout, the railroad's **roster** — train lengths for the
 admission fit check, and the whole of what makes a train **known**
-([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) — and from the
-scenario the initial placement that seeds the standing locks. A train on the
-roster the scenario places nowhere comes up off the layout. Neither fact can
-come off the bus: sensors are anonymous, so the lock table the dispatcher
-recovers identity from must be seeded before the first sensor event, and
-`request_submitted` carries no length. Where a **retained
+([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). A run is built from
+a railroad and nothing places its trains for it (#171), so a run comes up with
+an **empty layout** and **held**, and each train arrives on a person's
+`placement_wanted`. The roster cannot come off the bus: sensors are anonymous,
+so the lock table the dispatcher recovers identity from must be seeded before
+the first sensor event, and `request_submitted` carries no length. Where a **retained
 `state/allocation` survived a restart** the placement comes from it instead —
 its `trains` and `crossing`, adopted before the standing locks are published;
 lengths stay the roster's, and `locks` and `requests` are not adopted at
@@ -552,10 +552,10 @@ An end nothing ever leaves carries no signal and does not appear.
 Granted moves are published one event each (`move_granted`), distinct from
 the `lock_granted` ledger — the move is the driver's command; the ledger
 feeds the utilization metric, and a `FullRoute` launch locks a whole route
-in one grant while granting one move. At startup, having seeded its lock
-table from the scenario, the dispatcher publishes each train's standing
-lock as `lock_granted` — the trace must carry initial occupancy, or the
-utilization metric is blind to idle trains.
+in one grant while granting one move. At startup, for every train its lock
+table came up seeded with, the dispatcher publishes the standing lock as
+`lock_granted` — the trace must carry initial occupancy, or the utilization
+metric is blind to idle trains.
 
 ### Driver
 
@@ -580,7 +580,7 @@ future realistic-driving component fattens the driver behind the same topic.
 
 ### Layout interface
 
-*Reads* the layout and the scenario (initial train placement). *Subscribes*
+*Reads* the layout. *Subscribes*
 `tc49/drive/+`, `tc49/dispatch/align` and `tc49/dispatch/train_placed`.
 *Publishes* the boundary, the sensor events and `state/power`.
 
@@ -610,7 +610,7 @@ advancing when the scheduler is `exhausted` and a tick's cascade
 produced no commands ([BENCHMARKS.md](bench/BENCHMARKS.md#termination)). That stop
 rule is milestone-1 pacing, not bus contract — a hardware adapter never
 terminates. Sensor events report moves only: initial occupancy is never
-published — the dispatcher seeds its standing locks from the scenario, and
+published — the dispatcher's standing locks come from its own placement, and
 the occupancy topics are event topics, facts that happened, not state.
 
 **Track power** is the one observation that is not a sensor: `state/power`

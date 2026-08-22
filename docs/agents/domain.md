@@ -34,7 +34,7 @@ Top level is repo-wide; each app's implementation details sit in its own subfold
 │       ├── BENCHMARKS.md                   ← layouts, workloads, sweep axes
 │       └── METRICS.md                      ← how each number is derived
 ├── layouts/                                ← the encoded railroads
-└── scenarios/                              ← stock and request lists
+└── scenarios/                              ← the harness's request lists
 ```
 
 Everything under `docs/` except `adr/` is spec prose, not glossary or decisions — read it for what the system does; read `CONTEXT.md` for what the words mean.

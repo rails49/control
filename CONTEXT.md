@@ -167,7 +167,10 @@ well.
 _Avoid_: consist
 
 **Roster**:
-The trains a railroad owns, served by the store beside its drawing. A train in
+The trains a railroad owns, served by the store beside its drawing. With the
+drawing it is the whole of what a **run** is built from: a railroad, its
+stock, and a person who puts the stock on the rails
+([#171](https://github.com/rails49/control/issues/171)). A train in
 it is **known**, which is separate from being **placed**: a railroad at rest
 says what stock it has without saying where any of it stands
 ([ADR-0039](docs/adr/0039-a-train-may-be-off-the-layout.md)). Also the name of
@@ -359,8 +362,8 @@ move events — and **opaque to both**, so uniqueness is the whole contract and
 no consumer reads the shape
 ([ADR-0033](docs/adr/0033-a-request-id-is-unique-not-meaningful.md)). The
 scheduler mints `<train>-1`, `<train>-2`, … from one undivided counter in
-scenario order, which replay needs — and a run carrying gestures does not,
-no benchmark run receiving any. Never clock-derived, and never minted by a
+the order a timetable states, which replay needs — and a run carrying
+gestures does not, no benchmark run receiving any. Never clock-derived, and never minted by a
 page.
 _Avoid_: event id (there is no universal envelope id)
 
@@ -381,8 +384,8 @@ _Avoid_: reconnect (the socket, not the catching up), recovery
 **Restart**:
 The apps coming back up while the rails stayed as they were. What was lost is
 the dispatcher's lock table, which no sensor can return — sensors are
-anonymous — so placement must be seeded before the first sensor event, from a
-scenario or from something persisted.
+anonymous — so placement must be seeded before the first sensor event, from
+something persisted or by a person placing every train again.
 _Avoid_: reboot, cold start (which is a restart with nothing to restore)
 
 **Recovery**:

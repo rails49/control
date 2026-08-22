@@ -48,6 +48,14 @@ The rolling stock traveling or parked on the tracks:
   holds the transit and, until its tail clears, the block behind as well. It
   must fit in every block of its route.
 
+A railroad **owns** its stock: its **roster** is every train it has, whether
+any of them is on the layout or not
+([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). That is what a run
+begins from — a railroad, the trains it owns, and a person who takes them out
+of the closet, puts them on the track and drags them where they should go.
+Nothing else is needed to start one, and a run with an empty layout is the
+ordinary way an evening starts rather than a fault.
+
 ## Operations
 
 Railroad operations divide into three distinct functions, each of them an app

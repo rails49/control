@@ -19,8 +19,9 @@ in-process bus — plus a benchmark harness. Where each part landed:
   [SAFETY.md](dispatcher/SAFETY.md) as the research core: `dispatcher/locking.py`,
   over the state of `dispatcher/dispatch.py`.
 - The **scheduler** and **driver** — thin but real bus components: the
-  scheduler releases the scenario's fixed request list at its `at` boundaries,
-  the driver translates each granted move into layout commands:
+  scheduler composes a person's gestures into requests and releases a
+  timetable's at their `at` boundaries, the driver translates each granted
+  move into layout commands:
   `scheduler/scheduler.py` and `driver/driver.py`, the latter stateless.
 - The **simulator**, implementing the layout interface: executes commands,
   reports occupancy, publishes the boundary, and owns pacing and termination:
@@ -33,8 +34,8 @@ in-process bus — plus a benchmark harness. Where each part landed:
   examples (`tests/system/test_safety_conditions.py`, one scenario per
   condition), and golden-number assertions on the named scenarios
   (`tests/bench/test_benchmarks.py`).
-- A **benchmark CLI** that takes a scenario (which names its layout,
-  [LAYOUT.md](store/LAYOUT.md)), prints the four
+- A **benchmark CLI** that takes a scenario — the harness's own file, which
+  names its layout ([LAYOUT.md](store/LAYOUT.md)) — prints the four
   metrics of [DISPATCH.md](dispatcher/DISPATCH.md#metrics), and can dump the structured
   event trace ([BENCHMARKS.md](bench/BENCHMARKS.md)): `tc49 bench <scenario> --trace`.
 
@@ -53,9 +54,10 @@ only that core. Of [GOALS.md](GOALS.md)'s three operations, dispatching is the
 whole subject; the other two are real components kept to the minimum that
 exercises it:
 
-- **Scheduling** is a fixed request list read from a scenario file, released
-  by the scheduler of [SYSTEM.md](SYSTEM.md#scheduler) — which reads the
-  layout, but only to keep facing, and invents nothing
+- **Scheduling** is a person's drags, and a fixed request list the harness
+  reads from a scenario file for a benchmark run, released by the scheduler of
+  [SYSTEM.md](SYSTEM.md#scheduler) — which reads the layout, but only to keep
+  facing, and invents nothing
   ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). There
   is no arrival process and no continual-arrivals scheduler. A request's `at`
   is a **boundary count**, and that is the milestone binding rather than the
@@ -68,6 +70,16 @@ exercises it:
   with the simulator advancing each train one transit per tick. A train has no
   speed here and reads no signal: the grant it is handed is the whole of what
   it is told.
+
+**A run begins from a railroad**: its drawing, the trains its roster says it
+owns, and a person who takes them out of the closet and puts them on the
+layout ([#171](https://github.com/rails49/control/issues/171)). It comes up
+with an empty layout and **held**, which is what lets the placing happen
+([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md),
+[ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) — there is nothing to
+do on one but place trains and press GO. A scenario is the harness's file, not
+a run's: `tc49 bench` builds a batch run from one, and `tc49 live --scenario`
+replays one as the gestures a person would make.
 
 ## Rigor bar
 

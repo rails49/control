@@ -42,8 +42,8 @@ src/tc49/
     layout.py     Layout — blocks, connections, transits, conflict matrix
                   (expanded from `concurrent` by inversion), derived
                   terminal blocks
-    scenario.py   Scenario, TrainSpec, RequestSpec — the other coarse
-                  document type of ADR-0010
+    scenario.py   Scenario, TrainSpec, RequestSpec — the harness's own
+                  document, which no app reads (#171)
     inventory.py  the event inventory's leaf fields
     trace.py      the trace tap — canonical JSONL serialization, read/write
 
@@ -60,9 +60,9 @@ src/tc49/
                             (ui/EDITOR.md)
                 symbols.py  render() — the symbol library as the TypeScript
                             the editor draws against
-  scheduler/    Scheduler — releases scenario requests at their `at`
-                boundaries, mechanical arrival-end expansion, deterministic
-                ids, exhausted state topic
+  scheduler/    Scheduler — composes gestures into requests and releases a
+                timetable's at their `at` boundaries, mechanical arrival-end
+                expansion, deterministic ids, exhausted state topic
   dispatcher/   dispatch.py   Dispatcher — admission, queue, lock table,
                               buffered sensors, grant phase, align
                 locking.py    LockingStrategy, FullRoute, Incremental
@@ -79,6 +79,10 @@ src/tc49/
   bench/        runner.py   assemble the apps on one bus and run a scenario
                             to quiescence — the one wiring, shared by the
                             CLI and the tests
+                session.py  the live session: one railroad at a time behind
+                            the bridge, swapped by whoever joins
+                replay.py   Replay — a scenario played onto a live run as
+                            the gestures a person would make (#171)
                 cli.py      `tc49 bench <scenario>`; `tc49 sweep` takes no
                             arguments — the grid of BENCHMARKS.md is the
                             fixed research design; `tc49 layout show`;
@@ -107,7 +111,8 @@ layouts/                    <layout>.drawing.yaml — the drawn railroads,
                             the only committed topology; the store derives
                             each layout from its drawing
                             <layout>.roster.yaml — the trains it owns
-scenarios/<layout>/         <scenario>.scenario.yaml — placement and requests
+scenarios/<layout>/         <scenario>.scenario.yaml — the harness's placement
+                            and request lists
 benchmarks/expected/        <name>.json — golden numbers, asserted in pytest
 out/                        sweep JSONL, gitignored
 ```
