@@ -371,31 +371,24 @@ def restored(picture: Payload, roster: Roster, cold: dict[str, str]) -> Adopted:
     a restart, or the run's own `cold` placement where there is none (#123).
 
     Adoption is **selective**: `trains` and `crossing` are taken, `locks` and
-    `requests` left behind — the lock table is rebuilt one block per train
-    exactly as a cold start builds it, the queue comes back empty and no
-    request id resumes (ADR-0033). Stock stays the **roster**'s, so a train it
-    does not carry is not one this railroad owns and the picture's word for it
-    is dropped, and a train the picture does not name falls back to its cold
-    placement: one added since the last run is a cold start of one.
+    `requests` left behind. The lock table is rebuilt one block per train as a
+    cold start builds it, the queue comes back empty, and no request id
+    resumes (ADR-0033). Stock stays the **roster**'s, so the picture's word
+    for a train it does not carry is dropped, and a train the picture does not
+    name falls back to its cold placement.
 
-    It is also taken **per train** (#164). Where the two contradict each
-    other only the trains in the collision pay for it: the fallback can put a
-    train the picture never named in the very block the picture stands
-    another in, and that is a one-block disagreement, not a reason to send a
-    whole railroad back to the document. What the all-or-nothing rule was
-    protecting holds train by train anyway — no block ends with two trains in
-    it, and no train ends standing in a block nothing holds, which is the
-    standing lock every parked train always has (CONTEXT.md).
-
-    So a contested block goes to the train with **fewer answers**: one the
-    picture does not name has only the document and nowhere else to stand,
-    while one it does name still has its own starting block to fall back to.
-    A train both of whose answers are taken is placed by neither and comes up
-    off the layout (ADR-0039) — nothing is resolved automatically, and #153 is
-    what points a person at what is left. A train that did not keep its
+    It is taken **per train** (#164), so only the trains in a collision pay
+    for one, and what the all-or-nothing rule protected holds train by train
+    anyway: no block ends with two trains in it, and no train ends standing in
+    a block nothing holds (CONTEXT.md). A contested block goes to the train
+    with **fewer answers**: one the picture does not name has only the
+    document to stand on, while one it does name still has its own starting
+    block. A train both of whose answers are taken is placed by neither and
+    comes up off the layout (ADR-0039); nothing is resolved automatically, and
+    #153 points a person at what is left. A train that did not keep its
     restored position loses its crossing hint with it: the hint names a
-    transit the placement it came with was consistent with, and says nothing
-    about the block the document put the train in.
+    transit its own placement was consistent with, and says nothing about the
+    block the document put the train in.
     """
     named: Payload = picture.get("trains", {})
     pictured = {train: at for train, at in named.items() if train in roster.trains}

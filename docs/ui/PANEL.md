@@ -450,19 +450,20 @@ detectors dispute off `state/disputed`, facing off
 Rejoining is not recovery: nothing was lost, and the dispatcher was
 holding the truth the whole time ([CONTEXT.md](../../CONTEXT.md#interruptions)).
 
-**A session may outlive its process**, `tc49 live --state <file>`. The bus
+**A session may outlive its process**, `tc49 live --state <path>`. The bus
 keeps its retained values there and each app adopts its own coming up, so a
 restart opens on the placement and facing the last session left rather than
-on an empty layout (SYSTEM.md, the bus). The path names **one file per
-railroad**: a picture belongs to the railroad it is a picture of, and an
-operator switching railroads all evening must not be handed the last one's
-placement — train names do not tell two layouts apart. The panel reads nothing new for it:
-placement arrives on `state/allocation` and facing on `state/facing` exactly
-as they do on a rejoin. What the picture gains is `crossing`, train → the
-transit it was crossing when everything stopped: a placement hint with no
-route behind it, drawn on the connection as above, which sends a person to
-look at the one train the session cannot place on its own. A restored session
-also comes up **held**, so nothing moves while they do
+on an empty layout (SYSTEM.md, the bus). `<path>` itself is never written.
+Each railroad gets `<stem>.<railroad><suffix>` beside it, **one file per
+railroad**, because a session keeps the one path while the panel may switch
+railroads all evening, and train names do not tell two layouts apart. The
+panel reads nothing new for it: placement arrives on `state/allocation` and
+facing on `state/facing` exactly as they do on a rejoin. What the picture
+gains is `crossing`, train → the transit it was crossing when everything
+stopped: a placement hint with no route behind it, drawn on the connection as
+above, and the one train the session cannot place on its own. A restored
+session comes up **held**, so nothing moves before the placement has been
+checked
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 Restart is not rejoin and neither is recovery
 ([CONTEXT.md](../../CONTEXT.md#interruptions)).

@@ -124,17 +124,16 @@ never will.
 
 **The retained values are durable.** Given a file, the binding loads it at
 startup and rewrites the whole of it on every change to a `tc49/*/state/*`
-value — a temporary file in the same directory, renamed over the target, so a
-cut mid-write leaves the previous good copy intact. That is a **binding**
+value: a temporary file in the same directory, renamed over the target, so a
+cut mid-write leaves the previous good copy intact. It is a **binding**
 concern and not an app's, because it is what a broker already does with
 retained messages: an app that comes back up finds its own value waiting on
-its own state topic and adopts it, exactly as it would from a broker that
-outlived it, and milestone 2 inherits the behaviour rather than deleting a
-crutch. What is adopted is each app's own business, and it is selective —
-placement and facing are; the dispatcher's queue is not, and no request id
-ever resumes ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)).
-With no file the bus opens none, so `bench` and `sweep` are untouched by
-construction.
+its own state topic and adopts it, exactly as it will from the broker that
+replaces the bus in milestone 2. What is adopted is each app's own business,
+and it is selective: placement and facing are, the dispatcher's queue is not,
+and no request id ever resumes
+([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)). With no file
+the bus opens none, so `bench` and `sweep` are untouched by construction.
 
 **Milestone-1 bridge.** Until the bus is a real broker, a browser reaches it
 over a WebSocket relay ([ui/PANEL.md](ui/PANEL.md#implementation)): every

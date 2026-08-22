@@ -44,12 +44,10 @@ from tc49.store import AssetStore
 def state_for(state: Path, layout: str) -> Path:
     """One railroad's own state file, beside the one the session was given.
 
-    A picture belongs to the railroad it is a picture of. The panel may switch
-    railroads (#148) and a session keeps one path, so a single file would
-    offer a gotthard picture to single-track-meet — and train names do not
-    tell them apart, `fixed` and `flexible` standing on both of those layouts
-    in the scenarios shipped here. Adopting across would place a train in a
-    block of another layout, which no gesture on this one can clear.
+    The panel may switch railroads (#148) while a session keeps one path, and
+    train names do not tell two layouts apart, so a single file would offer
+    one railroad's picture to another and place a train in a block no gesture
+    here can clear.
     """
     return sibling(state, layout)
 
