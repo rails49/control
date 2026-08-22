@@ -1,11 +1,12 @@
 """Reading a payload from outside, in the one place both apps read one (#127)."""
 
-from tc49.lib.inventory import HELD, RUNNING
+from tc49.lib.inventory import HELD, OFF, ON, RUNNING, STOPPED
 from tc49.lib.payload import (
     Gesture,
     Placement,
     gesture,
     placement,
+    power,
     reversal,
     run_state,
 )
@@ -75,6 +76,35 @@ def test_a_payload_naming_no_run_state_reads_as_none() -> None:
     ]
     for payload in refused:
         assert run_state(payload) is None, payload
+
+
+def test_a_power_payload_reads_as_the_word_the_layout_states() -> None:
+    """The three values of the topic, each read as itself: the dispatcher
+    branches on "not `on`", and the panel is where `stopped` and `off` are
+    told apart (ADR-0041)."""
+    assert power({"power": "on"}) == ON
+    assert power({"power": "stopped"}) == STOPPED
+    assert power({"power": "off"}) == OFF
+
+
+def test_a_power_payload_that_cannot_be_read_reads_as_off() -> None:
+    """The opposite direction from every other reader here, and that is the
+    point. A dropped hold-or-release gesture means doing nothing; a dropped
+    power word would mean **not holding**, leaving the run committing over
+    track whose state could not be read. So an unreadable payload is one of
+    the "anything but `on`" cases the contract already has (DISPATCH.md),
+    and `off` is which of them because the dispatcher does not tell them
+    apart (#175)."""
+    unreadable: list[object] = [
+        "off",  # not an object at all
+        ["off"],  # nor a list of its fields
+        {},  # no power
+        {"power": None},
+        {"power": 42},  # not a word
+        {"power": "sideways"},  # a word outside the closed set
+    ]
+    for payload in unreadable:
+        assert power(payload) == OFF, payload
 
 
 def test_a_placement_reads_as_the_train_and_the_block_it_names() -> None:

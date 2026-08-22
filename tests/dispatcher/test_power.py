@@ -17,10 +17,14 @@ off, and the steel does not move. That is the whole failure — the crosses
 already sent are never executed, and no sensor ever answers them.
 """
 
+from typing import cast
+
 import pytest
 
-from tc49.bench.runner import Assembly, assemble
-from tc49.lib.bus import Payload
+from tc49.bench.runner import DEFAULT_K, Assembly, assemble
+from tc49.dispatcher import Dispatcher, FullRoute
+from tc49.lib.bus import Bus, Payload
+from tc49.lib.inventory import HELD, ON
 from tests.harness import events, load, press, ticks
 
 BOUNDARY = "tc49/layout/boundary"
@@ -74,6 +78,46 @@ def test_power_leaving_on_holds_a_running_run() -> None:
         # which is the lie the hold refuses to tell (ADR-0037).
         shown = leaves(assembly, "aspects")[-1]["aspects"]
         assert set(shown.values()) == {"stop"}, word
+
+
+def told(payload: object) -> Dispatcher:
+    """A dispatcher on a bus of its own, told that on the power topic.
+
+    The trace is not on this bus, and deliberately: it is a promise about
+    what the *apps* write and fails loudly on a payload outside the
+    inventory (SYSTEM.md, the trace). The dispatcher's rule is the opposite
+    one — it reads what arrives and never raises (ADR-0034) — and that is
+    what is under test here.
+    """
+    layout, scenario = load("crossover-yard/meet")
+    bus = Bus()
+    dispatcher = Dispatcher(bus, layout, scenario, FullRoute(layout, DEFAULT_K))
+    bus.drain()
+    bus.publish(POWER, cast(Payload, payload))
+    bus.drain()
+    return dispatcher
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [{}, {"power": 42}, {"power": "sideways"}, "off"],
+    ids=["no field", "not a word", "outside the set", "not an object"],
+)
+def test_a_power_payload_that_cannot_be_read_holds_the_run(payload: object) -> None:
+    """Nothing on this topic takes the dispatcher down, and an unreadable
+    word is no reason to go on running.
+
+    Anything at all can arrive once the bus is not in-process (#173), so the
+    word is read rather than subscripted. It fails towards the hold: a
+    dropped power word would mean *not* holding, leaving the run committing
+    over track whose state could not be read. So an unreadable payload is
+    one of the "anything but `on`" cases the contract already has
+    (DISPATCH.md), and the run holds exactly as `stopped` or `off` holds it.
+    """
+    dispatcher = told(payload)
+
+    assert dispatcher.state.power != ON
+    assert dispatcher.state.run == HELD
 
 
 def test_the_same_word_twice_republishes_nothing(timetabled: Assembly) -> None:

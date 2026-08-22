@@ -10,8 +10,9 @@ inventory).
 
 Where a field's *values* are a closed set the contract names, they live here
 too, beside the field they belong to: ``run`` and ``power`` are those fields,
-and their words are read by the apps that write them and by the payload
-readers that refuse everything else.
+and their words are read by the apps that write them and by the payload reader
+each has — ``payload.run_state``, which drops a payload naming no word, and
+``payload.power``, which reads one as ``off`` (#175).
 """
 
 TOPICS: dict[str, tuple[str, ...]] = {

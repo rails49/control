@@ -26,7 +26,7 @@ from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import HELD, ON, RUNNING
 from tc49.lib.layout import Layout, block_of, end_on, leaving_end, opposite_end
-from tc49.lib.payload import gesture, placement, run_state
+from tc49.lib.payload import gesture, placement, power, run_state
 from tc49.lib.rejection import Reason
 from tc49.lib.scenario import Scenario
 
@@ -845,6 +845,11 @@ class Dispatcher:
         emergency stop or switches a supply back on, and the panel is where
         that is said.
 
+        "Anything but `on`" is read literally, so a payload that cannot be
+        read at all is one of those cases rather than an exception: the word
+        comes through `payload.power`, which answers `off` where a
+        subscript would have raised (#175).
+
         Power **returning** to `on` releases nothing. That is the bar the hold
         exists for: an explicit GO before anything moves, whatever the rails
         did in the meantime, and the same guarantee the hardware gives at
@@ -856,7 +861,7 @@ class Dispatcher:
         restarts the session — the hold is a brake and not an emergency stop,
         and nothing on the bus retracts a `cross` already sent.
         """
-        self._state.power = payload["power"]
+        self._state.power = power(payload)
         if self._state.power != ON:
             self._move_run(HELD)
 

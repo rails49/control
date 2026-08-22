@@ -20,7 +20,7 @@ reading lives — that nothing raises is (#152).
 from dataclasses import dataclass
 from typing import cast
 
-from tc49.lib.inventory import HELD, RUNNING
+from tc49.lib.inventory import HELD, OFF, ON, RUNNING, STOPPED
 
 
 @dataclass(frozen=True)
@@ -74,6 +74,31 @@ def run_state(payload: object) -> str | None:
     if not isinstance(wanted, str) or wanted not in (HELD, RUNNING):
         return None
     return wanted
+
+
+def power(payload: object) -> str:
+    """The word the layout states about its supply, for a payload that can be
+    read as one; `off` for a payload that cannot.
+
+    It fails in the opposite direction from every other reader here, and that
+    is the point. A gesture that cannot be read is dropped, and dropping a
+    hold-or-release means doing nothing; dropping a *power* word would mean
+    **not holding**, leaving the run committing over track whose state could
+    not be read. So an unreadable payload is one of the "anything but `on`"
+    cases the contract already has (DISPATCH.md) rather than an exception,
+    and there is no `None` for a caller to have to think about.
+
+    Which not-`on` word it is, is not a behavioural choice: the dispatcher
+    branches on "not `on`" alone (ADR-0041), and `stopped` and `off` differ
+    only for the person recovering — who has an unreadable payload to recover
+    from, not an emergency stop.
+    """
+    if not isinstance(payload, dict):
+        return OFF
+    stated = cast(dict[str, object], payload).get("power")
+    if not isinstance(stated, str) or stated not in (ON, STOPPED, OFF):
+        return OFF
+    return stated
 
 
 @dataclass(frozen=True)
