@@ -94,16 +94,7 @@ class Session:
         nothing is recorded, so the railroad already running is untouched by
         a typo.
         """
-        try:
-            wanted = railroad(self._store, name)
-        except FileNotFoundError:
-            return f"no railroad '{name}'"
-        except ValueError as refused:
-            return f"railroad '{name}': {refused}"
-        with self._lock:
-            self._wanted = (name, *wanted, None)
-            self._swap.set()
-        return None
+        return self._want(name, None)
 
     def plays(self, scenario_id: str) -> str | None:
         """Run the railroad a scenario names, and replay the scenario onto it
@@ -122,12 +113,21 @@ class Session:
             return f"scenario '{scenario_id}': {refused}"
         if not isinstance(scenario, Scenario):
             return f"no scenario '{scenario_id}'"
-        refusal = self.wants(scenario.layout)
-        if refusal is not None:
-            return refusal
+        return self._want(scenario.layout, scenario)
+
+    def _want(self, name: str, scenario: Scenario | None) -> str | None:
+        """What both of those are: the documents read, then one railroad and
+        one replay recorded together under the lock, so the run loop can never
+        pick up a railroad before the scenario meant for it."""
+        try:
+            wanted = railroad(self._store, name)
+        except FileNotFoundError:
+            return f"no railroad '{name}'"
+        except ValueError as refused:
+            return f"railroad '{name}': {refused}"
         with self._lock:
-            assert self._wanted is not None
-            self._wanted = (*self._wanted[:3], scenario)
+            self._wanted = (name, *wanted, scenario)
+            self._swap.set()
         return None
 
     def stop(self) -> None:
