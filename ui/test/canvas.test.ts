@@ -16,8 +16,14 @@ import { describe, expect, it } from "vitest";
 import "../src/ui/tc-canvas.js";
 import type { Drawing } from "../src/model/drawing.js";
 import { Editor } from "../src/model/editor.js";
+import { editingMachine, Gesture } from "../src/model/gesture.js";
 import type { Chosen } from "../src/model/inspect.js";
-import type { Review, Transit, UnpairedPortal } from "../src/model/store.js";
+import {
+  UNREVIEWED,
+  type Review,
+  type Transit,
+  type UnpairedPortal,
+} from "../src/model/store.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
 
 /**
@@ -48,13 +54,25 @@ function reviewed(unpaired: UnpairedPortal[]): Review {
   };
 }
 
-async function canvasOf(unpaired: UnpairedPortal[]) {
+/** A canvas mounted on a drawing, driven by the editor's own machine: the
+ *  canvas holds none, each view handing over the one that is its own
+ *  (model/machine.ts). */
+async function canvasOn(drawing: Drawing, review: Review): Promise<TcCanvas> {
   const canvas = document.createElement("tc-canvas");
-  canvas.editor = new Editor(structuredClone(DRAWING));
-  canvas.review = reviewed(unpaired);
+  canvas.editor = new Editor(structuredClone(drawing));
+  canvas.review = review;
+  canvas.machine = editingMachine(
+    new Gesture(),
+    () => canvas.editor,
+    () => canvas.review ?? UNREVIEWED,
+  );
   document.body.append(canvas);
   await canvas.updateComplete;
   return canvas;
+}
+
+async function canvasOf(unpaired: UnpairedPortal[]) {
+  return await canvasOn(DRAWING, reviewed(unpaired));
 }
 
 /** The marks the canvas draws, each as its text, where it sits and which end
@@ -102,8 +120,33 @@ describe("the label a portal pairing with nothing wears", () => {
   });
 });
 
-describe("fitting the view", () => {
-  it("keeps the marks on the sheet", async () => {
+/**
+ * The viewport, which is the canvas's own and the same in both modes (#168):
+ * the middle button pans it, the bar's buttons zoom about its middle, and fit
+ * frames the whole drawing. None of it is a gesture machine's — a machine
+ * cannot reach the viewBox, and both views want the same answer.
+ */
+describe("the viewport", () => {
+  /** The four numbers of the `viewBox`, which is the whole of what the canvas
+   *  is looking at. */
+  function looking(canvas: TcCanvas): number[] {
+    return canvas.renderRoot
+      .querySelector("svg")!
+      .getAttribute("viewBox")!
+      .split(" ")
+      .map(Number);
+  }
+
+  /** A pointer event on the sheet. happy-dom's `getScreenCTM` is the identity,
+   *  so a client pixel reads as a grid square and the two are the same numbers
+   *  here. */
+  function press(canvas: TcCanvas, name: string, at: Partial<PointerEventInit>) {
+    canvas.renderRoot
+      .querySelector("svg")!
+      .dispatchEvent(new PointerEvent(name, { bubbles: true, ...at }));
+  }
+
+  it("keeps the marks on the sheet when fitting", async () => {
     // A portal's one pin is on the side away from its mouth, so the outermost
     // thing in the drawing can be the very mark that wants looking at: here
     // the pins span 1 to 10 and the two marks sit at -0.2 and 11.2.
@@ -113,13 +156,35 @@ describe("fitting the view", () => {
     ]);
     canvas.fit();
     await canvas.updateComplete;
-    const [x, , w] = canvas.renderRoot
-      .querySelector("svg")!
-      .getAttribute("viewBox")!
-      .split(" ")
-      .map(Number);
+    const [x, , w] = looking(canvas);
     expect(x!).toBeLessThanOrEqual(-0.2);
     expect(x! + w!).toBeGreaterThanOrEqual(11.2);
+    canvas.remove();
+  });
+
+  it("zooms a button press about the middle of the view", async () => {
+    const canvas = await canvasOf([]);
+    const [x, y, w, h] = looking(canvas);
+    canvas.zoom(2);
+    await canvas.updateComplete;
+    const [now, then, wide, high] = looking(canvas);
+    expect(wide).toBeCloseTo(w! * 2);
+    expect(high).toBeCloseTo(h! * 2);
+    expect(now! + wide! / 2).toBeCloseTo(x! + w! / 2);
+    expect(then! + high! / 2).toBeCloseTo(y! + h! / 2);
+    canvas.remove();
+  });
+
+  /** The anchor stays put: the view moves under the pointer, so the same
+   *  screen position reads as the anchor again on the next event. */
+  it("pans under the middle button", async () => {
+    const canvas = await canvasOf([]);
+    const [x, y] = looking(canvas);
+    press(canvas, "pointerdown", { button: 1, clientX: 2, clientY: 1 });
+    press(canvas, "pointermove", { clientX: 3, clientY: 1.5 });
+    await canvas.updateComplete;
+    expect(looking(canvas)[0]).toBeCloseTo(x! - 1);
+    expect(looking(canvas)[1]).toBeCloseTo(y! - 0.5);
     canvas.remove();
   });
 });
@@ -144,12 +209,7 @@ describe("the drawing as a standalone file", () => {
   };
 
   async function drawn() {
-    const canvas = document.createElement("tc-canvas");
-    canvas.editor = new Editor(structuredClone(RAILROAD));
-    canvas.review = reviewed([]);
-    document.body.append(canvas);
-    await canvas.updateComplete;
-    return canvas;
+    return await canvasOn(RAILROAD, reviewed([]));
   }
 
   it("frames the whole drawing wherever the canvas is looking", async () => {
@@ -238,11 +298,8 @@ describe("the way a refusal is about", () => {
   };
 
   async function drawn(offending: Transit[], chosen: Chosen | null = null) {
-    const canvas = document.createElement("tc-canvas");
-    canvas.editor = new Editor(structuredClone(LOOP));
-    canvas.review = { ...reviewed([]), offending };
+    const canvas = await canvasOn(LOOP, { ...reviewed([]), offending });
     canvas.chosen = chosen;
-    document.body.append(canvas);
     await canvas.updateComplete;
     return canvas;
   }
@@ -342,11 +399,8 @@ describe("the wires a lit way runs over", () => {
   };
 
   async function lines(review: Partial<Review>, chosen: Chosen | null = null) {
-    const canvas = document.createElement("tc-canvas");
-    canvas.editor = new Editor(structuredClone(YARD));
-    canvas.review = { ...reviewed([]), ...review };
+    const canvas = await canvasOn(YARD, { ...reviewed([]), ...review });
     canvas.chosen = chosen;
-    document.body.append(canvas);
     await canvas.updateComplete;
     const drawn = [...canvas.renderRoot.querySelectorAll("line.wire")].map(
       (line) => [...line.classList].join(" "),
@@ -420,12 +474,7 @@ describe("the mark a symbol with no address wears", () => {
   };
 
   async function drawn(drawing: Drawing = YARD) {
-    const canvas = document.createElement("tc-canvas");
-    canvas.editor = new Editor(structuredClone(drawing));
-    canvas.review = reviewed([]);
-    document.body.append(canvas);
-    await canvas.updateComplete;
-    return canvas;
+    return await canvasOn(drawing, reviewed([]));
   }
 
   /** Which symbols wear the mark, by the group each one is drawn in. */

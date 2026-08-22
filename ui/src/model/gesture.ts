@@ -1,19 +1,23 @@
 /**
- * What a pointer gesture means: press, drag, band and pan, as EDITOR.md#canvas
- * rules them.
+ * What a pointer gesture means in the editor: press, drag and band, as
+ * EDITOR.md#canvas rules them.
  *
  * The canvas converts the pointer's pixels into squares, calls one method per
  * event, and draws what `band` and `shift` say; every rule after the
  * conversion lives here, where it runs without a DOM (EDITOR.md#tests).
  * Everything that changes the document goes through `Editor`, taken per call
  * and never held, and what happened comes back as an `Outcome` for the
- * component to map onto rendering and events.
+ * component to map onto rendering and events (model/machine.ts).
+ *
+ * The viewport is not here. Zoom, the wheel and the middle-button pan are the
+ * same in the run view as in the editor, so the canvas owns them and no
+ * machine is asked what they mean.
  */
 
 import { symbolOf, type PinRef } from "./drawing.js";
 import type { Editor } from "./editor.js";
 import { anchorOf, facePoint, type Point } from "./geometry.js";
-import type { Input, Outcome, Span } from "./machine.js";
+import type { Input, Machine, Outcome, Span } from "./machine.js";
 import type { Review } from "./store.js";
 import { under, within, type Under } from "./under.js";
 
@@ -42,7 +46,6 @@ export class Gesture {
   private press: Press | null = null;
   private drag: Drag | null = null;
   private rubber: Span | null = null;
-  private pan: Point | null = null;
 
   /** The rubber band in flight, for the canvas to draw. */
   get band(): Span | null {
@@ -59,10 +62,6 @@ export class Gesture {
   }
 
   down(editor: Editor, review: Review, point: Point, input: Input): Outcome {
-    if (input.button === 1) {
-      this.pan = point;
-      return "quiet";
-    }
     if (input.button !== 0) return "quiet";
 
     // A symbol in flight is dropped by the release, so the press before it must
@@ -121,12 +120,6 @@ export class Gesture {
       return "picked";
     }
 
-    // The anchor stays put: the view moves under the pointer, so the same
-    // screen position reads as the anchor again on the next event.
-    if (this.pan !== null) {
-      return { pan: { x: this.pan.x - point.x, y: this.pan.y - point.y } };
-    }
-
     // The drag holds its last legal offset while the pointer is over an
     // obstacle, and catches up once the offset is clear again, so a drag across
     // a crowded row is never wasted and never lands on anything. A lone bend
@@ -163,7 +156,6 @@ export class Gesture {
       return "render";
     }
 
-    this.pan = null;
     // A press that never moved: the click it turns out to have been starts a
     // wire at the pin it was on.
     if (this.press !== null) {
@@ -194,11 +186,10 @@ export class Gesture {
     return "quiet";
   }
 
-  /** The pointer left the canvas: a pan or a press in flight is abandoned. A
-   *  drag or a band survives, pointer capture keeping leave from firing while
-   *  a button is down. */
+  /** The pointer left the canvas: a press in flight is abandoned. A drag or a
+   *  band survives, pointer capture keeping leave from firing while a button
+   *  is down. */
   left(): Outcome {
-    this.pan = null;
     this.press = null;
     return "quiet";
   }
@@ -272,4 +263,31 @@ export class Gesture {
     const now = facePoint(point.x, point.y);
     return { dx: now.x - was.x, dy: now.y - was.y };
   }
+}
+
+/**
+ * The editor's machine as the canvas drives it (model/machine.ts).
+ *
+ * The document and the review are read afresh on each call rather than
+ * captured, `Gesture` taking both per call and holding neither: the shell is
+ * the single owner of the `Editor` the canvas renders from, and it may hand
+ * over another when a railroad is opened.
+ */
+export function editingMachine(
+  gesture: Gesture,
+  editor: () => Editor,
+  review: () => Review,
+): Machine {
+  return {
+    down: (point, input) => gesture.down(editor(), review(), point, input),
+    moved: (point, screen) => gesture.moved(editor(), point, screen),
+    up: (point) => gesture.up(editor(), point),
+    left: () => gesture.left(),
+    menu: (point) => gesture.menu(editor(), review(), point),
+    shift: (name) => gesture.shift(editor(), name),
+    get marks() {
+      const band = gesture.band;
+      return band === null ? null : { band };
+    },
+  };
 }

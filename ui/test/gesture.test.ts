@@ -277,21 +277,6 @@ describe("the rubber band", () => {
   });
 });
 
-/** The middle button pans. The machine cannot reach the viewBox, so the pan
- *  comes back as the grid delta the view should move by, and the anchor stays:
- *  the view moves under the pointer. */
-describe("panning", () => {
-  it("answers a middle-button drag with the view's delta", () => {
-    const editor = turnouts();
-    const gesture = new Gesture();
-    expect(down(gesture, editor, 2, 1, { button: 1 })).toBe("quiet");
-    expect(gesture.moved(editor, { x: 3, y: 1.5 }, { x: 0, y: 0 })).toEqual({
-      pan: { x: -1, y: -0.5 },
-    });
-    expect(gesture.up(editor, { x: 3, y: 1.5 })).toBe("quiet");
-  });
-});
-
 /** The right button is one of the ways out of a palette drag, and otherwise
  *  asks about what was clicked (EDITOR.md#palette). */
 describe("the right-click", () => {

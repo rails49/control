@@ -1,12 +1,12 @@
 /**
  * The drawing surface: SVG in the DOM, one user unit to one grid square.
  *
- * Hit-testing, hover and selection come from pointer events. Everything that
- * changes the document goes through `Editor`, and what a gesture means is
- * `Gesture`'s (model/gesture.ts): this component converts pixels to squares,
- * feeds the machine one call per event, and maps each outcome onto rendering
- * and events. It holds the machine and a pointer position for the wireline
- * and the ghost, and none of it survives the gesture.
+ * The viewport is this component's — zoom, the wheel, the middle-button pan
+ * and fit — and what a press means is not. The view hands over a gesture
+ * machine (model/machine.ts) and this converts pixels to squares, feeds it one
+ * call per event, and maps each outcome onto rendering and events. It holds a
+ * pointer position for the wireline and the ghost, and none of it survives the
+ * gesture.
  */
 
 import { LitElement, html, svg, nothing, type SVGTemplateResult } from "lit";
@@ -32,8 +32,7 @@ import {
   transformOf,
   type Point,
 } from "../model/geometry.js";
-import { Gesture } from "../model/gesture.js";
-import type { Outcome } from "../model/machine.js";
+import type { Machine, Outcome } from "../model/machine.js";
 import {
   chosenWay,
   dark,
@@ -44,24 +43,11 @@ import {
   type Chosen,
 } from "../model/inspect.js";
 import { fitBox } from "../model/scene.js";
-import type { Review } from "../model/store.js";
+import { UNREVIEWED, type Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { BLOCK, FACE, PIN, PORTAL, RING, fitted } from "../render/units.js";
 import { canvasStyles, exportStyles } from "./tc-canvas.styles.js";
-
-/** What a canvas with no review yet reads as. */
-const EMPTY: Review = {
-  red_pins: [],
-  unpaired_portals: [],
-  junctions: [],
-  joints: [],
-  motor_faults: [],
-  layout: null,
-  explain: null,
-  refused: null,
-  offending: [],
-};
 
 /** What the canvas lights, worked out once a render: the legs of the symbols
  *  on the way, the wires it is drawn over, and whether the way is one a
@@ -88,9 +74,15 @@ export class TcCanvas extends LitElement {
   /** The transit whose way is lit, chosen in the netlist pane. */
   @property({ attribute: false }) chosen: Chosen | null = null;
 
+  /** What a press means, which is the view's and never this component's. */
+  @property({ attribute: false }) machine!: Machine;
+
   @state() private view: Box = { x: -1, y: -1, w: 16, h: 11 };
   @state() private pointer: Point | null = null;
-  private gesture = new Gesture();
+  /** Where the middle button was pressed, while it is down. The anchor stays
+   *  put: the view moves under the pointer, so the same screen position reads
+   *  as the anchor again on the next event. */
+  private panning: Point | null = null;
 
   private watch = new ResizeObserver(() => this.square());
 
@@ -114,6 +106,7 @@ export class TcCanvas extends LitElement {
         @pointermove=${this.moved}
         @pointerup=${this.up}
         @pointerleave=${this.left}
+        @pointercancel=${this.left}
         @wheel=${this.wheel}
         @contextmenu=${this.menu}
       >
@@ -164,7 +157,7 @@ export class TcCanvas extends LitElement {
    *  wants looking at, a whole square outside the pin the margin is measured
    *  from. */
   private marks(): Point[] {
-    return [...unpaired(this.review ?? EMPTY).keys()].flatMap((name) => {
+    return [...unpaired(this.review ?? UNREVIEWED).keys()].flatMap((name) => {
       const spec = this.editor.drawing.symbols[name];
       return spec === undefined ? [] : [gridPointOf(spec, PORTAL.mark)];
     });
@@ -266,7 +259,7 @@ export class TcCanvas extends LitElement {
    * that refuses has no netlist to choose from.
    */
   private shown(): Shown {
-    const review = this.review ?? EMPTY;
+    const review = this.review ?? UNREVIEWED;
     const refused = review.offending.length > 0;
     const ways = refused ? review.offending : chosenWay(review, this.chosen);
     return {
@@ -294,7 +287,7 @@ export class TcCanvas extends LitElement {
   }
 
   private symbols(shown: Shown): unknown {
-    const review = this.review ?? EMPTY;
+    const review = this.review ?? UNREVIEWED;
     const way = shown.legs;
     const blind = dark(review);
     const lone = unpaired(review);
@@ -487,8 +480,8 @@ export class TcCanvas extends LitElement {
   }
 
   private rubberBand(): SVGTemplateResult | typeof nothing {
-    const band = this.gesture.band;
-    if (band === null) return nothing;
+    const band = this.machine.marks?.band;
+    if (band === undefined) return nothing;
     const { from, to } = band;
     return svg`<rect class="band"
       x=${Math.min(from.x, to.x)} y=${Math.min(from.y, to.y)}
@@ -502,14 +495,6 @@ export class TcCanvas extends LitElement {
    *  wireline starts at the press before the first move arrives. */
   private apply(outcome: Outcome, point: Point): void {
     if (outcome === "quiet") return;
-    if (typeof outcome === "object") {
-      this.view = {
-        ...this.view,
-        x: this.view.x + outcome.pan.x,
-        y: this.view.y + outcome.pan.y,
-      };
-      return;
-    }
     if (this.editor.pendingFrom !== null) this.pointer = point;
     if (outcome === "picked") this.picked();
     else if (outcome === "changed") this.changed();
@@ -519,8 +504,12 @@ export class TcCanvas extends LitElement {
   private down(event: PointerEvent): void {
     const point = this.gridAt(event);
     (event.target as Element).setPointerCapture?.(event.pointerId);
+    if (event.button === 1) {
+      this.panning = point;
+      return;
+    }
     this.apply(
-      this.gesture.down(this.editor, this.review ?? EMPTY, point, {
+      this.machine.down(point, {
         button: event.button,
         shift: event.shiftKey,
         screen: { x: event.clientX, y: event.clientY },
@@ -531,6 +520,14 @@ export class TcCanvas extends LitElement {
 
   private moved(event: PointerEvent): void {
     const point = this.gridAt(event);
+    if (this.panning !== null) {
+      this.view = {
+        ...this.view,
+        x: this.view.x + this.panning.x - point.x,
+        y: this.view.y + this.panning.y - point.y,
+      };
+      return;
+    }
     // Only the wireline and the ghost read the pointer, and `pointer` is state:
     // assigning it on every move would re-render the whole sheet to draw
     // nothing.
@@ -538,22 +535,22 @@ export class TcCanvas extends LitElement {
       this.pointer = point;
     }
     this.apply(
-      this.gesture.moved(this.editor, point, {
-        x: event.clientX,
-        y: event.clientY,
-      }),
+      this.machine.moved(point, { x: event.clientX, y: event.clientY }),
       point,
     );
   }
 
   private up(event: PointerEvent): void {
     const point = this.gridAt(event);
-    this.apply(this.gesture.up(this.editor, point), point);
+    this.panning = null;
+    this.apply(this.machine.up(point), point);
   }
 
+  /** The pointer left the sheet, or the gesture under it was cancelled. */
   private left(): void {
     this.pointer = null;
-    this.gesture.left();
+    this.panning = null;
+    this.machine.left();
   }
 
   /**
@@ -565,11 +562,7 @@ export class TcCanvas extends LitElement {
   private menu(event: MouseEvent): void {
     event.preventDefault();
     const point = this.gridAt(event);
-    const { outcome, found } = this.gesture.menu(
-      this.editor,
-      this.review ?? EMPTY,
-      point,
-    );
+    const { outcome, found } = this.machine.menu(point);
     this.apply(outcome, point);
     if (found === null) return;
     this.dispatchEvent(
@@ -596,13 +589,11 @@ export class TcCanvas extends LitElement {
   // --- reading the drawing under the pointer ------------------------------
 
   private gridAt(event: MouseEvent): Point {
-    const svgElement = this.renderRoot.querySelector("svg")!;
-    const matrix = svgElement.getScreenCTM();
+    const matrix = this.renderRoot.querySelector("svg")!.getScreenCTM();
     if (matrix === null) return { x: 0, y: 0 };
-    const point = svgElement.createSVGPoint();
-    point.x = event.clientX;
-    point.y = event.clientY;
-    const grid = point.matrixTransform(matrix.inverse());
+    const grid = new DOMPoint(event.clientX, event.clientY).matrixTransform(
+      matrix.inverse(),
+    );
     return { x: grid.x, y: grid.y };
   }
 
@@ -615,7 +606,7 @@ export class TcCanvas extends LitElement {
    * what the document says.
    */
   private at(point: Point): Under {
-    return under(this.editor.drawing, this.review ?? EMPTY, point, (name) =>
+    return under(this.editor.drawing, this.review ?? UNREVIEWED, point, (name) =>
       this.shift(name),
     );
   }
@@ -629,7 +620,7 @@ export class TcCanvas extends LitElement {
    *  machine knows: nothing except while a drag of the selection is in
    *  progress. */
   private shift(name: string): Point {
-    return this.gesture.shift(this.editor, name);
+    return this.machine.shift(name);
   }
 
   private changed(): void {

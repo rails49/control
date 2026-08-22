@@ -27,8 +27,9 @@ import { customElement, property, state } from "lit/decorators.js";
 import type { Kind } from "../symbols.generated.js";
 import { emptyDrawing, type SymbolSpec } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
+import { editingMachine, Gesture } from "../model/gesture.js";
 import type { Chosen } from "../model/inspect.js";
-import type { Review } from "../model/store.js";
+import { UNREVIEWED, type Review } from "../model/store.js";
 import type { Under } from "../model/under.js";
 import { editorStyles } from "./tc-editor.styles.js";
 import "./tc-canvas.js";
@@ -98,6 +99,14 @@ export class TcEditor extends LitElement {
    *  attribute is what `tc-editor.styles.ts` can read. */
   @property({ type: Boolean, reflect: true }) netlist = false;
 
+  /** What a press on the canvas means here (model/gesture.ts), bound to the
+   *  document it is about. The canvas drives it and decides none of it. */
+  private readonly machine = editingMachine(
+    new Gesture(),
+    () => this.editor,
+    () => this.review ?? UNREVIEWED,
+  );
+
   @state() private menu: MenuAt | null = null;
   @state() private editing: { name: string; spec: SymbolSpec } | null = null;
   @state() private chosen: Chosen | null = null;
@@ -118,6 +127,7 @@ export class TcEditor extends LitElement {
         .editor=${this.editor}
         .review=${this.review}
         .chosen=${this.chosen}
+        .machine=${this.machine}
         @canvas-menu=${(event: CustomEvent<MenuAt>) => {
           this.menu = event.detail;
         }}

@@ -94,6 +94,21 @@ export interface Review {
   offending: Transit[];
 }
 
+/** What a drawing the store has not answered for yet reads as: nothing red,
+ *  nothing unpaired, nothing derived. A surface painting before the first
+ *  answer has arrived reads this rather than branching on a null. */
+export const UNREVIEWED: Review = {
+  red_pins: [],
+  unpaired_portals: [],
+  junctions: [],
+  joints: [],
+  motor_faults: [],
+  layout: null,
+  explain: null,
+  refused: null,
+  offending: [],
+};
+
 export async function listDrawings(): Promise<string[]> {
   return (await ask<{ drawings: string[] }>("GET", "/drawings")).drawings;
 }
