@@ -11,6 +11,9 @@ into them being how the next train is stranded like the first.
 Driven at the bus, which is where both arrive: `tc49/layout/state/power` from
 the layout binding, `tc49/ui/run_wanted` from a page.
 
+A payload the reader cannot make a word of is one of the "not `on`" cases
+too, and is driven at a dispatcher with no trace on its bus (#175).
+
 The cut itself is driven with the boundary published by hand and the
 simulator left standing: a layout binding keeps its beat while the supply is
 off, and the steel does not move. That is the whole failure — the crosses
@@ -47,18 +50,6 @@ def dead(assembly: Assembly, first: int, last: int) -> None:
         assembly.bus.drain()
 
 
-def test_power_leaving_on_holds_a_running_run() -> None:
-    """Either word: the dispatcher branches on "not `on`" and nothing else."""
-    for word in ("off", "stopped"):
-        assembly = assemble(*load("crossover-yard/meet"))
-        ticks(assembly, 3, at={2: power(word)})
-        assert runs(assembly) == ["running", "held"], word
-        # And no end goes on showing `clear` over track with no volts in it,
-        # which is the lie the hold refuses to tell (ADR-0037).
-        shown = leaves(assembly, "aspects")[-1]["aspects"]
-        assert set(shown.values()) == {"stop"}, word
-
-
 def told(payload: object) -> Dispatcher:
     """A dispatcher on a bus of its own, told that on the power topic.
 
@@ -75,6 +66,18 @@ def told(payload: object) -> Dispatcher:
     bus.publish(POWER, cast(Payload, payload))
     bus.drain()
     return dispatcher
+
+
+def test_power_leaving_on_holds_a_running_run() -> None:
+    """Either word: the dispatcher branches on "not `on`" and nothing else."""
+    for word in ("off", "stopped"):
+        assembly = assemble(*load("crossover-yard/meet"))
+        ticks(assembly, 3, at={2: power(word)})
+        assert runs(assembly) == ["running", "held"], word
+        # And no end goes on showing `clear` over track with no volts in it,
+        # which is the lie the hold refuses to tell (ADR-0037).
+        shown = leaves(assembly, "aspects")[-1]["aspects"]
+        assert set(shown.values()) == {"stop"}, word
 
 
 @pytest.mark.parametrize(
