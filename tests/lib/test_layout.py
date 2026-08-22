@@ -9,6 +9,7 @@ from tc49.lib.layout import (
     Point,
     block_of,
     connected_end,
+    departure_end,
     end_letter,
     end_on,
     opposite_end,
@@ -184,3 +185,26 @@ def test_a_terminal_blocks_wall_is_answered_with_its_connected_end(
     assert isinstance(layout, Layout)
     assert connected_end(layout, "yard_w.A") == "yard_w.B"
     assert connected_end(layout, "yard_e.B") == "yard_e.A"
+
+
+def test_a_departure_end_is_the_far_side_of_the_end_entered_through(
+    store: AssetStore,
+) -> None:
+    """Routes are strict pass-throughs: a train leaves through the end of its
+    block opposite the one it came in by."""
+    layout = store.get("crossover-yard")
+    assert isinstance(layout, Layout)
+    assert departure_end(layout, "dn_w.A") == "dn_w.B"
+    assert departure_end(layout, "dn_w.B") == "dn_w.A"
+
+
+def test_a_departure_end_in_a_terminal_block_is_its_one_connected_end(
+    store: AssetStore,
+) -> None:
+    """The far side of the end a train entered a stub through is the wall, so
+    the pass-through rule alone would send it nowhere; the one end a stub has
+    is the one it can leave by, whichever way it came in (#145)."""
+    layout = store.get("crossover-yard")
+    assert isinstance(layout, Layout)
+    assert departure_end(layout, "yard_w.B") == "yard_w.B"
+    assert departure_end(layout, "yard_e.A") == "yard_e.A"
