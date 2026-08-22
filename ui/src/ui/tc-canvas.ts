@@ -72,8 +72,15 @@ export type Mode = "edit" | "run";
  * chosen in the netlist pane, or the way a refusal is about, in the red that
  * means derivation stopped (ADR-0024); the run view lights a committed route
  * in the two colours the dispatcher's claim on it reads in (ui/PANEL.md).
+ *
+ * A **way** and not a **route** (CONTEXT.md): what is drawn is the path
+ * through a connection, symbol by symbol and leg by leg, whoever asked for it.
+ * `model/panel.ts`'s `LitRoute` is the request-level answer, and it is a
+ * separate type that this one is built from in run mode — it carries a
+ * per-symbol claim map the editor never fills, and this one carries a
+ * whole-way refusal flag the panel never fills.
  */
-interface Lighting {
+interface LitWay {
   legs: Map<string, Set<string>>;
   /** Wire, as `wireKey` names it → the classes it wears beyond `wire`. A wire
    *  that is not lit is absent. */
@@ -303,7 +310,7 @@ export class TcCanvas extends LitElement {
    * by the panel model — the same claim, made by the dispatcher instead of the
    * pointer.
    */
-  private lighting(): Lighting {
+  private lighting(): LitWay {
     const live = this.running;
     if (live !== null) {
       return {
@@ -331,7 +338,7 @@ export class TcCanvas extends LitElement {
 
   /** Every wire, in the order `inspect.litLast` puts them in, so a crossing
    *  unlit one cannot half hide a lit one. */
-  private wires(lighting: Lighting): unknown {
+  private wires(lighting: LitWay): unknown {
     const alight = (wire: Wire) => lighting.wires.has(wireKey(wire));
     return litLast(this.document.wires, alight).map((wire) => {
       const [a, b] = wirePins(wire);
@@ -344,7 +351,7 @@ export class TcCanvas extends LitElement {
     });
   }
 
-  private symbols(lighting: Lighting): unknown {
+  private symbols(lighting: LitWay): unknown {
     const review = this.review ?? UNREVIEWED;
     const live = this.running;
     const blind = dark(review);
@@ -389,7 +396,7 @@ export class TcCanvas extends LitElement {
    */
   private worn(
     name: string,
-    lighting: Lighting,
+    lighting: LitWay,
     target: string | undefined,
   ): string {
     const live = this.running;
