@@ -1,5 +1,11 @@
 # A signal is what the dispatcher tells the driver
 
+**Qualified by
+[ADR-0037](0037-the-run-is-held-or-running-and-held-blocks-commitment.md).**
+While the run is `held` every signalled end shows `stop`, whatever the locks
+say. The reading below is unchanged and gated: an aspect answers "may the
+train in this block leave via this end", and while held the answer is no.
+
 The dispatcher's authority reaches the driver as a **signal aspect**, and the
 driver's whole job is to turn that aspect into a speed. It decides nothing
 about where the train goes: the turnouts are already thrown when the aspect

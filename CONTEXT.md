@@ -237,6 +237,18 @@ locks is. Of a route: chosen, and so fixed
 committed and locked at once, and the lock is then what it shows.
 _Avoid_: planned, plan, pending (a request pends, a resource does not)
 
+**Held**:
+Of a **run**: the dispatcher will commit nothing — no route chosen, no move
+granted, no lock taken — until a person releases it. The run's own state,
+`held` or `running`, published by the dispatcher and moved by a gesture
+([ADR-0037](docs/adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
+A brake and not an emergency stop: a move already granted runs to its sensor,
+and what keeps a railroad still after a power cut is track power, one layer
+down. Admission is untouched — requests queue up while held.
+_Avoid_: paused, stopped, frozen. Not the `held` **grant_refused** reason,
+which says a resource is locked by another train: a different thing, on a
+different topic, about one request rather than the run.
+
 **Active / idle train**:
 A train is **active** while it has a committed route — launched, not yet
 completed — and **idle** otherwise, whether or not a request for it is pending.

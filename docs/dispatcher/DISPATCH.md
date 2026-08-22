@@ -272,6 +272,16 @@ runs over the buffered set. Everything published in reaction to one boundary
 is handled at the next, so grants take effect one boundary after the releases
 that enabled them.
 
+**A held run commits nothing.** While `tc49/dispatch/state/run` is `held` the
+phase applies its buffered sensors and stops there: an outstanding move
+completes and releases its locks, and no route is chosen, no move granted and
+no lock taken until a person releases it. Admission is untouched, so the queue
+accumulates and — nobody having accrued a refusal meanwhile — drains in the
+order it accumulated. Releasing sets the word and nothing else; the next
+boundary runs an ordinary phase, which is what keeps the boundary the sole
+trigger
+([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
+
 **Lock footprint.** A train moving from `X` through `T` into `Y` holds
 `{X, T, Y}` for the move and releases `X` and `T` atomically on arrival. `T`
 and `Y` are granted together, which is what makes a transit never held across a
