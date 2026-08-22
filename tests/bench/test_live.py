@@ -362,7 +362,7 @@ def joining(live: Session, railroad: str) -> ClientConnection:
 
 
 def put(client: ClientConnection, train: str, block: str) -> dict[str, Any]:
-    """A train taken out of the closet and stood on a block, answered with the
+    """A train off the layout stood on a block, answered with the
     `train_placed` that says the dispatcher accepted it.
 
     The gesture a session's railroad is laid out with, since a run is built
@@ -395,8 +395,8 @@ def test_a_client_names_the_railroad_and_the_session_builds_it(
 
     The layout is empty and the run is **held**, which is the ordinary cold
     start of a run an operator drives (#171, ADR-0039): every train the
-    railroad owns is in the closet, and there is nothing to do but place them
-    and press GO."""
+    railroad owns is known and off the layout, and there is nothing to do but
+    place them and press GO."""
     with joining(session, "crossover-yard") as client:
         assert payload_of(client, "run")["run"] == "held"
         assert payload_of(client, "allocation")["trains"] == {}

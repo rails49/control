@@ -51,10 +51,10 @@ The rolling stock traveling or parked on the tracks:
 A railroad **owns** its stock: its **roster** is every train it has, whether
 any of them is on the layout or not
 ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). That is what a run
-begins from — a railroad, the trains it owns, and a person who takes them out
-of the closet, puts them on the track and drags them where they should go.
-Nothing else is needed to start one, and a run with an empty layout is the
-ordinary way an evening starts rather than a fault.
+begins from — a railroad, its roster, and a person who puts the trains on the
+layout and drags them where they should go. Nothing else is needed to start
+one, and a run whose trains are all still **off the layout** is the ordinary
+way an evening starts rather than a fault.
 
 ## Operations
 

@@ -72,9 +72,9 @@ exercises it:
   it is told.
 
 **A run begins from a railroad**: its drawing, the trains its roster says it
-owns, and a person who takes them out of the closet and puts them on the
-layout ([#171](https://github.com/rails49/control/issues/171)). It comes up
-with an empty layout and **held**, which is what lets the placing happen
+owns, and a person who puts them on the layout
+([#171](https://github.com/rails49/control/issues/171)). It comes up with an
+empty layout and **held**, which is what lets the placing happen
 ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md),
 [ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) — there is nothing to
 do on one but place trains and press GO. A scenario is the harness's file, not
