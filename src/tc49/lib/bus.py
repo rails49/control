@@ -13,9 +13,9 @@ Given a file, the binding makes those retained values **durable** (#123): it
 loads them at startup and rewrites the whole file on every retained change,
 so a process that comes back up finds them waiting on their topics exactly
 as a broker that outlived it would have held them. Durability belongs here
-rather than to an app because that is where MQTT already puts it, and
-milestone 2 inherits the behaviour instead of deleting a crutch. Without a
-file the bus opens none, which is what leaves ``bench`` and ``sweep``
+rather than to an app because that is where MQTT already puts it, so the
+broker that replaces this binding in milestone 2 keeps the behaviour. Without
+a file the bus opens none, which is what leaves ``bench`` and ``sweep``
 untouched by construction rather than by a branch.
 """
 
