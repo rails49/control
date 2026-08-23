@@ -13,6 +13,7 @@
  */
 
 import type { Drawing } from "../../src/model/drawing.js";
+import { centreOf } from "../../src/model/geometry.js";
 import type { Explained, Layout, Review } from "../../src/model/store.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
 import { band, CLEAN, mounted, serving, settled } from "./shell.js";
@@ -45,6 +46,15 @@ export function stored(name: string): Drawing {
     wires: [],
   };
 }
+
+/** Where each block's middle is. happy-dom's `getScreenCTM` is the identity,
+ *  so a grid point reads as a client pixel and back. It sits here rather than
+ *  beside the accessors in `shell.ts`, being a fact about the toy drawing
+ *  above and not about the app. */
+export const MIDDLE = {
+  a: centreOf(stored("toy").symbols.a!),
+  b: centreOf(stored("toy").symbols.b!),
+};
 
 /** The bridge, as far as the run view uses one: it opens, it is sent frames,
  *  and it delivers them. */

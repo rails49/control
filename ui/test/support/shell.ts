@@ -175,6 +175,24 @@ export function running(shell: TcApp): TcPanel {
   return shell.renderRoot.querySelector("tc-panel")!;
 }
 
+/** The drawing surface the run view is painting on: the SVG a press over the
+ *  railroad lands on, and the box a drag is let go inside or outside of. */
+export function surface(shell: TcApp): SVGSVGElement {
+  return running(shell)
+    .renderRoot.querySelector("tc-canvas")!
+    .renderRoot.querySelector("svg")!;
+}
+
+/** The item chosen from the run view's menu, the way a pointer chooses one. */
+export async function chose(shell: TcApp, label: string): Promise<void> {
+  const menu = running(shell).renderRoot.querySelector("tc-menu")!;
+  const row = [...menu.renderRoot.querySelectorAll("li button")].find(
+    (one) => one.querySelector("span")!.textContent!.trim() === label,
+  )!;
+  (row as HTMLButtonElement).click();
+  await settled(shell);
+}
+
 /** One of the editing view's own parts, by tag. The views nest inside the app,
  *  so a suite reaching for a canvas or a dialog says which view's it is. */
 export function inside(shell: TcApp, tag: string): Element {

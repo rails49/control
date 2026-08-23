@@ -22,15 +22,15 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
-import { centreOf, type Point } from "../src/model/geometry.js";
+import type { Point } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { band, running, settled } from "./support/shell.js";
+import { band, chose, running, settled } from "./support/shell.js";
 import {
   Bridge,
   bridging,
   joined,
+  MIDDLE,
   said,
-  stored,
   unbridged,
   written,
 } from "./support/session.js";
@@ -46,13 +46,6 @@ const ALLOCATION = "tc49/dispatch/state/allocation";
 function picture(requests: unknown[] = []): Record<string, unknown> {
   return { trains: { goods: "a" }, locks: { a: "goods" }, requests };
 }
-
-/** Where each block's middle is. happy-dom's `getScreenCTM` is the identity,
- *  so a grid point reads as a client pixel and back. */
-const MIDDLE = {
-  a: centreOf(stored("toy").symbols.a!),
-  b: centreOf(stored("toy").symbols.b!),
-};
 
 /** A square the toy railroad has no symbol on. */
 const PAPER: Point = { x: 2, y: 6 };
@@ -82,16 +75,6 @@ function offered(shell: TcApp): { label: string; greyed: boolean }[] {
     label: row.querySelector("span")!.textContent!.trim(),
     greyed: (row as HTMLButtonElement).disabled,
   }));
-}
-
-/** The item chosen, the way a pointer chooses one. */
-async function chose(shell: TcApp, label: string): Promise<void> {
-  const menu = running(shell).renderRoot.querySelector("tc-menu")!;
-  const row = [...menu.renderRoot.querySelectorAll("li button")].find(
-    (one) => one.querySelector("span")!.textContent!.trim() === label,
-  )!;
-  (row as HTMLButtonElement).click();
-  await settled(shell);
 }
 
 /** A joined session with `goods` standing in `a` and the run held, which is

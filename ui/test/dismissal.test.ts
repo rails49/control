@@ -32,14 +32,14 @@ import type { LitElement } from "lit";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
-import { centreOf, type Point } from "../src/model/geometry.js";
+import type { Point } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { band, bar, running, settled } from "./support/shell.js";
+import { band, bar, chose, running, settled, surface } from "./support/shell.js";
 import {
   bridging,
   joined,
+  MIDDLE,
   said,
-  stored,
   unbridged,
   written,
 } from "./support/session.js";
@@ -57,13 +57,6 @@ afterEach(() => {
   unbridged();
 });
 
-/** Where each block's middle is. happy-dom's `getScreenCTM` is the identity,
- *  so a grid point reads as a client pixel and back. */
-const MIDDLE = {
-  a: centreOf(stored("toy").symbols.a!),
-  b: centreOf(stored("toy").symbols.b!),
-};
-
 /** Bare paper: a point on the sheet with nothing under it, where a right-click
  *  opens no menu of ours and still suppresses the browser's. */
 const PAPER: Point = { x: 2.5, y: 6.5 };
@@ -80,13 +73,6 @@ async function standing(): Promise<TcApp> {
     requests: [],
   });
   return shell;
-}
-
-/** The drawing surface the run view is painting on. */
-function surface(shell: TcApp): SVGSVGElement {
-  return running(shell)
-    .renderRoot.querySelector("tc-canvas")!
-    .renderRoot.querySelector("svg")!;
 }
 
 /** The overlay a menu has dropped over the page, in whichever component's
@@ -118,16 +104,6 @@ function offered(shell: TcApp): string[] {
   return [...menu.renderRoot.querySelectorAll("li button")].map((row) =>
     row.querySelector("span")!.textContent!.trim(),
   );
-}
-
-/** The item chosen, the way a pointer chooses one. */
-async function chose(shell: TcApp, label: string): Promise<void> {
-  const menu = running(shell).renderRoot.querySelector("tc-menu")!;
-  const row = [...menu.renderRoot.querySelectorAll("li button")].find(
-    (one) => one.querySelector("span")!.textContent!.trim() === label,
-  )!;
-  (row as HTMLButtonElement).click();
-  await settled(shell);
 }
 
 /** Whether the band's picker has its list down. */

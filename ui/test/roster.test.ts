@@ -21,7 +21,7 @@ import { centreOf, type Point } from "../src/model/geometry.js";
 import type { RosterRow } from "../src/model/panel.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcRoster } from "../src/ui/tc-roster.js";
-import { running, settled } from "./support/shell.js";
+import { running, settled, surface } from "./support/shell.js";
 import {
   bridging,
   joined,
@@ -219,13 +219,6 @@ describe("its drags", () => {
     for (const [part, box] of boxes) part.getBoundingClientRect = () => box;
   }
 
-  /** The SVG the drawing is painted on. */
-  function surfaceOf(shell: TcApp): SVGSVGElement {
-    return running(shell)
-      .renderRoot.querySelector("tc-canvas")!
-      .renderRoot.querySelector("svg")!;
-  }
-
   /** One row of the pane, by the train it is about. */
   function row(shell: TcApp, train: string): HTMLElement {
     const index = paneOf(shell).trains.findIndex((one) => one.train === train);
@@ -256,13 +249,13 @@ describe("its drags", () => {
    *  what it meant. */
   async function dragMarker(shell: TcApp, from: Point, to: Point): Promise<void> {
     laid(shell);
-    const surface = surfaceOf(shell);
+    const sheet = surface(shell);
     for (const [name, at] of [
       ["pointerdown", from],
       ["pointermove", to],
       ["pointerup", to],
     ] as const) {
-      surface.dispatchEvent(
+      sheet.dispatchEvent(
         new PointerEvent(name, { bubbles: true, clientX: at.x, clientY: at.y }),
       );
     }
@@ -299,7 +292,7 @@ describe("its drags", () => {
     const shell = await held();
     const at = { x: 550, y: 400 };
     const b = centreOf(stored("toy").symbols.b!);
-    surfaceOf(shell).getScreenCTM = () =>
+    surface(shell).getScreenCTM = () =>
       new DOMMatrix([1, 0, 0, 1, at.x - b.x, at.y - b.y]);
 
     await dragRow(shell, "shunter", at);
