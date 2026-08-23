@@ -39,6 +39,7 @@ import {
   bridging,
   joined,
   MIDDLE,
+  PAPER,
   said,
   unbridged,
   written,
@@ -56,10 +57,6 @@ afterEach(() => {
   document.elementFromPoint = NOWHERE;
   unbridged();
 });
-
-/** Bare paper: a point on the sheet with nothing under it, where a right-click
- *  opens no menu of ours and still suppresses the browser's. */
-const PAPER: Point = { x: 2.5, y: 6.5 };
 
 /** A joined session with a train standing in each block and the run held. Two
  *  trains, because a second right-click is about the one the first menu was

@@ -13,7 +13,7 @@
  */
 
 import type { Drawing } from "../../src/model/drawing.js";
-import { centreOf } from "../../src/model/geometry.js";
+import { centreOf, type Point } from "../../src/model/geometry.js";
 import type { Explained, Layout, Review } from "../../src/model/store.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
 import { band, CLEAN, mounted, serving, settled } from "./shell.js";
@@ -55,6 +55,11 @@ export const MIDDLE = {
   a: centreOf(stored("toy").symbols.a!),
   b: centreOf(stored("toy").symbols.b!),
 };
+
+/** A square of the sheet the drawing above puts no symbol on, where a
+ *  right-click opens no menu of ours and still suppresses the browser's.
+ *  Beside `MIDDLE` for the same reason, and far from both blocks. */
+export const PAPER: Point = { x: 2, y: 6 };
 
 /** The bridge, as far as the run view uses one: it opens, it is sent frames,
  *  and it delivers them. */

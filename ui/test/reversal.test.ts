@@ -30,6 +30,7 @@ import {
   bridging,
   joined,
   MIDDLE,
+  PAPER,
   said,
   unbridged,
   written,
@@ -46,9 +47,6 @@ const ALLOCATION = "tc49/dispatch/state/allocation";
 function picture(requests: unknown[] = []): Record<string, unknown> {
   return { trains: { goods: "a" }, locks: { a: "goods" }, requests };
 }
-
-/** A square the toy railroad has no symbol on. */
-const PAPER: Point = { x: 2, y: 6 };
 
 /** A right-click on the drawing surface, and whether the browser was left to
  *  put its own menu up. Cancellable, so `defaultPrevented` means the view
