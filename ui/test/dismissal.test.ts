@@ -205,11 +205,11 @@ describe("a right-click while the bar's menu is open", () => {
 });
 
 /**
- * The browser's hit test with two overlays stacked over the drawing, honouring
- * `pointer-events`: the press meets the topmost overlay still in the test, and
- * the drawing once neither is. The one place this suite models more than
- * `underneath` above, because the ping-pong a restore must not reintroduce is
- * a question about exactly that rule
+ * Stands the browser's hit test in for the length of a test, with two overlays
+ * stacked over the drawing and `pointer-events` honoured: the press meets the
+ * topmost overlay still in the test, and the drawing once neither is. The one
+ * place this suite models more than `underneath` above, because the ping-pong
+ * a restore must not reintroduce is a question about exactly that rule
  * ([#186](https://github.com/rails49/control/issues/186)).
  *
  * The stub gives up once it has been asked more times than there are things to
@@ -217,8 +217,10 @@ describe("a right-click while the bar's menu is open", () => {
  * otherwise recur until the stack gave out, which is not a reading; the counts
  * are.
  */
-function stackedOver(shell: TcApp, overlays: readonly HTMLElement[]): void {
-  const drawing = surface(shell);
+function stubHitTest(
+  drawing: SVGSVGElement,
+  overlays: readonly HTMLElement[],
+): void {
   let asked = 0;
   document.elementFromPoint = () => {
     asked += 1;
@@ -261,7 +263,7 @@ describe("a right-click while two menus are open", () => {
 
     // Topmost first, which is the order the hit test answers in.
     const overlays = [overlay(band(shell)), overlay(menu)];
-    stackedOver(shell, overlays);
+    stubHitTest(surface(shell), overlays);
     const seen = pressesOn([...overlays, surface(shell)]);
     const outcome = await rightClicked(shell, overlays[0], PAPER);
 
