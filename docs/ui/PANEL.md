@@ -402,15 +402,38 @@ mid-run. Naming another tears the assembly down, builds a fresh one for that
 railroad, and closes any client still on the old path — one operator, one
 railroad. **A client the session closes lets go of it entirely**: it holds no
 run, so the roster empties and the drawing thaws rather than freezing on a
-picture nobody is maintaining. It then **tries the same railroad again**,
-every few seconds, until it is joined or another railroad is loaded. There is
-no choice left for a person to make — the loaded railroad *is* the session,
-and the band says nothing about a name it is already showing — so a session
-that went is not a reason to make somebody reload the page. Naming a railroad
-that does not exist gets an
+picture nobody is maintaining. Naming a railroad that does not exist gets an
 `{"error": …}` frame and a close, with the running railroad untouched: a typo
 must not take a live session down. A run outlives its clients, so closing the
 browser leaves the railroad running and Ctrl-C ends the session.
+
+**A session that went is not a reason to reload the page.** There is no choice
+left for a person to make — the loaded railroad *is* the session, and the
+band's picker says nothing about a name it is already showing — so the page
+tries the same railroad again on its own, **every three seconds**, until it is
+joined or another railroad is loaded. Three seconds is long enough not to
+hammer a port nothing is listening on and short enough to land while the
+operator is still looking at the tab: one already open is on a restarted `tc49
+live` about three seconds after its bridge answers, with nothing pressed. Only
+one try is ever waiting, so a picker pressed during the wait does not start a
+second, and a try that comes round to a session joined by then leaves it
+alone. What runs is the same `join` any other way in runs, so a
+session reached this way is a session reached any other way — the roster read
+afresh, the run's retained state drained on connect
+([ADR-0032](../adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
+The interval is `RETRY_MS` in `ui/src/ui/tc-panel.ts`, where it is argued and
+where a test reads it rather than spelling 3000.
+
+**The band reports the wait rather than the page looking dead.** The
+*connected* badge belongs to a joined session and goes with it, so while the
+session is gone the band says nothing about the bridge — *not connected* is
+what a joined session whose socket is not answering says, not what a page
+between tries says. What stands there instead is the trouble the last failure
+named: *no session at ws://…/toy — run `tc49 live`* where the bridge went, and
+*the store is not answering — run `tc49 serve`* where a try got no roster. A
+close with nothing failing behind it — the session switching railroads under
+the page — names none of that, and the band is quiet until a try lands. The
+badge is back at *connected* when one does.
 
 **A run comes up with an empty layout and held.** There is nothing on the
 rails until a person puts something there: every train the railroad owns is in
@@ -525,7 +548,12 @@ shown in the band rather than swallowed, and a menu coming down when the train
 leaves the block or the session goes. The last of those is the shape both bugs
 [#124](https://github.com/rails49/control/issues/124) found in Chrome took,
 and catching that shape is what the suite is for
-([#157](https://github.com/rails49/control/issues/157)). The session they run
+([#157](https://github.com/rails49/control/issues/157)). It walks the session
+going away as well, on fake timers so nothing waits three seconds: a drop
+makes one try, on the railroad that is loaded and no other; a second ask
+inside the interval leaves the waiting try where it is; and a try that comes
+round to a session joined meanwhile does nothing
+([#183](https://github.com/rails49/control/issues/183)). The session they run
 against — the toy railroad, the fake bridge, and the app joined to it — is
 `ui/test/support/session.ts`, written once for every suite that needs one.
 
