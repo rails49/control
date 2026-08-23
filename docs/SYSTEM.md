@@ -530,6 +530,16 @@ to address an answer to, and is already in the trace by virtue of having been
 published
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 
+The rule covers what the **layout** publishes too, for a second reason: no
+page writes those topics, but the binding is another process, and its bug must
+not take the dispatcher down once the bus is not in-process. The two
+observations fail in opposite directions. A `state/power` payload that cannot
+be read is one of the "not `on`" cases and holds the run — dropping it would
+mean *not* holding, over track whose state could not be read. An occupancy
+frame that cannot be read is dropped: it is a reading nobody made, so the
+block stays one the layout has said nothing about, and silence is not a clear
+reading ([#181](https://github.com/rails49/control/issues/181)).
+
 The dispatcher is the deep module and the research core; its semantics are
 [DISPATCH.md](dispatcher/DISPATCH.md) and [SAFETY.md](dispatcher/SAFETY.md), its internals
 [dispatcher/INTERNALS.md](dispatcher/INTERNALS.md). At this boundary it is **fully
