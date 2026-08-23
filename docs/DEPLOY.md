@@ -23,22 +23,18 @@ anywhere you would not hand a throttle.
 
 ## Setting it up once
 
-A Cloudflare API token, scoped **`Zone:DNS:Edit` on `rails49.org` only**, and
-the zone's id from the zone's overview page. Both go in a file outside the
-repo, which Traefik and `scripts/dns.sh` both read:
+A Cloudflare API token with `DNS:Edit` on the zone, in 1Password as
+**`Cloudflare DNS` in the `rails49` vault**, with the ACME account address in
+the same item's `email` field. Nothing is copied out of it: `scripts/dns.sh`
+reads the token at the moment it uses one, and `op run` puts it in the
+environment of the `docker compose` that needs it.
 
-```
-# ~/.config/tc49/cloudflare.env
-CF_DNS_API_TOKEN=…
-CF_ZONE_ID=…
-TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_EMAIL=you@example.com
-```
-
-Then the record, and the proxy:
+The zone's id is not a secret and stands in `scripts/dns.sh` beside the zone's
+name, so the token needs no permission to look one up.
 
 ```
 scripts/dns.sh dev 127.0.0.1
-docker compose -f deploy/compose.yaml up -d
+op run --env-file=deploy/op.env -- docker compose -f deploy/compose.yaml up -d
 ```
 
 The first request for the name is what makes Traefik ask for the certificate,
@@ -52,7 +48,8 @@ serves `ui/dist` behind the same proxy:
 ```
 pnpm --dir ui build
 scripts/dns.sh layout 192.168.1.42
-docker compose -f deploy/compose.yaml --profile layout up -d
+op run --env-file=deploy/op.env -- \
+  docker compose -f deploy/compose.yaml --profile layout up -d
 ```
 
 ### The router
@@ -122,7 +119,11 @@ beside it in the dashboard has to be grey.
 
 **No certificate, and the log says the challenge failed** — the token is
 scoped to the wrong zone, or lacks `DNS:Edit`. Renewal, and first issue, use
-the same permission.
+the same permission. `scripts/dns.sh` exercises it: if that can move a record,
+the token can answer a challenge.
+
+**Compose stops on an unset variable** — it was run without `op run`, which is
+what supplies them. The message names the variable it wanted.
 
 **The internet is down mid-session** — a `hosts` line covers the operating
 console, and a phone cannot have one, so hand-held throttles are off the

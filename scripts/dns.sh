@@ -16,23 +16,23 @@
 # the router's reservation is known and wants a long one, which is all that
 # stands between a session and an ISP outage.
 #
-# The token is the same one Traefik renews with, `Zone:DNS:Edit` on the one
-# zone, beside the zone's id so no second permission is needed to find it.
+# The token is the same one Traefik renews with, read from 1Password at the
+# moment it is used rather than kept in a file. The zone's id is not a secret
+# and stands here beside its name, which saves the token a second permission
+# to look one up.
 
 set -euo pipefail
 
-ENV_FILE=${TC49_CLOUDFLARE_ENV:-$HOME/.config/tc49/cloudflare.env}
+ITEM="op://rails49/Cloudflare DNS"
 ZONE_NAME=rails49.org
+ZONE_ID=734096ef9670139fa3be8a9600906651
 API=https://api.cloudflare.com/client/v4
 
-if [ ! -f "$ENV_FILE" ]; then
-  echo "no $ENV_FILE; see docs/DEPLOY.md" >&2
+command -v op >/dev/null || {
+  echo "no 1Password CLI; see docs/DEPLOY.md" >&2
   exit 2
-fi
-# shellcheck disable=SC1090
-. "$ENV_FILE"
-: "${CF_DNS_API_TOKEN:?not set in $ENV_FILE}"
-: "${CF_ZONE_ID:?not set in $ENV_FILE}"
+}
+CF_DNS_API_TOKEN=$(op read "$ITEM/token")
 
 api() {
   local method=$1 path=$2
@@ -55,6 +55,8 @@ records = answer["result"]
 if sys.argv[1] == "list":
     for record in sorted(records, key=lambda r: r["name"]):
         print("  %-28s %-16s ttl %s" % (record["name"], record["content"], record["ttl"]))
+    if not records:
+        print("  no A records")
 else:
     print(records[0]["id"] if records else "")
 ' "$1"
@@ -62,7 +64,7 @@ else:
 
 if [ $# -eq 0 ]; then
   echo "$ZONE_NAME:"
-  api GET "/zones/$CF_ZONE_ID/dns_records?type=A" | field list
+  api GET "/zones/$ZONE_ID/dns_records?type=A" | field list
   exit 0
 fi
 
@@ -78,14 +80,14 @@ ADDRESS=$2
 TTL=60
 [ "$1" = layout ] && TTL=86400
 
-ID=$(api GET "/zones/$CF_ZONE_ID/dns_records?type=A&name=$NAME" | field id)
+ID=$(api GET "/zones/$ZONE_ID/dns_records?type=A&name=$NAME" | field id)
 BODY=$(printf '{"type":"A","name":"%s","content":"%s","ttl":%d,"proxied":false}' \
   "$NAME" "$ADDRESS" "$TTL")
 
 if [ -n "$ID" ]; then
-  api PATCH "/zones/$CF_ZONE_ID/dns_records/$ID" --data "$BODY" >/dev/null
+  api PATCH "/zones/$ZONE_ID/dns_records/$ID" --data "$BODY" >/dev/null
 else
-  api POST "/zones/$CF_ZONE_ID/dns_records" --data "$BODY" >/dev/null
+  api POST "/zones/$ZONE_ID/dns_records" --data "$BODY" >/dev/null
 fi
 
 echo "$NAME -> $ADDRESS (ttl $TTL)"
