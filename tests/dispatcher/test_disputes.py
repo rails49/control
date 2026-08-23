@@ -238,8 +238,15 @@ def test_a_train_adoption_placed_nowhere_is_disputed_as_a_block(
 
 @pytest.mark.parametrize(
     "payload",
-    [{}, {"block": None}, {"block": 42}, "dn_w", ["dn_w"]],
-    ids=["no field", "null", "not a name", "not an object", "a list of fields"],
+    [None, {}, {"block": None}, {"block": 42}, "dn_w", ["dn_w"]],
+    ids=[
+        "no payload",
+        "no field",
+        "null",
+        "not a name",
+        "not an object",
+        "a list of fields",
+    ],
 )
 def test_an_occupancy_frame_that_cannot_be_read_is_dropped(
     payload: object, tmp_path: Path

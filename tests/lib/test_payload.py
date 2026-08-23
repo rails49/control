@@ -121,7 +121,8 @@ def test_a_payload_naming_no_block_reads_as_none() -> None:
     the dispatcher has not heard from, and silence is not a clear reading —
     a block nothing has spoken about takes no part in the check (#153)."""
     refused: list[object] = [
-        "up_w",  # not an object at all
+        None,  # no payload at all
+        "up_w",  # not an object either
         ["up_w"],  # nor a list of its fields
         {},  # no block
         {"block": None},
