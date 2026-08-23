@@ -345,6 +345,22 @@ happened and is never replayed; a state topic is last-value-wins, delivered
 to late subscribers, and marked in the path (`…/state/<name>`).
 _Avoid_: retained message (the MQTT mechanism, not the model concept)
 
+**Word**:
+What a field carries when its values are a closed set the contract names,
+listed beside the field in `tc49.lib.inventory`. Two fields have one: `run`,
+`held` or `running`, and `power`, `on`, `stopped` or `off`. The word goes
+wherever the field goes — `run` is a word on the run's own state topic and on
+the gesture that asks to move it — so a fresh word is a change to the contract
+and not a payload a reader tolerates.
+Which way an unreadable word falls is not the word's but the reader's, decided
+by what a drop would cost: the power word is read as `off` and holds the run,
+where dropping it would leave the run committing over track whose state could
+not be read; the run word is dropped and nothing is set
+([#175](https://github.com/rails49/control/issues/175)).
+_Avoid_: enum, value, status. Not a **flag**, which is what
+[SYSTEM.md](docs/SYSTEM.md) calls a state topic carrying a boolean —
+`exhausted` is one and is not a word.
+
 **Command**:
 An imperative event the layout interface executes: `align` (set a connection
 to a transit) and `cross` (a train crosses a transit into a block, at a stated

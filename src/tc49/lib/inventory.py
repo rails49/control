@@ -9,10 +9,8 @@ Adding a ``tc49/ui`` event row grants the browser write access to it, because
 inventory).
 
 Where a field's *values* are a closed set the contract names, they live here
-too, beside the field they belong to: ``run`` and ``power`` are those fields,
-and their words are read by the apps that write them and by the payload reader
-each has — ``payload.run_state``, which drops a payload naming no word, and
-``payload.power``, which reads one as ``off`` (#175).
+too, beside the field they belong to: ``run`` and ``power`` are those fields.
+What a **word** is, and which way an unreadable one falls, is CONTEXT.md.
 """
 
 TOPICS: dict[str, tuple[str, ...]] = {
