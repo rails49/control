@@ -254,7 +254,8 @@ describe("a right-click while two menus are open", () => {
    */
   it("passes each overlay once, reaches the drawing once, and does not recur", async () => {
     const shell = await standing();
-    await rightClicked(shell, surface(shell), MIDDLE.a);
+    const drawing = surface(shell);
+    await rightClicked(shell, drawing, MIDDLE.a);
     const menu = running(shell).renderRoot.querySelector("tc-menu")!;
     band(shell).renderRoot.querySelector<HTMLElement>("button.chosen")!.click();
     await settled(shell);
@@ -263,8 +264,8 @@ describe("a right-click while two menus are open", () => {
 
     // Topmost first, which is the order the hit test answers in.
     const overlays = [overlay(band(shell)), overlay(menu)];
-    stubHitTest(surface(shell), overlays);
-    const seen = pressesOn([...overlays, surface(shell)]);
+    stubHitTest(drawing, overlays);
+    const seen = pressesOn([...overlays, drawing]);
     const outcome = await rightClicked(shell, overlays[0], PAPER);
 
     // The counts first: a press handed back and forth shows up here as the

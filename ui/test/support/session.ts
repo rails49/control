@@ -56,9 +56,9 @@ export const MIDDLE = {
   b: centreOf(stored("toy").symbols.b!),
 };
 
-/** A square of the sheet the drawing above puts no symbol on, where a
- *  right-click opens no menu of ours and still suppresses the browser's.
- *  Beside `MIDDLE` for the same reason, and far from both blocks. */
+/** A square the drawing above puts no symbol on, far from both blocks, where
+ *  a right-click opens no menu of ours and still suppresses the browser's.
+ *  Beside `MIDDLE` for the same reason: a fact about that drawing. */
 export const PAPER: Point = { x: 2, y: 6 };
 
 /** The bridge, as far as the run view uses one: it opens, it is sent frames,
