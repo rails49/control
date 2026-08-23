@@ -11,10 +11,24 @@ export default defineConfig({
     // the tab already open on 5173 keeps fetching its own origin, and when the
     // first server goes away every call there dies as `Failed to fetch`.
     strictPort: true,
+    // Every interface, not just loopback: the reverse proxy that serves
+    // `dev.rails49.org` runs in a container and reaches the host by address
+    // (docs/DEPLOY.md). Vite refuses a request whose `Host` header it has not
+    // been told about, so the name is named.
+    host: true,
+    allowedHosts: ["dev.rails49.org"],
     proxy: {
       "/drawings": "http://127.0.0.1:8765",
       "/review": "http://127.0.0.1:8765",
       "/rosters": "http://127.0.0.1:8765",
+      // The bridge under a path of the app's own origin, which is what lets
+      // the panel build one URL whether TLS is terminated in front of it or
+      // not. The proxy in front of a layout server strips the same prefix.
+      "/live": {
+        target: "ws://127.0.0.1:8766",
+        ws: true,
+        rewrite: (path) => path.replace(/^\/live/, ""),
+      },
     },
   },
   test: {

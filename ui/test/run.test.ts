@@ -18,7 +18,7 @@ import type { Drawing } from "../src/model/drawing.js";
 import { centreOf } from "../src/model/geometry.js";
 import type { Explained, Layout } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { RETRY_MS } from "../src/ui/tc-panel.js";
+import { bridgeAt, RETRY_MS } from "../src/ui/tc-panel.js";
 import {
   band,
   bar,
@@ -71,6 +71,41 @@ function link(shell: TcApp): string | null {
   const said = band(shell).renderRoot.querySelector(".link");
   return said === null ? null : said.textContent!.trim();
 }
+
+describe("where the bridge is", () => {
+  /** A page served over TLS must ask for `wss://`. A plain `ws://` from it is
+   *  mixed content, which the browser refuses outright, so the run view would
+   *  never connect on the layout server at all (ADR-0042). */
+  it("follows the page's own scheme", () => {
+    expect(bridgeAt({ protocol: "https:", host: "layout.rails49.org", search: "" })).toBe(
+      "wss://layout.rails49.org/live",
+    );
+    expect(bridgeAt({ protocol: "http:", host: "localhost:5173", search: "" })).toBe(
+      "ws://localhost:5173/live",
+    );
+  });
+
+  /** One path on the app's own origin either way: vite proxies it in
+   *  development and the reverse proxy strips it in front of a layout server,
+   *  so nothing in the panel knows which of the two it is talking to. */
+  it("is a path on the page's own origin", () => {
+    expect(bridgeAt({ protocol: "http:", host: "192.168.1.9:5173", search: "" })).toBe(
+      "ws://192.168.1.9:5173/live",
+    );
+  });
+
+  /** `?bridge=` is the whole of the browser's configuration, and it still
+   *  names a session somewhere else outright (#148). */
+  it("gives way to the one a query names", () => {
+    expect(
+      bridgeAt({
+        protocol: "https:",
+        host: "layout.rails49.org",
+        search: "?bridge=ws://127.0.0.1:8766",
+      }),
+    ).toBe("ws://127.0.0.1:8766");
+  });
+});
 
 describe("joining a session", () => {
   /** The loaded railroad is the session (#171): the band's picker loads it,

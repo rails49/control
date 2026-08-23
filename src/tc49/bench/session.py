@@ -61,6 +61,7 @@ class Session:
         period_s: float,
         port: int = 0,
         state: Path | None = None,
+        host: str = "127.0.0.1",
     ) -> None:
         self._store = AssetStore(root)
         self._period_s = period_s
@@ -83,7 +84,7 @@ class Session:
         # A bridge wants a bus, and an idle session has no assembly to give
         # it: this one is relayed until the first `rebind` replaces it, and
         # nothing ever publishes to it.
-        self.bridge = Bridge(Bus(), port, wants=self.wants)
+        self.bridge = Bridge(Bus(), port, wants=self.wants, host=host)
 
     def wants(self, name: str) -> str | None:
         """Run this railroad next: a refusal in words, or `None` to accept.

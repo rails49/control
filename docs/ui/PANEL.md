@@ -387,8 +387,8 @@ subscribes to. The front end shares the editor's stack and symbol library.
 nothing else ([#171](https://github.com/rails49/control/issues/171)), so the
 band's picker is the only thing that sets which one, and the run view has no
 session of its own to pick. The loaded railroad rides in the socket path —
-`ws://127.0.0.1:8766/gotthard` — so the one choice says both which drawing to
-render and which railroad feeds it. A socket opened without it would render
+`ws://localhost:5173/live/gotthard` — so the one choice says both which
+drawing to render and which railroad feeds it. A socket opened without it would render
 one railroad on another's events, which is what a session whose railroad was
 fixed at launch allowed (#148). Switching is a reconnect, which is what
 joining already was. No inbound topic carries any of it: the set stays exactly

@@ -145,11 +145,12 @@ set is the `ui` role's own, which is what a broker's ACL will grant a page
 once the relay is gone, so it is read off the inventory rather than listed a
 second time.
 **A client names the railroad it wants in the socket path**,
-`ws://host:port/<railroad>`, and hears that railroad or none. The
-relay outlives the assembly it relays: naming one it is not running rebuilds
-behind it and closes whoever is still on the old path, and naming one that
-does not exist is an error frame and a close with the running railroad
-untouched. None of that is a topic, so the inbound set is unchanged and stays
+`ws://host:port/<railroad>` — `/live/<railroad>` as a browser reaches it, the
+proxy in front stripping the prefix ([DEPLOY.md](DEPLOY.md)) — and hears that
+railroad or none. The relay outlives the assembly it relays: naming one it is
+not running rebuilds behind it and closes whoever is still on the old path,
+and naming one that does not exist is an error frame and a close with the
+running railroad untouched. None of that is a topic, so the inbound set is unchanged and stays
 equal to what the ACL will grant.
 `tc49/schedule/request_submitted` is refused inbound like any other
 topic: the browser writes gestures and never requests, which is what makes the

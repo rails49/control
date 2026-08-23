@@ -115,11 +115,15 @@ def _put(store: AssetStore, name: str, body: Any) -> Response:
     return 200, {"saved": name}
 
 
-def make_server(root: Path, port: int = 8765) -> HTTPServer:
+def make_server(root: Path, port: int = 8765, host: str = "127.0.0.1") -> HTTPServer:
     """A server over `root`, not yet listening. One request at a time: there
     is one editor, and the YAML round trip behind `put` is a single shared
     reader. Handing the server back rather than running it is what lets a test
-    start and stop one."""
+    start and stop one.
+
+    Loopback unless told otherwise: it is the only client that ever needed to
+    reach this, and the proxy that now does runs in a container, which cannot
+    reach a macOS host's loopback (ADR-0042, docs/DEPLOY.md)."""
     store = AssetStore(root)
 
     class Handler(BaseHTTPRequestHandler):
@@ -164,4 +168,4 @@ def make_server(root: Path, port: int = 8765) -> HTTPServer:
             self.end_headers()
             self.wfile.write(encoded)
 
-    return HTTPServer(("127.0.0.1", port), Handler)
+    return HTTPServer((host, port), Handler)

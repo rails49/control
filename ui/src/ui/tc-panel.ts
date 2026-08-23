@@ -110,12 +110,31 @@ interface Clicked {
  *  handler cannot drift apart. */
 const TURN_AROUND = "turn-around";
 
-/** Where `tc49 live` puts the bridge. Overridable for a session somewhere
- *  else, which is the whole of the browser's configuration — the railroad is
- *  not part of it, the panel naming that in the socket path (#148). */
-const BRIDGE =
-  new URLSearchParams(location.search).get("bridge") ??
-  `ws://${location.hostname || "127.0.0.1"}:8766`;
+/** Where the bridge is, as the page it is asked from says.
+ *
+ *  One path on the page's own origin, `/live`, which vite proxies in
+ *  development and the reverse proxy strips in front of a layout server
+ *  (docs/DEPLOY.md), so the URL the panel builds is the same either way. The
+ *  scheme follows the page's: a plain `ws://` from a page served over TLS is
+ *  mixed content and the browser refuses it, which is what a port of its own
+ *  would have forced (ADR-0042).
+ *
+ *  `?bridge=` overrides it for a session somewhere else, and that is the
+ *  whole of the browser's configuration — the railroad is not part of it, the
+ *  panel naming that in the socket path (#148).
+ */
+export function bridgeAt(page: {
+  protocol: string;
+  host: string;
+  search: string;
+}): string {
+  const named = new URLSearchParams(page.search).get("bridge");
+  if (named !== null) return named;
+  const scheme = page.protocol === "https:" ? "wss" : "ws";
+  return `${scheme}://${page.host || "localhost:5173"}/live`;
+}
+
+const BRIDGE = bridgeAt(location);
 
 /** How long the view waits before trying a dropped session again.
  *

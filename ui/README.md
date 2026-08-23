@@ -23,11 +23,13 @@ it, and a link naming no view opens on the run view.
 `../scripts/dev.sh` does all of it and starts only what is not already up,
 which is worth having because vite holds 5173 strictly: a second `pnpm dev`
 fails rather than moving to 5174, leaving an open tab talking to a server that
-has gone. Vite binds `[::1]`, so the page is reached as `localhost` rather
-than `127.0.0.1`.
+has gone. The page is reached as `localhost`; every server the script starts
+binds each interface, because the reverse proxy that serves
+`dev.rails49.org` reaches them from a container (../docs/DEPLOY.md).
 
 It also brings up the session the run view joins — a `tc49 live` on
-`ws://127.0.0.1:8766`, started `--no-store` because the store is already up
+`ws://127.0.0.1:8766`, reached through the app's own origin at `/live` and
+started `--no-store` because the store is already up
 and outlives any one session. **The band's picker is the only thing that loads
 a railroad**, and the run view joins whatever is loaded: the socket path names
 it and the session builds it (#171). A railroad given to the script —

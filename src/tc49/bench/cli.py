@@ -140,6 +140,20 @@ def _ratio(value: float | None) -> str:
     return "—" if value is None else f"{value:.3f}"
 
 
+LOOPBACK = "127.0.0.1"
+"""What the store and the bridge bind unless told otherwise. Loopback was the
+whole of the authorization until a reverse proxy stood in front of them, and
+that proxy runs in a container, which cannot reach a macOS host's loopback
+(ADR-0042)."""
+
+
+def reachable(host: str) -> str:
+    """The host to put in a banner's URL. A wildcard bind is every interface
+    and not an address anyone can paste, so loopback stands for it: it is one
+    of the interfaces bound, and it is the one the reader is on."""
+    return LOOPBACK if host in ("0.0.0.0", "::") else host
+
+
 def command_line() -> argparse.ArgumentParser:
     """Every command and flag `tc49` takes. Apart from `main` so that a
     default can be read without running the command that carries it."""
@@ -193,6 +207,13 @@ def command_line() -> argparse.ArgumentParser:
         "--port", type=int, default=8766, help="the bridge's WebSocket port"
     )
     live_parser.add_argument(
+        "--host",
+        default=LOOPBACK,
+        help=f"the address the bridge and the store bind (default {LOOPBACK};"
+        " scripts/dev.sh binds every interface, which is what lets the proxy"
+        " in front of them reach them — docs/DEPLOY.md)",
+    )
+    live_parser.add_argument(
         "--state",
         type=Path,
         help="keep the runs' pictures beside this path, one file per railroad,"
@@ -212,6 +233,9 @@ def command_line() -> argparse.ArgumentParser:
         "serve", help="serve the asset store over HTTP, for the layout editor"
     )
     serve_parser.add_argument("--port", type=int, default=8765)
+    serve_parser.add_argument(
+        "--host", default=LOOPBACK, help=f"the address it binds (default {LOOPBACK})"
+    )
 
     generate_parser = commands.add_parser(
         "generate", help="write the UI's generated TypeScript from its Python source"
@@ -265,7 +289,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
                 " --state comes up on the last session's placement; name one\n"
             )
             return 2
-        session = Session(ROOT, args.period, args.port, args.state)
+        session = Session(ROOT, args.period, args.port, args.state, args.host)
         # What the session comes up on, and the refusal if it cannot: a
         # scenario names its own railroad and replays onto it, a railroad
         # comes up empty, and with neither the session waits to be told.
@@ -286,14 +310,14 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         # outlives any session — a second would only fail to bind the port.
         store_line = ""
         if not args.no_store:
-            store_server = make_server(ROOT, args.store_port)
+            store_server = make_server(ROOT, args.store_port, args.host)
             threading.Thread(
                 target=store_server.serve_forever, name="store", daemon=True
             ).start()
-            store_line = f"  store   http://127.0.0.1:{args.store_port}\n"
+            store_line = f"  store   http://{reachable(args.host)}:{args.store_port}\n"
         out.write(
             f"live: {args.period}s per boundary\n"
-            f"  bridge  ws://127.0.0.1:{session.bridge.port}/<railroad>\n"
+            f"  bridge  ws://{reachable(args.host)}:{session.bridge.port}/<railroad>\n"
             f"{store_line}"
             "the panel names the railroad and may switch it; there is no"
             f" timetable; Ctrl-C ends the session, and {restart_note(args.state)}\n"
@@ -306,8 +330,10 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         return 0
 
     if args.command == "serve":
-        server = make_server(ROOT, args.port)
-        out.write(f"serving {ROOT} on http://127.0.0.1:{server.server_port}\n")
+        server = make_server(ROOT, args.port, args.host)
+        out.write(
+            f"serving {ROOT} on http://{reachable(args.host)}:{server.server_port}\n"
+        )
         out.flush()
         server.serve_forever()
         return 0

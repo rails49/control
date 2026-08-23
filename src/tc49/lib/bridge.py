@@ -10,7 +10,8 @@ and the dispatcher the sole feasibility authority precisely because nothing
 else can reach the bus (ADR-0036).
 
 **A client names the railroad it wants in the socket path** —
-``ws://127.0.0.1:8766/gotthard`` — and hears that railroad or
+``ws://127.0.0.1:8766/gotthard``, which a browser reaches as ``/live/gotthard``
+on the app's own origin (docs/DEPLOY.md) — and hears that railroad or
 none. The relay outlives the assembly it relays: ``rebind`` points it at a
 freshly built bus and settles every client on the swap, whoever named the
 new railroad starting to hear it and whoever was on the old one being closed
@@ -63,7 +64,13 @@ other."""
 class Bridge:
     """Serving from construction; `port` says where, `close()` stops it."""
 
-    def __init__(self, bus: Bus, port: int = 0, wants: Wants | None = None) -> None:
+    def __init__(
+        self,
+        bus: Bus,
+        port: int = 0,
+        wants: Wants | None = None,
+        host: str = "127.0.0.1",
+    ) -> None:
         self._bus = bus
         self._wants = wants
         # The railroad the bus being relayed is running, and what each client
@@ -74,7 +81,9 @@ class Bridge:
         self._waiting: dict[ServerConnection, str] = {}
         self._clients_lock = threading.Lock()
         bus.subscribe("tc49/#", self._relay)
-        self._server: Server = serve(self._serve_client, "127.0.0.1", port)
+        # Loopback unless told otherwise, which is what the browser reached
+        # until a proxy did (ADR-0042).
+        self._server: Server = serve(self._serve_client, host, port)
         threading.Thread(
             target=self._server.serve_forever, name="bridge", daemon=True
         ).start()

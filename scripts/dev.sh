@@ -25,9 +25,11 @@
 # --no-store; the app then survives ending a session and starting another,
 # which is the way round that matters.
 #
-# The three are written differently on purpose: vite binds [::1] and nothing
-# else, so it is reached as `localhost` and not as `127.0.0.1`, and the bridge
-# is a WebSocket, reached as `ws://`.
+# All three bind every interface rather than loopback, because the reverse
+# proxy serving `dev.rails49.org` runs in a container and cannot reach a macOS
+# host's loopback (ADR-0042, docs/DEPLOY.md). They are still reached here as
+# loopback, which is one of the interfaces bound; the bridge is a WebSocket,
+# so it is reached as `ws://`.
 #
 # Running it twice is running it once: vite holds its port strictly, so a
 # second `pnpm dev` would fail rather than move to 5174, and a tab already open
@@ -168,12 +170,13 @@ fi
 [ -d ui/node_modules ] || (cd ui && pnpm install)
 
 echo "servers:"
-serve store "$STORE" "$STORE_URL" uv run tc49 serve
+serve store "$STORE" "$STORE_URL" uv run tc49 serve --host 0.0.0.0
 serve ui "$UI" "$UI_URL" pnpm --dir ui dev
 # An empty railroad is no railroad at all, not the empty string: `tc49 live`
 # takes it as optional, and comes up idle waiting to be told.
 serve bridge "$BRIDGE" "$BRIDGE_URL" \
-  uv run tc49 live ${RAILROAD:+"$RAILROAD"} --port "$BRIDGE" --no-store "$@"
+  uv run tc49 live ${RAILROAD:+"$RAILROAD"} --port "$BRIDGE" --host 0.0.0.0 \
+  --no-store "$@"
 
 cat <<EOF
 
