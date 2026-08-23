@@ -17,6 +17,24 @@ A cold agent, with no access to the author, can finish the issue and leave
 An issue can be correct, wanted and well written and still fail this. The
 label is about whether it can be worked unattended, not whether it is good.
 
+## The label is a snapshot, not a warranty
+
+All four can hold and the issue can still be stale by the time it runs. The
+label is checked when the issue is written; a word it names can be retired
+afterwards, and nothing rewrites the body when that happens.
+
+#177 retired **closet** from the glossary. #171, labelled earlier and still
+saying "closet" in its own third criterion, put the word back in four places.
+The agent was not careless — the body is what it was given, and following it is
+the right thing for a cold agent to do.
+
+So a stale body out-argues a fresh ruling unless something else carries the
+ruling. `/batch-implement` does: it hands every issue that runs after a ruling
+the ruling itself, and tells the agent that a stated ruling beats a word in its
+own body (`.claude/skills/batch-implement/SKILL.md`). Triage may still rewrite
+a stale body by hand, and should where it can; the handoff exists because that
+will sometimes not have been done.
+
 ## An open blocker is not a reason to remove the label
 
 `/batch-implement` reads `blocked_by` and sorts so a blocker runs first, so a
