@@ -16,9 +16,11 @@
 # there would mean building one. Its own settings come from the environment
 # (TRAEFIK_*), so the file below carries no secret and no address.
 #
-# Both route files are mounted on both boxes. Each names its own host, so the
-# box only ever matches its own, and a certificate is asked for when a request
-# for that name arrives rather than at startup.
+# One route file, named by TC49_SITE and `dev` unless it is set. Both were
+# mounted at first, on the theory that a certificate is asked for when a
+# request for that name arrives; it is not. Traefik asks at startup for every
+# router it can see, so a box carrying both files fetches a certificate for a
+# name that is not its own.
 
 services:
   proxy:
@@ -41,8 +43,13 @@ services:
       - --providers.file.watch=true
       - --certificatesResolvers.le.acme.storage=/acme/acme.json
       - --certificatesResolvers.le.acme.dnsChallenge.provider=cloudflare
+      # Before writing the TXT record lego asks which zone the name belongs
+      # to, and a consumer router answers that question with SERVFAIL often
+      # enough that the resolver cannot be left to whatever the network hands
+      # the container. These two are asked instead.
+      - --certificatesResolvers.le.acme.dnsChallenge.resolvers=1.1.1.1:53,9.9.9.9:53
     volumes:
-      - ./routes:/etc/traefik/routes:ro
+      - ./routes/${TC49_SITE:-dev}.yaml:/etc/traefik/routes/site.yaml:ro
       - acme:/acme
     # How a container reaches an app on the host. Docker Desktop supplies the
     # name already; on Linux this is what supplies it.

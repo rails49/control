@@ -48,7 +48,7 @@ serves `ui/dist` behind the same proxy:
 ```
 pnpm --dir ui build
 scripts/dns.sh layout 192.168.1.42
-op run --env-file=deploy/op.env -- \
+TC49_SITE=layout op run --env-file=deploy/op.env -- \
   docker compose -f deploy/compose.yaml --profile layout up -d
 ```
 
@@ -79,11 +79,11 @@ needs no maintenance when the box changes networks.
 
 ## What the proxy carries
 
-One entry point, `:443`, and routes from `deploy/routes/`. Both boxes mount
-both route files: each names its own host, so a box only ever matches its own,
-and neither asks for the other's certificate. Their middlewares are named
-apart for the same reason — the file provider shares one namespace across the
-directory.
+One entry point, `:443`, and one route file from `deploy/routes/`, named by
+`TC49_SITE` and `dev` unless it is set. A box mounts its own and no other:
+Traefik asks for a certificate at startup for every router it can see, rather
+than when a request for that name first arrives, so a box carrying both files
+fetches a certificate for a name that is not its own.
 
 | path | dev | layout |
 | --- | --- | --- |
@@ -116,6 +116,15 @@ router does not, which is how to tell this apart from a wrong record.
 
 **The record will not save as a private address** — it is proxied. The cloud
 beside it in the dashboard has to be grey.
+
+**`acme: error presenting token: could not find zone`, with `SERVFAIL`** —
+before writing the TXT record lego asks which zone the name belongs to, and
+the resolver the network handed the container would not answer. The compose
+file names `1.1.1.1` and `9.9.9.9` for that question rather than leaving it to
+whatever is on hand.
+
+**Traefik logs nothing at all** — that is success. It reports failures, so a
+quiet log and a `/acme/acme.json` with bytes in it is a certificate.
 
 **No certificate, and the log says the challenge failed** — the token is
 scoped to the wrong zone, or lacks `DNS:Edit`. Renewal, and first issue, use
