@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-roster.js";
 import "../src/ui/tc-app.js";
-import { centreOf, type Point } from "../src/model/geometry.js";
+import type { Point } from "../src/model/geometry.js";
 import type { RosterRow } from "../src/model/panel.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcRoster } from "../src/ui/tc-roster.js";
@@ -26,8 +26,8 @@ import {
   bridging,
   joined,
   loads,
+  MIDDLE,
   said,
-  stored,
   unbridged,
   written,
 } from "./support/session.js";
@@ -265,7 +265,7 @@ describe("its drags", () => {
   it("places a train dragged out of the pane onto a block", async () => {
     const shell = await held();
 
-    await dragRow(shell, "shunter", centreOf(stored("toy").symbols.b!));
+    await dragRow(shell, "shunter", MIDDLE.b);
 
     expect(written()).toContainEqual({
       topic: "tc49/ui/placement_wanted",
@@ -291,9 +291,8 @@ describe("its drags", () => {
   it("writes nothing for a row let go back on the pane", async () => {
     const shell = await held();
     const at = { x: 550, y: 400 };
-    const b = centreOf(stored("toy").symbols.b!);
     surface(shell).getScreenCTM = () =>
-      new DOMMatrix([1, 0, 0, 1, at.x - b.x, at.y - b.y]);
+      new DOMMatrix([1, 0, 0, 1, at.x - MIDDLE.b.x, at.y - MIDDLE.b.y]);
 
     await dragRow(shell, "shunter", at);
 
@@ -305,7 +304,7 @@ describe("its drags", () => {
   it("takes a train off the layout when its marker is dropped on the pane", async () => {
     const shell = await held();
 
-    await dragMarker(shell, centreOf(stored("toy").symbols.a!), { x: 550, y: 400 });
+    await dragMarker(shell, MIDDLE.a, { x: 550, y: 400 });
 
     expect(written()).toEqual([
       {
@@ -327,8 +326,8 @@ describe("its drags", () => {
       requests: [],
     });
 
-    await dragRow(shell, "shunter", centreOf(stored("toy").symbols.b!));
-    await dragMarker(shell, centreOf(stored("toy").symbols.a!), { x: 550, y: 400 });
+    await dragRow(shell, "shunter", MIDDLE.b);
+    await dragMarker(shell, MIDDLE.a, { x: 550, y: 400 });
 
     expect(written()).toEqual([]);
     expect(paneOf(shell).renderRoot.querySelector(".hint")!.textContent).toContain(
