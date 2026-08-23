@@ -345,6 +345,13 @@ clicked and the browser's own still does not
 ([#180](https://github.com/rails49/control/issues/180),
 `ui/src/ui/dismissal.ts`). It holds for the bar's menus and the band's picker
 too: all three wear the one overlay.
+
+The menu a forwarded press opens is a menu like any other: it drops a live
+overlay, and a left press outside it takes it down and reaches nothing
+underneath, exactly as after a first right-click. Worth saying because it is
+the *same* overlay, the two menus falling and rising too fast for the one in
+between to be drawn ([#186](https://github.com/rails49/control/issues/186)).
+
 The item is **greyed while that train has a request in flight**, meaning any
 request from submit to completion. This is the panel's one pre-judgement of a
 gesture, against the filter-free drag, and it earns the exception: a disabled
