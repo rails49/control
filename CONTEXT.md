@@ -214,7 +214,10 @@ the train, or none is reachable — or if it states a departure block the train 
 not standing in; otherwise accepted and queued. A rejection is an answer on the
 bus, never an exception, since the submitter may be a browser
 ([ADR-0021](docs/adr/0021-a-bad-request-is-answered-not-raised.md)).
-_Avoid_: order, job, working
+_Avoid_: order, job, working. The sweep keeps `workings` — the axis, the
+`sweep-<n>t-<n>w` row key and the stored results
+([BENCHMARKS.md](docs/bench/BENCHMARKS.md)) — because that is a frozen data
+format, and a format is not a licence to name anything new with the word.
 
 **Departure end**:
 The end of its block a train **leaves through** on a request, written
