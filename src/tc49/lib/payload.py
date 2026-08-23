@@ -22,10 +22,11 @@ that raised on a frame it sent would be taken down by that binding's bug the
 moment the bus stops being in-process (#173). It is the one reader here that
 answers a word rather than `None`, and `power` says why (#175).
 
-It is also the only leaf of that role read here so far. Occupancy is still
-subscripted where it arrives, and reading the whole layout role is #173's
-sweep: the power word came first because it is the one whose *drop* would be
-unsafe.
+Occupancy is read here beside it, so the whole layout role is read and no
+frame that role publishes can take the dispatcher down (#181). The power word
+came first because it is the one whose *drop* would be unsafe, and the two
+readers fail in opposite directions for that reason: `occupancy` says which
+way it falls and why it may.
 """
 
 from dataclasses import dataclass
@@ -110,6 +111,28 @@ def power(payload: object) -> str:
     if not isinstance(stated, str) or stated not in (ON, STOPPED, OFF):
         return OFF
     return stated
+
+
+def occupancy(payload: object) -> str | None:
+    """The block an occupancy reading names, or None where it names none.
+
+    The other direction from `power`, on the same role, and that asymmetry is
+    the whole reason both are read here rather than one. A power word that
+    cannot be read must still hold the run, so `power` has no `None`; a
+    reading that cannot be read is one detector the dispatcher has not heard
+    from, and **silence is not a clear reading** — a block nothing has spoken
+    about takes no part in the dispute check, so dropping the frame says
+    nothing false and the next report settles it (#153). A dropped frame is
+    already on the trace by virtue of having been published (ADR-0034).
+
+    Which reading it is — occupied or vacated — is the leaf it arrived on and
+    not a field, so it is the caller's and not read here. Whether the block
+    exists is the dispatcher's knowledge, as with `placement`.
+    """
+    if not isinstance(payload, dict):
+        return None
+    block = cast(dict[str, object], payload).get("block")
+    return block if isinstance(block, str) else None
 
 
 @dataclass(frozen=True)

@@ -5,6 +5,7 @@ from tc49.lib.payload import (
     Gesture,
     Placement,
     gesture,
+    occupancy,
     placement,
     power,
     reversal,
@@ -105,6 +106,31 @@ def test_a_power_payload_that_cannot_be_read_reads_as_off() -> None:
     ]
     for payload in unreadable:
         assert power(payload) == OFF, payload
+
+
+def test_an_occupancy_frame_reads_as_the_block_it_names() -> None:
+    """A block is the whole payload: which of the two readings it is, is the
+    leaf it arrived on and not a field (SYSTEM.md, event inventory)."""
+    assert occupancy({"block": "up_w"}) == "up_w"
+
+
+def test_a_payload_naming_no_block_reads_as_none() -> None:
+    """The opposite direction from `power` on the same role, which is why
+    both are read here rather than one. A power word that cannot be read
+    must still hold the run; a reading that cannot be read is one detector
+    the dispatcher has not heard from, and silence is not a clear reading —
+    a block nothing has spoken about takes no part in the check (#153)."""
+    refused: list[object] = [
+        "up_w",  # not an object at all
+        ["up_w"],  # nor a list of its fields
+        {},  # no block
+        {"block": None},
+        # The shape that raised nothing and poisoned `reported` with a key
+        # that is not a block name (#181).
+        {"block": 42},
+    ]
+    for payload in refused:
+        assert occupancy(payload) is None, payload
 
 
 def test_a_placement_reads_as_the_train_and_the_block_it_names() -> None:
