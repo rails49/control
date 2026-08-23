@@ -31,9 +31,11 @@ import {
 import {
   Bridge,
   bridging,
+  DERIVES,
   joined,
   loads,
   said,
+  STOCK,
   stored,
   unbridged,
   written,
@@ -59,6 +61,14 @@ function notice(shell: TcApp): string | null {
  *  nothing. */
 function health(shell: TcApp): string | null {
   const said = band(shell).renderRoot.querySelector(".trouble");
+  return said === null ? null : said.textContent!.trim();
+}
+
+/** What the band says about the bridge, `null` while it says nothing. The
+ *  badge is drawn only while a session is joined, so a page that has let one
+ *  go says nothing here rather than saying it is not connected. */
+function link(shell: TcApp): string | null {
+  const said = band(shell).renderRoot.querySelector(".link");
   return said === null ? null : said.textContent!.trim();
 }
 
@@ -169,6 +179,162 @@ describe("joining a session", () => {
         .renderRoot.querySelector("text.name.train")!
         .textContent!.trim(),
     ).toBe("goods");
+  });
+});
+
+/**
+ * The session going away, and the page getting back into it on its own
+ * ([#183](https://github.com/rails49/control/issues/183)).
+ *
+ * The loaded railroad *is* the session (#171), so a page with a railroad on it
+ * wants to be joined to that railroad and there is nothing left for a person
+ * to press: the view tries the same `join` every `RETRY_MS`, and only ever one
+ * try. The interval is read off the module rather than written here, a suite
+ * spelling 3000 being one that stops holding what the view does.
+ *
+ * Fake timers throughout: what is being held is which try happens, not how
+ * long a suite is willing to sit.
+ */
+describe("trying a session that went away", () => {
+  /** The toy railroad with its roster reads counted, and a switch for the
+   *  store going quiet on that one route. One read is one try at the session:
+   *  every way into one runs the same `join`, and the roster is what `join`
+   *  asks the store for first. The other routes keep answering, so what stops
+   *  is the try and not the railroad on screen. */
+  function counting(): { reads: number; answering: boolean } {
+    const store = { reads: 0, answering: true };
+    serving({
+      drawings: ["toy"],
+      rosterOf: () => {
+        store.reads += 1;
+        if (!store.answering) throw new Error("no store");
+        return STOCK;
+      },
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+    });
+    return store;
+  }
+
+  /** The band's picker pressed on the railroad already loaded, which is what
+   *  an operator watching a dropped page does. `loads` cannot serve here: it
+   *  opens the socket the press produced, and a press that finds no store
+   *  produces none. */
+  async function picks(shell: TcApp, railroad: string): Promise<void> {
+    band(shell).dispatchEvent(
+      new CustomEvent<string>("railroad-wanted", {
+        detail: railroad,
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    await settled(shell);
+  }
+
+  /** The process going: a browser fails the connection before it closes it,
+   *  so the band has something to say while the session is gone. */
+  function went(socket: Bridge): void {
+    socket.raise("error", {});
+    socket.close();
+  }
+
+  it("makes one try when the interval is up, on the railroad that is loaded", async () => {
+    vi.useFakeTimers();
+    try {
+      const store = counting();
+      const shell = await joined();
+      const dropped = Bridge.last!;
+      store.reads = 0;
+
+      went(dropped);
+      await settled(shell);
+
+      // While it is gone the band drops the badge rather than saying the page
+      // is not connected: the badge belongs to a joined session and the page
+      // holds none. What stands is the trouble line, naming what to run.
+      expect(link(shell)).toBeNull();
+      expect(health(shell)).toBe(`no session at ${dropped.url} — run \`tc49 live\``);
+      expect(store.reads).toBe(0);
+
+      await vi.advanceTimersByTimeAsync(RETRY_MS);
+      await settled(shell);
+
+      expect(store.reads).toBe(1);
+      expect(Bridge.last).not.toBe(dropped);
+      expect(Bridge.last!.url).toMatch(/\/toy$/);
+
+      Bridge.last!.raise("open", {});
+      await settled(shell);
+      expect(link(shell)).toBe("connected");
+      expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /** Two things asking for a try inside one interval — the drop, and an
+   *  operator pressing the picker on the name already showing, which was the
+   *  way back in before this existed (#171). The second finds a try already
+   *  waiting and leaves it there.
+   *
+   *  The store stays quiet throughout, which is what makes a second try
+   *  visible at all: a try that gets in leaves nothing for a later one to do,
+   *  so only a run of failing tries can be counted. The press lands a
+   *  millisecond into the interval, so a try it scheduled of its own would
+   *  come round a millisecond after the waiting one and be seen. */
+  it("keeps one try waiting when a second is asked for inside the interval", async () => {
+    vi.useFakeTimers();
+    try {
+      const store = counting();
+      const shell = await joined();
+      const dropped = Bridge.last!;
+      store.answering = false;
+
+      went(dropped);
+      await settled(shell);
+      await vi.advanceTimersByTimeAsync(1);
+      await picks(shell, "toy");
+
+      // The press is a try of its own, and it failed: the store is what is not
+      // answering now, and the band says so.
+      expect(health(shell)).toBe("the store is not answering — run `tc49 serve`");
+      store.reads = 0;
+
+      await vi.advanceTimersByTimeAsync(RETRY_MS);
+      await settled(shell);
+
+      // The one waiting try, and no second one behind it.
+      expect(store.reads).toBe(1);
+      expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /** The picker getting in first. The try that was waiting still comes round,
+   *  and a session joined by then is one it must leave alone: a second join
+   *  would open a second socket on the same run. */
+  it("does not try once a session has been joined another way", async () => {
+    vi.useFakeTimers();
+    try {
+      const store = counting();
+      const shell = await joined();
+      store.reads = 0;
+
+      went(Bridge.last!);
+      await settled(shell);
+      await loads(shell, "toy");
+      expect(store.reads).toBe(1);
+      expect(link(shell)).toBe("connected");
+
+      await vi.advanceTimersByTimeAsync(RETRY_MS);
+      await settled(shell);
+
+      expect(store.reads).toBe(1);
+      expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
