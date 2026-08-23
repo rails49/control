@@ -116,10 +116,9 @@ def test_an_occupancy_frame_reads_as_the_block_it_names() -> None:
 
 def test_a_payload_naming_no_block_reads_as_none() -> None:
     """The opposite direction from `power` on the same role, which is why
-    both are read here rather than one. A power word that cannot be read
-    must still hold the run; a reading that cannot be read is one detector
-    the dispatcher has not heard from, and silence is not a clear reading —
-    a block nothing has spoken about takes no part in the check (#153)."""
+    both are read here rather than one: a power word that cannot be read must
+    still hold the run, a reading that cannot be read is dropped. Why the two
+    fail in opposite directions is SYSTEM.md, sole payload authority."""
     refused: list[object] = [
         None,  # no payload at all
         "up_w",  # not an object either

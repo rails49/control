@@ -909,12 +909,10 @@ class Dispatcher:
             block = occupancy(payload)
             if block is None:
                 # Dropped, and on the trace already by virtue of having been
-                # published (ADR-0034). It is the direction the power word
-                # may not fail in: a run must hold on a supply it cannot
-                # read, where a reading it cannot read is one detector it has
-                # not heard from — silence is not a clear reading, so the
-                # block takes no part in the check and the next report
-                # settles it (#181).
+                # published (ADR-0034): the block stays out of `reported`, so
+                # it takes no part in the check and the next report settles
+                # it. Why this direction and not the power word's is
+                # SYSTEM.md, sole payload authority (#181).
                 return
             self._buffered.append((leaf, block))
             # Recorded where it arrives rather than where the buffer is

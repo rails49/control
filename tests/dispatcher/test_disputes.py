@@ -257,9 +257,9 @@ def test_an_occupancy_frame_that_cannot_be_read_is_dropped(
     Once the bus is not in-process a binding's bug can put anything on these
     leaves, and a bare subscript would have raised on some of these and
     written a key that is not a block name for `{"block": 42}`. The frame is
-    dropped instead: the reading never happened, so the block stays one the
-    layout has said nothing about, and the check leaves it alone rather than
-    disputing it — silence is not a clear reading (#153).
+    dropped instead, leaving the block one the layout has said nothing
+    about — what such a block is worth to the check is CONTEXT.md,
+    *disputed* (#153).
     """
     bus, dispatcher = restored(tmp_path, MOVED)
     reported = dict(dispatcher.state.reported)

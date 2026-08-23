@@ -117,13 +117,12 @@ def occupancy(payload: object) -> str | None:
     """The block an occupancy reading names, or None where it names none.
 
     The other direction from `power`, on the same role, and that asymmetry is
-    the whole reason both are read here rather than one. A power word that
-    cannot be read must still hold the run, so `power` has no `None`; a
-    reading that cannot be read is one detector the dispatcher has not heard
-    from, and **silence is not a clear reading** — a block nothing has spoken
-    about takes no part in the dispute check, so dropping the frame says
-    nothing false and the next report settles it (#153). A dropped frame is
-    already on the trace by virtue of having been published (ADR-0034).
+    the whole reason both are read here rather than one: a power word that
+    cannot be read must still hold the run, so `power` has no `None`, while a
+    reading that cannot be read is dropped, which is what this `None` is for.
+    Why the two fail in opposite directions is SYSTEM.md, sole payload
+    authority; a dropped frame is already on the trace by virtue of having
+    been published (ADR-0034).
 
     Which reading it is — occupied or vacated — is the leaf it arrived on and
     not a field, so it is the caller's and not read here. Whether the block
