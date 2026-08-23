@@ -90,11 +90,11 @@ describe("what the pane lists", () => {
 
   /** A train between two blocks stands in none and is on the layout all the
    *  same, holding the transit that is taking it out of the last one. */
-  it("says a crossing train stands in no block", async () => {
+  it("says a train that stands in no block is crossing a transit", async () => {
     const roster = await pane([
       { train: "goods", block: null, length: 400, placed: true },
     ]);
-    expect(rows(roster)).toEqual([["goods", "400", "crossing"]]);
+    expect(rows(roster)).toEqual([["goods", "400", "crossing a transit"]]);
   });
 
   /** Nothing the page has read names the length of a train the run has, which

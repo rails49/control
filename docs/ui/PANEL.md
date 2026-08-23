@@ -38,8 +38,8 @@ at once cost.
 left-pane slot and each view fills it: the editor's palette, this view's
 `tc-roster` ([#169](https://github.com/rails49/control/issues/169)). A row is
 a train's name, its length, and where the run has it — the block it stands in,
-*crossing* where it stands in none (a train holding a transit, and on the
-layout all the same), or *off the layout*. Ordered by name, so the list does
+*crossing a transit* where it stands in none (on the layout all the same), or
+*off the layout*. Ordered by name, so the list does
 not reshuffle as the railroad moves.
 
 A railroad's **roster** is every train it owns, whether on the layout or off

@@ -77,7 +77,7 @@ export const rosterStyles = css`
     font-variant-numeric: tabular-nums;
   }
 
-  /* Where the train is, under its name: the block it stands in, or the word
+  /* Where the train is, under its name: the block it stands in, or a phrase
      for a train that stands in none. */
   .where {
     grid-column: 1 / -1;
