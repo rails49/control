@@ -229,9 +229,9 @@ described in [ARCHITECTURE.md](../ARCHITECTURE.md#tests); they are small enough 
 read from those descriptions.
 
 Gotthard is drawn from the track itself, in the editor, and that drawing is the
-record — there is no second netlist it is checked against. `Gotthard.layout` and
-`Gotthard.pdf` (WinTrack) are the source for block lengths, which are measured
-rather than assumed. Its turnouts carry the decoder addresses the hardware
+record — there is no second netlist it is checked against. `Gotthard.pdf`
+(WinTrack) is the source for block lengths, which are measured rather than
+assumed. Its turnouts carry the decoder addresses the hardware
 answers to, and which of them are *identical* is the part that matters: an
 address shared between two symbols means one decoder throws both, and the
 derivation composes the concurrency from that.

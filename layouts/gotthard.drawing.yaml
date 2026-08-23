@@ -2,7 +2,7 @@
 #
 # This is the track as it stands, drawn symbol by symbol from the railroad
 # itself. There is no second netlist behind it: the drawing is the record
-# (LAYOUT.md). `Gotthard.layout` and `Gotthard.pdf` (WinTrack) are the source
+# (LAYOUT.md). `Gotthard.pdf` (WinTrack) is the source
 # for block lengths, which are measured — 200 mm for the `A4` stub up to 1500
 # for the three line sections — and not assumed.
 #
