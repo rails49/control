@@ -19,7 +19,7 @@
     --lit: #a55b12;
     --lit-body: #f4e3cd;
     --locked: #3f9c35;
-    --planned: #0d9bb8;
+    --committed: #0d9bb8;
     --wrong-body: #f7dcdf;
     --tint-1: #14866d;
     --tint-2: #a55b12;
