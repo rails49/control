@@ -185,6 +185,10 @@ export const symbols = css`
  * clicked by the same press. Worn by both menu systems, which is why it has
  * to be one block — the two z-indices have to agree with each other and with
  * everything the bar lifts above it.
+ *
+ * What the overlay does with a press is `dismissal.ts`, which is the element
+ * that wears this, for the same three components. A right-click is the one it
+ * hands on rather than swallows (#180).
  */
 export const dismiss = css`
   .dismiss {

@@ -83,6 +83,9 @@ src/
     tc-menu.ts     the right-click menu
     tc-panel.ts    the run view: the session, and the overlay it hands the
                    canvas to paint
+    dismissal.ts   the overlay a menu drops over the page, worn by all three
+                   menu systems: the press outside that dismisses, and the
+                   right-click that is handed on to what is underneath
     <component>.styles.ts  a component's styles, beside it
     shared.styles.ts   what more than one of them wears: the palette, the
                    symbol rules, and what a menu is made of

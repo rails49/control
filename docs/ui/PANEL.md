@@ -337,6 +337,14 @@ hang later, when `tc49/ui` grows its third leaf.
 
 Over bare paper, over an empty block, or with no session joined no menu opens,
 and neither does the browser's own, which the drawing suppresses throughout.
+A **second right-click is the first one over again**, and an open menu makes
+no difference to it: the overlay that menu drops over the page — the one a
+press outside is dismissed by — takes the press, puts the menu down, and hands
+it on to whatever is under the point, so the menu opens on the train that was
+clicked and the browser's own still does not
+([#180](https://github.com/rails49/control/issues/180),
+`ui/src/ui/dismissal.ts`). It holds for the bar's menus and the band's picker
+too: all three wear the one overlay.
 The item is **greyed while that train has a request in flight**, meaning any
 request from submit to completion. This is the panel's one pre-judgement of a
 gesture, against the filter-free drag, and it earns the exception: a disabled
