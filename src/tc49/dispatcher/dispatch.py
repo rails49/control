@@ -26,7 +26,7 @@ from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import HELD, ON, RUNNING
 from tc49.lib.layout import Layout, block_of, departure_end, end_on
-from tc49.lib.payload import gesture, placement, power, run_state
+from tc49.lib.payload import gesture, occupancy, placement, power, run_state
 from tc49.lib.rejection import Reason
 from tc49.lib.roster import Roster
 
@@ -906,14 +906,16 @@ class Dispatcher:
         elif leaf == "power":
             self._on_power(payload)
         else:
-            # Still a bare subscript, and the only one on this role left: an
-            # occupancy frame the binding got wrong raises here and takes the
-            # dispatcher down once the bus is not in-process. The power word
-            # was read first because it is the one whose *drop* would be
-            # unsafe — the run must hold on it — where a dropped occupancy
-            # reading is a dispute the next report settles. Reading the whole
-            # layout role is #173's sweep, not this fix's (#175).
-            block = payload["block"]
+            block = occupancy(payload)
+            if block is None:
+                # Dropped, and on the trace already by virtue of having been
+                # published (ADR-0034). It is the direction the power word
+                # may not fail in: a run must hold on a supply it cannot
+                # read, where a reading it cannot read is one detector it has
+                # not heard from — silence is not a clear reading, so the
+                # block takes no part in the check and the next report
+                # settles it (#181).
+                return
             self._buffered.append((leaf, block))
             # Recorded where it arrives rather than where the buffer is
             # applied. A reading is a fact the moment the layout states it,

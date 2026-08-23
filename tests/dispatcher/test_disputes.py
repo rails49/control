@@ -18,7 +18,9 @@ railroad.
 import json
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+
+import pytest
 
 from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
@@ -232,3 +234,42 @@ def test_a_train_adoption_placed_nowhere_is_disputed_as_a_block(
     reports(bus, occupied=("dn_e", "dn_w"), clear=("up_e", "up_w"))
 
     assert disputed(bus) == {"trains": [], "blocks": ["dn_w"]}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [{}, {"block": None}, {"block": 42}, "dn_w", ["dn_w"]],
+    ids=["no field", "null", "not a name", "not an object", "a list of fields"],
+)
+def test_an_occupancy_frame_that_cannot_be_read_is_dropped(
+    payload: object, tmp_path: Path
+) -> None:
+    """Nothing the layout role publishes takes the dispatcher down, which is
+    what SYSTEM.md already promises of every bus payload (#181).
+
+    Once the bus is not in-process a binding's bug can put anything on these
+    leaves, and a bare subscript would have raised on some of these and
+    written a key that is not a block name for `{"block": 42}`. The frame is
+    dropped instead: the reading never happened, so the block stays one the
+    layout has said nothing about, and the check leaves it alone rather than
+    disputing it — silence is not a clear reading (#153).
+    """
+    bus, dispatcher = restored(tmp_path, MOVED)
+    reported = dict(dispatcher.state.reported)
+
+    press(bus, OCCUPIED, cast(Payload, payload))
+
+    assert dispatcher.state.reported == reported
+    assert disputed(bus) == {"trains": [], "blocks": []}
+
+
+def test_a_dropped_frame_leaves_the_next_reading_readable(tmp_path: Path) -> None:
+    """The drop is one frame's and not the topic's: the detector that speaks
+    again is heard, and the dispute it makes is the one it would have made
+    had the bad frame never arrived."""
+    bus, _ = restored(tmp_path, MOVED)
+
+    press(bus, OCCUPIED, cast(Payload, {"block": 42}))
+    reports(bus, occupied=("dn_w",), clear=("dn_e",))
+
+    assert disputed(bus) == {"trains": ["freight_1"], "blocks": ["dn_w"]}
