@@ -86,21 +86,70 @@ typing it can invoke it.
 > Do not push. Do not close the issue. Do not write into `scratch/` — that
 > directory is the owner's.
 >
+> Report back any ruling you landed about a name or a contract — a word
+> retired or introduced, a payload or command shape changed, an acceptance
+> criterion you could not meet as written and what you did instead. One line
+> each, or say there were none. The issues that run after yours were written
+> before your commit landed.
+>
 > [handoff, when it applies]
 
 ### Handoff
 
-When this issue is blocked by another one *in this batch* that has already
-landed, append to the prompt:
+Two kinds of entry cross between subagents, and nothing else. Both are
+appended to the prompt above.
+
+**The blocker that landed.** When this issue is blocked by another one *in
+this batch* that has already landed:
 
 > Issue #AA in this same batch blocked this one and has already landed as
 > <sha…>. It <two sentences on what it changed and where>. Read that commit
 > before starting; it is the only prior work in this run that bears on yours.
 
-Nothing else crosses between subagents. That edge is the one piece of
-cross-issue context that is relevant rather than noise — without it the second
-agent cold-derives what the first just learned, and with more than it the
-context drift the split exists to prevent comes back.
+**The rulings the batch has made.** Every ruling collected so far goes to
+every issue that runs after it, whether or not a dependency edge connects
+them:
+
+> The batch has already ruled on these, and your issue body was written before
+> they landed:
+>
+> - <one or two lines per ruling>
+>
+> Where your issue body and one of these disagree about a word, a contract or
+> what a criterion asks for, the ruling wins. Implement the ruling, and say so
+> in the commit message: name the ruling and the line of the body it
+> overrides.
+
+A ruling qualifies when it was decided after the issues were written and
+changes what a later one must do. Three kinds have come up:
+
+- a **word** retired or introduced, or its meaning narrowed;
+- a **contract** — a payload field, a command's output, an event's shape;
+- a standing decision about **how to read an issue**, where the batch has
+  already had to make one.
+
+Collect them from what each subagent reports at the end of its result, plus
+any the parent itself made at the gate or in the repair round. Carry the
+ruling, not the issue: one or two lines saying what is now true. An issue that
+was given up on and reset landed nothing, so its rulings are not true and do
+not carry.
+
+**What does not go in a handoff.** Anything that is not one of those two
+entries. Not a summary of what each landed issue did, not code a later issue
+does not depend on, not review findings or design opinion, and not anything
+the issue's own body already says. That restraint is the point of the per-issue
+split: a handoff that grows into a running digest of the batch brings back the
+context drift a cold subagent exists to avoid.
+
+Both entries earned their place from a run. The blocker edge is the piece of
+prior *code* that bears on the next issue. The rulings entry is the piece of
+prior *words*: #177 retired **closet** from the glossary, and #171 — labelled
+before that landed, still saying "closet" in its own acceptance criteria — put
+the word back in four places, because a cold agent following its issue body is
+doing the right thing. No dependency edge joined the two, so no handoff fired.
+The batch that filed this had the same shape three more times: two rulings and
+a landed string change had to be injected by hand, and
+`issue_dependencies_summary` was all zeroes across all seven issues.
 
 ### Gate
 
