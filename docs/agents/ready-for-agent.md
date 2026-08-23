@@ -23,8 +23,9 @@ All four can hold and the issue can still be stale by the time it runs. The
 label is checked when the issue is written; a word it names can be retired
 afterwards, and nothing rewrites the body when that happens.
 
-#177 retired **closet** from the glossary. #171, labelled earlier and still
-saying "closet" in its own third criterion, put the word back in four places.
+#177 retired **closet** from the glossary. #171, written before that landed
+and still saying "closet" in its own third criterion, put the word back in
+four places.
 The agent was not careless — the body is what it was given, and following it is
 the right thing for a cold agent to do.
 

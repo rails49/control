@@ -143,13 +143,14 @@ context drift a cold subagent exists to avoid.
 
 Both entries earned their place from a run. The blocker edge is the piece of
 prior *code* that bears on the next issue. The rulings entry is the piece of
-prior *words*: #177 retired **closet** from the glossary, and #171 — labelled
+prior *words*: #177 retired **closet** from the glossary, and #171 — written
 before that landed, still saying "closet" in its own acceptance criteria — put
 the word back in four places, because a cold agent following its issue body is
 doing the right thing. No dependency edge joined the two, so no handoff fired.
-The batch that filed this had the same shape three more times: two rulings and
-a landed string change had to be injected by hand, and
-`issue_dependencies_summary` was all zeroes across all seven issues.
+The batch that filed this hit the shape again: one ruling about how to read a
+criterion, needed three times over two issues, and one landed string change,
+all injected by hand because `issue_dependencies_summary` was zero for every
+one of its seven issues.
 
 ### Gate
 
