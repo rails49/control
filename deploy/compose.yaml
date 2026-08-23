@@ -1,0 +1,52 @@
+# The edge: one reverse proxy holding the certificate, in front of apps that
+# stay native (ADR-0042). Nothing here is built and nothing is installed on
+# the machine — the images are stock.
+#
+#   docker compose -f deploy/compose.yaml up -d                    the dev box
+#   docker compose -f deploy/compose.yaml --profile layout up -d   the layout
+#
+# Traefik rather than Caddy because the stock binary carries every ACME
+# provider, Cloudflare included; Caddy's does not, and a DNS-01 certificate
+# there would mean building one. Its own settings come from the environment
+# (TRAEFIK_*), so the file below carries no secret and no address.
+#
+# Both route files are mounted on both boxes. Each names its own host, so the
+# box only ever matches its own, and a certificate is asked for when a request
+# for that name arrives rather than at startup.
+
+services:
+  proxy:
+    image: traefik:v3.3
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    # The token, the ACME account, and nothing else. Docker Desktop publishes
+    # 443 through its privileged helper, so none of this wants root.
+    env_file:
+      - ${HOME}/.config/tc49/cloudflare.env
+    command:
+      - --entryPoints.websecure.address=:443
+      - --providers.file.directory=/etc/traefik/routes
+      - --providers.file.watch=true
+      - --certificatesResolvers.le.acme.storage=/acme/acme.json
+      - --certificatesResolvers.le.acme.dnsChallenge.provider=cloudflare
+    volumes:
+      - ./routes:/etc/traefik/routes:ro
+      - acme:/acme
+    # How a container reaches an app on the host. Docker Desktop supplies the
+    # name already; on Linux this is what supplies it.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # The built UI, which Traefik cannot serve itself: it proxies and does not
+  # read files. Only the layout box has a build to serve — the dev box has
+  # vite — so it is a profile rather than a service.
+  web:
+    image: nginx:alpine
+    profiles: [layout]
+    restart: unless-stopped
+    volumes:
+      - ../ui/dist:/usr/share/nginx/html:ro
+
+volumes:
+  acme:

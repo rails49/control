@@ -1,0 +1,46 @@
+# The layout box: the UI is built, so nginx serves `ui/dist` and the store is
+# reached directly rather than through vite's proxy. `layout.rails49.org`
+# holds the address the router has reserved for this machine.
+
+http:
+  routers:
+    layout-app:
+      rule: "Host(`layout.rails49.org`)"
+      entryPoints: [websecure]
+      service: layout-app
+      tls:
+        certResolver: le
+
+    layout-store:
+      rule: "Host(`layout.rails49.org`) && (PathPrefix(`/drawings`) || PathPrefix(`/review`) || PathPrefix(`/rosters`))"
+      entryPoints: [websecure]
+      service: layout-store
+      tls:
+        certResolver: le
+
+    layout-live:
+      rule: "Host(`layout.rails49.org`) && PathPrefix(`/live`)"
+      entryPoints: [websecure]
+      service: layout-live
+      middlewares: [layout-strip]
+      tls:
+        certResolver: le
+
+  middlewares:
+    layout-strip:
+      stripPrefix:
+        prefixes: ["/live"]
+
+  services:
+    layout-app:
+      loadBalancer:
+        servers:
+          - url: "http://web:80"
+    layout-store:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8765"
+    layout-live:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8766"

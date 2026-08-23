@@ -1,0 +1,38 @@
+# The dev box: vite serves the app and proxies the store's own routes, so the
+# only backends here are vite and the bridge. `dev.rails49.org` holds
+# 127.0.0.1 unless `scripts/dns.sh` has been told otherwise.
+#
+# Priority is the rule's length, so the two prefixed routers win over the
+# bare host and none of them needs one stated.
+
+http:
+  routers:
+    dev-app:
+      rule: "Host(`dev.rails49.org`)"
+      entryPoints: [websecure]
+      service: dev-app
+      tls:
+        certResolver: le
+
+    dev-live:
+      rule: "Host(`dev.rails49.org`) && PathPrefix(`/live`)"
+      entryPoints: [websecure]
+      service: dev-live
+      middlewares: [dev-strip]
+      tls:
+        certResolver: le
+
+  middlewares:
+    dev-strip:
+      stripPrefix:
+        prefixes: ["/live"]
+
+  services:
+    dev-app:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:5173"
+    dev-live:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8766"

@@ -14,6 +14,8 @@ This repo (eventually) implements the features described in the docs:
 - [Architecture](docs/ARCHITECTURE.md) — how the repository is organized and
   how it is tested.
 - [Glossary](CONTEXT.md) — canonical terms; decisions in [docs/adr](docs/adr).
+- [Deploy](docs/DEPLOY.md) — the names, the certificate and the reverse
+  proxy that puts the stack on the LAN, living in [deploy/](deploy).
 
 Each app's implementation details live beside it:
 
