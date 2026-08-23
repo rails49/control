@@ -103,7 +103,7 @@ class Replay:
             self._drag(request)
 
     def _drag(self, request: RequestSpec) -> None:
-        """One working as the drag that asks for it: the train, and the ends
+        """One request as the drag that asks for it: the train, and the ends
         it may arrive at. The id is the scheduler's and so is the departure
         end, exactly as they are for a person's drag (ADR-0036)."""
         self._bus.publish(

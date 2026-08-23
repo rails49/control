@@ -59,7 +59,7 @@ def placement(assembly: Assembly) -> dict[str, Any]:
     return dict(events(assembly.trace, "allocation")[-1]["trains"])
 
 
-def workings(assembly: Assembly) -> list[tuple[Any, ...]]:
+def requests(assembly: Assembly) -> list[tuple[Any, ...]]:
     return [
         (line["id"], line["train"], line["depart"], tuple(line["dest"]))
         for line in events(assembly.trace, "request_submitted")
@@ -114,7 +114,7 @@ def test_the_replay_faces_each_train_the_way_the_document_does() -> None:
 
 
 def test_the_replayed_run_is_the_one_the_document_produced() -> None:
-    """The same three workings, minted with the same ids and departing by the
+    """The same three requests, minted with the same ids and departing by the
     same ends, and the railroad ends up standing the same way — against the
     batch assembly, which is the run the scenario produced when the apps were
     handed the document.
@@ -135,7 +135,7 @@ def test_the_replayed_run_is_the_one_the_document_produced() -> None:
 
     replay = replayed()
 
-    assert workings(replay) == workings(document)
+    assert requests(replay) == requests(document)
     assert placement(replay) == placement(document)
     assert [line["id"] for line in events(replay.trace, "request_completed")] == [
         line["id"] for line in events(document.trace, "request_completed")
