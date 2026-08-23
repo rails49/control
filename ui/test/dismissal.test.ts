@@ -11,15 +11,21 @@
  * over the railroad. Both menu systems wear the one overlay, so the bar's
  * menus did it too.
  *
- * **This suite cannot see the bug, and no vitest suite can.** happy-dom does
- * not render, so it has no hit testing: `document.elementFromPoint` returns
- * null there whatever is on top, and the browser's own hit test is the whole
- * of what put the press on the overlay rather than on the drawing. What the
- * suite does hold is everything the overlay does once the press is on it —
- * dismiss, forward to what is underneath, and answer for the native menu as
- * that forwarding answered — with the one thing it cannot do, the hit test,
- * standing in as a stub. The bug itself is checked in a browser, and #180
- * records the reading.
+ * **No vitest suite can see #180's bug.** happy-dom does not render, so it has
+ * no hit testing: `document.elementFromPoint` returns null there whatever is
+ * on top, and the browser's own hit test is the whole of what put the press on
+ * the overlay rather than on the drawing. What the suite does hold is
+ * everything the overlay does once the press is on it — dismiss, forward to
+ * what is underneath, and answer for the native menu as that forwarding
+ * answered — with the one thing it cannot do, the hit test, standing in as a
+ * stub. That bug itself is checked in a browser, and #180 records the reading.
+ *
+ * What #180's fix then left behind *is* visible here
+ * ([#186](https://github.com/rails49/control/issues/186)): the overlay it took
+ * out of the hit test and never put back is a mark on a node, and a mark reads
+ * without rendering. So the tests below assert the mark and leave what a press
+ * does with it to Chrome, and the one stub that models `pointer-events` says
+ * so where it stands.
  */
 
 import type { LitElement } from "lit";
@@ -28,7 +34,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import "../src/ui/tc-app.js";
 import { centreOf, type Point } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { bar, running, settled } from "./support/shell.js";
+import { band, bar, running, settled } from "./support/shell.js";
 import {
   bridging,
   joined,
@@ -57,6 +63,10 @@ const MIDDLE = {
   a: centreOf(stored("toy").symbols.a!),
   b: centreOf(stored("toy").symbols.b!),
 };
+
+/** Bare paper: a point on the sheet with nothing under it, where a right-click
+ *  opens no menu of ours and still suppresses the browser's. */
+const PAPER: Point = { x: 2.5, y: 6.5 };
 
 /** A joined session with a train standing in each block and the run held. Two
  *  trains, because a second right-click is about the one the first menu was
@@ -120,6 +130,11 @@ async function chose(shell: TcApp, label: string): Promise<void> {
   await settled(shell);
 }
 
+/** Whether the band's picker has its list down. */
+function picking(shell: TcApp): boolean {
+  return band(shell).renderRoot.querySelector("menu.drawings") !== null;
+}
+
 /** The title on the bar whose menu is down, `null` while none is. */
 function down(shell: TcApp): string | null {
   const titles = [...bar(shell).renderRoot.querySelectorAll("button.title")];
@@ -161,20 +176,36 @@ describe("a right-click while a canvas menu is open", () => {
     ]);
   });
 
-  /** The overlay's own job, unchanged: a left press outside the menu takes it
-   *  down and reaches nothing underneath. */
+  /**
+   * The overlay's own job, unchanged — in the state a *forwarded* right-click
+   * leaves behind, which is where it was lost
+   * ([#186](https://github.com/rails49/control/issues/186)). Dismissing the
+   * first menu and opening the second happen in one task, lit batches them
+   * into a single update, and lit-html reuses the same `div.dismiss`: the
+   * second menu wears the first one's overlay, marks and all.
+   *
+   * The mark is what this suite can see, and the first assertion is it. That
+   * the left press then takes the menu down is asserted too, but happy-dom
+   * has no hit test and fires the listener whatever `pointer-events` says, so
+   * that half is a model — Chrome is where it is read, and the commit records
+   * the reading.
+   */
   it("takes the menu down on a left press and opens nothing", async () => {
     const shell = await standing();
     await rightClicked(shell, surface(shell), MIDDLE.a);
     const menu = running(shell).renderRoot.querySelector("tc-menu")!;
 
     underneath(shell);
+    await rightClicked(shell, overlay(menu), MIDDLE.b);
+    expect(offered(shell)).toEqual(["Turn around"]);
+    expect(overlay(menu).style.pointerEvents).toBe("");
+
     overlay(menu).dispatchEvent(
       new MouseEvent("pointerdown", {
         bubbles: true,
         cancelable: true,
-        clientX: MIDDLE.b.x,
-        clientY: MIDDLE.b.y,
+        clientX: MIDDLE.a.x,
+        clientY: MIDDLE.a.y,
       }),
     );
     await settled(shell);
@@ -197,5 +228,76 @@ describe("a right-click while the bar's menu is open", () => {
 
     expect(down(shell)).toBeNull();
     expect(offered(shell)).toEqual(["Turn around"]);
+  });
+});
+
+/**
+ * The browser's hit test with two overlays stacked over the drawing, honouring
+ * `pointer-events`: the press meets the topmost overlay still in the test, and
+ * the drawing once neither is. The one place this suite models more than
+ * `underneath` above, because the ping-pong a restore must not reintroduce is
+ * a question about exactly that rule
+ * ([#186](https://github.com/rails49/control/issues/186)).
+ *
+ * The stub gives up once it has been asked more times than there are things to
+ * answer with, and says nothing is there. A press handed back and forth would
+ * otherwise recur until the stack gave out, which is not a reading; the counts
+ * are.
+ */
+function stackedOver(shell: TcApp, overlays: readonly HTMLElement[]): void {
+  const drawing = surface(shell);
+  let asked = 0;
+  document.elementFromPoint = () => {
+    asked += 1;
+    if (asked > overlays.length + 1) return null;
+    return overlays.find((one) => one.style.pointerEvents !== "none") ?? drawing;
+  };
+}
+
+/** Every `contextmenu` each node is handed, counted as it is handed one. */
+function pressesOn(nodes: readonly Element[]): number[] {
+  const seen = nodes.map(() => 0);
+  nodes.forEach((node, index) =>
+    node.addEventListener("contextmenu", () => {
+      seen[index] += 1;
+    }),
+  );
+  return seen;
+}
+
+describe("a right-click while two menus are open", () => {
+  /**
+   * The case `82f2abc` records fixing, and the risk in putting back anything
+   * the forwarding took away. The band's picker is the menu that can be down
+   * over another one: `tc-header` is lifted above the work
+   * (`tc-app.styles.ts`), so a press on the band reaches the picker rather
+   * than the overlay a canvas menu already dropped, and both overlays are
+   * then over the drawing at once.
+   *
+   * The press has to pass each of them once and reach the drawing once, never
+   * returning to one it has already passed.
+   */
+  it("passes each overlay once, reaches the drawing once, and does not recur", async () => {
+    const shell = await standing();
+    await rightClicked(shell, surface(shell), MIDDLE.a);
+    const menu = running(shell).renderRoot.querySelector("tc-menu")!;
+    band(shell).renderRoot.querySelector<HTMLElement>("button.chosen")!.click();
+    await settled(shell);
+    expect(picking(shell)).toBe(true);
+    expect(offered(shell)).toEqual(["Turn around"]);
+
+    // Topmost first, which is the order the hit test answers in.
+    const overlays = [overlay(band(shell)), overlay(menu)];
+    stackedOver(shell, overlays);
+    const seen = pressesOn([...overlays, surface(shell)]);
+    const outcome = await rightClicked(shell, overlays[0], PAPER);
+
+    // The counts first: a press handed back and forth shows up here as the
+    // thing it is, where the answers below only come out wrong.
+    expect(seen).toEqual([1, 1, 1]);
+    expect(outcome).toEqual({ native: false });
+    expect(picking(shell)).toBe(false);
+    expect(offered(shell)).toEqual([]);
+    expect(overlays.map((one) => one.style.pointerEvents)).toEqual(["", ""]);
   });
 });
