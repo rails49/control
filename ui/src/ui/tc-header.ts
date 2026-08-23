@@ -27,6 +27,7 @@ import { customElement, property, state } from "lit/decorators.js";
 
 import type { Power } from "../model/trace.js";
 import { VIEWS, type ViewId } from "../model/views.js";
+import { dismissal } from "./dismissal.js";
 import { ICONS } from "./icons.js";
 import { headerStyles } from "./tc-header.styles.js";
 
@@ -197,7 +198,7 @@ export class TcHeader extends LitElement {
     const name = this.drawing ?? "no railroad";
     return html`
       ${this.picking
-        ? html`<div class="dismiss" @pointerdown=${() => this.pick(false)}></div>`
+        ? dismissal(() => this.pick(false))
         : nothing}
       <div class="picker">
         <button

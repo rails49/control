@@ -35,6 +35,7 @@ import {
 } from "../model/commands.js";
 import type { Power, Run } from "../model/trace.js";
 import type { ViewId } from "../model/views.js";
+import { dismissal } from "./dismissal.js";
 import { GLYPHS } from "./icons.js";
 import { menubarStyles } from "./tc-menubar.styles.js";
 
@@ -77,7 +78,7 @@ export class TcMenubar extends LitElement {
     return html`
       ${this.showing === null
         ? nothing
-        : html`<div class="dismiss" @pointerdown=${() => this.show(null)}></div>`}
+        : dismissal(() => this.show(null))}
       ${MENUS[this.view].map((menu) => this.dropdown(menu))}
       <span class="spacer"></span>
       ${TOOLS[this.view].map((id) => this.tool(id))}

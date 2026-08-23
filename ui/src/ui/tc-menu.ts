@@ -14,6 +14,7 @@
 import { LitElement, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
+import { dismissal } from "./dismissal.js";
 import { menuStyles } from "./tc-menu.styles.js";
 
 /** One row: what it says, what choosing it sends, the key that does the same
@@ -38,7 +39,7 @@ export class TcMenu extends LitElement {
     const at = this.at;
     if (at === null || this.items.length === 0) return nothing;
     return html`
-      <div class="dismiss" @pointerdown=${this.dismiss}></div>
+      ${dismissal(() => this.dismiss())}
       <menu style=${`left: ${at.x}px; top: ${at.y}px`}>
         ${this.items.map((item) => this.row(item))}
       </menu>
