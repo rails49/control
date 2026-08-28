@@ -2,6 +2,10 @@
 
 Software for scheduling, dispatching, and driving trains on a model railroad.
 
+**Status: alpha.** Interfaces, topics, and file formats change without notice,
+and nothing here runs on a layout other than the author's yet. Published to
+share the design, not to be installed. [MIT licensed](LICENSE).
+
 This repo (eventually) implements the features described in the docs:
 
 - [Goals](docs/GOALS.md) — the end state: assets (tracks, blocks, connections,
