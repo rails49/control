@@ -9,6 +9,7 @@ assertions poll drain-and-check rather than sleep and hope.
 
 import json
 import logging
+import socket
 import time
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -262,7 +263,12 @@ def test_a_client_that_vanishes_leaves_quietly(
     with caplog.at_level(logging.ERROR):
         client = connect(f"ws://127.0.0.1:{bridge.port}")
         settled(bridge, 1)
-        client.socket.close()  # the socket goes, no close frame sent
+        # The socket goes, no close frame sent. Shut it down first: the client
+        # reads on a background thread, and on Linux closing an fd another
+        # thread is blocked in recv() on sends no FIN, so the bridge would
+        # never see the departure. macOS tears the socket down either way.
+        client.socket.shutdown(socket.SHUT_RDWR)
+        client.socket.close()
         settled(bridge, 0)
     assert caplog.records == []
 
