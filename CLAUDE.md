@@ -40,9 +40,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 
 ## Landing work
 
-History is linear: no merge commits, no PRs. Open an issue, commit to `main`
-in reviewable steps referencing it, push, close the issue. Keep mechanical
-moves in their own commit so renames stay legible in the diff.
+History is linear, and `main` only moves by PR with the `ci` check green — a
+ruleset with no bypass, so this applies to everyone. Open an issue, commit on
+a branch in reviewable steps referencing it, then
+`git push -u origin <branch> && gh pr create --fill && gh pr merge --auto --rebase`;
+close the issue once it lands. Rebase merge keeps the history linear. Keep
+mechanical moves in their own commit so renames stay legible in the diff.
 
 ## Agent skills
 
