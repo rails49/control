@@ -20,10 +20,7 @@ app, never a field, a topic or a branch in any other app
 ## Apps
 
 An **app** is a unit that will run as its own container: `store`, `scheduler`,
-`dispatcher`, `driver`, `simulator`, the layout bindings `dccex` and `jmri`
-with the `station` port server beside them
-([ADR-0043](docs/adr/0043-a-layout-binding-is-an-app-on-a-shared-engine-and-a-sensor-is-addressed-by-its-block-end.md)),
-and a `ui` later. Each gets one package in
+`dispatcher`, `driver`, `simulator`, and a `ui` later. Each gets one package in
 `src/tc49/`. Apps import `tc49.lib` and themselves, **never each other**; they
 meet over the event bus and the store's CRUD contract.
 
