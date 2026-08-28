@@ -48,7 +48,10 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 
 ### Live maps
 
-_None._
+- [Milestone 2 map: connect hardware and run trains](https://github.com/rails49/control/issues/193)
+  — the way to `docs/MILESTONE-2.md`: a physical binding of the layout
+  interface, a driver that turns an aspect into a speed, stock a real railroad
+  has, a scheduler that runs trains unattended, and a person's throttle.
 
 ### Completed maps
 
