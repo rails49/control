@@ -18,6 +18,14 @@ other appear as separate trains. Each end a train can leave through carries a
 **signal**, which is how a driver is told whether to go and how fast; an end
 nothing ever leaves carries none.
 
+A block also says what it is for. Its **role** — `station`, `siding` or
+`through` — is whether a train may be sent there and how long it may then
+stand: called at and left again, held as long as it likes, or never a
+destination. What it **admits** is a set of train kinds. Both are advice to
+the generator that invents traffic, never feasibility: a person may send any
+train anywhere the steel allows, and the dispatcher checks neither
+([ADR-0046](adr/0046-a-blocks-role-and-filter-are-advice-to-the-generator.md)).
+
 **Connections** join one end (`A` or `B`) of each of one or more blocks, and
 are realized by zero or more turnouts. The ways a train can traverse a
 connection are its **transits** — (end, end) pairs — and often only some of

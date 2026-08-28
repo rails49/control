@@ -19,6 +19,24 @@ A section of track without turnouts where a train can park, oriented with ends
 `A` and `B` and having a length.
 _Avoid_: section, segment, track
 
+**Role**:
+What a block is for, drawn on it: a **station** is called at and left again, a
+**siding** holds a train as long as it likes — minutes, days, forever — and a
+**through** block is never a destination. Advice to the scheduler's generator
+about where to *send* a train and never about where one may *be*, so origins
+and a person's placement are unconstrained and `through` on a terminal block
+is a headshunt rather than a contradiction. Absent it, a block is a station
+([ADR-0046](docs/adr/0046-a-blocks-role-and-filter-are-advice-to-the-generator.md)).
+_Avoid_: transient (one letter from **transit**), type, category, purpose
+
+**Admits**:
+Which **train kinds** a block takes, drawn on it as a set: `[passenger,
+mixed]` accepts a mixed train and refuses a goods one. Advice on the same
+terms as a **role** and enforced by nobody — every physical impossibility is
+already a length and `no_fit`, and what is left is policy the layout permits
+(ADR-0046). Absent it, a block admits every kind.
+_Avoid_: permits, allows, filter (the thing it does, not what it is called)
+
 **Terminal block**:
 A block with only one connected end, derived from the connections rather than
 declared. Can only be the start or end of a route, never intermediate.
@@ -195,11 +213,15 @@ _Avoid_: library (taken by the symbol library), roster (which holds cars),
 inventory
 
 **Kind**:
-What a model is — locomotive, passenger, freight, special. A **train's kind is
-derived** from the cars it hauls, **ignoring locomotives**: every hauled train
-has one, so counting them would make every train *mixed*. All freight is
-freight, passenger and freight together is mixed, and nothing but locomotives
-is a light engine.
+What a model is — `locomotive`, `passenger`, `freight`, `special` — and, one
+level up, what a train is. A **train's kind is derived** from the cars it
+hauls, **ignoring locomotives**: every hauled train has one, so counting them
+would make every train *mixed*. Exactly one sort hauled gives that sort, more
+than one gives `mixed`, and none is a `light engine` — a real move rather
+than a degenerate case. **The two lists differ**: `locomotive` is never a
+train's kind, `mixed` and `light engine` are never a model's, and a block's
+**admits** lists train kinds, so an engine shed takes `[light engine]` and
+never `[locomotive]` ([ADR-0046](docs/adr/0046-a-blocks-role-and-filter-are-advice-to-the-generator.md)).
 _Avoid_: type, class, category
 
 **Train**:
