@@ -42,8 +42,8 @@ A block with only one connected end, derived from the connections rather than
 declared. Can only be the start or end of a route, never intermediate.
 _Avoid_: dead end. *Siding* is a physical description — a trailing dead-end
 track, which is usually a terminal block — and stays available as such (Claro's
-`claro_4`–`claro_7` are sidings). It is not a synonym for the model concept:
-say "terminal block" when the one connected end is what matters.
+`C4`–`C7` are sidings). It is not a synonym for the model concept: say
+"terminal block" when the one connected end is what matters.
 
 **Connection**:
 What joins one end of each of one or more blocks, realized by zero or more
