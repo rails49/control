@@ -1,5 +1,10 @@
 # The layout interface owns time
 
+*(Amended for #198: the boundary payload carries a second field, the
+railroad's fast clock, minted by the same single writer so that no app has to
+interpolate one — which is this page's rule, not an exception to it
+([ADR-0044](0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).)*
+
 *(Amended for #118: the event is `tc49/layout/boundary` carrying a field
 `boundary`, where this page first named it `tc49/layout/tick` carrying
 `tick`. **Tick** stays the simulator's word for its own beat; the contract

@@ -280,12 +280,22 @@ quiescent (queue drained); that is loop-owner pacing, not a bus-contract
 promise. Advancing means: execute the pending commands, publish their sensor
 events, **then** publish the boundary — a beat's sensors precede the boundary
 itself, so the grant phase the boundary triggers finds them in its buffered
-set. Publishing the boundary first would slip every grant by one. A hardware
-adapter later picks its own cadence behind the same event: the publisher
-swaps, the contract doesn't. The contract is named for what it needs, the
-**boundary**; `tick` is the simulator's name for its own beat, and "one
-transit per beat" is the simulator's behaviour rather than the model's time
-([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
+set. Publishing the boundary first would slip every grant by one. The
+publisher swaps and the contract doesn't. The contract is named for what it
+needs, the **boundary**; `tick` is the simulator's name for its own beat, and
+"one transit per beat" is the simulator's behaviour rather than the model's
+time ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
+
+**On the physical railroad the period is a fixed span of real time**, 500 ms
+by default and tunable per railroad, and it is *not* scaled by the railroad's
+fast clock below. The `cross` expiry window is two boundaries wide
+([ADR-0040](adr/0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md)),
+so the period is part of the failure budget and the rule is to pick it so that
+two boundaries comfortably exceed worst-case cascade latency — a slow message
+must still be a live one. `layout` publishes the boundary whenever it is
+running, a held run and dead rails included, so a boundary is a **liveness
+pulse** as well as a grant edge and its stopping is what a watchdog reads
+([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).
 
 **The boundary event is what the dispatcher grants on.** There is no second
 event. On each boundary the scheduler releases requests that have come due,
@@ -304,9 +314,19 @@ trivially ignorable. That argument is not the simulator's: every binding
 numbers its boundary, a hardware adapter included. No other event carries a
 boundary field: the trace tap stamps each recorded event with the latest
 boundary number it has observed, deterministic in milestone 1 because the tap
-sees everything in delivery order. The scheduler consumes the number (it is
-how requests come due at their `at` boundary); counting a bus event is not
-reading a clock.
+sees everything in delivery order.
+
+**It also carries the fast clock.** `clock` is the railroad's scaled operating
+time — wall clock times a configurable multiplier, fast seconds since the
+session's start — minted by the same single writer, so a consumer reads it off
+the event rather than interpolating one, and no app grows a clock. It is
+free-running and settable, and its multiplier and start time are railroad
+configuration. **Nothing in the control path reads it**: it feeds scheduling
+and scenery, never dispatch and never safety, and a train that is late is
+simply late
+([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).
+The simulator has no wall clock to scale and advances it a fixed increment per
+tick, so replay stays byte-identical.
 
 ## Asset store
 
@@ -379,14 +399,17 @@ and a generator inventing traffic later — "three sources inside one
 scheduler, not three publishers"
 ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md),
 [GOALS.md](GOALS.md#scheduling)). Which of them a run has is configuration,
-not a rule: `tc49 live` is given no timetable at all while `at` is still a
-boundary count
+not a rule: `tc49 live` is given no timetable at all
 ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 
-A boundary count is the milestone binding of "at a stated time" and not the
-model's answer, since a boundary count means nothing to a timetable once a
-hardware adapter is picking the cadence
-([MILESTONE-1.md](MILESTONE-1.md#scope)). From a timetable request the
+**`at` is an instant on the fast clock**: fast seconds since the session's
+start on the wire — monotone, directly comparable, with no midnight wrap —
+and a time of day in a document a person authors, expanded by the scheduler at
+load like the arrival-end expansion below
+([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).
+Milestone 1 still binds it as a **boundary count**, which means nothing to a
+timetable and nothing to a person writing one; that binding goes with the
+physical railroad ([MILESTONE-1.md](MILESTONE-1.md#scope)). From a timetable request the
 scheduler performs only the *mechanical* arrival-end expansion
 (`to: [yard_e]` → `yard_e.A, yard_e.B` — pure syntax, no layout needed); from
 a **gesture** it supplies the two fields the gesture omits, the id and the

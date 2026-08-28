@@ -11,7 +11,10 @@ Everything [SYSTEM.md](../SYSTEM.md#layout-interface) and the ADRs put on
 "the layout interface" that no hardware decides is one core app, `layout`,
 named for the bus role it alone writes: it keeps the beat
 ([ADR-0027](0027-the-tick-is-the-simulators-grant-boundary.md); on the
-physical railroad a tunable sped-up wall clock), pairs `align` before
+physical railroad a fixed period of real time, and the railroad's sped-up
+clock is a *second*, separate clock —
+[ADR-0044](0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)
+corrects this line), pairs `align` before
 `cross`, expires a `cross`, runs each transit — speed up, watch the far-end
 sensor, stop, and stop anyway at the transit bound
 ([ADR-0040](0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md)) —
@@ -57,8 +60,10 @@ JMRI drives and add a command station later. Each is an app in this repo and
 a container of its own ([ADR-0013](0013-apps-are-deployment-units.md)); the
 physical binding is the normative one
 ([ADR-0030](0030-the-physical-railroad-is-the-normative-binding.md)) and
-lives where the contract is shaped. The `simulator` is unchanged: a
-whole-interface binding, as today.
+lives where the contract is shaped. The `simulator` is unchanged in shape: a
+whole-interface binding, as today. (It does gain the fast-clock field every
+binding mints, per
+[ADR-0044](0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md).)
 
 The command station is reached over **USB only**. A small app, `station`,
 owns the serial device and serves **TCP 2560**: a mirror of the serial
