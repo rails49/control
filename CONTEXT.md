@@ -162,21 +162,80 @@ _Avoid_: gap, splice, bare wire (a joint may be several)
 
 ### Stock
 
+**Model**:
+What a product *is*, independent of any railroad that owns one: a length, a
+**kind**, and the meaning of each DCC function — which number sounds the horn
+on that item. Two railroads owning the same item share one entry, which is why
+a model is not a **car**
+([ADR-0045](docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+_Avoid_: type (reads as a synonym of *kind*, which is taken), class, product
+
+**Car**:
+One item a railroad owns: **a model with zero or more fields overridden**, and
+its own DCC address where it has a decoder, unique across the railroad. Zero
+overrides is the common case and still names its model, so a car has one
+shape; scratch-built stock earns a model of its own rather than a second kind
+of car. A **locomotive is a car** whose model's kind says so, which is why the
+address hangs here and not on a train.
+_Avoid_: vehicle, item, wagon, rolling stock (the mass noun, which is *stock*)
+
+**Address** (of a car):
+The number programmed into a car's decoder — bare, taking **no system prefix**,
+unlike a point's. It is programmed once and generally kept, and it is the same
+number whoever sends the packet: turnout wiring can be split across systems and
+traction cannot, so a railroad changing command station rewrites nothing
+(ADR-0045, refining
+[ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
+_Avoid_: id, cab, loco address
+
+**Catalogue**:
+The models an installation knows, one database rather than one per railroad.
+Sharing one between railroaders is somebody else's product and out of scope.
+_Avoid_: library (taken by the symbol library), roster (which holds cars),
+inventory
+
+**Kind**:
+What a model is — locomotive, passenger, freight, special. A **train's kind is
+derived** from the cars it hauls, **ignoring locomotives**: every hauled train
+has one, so counting them would make every train *mixed*. All freight is
+freight, passenger and freight together is mixed, and nothing but locomotives
+is a light engine.
+_Avoid_: type, class, category
+
 **Train**:
-A collection of locomotives and cars moving or parked as a unit; its length is
-the sum of its parts. A train at rest occupies exactly one block; while
-crossing it holds the transit and, until its tail clears, the block behind as
-well.
+An **ordered list of cars**, moving or parked as a unit; its length is the sum
+of its parts and its **kind** is derived from them. A train at rest occupies
+exactly one block; while crossing it holds the transit and, until its tail
+clears, the block behind as well. Durable — a railroad keeps rakes made up
+between sessions — and carries a **priority**.
 _Avoid_: consist
 
+**Orientation**:
+Which way round a car is coupled in its train. A locomotive's forward is a
+fixed direction of the physical item, so orientation composed with the train's
+**facing** is what gives a direction on the track — and it is what lets a
+locomotive at each end of a train run opposite (ADR-0045).
+_Avoid_: direction, facing (which is the train's, and about its block)
+
+**Priority**:
+A train's claim on the queue, lowest number highest. **Strict among
+simultaneously launchable requests**: where two could both launch the higher
+wins regardless of age, and where the higher-priority one cannot launch the
+lower one still goes. So starvation stays bounded within a priority level by
+[ADR-0012](docs/adr/0012-the-pending-scan-ages-by-refusal-count.md)'s aging and
+is deliberately unbounded across levels, which is why freight runs at night.
+_Avoid_: rank, class, weight
+
 **Roster**:
-The trains a railroad owns, served by the store beside its drawing. With the
+The **cars** a railroad owns, served by the store beside its drawing, with the
+trains made up from them alongside. With the
 drawing it is the whole of what a **run** is built from: a railroad, its
 stock, and a person who puts the stock on the rails
-([#171](https://github.com/rails49/control/issues/171)). A train in
-it is **known**, which is separate from being **placed**: a railroad at rest
-says what stock it has without saying where any of it stands
-([ADR-0039](docs/adr/0039-a-train-may-be-off-the-layout.md)). Also the name of
+([#171](https://github.com/rails49/control/issues/171)). A car in
+it is **known**, which is separate from a train being **placed**: a railroad at
+rest says what stock it has without saying where any of it stands
+([ADR-0039](docs/adr/0039-a-train-may-be-off-the-layout.md), one level down
+since ADR-0045). Also the name of
 the pane that draws it, as `netlist` names both what derivation produces and
 the pane it is read in.
 _Avoid_: closet, fleet, inventory
@@ -187,7 +246,7 @@ holding its standing lock. A train that is not placed is **off the layout** —
 an ordinary state rather than a fault, and *absence* from the mapping rather
 than a sentinel block name
 ([ADR-0039](docs/adr/0039-a-train-may-be-off-the-layout.md)). Every placed
-train is on the roster; a train on the roster may be placed nowhere, and an
+train is made of cars on the roster; a train may be placed nowhere, and an
 unplaced train has no **facing**, there being no block for a facing to be an
 end of.
 _Avoid_: closet, positioned. *Not on the layout* is the same state said a

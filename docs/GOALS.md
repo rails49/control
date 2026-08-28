@@ -40,16 +40,23 @@ declared conflicts, which is why a plain turnout declares nothing at all
 
 ### Stock
 
-The rolling stock traveling or parked on the tracks:
+The rolling stock traveling or parked on the tracks, in three levels
+([ADR-0045](adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)):
 
-- Individual locomotives and cars, each with a length (and other properties).
-- **Trains**: collections of cars and locomotives. A train's length is the sum
-  of its parts. A train at rest occupies exactly one block; while crossing it
-  holds the transit and, until its tail clears, the block behind as well. It
-  must fit in every block of its route.
+- A **model** is what a product is, independent of any railroad: a length, a
+  **kind** — locomotive, passenger, freight, special — and the meaning of each
+  DCC function.
+- A **car** is one item a railroad owns: a model with zero or more fields
+  overridden, and its own decoder address where it has one. A locomotive is a
+  car whose model's kind says so.
+- A **train** is an ordered list of cars, each coupled one way round or the
+  other. Its length is the sum of its parts, its kind is derived from the cars
+  it hauls, and it carries a **priority**. A train at rest occupies exactly one
+  block; while crossing it holds the transit and, until its tail clears, the
+  block behind as well. It must fit in every block of its route.
 
-A railroad **owns** its stock: its **roster** is every train it has, whether
-any of them is on the layout or not
+A railroad **owns** its stock: its **roster** is the cars it has and the trains
+made up from them, whether any of them is on the layout or not
 ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). That is what a run
 begins from — a railroad, its roster, and a person who puts the trains on the
 layout and drags them where they should go. Nothing else is needed to start
