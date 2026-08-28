@@ -1,0 +1,33 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        if: hashFiles('pyproject.toml') != ''
+      - run: uv sync
+        if: hashFiles('pyproject.toml') != ''
+      - uses: pnpm/action-setup@v4
+        if: hashFiles('pnpm-lock.yaml') != ''
+      - uses: actions/setup-node@v4
+        if: hashFiles('package.json') != ''
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+        if: hashFiles('pnpm-lock.yaml') != ''
+      - name: gate
+        run: |
+          cmd=$(sed -n 's/^ci:[[:space:]]*//p' CLAUDE.md 2>/dev/null | head -1)
+          [ -n "$cmd" ] || cmd=$(sed -n 's/^[Gg]ate:[[:space:]]*//p' CLAUDE.md 2>/dev/null | head -1)
+          [ -n "$cmd" ] || { [ -x scripts/check.sh ] && cmd=./scripts/check.sh; }
+          [ -n "$cmd" ] || { grep -qE '^check:' Makefile 2>/dev/null && cmd="make check"; }
+          [ -n "$cmd" ] || { echo "no ci:/gate: line in CLAUDE.md, no scripts/check.sh, no make check"; exit 1; }
+          echo "+ $cmd"
+          bash -c "$cmd"
