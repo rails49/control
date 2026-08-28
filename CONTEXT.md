@@ -312,9 +312,27 @@ grants are a function of that set and not of arrival order
 ([ADR-0009](docs/adr/0009-layout-interface-owns-time.md)). Every binding
 publishes it as `tc49/layout/boundary` carrying a `boundary` count, numbered
 rather than bare so that a redelivery cannot double-advance anything counting
-it. What generates the beat is the binding — the simulator's tick, a clock on
-a physical railroad — and the dispatcher never reads a clock either way.
-_Avoid_: beat, round, cycle
+it. What generates it is the binding — the simulator's tick; on a physical
+railroad a **boundary period**, a fixed span of real time (500 ms by default)
+that is never scaled by the fast clock and is sized so that two boundaries
+exceed worst-case cascade latency
+([ADR-0044](docs/adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).
+The dispatcher never reads a clock either way. A boundary is also a
+**liveness pulse**: it is published whenever the layout interface runs, a
+held run and dead rails included, so its stopping is what a watchdog reads.
+_Avoid_: beat, round, cycle — including for the period, which is the
+*boundary period*
+
+**Fast clock**:
+The railroad's scaled operating time, wall clock times a configurable
+multiplier, minted by the layout interface and carried on the grant boundary
+as fast seconds since the session's start. It is what a departure's `at` is
+written against and what a scenic lighting cycle would follow. Free-running
+and settable, and **never read in the control path** — a train waits on
+detectors, so a late train is just late and moving the clock commands nothing
+([ADR-0044](docs/adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).
+_Avoid_: scale time, sim time. Not a synonym for *grant boundary*: the two
+are separate clocks, and the multiplier never touches the boundary period
 
 **Tick**:
 The **simulator's** beat, published as its grant boundary and carrying a

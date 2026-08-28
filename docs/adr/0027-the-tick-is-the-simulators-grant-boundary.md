@@ -8,6 +8,12 @@ grant makes the railroad's behaviour depend on wire timing. That is a
 correctness defect on hardware, and determinism in the tests is its consequence
 rather than its reason. The decision itself is unchanged.)*
 
+*(Amended for #198: "at whatever period suits it" is settled — on the
+physical railroad the period is a fixed span of **real** time, 500 ms by
+default, never scaled by the railroad's fast clock, and the boundary is a
+liveness pulse as well as a grant edge
+([ADR-0044](0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).)*
+
 *(Amended for #118: the event is `tc49/layout/boundary` carrying a field
 `boundary`. It was first published as `tc49/layout/tick` carrying `tick`,
 which put the subordinate binding's word on a contract every binding has to
