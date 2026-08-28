@@ -617,7 +617,10 @@ can promise the route is set before the train moves — but a train started onto
 points that have not thrown is a collision, so the duty has to sit somewhere
 and this is the only component that sees both. How it is held is the binding's
 own business: the simulator gets it free by batching commands to its tick, a
-hardware adapter pairs them. What stays private hardware configuration is the
+hardware adapter pairs them. On the physical railroad the layout interface is
+the core app `layout`, and hardware hangs under it by address as thin
+translators on a device-level vocabulary of the bus
+([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)). What stays private hardware configuration is the
 control loop that executes a `cross` (throttle up, watch the detector, stop). The milestone-1 **simulator** applies `align` and
 `cross` directly at the next tick, and owns pacing and termination: it stops
 advancing when the scheduler is `exhausted` and a tick's cascade
