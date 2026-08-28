@@ -108,14 +108,22 @@ whatever else is configured through the GUI survives the container.
 
 Most home routers strip private addresses out of answers from upstream DNS —
 DNS rebind protection, and it is the one thing that can break this design. A
-FritzBox has it, under **Home Network → Network → Network Settings → DNS
-Rebind Protection**, where `layout.rails49.org` goes in the host name
-exceptions. It is one field, it survives a reboot, and it rides along in the
-configuration backup. AVM exposes no API for it, so this is the only step here
-that cannot be scripted.
+FritzBox has it under **Home Network → Network**, the **Network Settings**
+tab, at the foot of the page behind the **Change Advanced Network Settings**
+button, on its **DNS Rebind Protection** tab, where `layout.rails49.org` goes
+in the exception list. It is one field, it survives a reboot, and it rides
+along in the configuration backup. AVM exposes no API for it, so this is the
+only step here that cannot be scripted.
 
-Reserve the layout server's address in the same router while you are there.
-The record is then set once rather than maintained.
+That button is worth naming because FRITZ!OS 8 removed the global
+**Advanced View** switch every older instruction tells you to turn on first.
+There is nothing to turn on any more: the advanced settings hide behind a
+button on the page that owns them, and the DNS one lands directly on
+`#/network/settings/critical/dns-rebind-protection`.
+
+Reserve the layout server's address in the same router while you are there —
+**Network Connections**, the device, **Home Network**, *Assign permanent IPv4
+address*. The record is then set once rather than maintained.
 
 ## Moving a name
 
