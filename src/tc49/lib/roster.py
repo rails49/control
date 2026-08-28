@@ -6,10 +6,14 @@ is separate from being **placed** — a railroad at rest says what stock it has
 without saying where any of it stands
 ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)).
 
-A train is a name and a length, and nothing else is decided here: cars, types,
-DCC addresses, priority, and the trains that split and merge during operation
-are `scratch/4-stock`'s design and add fields to :class:`Train` when they
-land ([#170](https://github.com/rails49/control/issues/170)).
+A train is a name and a length *here*, which is what milestone 1 reads.
+[ADR-0045](../../../docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)
+decides the rest — the roster holds **cars**, a car is a model with fields
+overridden and its own decoder address, and a train is an ordered list of them
+with a kind derived and a priority — and
+[#223](https://github.com/rails49/control/issues/223) is the migration that
+brings this module to it. Trains that split and merge during operation stay
+[#209](https://github.com/rails49/control/issues/209)'s.
 
 The type lives here beside :mod:`tc49.lib.scenario` for the same reason that
 one does: it is the shared vocabulary every app reads, and the store owns the
