@@ -26,10 +26,26 @@ http:
       tls:
         certResolver: le
 
+    # The broker's WebSocket listener, on the app's own origin for the same
+    # reason `/live` is: a page served over TLS cannot open a `ws://` socket,
+    # and the browser refuses it outright rather than warning (#174). Anything
+    # native goes straight to 1883 and does not come through here.
+    layout-mqtt:
+      rule: "Host(`layout.rails49.org`) && PathPrefix(`/mqtt`)"
+      entryPoints: [websecure]
+      service: layout-mqtt
+      middlewares: [layout-mqtt-strip]
+      tls:
+        certResolver: le
+
   middlewares:
     layout-strip:
       stripPrefix:
         prefixes: ["/live"]
+
+    layout-mqtt-strip:
+      stripPrefix:
+        prefixes: ["/mqtt"]
 
   services:
     layout-app:
@@ -44,3 +60,7 @@ http:
       loadBalancer:
         servers:
           - url: "http://host.docker.internal:8766"
+    layout-mqtt:
+      loadBalancer:
+        servers:
+          - url: "http://broker:9001"
