@@ -32,7 +32,7 @@ the right thing for a cold agent to do.
 So a stale body out-argues a fresh ruling unless something else carries the
 ruling. `/batch-implement` does: it hands every issue that runs after a ruling
 the ruling itself, and tells the agent that a stated ruling beats a word in its
-own body (`.claude/skills/batch-implement/SKILL.md`). Triage may still rewrite
+own body (`~/.claude/skills/batch-implement/SKILL.md`). Triage may still rewrite
 a stale body by hand, and should where it can; the handoff exists because that
 will sometimes not have been done.
 
