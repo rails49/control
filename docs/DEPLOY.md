@@ -42,15 +42,67 @@ so give it a few seconds and then open <https://dev.rails49.org>. Renewal is
 Traefik's, at about a third of the certificate's remaining life, and needs
 only outbound HTTPS.
 
-On the layout server the UI is built rather than served by vite, so nginx
-serves `ui/dist` behind the same proxy:
+## The layout server
+
+`blocks49.local`, a Kamrui JK06 running Ubuntu 24.04, on wifi at
+`192.168.178.56`. It carries three things the dev box does not — the command
+station on USB, JMRI, and a UI that is built rather than served by vite — and
+the broker, which both have.
+
+**The token cannot come from 1Password here.** `op` unlocks through the
+desktop app and a headless box has none, while Traefik has to renew a
+certificate months from now with nobody present. So the layout server is the
+one place a secret sits on disk: `/etc/tc49/deploy.env`, owned `root:docker`
+and mode 640, outside the clone, written once from a machine that does have
+`op`. Revoke and rewrite it rather than editing it in place.
 
 ```
+ssh blocks
+cd ~/control && git pull
 pnpm --dir ui build
-scripts/dns.sh layout 192.168.1.42
-TC49_SITE=layout op run --env-file=deploy/op.env -- \
-  docker compose -f deploy/compose.yaml --profile layout up -d
+TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
+  -f deploy/compose.yaml --profile layout up -d
 ```
+
+Nothing starts this at boot but Docker itself: every service is
+`restart: unless-stopped` and the daemon is enabled, so a power cut comes back
+on its own. There is no systemd unit to forget.
+
+| runs on the layout server | port | reached how |
+| --- | --- | --- |
+| the app, over the certificate | 443 | `https://layout.rails49.org` |
+| the broker, native clients | 1883 | the LAN address |
+| the broker, a browser | 9001, and `/mqtt` | plaintext on the LAN, or through the proxy from a TLS page |
+| `station`, the command station mirrored | 2560 | the LAN address |
+| JMRI's desktop | 6901 noVNC, 5901 VNC | `http://192.168.178.56:6901` |
+| JMRI's web server, once it is running | 12080 | the LAN address |
+
+### The command station
+
+A DCC-EX EX-CSB1 with an EX8874, firmware 5.4.16, on a CH340 cable. It is
+named by
+
+```
+/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
+```
+
+rather than `/dev/ttyUSB0`, which renumbers, and arrives inside the `station`
+container as `/dev/dccex`. The chip carries no serial number, so that path is
+stable only while it is the only CH340 on the box; a second one would want
+`TC49_STATION_DEVICE` set to whatever `ls /dev/serial/by-id/` then says.
+
+Only `station` opens the device. Everything else — the `dccex` translator,
+JMRI, hand-held throttles — is a client of 2560, and they coexist: every byte
+the station sends reaches every client, and a client's bytes go to the station
+only as whole `<…>` messages (ADR-0043).
+
+### JMRI
+
+An operator's tool and none of this app's business. The image does not start
+JMRI: open `http://192.168.178.56:6901`, and click DecoderPro or PanelPro on
+the desktop. Its profile is already pointed at the command station — a DCC++
+over TCP connection to `station:2560` — and `/home/jmri` is a volume, so
+whatever else is configured through the GUI survives the container.
 
 ### The router
 
@@ -88,8 +140,13 @@ fetches a certificate for a name that is not its own.
 | path | dev | layout |
 | --- | --- | --- |
 | `/live/<railroad>` | the bridge, `:8766`, prefix stripped | the same |
+| `/mqtt` | — | the broker's websocket listener, `:9001`, prefix stripped |
 | `/drawings`, `/review`, `/rosters` | vite's own proxy to the store | the store, `:8765` |
 | everything else | vite, `:5173` | `ui/dist` through nginx |
+
+`/mqtt` is there for the same reason `/live` is: a page served over TLS cannot
+open a `ws://` socket, and the browser refuses it rather than warning. Native
+clients go straight to 1883 and never come through the proxy.
 
 Traefik proxies and does not read files, which is why the built UI needs
 nginx behind it. Traefik rather than Caddy because its stock image carries
