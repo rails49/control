@@ -14,14 +14,14 @@ jobs:
         if: hashFiles('pyproject.toml') != ''
       - run: uv sync
         if: hashFiles('pyproject.toml') != ''
+      # The ui carries its own toolchain under ui/ (scripts/check.sh).
       - uses: pnpm/action-setup@v4
-        if: hashFiles('pnpm-lock.yaml') != ''
-      - uses: actions/setup-node@v4
-        if: hashFiles('package.json') != ''
         with:
-          node-version: 22
-      - run: pnpm install --frozen-lockfile
-        if: hashFiles('pnpm-lock.yaml') != ''
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile --dir ui
       - name: gate
         run: |
           cmd=$(sed -n 's/^ci:[[:space:]]*//p' CLAUDE.md 2>/dev/null | head -1)
