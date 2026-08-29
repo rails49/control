@@ -76,7 +76,7 @@ transits.
 
 | Symbol | Kind | Pins | Transits | Concurrent | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length, optional sensor id per end |
+| Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length |
 | Terminal | `terminal` | 1 (`P`) | none | n/a | marks a deliberate track end |
 | Turnout | `turnout` | 3 (`toe`, `straight`, `diverging`) | `straight`, `diverging` | none | |
 | Crossing | `crossing` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | a grade crossing: one train at a time |
@@ -97,8 +97,7 @@ the same four pin names and the two through routes, and offer no slips.
 
 A block carries a signal and a sensor at each end, always. Neither is placed
 and neither is optional, so neither is a field: they are part of what a block
-symbol is, and the block artwork draws them. What the drawing may record is a
-sensor's hardware id, which is a property of a sensor that already exists.
+symbol is, and the block artwork draws them.
 (A signal at an end that leads only to a terminal governs a departure no train
 can make, and is worth hiding once the rest is settled.)
 
@@ -184,7 +183,7 @@ symbols:
 ```
 
 - **Symbols are a mapping from name to `kind` and its properties.** A block
-  takes a `length` and optional `sensors` per end; a portal a `label`; a turnout
+  takes a `length`; a portal a `label`; a turnout
   or a slip an optional `addr` ([Hardware ids](#hardware-ids)); a terminal and a
   free-standing pin (`kind: pin`) nothing.
   A symbol of fixed geometry takes only the names below. The generic connection
@@ -251,9 +250,9 @@ auto-layout.
 
 ## Hardware ids
 
-The drawing holds hardware identities as optional symbol properties: `sensors`
-on a block's ends, and `addr` on a turnout or a slip. Derivation drops the
-sensors and keeps the addresses, as the `points` each transit needs
+The drawing holds one hardware identity, as an optional symbol property:
+`addr` on a turnout or a slip. Derivation keeps the addresses, as the `points`
+each transit needs
 ([ADR-0031](../adr/0031-the-layout-carries-the-points-a-transit-needs.md)) —
 still no turnouts in the layout, but their addresses
 ([LAYOUT.md](LAYOUT.md#the-derived-layout)). The dispatcher publishes them on
@@ -262,6 +261,11 @@ so an adapter throws what it is told and holds no table of its own. A point
 wearing no address is left out rather than stopping derivation: the drawing is
 where an unaddressed point is reported. A drawing with no hardware ids is
 valid; the simulator needs none.
+
+A sensor has no id here. It is addressed by the block end it watches,
+`<block>.<end>`, which are the drawing's own names rather than anything the
+drawing records
+([ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 
 `addr` is a plain string and nothing checks it for shape. A DCC accessory
 number is a string that happens to be digits, and what a physical point answers
