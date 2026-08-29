@@ -1409,9 +1409,11 @@ _SCHEMA_ERRORS: list[tuple[Mutate, str]] = [
     ),
     (lambda d: d["symbols"]["west"].update(length=0), "positive integer"),
     (lambda d: d["symbols"].update(here={"kind": "portal"}), "missing key"),
+    # A sensor is addressed by the block end it watches, so a block holds no
+    # id for one (ADR-0043) and the key is unknown like any other.
     (
-        lambda d: d["symbols"]["west"].update(sensors={"C": "s1"}),
-        "sensors names unknown end",
+        lambda d: d["symbols"]["west"].update(sensors={"A": "s1"}),
+        "unknown key",
     ),
     (lambda d: d["symbols"]["west"].update(at=[1, 2, 3]), "at must be two integers"),
     (lambda d: d["symbols"]["west"].update(at=["a", "b"]), "at must be two integers"),
@@ -1429,12 +1431,6 @@ _SCHEMA_ERRORS: list[tuple[Mutate, str]] = [
         "unknown key",
     ),
 ]
-
-
-def test_sensor_ids_load_and_are_dropped_by_derivation() -> None:
-    doc = spanned()
-    doc["symbols"]["west"]["sensors"] = {"A": "s1", "B": "s2"}
-    assert derive(doc)["blocks"]["west"] == {"length": 1000}
 
 
 def test_the_motorised_kinds_are_the_ones_with_a_motor() -> None:
