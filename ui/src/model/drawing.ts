@@ -51,7 +51,6 @@ export interface SymbolSpec {
   flip?: boolean;
   /** Blocks. */
   length?: number;
-  sensors?: Record<string, string>;
   /** A portal's pairing label: two portals wearing one label join. */
   label?: string;
   /** What the hardware behind a motorised symbol answers to. */

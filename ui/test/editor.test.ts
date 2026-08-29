@@ -647,14 +647,8 @@ describe("renaming the drawing", () => {
 describe("the properties dialog", () => {
   it("takes a symbol's own properties", () => {
     place("block", [0, 0]);
-    editor.edit("b1", "b1", {
-      kind: "block",
-      at: [0, 0],
-      length: 2400,
-      sensors: { A: "s1" },
-    });
+    editor.edit("b1", "b1", { kind: "block", at: [0, 0], length: 2400 });
     expect(editor.drawing.symbols.b1!.length).toBe(2400);
-    expect(editor.drawing.symbols.b1!.sensors).toEqual({ A: "s1" });
   });
 
   it("rewrites every wire when a symbol is renamed", () => {

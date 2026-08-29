@@ -36,7 +36,6 @@ import "@shoelace-style/shoelace/dist/components/input/input.js";
 import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/components/select/select.js";
 
-import { PINS } from "../symbols.generated.js";
 import {
   motorised,
   named,
@@ -155,16 +154,6 @@ export class TcProperties extends LitElement {
           };
         }}
       ></sl-input>
-      ${PINS.block.map(
-        (end) => html`
-          <sl-input
-            label=${`Sensor ${end}`}
-            value=${this.draft.sensors?.[end] ?? ""}
-            @sl-input=${(event: Event) =>
-              this.sensor(end, (event.target as HTMLInputElement).value)}
-          ></sl-input>
-        `,
-      )}
     `;
   }
 
@@ -175,12 +164,6 @@ export class TcProperties extends LitElement {
         [key]: (event.target as HTMLInputElement).value,
       };
     };
-  }
-
-  private sensor(end: string, id: string): void {
-    const sensors = { ...this.draft.sensors, [end]: id };
-    if (id === "") delete sensors[end];
-    this.draft = { ...this.draft, sensors };
   }
 
   private apply(): void {
@@ -219,9 +202,6 @@ function tidy(spec: SymbolSpec): SymbolSpec {
   const tidied: SymbolSpec = { ...spec };
   if (!tidied.label) delete tidied.label;
   if (!tidied.addr) delete tidied.addr;
-  if (tidied.sensors && Object.keys(tidied.sensors).length === 0) {
-    delete tidied.sensors;
-  }
   if (tidied.names && Object.keys(tidied.names).length === 0) {
     delete tidied.names;
   }

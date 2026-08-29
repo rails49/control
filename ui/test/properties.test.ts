@@ -115,10 +115,12 @@ describe("a fixed crossing", () => {
   });
 });
 
+/** A sensor is addressed by the block end it watches, so there is no id to
+ *  type for one (ADR-0043) and a block is left with its name and its length. */
 describe("a block", () => {
-  it("is asked for its name, its length and a sensor per end", async () => {
+  it("is asked for its name and its length", async () => {
     const dialog = await opened("b1", { kind: "block", length: 1000 });
-    expect(fields(dialog)).toEqual(["Name", "Length", "Sensor A", "Sensor B"]);
+    expect(fields(dialog)).toEqual(["Name", "Length"]);
   });
 });
 
