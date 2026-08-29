@@ -817,17 +817,12 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
     placement = set(_PLACEMENT)
     _check_geometry(spec, where)
     if kind == "block":
-        check_keys(spec, where, {"kind", "length"}, {"sensors"} | placement)
-        for end, sensor in as_mapping(
-            spec.get("sensors") or {}, f"{where}: sensors"
-        ).items():
-            if end not in PINS[kind]:
-                raise ValueError(f"{where}: sensors names unknown end '{end}'")
-            check_name(sensor, f"{where}: sensor")
-        # Hardware ids are the drawing's alone: derivation drops them, so the
-        # layout and SYSTEM.md's contracts never see them. A block has no name
-        # but its key, which is what the canvas draws and what prefixes every
-        # transit id; `label` belongs to a portal, where it pairs two mouths.
+        check_keys(spec, where, {"kind", "length"}, placement)
+        # A sensor is addressed by the block end it watches, so a block carries
+        # no id for one and the drawing holds no hardware id here at all
+        # (ADR-0043). A block has no name but its key, which is what the canvas
+        # draws and what prefixes every transit id; `label` belongs to a
+        # portal, where it pairs two mouths.
         return Symbol(
             name,
             kind,
