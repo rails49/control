@@ -571,8 +571,8 @@ portal-label questions that rare layout editing does not justify.
 
 ### Properties
 
-The right-click dialog edits, per kind: a block's name, length and sensor ids, a
-portal's label, and a turnout's or a slip's address.
+The right-click dialog edits, per kind: a block's name and length, a portal's
+label, and a turnout's or a slip's address.
 
 **A name is typed only where a person has to say it out loud**
 ([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)). That is a
