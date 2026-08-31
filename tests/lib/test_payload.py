@@ -64,7 +64,7 @@ def test_a_run_gesture_reads_as_the_state_it_asks_for() -> None:
 
 
 def test_a_payload_naming_no_run_state_reads_as_none() -> None:
-    """A third word is not a third state. The topic carries a word rather
+    """A third value is not a third state. The topic carries an enum rather
     than a boolean so the drain can add `draining` later, and until it does
     anything else is dropped — a gesture has no id to answer to (ADR-0034)."""
     refused: list[object] = [
@@ -79,7 +79,7 @@ def test_a_payload_naming_no_run_state_reads_as_none() -> None:
         assert run_state(payload) is None, payload
 
 
-def test_a_power_payload_reads_as_the_word_the_layout_states() -> None:
+def test_a_power_payload_reads_as_the_value_the_layout_states() -> None:
     """The three values of the topic, each read as itself: the dispatcher
     branches on "not `on`", and the panel is where `stopped` and `off` are
     told apart (ADR-0041)."""
@@ -91,7 +91,7 @@ def test_a_power_payload_reads_as_the_word_the_layout_states() -> None:
 def test_a_power_payload_that_cannot_be_read_reads_as_off() -> None:
     """The opposite direction from every other reader here, and that is the
     point. A dropped hold-or-release gesture means doing nothing; a dropped
-    power word would mean **not holding**, leaving the run committing over
+    power value would mean **not holding**, leaving the run committing over
     track whose state could not be read. So an unreadable payload is one of
     the "anything but `on`" cases the contract already has (DISPATCH.md),
     and `off` is which of them because the dispatcher does not tell them
@@ -101,8 +101,8 @@ def test_a_power_payload_that_cannot_be_read_reads_as_off() -> None:
         ["off"],  # nor a list of its fields
         {},  # no power
         {"power": None},
-        {"power": 42},  # not a word
-        {"power": "sideways"},  # a word outside the closed set
+        {"power": 42},  # not a string
+        {"power": "sideways"},  # a value outside the closed set
     ]
     for payload in unreadable:
         assert power(payload) == OFF, payload
@@ -116,7 +116,7 @@ def test_an_occupancy_frame_reads_as_the_block_it_names() -> None:
 
 def test_a_payload_naming_no_block_reads_as_none() -> None:
     """The opposite direction from `power` on the same role, which is why
-    both are read here rather than one: a power word that cannot be read must
+    both are read here rather than one: a power value that cannot be read must
     still hold the run, a reading that cannot be read is dropped. Why the two
     fail in opposite directions is SYSTEM.md, sole payload authority."""
     refused: list[object] = [

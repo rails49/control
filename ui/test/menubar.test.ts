@@ -373,8 +373,8 @@ describe("holding the run and releasing it", () => {
     await menubar.updateComplete;
     expect(press(menubar)!.disabled).toBe(false);
 
-    for (const word of ["off", "stopped"] as const) {
-      menubar.power = word;
+    for (const state of ["off", "stopped"] as const) {
+      menubar.power = state;
       await menubar.updateComplete;
       expect(press(menubar)!.textContent!.trim()).toBe("GO");
       expect(press(menubar)!.disabled).toBe(true);

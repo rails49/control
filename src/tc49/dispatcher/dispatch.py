@@ -115,7 +115,7 @@ class State:
     # train may move at all (ADR-0041). Read only as "not `on`", the two ways
     # of standing still differing for the person recovering and not here.
     # `on` until the layout says otherwise, which is the same opening the run
-    # takes: the binding states it from its constructor, so the word arrives
+    # takes: the binding states it from its constructor, so the value arrives
     # before the first boundary.
     power: str = ON
     # block -> whether the layout last reported it occupied. What the
@@ -532,7 +532,7 @@ class Dispatcher:
         # the first grant phase, and a panel joining in that window draws a
         # clear road nothing holds a lock on. The run state opens it for the
         # same reason and one step earlier: it is the frame the rest is read
-        # in, and a joining client is served the word rather than left to
+        # in, and a joining client is served a value rather than left to
         # read one out of an absence (ADR-0032). The disputed set closes it
         # for the same reason again: nothing has been reported yet, so the
         # set is empty, and saying so is what clears whatever the last
@@ -911,7 +911,7 @@ class Dispatcher:
                 # Dropped, and on the trace already by virtue of having been
                 # published (ADR-0034): the block stays out of `reported`, so
                 # it takes no part in the check and the next report settles
-                # it. Why this direction and not the power word's is
+                # it. Why this direction and not the power enum's is
                 # SYSTEM.md, sole payload authority (#181).
                 return
             self._buffered.append((leaf, block))
@@ -939,7 +939,7 @@ class Dispatcher:
         that is said.
 
         "Anything but `on`" is read literally, so a payload that cannot be
-        read at all is one of those cases rather than an exception: the word
+        read at all is one of those cases rather than an exception: the value
         comes through `payload.power`, which answers `off` where a
         subscript would have raised (#175).
 
@@ -1168,9 +1168,9 @@ class Dispatcher:
         )
 
     def _publish_run(self) -> None:
-        """Whether the run is held or running, on a last-value topic. The
-        word carries a value and not a boolean because the ordinary-shutdown
-        drain will add `draining` as a third one (#123)."""
+        """Whether the run is held or running, on a last-value topic. An
+        enum and not a boolean because the ordinary-shutdown drain will add
+        `draining` as a third value (#123)."""
         self._publish("state/run", {"run": self._state.run})
 
     def _publish_aspects(self) -> None:

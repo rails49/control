@@ -20,10 +20,10 @@ reading lives — that nothing raises is (#152).
 no page writes it, but the layout binding is another process, and a dispatcher
 that raised on a frame it sent would be taken down by that binding's bug the
 moment the bus stops being in-process (#173). It is the one reader here that
-answers a word rather than `None`, and `power` says why (#175).
+answers a value rather than `None`, and `power` says why (#175).
 
 Occupancy is read here beside it, so the whole layout role is read and no
-frame that role publishes can take the dispatcher down (#181). The power word
+frame that role publishes can take the dispatcher down (#181). The power enum
 came first because it is the one whose *drop* would be unsafe, and the two
 readers fail in opposite directions for that reason: `occupancy` says which
 way it falls and why it may.
@@ -75,10 +75,10 @@ def run_state(payload: object) -> str | None:
     """The run state a hold-or-release gesture asks for, or None where it
     asks for none.
 
-    The two words are the topic's whole vocabulary, so a payload naming a
+    The two values are the topic's whole vocabulary, so a payload naming a
     third is dropped rather than set: a gesture carries no id and there is
     nothing to address an answer to (ADR-0034). The drain's `draining` will
-    be a third word here before it is a third answer (#123).
+    be a third value here before it is a third answer (#123).
     """
     if not isinstance(payload, dict):
         return None
@@ -89,18 +89,18 @@ def run_state(payload: object) -> str | None:
 
 
 def power(payload: object) -> str:
-    """The word the layout states about its supply, for a payload that can be
+    """The value the layout states about its supply, for a payload that can be
     read as one; `off` for a payload that cannot.
 
     It fails in the opposite direction from every other reader here, and that
     is the point. A gesture that cannot be read is dropped, and dropping a
-    hold-or-release means doing nothing; dropping a *power* word would mean
+    hold-or-release means doing nothing; dropping a *power* value would mean
     **not holding**, leaving the run committing over track whose state could
     not be read. So an unreadable payload is one of the "anything but `on`"
     cases the contract already has (DISPATCH.md) rather than an exception,
     and there is no `None` for a caller to have to think about.
 
-    Which not-`on` word it is, is not a behavioural choice: the dispatcher
+    Which not-`on` value it is, is not a behavioural choice: the dispatcher
     branches on "not `on`" alone (ADR-0041), and `stopped` and `off` differ
     only for the person recovering — who has an unreadable payload to recover
     from, not an emergency stop.
@@ -117,7 +117,7 @@ def occupancy(payload: object) -> str | None:
     """The block an occupancy reading names, or None where it names none.
 
     The other direction from `power`, on the same role, and that asymmetry is
-    the whole reason both are read here rather than one: a power word that
+    the whole reason both are read here rather than one: a power value that
     cannot be read must still hold the run, so `power` has no `None`, while a
     reading that cannot be read is dropped, which is what this `None` is for.
     Why the two fail in opposite directions is SYSTEM.md, sole payload

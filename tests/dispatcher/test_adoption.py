@@ -51,7 +51,7 @@ def restarted(
     added: dict[str, str] | None = None,
 ) -> tuple[Bus, Dispatcher, list[Payload]]:
     """A dispatcher on a bus whose file already holds that picture — and the
-    aspects and the run word the last session left, where a test wants them —
+    aspects and the run state the last session left, where a test wants them —
     with everything published on it collected as it goes.
 
     No picture at all is the first session of all naming a path: a file that
@@ -353,7 +353,7 @@ def test_a_restored_session_comes_up_held(tmp_path: Path) -> None:
 
     assert dispatcher.state.run == "held"
     # Once from the constructor's own publish and once as the last value the
-    # subscription replays; the word is what matters, and it never moved.
+    # subscription replays; the value is what matters, and it never moved.
     assert {line["run"] for line in said if line["event"] == RUN} == {"held"}
 
 
@@ -370,7 +370,7 @@ def test_a_session_with_nothing_to_adopt_still_comes_up_running(
     assert {line["run"] for line in said if line["event"] == RUN} == {"running"}
 
 
-def test_the_retained_word_is_not_what_decides_it(tmp_path: Path) -> None:
+def test_the_retained_value_is_not_what_decides_it(tmp_path: Path) -> None:
     """The file keeps whatever was retained on every state topic, `state/run`
     included, so a session cut while running finds `running` waiting for it.
     Adoption overrides it: coming up running on the strength of a picture

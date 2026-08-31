@@ -390,7 +390,7 @@ def test_a_client_names_the_railroad_and_the_session_builds_it(
 ) -> None:
     """An idle session runs nothing until a path names a railroad. What comes
     back first is the new assembly's opening drain — the startup cascade — so
-    the run's word and its empty picture arrive as live frames and there is
+    the run's value and its empty picture arrive as live frames and there is
     nothing to seed (ADR-0032).
 
     The layout is empty and the run is **held**, which is the ordinary cold

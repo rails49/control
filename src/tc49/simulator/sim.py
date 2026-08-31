@@ -71,7 +71,7 @@ class Simulator:
         self._saw_command = False
         self._exhausted = False
         # Whether a train may move at all, stated from the constructor so a
-        # joining client is served the word rather than left to read one out
+        # joining client is served a value rather than left to read one out
         # of an absence (ADR-0032, ADR-0041). Simulated track is always live
         # and this binding never says otherwise: a power cut is a physical
         # act, and simulating one would be a field or a branch that ADR-0030

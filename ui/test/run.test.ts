@@ -2,7 +2,7 @@
 
 /**
  * Holding the run and releasing it, end to end through the app: the bar draws
- * the word the dispatcher published, the press goes out on the socket the run
+ * the value the dispatcher published, the press goes out on the socket the run
  * view holds, and a release with disputes outstanding says what was accepted
  * (ADR-0037, #152, #153).
  *
@@ -624,7 +624,7 @@ describe("what the rails say about the button", () => {
     expect(press(shell).disabled).toBe(false);
   });
 
-  /** An emergency stop is the other word, and the band tells them apart. */
+  /** An emergency stop is the other value, and the band tells them apart. */
   it("names an emergency stop as one", async () => {
     const shell = await joined();
     await said(shell, "tc49/dispatch/state/run", { run: "held" });

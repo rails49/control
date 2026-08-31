@@ -31,7 +31,7 @@ import { dismissal } from "./dismissal.js";
 import { ICONS } from "./icons.js";
 import { headerStyles } from "./tc-header.styles.js";
 
-/** What each power word reads as. `stopped` reads as the thing rather than as
+/** What each power value reads as. `stopped` reads as the thing rather than as
  *  the token, because the two ask for different actions: an emergency stop is
  *  cleared, and a supply that is off is switched back on. */
 const POWERED: Record<Power, string> = {
