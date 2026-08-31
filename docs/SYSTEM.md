@@ -254,7 +254,7 @@ write it.
 | `tc49/layout/boundary` | event | layout | deterministic counter |
 | `tc49/layout/block_occupied` | event | layout | block |
 | `tc49/layout/block_vacated` | event | layout | block |
-| `tc49/layout/state/power` | state | layout | last-value word, `on`, `stopped` or `off` — whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
+| `tc49/layout/state/power` | state | layout | last-value enum, `on`, `stopped` or `off` — whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
 | `tc49/schedule/request_submitted` | event | scheduler | id, train, depart, dest ends |
 | `tc49/schedule/state/exhausted` | state | scheduler | last-value flag |
 | `tc49/schedule/state/facing` | state | scheduler | last-value map of train to the end it would depart through |
@@ -272,7 +272,7 @@ write it.
 | `tc49/dispatch/lock_released` | event | dispatcher | train, resources |
 | `tc49/dispatch/train_placed` | event | dispatcher | train, block — a placement accepted, the standing lock moved with it |
 | `tc49/dispatch/train_removed` | event | dispatcher | train — taken off the layout; whatever it held is released first |
-| `tc49/dispatch/state/run` | state | dispatcher | last-value word, `held` or `running` ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)) |
+| `tc49/dispatch/state/run` | state | dispatcher | last-value enum, `held` or `running` ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | last-value map of signalled block end to aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | last-value picture of the run: standing trains, the transit each crossing train is on, locks and holders, committed routes, live requests |
 | `tc49/dispatch/state/disputed` | state | dispatcher | last-value pair of lists: trains standing in a block that reads clear, and blocks that read occupied with nothing claiming them. Empty unless the run is held ([#153](https://github.com/rails49/control/issues/153)) |
@@ -551,9 +551,9 @@ its picture of the run, written out from the lock table whenever it changes,
 so a client that joins an idle railroad has something to draw
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
 
-**The run is held or running**, on `state/run`. The dispatcher publishes the
-word from its constructor, so a client that joins is served a value rather
-than left to read one out of an absence. A session starting fresh publishes
+**The run is held or running**, on `state/run`. The dispatcher publishes it
+from its constructor, so a client that joins is served a value rather than
+left to read one out of an absence. A session starting fresh publishes
 `running`. One that came up on a restored picture publishes `held`, because
 that picture says where the last session believed the railroad was rather than
 where it stands now.
@@ -565,11 +565,11 @@ admission goes on accepting and queuing. A move already granted still
 completes and releases its locks. A hold stops new commitments and does not
 stop a train that is already moving, and nothing on the bus retracts a `cross`
 already sent. Every signalled end shows `stop` for as long as the hold lasts.
-Releasing sets the word and nothing else; the next boundary grants
+Releasing sets `run` and nothing else; the next boundary grants
 ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 
 **The layout can hold it too.** A `tc49/layout/state/power` value that is
-anything but `on` sets the word to `held`, along the path a person's gesture
+anything but `on` sets `run` to `held`, along the path a person's gesture
 takes: nothing further is committed, and no signalled end goes on showing
 `clear` over track with no power in it. Whether the value is `stopped` or
 `off` makes no difference here.
@@ -765,8 +765,8 @@ topics are event topics, facts that happened, not state.
 
 **Track power** is the one observation that is not a sensor. `state/power`
 says whether a train may move at all: `on`, `stopped` or `off`. The binding
-always publishes it from its constructor, so a joining client is served the
-word rather than left to read one out of an absence
+always publishes it from its constructor, so a joining client is served a
+value rather than left to read one out of an absence
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
 
 `stopped` is an emergency stop and `off` is the supply removed. The difference

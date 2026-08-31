@@ -584,10 +584,10 @@ the run is running and GO while it is held, which is what the press will do,
 and a clearly labelled button is the explicit GO
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 It draws `tc49/dispatch/state/run` off the picture rather than the last press,
-so a gesture that did not land leaves the word where it was, and it is dead
+so a gesture that did not land leaves the value where it was, and it is dead
 with no session joined and until the dispatcher has said where the run stands.
 The gesture is `tc49/ui/run_wanted`, which names where the run should stand
-rather than asking for a change: two presses of the same word are not a race.
+rather than asking for a change: two presses of the same value are not a race.
 
 **The band says whether the rails have power**, reading
 `tc49/layout/state/power` beside the bridge and the boundary, and it says
