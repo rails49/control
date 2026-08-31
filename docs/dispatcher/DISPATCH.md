@@ -312,7 +312,7 @@ on the order sensors happen to fire.
 
 **No same-boundary handoff.** A lock released by the moves reported at
 boundary `n` is grantable in boundary `n`'s grant phase, but the grantee's
-cross command executes at `n+1`. A convoy
+`move` command executes at `n+1`. A convoy
 therefore starts with a one-boundary stagger and then flows at one block per
 train per boundary — the backward-propagating start wave real trains have.
 Minimum latency is the one-boundary admission-to-scan skew plus one boundary
@@ -387,4 +387,4 @@ and each metric is computed as a pure function of the event trace
 - **Resource utilization** — fraction of boundaries each block/transit is
   occupied or locked, over the whole run (boundary 0 through the trace's
   last).
-- **Cross commands per boundary** — instantaneous parallelism.
+- **`move` commands per boundary** — instantaneous parallelism.
