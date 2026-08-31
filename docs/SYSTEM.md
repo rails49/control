@@ -1,9 +1,32 @@
 # System
 
-How the app is organized: four components — asset store, scheduler, dispatcher,
-driver — plus the external **layout interface** and the **UI**. They
-communicate over an event bus and an asset CRUD contract. This page defines
-those contracts.
+The app is organized as completely independent components. Although an
+implementation detail, a (Docker) container is a good mental model for a
+component. The current ones are the asset store, the scheduler, the
+dispatcher, the driver, the layout interface and the UI; the hardware
+translators under the layout interface already join them
+([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)),
+and others will. This page defines the contracts they meet over.
+
+Communication is by MQTT events and REST requests exclusively. Each component
+declares the events and requests it responds to and emits. An event addressed
+to a component does not include the source, in the topic or in the payload:
+that information is irrelevant, and may not be disclosed, so no undesired
+dependency on it can arise. Exceptions to this rule may arrive and will need
+special handling; none is known today.
+
+Events are generic, never particular to one component. A hardware translator
+gets no events of its own, only things like power on or off, or a locomotive's
+speed and direction — events any of a million hardware solutions could respond
+to, including ones not yet invented.
+
+For example, the **dispatcher** accepts the `request_submitted` topic from the
+`ui`, the `scheduler`, and any other scheduler introduced later, without any
+change to its implementation.
+
+Today's topic names predate this rule and still name the sender in places;
+[#263](https://github.com/rails49/control/issues/263) renames them. Where this
+page and the rule disagree, the rule is right and the page is a bug.
 
 To implement one component you need this page and at most one internals doc
 ([dispatcher/INTERNALS.md](dispatcher/INTERNALS.md) for the dispatcher).
