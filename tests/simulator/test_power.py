@@ -8,6 +8,7 @@ of every app.
 """
 
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.clock import Clock
 from tc49.simulator import Simulator
 from tests.harness import build, events, load
 
@@ -26,7 +27,7 @@ def test_the_value_is_stated_before_anything_is_asked() -> None:
     every consumer of the layout being built before the layout is."""
     layout, _roster, _scenario = load("crossover-yard/meet")
     bus = Bus()
-    Simulator(bus, layout)
+    Simulator(bus, layout, Clock())
     assert bus.last_values[POWER] == {"power": "on"}
 
     seen = heard(bus)

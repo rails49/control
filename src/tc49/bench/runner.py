@@ -3,8 +3,7 @@
 The wiring the CLI and the test suite share, so there is exactly one of it.
 Nothing here is a contract — the components find each other by topic, not by
 this module — but the order matters for the trace: the tap subscribes first,
-so it sees every event, and the simulator last, so a boundary's cascade is
-fully processed before it decides whether to advance (SYSTEM.md, the bus).
+so it sees every event (SYSTEM.md, the bus).
 """
 
 import io
@@ -15,6 +14,7 @@ from pathlib import Path
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental, LockingStrategy
 from tc49.driver import Driver
 from tc49.lib.bus import Bus
+from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout, connected_end
 from tc49.lib.roster import Roster
 from tc49.lib.scenario import Scenario, TrainSpec
@@ -122,13 +122,14 @@ def assemble(
 ) -> Assembly:
     bus = Bus()
     out = io.StringIO()
+    clock = Clock()
     TraceTap(bus, out)
     stood = placement(scenario.trains)
     Scheduler(bus, layout, facing(layout, scenario.trains), scenario.requests)
     dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
     return Assembly(
-        bus, dispatcher, Simulator(bus, layout, stood), layout, roster, k, out
+        bus, dispatcher, Simulator(bus, layout, clock, stood), layout, roster, k, out
     )
 
 
@@ -173,13 +174,20 @@ def assemble_live(
     stood = placement(document)
     bus = Bus(state)
     out = io.StringIO()
+    clock = Clock()
     TraceTap(bus, out)
     Scheduler(bus, layout, facing(layout, document))
     dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
     steel = None if state is None else placement_file(state)
     return Assembly(
-        bus, dispatcher, Simulator(bus, layout, stood, steel), layout, roster, k, out
+        bus,
+        dispatcher,
+        Simulator(bus, layout, clock, stood, steel),
+        layout,
+        roster,
+        k,
+        out,
     )
 
 

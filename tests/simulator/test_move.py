@@ -14,7 +14,7 @@ from tc49.bench.runner import placement
 from tc49.lib.bus import Bus, Payload
 from tc49.simulator import Simulator
 from tests.harness import load
-from tests.simulator.test_placement import move, tick
+from tests.simulator.test_placement import move, simulator, tick
 
 
 def sensors(bus: Bus) -> list[tuple[str, Payload]]:
@@ -29,19 +29,19 @@ def sensors(bus: Bus) -> list[tuple[str, Payload]]:
 def build() -> tuple[Bus, Simulator]:
     layout, _roster, scenario = load("crossover-yard/meet")
     bus = Bus()
-    return bus, Simulator(bus, layout, placement(scenario.trains))
+    return bus, simulator(bus, layout, placement(scenario.trains))
 
 
 def test_a_redelivered_move_is_a_no_op() -> None:
     """After arrival the train stands at the far end, not the near one, so
     the same `move` delivered again moves nothing and no sensor speaks."""
-    bus, simulator = build()
+    bus, sim = build()
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
-    tick(simulator)
+    tick(sim)
 
     seen = sensors(bus)
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
-    tick(simulator)
+    tick(sim)
     assert seen == []
 
 
@@ -49,35 +49,35 @@ def test_a_move_overtaken_by_a_placement_is_ignored() -> None:
     """A hand moved the steel after the grant: the train no longer stands at
     the transit's near end, so acting on the command would vacate a block
     nobody is leaving."""
-    bus, simulator = build()
+    bus, sim = build()
     bus.publish("tc49/dispatch/train_placed", {"train": "freight_1", "block": "up_w"})
     bus.drain()
 
     seen = sensors(bus)
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
-    tick(simulator)
+    tick(sim)
     assert seen == []
 
 
 def test_a_move_for_a_train_off_the_layout_is_ignored() -> None:
     """The train was lifted off before its command arrived: it stands
     nowhere, so it stands at no near end."""
-    bus, simulator = build()
+    bus, sim = build()
     bus.publish("tc49/dispatch/train_removed", {"train": "freight_1"})
     bus.drain()
 
     seen = sensors(bus)
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
-    tick(simulator)
+    tick(sim)
     assert seen == []
 
 
 def test_a_live_move_still_moves() -> None:
     """The check refuses stale commands, not fresh ones: a train standing at
     the near end crosses exactly as before."""
-    bus, simulator = build()
+    bus, sim = build()
     seen = sensors(bus)
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
-    tick(simulator)
+    tick(sim)
     assert ("tc49/layout/block_vacated", {"block": "yard_w"}) in seen
     assert ("tc49/layout/block_occupied", {"block": "dn_w"}) in seen
