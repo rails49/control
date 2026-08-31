@@ -16,7 +16,7 @@ cases too, and is driven at a dispatcher with no trace on its bus (#175).
 
 The cut itself is driven with the boundary published by hand and the
 simulator left standing: a layout binding keeps its beat while the supply is
-off, and the steel does not move. That is the whole failure — the crosses
+off, and the steel does not move. That is the whole failure — the moves
 already sent are never executed, and no sensor ever answers them.
 """
 
@@ -41,7 +41,7 @@ def power(state: str) -> tuple[str, Payload]:
 
 def dead(assembly: Assembly, first: int, last: int) -> None:
     """The boundaries `first` to `last` with the steel standing still: the
-    beat goes on and the buffered crosses are never executed, so no sensor
+    beat goes on and the buffered moves are never executed, so no sensor
     answers them. The count carries on from wherever the ticks left it — the
     timetable mints against it, and a beat that went backwards would be a
     railroad no binding publishes."""
@@ -124,7 +124,7 @@ def test_a_stranded_train_keeps_its_locks_and_its_crossing_entry(
 
     A move granted one boundary before the cut is a train between two blocks
     with no sensor coming. Its locks and its `crossing` entry stand — nothing
-    on the bus retracts a `cross` already sent, and the dispatcher must not
+    on the bus retracts a `move` already sent, and the dispatcher must not
     guess where the train ended up — so it is drawn on its connection and
     cannot be freed short of a restart (Not this issue). What the hold buys
     is that no *other* train is granted anything over the top of it.
@@ -134,7 +134,7 @@ def test_a_stranded_train_keeps_its_locks_and_its_crossing_entry(
     request the timetable mints at boundary 12 departs from a block its train
     never reached, so it is refused `wrong_origin` rather than queued.
     """
-    ticks(timetabled, 2)  # boundary 1: the grants go out, the crosses buffer
+    ticks(timetabled, 2)  # boundary 1: the grants go out, the moves buffer
     state = timetabled.dispatcher.state
     crossing = dict(state.crossing)
     locks = dict(state.locks)

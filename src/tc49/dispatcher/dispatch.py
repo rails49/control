@@ -753,7 +753,7 @@ class Dispatcher:
         A release is **refused while the track has no power**, dropped in
         silence and to the trace as every other gesture the dispatcher cannot
         act on is (ADR-0034). Releasing into dead rails would choose routes,
-        grant moves and publish `cross` over track nothing can move on, and
+        grant moves and publish `move` over track nothing can move on, and
         strand the next train exactly as the cut stranded the first
         (ADR-0041). A hold is honoured whatever the power is doing: it asks
         for less, and there is no state of the railroad in which a person may
@@ -952,7 +952,7 @@ class Dispatcher:
         sensor will ever answer keeps its locks and its `crossing` entry, and
         every train waiting on those resources waits with it, until somebody
         restarts the session — the hold is a brake and not an emergency stop,
-        and nothing on the bus retracts a `cross` already sent.
+        and nothing on the bus retracts a `move` already sent.
         """
         self._state.power = power(payload)
         if self._state.power != ON:
@@ -963,7 +963,7 @@ class Dispatcher:
 
         While the run is held the sensors are applied and the phase stops
         there (ADR-0037). The hold is a brake and not an emergency stop —
-        nothing on the bus retracts a `cross` already sent — so an
+        nothing on the bus retracts a `move` already sent — so an
         outstanding move still completes and releases its locks, and what is
         withheld is everything that would commit something new. `_phases`
         keeps counting either way: a held run is still a run, and the count

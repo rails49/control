@@ -65,7 +65,7 @@ def test_facing_pair_refuses_a_launch_and_quiesces() -> None:
     trace = run(layout, stock(t_west=500, t_east=500), scenario, Incremental)
     assert len(events(trace, "request_admitted")) == 2
     assert events(trace, "request_completed") == []
-    assert events(trace, "cross") == []  # never a collision, never movement
+    assert events(trace, "move") == []  # never a collision, never movement
     refusals = events(trace, "grant_refused")
     assert refusals, "both launches must be refused, not deadlocked"
     assert {"resource": "east", "holder": "t_east"} in refusals[0]["obstacles"]

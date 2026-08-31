@@ -111,16 +111,16 @@ def test_utilization_counts_spans_over_the_whole_run() -> None:
     assert m.mean_utilization == 0.75
 
 
-def test_parallelism_is_cross_commands_per_boundary() -> None:
+def test_parallelism_is_move_commands_per_boundary() -> None:
     m = metrics(
         trace(
-            {"boundary": 0, "event": "cross", "train": "a", "into": "x"},
-            {"boundary": 0, "event": "cross", "train": "b", "into": "y"},
-            {"boundary": 1, "event": "cross", "train": "a", "into": "z"},
+            {"boundary": 0, "event": "move", "train": "a", "into": "x"},
+            {"boundary": 0, "event": "move", "train": "b", "into": "y"},
+            {"boundary": 1, "event": "move", "train": "a", "into": "z"},
         )
     )
-    assert m.crosses_per_boundary == {0: 2, 1: 1}
-    assert m.mean_parallelism == 1.5  # three crosses over boundaries 0..1
+    assert m.moves_per_boundary == {0: 2, 1: 1}
+    assert m.mean_parallelism == 1.5  # three moves over boundaries 0..1
 
 
 def test_a_stall_is_diagnosed_from_the_last_refusal_and_kills_the_makespan() -> None:
@@ -218,7 +218,7 @@ METRIC_FEEDING_EVENTS = [
     "grant_refused",
     "lock_granted",
     "lock_released",
-    "cross",
+    "move",
 ]
 
 

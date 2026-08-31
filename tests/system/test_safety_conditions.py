@@ -71,7 +71,7 @@ def test_pessimism_about_idle_trains_refuses_the_launch_outright() -> None:
     assert events(trace, "request_completed") == []
     assert events(trace, "route_chosen") == []
     assert events(trace, "move_granted") == []
-    assert events(trace, "cross") == []  # never entered w_main, never wedged
+    assert events(trace, "move") == []  # never entered w_main, never wedged
     refusals = events(trace, "grant_refused", rid="runner-1")
     assert refusals, "the launch must be refused, not deadlocked"
     assert refusals[-1]["reason"] == "unsafe"

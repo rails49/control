@@ -77,7 +77,7 @@ def format_comparison(
         ("latency mean", [_ratio(results[n][1].mean_latency) for n in names]),
         ("latency max", [_whole(results[n][1].max_latency) for n in names]),
         ("utilization", [_ratio(results[n][1].mean_utilization) for n in names]),
-        ("crosses/boundary", [_ratio(results[n][1].mean_parallelism) for n in names]),
+        ("moves/boundary", [_ratio(results[n][1].mean_parallelism) for n in names]),
         ("completed", [str(len(results[n][1].completed)) for n in names]),
         ("rejected", [str(len(results[n][1].rejected)) for n in names]),
         ("boundaries", [str(results[n][1].boundaries) for n in names]),

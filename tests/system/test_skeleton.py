@@ -424,7 +424,7 @@ def test_degenerate_request_completes_without_moving_whichever_end() -> None:
         trace = run(layout, stock(parked=600), scenario)
         assert events(trace, "request_completed", rid="parked-1")
         assert events(trace, "move_granted") == []
-        assert events(trace, "cross") == []
+        assert events(trace, "move") == []
         [chosen] = events(trace, "route_chosen")
         assert chosen["route"] == ["yard_w"] and chosen["k_tried"] == 0
 
@@ -550,9 +550,9 @@ def test_a_transit_with_nothing_to_throw_still_says_so_on_the_wire() -> None:
 
 def test_the_route_is_set_before_the_train_is_moved() -> None:
     """Two publishers on two topics promise nothing under MQTT, so the layout
-    interface must not act on a `cross` before the `align` naming the same
+    interface must not act on a `move` before the `align` naming the same
     transit. The simulator holds that by batching commands to the tick; under
     the milestone binding the `align` is in the queue first as well."""
     trace = one_crossing(points_layout({"addr": "12", "position": "thrown"}))
     leaves = [line["event"] for line in events(trace)]
-    assert leaves.index("align") < leaves.index("cross")
+    assert leaves.index("align") < leaves.index("move")

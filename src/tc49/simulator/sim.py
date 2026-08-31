@@ -2,9 +2,9 @@
 
 Commands in, observations out, plus ownership of time (SYSTEM.md, layout
 interface; ADR-0009). The commands have two publishers — `align` is the
-dispatcher's, `cross` the driver's — so it subscribes to both, and the
+dispatcher's, `move` the driver's — so it subscribes to both, and the
 obligation that comes with the split is satisfied for free: batching to the
-tick is why it can never act on a `cross` before the `align` naming the same
+tick is why it can never act on a `move` before the `align` naming the same
 transit (ADR-0031). The **tick** is this binding's word for its beat; what
 goes on the bus is the grant boundary every binding publishes
 (`tc49/layout/boundary`, ADR-0027). Each advance executes the buffered
@@ -67,7 +67,7 @@ class Simulator:
         self._placement = placement
         stood = durable.read(placement) if placement is not None else {}
         self._position = dict(position or {}) | dict(stood)
-        self._crosses: list[Payload] = []
+        self._moves: list[Payload] = []
         self._saw_command = False
         self._exhausted = False
         # Whether a train may move at all, stated from the constructor so a
@@ -86,17 +86,17 @@ class Simulator:
 
     def _on_command(self, topic: str, payload: Payload) -> None:
         self._saw_command = True
-        if topic.endswith("/cross"):
-            self._crosses.append(payload)
+        if topic.endswith("/move"):
+            self._moves.append(payload)
 
     def _on_placed(self, topic: str, payload: Payload) -> None:
         """A hand lifted a locomotive and put it somewhere else (#152).
 
-        The one thing that moves a train and is not a `cross`. On a real
+        The one thing that moves a train and is not a `move`. On a real
         railroad the steel simply is where the hand left it and nobody has to
         say so; the simulator stands in for the steel, so it has to be told,
         and `train_placed` is the dispatcher having accepted that it was.
-        Without it the next `cross` would vacate the block the train used to
+        Without it the next `move` would vacate the block the train used to
         be in and the sensors would describe a railroad nobody is on. It is
         not a command and not a tick: nothing is buffered, and no boundary
         moves.
@@ -121,18 +121,18 @@ class Simulator:
         self._exhausted = payload["exhausted"]
 
     def _advance(self) -> None:
-        """Execute the crosses buffered since the last tick: each train
+        """Execute the moves buffered since the last tick: each train
         reaches the block it was told to cross into, and its sensors say so.
         The only thing that moves a train, and so the only thing that has to
         write the placement file."""
-        crosses, self._crosses = self._crosses, []
-        for cross in crosses:
-            train, into = cross["train"], cross["into"]
+        moves, self._moves = self._moves, []
+        for move in moves:
+            train, into = move["train"], move["into"]
             origin = self._position[train]
             self._position[train] = into
             self._bus.publish("tc49/layout/block_vacated", {"block": origin})
             self._bus.publish("tc49/layout/block_occupied", {"block": into})
-        if crosses and self._placement is not None:
+        if moves and self._placement is not None:
             durable.write(self._placement, self._position)
 
     def run(self, tick_limit: int = 10_000) -> None:
