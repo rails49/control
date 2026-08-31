@@ -35,8 +35,14 @@ run ruff uv run ruff check .
 run black uv run black --check .
 run pyright uv run pyright
 run pytest uv run pytest -q
-run tsc pnpm --dir ui check
-run vitest pnpm --dir ui test
+# pnpm verifies node_modules against the lockfile before running a script and,
+# without a TTY, aborts rather than replace it. That happens whenever this tree
+# is mounted into a container while node_modules holds the host's binaries, and
+# it kept the gate from going green inside implement-loop's sandbox. Both
+# scripts are one binary each, so call them and leave node_modules to the
+# install above.
+run tsc ui/node_modules/.bin/tsc -p ui/tsconfig.json --noEmit
+run vitest ui/node_modules/.bin/vitest run --root ui
 
 if [ -z "$failed" ]; then
   printf '\ngreen\n'
