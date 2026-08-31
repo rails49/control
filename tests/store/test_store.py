@@ -368,6 +368,26 @@ def test_request_train_must_be_declared(scratch_store: AssetStore) -> None:
         scratch_store.put(doc)
 
 
+def test_a_request_with_no_at_is_due_at_the_first_boundary(
+    scratch_store: AssetStore,
+) -> None:
+    """`at` is what staggers a scenario, and most requests do not stagger. A
+    request that omits it is released as soon as the run starts."""
+    doc = meet_document()
+    del doc["requests"][0]["at"]
+    scratch_store.put(doc)
+    scenario = scratch_store.get("crossover-yard/meet")
+    assert isinstance(scenario, Scenario)
+    assert scenario.requests[0].at == 0
+
+
+def test_at_must_be_a_non_negative_boundary(scratch_store: AssetStore) -> None:
+    doc = meet_document()
+    doc["requests"][0]["at"] = -1
+    with pytest.raises(ValueError, match="non-negative boundary"):
+        scratch_store.put(doc)
+
+
 def test_arrival_blocks_must_exist(scratch_store: AssetStore) -> None:
     doc = meet_document()
     doc["requests"][0]["to"] = ["yard_x.A"]
