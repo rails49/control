@@ -87,10 +87,10 @@ version could easily do more
 
 The bus promises:
 
-- **Order from one publisher** — events that one publisher sends on one topic
-  are delivered in the order it sent them. Nothing more is promised: no order
-  between two publishers, and none between two topics. Each topic has one
-  publisher, below.
+- **Per-topic FIFO** — events that one writer sends on one topic are
+  delivered in the order it sent them. Nothing more is promised: no order
+  between two writers, and none between two topics. Each topic has a single
+  writer, below.
 - **Fan-out** — every subscriber whose subscription matches the topic gets the
   event, independently of the others.
 - **At-least-once delivery** — the bus may deliver the same event twice, so a
@@ -117,9 +117,9 @@ store answers questions, and exists for that reason.
 
 **Three rules govern the topics listed in the next section.**
 
-1. **One publisher per topic.** Exactly one role publishes on a given topic,
-   a role being `layout`, `schedule`, `dispatch`, `drive` or `ui` rather than
-   a particular process. With one publisher, that publisher's own order is the
+1. **Single writer.** Exactly one role publishes on a given topic, a role
+   being `layout`, `schedule`, `dispatch`, `drive` or `ui` rather than a
+   particular process. With a single writer, that writer's own order is the
    topic's order, and a reader can see which component is responsible for a
    topic by reading the topic's name.
 
@@ -135,9 +135,9 @@ store answers questions, and exists for that reason.
    holds a current value, of which only the last one published survives. Every
    topic is declared as one or the other, and a state topic says so in its name
    (`.../state/<name>`).
-3. **Consumers subscribe with wildcards, not with lists.** Each consumer uses a
-   small fixed set of subscriptions under `tc49/` written with `+` and `#`,
-   rather than naming individual topics.
+3. **Prefix-filter consumption.** Each consumer subscribes with a small fixed
+   set of prefix filters under `tc49/`, written with `+` and `#`, rather than
+   naming individual topics.
 
 **How milestone 1 implements the bus.** One thread and one queue. `publish()`
 adds the event to the queue and returns. A loop takes events off the front and
@@ -292,9 +292,9 @@ Two things the inventory has to keep true:
 - **A leaf name is unique across all topics.** The trace records the leaf
   alone in its `event` field, so two topics sharing a leaf could not be told
   apart there.
-- **A consumer subscribes with wildcards, not with a list** (rule 3). Each
-  subscription names a role, as the scheduler's three do. What matters is the
-  shape rather than the number, and no consumer names individual topics. The
+- **A consumer subscribes by prefix filter, not by list** (rule 3). Each
+  filter names a role, as the scheduler's three do. What matters is the shape
+  rather than the number, and no consumer names individual topics. The
   layout interface is the one exception
   and stays the only one. It acts on one named command and on the two
   placement facts, and subscribing to the whole `dispatch` role would mean
@@ -350,7 +350,7 @@ two boundaries are comfortably longer than the worst case for a cascade of
 messages, because a slow message still has to arrive as a live one.
 
 `layout` publishes the boundary whenever it is running, including a held run
-and dead rails. A boundary is therefore a liveness signal as well as a grant
+and dead rails. A boundary is therefore a liveness pulse as well as a grant
 edge, and its stopping is what a watchdog reads
 ([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).
 
@@ -366,7 +366,7 @@ one-boundary skew the dispatch model's no-same-boundary-handoff rule
 describes.
 
 **The boundary carries its number; nothing else does.** The payload is a
-counter, produced in order by the one publisher of the topic. The number is
+counter, produced in order by the topic's single writer. The number is
 needed because delivery is at-least-once: a consumer counting bare boundary
 events would advance twice on a duplicate, while a numbered one lets it ignore
 a repeat. That argument is not the simulator's — every binding numbers its
@@ -824,10 +824,10 @@ facing rather than on a generator
 | The scheduler **invents traffic** | continual generated traffic has to name an idle train and a reachable destination, which is what it now reads the layout for; the dispatcher stays the single feasibility authority | [ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md) |
 | The boundary event's cadence comes from a **clock**, transits vary in length | `tick` is the simulator's beat behind the boundary, not the model's unit of time | [ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md) |
 
-None of the three adds a role, a publisher or a query. Each lands on a topic
-that already exists, or on a state topic under a role that already publishes
-there, so the one-publisher rule, the split between event and state topics,
-and the wildcard-subscription rule all stand unchanged.
+None of the three adds a role, a writer or a query. Each lands on a topic
+that already exists, or on a state topic under a role that already writes
+there, so the single-writer rule, the split between event and state topics,
+and the prefix-filter rule all stand unchanged.
 
 One earlier change did not manage this, and is worth naming because the same
 claim was once made of it. Taking a person's gesture off a page added the `ui`
