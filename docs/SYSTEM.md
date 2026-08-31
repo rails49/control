@@ -24,10 +24,6 @@ For example, the **dispatcher** accepts the `request_submitted` topic from the
 `ui`, the `scheduler`, and any other scheduler introduced later, without any
 change to its implementation.
 
-Today's topic names predate this rule and still name the sender in places;
-[#263](https://github.com/rails49/control/issues/263) renames them. Where this
-page and the rule disagree, the rule is right and the page is a bug.
-
 To implement one component you need this page and at most one internals doc
 ([dispatcher/INTERNALS.md](dispatcher/INTERNALS.md) for the dispatcher).
 Nothing here requires another component's internals. Terminology follows
@@ -75,8 +71,9 @@ flowchart TB
   railroad's roster. It is not on the bus, because it answers queries and the
   bus does not.
 - **UI** — the panel, and a throttle later. It watches the bus and writes
-  **gestures** under `tc49/ui/*`. A gesture is not a request: it names a train
-  and where to put it, and the scheduler composes the request
+  **gestures** on the four browser-writable topics of the inventory below. A
+  gesture is not a request: it names a train and where to put it, and the
+  scheduler composes the request
   ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 
 These are **roles, not implementations**. Each names a boundary that different
@@ -140,18 +137,20 @@ store answers questions, and exists for that reason.
 
 **Four rules govern the topics listed in the next section.**
 
-1. **Single writer.** Exactly one role publishes on a given topic, a role
-   being `layout`, `schedule`, `dispatch`, `drive` or `ui` rather than a
-   particular process. With a single writer, that writer's own order is the
-   topic's order, and a reader can see which component is responsible for a
-   topic by reading the topic's name.
+1. **Single writer.** For the events a component emits and its state topics,
+   the component the topic names is the only writer — `layout`, `schedule` or
+   `dispatch`, a component rather than a particular process. With a single
+   writer, that writer's own order is the topic's order, and a reader can see
+   which component is responsible for a topic by reading the topic's name.
 
-   A role can have more than one copy running: two browser tabs are two copies
-   of `ui`. Several copies may publish on an event topic, as long as no
-   consumer depends on which copy published first. They must not publish on a
-   state topic. A state topic keeps only the last message, and a publisher has
-   to supply the whole value, so a copy that knows about one train replaces
-   what another copy knew about the rest
+   A topic that carries **requests to** its component is the other way
+   around: one responder, any number of writers — that is what it is for.
+   Two browser tabs both send gestures, and the scheduler and a page both
+   submit requests. Several writers may publish on an event topic, as long
+   as no consumer depends on which of them published first. They must not
+   publish on a state topic. A state topic keeps only the last message, and
+   a publisher has to supply the whole value, so a writer that knows about
+   one train replaces what another knew about the rest
    ([ADR-0035](adr/0035-a-topic-has-one-writing-role.md)).
 2. **A topic is either an event topic or a state topic, never both.** An event
    topic reports something that happened, and is never replayed. A state topic
@@ -161,8 +160,11 @@ store answers questions, and exists for that reason.
 3. **Prefix-filter consumption.** Each consumer subscribes with a small fixed
    set of prefix filters under `tc49/`, written with `+` and `#`, rather than
    naming individual topics.
-4. **Any source.** The bus does not authenticate a publisher: a topic's role
-   says who *should* write it, not who can. A consumer therefore validates
+4. **Any source.** The bus does not authenticate a publisher: a topic's name
+   says who answers it, not who can write it. A request addressed to a
+   component discloses its source nowhere — not in the topic, not in the
+   payload — so a responder never reads, infers, or depends on who sent one.
+   A consumer therefore validates
    every payload it reads and never raises on one — a payload proves nothing
    about its sender
    ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md),
@@ -215,11 +217,13 @@ connects to a WebSocket relay ([ui/PANEL.md](ui/PANEL.md#implementation)).
 Every `tc49/#` event is sent to every client as one JSON frame,
 `{"topic": …, "payload": …}`.
 
-A client may publish only on the `tc49/ui` topics — `request_wanted`,
-`reversal_wanted`, `run_wanted` and `placement_wanted` — and each frame it
-sends is published as the event its topic names. That list is not written down
-twice: it is every `tc49/ui` row of the inventory below, which is also what a
-broker will grant a page once the relay is gone.
+A client may publish only on the four browser-writable topics —
+`tc49/schedule/request_wanted`, `tc49/schedule/reversal_wanted`,
+`tc49/dispatch/run_wanted` and `tc49/dispatch/placement_wanted` — and each
+frame it sends is published as the event its topic names. That list is not
+written down twice: it is every row of the inventory below that carries the
+browser mark, which is also what a broker will grant a page once the relay is
+gone.
 
 **A client names the railroad it wants in the socket path**,
 `ws://host:port/<railroad>`. A browser reaches it as `/live/<railroad>`, and
@@ -231,7 +235,7 @@ returns an error frame and closes the connection, leaving the running railroad
 alone. The path is not a topic, so none of this changes what a client may
 publish.
 
-**A browser cannot publish a request.** `tc49/schedule/request_submitted` is
+**A browser cannot publish a request.** `tc49/dispatch/request_submitted` is
 refused like any other topic that is not one of the four above. A browser
 publishes gestures and the scheduler turns them into requests, so "only the
 scheduler writes requests" is something the relay checks rather than an
@@ -262,50 +266,53 @@ The dispatcher never raises an exception on anything that arrives from the bus
 
 ## Event inventory
 
-A topic is named `tc49/<role>/<leaf>`. The role comes first because it is the
-role that publishes there: `layout`, `schedule`, `dispatch`, `drive` or `ui`.
-Naming topics this way means rule 1 can be checked by reading the name,
+A topic is named `tc49/<component>/<leaf>`: `layout`, `schedule` or
+`dispatch`. The component comes first because it is the component that
+**declares** the topic — the events it emits, and the requests it responds
+to. Naming topics this way means rule 1 can be checked by reading the name,
 `tc49/layout/*` keeps its meaning when hardware replaces the simulator, and a
 UI that wants everything the dispatcher says subscribes to `tc49/dispatch/#`.
 
 A leaf names something that has happened, in the past tense. There are two
 exceptions. The two commands, `align` and `move`, are imperative, because a
 command is sent before what it asks for happens. And `boundary` is a noun,
-naming a beat rather than a change. `align` sits under `dispatch` because the
-dispatcher publishes it: setting the route is the dispatcher's job, and moving
-locomotives is the driver's
-([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)).
+naming a beat rather than a change. `align` and `move` sit under `layout`
+because the layout interface is what responds to them; setting the route is
+still the dispatcher's job, and moving locomotives the driver's, which is who
+sends each — a fact the names no longer carry (rule 4,
+[ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)).
 
-**Adding a `tc49/ui` event row lets a browser publish on that topic.** The
-list of topics a client may publish on is read off this table rather than
-written down a second time, so a new `tc49/ui/<leaf>` event topic is writable
-from any page the day its row is added, and that is the same permission a
+**A row marked `browser` is one any page may publish on.** The list of
+topics a client may publish on is read off this table's mark rather than
+written down a second time, so marking a row widens the browser's write
+surface the day the mark lands, and the mark is the same permission a
 broker's ACL will carry once the relay is gone
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
+Today the mark sits on exactly the four gesture rows. The throttle a person
+drives with ([#124](https://github.com/rails49/control/issues/124),
+[#148](https://github.com/rails49/control/issues/148)) arrives as one more
+marked row under the component that responds to it. Whether a row carries
+the mark is an ACL decision, made when the row lands.
 
-That is intended. A topic under `ui` is one that a person's page writes, which
-is what the role means
-([ADR-0035](adr/0035-a-topic-has-one-writing-role.md)). The throttle a person
-drives with is the case it is right for
-([#124](https://github.com/rails49/control/issues/124),
-[#148](https://github.com/rails49/control/issues/148)): it arrives as a
-`tc49/ui` leaf and has to be writable. A topic under `tc49/ui` that a page
-should not write is under the wrong role, and belongs to the role that may
-write it.
+**Writer** is the component the name already states for everything a
+component emits. On a request row it is `any`: one responder, any number of
+writers (rule 1), and `any (browser)` is the mark above.
 
-| Topic | Kind | Publisher | Meaning |
+| Topic | Kind | Writer | Meaning |
 | --- | --- | --- | --- |
 | `tc49/layout/boundary` | event | layout | the grant beat, numbered |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
 | `tc49/layout/block_vacated` | event | layout | a detector saw a block empty |
 | `tc49/layout/state/power` | state | layout | whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
-| `tc49/schedule/request_submitted` | event | scheduler | a request, composed and released |
+| `tc49/layout/align` | command | any | set the route: throw these points |
+| `tc49/layout/move` | command | any | take the train across |
+| `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
+| `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
 | `tc49/schedule/state/facing` | state | scheduler | the end each train would depart through |
-| `tc49/ui/request_wanted` | event | UI | a gesture: the request minus the id and depart the scheduler owns |
-| `tc49/ui/reversal_wanted` | event | UI | turn a train around where it stands |
-| `tc49/ui/run_wanted` | event | UI | hold the run or release it |
-| `tc49/ui/placement_wanted` | event | UI | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
+| `tc49/dispatch/request_submitted` | event | any | a request, composed and released |
+| `tc49/dispatch/run_wanted` | event | any (browser) | hold the run or release it |
+| `tc49/dispatch/placement_wanted` | event | any (browser) | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
 | `tc49/dispatch/request_admitted` | event | dispatcher | admission accepted it, with what survived pruning |
 | `tc49/dispatch/request_rejected` | event | dispatcher | admission refused it, and why |
 | `tc49/dispatch/request_completed` | event | dispatcher | the train arrived |
@@ -320,15 +327,13 @@ write it.
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
 | `tc49/dispatch/state/disputed` | state | dispatcher | where the detectors contradict the placement ([#153](https://github.com/rails49/control/issues/153)) |
-| `tc49/dispatch/align` | command | dispatcher | set the route: throw these points |
-| `tc49/drive/move` | command | driver | take the train across |
 
 | Consumer | Filter(s) |
 | --- | --- |
-| Scheduler | `tc49/layout/boundary`, `tc49/dispatch/#` **and** `tc49/ui/#` |
-| Dispatcher | `tc49/layout/#`, `tc49/schedule/request_submitted` **and** `tc49/ui/#` |
+| Scheduler | `tc49/layout/boundary`, `tc49/dispatch/#` **and** `tc49/schedule/#` |
+| Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
-| Layout interface | `tc49/drive/+`, `tc49/dispatch/align` **and** `tc49/dispatch/train_placed` / `train_removed` |
+| Layout interface | `tc49/layout/align`, `tc49/layout/move` **and** `tc49/dispatch/train_placed` / `train_removed` |
 | Trace tap | `tc49/#` |
 
 Two things the inventory has to keep true:
@@ -336,14 +341,18 @@ Two things the inventory has to keep true:
 - **A leaf name is unique across all topics.** The trace records the leaf
   alone in its `event` field, so two topics sharing a leaf could not be told
   apart there.
-- **A consumer subscribes by prefix filter, not by list** (rule 3). Each
-  filter names a role, as the scheduler's three do. What matters is the shape
-  rather than the number, and no consumer names individual topics. The
-  layout interface is the one exception
-  and stays the only one. It acts on one named command and on the two
-  placement facts, and subscribing to the whole `dispatch` role would mean
-  discarding most of what it heard. It also counts the commands it was sent,
-  which is how it knows when it is quiet.
+- **A consumer subscribes by prefix filter, not by list** (rule 3), and
+  ignores what a filter brings that it does not answer. A component's own
+  filter now matches its own announcements: the dispatcher's `tc49/layout/#`
+  brings it the two commands, its `tc49/dispatch/#` everything it publishes
+  itself, and the scheduler's `tc49/dispatch/#` brings `request_submitted`,
+  its own included. Ignoring an unrecognized leaf is rule 4 doing its
+  ordinary work. The layout interface is the one exception to the
+  prefix-filter shape and stays the only one. It acts on its two commands
+  and on the two placement facts; a `tc49/layout/#` filter would hand it
+  back its own sensors and boundary, and subscribing to the whole of
+  `dispatch` would mean discarding most of what it heard. It also counts the
+  commands it was sent, which is how it knows when it is quiet.
 
 **What a payload carries.** Events are tied together by the request id, and
 no event repeats what another has already said. An event in a request's life
@@ -386,36 +395,40 @@ its two names, as each topic states.
 - `tc49/layout/state/power` — `power`: enum `on`, `stopped` or `off`. An
   unreadable payload reads as `off`: dropping it would mean *not* holding the
   run, over track whose state could not be read.
+- `tc49/layout/align` — `connection`; `transit`: bare name within the
+  connection; `points`: list of `{addr, position}`, `position` enum `closed`
+  or `thrown`; `[]` where nothing needs throwing.
+- `tc49/layout/move` — `train`; `connection`; `transit`: bare name, the
+  grant's qualified transit split; `into`: the block entered.
 
 #### `schedule`
 
-- `tc49/schedule/request_submitted` — `id`: opaque unique string
-  ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)); `train`;
-  `depart`: the block end the train departs through; `dest`: list of arrival
-  block ends, at least one.
+The four browser-writable rows here and under `dispatch` are where rule 4
+bites hardest: each payload is read defensively, and one that fails the read
+is dropped.
+
+- `tc49/schedule/request_wanted` — browser-writable — `train`; `dest`: list,
+  each entry a block or a block end, a bare block meaning either end.
+- `tc49/schedule/reversal_wanted` — browser-writable — `train`.
 - `tc49/schedule/state/exhausted` — `exhausted`: boolean, `true` once the
   last timetable request has gone out.
 - `tc49/schedule/state/facing` — `facing`: map of train to the block end it
   would depart through.
 
-#### `ui`
-
-Browser-writable, which is where rule 4 bites hardest: each payload is read
-defensively, and one that fails the read is dropped.
-
-- `tc49/ui/request_wanted` — `train`; `dest`: list, each entry a block or a
-  block end, a bare block meaning either end.
-- `tc49/ui/reversal_wanted` — `train`.
-- `tc49/ui/run_wanted` — `run`: enum `held` or `running`; any other value is
-  dropped. The ordinary-shutdown drain adds `draining`
-  ([#123](https://github.com/rails49/control/issues/123)).
-- `tc49/ui/placement_wanted` — `train`; `block`: block name, or `null` for
-  off the layout. The key's presence is load-bearing: a payload without
-  `block` fails the read, while an explicit `null` is a positive statement
-  ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
-
 #### `dispatch`
 
+- `tc49/dispatch/request_submitted` — `id`: opaque unique string
+  ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)); `train`;
+  `depart`: the block end the train departs through; `dest`: list of arrival
+  block ends, at least one.
+- `tc49/dispatch/run_wanted` — browser-writable — `run`: enum `held` or
+  `running`; any other value is dropped. The ordinary-shutdown drain adds
+  `draining` ([#123](https://github.com/rails49/control/issues/123)).
+- `tc49/dispatch/placement_wanted` — browser-writable — `train`; `block`:
+  block name, or `null` for off the layout. The key's presence is
+  load-bearing: a payload without `block` fails the read, while an explicit
+  `null` is a positive statement
+  ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 - `tc49/dispatch/request_admitted` — `id`; `dest`: the arrival ends that
   survived pruning; `pruned`: list of `{end, reason}`, `reason` one of
   `no_fit`, `no_entry`, `unreachable`.
@@ -452,14 +465,6 @@ defensively, and one that fails the read is dropped.
   resource to holding train; `requests`: list of
   `{id, train, depart, dest, route}` in admission order, `route` *optional*
   — present once the route is committed.
-- `tc49/dispatch/align` — `connection`; `transit`: bare name within the
-  connection; `points`: list of `{addr, position}`, `position` enum `closed`
-  or `thrown`; `[]` where nothing needs throwing.
-
-#### `drive`
-
-- `tc49/drive/move` — `train`; `connection`; `transit`: bare name, the
-  grant's qualified transit split; `into`: the block entered.
 
 ## Time
 
@@ -611,8 +616,10 @@ for exactly that much and no more.
 ### Scheduler
 
 *Reads* the layout. *Subscribes* `tc49/layout/boundary`, `tc49/dispatch/#`
-and `tc49/ui/#`. *Publishes* `request_submitted` and the `state/exhausted`
-and `state/facing` last-value topics.
+and `tc49/schedule/#` — the gestures it responds to sit under its own name,
+and its own state topics come back past it ignored. *Publishes*
+`request_submitted` on the dispatcher's topic, and the `state/exhausted` and
+`state/facing` last-value topics.
 
 The scheduler is the **one writer of requests**. It has three sources: a
 timetable, whose requests go out as their `at` is reached; a person gesturing
@@ -699,8 +706,10 @@ else to stand. The other falls back to its own starting block. Where that is
 taken too, it comes up placed nowhere at all and is shown as a train with no
 block ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 
-*Subscribes* `tc49/layout/#`, `tc49/schedule/request_submitted` and
-`tc49/ui/#`. *Publishes* the ten `tc49/dispatch/*` events, plus `state/run`,
+*Subscribes* `tc49/layout/#` and `tc49/dispatch/#` — the request and the two
+gestures it responds to sit under its own name, its own announcements come
+back past it ignored, and the two commands on the layout filter pass by
+unread. *Publishes* the ten `tc49/dispatch/*` events, plus `state/run`,
 `state/aspects`, `state/disputed` and `state/allocation`. The last of those is
 its picture of the run, written out from the lock table whenever it changes,
 so a client that joins an idle railroad has something to draw
@@ -713,7 +722,7 @@ left to read one out of an absence. A session starting fresh publishes
 that picture says where the last session believed the railroad was rather than
 where it stands now.
 
-A person moves it with `tc49/ui/run_wanted`. While it is `held` the dispatcher
+A person moves it with `tc49/dispatch/run_wanted`. While it is `held` the dispatcher
 **commits nothing**: the grant phase applies the sensors it has buffered and
 then stops, so no route is chosen, no move granted and no lock taken, while
 admission goes on accepting and queuing. A move already granted still
@@ -735,7 +744,7 @@ releasing onto track with no power in it would strand the next train the way
 the first was stranded. A hold is honoured whatever the power is doing
 ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 
-**It alone reads `tc49/ui/placement_wanted`**, a person saying where a train
+**It alone reads `tc49/dispatch/placement_wanted`**, a person saying where a train
 actually is. Only the dispatcher knows whether a block is free, so a second
 reader would have to agree with it on every precondition. Three preconditions
 hold whichever way the gesture points: the run is **held**, the train is
@@ -871,7 +880,7 @@ drives realistically later grows behind the same topic.
 
 ### Layout interface
 
-*Reads* the layout. *Subscribes* `tc49/drive/+`, `tc49/dispatch/align` and
+*Reads* the layout. *Subscribes* `tc49/layout/align`, `tc49/layout/move` and
 `tc49/dispatch/train_placed`. *Publishes* the boundary, the sensor events and
 `state/power`.
 
@@ -979,16 +988,18 @@ facing rather than on a generator
 | The scheduler **invents traffic** | continual generated traffic has to name an idle train and a reachable destination, which is what it now reads the layout for; the dispatcher stays the single feasibility authority | [ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md) |
 | The boundary event's cadence comes from a **clock**, transits vary in length | `tick` is the simulator's beat behind the boundary, not the model's unit of time | [ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md) |
 
-None of the three adds a role, a writer or a query. Each lands on a topic
-that already exists, or on a state topic under a role that already writes
-there, so the single-writer rule, the split between event and state topics,
-and the prefix-filter rule all stand unchanged.
+None of the three adds a component, a writer or a query. Each lands on a
+topic that already exists, or on a state topic under a component that already
+writes there, so the single-writer rule, the split between event and state
+topics, and the prefix-filter rule all stand unchanged.
 
 One earlier change did not manage this, and is worth naming because the same
 claim was once made of it. Taking a person's gesture off a page added the `ui`
 role, a topic and an inbound path, and rule 1 had to be restated in terms of
 roles rather than components before two browser tabs were admitted at all
-([ADR-0035](adr/0035-a-topic-has-one-writing-role.md)). The split between
+([ADR-0035](adr/0035-a-topic-has-one-writing-role.md); the role itself has
+since dissolved into the browser-writable mark,
+[#263](https://github.com/rails49/control/issues/263)). The split between
 event and state topics came through untouched, and was what showed where the
 problem was.
 
