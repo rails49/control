@@ -72,8 +72,8 @@ class Session:
         self._state = state
         self._lock = threading.Lock()
         # Set while a railroad is waiting to be built, and again by `stop`,
-        # which is what cuts a boundary's sleep short: picking a railroad in
-        # the panel must not wait out a ten-second period.
+        # which is what cuts the run loop's sleep short: picking a railroad
+        # in the panel must not wait out a pending transit delay.
         self._swap = threading.Event()
         # The railroad to build next, and the scenario to replay onto it once
         # it is up, or None for the empty layout a run ordinarily starts from.
@@ -173,5 +173,5 @@ class Session:
 
     def _pause(self, period_s: float) -> None:
         """The live loop's sleep, cut short by a swap: a railroad picked in
-        the panel must not wait out the boundary already under way."""
+        the panel must not wait out the sleep already under way."""
         self._swap.wait(period_s)

@@ -2,9 +2,9 @@
 `tc49 layout show <layout>`, `tc49 serve`, `tc49 generate`.
 
 `bench` runs one named scenario under both locking strategies and prints the
-comparison. `live` runs a session an outside client can join: wall-clock
-boundaries, the bridge relaying `tc49/#` out and gestures in, the store served
-over HTTP, and no timetable while `at` is a boundary count (ADR-0036). It is
+comparison. `live` runs a session an outside client can join: the simulator
+pacing its delays on a wall clock, the bridge relaying `tc49/#` out and
+gestures in, the store served over HTTP, and no timetable (ADR-0036). It is
 built from a **railroad** — a drawing, its roster, and a person who places the
 trains (#171) — and the railroad it comes up on is an argument the panel may
 override, the socket path naming the one a client wants (#148). `--scenario`
@@ -37,13 +37,11 @@ from tc49.store.server import make_server
 
 ROOT = find_root()
 
-LIVE_PERIOD_S = 10.0
-"""Seconds a live session spends on each grant boundary, unless `--period`
-says otherwise. Picked by watching the panel, the way the two seconds before
-it were: each boundary moves trains, grants and releases locks, realigns
-points and changes aspects, and at two the next one landed before a person
-had finished reading the last (ui/PANEL.md). Not the replay transport's
-number, which is a rate in boundaries per second and stays where it is."""
+LIVE_PERIOD_S = 0.1
+"""Seconds a live session waits between polls for commands arriving over the
+bridge, unless `--period` says otherwise. The railroad's own pacing is the
+simulator's transit delays (ADR-0047); this only bounds how long a gesture
+sits in the queue before it is drained, so it stays small."""
 
 GENERATORS: dict[str, Callable[[], str]] = {
     symbols.GENERATED_PATH: symbols.render,
@@ -73,14 +71,14 @@ def format_comparison(
     names = list(results)
     rows: list[tuple[str, list[str]]] = [
         ("status", [results[n][1].status for n in names]),
-        ("makespan", [_whole(results[n][1].makespan) for n in names]),
-        ("latency mean", [_ratio(results[n][1].mean_latency) for n in names]),
-        ("latency max", [_whole(results[n][1].max_latency) for n in names]),
+        ("makespan", [_secs(results[n][1].makespan) for n in names]),
+        ("latency mean", [_secs(results[n][1].mean_latency) for n in names]),
+        ("latency max", [_secs(results[n][1].max_latency) for n in names]),
         ("utilization", [_ratio(results[n][1].mean_utilization) for n in names]),
-        ("moves/boundary", [_ratio(results[n][1].mean_parallelism) for n in names]),
+        ("moves/min", [_ratio(results[n][1].moves_per_minute) for n in names]),
         ("completed", [str(len(results[n][1].completed)) for n in names]),
         ("rejected", [str(len(results[n][1].rejected)) for n in names]),
-        ("boundaries", [str(results[n][1].boundaries) for n in names]),
+        ("seconds", [_secs(results[n][1].seconds) for n in names]),
     ]
     width = max(len(label) for label, _ in rows) + 2
     column = max(max(len(n) for n in names), 11) + 2
@@ -132,8 +130,8 @@ def _diagnosis(stall: Stall) -> str:
     )
 
 
-def _whole(value: int | None) -> str:
-    return "—" if value is None else str(value)
+def _secs(value: float | None) -> str:
+    return "—" if value is None else f"{value:.1f}"
 
 
 def _ratio(value: float | None) -> str:
@@ -193,15 +191,15 @@ def command_line() -> argparse.ArgumentParser:
         "--scenario",
         help="run a scenario as a test run, e.g. gotthard/meet: the session"
         " comes up on the railroad it names and replays it as gestures —"
-        " a placement per train, then its requests at their boundaries."
+        " a placement per train, then its requests in order."
         " Not with --state, which comes up on the last session's placement",
     )
     live_parser.add_argument(
         "--period",
         type=float,
         default=LIVE_PERIOD_S,
-        help=f"seconds per boundary (default {LIVE_PERIOD_S}, picked by watching"
-        " the panel — as much as a boundary's worth of change takes to read)",
+        help=f"seconds between command polls (default {LIVE_PERIOD_S}; the"
+        " railroad's pacing is the simulator's own transit delays)",
     )
     live_parser.add_argument(
         "--port", type=int, default=8766, help="the bridge's WebSocket port"
@@ -316,7 +314,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
             ).start()
             store_line = f"  store   http://{reachable(args.host)}:{args.store_port}\n"
         out.write(
-            f"live: {args.period}s per boundary\n"
+            f"live: polling commands every {args.period}s\n"
             f"  bridge  ws://{reachable(args.host)}:{session.bridge.port}/<railroad>\n"
             f"{store_line}"
             "the panel names the railroad and may switch it; there is no"

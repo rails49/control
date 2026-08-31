@@ -248,13 +248,13 @@ def row(workload: Workload, k: int, locking: str, trace: str) -> dict[str, Any]:
         "locking": locking,
         "status": m.status,
         "makespan": m.makespan,
-        "boundaries": m.boundaries,
+        "seconds": m.seconds,
         "completed": len(m.completed),
         "rejected": len(m.rejected),
         "mean_latency": m.mean_latency,
         "max_latency": m.max_latency,
         "mean_utilization": m.mean_utilization,
-        "mean_parallelism": m.mean_parallelism,
+        "moves_per_minute": m.moves_per_minute,
         "stalls": [asdict(stall) for stall in m.stalls],
     }
 

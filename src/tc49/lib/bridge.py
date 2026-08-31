@@ -174,7 +174,7 @@ class Bridge:
         keeps `wants` from being answered by a swap that lands before the
         client is on the list to be woken by it. The relay waits for the
         length of the callback, so `wants` reads a railroad's documents and
-        does not build one — a fraction of one boundary, once per join.
+        does not build one — a moment's pause, once per join.
         """
         with self._clients_lock:
             if named == self._running:
