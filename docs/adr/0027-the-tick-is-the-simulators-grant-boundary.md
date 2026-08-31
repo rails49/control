@@ -1,5 +1,10 @@
 # The tick is the simulator's grant boundary
 
+*(Superseded by
+[ADR-0047](0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md):
+the dispatcher grants on the events that arrive, and the boundary leaves the
+contract.)*
+
 *(Amended under
 [ADR-0030](0030-the-physical-railroad-is-the-normative-binding.md): the
 rejection below argues from testing, and the hardware argument is stronger. On

@@ -18,7 +18,10 @@ special handling; none is known today.
 Events are generic, never particular to one component. A hardware translator
 gets no events of its own, only things like power on or off, or a locomotive's
 speed and direction — events any of a million hardware solutions could respond
-to, including ones not yet invented.
+to, including ones not yet invented. The simulator simulates a subset of the
+app's features and adds no requirement of its own to any contract
+([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md),
+[ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 
 For example, the **dispatcher** accepts the `request_submitted` topic from the
 `ui`, the `scheduler`, and any other scheduler introduced later, without any
@@ -386,9 +389,9 @@ its two names, as each topic states.
 - `tc49/layout/boundary` — `boundary`: integer, the boundary number,
   strictly increasing; what lets a consumer ignore an at-least-once
   duplicate.
-  [ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)
-  adds `clock`, fast seconds since the session started; decided but published
-  by no binding yet, so its row lands with the implementation.
+  [ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)
+  removes this row; it stays until
+  [#264](https://github.com/rails49/control/issues/264) lands.
 - `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
   block a detector reported on. Anonymous: no train field, because a detector
   cannot name one.
@@ -468,6 +471,11 @@ is dropped.
 
 ## Time
 
+[ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)
+removes the boundary: the dispatcher grants on the events that arrive, and the
+trace line carries `time` instead. This section describes the milestone-1
+binding until [#264](https://github.com/rails49/control/issues/264) lands.
+
 **The layout interface owns time**
 ([ADR-0009](adr/0009-layout-interface-owns-time.md)). It publishes
 `tc49/layout/boundary`; the four app components only subscribe. This keeps
@@ -521,19 +529,14 @@ field. The trace tap stamps each event it records with the last boundary
 number it has seen, which is deterministic in milestone 1 because the tap sees
 every event in delivery order.
 
-**It also carries the fast clock.** `clock` is the railroad's operating time,
-running faster than real time: the wall clock multiplied by a configured
-factor, given as fast seconds since the session started. The same publisher
-produces it, so a consumer reads the value off the event rather than working
-one out, and no app keeps a clock of its own. It runs freely and can be set,
-and its multiplier and start time are part of a railroad's configuration.
-
-**Nothing in the control path reads it.** It feeds scheduling and scenery. It
-never feeds dispatch and never feeds safety, so a train that is late is late
-and nothing follows from it
-([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).
-The simulator has no wall clock to scale, so it advances the fast clock by a
-fixed amount per tick and a replayed run stays byte-identical.
+**The fast clock has no carrier.** It is the railroad's operating time: the
+wall clock with a start time and a multiplier, both railroad configuration, so
+anything that wants it derives it. Nothing in the control path reads it — it
+feeds scheduling and scenery, never dispatch and never safety, so a train that
+is late is late and nothing follows from it
+([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
+Until a session clock derived from that configuration arrives, the UI shows
+the last event's time.
 
 ## Asset store
 

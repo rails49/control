@@ -1,5 +1,11 @@
 # The boundary period is real time, and the fast clock is out of the control path
 
+*(Superseded by
+[ADR-0047](0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md),
+except one rule that stands: the fast clock never feeds dispatch and never
+feeds safety. The boundary and its period go, the fast clock loses its
+carrier, and `at` is deleted rather than rebound.)*
+
 Resolves [#198](https://github.com/rails49/control/issues/198) of the
 milestone-2 map. `layout` keeps **two** clocks and they are different things:
 the grant boundary's period, which is real time, and the railroad's fast
