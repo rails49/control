@@ -344,6 +344,24 @@ describe("a signal's lamps", () => {
       );
     }
   });
+
+  it("are lit by every aspect the dispatcher publishes", () => {
+    // The aspect arrives as a class name, so a sheet that misses one leaves
+    // those signals wrongly lit and nothing red: the classes are correct and
+    // only the paint is wrong, which is what the rename of `approach` to
+    // `caution` could have left behind (#235). Each lamp of each aspect, not
+    // each aspect: a `caution` that lost its amber rule paints green alone,
+    // which is `clear` — full speed where the dispatcher said be ready to
+    // stop.
+    for (const lit of [
+      ".signal.stop .lamp.red",
+      ".signal.caution .lamp.green",
+      ".signal.caution .lamp.amber",
+      ".signal.clear .lamp.green",
+    ]) {
+      expect(canvasStyles.cssText).toContain(lit);
+    }
+  });
 });
 
 /**
