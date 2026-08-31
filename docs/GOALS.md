@@ -133,7 +133,7 @@ stopping takes distance:
 | Locked ahead | Aspect | The train |
 | --- | --- | --- |
 | nothing | `stop` | stands |
-| one block | `approach` | moves, slowly enough to stop at the next signal |
+| one block | `caution` | moves, slowly enough to stop at the next signal |
 | two or more | `clear` | runs at full speed |
 
 So one block ahead is enough to move — a train can at least reach the next
@@ -156,10 +156,10 @@ report occupancy without identity; the dispatcher, which knows which train is
 where, says so as part of granting the move
 ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 
-`approach` promises the train can stop before the next signal, and something
+`caution` promises the train can stop before the next signal, and something
 has to make that true. The working answer is a per-locomotive calibration of
 what "slow" means, together with a constraint on the railroad rather than on
-the software: a block is at least a braking distance long at approach speed.
+the software: a block is at least a braking distance long at caution speed.
 **This is an open subject** — speed signalling, which puts a limit in the
 aspect itself, is among the alternatives — and which solution is implemented
 will be decided once there is running experience to decide it with.

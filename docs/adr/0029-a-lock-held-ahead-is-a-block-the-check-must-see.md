@@ -20,7 +20,7 @@ more. If either resource is held, or the resulting state is unsafe, the move
 happens anyway and the request for more is dropped.
 
 One increment of four resources, refused as a unit, was rejected because it
-makes `approach` unreachable. A train that can only move while holding two
+makes `caution` unreachable. A train that can only move while holding two
 blocks ahead always holds two blocks ahead, so it always shows `clear`, and
 the middle aspect appears only within two blocks of a destination where the
 route runs out. That says "nearly there", not "be ready to stop". The amber
@@ -99,7 +99,7 @@ a route is longer than the lookahead.
 None of this is bought back yet. Every transit costs one tick
 ([ADR-0027](0027-the-tick-is-the-simulators-grant-boundary.md),
 [MILESTONE-1.md](../MILESTONE-1.md)), so a train at `clear` and a train at
-`approach` advance at the same rate. The benefit ADR-0026 claims, running
+`caution` advance at the same rate. The benefit ADR-0026 claims, running
 through a block at speed, cannot appear in a model without speed. Depth two is
 recorded as a prerequisite: it is what makes the three aspects real, and its
 cost reverses only when transits take time proportional to length and speed.

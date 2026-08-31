@@ -237,7 +237,7 @@ def a_route(layout: Layout, train: str) -> Route:
 def test_a_grant_reaches_one_increment_past_what_it_needs() -> None:
     """Depth two: the grant locks the increment it needs and then the one
     after it, so the train stands with two blocks locked ahead rather than
-    one — which is the difference between `approach` and `clear`."""
+    one — which is the difference between `caution` and `clear`."""
     layout, _roster, _ = load("gotthard-v0/saturation")
     route = a_route(layout, "t")
     state = a_state(layout, route, {route.blocks[0]: "t"})
@@ -252,7 +252,7 @@ def test_a_grant_reaches_one_increment_past_what_it_needs() -> None:
 def test_an_unavailable_second_increment_refuses_nothing() -> None:
     """The second increment is asked for, not required. With it held by
     another train the move is granted exactly as before, reporting nothing
-    ahead — and reporting nothing ahead is what `approach` means, not an
+    ahead — and reporting nothing ahead is what `caution` means, not an
     error the train has to wait on."""
     layout, _roster, _ = load("gotthard-v0/saturation")
     route = a_route(layout, "t")

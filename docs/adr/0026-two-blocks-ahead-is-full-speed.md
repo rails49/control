@@ -9,7 +9,7 @@ until then it could not see a lock it had not been told about. 0029 also
 records what depth two costs, measured.
 
 Incremental locking targets **two blocks ahead** and never asks for a third.
-One block ahead is enough to move, at the reduced speed the `approach` aspect
+One block ahead is enough to move, at the reduced speed the `caution` aspect
 commands ([ADR-0025](0025-a-signal-is-what-the-dispatcher-tells-the-driver.md));
 two is what buys full speed.
 
@@ -48,11 +48,11 @@ through the same parameter.
 
 ## Braking distance is an open subject
 
-Something has to make `approach` honest. The working answer is that the
-approach speed is a per-locomotive calibration behind the layout interface,
+Something has to make `caution` honest. The working answer is that the
+caution speed is a per-locomotive calibration behind the layout interface,
 where the braking curve already lives, together with a constraint on the
 railroad rather than on the software: **a block is at least a braking distance
-long at approach speed**. The driver is layout-blind and cannot know a block's
+long at caution speed**. The driver is layout-blind and cannot know a block's
 length; the dispatcher has the lengths but no locomotive, and giving it braking
 models would make it a physics engine.
 

@@ -203,7 +203,7 @@ strict pass-throughs with no reversal within a route, so a signal at
 `claro_2.B` can only mean "may the train in `claro_2` leave via B".
 
 **The panel derives no aspect.** The dispatcher publishes one — `stop`,
-`approach` or `clear`, read off how far ahead it has locked — on a last-value
+`caution` or `clear`, read off how far ahead it has locked — on a last-value
 topic naming every signalled end, and the panel renders what it is told
 ([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 An aspect is a function of locks the dispatcher holds and routes it committed,
@@ -214,7 +214,7 @@ not arising. Whether an end the standing train does not face may show anything
 but red: the dispatcher knows the committed route, so it knows the one end a
 train may leave by, and every other end shows `stop` because nothing is locked
 beyond it. And the middle aspect, which the binary derivation could not
-produce at all: the dispatcher counts the depth, so `approach` and `clear` are
+produce at all: the dispatcher counts the depth, so `caution` and `clear` are
 simply two different counts.
 
 An end that leads nowhere carries no signal and the dispatcher does not name
