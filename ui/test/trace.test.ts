@@ -66,10 +66,10 @@ describe("gesture", () => {
   it("wraps a drag in the one frame the relay accepts", () => {
     const wanted = { train: "t1", dest: ["b.A"] };
     expect(JSON.parse(gesture(wanted))).toEqual({
-      topic: "tc49/ui/request_wanted",
+      topic: "tc49/schedule/request_wanted",
       payload: wanted,
     });
-    expect(REQUEST_WANTED).toBe("tc49/ui/request_wanted");
+    expect(REQUEST_WANTED).toBe("tc49/schedule/request_wanted");
   });
 
   it("carries no id and no departure end, those being the scheduler's", () => {
@@ -84,10 +84,10 @@ describe("gesture", () => {
 describe("reversal", () => {
   it("names the train and nothing else", () => {
     expect(JSON.parse(reversal("t1"))).toEqual({
-      topic: "tc49/ui/reversal_wanted",
+      topic: "tc49/schedule/reversal_wanted",
       payload: { train: "t1" },
     });
-    expect(REVERSAL_WANTED).toBe("tc49/ui/reversal_wanted");
+    expect(REVERSAL_WANTED).toBe("tc49/schedule/reversal_wanted");
   });
 });
 
@@ -97,10 +97,10 @@ describe("reversal", () => {
 describe("runWanted", () => {
   it("names where the run should stand and nothing else", () => {
     expect(JSON.parse(runWanted("held"))).toEqual({
-      topic: "tc49/ui/run_wanted",
+      topic: "tc49/dispatch/run_wanted",
       payload: { run: "held" },
     });
     expect(JSON.parse(runWanted("running")).payload).toEqual({ run: "running" });
-    expect(RUN_WANTED).toBe("tc49/ui/run_wanted");
+    expect(RUN_WANTED).toBe("tc49/dispatch/run_wanted");
   });
 });

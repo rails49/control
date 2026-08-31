@@ -440,7 +440,7 @@ describe("the picture on the shared canvas", () => {
 
     expect(written()).toEqual([
       {
-        topic: "tc49/ui/request_wanted",
+        topic: "tc49/schedule/request_wanted",
         payload: { train: "goods", dest: ["b.A", "b.B"] },
       },
     ]);
@@ -590,7 +590,7 @@ describe("the word on the button", () => {
     press(shell).click();
 
     expect(written()).toEqual([
-      { topic: "tc49/ui/run_wanted", payload: { run: "running" } },
+      { topic: "tc49/dispatch/run_wanted", payload: { run: "running" } },
     ]);
   });
 });
@@ -646,7 +646,7 @@ describe("what the rails say about the button", () => {
 
     press(shell).click();
     expect(written()).toEqual([
-      { topic: "tc49/ui/run_wanted", payload: { run: "held" } },
+      { topic: "tc49/dispatch/run_wanted", payload: { run: "held" } },
     ]);
   });
 });
@@ -678,7 +678,7 @@ describe("releasing with disputes outstanding", () => {
       "released with t1 in a block that reads clear, b reads occupied",
     );
     expect(written()).toEqual([
-      { topic: "tc49/ui/run_wanted", payload: { run: "running" } },
+      { topic: "tc49/dispatch/run_wanted", payload: { run: "running" } },
     ]);
   });
 

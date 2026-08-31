@@ -145,7 +145,7 @@ describe("a right-click while a canvas menu is open", () => {
     expect(offered(shell)).toEqual(["Turn around"]);
     await chose(shell, "Turn around");
     expect(written()).toEqual([
-      { topic: "tc49/ui/reversal_wanted", payload: { train: "shunter" } },
+      { topic: "tc49/schedule/reversal_wanted", payload: { train: "shunter" } },
     ]);
   });
 

@@ -136,7 +136,7 @@ describe("choosing Turn around", () => {
     await chose(shell, "Turn around");
 
     expect(written()).toEqual([
-      { topic: "tc49/ui/reversal_wanted", payload: { train: "goods" } },
+      { topic: "tc49/schedule/reversal_wanted", payload: { train: "goods" } },
     ]);
     expect(offered(shell)).toEqual([]);
   });
