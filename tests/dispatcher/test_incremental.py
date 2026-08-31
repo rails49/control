@@ -10,25 +10,26 @@ from tc49.store import AssetStore
 from tests.harness import ROOT, events, load, run, stock
 
 
-def final_boundary(trace: str) -> int:
-    return events(trace)[-1]["boundary"]
+def final_time(trace: str) -> float:
+    return float(events(trace)[-1]["time"])
 
 
-def held_spans(trace: str, resource: str) -> list[tuple[int, int]]:
-    """[start, end) boundary spans during which `resource` was locked."""
-    spans: list[tuple[int, int]] = []
-    start: int | None = None
+def held_spans(trace: str, resource: str) -> list[tuple[float, float]]:
+    """[start, end) spans of simulated seconds during which `resource` was
+    locked."""
+    spans: list[tuple[float, float]] = []
+    start: float | None = None
     for line in events(trace):
         if line["event"] == "lock_granted" and resource in line["resources"]:
-            start = line["boundary"]
+            start = line["time"]
         if line["event"] == "lock_released" and resource in line["resources"]:
             assert start is not None
-            spans.append((start, line["boundary"]))
+            spans.append((start, line["time"]))
             start = None
     return spans
 
 
-def overlap(a: list[tuple[int, int]], b: list[tuple[int, int]]) -> bool:
+def overlap(a: list[tuple[float, float]], b: list[tuple[float, float]]) -> bool:
     return any(s1 < e2 and s2 < e1 for s1, e1 in a for s2, e2 in b)
 
 
@@ -57,8 +58,8 @@ def test_facing_pair_refuses_a_launch_and_quiesces() -> None:
         "facing-pair",
         {"t_west": TrainSpec("west", "B"), "t_east": TrainSpec("east", "A")},
         (
-            RequestSpec("t_west", "west.B", ("east.A",), 0),
-            RequestSpec("t_east", "east.A", ("west.B",), 0),
+            RequestSpec("t_west", "west.B", ("east.A",)),
+            RequestSpec("t_east", "east.A", ("west.B",)),
         ),
     )
     # `run()` returning is quiescence.
@@ -71,13 +72,13 @@ def test_facing_pair_refuses_a_launch_and_quiesces() -> None:
     assert {"resource": "east", "holder": "t_east"} in refusals[0]["obstacles"]
 
 
-def test_meet_completes_under_incremental_in_no_more_boundaries() -> None:
+def test_meet_completes_under_incremental_in_no_more_time() -> None:
     layout, _roster, scenario = load("crossover-yard/meet")
     full = run(layout, _roster, scenario)
     incremental = run(layout, _roster, scenario, Incremental)
     completed = {line["id"] for line in events(incremental, "request_completed")}
     assert completed == {"freight_1-1", "express_2-1", "freight_1-2"}
-    assert final_boundary(incremental) <= final_boundary(full)
+    assert final_time(incremental) <= final_time(full)
 
 
 def test_concurrent_pair_held_simultaneously_and_undeclared_pairs_never() -> None:
@@ -87,8 +88,8 @@ def test_concurrent_pair_held_simultaneously_and_undeclared_pairs_never() -> Non
         "crossover-yard",
         {"t_up": TrainSpec("up_w", "B"), "t_dn": TrainSpec("dn_w", "B")},
         (
-            RequestSpec("t_up", "up_w.B", ("up_e.A",), 0),
-            RequestSpec("t_dn", "dn_w.B", ("dn_e.A",), 0),
+            RequestSpec("t_up", "up_w.B", ("up_e.A",)),
+            RequestSpec("t_dn", "dn_w.B", ("dn_e.A",)),
         ),
     )
     trace = run(layout, stock(t_up=600, t_dn=600), straights, Incremental)
@@ -108,8 +109,8 @@ def test_concurrent_pair_held_simultaneously_and_undeclared_pairs_never() -> Non
         "crossover-yard",
         {"t_up": TrainSpec("up_w", "B"), "t_dn": TrainSpec("dn_w", "B")},
         (
-            RequestSpec("t_up", "up_w.B", ("dn_e.A",), 0),
-            RequestSpec("t_dn", "dn_w.B", ("up_e.A",), 0),
+            RequestSpec("t_up", "up_w.B", ("dn_e.A",)),
+            RequestSpec("t_dn", "dn_w.B", ("up_e.A",)),
         ),
     )
     trace = run(layout, stock(t_up=600, t_dn=600), crossing, Incremental)
@@ -144,8 +145,8 @@ def test_shared_destination_refusal_names_the_committed_train() -> None:
             "t_yellow": TrainSpec("claro_3", "A"),
         },
         (
-            RequestSpec("t_blue", "claro_1.B", ("airolo_1.A",), 0),
-            RequestSpec("t_yellow", "claro_3.A", ("airolo_1.A",), 0),
+            RequestSpec("t_blue", "claro_1.B", ("airolo_1.A",)),
+            RequestSpec("t_yellow", "claro_3.A", ("airolo_1.A",)),
         ),
     )
     trace = run(layout, stock(t_blue=900, t_yellow=900), scenario, Incremental)
@@ -158,7 +159,7 @@ def test_shared_destination_refusal_names_the_committed_train() -> None:
 def test_route_blindness_is_fixed_by_congestion_aware_costing() -> None:
     # The differential's committed counterexample (#28, property 3), shrunk by
     # Hypothesis: before congestion-aware costing (#33), `Incremental` was a
-    # boundary SLOWER here, because only `FullRoute`'s up-front locks let t2's
+    # transit SLOWER here, because only `FullRoute`'s up-front locks let t2's
     # launch see t1 across its first candidate. Costing restores that signal
     # from committed routes, so both strategies now steer t2 to the up line
     # at the first candidate and finish together. See the scenario file.
@@ -177,8 +178,10 @@ def test_route_blindness_is_fixed_by_congestion_aware_costing() -> None:
     # Incremental — so t2's candidate over the up line sorts first for both.
     assert [line["k_tried"] for line in events(full, "route_chosen")] == [1, 1]
     assert [line["k_tried"] for line in events(incremental, "route_chosen")] == [1, 1]
-    assert final_boundary(full) == 3
-    assert final_boundary(incremental) == 3
+    # Two transits each, run in parallel: at the default 30 s delays the
+    # last tail clears 120 simulated seconds in.
+    assert final_time(full) == 120.0
+    assert final_time(incremental) == 120.0
 
 
 def test_transits_are_never_held_across_a_wait() -> None:
@@ -189,7 +192,7 @@ def test_transits_are_never_held_across_a_wait() -> None:
     trace = run(layout, _roster, scenario, Incremental)
     for line in events(trace, "lock_granted"):
         resources = line["resources"]
-        if line["boundary"] == 0 and len(resources) == 1:
+        if line["time"] == 0.0 and len(resources) == 1:
             continue  # a standing lock seeded from the scenario
         assert len(resources) == 2
         assert "." in resources[0] and "." not in resources[1]

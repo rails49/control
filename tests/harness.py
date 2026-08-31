@@ -94,8 +94,7 @@ def events(
 
 
 def press(assembly: Assembly, topic: str, payload: Payload) -> None:
-    """A gesture as a page puts it on the bus, delivered where a person's
-    press lands: between boundaries, and never inside a grant phase."""
+    """A gesture as a page puts it on the bus, delivered on its own drain."""
     assembly.bus.publish(topic, payload)
     assembly.bus.drain()
 
@@ -105,8 +104,11 @@ def ticks(
     count: int,
     at: dict[int, tuple[str, Payload]] | None = None,
 ) -> None:
-    """`count` boundaries on one counter, with the gesture `at` keys pressed
-    just before the boundary each is keyed to.
+    """`count` turns of the live loop, with the gesture `at` keys pressed
+    just before the turn each is keyed to. Each turn advances the run clock
+    to the next scheduled sensor event and fires it, so a turn is "the next
+    thing the railroad does" — or a quiet step, on a railroad with nothing
+    scheduled.
 
     The live loop rather than the batch one: it does not stop on quiescence,
     which is exactly what a test of a railroad standing still needs.
@@ -123,7 +125,9 @@ def ticks(
         now += 1
         return False
 
-    assembly.simulator.run_live(0.0, sleep=lambda _: None, stop=stop)
+    # A period longer than any delay, so each turn's step reaches the next
+    # scheduled event exactly; the sleep is injected away.
+    assembly.simulator.run_live(3600.0, sleep=lambda _: None, stop=stop)
 
 
 RUN_WANTED = "tc49/dispatch/run_wanted"
@@ -134,7 +138,7 @@ dispatcher suite that drives the run names it, so it is named here once."""
 @pytest.fixture
 def timetabled() -> Assembly:
     """`crossover-yard/meet` with its timetable on: three requests minted
-    into the run, two at boundary 0 and freight_1's return at boundary 12."""
+    into the run in the file's order, freight_1's return working last."""
     return build(*load("crossover-yard/meet"))
 
 

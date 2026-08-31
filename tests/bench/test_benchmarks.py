@@ -1,10 +1,11 @@
 """Golden numbers for the named scenarios (#31, docs/bench/BENCHMARKS.md).
 
 Golden numbers are viable here, which they usually are not, for a specific
-reason: every metric is in **boundaries**, not wall-clock, and the
-determinism property already guarantees byte-identical traces. A makespan is exactly
-reproducible on any machine, so a throughput regression fails CI with a
-readable diff instead of going unnoticed.
+reason: every metric is in **simulated seconds** — the simulator's fixed
+delays, never the wall clock — and the determinism property already
+guarantees byte-identical traces. A makespan is exactly reproducible on any
+machine, so a throughput regression fails CI with a readable diff instead of
+going unnoticed.
 
 The goldens were recorded from the first run made *after* the Hypothesis
 properties (#28) and the boundary-condition tests (#29) passed, at the
@@ -62,13 +63,13 @@ def summary(m: Metrics) -> dict[str, object]:
     return {
         "status": m.status,
         "makespan": m.makespan,
-        "boundaries": m.boundaries,
+        "seconds": m.seconds,
         "completed": len(m.completed),
         "rejected": len(m.rejected),
         "mean_latency": None if m.mean_latency is None else round(m.mean_latency, 4),
         "max_latency": m.max_latency,
         "mean_utilization": round(m.mean_utilization, 4),
-        "mean_parallelism": round(m.mean_parallelism, 4),
+        "moves_per_minute": round(m.moves_per_minute, 4),
         "stalls": [
             {
                 "id": s.id,
@@ -125,7 +126,7 @@ def test_a_two_block_route_leaves_incremental_nothing_to_withhold() -> None:
     Its routes are two blocks long, and an increment plus the one asked for
     ahead of it (ADR-0029) is exactly two blocks — so `Incremental` locks the
     whole route at the first grant and *is* `FullRoute` here. `south` takes
-    the airolo transit at boundary 1 and holds it until it crosses, `north` is
+    the airolo transit first and holds it until it crosses, `north` is
     refused `transit_conflict` twice, and only then falls through to the
     yellow. That is the cost ADR-0026 named as holding track speculatively,
     seen at the smallest scale that can show it.
@@ -139,17 +140,18 @@ def test_a_two_block_route_leaves_incremental_nothing_to_withhold() -> None:
     baseline, incremental = results["FullRoute"], results["Incremental"]
     assert incremental.makespan is not None and baseline.makespan is not None
     assert incremental.makespan == baseline.makespan
-    assert incremental.mean_parallelism == baseline.mean_parallelism
+    assert incremental.moves_per_minute == baseline.moves_per_minute
 
 
 def test_incremental_drains_gotthard_saturation_faster() -> None:
     """The headline makespan gap: both strategies complete all eighteen
-    workings, and `Incremental` does it in materially fewer boundaries.
+    workings, and `Incremental` does it in materially less simulated time.
 
     Re-derived on the railroad on the bench (#161), where the workload is six
     trains rather than five because the station tracks are seven rather than
-    six. The gap did not merely survive the move — it widened, from 24 vs 20
-    boundaries on `gotthard-v0` to 25 vs 19 here.
+    six. Under the grant boundary the gap widened with that move, from 24 vs
+    20 boundaries on `gotthard-v0` to 25 vs 19; the goldens carry today's
+    numbers in seconds.
     """
     results = {name: m for name, (_, m) in bench("gotthard/saturation").items()}
     for m in results.values():
@@ -167,7 +169,7 @@ def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
 
     Before congestion-aware costing (#33) the widened workload stalled
     outright — every train tried `claro_1` then `claro_2`, both occupied,
-    and the rotation never started (0 of 15 workings, dead at boundary 1).
+    and the rotation never started (0 of 15 workings, dead at once).
     Costing started the rotation but left it at 11 of 15: the last airolo
     slots went to older trains parking there for good, because no candidate
     ordering can stop an older pending request from taking a free slot.
@@ -208,7 +210,6 @@ def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
             req.train,
             req.depart,
             tuple(end for t in ARRIVALS[station] for end in t),
-            req.at,
         )
 
     widened = Scenario(

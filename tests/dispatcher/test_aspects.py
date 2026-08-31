@@ -13,7 +13,7 @@ from tc49.dispatcher.dispatch import (
 )
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.inventory import HELD, RUNNING
-from tc49.lib.layout import Layout, end_on, opposite_end
+from tc49.lib.layout import Layout, block_of, end_on, opposite_end
 from tests.harness import RUN_WANTED, events, load, press, run, ticks
 
 
@@ -126,24 +126,28 @@ def test_holding_and_releasing_both_republish_the_aspects() -> None:
 
 
 def test_the_grant_and_the_state_topic_tell_the_same_story() -> None:
-    """Two projections of one truth (ADR-0025): the aspect on `move_granted`
-    is the same aspect the state topic shows at that train's departure end, so
-    a run's counts of each agree exactly."""
-    layout, _roster, scenario = load("gotthard-v0/saturation")
-    trace = run(layout, _roster, scenario, Incremental)
+    """Two projections of one truth (ADR-0025): the aspect a grant carries is
+    the aspect the state topic shows, in the same sweep, at the end the train
+    departs by — the near end of the granted transit."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    trace = run(layout, _roster, scenario)
 
-    on_grants: dict[str, int] = {}
-    for line in events(trace, "move_granted"):
-        on_grants[line["aspect"]] = on_grants.get(line["aspect"], 0) + 1
+    lines = events(trace)
+    first = next(i for i, line in enumerate(lines) if line["event"] == "move_granted")
+    granted = lines[first]
+    connection, _, transit = str(granted["transit"]).partition(".")
+    a, b = layout.connections[connection].transits[transit]
+    departed_by = b if block_of(a) == granted["into"] else a
+    shown = next(line for line in lines[first:] if line["event"] == "aspects")
+    assert granted["aspect"] == shown["aspects"][departed_by]
 
-    on_topic: dict[str, int] = {}
-    for line in events(trace, "aspects"):
-        for shown in line["aspects"].values():
-            if shown != "stop":
-                on_topic[shown] = on_topic.get(shown, 0) + 1
-
-    assert on_grants == on_topic
-    assert set(on_grants) == {"caution", "clear"}, "the run must show both"
+    grants = {
+        str(line["aspect"])
+        for line in events(
+            run(*load("gotthard-v0/saturation"), Incremental), "move_granted"
+        )
+    }
+    assert grants == {"caution", "clear"}, "the runs must show both"
 
 
 def test_the_state_topic_carries_the_whole_picture_and_only_on_a_change() -> None:
@@ -165,7 +169,7 @@ def test_a_trace_line_keeps_the_inventory_field_order() -> None:
     trace = run(layout, _roster, scenario, Incremental)
     granted = next(line for line in trace.splitlines() if '"move_granted"' in line)
     assert list(json.loads(granted)) == [
-        "boundary",
+        "time",
         "event",
         "id",
         "train",

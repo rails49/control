@@ -14,10 +14,9 @@ the layout binding, `tc49/dispatch/run_wanted` from a page.
 A payload the reader cannot make an enum value of is one of the "not `on`"
 cases too, and is driven at a dispatcher with no trace on its bus (#175).
 
-The cut itself is driven with the boundary published by hand and the
-simulator left standing: a layout binding keeps its beat while the supply is
-off, and the steel does not move. That is the whole failure — the moves
-already sent are never executed, and no sensor ever answers them.
+The cut itself is the power press alone, with the live loop never turned:
+the steel does not move while the supply is off, so the moves already sent
+are never executed and no sensor ever answers them.
 """
 
 from typing import cast
@@ -30,24 +29,12 @@ from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import HELD, ON
 from tests.harness import RUN_WANTED, leaves, load, press, run_wanted, runs, ticks
 
-BOUNDARY = "tc49/layout/boundary"
 POWER = "tc49/layout/state/power"
 
 
 def power(state: str) -> tuple[str, Payload]:
     """The layout reporting its supply, as `ticks` plans an event."""
     return (POWER, {"power": state})
-
-
-def dead(assembly: Assembly, first: int, last: int) -> None:
-    """The boundaries `first` to `last` with the steel standing still: the
-    beat goes on and the buffered moves are never executed, so no sensor
-    answers them. The count carries on from wherever the ticks left it — the
-    timetable mints against it, and a beat that went backwards would be a
-    railroad no binding publishes."""
-    for now in range(first, last + 1):
-        assembly.bus.publish(BOUNDARY, {"boundary": now})
-        assembly.bus.drain()
 
 
 def told(payload: object) -> Dispatcher:
@@ -129,30 +116,29 @@ def test_a_stranded_train_keeps_its_locks_and_its_crossing_entry(
     cannot be freed short of a restart (Not this issue). What the hold buys
     is that no *other* train is granted anything over the top of it.
 
-    Admission goes on answering, as the hold's own rule has it (ADR-0037),
-    and what it answers says how far the strandedness reaches: the return
-    request the timetable mints at boundary 12 departs from a block its train
-    never reached, so it is refused `wrong_origin` rather than queued.
+    The return request its train will now never depart is already queued —
+    requests go in at the start of a run (ADR-0047) — and it stays queued:
+    the strandedness reaches exactly as far as a launch that never comes.
     """
-    ticks(timetabled, 2)  # boundary 1: the grants go out, the moves buffer
+    ticks(timetabled, 2)  # the first transit completes; the next moves go out
     state = timetabled.dispatcher.state
     crossing = dict(state.crossing)
     locks = dict(state.locks)
     granted = len(leaves(timetabled, "move_granted"))
     routed = len(leaves(timetabled, "route_chosen"))
+    released = len(leaves(timetabled, "lock_released"))
     assert crossing  # a train is between two blocks
 
     press(timetabled, POWER, {"power": "off"})
-    dead(timetabled, 2, 20)
 
     assert state.crossing == crossing
     assert state.locks == locks
     assert len(leaves(timetabled, "move_granted")) == granted
     assert len(leaves(timetabled, "route_chosen")) == routed
-    assert leaves(timetabled, "lock_released") == []
-    assert [line["reason"] for line in leaves(timetabled, "request_rejected")] == [
-        "wrong_origin"
-    ]
+    assert len(leaves(timetabled, "lock_released")) == released
+    assert leaves(timetabled, "request_rejected") == []
+    queued = leaves(timetabled, "allocation")[-1]["requests"]
+    assert any(request["id"] == "freight_1-2" for request in queued)
 
 
 def test_power_returning_grants_nothing_until_a_go(timetabled: Assembly) -> None:
