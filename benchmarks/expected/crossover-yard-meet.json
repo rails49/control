@@ -4,26 +4,26 @@
   "strategies": {
     "FullRoute": {
       "status": "ok",
-      "makespan": 15,
-      "boundaries": 15,
+      "makespan": 300.0,
+      "seconds": 300.0,
       "completed": 3,
       "rejected": 0,
-      "mean_latency": 3.6667,
-      "max_latency": 4,
-      "mean_utilization": 0.3182,
-      "mean_parallelism": 0.4375,
+      "mean_latency": 220.0,
+      "max_latency": 300.0,
+      "mean_utilization": 0.6182,
+      "moves_per_minute": 1.4,
       "stalls": []
     },
     "Incremental": {
       "status": "ok",
-      "makespan": 15,
-      "boundaries": 15,
+      "makespan": 300.0,
+      "seconds": 300.0,
       "completed": 3,
       "rejected": 0,
-      "mean_latency": 3.3333,
-      "max_latency": 4,
-      "mean_utilization": 0.2955,
-      "mean_parallelism": 0.4375,
+      "mean_latency": 200.0,
+      "max_latency": 300.0,
+      "mean_utilization": 0.5455,
+      "moves_per_minute": 1.4,
       "stalls": []
     }
   }
