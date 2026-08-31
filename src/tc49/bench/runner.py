@@ -127,7 +127,9 @@ def assemble(
     Scheduler(bus, layout, facing(layout, scenario.trains), scenario.requests)
     dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
-    return Assembly(bus, dispatcher, Simulator(bus, stood), layout, roster, k, out)
+    return Assembly(
+        bus, dispatcher, Simulator(bus, layout, stood), layout, roster, k, out
+    )
 
 
 def assemble_live(
@@ -177,7 +179,7 @@ def assemble_live(
     Driver(bus)
     steel = None if state is None else placement_file(state)
     return Assembly(
-        bus, dispatcher, Simulator(bus, stood, steel), layout, roster, k, out
+        bus, dispatcher, Simulator(bus, layout, stood, steel), layout, roster, k, out
     )
 
 
