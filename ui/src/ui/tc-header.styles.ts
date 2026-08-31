@@ -98,7 +98,7 @@ export const headerStyles = css`
     min-width: 0;
   }
 
-  .boundary {
+  .session {
     color: var(--hint);
     font-variant-numeric: tabular-nums;
   }
@@ -122,7 +122,7 @@ export const headerStyles = css`
   /* Trains on the layout freeze the drawing (ADR-0038, #169). The other thing
      the band says about the drawing itself, and the quieter of the two: a
      frozen drawing is the ordinary state of a railroad with trains on it, and
-     nothing is wrong with it. So it reads as the boundary does and not as the
+     nothing is wrong with it. So it reads as the session clock does and not as the
      refusal above. */
   .frozen {
     flex: none;
@@ -150,7 +150,7 @@ export const headerStyles = css`
   }
 
   /* Whether a train may move at all. Power on is the quiet case and reads as
-     the boundary beside it does; the two ways of standing still are the
+     the session clock beside it does; the two ways of standing still are the
      operator's to act on, so they take the alarm the trouble beside them
      takes. */
   .power.on {

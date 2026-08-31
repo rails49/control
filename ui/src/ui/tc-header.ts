@@ -22,7 +22,7 @@
  * by the time it is refused, and nothing on the canvas is wrong.
  */
 
-import { LitElement, html, nothing } from "lit";
+import { LitElement, html, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import type { Power } from "../model/trace.js";
@@ -81,9 +81,15 @@ export class TcHeader extends LitElement {
   /** Whether the bridge is answering, read only while a session is joined. */
   @property({ type: Boolean }) linked = false;
 
-  /** The grant boundary the run has reached, `null` before the first one and
-   *  with no run to have reached one: a drawing is not a run. */
-  @property({ type: Number }) boundary: number | null = null;
+  /** Seconds the joined session has been on screen, `null` with no session
+   *  joined. The session clock: elapsed time on the page's own clock — a
+   *  view reads a clock for scenery, never for control (ADR-0009, ADR-0047)
+   *  — until a fast clock derived from the railroad's configuration replaces
+   *  it. */
+  @state() private sessionS: number | null = null;
+
+  private sessionStart = 0;
+  private sessionTimer: ReturnType<typeof setInterval> | undefined;
 
   /** Whether the layout says a train may move at all, `null` with no session
    *  joined ([ADR-0041](../../../docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
@@ -94,6 +100,27 @@ export class TcHeader extends LitElement {
 
   /** Whether the picker's list is down. */
   @state() private picking = false;
+
+  override updated(changed: PropertyValues<this>): void {
+    if (!changed.has("joined")) return;
+    if (this.joined && this.sessionTimer === undefined) {
+      this.sessionStart = Date.now();
+      this.sessionS = 0;
+      this.sessionTimer = setInterval(() => {
+        this.sessionS = Math.floor((Date.now() - this.sessionStart) / 1000);
+      }, 1000);
+    } else if (!this.joined && this.sessionTimer !== undefined) {
+      clearInterval(this.sessionTimer);
+      this.sessionTimer = undefined;
+      this.sessionS = null;
+    }
+  }
+
+  override disconnectedCallback(): void {
+    if (this.sessionTimer !== undefined) clearInterval(this.sessionTimer);
+    this.sessionTimer = undefined;
+    super.disconnectedCallback();
+  }
 
   override render() {
     return html`
@@ -146,9 +173,9 @@ export class TcHeader extends LitElement {
           : html`
               <span class=${`power ${this.power}`}>${POWERED[this.power]}</span>
             `}
-        ${this.boundary === null
+        ${this.sessionS === null
           ? nothing
-          : html`<span class="boundary">boundary ${this.boundary}</span>`}
+          : html`<span class="session">session ${clocked(this.sessionS)}</span>`}
       </div>
     `;
   }
@@ -261,6 +288,14 @@ export class TcHeader extends LitElement {
       }),
     );
   }
+}
+
+/** Elapsed seconds as a clock: `mm:ss`, hours in front once there are any. */
+function clocked(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
+  const s = String(seconds % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
 }
 
 declare global {

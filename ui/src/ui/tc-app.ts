@@ -63,7 +63,6 @@ const CONTROLS = "sl-input, sl-select, input, textarea";
 const QUIET: RunStatus = {
   joined: false,
   linked: false,
-  boundary: null,
   run: null,
   power: null,
   trouble: null,
@@ -135,7 +134,6 @@ export class TcApp extends LitElement {
         .trouble=${this.filing.trouble ?? this.status.trouble}
         .joined=${this.status.joined}
         .linked=${this.status.linked}
-        .boundary=${this.status.boundary}
         .power=${this.status.power}
         .frozen=${still}
         .view=${this.view}

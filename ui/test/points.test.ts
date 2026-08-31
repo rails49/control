@@ -147,7 +147,7 @@ function align(...points: [string, Position][]): Partial<TraceEvent> {
 function against(symbol: string, ...commands: Partial<TraceEvent>[]): string[] {
   const model = new Panel(NOTHING, UNEXPLAINED, []);
   for (const command of commands)
-    model.apply({ boundary: 0, ...command } as TraceEvent);
+    model.apply({ ...command } as TraceEvent);
   const position = positionsBySymbol(YARD, model.positionsByAddress()).get(
     symbol,
   );

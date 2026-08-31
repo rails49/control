@@ -272,9 +272,10 @@ export class Panel {
    *  joined one, and not a claim that the rails are dead. */
   private powerWord: Power | null = null;
   private requests = new Map<string, Request>();
-  /** Whether the first boundary has passed: a lock on a block before it is
-   *  the trace's opening placement, there being no occupancy event for a
-   *  train that never moved. */
+  /** Whether the opening picture has arrived: a lock on a block before it is
+   *  the run's opening placement, there being no occupancy event for a
+   *  train that never moved. The dispatcher publishes `allocation` right
+   *  after the standing locks, so the picture is the marker. */
   private started = false;
 
   /** transit resource → the legs its way takes and the wires it is drawn
@@ -331,9 +332,6 @@ export class Panel {
 
   apply(event: TraceEvent): void {
     switch (event.event) {
-      case "boundary":
-        this.started = true;
-        return;
       case "lock_granted": {
         const { train, resources } = event as unknown as {
           train: string;

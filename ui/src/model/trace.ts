@@ -7,12 +7,11 @@
  * byte-identical replays — and the browser no longer reads one.
  */
 
-/** One bus event as the model reads it: the boundary the run had reached, the
- *  topic leaf, and the payload's own fields flattened beside them. The shape
- *  the bench tap writes a trace line in, which is what lets one model serve a
- *  recording and a running railroad alike. */
+/** One bus event as the model reads it: the topic leaf, and the payload's
+ *  own fields flattened beside it. The shape the bench tap writes a trace
+ *  line in, minus the tap's own `time` stamp — observation the tap adds for
+ *  the harness, carried by no payload and read by no view (ADR-0047). */
 export interface TraceEvent {
-  boundary: number;
   event: string;
   [field: string]: unknown;
 }
@@ -27,8 +26,7 @@ export type Heard = { event: TraceEvent } | { error: string };
  *
  * The relay carries `{topic, payload}` and nothing else — the topic leaf is
  * the event, exactly as SYSTEM.md's inventory has it — so the whole of the
- * browser's side of the contract is here. Frames are stamped with the latest
- * boundary seen, which is what the bench tap does when it writes a trace.
+ * browser's side of the contract is here.
  *
  * The relay's one other frame is `{error}`: a refused inbound frame, or a
  * socket path naming no railroad (#148, #171). It is the whole of what a session
@@ -37,13 +35,6 @@ export type Heard = { event: TraceEvent } | { error: string };
  * thrown — a session must not end because a stray one arrived.
  */
 export class Live {
-  private at: number | null = null;
-
-  /** The latest boundary the session has reached, `null` before the first. */
-  get boundary(): number | null {
-    return this.at;
-  }
-
   read(message: string): Heard | null {
     let frame: { topic?: unknown; payload?: unknown; error?: unknown };
     try {
@@ -56,10 +47,8 @@ export class Live {
       return null;
     }
     const payload = (frame.payload ?? {}) as Record<string, unknown>;
-    if (typeof payload.boundary === "number") this.at = payload.boundary;
     return {
       event: {
-        boundary: this.at ?? 0,
         event: frame.topic.slice(frame.topic.lastIndexOf("/") + 1),
         ...payload,
       },
