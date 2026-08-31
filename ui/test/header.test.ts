@@ -2,13 +2,13 @@
 
 /**
  * The band across the top of both pages: what is open, and the status that is
- * nobody's mistake — the store not answering, the bridge, the boundary.
+ * nobody's mistake — the store not answering, the bridge, the session clock.
  *
  * A DOM test, the whole of the behaviour being what the component renders,
  * as `tc-menu`'s is.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import "../src/ui/tc-header.js";
 import type { TcHeader } from "../src/ui/tc-header.js";
@@ -156,7 +156,6 @@ describe("the status the band takes over", () => {
     const header = await band({
       joined: true,
       linked: true,
-      boundary: 3,
       power: "on",
       derives: false,
       trouble: "the store is not answering",
@@ -167,7 +166,7 @@ describe("the status the band takes over", () => {
       "trouble",
       "link joined",
       "power on",
-      "boundary",
+      "session",
     ]);
     expect(health.querySelector("slot[name=health]")).not.toBeNull();
   });
@@ -213,14 +212,26 @@ describe("the status the band takes over", () => {
     expect(reads(await band({ power: null }), ".power")).toBeNull();
   });
 
-  it("stamps how far the run has got", async () => {
-    expect(reads(await band({ boundary: 7 }), ".boundary")).toBe("boundary 7");
+  /** The session clock: elapsed time on the page's own clock, until a fast
+   *  clock derived from the railroad's configuration replaces it (ADR-0047).
+   *  A view reads a clock for scenery, never for control (ADR-0009). */
+  it("runs a session clock while a session is joined", async () => {
+    vi.useFakeTimers();
+    try {
+      const header = await band({ joined: true });
+      expect(reads(header, ".session")).toBe("session 00:00");
+      vi.advanceTimersByTime(65_000);
+      await header.updateComplete;
+      expect(reads(header, ".session")).toBe("session 01:05");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  /** Before the first boundary there is no run to stamp, and a drawing that
+  /** With no session joined there is no session to time, and a drawing that
    *  nothing is running on never has one. */
-  it("stamps nothing before the first boundary", async () => {
-    expect(reads(await band({ boundary: null }), ".boundary")).toBeNull();
+  it("shows no session clock off a joined session", async () => {
+    expect(reads(await band(), ".session")).toBeNull();
   });
 });
 

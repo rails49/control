@@ -23,18 +23,16 @@ describe("Live", () => {
   it("reads a relayed frame as the event its topic leaf names", () => {
     const live = new Live();
     expect(live.read(frame("tc49/dispatch/lock_granted", { train: "t1" }))).toEqual({
-      event: { boundary: 0, event: "lock_granted", train: "t1" },
+      event: { event: "lock_granted", train: "t1" },
     });
   });
 
-  it("stamps every frame with the latest boundary, as the bench tap does", () => {
+  /** No payload carries a timestamp and the tap's `time` is the harness's
+   *  own (ADR-0047), so a frame is the payload and its leaf, whole. */
+  it("adds nothing of its own to a frame", () => {
     const live = new Live();
-    expect(live.boundary).toBeNull();
-    live.read(frame("tc49/layout/boundary", { boundary: 7 }));
-    expect(live.boundary).toBe(7);
-    expect(live.read(frame("tc49/layout/block_occupied", { block: "b" }))).toEqual({
-      event: { boundary: 7, event: "block_occupied", block: "b" },
-    });
+    const heard = live.read(frame("tc49/layout/block_occupied", { block: "b" }));
+    expect(heard).toEqual({ event: { event: "block_occupied", block: "b" } });
   });
 
   /** The relay's `{error}` is the whole of what a session says about itself
@@ -52,13 +50,6 @@ describe("Live", () => {
     expect(live.read("not json")).toBeNull();
     expect(live.read(JSON.stringify({ topic: 7, payload: {} }))).toBeNull();
     expect(live.read(JSON.stringify({ error: 7 }))).toBeNull();
-  });
-
-  it("leaves the boundary where it was when a refusal arrives", () => {
-    const live = new Live();
-    live.read(frame("tc49/layout/boundary", { boundary: 3 }));
-    live.read(JSON.stringify({ error: "no" }));
-    expect(live.boundary).toBe(3);
   });
 });
 

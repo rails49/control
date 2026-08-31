@@ -78,7 +78,6 @@ import type { RosterDrag, TcRoster } from "./tc-roster.js";
 export interface RunStatus {
   joined: boolean;
   linked: boolean;
-  boundary: number | null;
   /** How the run stands, `null` while no session is joined or before the
    *  dispatcher has said (ADR-0037). It is what the bar's HOLD/GO reads. */
   run: Run | null;
@@ -605,7 +604,6 @@ export class TcPanel extends LitElement {
     return {
       joined: this.session !== null,
       linked: this.connected,
-      boundary: this.live?.boundary ?? null,
       run: this.session === null ? null : (this.panel?.run ?? null),
       power: this.session === null ? null : (this.panel?.power ?? null),
       trouble: this.trouble,
@@ -652,7 +650,6 @@ export class TcPanel extends LitElement {
       was !== null &&
       was.joined === now.joined &&
       was.linked === now.linked &&
-      was.boundary === now.boundary &&
       was.run === now.run &&
       was.power === now.power &&
       was.trouble === now.trouble &&
