@@ -139,7 +139,7 @@ trains:
   freight_1: { at: yard_w, facing: B }
 
 requests:
-  - { train: freight_1, from: yard_w.B, to: [dn_e, up_e], at: 0 }
+  - { train: freight_1, from: yard_w.B, to: [dn_e, up_e] }
   - { train: freight_1, from: A,        to: [yard_w.B],   at: 12 }
 ```
 
@@ -182,6 +182,9 @@ requests:
   moving, whichever end that arrival names, because there is no final transit
   to constrain and the dispatcher holds nothing to check the end against
   ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)).
+- **`at` is the boundary the request is released on, and is optional.** A
+  request that omits it is due at boundary 0, which is what a batch workload
+  wants and what most requests say; write one only to stagger a scenario.
 - **`from` requires the end and takes the block optionally.** `from: yard_w.B`
   states the working the way a reader wants to see it, and is checked by the
   dispatcher at admission against where the train actually stands — every

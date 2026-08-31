@@ -202,12 +202,12 @@ class AssetStore:
             raise TypeError(f"{where}: requests must be a list")
         for i, spec in enumerate(cast(list[Any], doc["requests"])):
             here = f"{where}: request {i + 1}"
-            check_keys(spec, here, {"train", "from", "to", "at"})
+            check_keys(spec, here, {"train", "from", "to"}, {"at"})
             train, depart, to, at = (
                 str(spec["train"]),
                 str(spec["from"]),
                 spec["to"],
-                spec["at"],
+                spec.get("at", 0),  # omitted means the first boundary
             )
             if train not in trains:
                 raise ValueError(f"{here}: unknown train '{train}'")
