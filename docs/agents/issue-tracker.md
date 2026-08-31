@@ -15,6 +15,29 @@ Infer the repo from `git remote -v` — `gh` does this automatically when run in
 
 > **Note** `gh` may fail here with a TLS certificate error (`x509: OSStatus -26276`) when run inside the command sandbox. Retry the same command with the sandbox disabled.
 
+## Issue scope: implementation or communication
+
+Every issue is one of two kinds, declared in the title (#253). The components
+are isolated on purpose — they meet only over the bus and the store's
+contract — and an issue shaped any wider turns into a discussion of
+everything at once.
+
+- **Implementation** — work inside one component. Title `<component>: <what>`,
+  e.g. `dispatcher: …`, `simulator: …`. The discussion stays inside that
+  component; other components appear only as the contracts they expose
+  (SYSTEM.md).
+- **Communication** — one new or changed contract element: a bus topic or a
+  REST route. Title `bus: <topic> — <what>` or `rest: <path> — <what>`. The
+  body carries the draft contract element itself — topic, kind, publisher,
+  full payload fields, and the consumers it obliges — so the issue is
+  reviewable as the inventory entry it will become.
+
+An issue that seems to need both is a communication issue: the contract
+change is what makes it span components. Hardware protocols are
+implementation detail of the translator apps and appear only in those apps'
+implementation issues. No third kind and no new labels — the five triage
+labels stay canonical, and a title prefix is greppable.
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_

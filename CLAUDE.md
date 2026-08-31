@@ -54,7 +54,10 @@ mechanical moves in their own commit so renames stay legible in the diff.
 
 ### Issue tracker
 
-Issues live as GitHub issues in `rails49/control`, driven by the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues live as GitHub issues in `rails49/control`, driven by the `gh` CLI.
+Every issue is **implementation** (one component, title `<component>: …`) or
+**communication** (one contract element, title `bus: <topic> …` or
+`rest: <path> …`). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
