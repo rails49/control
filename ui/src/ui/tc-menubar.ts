@@ -144,7 +144,7 @@ export class TcMenubar extends LitElement {
    * offer to hold a run that is already held.
    *
    * **GO is greyed while the rails are dead**, because the dispatcher drops
-   * such a release: letting it through would grant moves and publish `cross`
+   * such a release: letting it through would grant moves and publish `move`
    * over track nothing can move on, and strand the next train (ADR-0041).
    * Greyed and not hidden, and with no explanation of its own — the band
    * beside it says `power off` or `emergency stop`, which is the reason, the

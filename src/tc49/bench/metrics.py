@@ -45,7 +45,7 @@ class Metrics:
     mean_latency: float | None
     max_latency: int | None
     utilization: dict[str, float]  # resource -> fraction of the run held
-    crosses_per_boundary: dict[int, int]
+    moves_per_boundary: dict[int, int]
     stalls: tuple[Stall, ...]
 
     @property
@@ -74,7 +74,7 @@ class Metrics:
 
     @property
     def mean_parallelism(self) -> float:
-        return sum(self.crosses_per_boundary.values()) / (self.boundaries + 1)
+        return sum(self.moves_per_boundary.values()) / (self.boundaries + 1)
 
 
 def parse(trace: str) -> list[Payload]:
@@ -115,8 +115,8 @@ def metrics(trace: str) -> Metrics:
         mean_latency=float(mean(latencies.values())) if latencies else None,
         max_latency=max(latencies.values()) if latencies else None,
         utilization=_utilization(lines, duration),
-        crosses_per_boundary=Counter(
-            line["boundary"] for line in lines if line["event"] == "cross"
+        moves_per_boundary=Counter(
+            line["boundary"] for line in lines if line["event"] == "move"
         ),
         stalls=stalls,
     )

@@ -138,7 +138,7 @@ def test_an_outstanding_move_completes_and_releases_its_locks(
     timetabled: Assembly,
 ) -> None:
     """The hold is a brake, not an emergency stop. Nothing on the bus can
-    retract a `cross` already sent, so the buffered sensors are applied at
+    retract a `move` already sent, so the buffered sensors are applied at
     every boundary held or not — otherwise a train that arrived would hold
     the block behind it for as long as the operator stood there."""
     ticks(timetabled, 3, at={2: run_wanted("held")})

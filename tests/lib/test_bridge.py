@@ -139,9 +139,9 @@ def test_the_bridge_refuses_every_topic_outside_the_ui_role(
     topic and what it may write instead, and nothing reaches the bus."""
     seen: list[tuple[str, Payload]] = []
     bus.subscribe("tc49/#", lambda topic, payload: seen.append((topic, payload)))
-    client.send(json.dumps({"topic": "tc49/drive/cross", "payload": {"train": "t1"}}))
+    client.send(json.dumps({"topic": "tc49/drive/move", "payload": {"train": "t1"}}))
     refusal = receive(client)
-    assert "tc49/drive/cross" in refusal["error"]
+    assert "tc49/drive/move" in refusal["error"]
     assert WANTED in refusal["error"] and REVERSAL in refusal["error"]
     bus.drain()
     assert seen == []

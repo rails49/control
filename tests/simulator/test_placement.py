@@ -7,7 +7,7 @@ entirely inside the app. No bus topic, no inventory entry, nothing about
 simulation in the contract
 ([ADR-0030](../../docs/adr/0030-the-physical-railroad-is-the-normative-binding.md)).
 
-Driven at the layout interface: a `cross` command in, sensor events out.
+Driven at the layout interface: a `move` command in, sensor events out.
 """
 
 import json
@@ -19,7 +19,7 @@ from tc49.lib.inventory import TOPICS
 from tc49.simulator import Simulator, placement_file
 from tests.harness import load
 
-CROSS = "tc49/drive/cross"
+MOVE = "tc49/drive/move"
 
 
 def sensors(bus: Bus) -> list[tuple[str, Payload]]:
@@ -29,7 +29,7 @@ def sensors(bus: Bus) -> list[tuple[str, Payload]]:
 
 
 def tick(simulator: Simulator) -> None:
-    """One tick of the live loop, with no clock: the buffered crosses are
+    """One tick of the live loop, with no clock: the buffered moves are
     executed and their sensors published."""
     ticks = 0
 
@@ -41,8 +41,8 @@ def tick(simulator: Simulator) -> None:
     simulator.run_live(0.0, sleep=lambda _: None, stop=stop)
 
 
-def cross(bus: Bus, train: str, into: str) -> None:
-    bus.publish(CROSS, {"train": train, "into": into})
+def move(bus: Bus, train: str, into: str) -> None:
+    bus.publish(MOVE, {"train": train, "into": into})
     bus.drain()
 
 
@@ -51,7 +51,7 @@ def test_nothing_is_written_without_a_path(tmp_path: Path) -> None:
     stood = placement(load("crossover-yard/meet")[2].trains)
     bus = Bus()
     simulator = Simulator(bus, stood)
-    cross(bus, "freight_1", "dn_w")
+    move(bus, "freight_1", "dn_w")
     tick(simulator)
 
     assert list(tmp_path.iterdir()) == []
@@ -64,7 +64,7 @@ def test_a_moved_train_is_written_where_it_now_stands(tmp_path: Path) -> None:
     path = tmp_path / "placement.json"
     bus = Bus()
     simulator = Simulator(bus, stood, path)
-    cross(bus, "freight_1", "dn_w")
+    move(bus, "freight_1", "dn_w")
     tick(simulator)
 
     assert json.loads(path.read_text()) == {"express_2": "up_e", "freight_1": "dn_w"}
@@ -78,20 +78,20 @@ def test_a_restarted_simulator_starts_from_the_file(tmp_path: Path) -> None:
     path = tmp_path / "placement.json"
     first = Bus()
     moved = Simulator(first, stood, path)
-    cross(first, "freight_1", "dn_w")
+    move(first, "freight_1", "dn_w")
     tick(moved)
 
     second = Bus()
     restarted = Simulator(second, stood, path)
     seen = sensors(second)
-    cross(second, "freight_1", "dn_e")
+    move(second, "freight_1", "dn_e")
     tick(restarted)
 
     assert ("tc49/layout/block_vacated", {"block": "dn_w"}) in seen
 
 
 def test_a_hand_that_lifts_a_train_moves_the_steel_under_it(tmp_path: Path) -> None:
-    """`train_placed` is the one thing besides a `cross` that moves a train
+    """`train_placed` is the one thing besides a `move` that moves a train
     (#152): a person lifted a locomotive and the dispatcher accepted it. On
     the real railroad nobody has to say so — the steel simply is where it was
     left — and the simulator stands in for the steel, so it is told. Without
@@ -107,7 +107,7 @@ def test_a_hand_that_lifts_a_train_moves_the_steel_under_it(tmp_path: Path) -> N
     assert json.loads(path.read_text()) == {"express_2": "up_e", "freight_1": "up_w"}
 
     seen = sensors(bus)
-    cross(bus, "freight_1", "dn_w")
+    move(bus, "freight_1", "dn_w")
     tick(simulator)
     assert ("tc49/layout/block_vacated", {"block": "up_w"}) in seen
 
@@ -143,7 +143,7 @@ def test_the_file_names_the_steel_no_document_placed(tmp_path: Path) -> None:
     simulator = Simulator(bus, stood, path)
 
     seen = sensors(bus)
-    cross(bus, "shunter", "dn_w")
+    move(bus, "shunter", "dn_w")
     tick(simulator)
 
     assert ("tc49/layout/block_vacated", {"block": "up_w"}) in seen

@@ -27,7 +27,7 @@ def test_bench_prints_the_metrics_for_both_strategies() -> None:
     assert "FullRoute" in printed and "Incremental" in printed
     for metric in ("status", "makespan", "latency mean", "latency max"):
         assert metric in printed
-    assert "utilization" in printed and "crosses/boundary" in printed
+    assert "utilization" in printed and "moves/boundary" in printed
     assert "stalled" not in printed
 
 
@@ -65,7 +65,7 @@ def test_the_trace_flag_dumps_the_jsonl_events() -> None:
         "boundary",
         "request_admitted",
         "route_chosen",
-        "cross",
+        "move",
         "request_completed",
     }
 
