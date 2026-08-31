@@ -10,3 +10,4 @@ __pycache__/
 .hypothesis/
 node_modules/
 ui/dist/
+.pnpm-store/
