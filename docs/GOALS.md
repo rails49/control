@@ -53,7 +53,7 @@ The rolling stock traveling or parked on the tracks, in three levels
 
 - A **model** is what a product is, independent of any railroad: a length, a
   **kind** — locomotive, passenger, freight, special — and the meaning of each
-  DCC function.
+  numbered function.
 - A **car** is one item a railroad owns: a model with zero or more fields
   overridden, and its own decoder address where it has one. A locomotive is a
   car whose model's kind says so.
