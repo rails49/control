@@ -15,11 +15,21 @@ from pathlib import Path
 
 from tc49.bench.runner import placement
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.inventory import TOPICS
+from tc49.lib.layout import Layout
 from tc49.simulator import Simulator, placement_file
 from tests.harness import load
 
 MOVE = "tc49/layout/move"
+
+
+def simulator(
+    bus: Bus, layout: Layout, stood: dict[str, str], path: Path | None = None
+) -> Simulator:
+    """The binding under test, with zero delays: a move's two sensor events
+    fire on the next tick rather than a simulated minute out."""
+    return Simulator(bus, layout, Clock(), stood, path, transit_s=0.0, clear_s=0.0)
 
 
 def sensors(bus: Bus) -> list[tuple[str, Payload]]:
@@ -28,9 +38,10 @@ def sensors(bus: Bus) -> list[tuple[str, Payload]]:
     return seen
 
 
-def tick(simulator: Simulator) -> None:
-    """One tick of the live loop, with no clock: the buffered moves are
-    executed and their sensors published."""
+def tick(sim: Simulator) -> None:
+    """One turn of the live loop, with no clock: the sensor events an
+    accepted move scheduled — due immediately at zero delay — fire and their
+    cascade drains."""
     ticks = 0
 
     def stop() -> bool:
@@ -38,7 +49,7 @@ def tick(simulator: Simulator) -> None:
         ticks += 1
         return ticks > 1
 
-    simulator.run_live(0.0, sleep=lambda _: None, stop=stop)
+    sim.run_live(0.0, sleep=lambda _: None, stop=stop)
 
 
 def move(bus: Bus, train: str, transit: str, into: str) -> None:
@@ -53,9 +64,9 @@ def test_nothing_is_written_without_a_path(tmp_path: Path) -> None:
     """A benchmark run keeps no file, exactly as its bus opens none."""
     layout, _roster, scenario = load("crossover-yard/meet")
     bus = Bus()
-    simulator = Simulator(bus, layout, placement(scenario.trains))
+    sim = simulator(bus, layout, placement(scenario.trains))
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
-    tick(simulator)
+    tick(sim)
 
     assert list(tmp_path.iterdir()) == []
 
@@ -66,9 +77,9 @@ def test_a_moved_train_is_written_where_it_now_stands(tmp_path: Path) -> None:
     layout, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
     bus = Bus()
-    simulator = Simulator(bus, layout, placement(scenario.trains), path)
+    sim = simulator(bus, layout, placement(scenario.trains), path)
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
-    tick(simulator)
+    tick(sim)
 
     assert json.loads(path.read_text()) == {"express_2": "up_e", "freight_1": "dn_w"}
 
@@ -81,12 +92,12 @@ def test_a_restarted_simulator_starts_from_the_file(tmp_path: Path) -> None:
     stood = placement(scenario.trains)
     path = tmp_path / "placement.json"
     first = Bus()
-    moved = Simulator(first, layout, stood, path)
+    moved = simulator(first, layout, stood, path)
     move(first, "freight_1", "west_ladder.to_dn", "dn_w")
     tick(moved)
 
     second = Bus()
-    restarted = Simulator(second, layout, stood, path)
+    restarted = simulator(second, layout, stood, path)
     seen = sensors(second)
     move(second, "freight_1", "crossover.dn_straight", "dn_e")
     tick(restarted)
@@ -104,7 +115,7 @@ def test_a_hand_that_lifts_a_train_moves_the_steel_under_it(tmp_path: Path) -> N
     layout, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
     bus = Bus()
-    simulator = Simulator(bus, layout, placement(scenario.trains), path)
+    sim = simulator(bus, layout, placement(scenario.trains), path)
     bus.publish("tc49/dispatch/train_placed", {"train": "freight_1", "block": "up_w"})
     bus.drain()
 
@@ -112,7 +123,7 @@ def test_a_hand_that_lifts_a_train_moves_the_steel_under_it(tmp_path: Path) -> N
 
     seen = sensors(bus)
     move(bus, "freight_1", "crossover.up_to_dn", "dn_e")
-    tick(simulator)
+    tick(sim)
     assert ("tc49/layout/block_vacated", {"block": "up_w"}) in seen
 
 
@@ -126,7 +137,7 @@ def test_a_hand_that_lifts_a_train_off_the_layout_takes_the_steel_with_it(
     layout, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
     bus = Bus()
-    Simulator(bus, layout, placement(scenario.trains), path)
+    simulator(bus, layout, placement(scenario.trains), path)
     seen = sensors(bus)
 
     bus.publish("tc49/dispatch/train_removed", {"train": "freight_1"})
@@ -144,11 +155,11 @@ def test_the_file_names_the_steel_no_document_placed(tmp_path: Path) -> None:
     path = tmp_path / "placement.json"
     path.write_text(json.dumps({"shunter": "up_w"}))
     bus = Bus()
-    simulator = Simulator(bus, layout, placement(scenario.trains), path)
+    sim = simulator(bus, layout, placement(scenario.trains), path)
 
     seen = sensors(bus)
     move(bus, "shunter", "crossover.up_to_dn", "dn_e")
-    tick(simulator)
+    tick(sim)
 
     assert ("tc49/layout/block_vacated", {"block": "up_w"}) in seen
 
