@@ -511,11 +511,25 @@ fixed amount per tick and a replayed run stays byte-identical.
 
 The store holds the documents a run is built from, behind a CRUD contract
 that says nothing about how they are kept
-([ADR-0010](adr/0010-asset-store-serves-coarse-read-only-documents.md)). In
-milestone 1 the contract is bound to a Python library over the YAML files of
-[DRAWING.md](store/DRAWING.md) and [LAYOUT.md](store/LAYOUT.md). A REST
-binding later fits under the same names and verbs, and the contract does not
-change.
+([ADR-0010](adr/0010-asset-store-serves-coarse-read-only-documents.md)). The
+contract has two bindings. Components read through a Python library over the
+YAML files of [DRAWING.md](store/DRAWING.md) and [LAYOUT.md](store/LAYOUT.md).
+Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
+`src/tc49/store/server.py`:
+
+    GET  /drawings              list the railroads
+    GET  /drawings/<name>       one drawing, whole
+    PUT  /drawings/<name>       create or replace it
+    POST /review                what a drawing means: the derived layout, explained
+    GET  /rosters/<name>        one railroad's roster
+
+Every route is a store operation, which is why the server lives in the store
+rather than in an app of its own
+([ADR-0013](adr/0013-apps-are-deployment-units.md)). `review` is the one
+route that is not CRUD: it takes an unsaved document and answers what it
+derives to, so the editor holds no second copy of the derivation
+([ui/EDITOR.md](ui/EDITOR.md)). `delete` and the roster's `put` are not on
+the HTTP face yet, and a scenario never is (below).
 
 - **Three document types** — `drawing`, `roster` and `scenario` — each
   fetched and stored whole. Symbols, wires, trains and requests live inside a

@@ -940,12 +940,10 @@ inside the tool whose job is to be believed.
 
 The server is the store's own HTTP face, `src/tc49/store/server.py`, started
 with `tc49 serve`. It belongs to the store because every one of its routes is
-a store operation, which keeps `tests/system/test_app_boundaries.py` intact:
-
-    GET  /drawings              the railroads there are
-    GET  /drawings/<name>       one drawing, as the document it is
-    PUT  /drawings/<name>       save it, keeping what the file says
-    POST /review                what a drawing means, derived and explained
+a store operation, which keeps `tests/system/test_app_boundaries.py` intact.
+The routes are the store's contract
+([SYSTEM.md](../SYSTEM.md#asset-store)); this page describes how the editor
+uses them.
 
 `review` takes a document rather than a name, because the interesting drawing
 is the one being edited: unsaved, and often not yet derivable. It answers with
