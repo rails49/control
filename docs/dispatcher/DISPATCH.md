@@ -277,12 +277,12 @@ phase applies its buffered sensors and stops there: an outstanding move
 completes and releases its locks, and no route is chosen, no move granted and
 no lock taken until a person releases it. Admission is untouched, so the queue
 accumulates and — nobody having accrued a refusal meanwhile — drains in the
-order it accumulated. Releasing sets the word and nothing else; the next
+order it accumulated. Releasing sets `run` and nothing else; the next
 boundary runs an ordinary phase, which is what keeps the boundary the sole
 trigger
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 The layout holds it too: `tc49/layout/state/power` arriving as anything but
-`on` sets the word to `held` by the same path, and a release is dropped until
+`on` sets `run` to `held` by the same path, and a release is dropped until
 it is back
 ([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 
