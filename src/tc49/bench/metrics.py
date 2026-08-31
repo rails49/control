@@ -8,6 +8,11 @@ the trace to rot until a future UI discovers it is missing what it needs.
 It also makes every metric testable against a hand-written trace, with no
 run required.
 
+Every metric is stated in simulated seconds, read off the trace lines'
+`time` stamps (ADR-0047): latency is completion minus submission,
+utilization is the fraction of the run a resource was locked, and
+throughput is moves per simulated minute.
+
 A run's `stalled` status and its diagnosis are derived here too, never
 stored (BENCHMARKS.md, termination): a stalled request is one
 `request_admitted` but never `request_completed`, and the last
@@ -16,7 +21,6 @@ makespan at all, so they cannot leak into a makespan aggregate.
 """
 
 import json
-from collections import Counter
 from dataclasses import dataclass
 from statistics import mean
 
@@ -38,14 +42,14 @@ class Stall:
 
 @dataclass(frozen=True)
 class Metrics:
-    boundaries: int  # the trace's last boundary; the run spans 0..boundaries
+    seconds: float  # the trace's last stamp; the run spans 0..seconds
     completed: tuple[str, ...]
     rejected: tuple[str, ...]  # work the run never even attempted to do
-    makespan: int | None  # None when the run stalled — never aggregated
+    makespan: float | None  # None when the run stalled — never aggregated
     mean_latency: float | None
-    max_latency: int | None
+    max_latency: float | None
     utilization: dict[str, float]  # resource -> fraction of the run held
-    moves_per_boundary: dict[int, int]
+    moves: int  # move commands the run executed
     stalls: tuple[Stall, ...]
 
     @property
@@ -73,8 +77,14 @@ class Metrics:
         return mean(self.utilization.values()) if self.utilization else 0.0
 
     @property
-    def mean_parallelism(self) -> float:
-        return sum(self.moves_per_boundary.values()) / (self.boundaries + 1)
+    def moves_per_minute(self) -> float:
+        return self.moves * 60.0 / _span(self.seconds)
+
+
+def _span(seconds: float) -> float:
+    """The run's extent as a divisor: a run whose every event landed at the
+    start still has to divide by something."""
+    return seconds if seconds > 0 else 1.0
 
 
 def parse(trace: str) -> list[Payload]:
@@ -83,15 +93,14 @@ def parse(trace: str) -> list[Payload]:
 
 def metrics(trace: str) -> Metrics:
     lines = parse(trace)
-    boundaries = max((line["boundary"] for line in lines), default=0)
-    duration = boundaries + 1  # the run occupies boundaries 0..boundaries
+    seconds = max((line["time"] for line in lines), default=0.0)
 
     released = _stamps(lines, "request_submitted")
     admitted = _stamps(lines, "request_admitted")
     completed = _stamps(lines, "request_completed")
     rejected = _stamps(lines, "request_rejected")
 
-    latencies: dict[str, int] = {}
+    latencies: dict[str, float] = {}
     for rid, done in completed.items():
         if rid not in released:
             raise ValueError(
@@ -102,7 +111,7 @@ def metrics(trace: str) -> Metrics:
 
     stalls = _stalls(lines, set(admitted) - set(completed) - set(rejected))
     return Metrics(
-        boundaries=boundaries,
+        seconds=seconds,
         completed=tuple(completed),
         rejected=tuple(rejected),
         makespan=(
@@ -114,20 +123,18 @@ def metrics(trace: str) -> Metrics:
         # would make this field's type depend on the data.
         mean_latency=float(mean(latencies.values())) if latencies else None,
         max_latency=max(latencies.values()) if latencies else None,
-        utilization=_utilization(lines, duration),
-        moves_per_boundary=Counter(
-            line["boundary"] for line in lines if line["event"] == "move"
-        ),
+        utilization=_utilization(lines, seconds),
+        moves=sum(1 for line in lines if line["event"] == "move"),
         stalls=stalls,
     )
 
 
-def _stamps(lines: list[Payload], event: str) -> dict[str, int]:
-    """Request id -> the boundary that event was recorded on, first wins."""
-    stamps: dict[str, int] = {}
+def _stamps(lines: list[Payload], event: str) -> dict[str, float]:
+    """Request id -> the time that event was recorded at, first wins."""
+    stamps: dict[str, float] = {}
     for line in lines:
         if line["event"] == event:
-            stamps.setdefault(line["id"], line["boundary"])
+            stamps.setdefault(line["id"], line["time"])
     return stamps
 
 
@@ -156,29 +163,31 @@ def _stalls(lines: list[Payload], ids: set[str]) -> tuple[Stall, ...]:
     return tuple(stalls)
 
 
-def _utilization(lines: list[Payload], duration: int) -> dict[str, float]:
-    """Locked boundaries per resource over the whole run, as a fraction.
+def _utilization(lines: list[Payload], seconds: float) -> dict[str, float]:
+    """Locked time per resource over the whole run, as a fraction.
 
-    A grant at boundary g and its release at r cover [g, r); a resource
-    still held when the trace ends covers [g, duration) — which is how the
-    startup standing locks make idle trains count.
+    A grant at time g and its release at r cover [g, r); a resource still
+    held when the trace ends covers [g, seconds) — which is how the startup
+    standing locks make idle trains count.
     """
-    held_since: dict[str, int] = {}
-    locked: Counter[str] = Counter()
+    held_since: dict[str, float] = {}
+    locked: dict[str, float] = {}
     for line in lines:
         if line["event"] == "lock_granted":
             for resource in line["resources"]:
-                held_since.setdefault(resource, line["boundary"])
+                held_since.setdefault(resource, line["time"])
         elif line["event"] == "lock_released":
             for resource in line["resources"]:
                 if resource not in held_since:
                     raise ValueError(
-                        f"trace releases '{resource}' at"
-                        f" boundary {line['boundary']}"
+                        f"trace releases '{resource}' at {line['time']}"
                         f" without a matching 'lock_granted': utilization"
                         f" cannot be derived"
                     )
-                locked[resource] += line["boundary"] - held_since.pop(resource)
+                locked[resource] = locked.get(resource, 0.0) + (
+                    line["time"] - held_since.pop(resource)
+                )
     for resource, since in held_since.items():
-        locked[resource] += duration - since
-    return {resource: held / duration for resource, held in sorted(locked.items())}
+        locked[resource] = locked.get(resource, 0.0) + (seconds - since)
+    span = _span(seconds)
+    return {resource: held / span for resource, held in sorted(locked.items())}
