@@ -89,9 +89,8 @@ The bus promises:
 
 - **Order from one publisher** — events that one publisher sends on one topic
   are delivered in the order it sent them. Nothing more is promised: no order
-  between two publishers, and none between two topics. MQTT gives this much by
-  default and a broker can be configured not to, so a component that would
-  misbehave without it is a component to fix.
+  between two publishers, and none between two topics. Each topic has one
+  publisher, below.
 - **Fan-out** — every subscriber whose subscription matches the topic gets the
   event, independently of the others.
 - **At-least-once delivery** — the bus may deliver the same event twice, so a
@@ -148,13 +147,10 @@ after everything already waiting.
 
 Delivery order therefore depends only on the order of publishes and
 subscribes, which is what makes a replayed run produce a byte-identical trace
-([ARCHITECTURE.md](ARCHITECTURE.md#tests)). This is a stronger order than the
-bus promises, and the promise is what components may use: the trace's
-determinism is a property of this implementation and of the test suite, not
-something an app may rely on. It also means an event published
+([ARCHITECTURE.md](ARCHITECTURE.md#tests)). It also means an event published
 while handling boundary `N` is never delivered before the handling of `N` has
-finished. MQTT would not deliver it any sooner, so no component can come to
-rely on it.
+finished, which is the same-boundary causality the contract refuses: MQTT
+would never deliver it any sooner.
 
 **The last value of a state topic survives a restart.** Given a file, the bus
 loads it at startup and rewrites it whenever any `tc49/*/state/*` value
@@ -166,8 +162,8 @@ broker does with retained messages. An app that restarts finds its own last
 value waiting on its own state topic, exactly as it will from the broker in
 milestone 2. Whether to use that value is each app's own decision, and they
 differ: the dispatcher takes back its train placement and the scheduler its
-facing, the dispatcher's queue is not restored, and no request id is ever
-reused ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)). Given
+facing, the dispatcher's queue is not restored, and no request id ever
+resumes ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)). Given
 no file the bus keeps no values, so `bench` and `sweep` are unaffected.
 
 **Reaching the bus from a browser.** Until the bus is a real broker, a browser
@@ -185,17 +181,17 @@ broker will grant a page once the relay is gone.
 `ws://host:port/<railroad>`. A browser reaches it as `/live/<railroad>`, and
 the proxy in front removes the `/live` prefix ([DEPLOY.md](DEPLOY.md)). A
 client hears that one railroad and no other. The relay outlives the railroad
-it relays: naming one it is not currently running starts that one and closes
-any client still connected to the previous one, and naming one that does not
-exist returns an error frame and closes the connection, leaving the running
-railroad alone. The path is not a topic, so none of this changes what a client
-may publish.
+it relays. Naming one it is not currently running starts that one, and closes
+any client still connected to the previous one. Naming one that does not exist
+returns an error frame and closes the connection, leaving the running railroad
+alone. The path is not a topic, so none of this changes what a client may
+publish.
 
 **A browser cannot publish a request.** `tc49/schedule/request_submitted` is
 refused like any other topic that is not one of the four above. A browser
 publishes gestures and the scheduler turns them into requests, so "only the
-scheduler writes requests" is something the relay checks rather than something
-we merely intend
+scheduler writes requests" is something the relay checks rather than an
+intention
 ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). Any
 other frame — a topic not on the list, or JSON that is not
 `{topic, payload}` — is answered with an `{"error": …}` frame and never
@@ -298,8 +294,8 @@ Two things the inventory has to keep true:
   apart there.
 - **A consumer subscribes with wildcards, not with a list** (rule 3). Each
   subscription names a role, as the scheduler's three do. What matters is the
-  shape rather than the number: a consumer that has to name individual topics
-  is the sign of a design problem. The layout interface is the one exception
+  shape rather than the number, and no consumer names individual topics. The
+  layout interface is the one exception
   and stays the only one. It acts on one named command and on the two
   placement facts, and subscribing to the whole `dispatch` role would mean
   discarding most of what it heard. It also counts the commands it was sent,
@@ -544,9 +540,9 @@ per train and the queue comes back empty.
 Placement is decided **one train at a time**. A train the picture does not
 name starts where the document says. Where that is a block the picture already
 stands another train in, the contested block goes to the train with nowhere
-else to stand. The other falls back to its own starting block, or, with both
-of its answers taken, comes up placed nowhere at all and is shown as a train
-with no block ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
+else to stand. The other falls back to its own starting block. Where that is
+taken too, it comes up placed nowhere at all and is shown as a train with no
+block ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 
 *Subscribes* `tc49/layout/#`, `tc49/schedule/request_submitted` and
 `tc49/ui/#`. *Publishes* the ten `tc49/dispatch/*` events, plus `state/run`,
