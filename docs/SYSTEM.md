@@ -881,8 +881,8 @@ drives realistically later grows behind the same topic.
 ### Layout interface
 
 *Reads* the layout. *Subscribes* `tc49/layout/align`, `tc49/layout/move` and
-`tc49/dispatch/train_placed`. *Publishes* the boundary, the sensor events and
-`state/power`.
+`tc49/dispatch/train_placed` / `train_removed`. *Publishes* the boundary, the
+sensor events and `state/power`.
 
 The layout interface is where the system meets the track: **commands in,
 observations out**, and it owns time. What it publishes is exactly what
