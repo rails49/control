@@ -3,7 +3,7 @@
 A run is built from a railroad and a person places its trains, so the harness
 keeps its file format by standing where the person stands: it publishes one
 `tc49/dispatch/placement_wanted` per train, turns the ones the document faces the
-other way, presses GO, and feeds the requests at their `at` boundaries — every
+other way, presses GO, and feeds the requests in the file's order — every
 one of them a topic a browser writes.
 
 What is asserted here is the two halves of AC 5: that the trains arrive
@@ -39,7 +39,7 @@ def tick_until(assembly: Assembly, done: Callable[[], bool], limit: int = 60) ->
         ticks += 1
         return done() or ticks > limit
 
-    assembly.simulator.run_live(0.0, sleep=lambda _: None, stop=stop)
+    assembly.simulator.run_live(3600.0, sleep=lambda _: None, stop=stop)
 
 
 def replayed() -> Assembly:
@@ -60,8 +60,13 @@ def placement(assembly: Assembly) -> dict[str, Any]:
 
 
 def requests(assembly: Assembly) -> list[tuple[Any, ...]]:
+    """Each submission minus its departure end: the one field a gesture
+    cannot state. A drag on a moving train is composed from facing as it
+    stands mid-run, the file states the end its author knew, and the launch
+    corrects both to the same origin (#135) — so the ends differ on the wire
+    while the runs agree."""
     return [
-        (line["id"], line["train"], line["depart"], tuple(line["dest"]))
+        (line["id"], line["train"], tuple(line["dest"]))
         for line in events(assembly.trace, "request_submitted")
     ]
 
@@ -102,26 +107,34 @@ def test_the_replay_faces_each_train_the_way_the_document_does() -> None:
     """A placement carries no facing — the scheduler gives a train that was
     off the layout the letter `A` — so the document's other letter is a
     `reversal_wanted`, which is the correction a person would make (ADR-0019).
+
+    Asserted at the moment the railroad is laid out: the facing in force
+    when the first request goes in, the drags after it moving facing as any
+    run does.
     """
     layout, roster, scenario = load(SCENARIO)
     assembly = assemble_live(layout, roster)
     Replay(assembly.bus, layout, scenario)
 
-    assert events(assembly.trace, "facing")[-1]["facing"] == {
+    lines = events(assembly.trace)
+    first = next(
+        i for i, line in enumerate(lines) if line["event"] == "request_submitted"
+    )
+    laid_out = [line for line in lines[:first] if line["event"] == "facing"][-1]
+    assert laid_out["facing"] == {
         "express_2": "up_e.A",
         "freight_1": "yard_w.B",
     }
 
 
 def test_the_replayed_run_is_the_one_the_document_produced() -> None:
-    """The same three requests, minted with the same ids and departing by the
-    same ends, and the railroad ends up standing the same way — against the
-    batch assembly, which is the run the scenario produced when the apps were
-    handed the document.
+    """The same three requests, minted with the same ids, and the railroad
+    ends up standing the same way — against the batch assembly, which is the
+    run the scenario produced when the apps were handed the document.
 
-    The departure end is the one thing a gesture cannot state, so this holds
-    only while a scenario's `from` agrees with its facing, which
-    `crossover-yard/meet`'s does. That is the difference a browser has too.
+    The departure end is the one thing a gesture cannot state, so it is the
+    one field left out of the comparison. That is the difference a browser
+    has too.
 
     The document assembly is given `Incremental` because that is what a live
     run locks with (#165), and the difference under test is how the trains

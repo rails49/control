@@ -36,11 +36,11 @@ def test_the_value_is_stated_before_anything_is_asked() -> None:
 
 
 def test_a_whole_run_says_it_once_and_never_changes_it() -> None:
-    """Nothing in the simulator moves the value: it is on the trace at
-    boundary 0 and appears nowhere after."""
+    """Nothing in the simulator moves the value: it is on the trace at the
+    start and appears nowhere after."""
     layout, _roster, scenario = load("crossover-yard/meet")
     assembly = build(layout, _roster, scenario)
     assembly.simulator.run()
 
     said = events(assembly.trace, "power")
-    assert said == [{"boundary": 0, "event": "power", "power": "on"}]
+    assert said == [{"time": 0.0, "event": "power", "power": "on"}]

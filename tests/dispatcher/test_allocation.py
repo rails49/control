@@ -34,7 +34,7 @@ def test_the_picture_opens_on_the_scenario_placement() -> None:
     placement is standing locks, and the first picture carries them."""
     trace = run(*load("crossover-yard/meet"))
     first = pictures(trace)[0]
-    assert first["boundary"] == 0
+    assert first["time"] == 0.0
     assert first["trains"] == {"express_2": "up_e", "freight_1": "yard_w"}
     assert first["locks"] == {"up_e": "express_2", "yard_w": "freight_1"}
     assert first["requests"] == []
@@ -43,15 +43,19 @@ def test_the_picture_opens_on_the_scenario_placement() -> None:
 def test_a_live_request_carries_what_the_panel_marks_it_with() -> None:
     """A pending request renders as its departure end and its surviving
     arrival ends, so the picture carries both — a snapshot without them draws
-    no markers."""
+    no markers. freight_1's return working is the one that waits: its first
+    working launches on admission (ADR-0047), so the return is the request
+    the picture holds queued and routeless."""
     trace = run(*load("crossover-yard/meet"))
-    live = carried(trace, "freight_1-1")
+    live = carried(trace, "freight_1-2")
     assert live
     assert live[0] == {
-        "id": "freight_1-1",
+        "id": "freight_1-2",
         "train": "freight_1",
-        "depart": "yard_w.B",
-        "dest": ["yard_e.A"],
+        "depart": "yard_e.A",
+        # dn_w.A survives admission nowhere: entering dn_w through A means
+        # coming off yard_w, and yard_w is unreachable from yard_e.
+        "dest": ["dn_w.B"],
     }
 
 
@@ -77,7 +81,7 @@ def test_the_picture_is_republished_only_when_it_changes() -> None:
     is a line in every trace and a frame to every client, for no news."""
     trace = run(*load("crossover-yard/meet"), Incremental)
     said = [
-        json.dumps({key: value for key, value in picture.items() if key != "boundary"})
+        json.dumps({key: value for key, value in picture.items() if key != "time"})
         for picture in pictures(trace)
     ]
     assert said and all(before != after for before, after in pairwise(said))

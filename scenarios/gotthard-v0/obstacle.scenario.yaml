@@ -27,5 +27,4 @@ requests:
       train: stranded,
       from: claro_3.B,
       to: [airolo_1, airolo_2, airolo_3],
-      at: 0,
     }

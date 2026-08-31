@@ -1,13 +1,16 @@
 """The run is held or running, and held blocks commitment (ADR-0037, #152).
 
-A brake and not an emergency stop: a move already granted runs to its sensor
+A brake and not an emergency stop: a move already granted runs to its sensors
 and releases its locks, and what the hold buys is that nothing new commits —
 no route is chosen, no move granted, no lock taken — over a railroad that may
 have come back live under it. Admission is untouched: requests queue up while
-held and drain in the order they accumulated.
+held and drain in the order they accumulated when the release sweeps them
+(ADR-0047).
 
 Driven at the bus, which is where a person's press arrives: `run_wanted` in,
-`state/run` and the trace out.
+`state/run` and the trace out. The held runs are built live — a batch run's
+timetable mints and is granted in the opening drain, before any press could
+land, so what queues into a held run arrives as gestures.
 """
 
 from tc49.bench.runner import Assembly
@@ -20,6 +23,19 @@ def ids(assembly: Assembly, leaf: str) -> list[str]:
     return [str(line["id"]) for line in leaves(assembly, leaf)]
 
 
+def held_with_three_requests() -> Assembly:
+    """A live railroad held with three gestures queued into it: two of
+    freight_1's in a chain around one of express_2's."""
+    assembly = live("crossover-yard/meet")
+    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    press(assembly, REQUEST_WANTED, {"train": "express_2", "dest": ["yard_w.B"]})
+    press(
+        assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["dn_w.A", "dn_w.B"]}
+    )
+    return assembly
+
+
 def test_a_cold_session_says_it_is_running_before_anything_moves(
     timetabled: Assembly,
 ) -> None:
@@ -28,75 +44,70 @@ def test_a_cold_session_says_it_is_running_before_anything_moves(
     value instead of guessing one."""
     ticks(timetabled, 1)
     assert runs(timetabled) == ["running"]
-    assert leaves(timetabled, "run")[0]["boundary"] == 0
+    assert leaves(timetabled, "run")[0]["time"] == 0.0
 
 
-def test_a_held_run_grants_nothing_while_a_timetable_mints_into_it(
-    timetabled: Assembly,
-) -> None:
+def test_a_held_run_grants_nothing_while_requests_mint_into_it() -> None:
     """The whole of the guarantee, on the events that would move a train:
     the requests arrive and are admitted, and no route is committed."""
-    ticks(timetabled, 14, at={0: run_wanted("held")})
+    assembly = held_with_three_requests()
+    ticks(assembly, 3)
 
-    assert len(ids(timetabled, "request_admitted")) == 3
-    assert leaves(timetabled, "route_chosen") == []
-    assert leaves(timetabled, "move_granted") == []
-    assert leaves(timetabled, "grant_refused") == []
+    assert len(ids(assembly, "request_admitted")) == 3
+    assert leaves(assembly, "route_chosen") == []
+    assert leaves(assembly, "move_granted") == []
+    assert leaves(assembly, "grant_refused") == []
     # The startup standing locks and nothing since: no lock is taken on the
     # strength of a placement nobody has confirmed.
-    assert {line["train"] for line in leaves(timetabled, "lock_granted")} == {
+    assert {line["train"] for line in leaves(assembly, "lock_granted")} == {
         "freight_1",
         "express_2",
     }
 
 
-def test_the_boundary_keeps_counting_while_held(timetabled: Assembly) -> None:
-    """`_phases` stamps an admission with the grant order it joined at, and a
-    held run is still a run: the return request, minted at boundary 12, must
-    reach the queue at all."""
-    ticks(timetabled, 14, at={0: run_wanted("held")})
-    assert ids(timetabled, "request_admitted") == [
+def test_admissions_keep_their_order_while_held() -> None:
+    """`_phases` stamps an admission with the sweep count it joined at, and a
+    held run is still a run: the queue records the order a release will
+    honour."""
+    assembly = held_with_three_requests()
+    assert ids(assembly, "request_admitted") == [
         "freight_1-1",
         "express_2-1",
         "freight_1-2",
     ]
 
 
-def test_a_released_queue_drains_in_the_order_it_accumulated(
-    timetabled: Assembly,
-) -> None:
+def test_a_released_queue_drains_in_the_order_it_accumulated() -> None:
     """Nobody accrues refusals while held, so the aging key is admission
     order and the queue leaves as it arrived (#34)."""
-    ticks(timetabled, 40, at={0: run_wanted("held"), 14: run_wanted("running")})
+    assembly = held_with_three_requests()
+    press(assembly, RUN_WANTED, {"run": "running"})
+    ticks(assembly, 40)
 
-    assert runs(timetabled) == ["running", "held", "running"]
-    assert ids(timetabled, "route_chosen") == [
+    assert runs(assembly) == ["running", "held", "running"]
+    assert ids(assembly, "route_chosen") == [
         "freight_1-1",
         "express_2-1",
         "freight_1-2",
     ]
-    assert ids(timetabled, "request_completed") == [
+    assert set(ids(assembly, "request_completed")) == {
         "freight_1-1",
         "express_2-1",
         "freight_1-2",
-    ]
+    }
 
 
-def test_release_grants_at_the_next_boundary_and_not_on_the_gesture(
-    timetabled: Assembly,
-) -> None:
-    """Releasing sets the flag and nothing else. Granting from the gesture
-    handler would make the boundary no longer the sole trigger, and would
-    grant against a sensor buffer filled over part of a period — the one
-    thing the time model rules out (DISPATCH.md)."""
-    ticks(timetabled, 3, at={0: run_wanted("held")})
-    press(timetabled, RUN_WANTED, {"run": "running"})
+def test_release_grants_on_the_press_itself() -> None:
+    """Releasing runs a sweep (ADR-0047): the press re-opens the gate the
+    hold closed, so the first route commits with the gesture and no beat is
+    waited out."""
+    assembly = live("crossover-yard/meet")
+    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    assert leaves(assembly, "route_chosen") == []
 
-    assert runs(timetabled)[-1] == "running"
-    assert leaves(timetabled, "route_chosen") == []
-
-    ticks(timetabled, 1)
-    assert ids(timetabled, "route_chosen") == ["freight_1-1"]
+    press(assembly, RUN_WANTED, {"run": "running"})
+    assert ids(assembly, "route_chosen") == ["freight_1-1"]
 
 
 def test_a_value_that_is_no_run_state_leaves_the_run_alone(
@@ -109,7 +120,6 @@ def test_a_value_that_is_no_run_state_leaves_the_run_alone(
     ticks(timetabled, 2)
 
     assert runs(timetabled) == ["running"]
-    assert ids(timetabled, "route_chosen") == ["freight_1-1"]
 
 
 def test_the_same_value_twice_republishes_nothing(timetabled: Assembly) -> None:
@@ -138,22 +148,26 @@ def test_an_outstanding_move_completes_and_releases_its_locks(
     timetabled: Assembly,
 ) -> None:
     """The hold is a brake, not an emergency stop. Nothing on the bus can
-    retract a `move` already sent, so the buffered sensors are applied at
-    every boundary held or not — otherwise a train that arrived would hold
-    the block behind it for as long as the operator stood there."""
-    ticks(timetabled, 3, at={2: run_wanted("held")})
+    retract a `move` already sent, so a sensor applies where it lands, held
+    or not — otherwise a train that arrived would hold the block behind it
+    for as long as the operator stood there."""
+    ticks(timetabled, 2, at={0: run_wanted("held")})
 
-    assert leaves(timetabled, "move_granted")  # one went out before the press
-    assert leaves(timetabled, "lock_released")  # and its origin came back
-    # and nothing committed at the boundary the press landed before
-    assert [line["boundary"] for line in leaves(timetabled, "route_chosen")] == [1]
+    # freight_1's opening launch went out before the press could land — its
+    # sensors completed the move and gave yard_w back while held — and
+    # nothing new committed after it: express_2, refused at the start while
+    # freight_1 held yard_w, is not launched by the release that vacate
+    # would otherwise have swept.
+    assert len(leaves(timetabled, "move_granted")) == 1
+    assert leaves(timetabled, "lock_released")
+    assert ids(timetabled, "route_chosen") == ["freight_1-1"]
 
 
 def test_a_degenerate_request_waits_for_the_release_too() -> None:
     """A request whose train already stands in one of its own arrival blocks
     completes without moving a wheel, and still waits: "no `route_chosen`" is
-    read literally, and a phase that answered one request would be a phase
-    that ran."""
+    read literally, and a sweep that answered one request would be a sweep
+    that committed."""
     assembly = live("crossover-yard/meet")
     press(assembly, RUN_WANTED, {"run": "held"})
     press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_w.B"]})
@@ -163,7 +177,5 @@ def test_a_degenerate_request_waits_for_the_release_too() -> None:
     assert leaves(assembly, "route_chosen") == []
 
     press(assembly, RUN_WANTED, {"run": "running"})
-    ticks(assembly, 1)
-
     assert leaves(assembly, "route_chosen")[0]["route"] == ["yard_w"]
     assert ids(assembly, "request_completed") == ["freight_1-1"]

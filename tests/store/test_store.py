@@ -61,7 +61,7 @@ def meet_document() -> dict[str, Any]:
         "layout": "crossover-yard",
         "trains": {"freight_1": {"at": "yard_w", "facing": "B"}},
         "requests": [
-            {"train": "freight_1", "from": "yard_w.B", "to": ["yard_e"], "at": 0},
+            {"train": "freight_1", "from": "yard_w.B", "to": ["yard_e"]},
         ],
     }
 
@@ -310,11 +310,10 @@ def test_meet_scenario_loads_clean(store: AssetStore) -> None:
     assert scenario.trains["express_2"].at == "up_e"
     assert scenario.trains["freight_1"].facing == "B"
     first = scenario.requests[0]
-    assert (first.train, first.depart, first.arrivals, first.at) == (
+    assert (first.train, first.depart, first.arrivals) == (
         "freight_1",
         "yard_w.B",
         ("yard_e",),
-        0,
     )
 
 
@@ -368,23 +367,13 @@ def test_request_train_must_be_declared(scratch_store: AssetStore) -> None:
         scratch_store.put(doc)
 
 
-def test_a_request_with_no_at_is_due_at_the_first_boundary(
-    scratch_store: AssetStore,
-) -> None:
-    """`at` is what staggers a scenario, and most requests do not stagger. A
-    request that omits it is released as soon as the run starts."""
+def test_a_request_carrying_at_is_refused(scratch_store: AssetStore) -> None:
+    """Submission timing is the scheduler's, and the schema carries none
+    (ADR-0047): a file still staggering requests is refused at load rather
+    than quietly running everything at once."""
     doc = meet_document()
-    del doc["requests"][0]["at"]
-    scratch_store.put(doc)
-    scenario = scratch_store.get("crossover-yard/meet")
-    assert isinstance(scenario, Scenario)
-    assert scenario.requests[0].at == 0
-
-
-def test_at_must_be_a_non_negative_boundary(scratch_store: AssetStore) -> None:
-    doc = meet_document()
-    doc["requests"][0]["at"] = -1
-    with pytest.raises(ValueError, match="non-negative boundary"):
+    doc["requests"][0]["at"] = 2
+    with pytest.raises(ValueError, match="at"):
         scratch_store.put(doc)
 
 

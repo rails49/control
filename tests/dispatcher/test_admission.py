@@ -55,7 +55,9 @@ def submit(assembly: Assembly, payload: Payload) -> None:
 
 
 def tick_until(assembly: Assembly, done: Callable[[], bool], limit: int = 50) -> None:
-    """Run the live loop, no waiting, until `done` or the tick limit."""
+    """Run the live loop, no waiting, until `done` or the tick limit. The
+    period outlasts every delay, so each turn reaches the next scheduled
+    sensor event."""
     ticks = 0
 
     def stop() -> bool:
@@ -63,7 +65,7 @@ def tick_until(assembly: Assembly, done: Callable[[], bool], limit: int = 50) ->
         ticks += 1
         return done() or ticks > limit
 
-    assembly.simulator.run_live(0.0, sleep=lambda _: None, stop=stop)
+    assembly.simulator.run_live(3600.0, sleep=lambda _: None, stop=stop)
 
 
 def reason(assembly: Assembly, rid: str) -> str:

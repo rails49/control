@@ -86,6 +86,9 @@ class Replay:
         # GO. Every placement had to land before it: a placement is honoured
         # while held and dropped while running (ADR-0037).
         self._send(RUN_WANTED, {"run": RUNNING})
+        # One drain per drag, as a person's sequential drags land: each
+        # request's cascade settles — grants, facing — before the next is
+        # composed against it.
         for request in scenario.requests:
             self._drag(request)
 
@@ -100,7 +103,7 @@ class Replay:
         """One request as the drag that asks for it: the train, and the ends
         it may arrive at. The id is the scheduler's and so is the departure
         end, exactly as they are for a person's drag (ADR-0036)."""
-        self._bus.publish(
+        self._send(
             REQUEST_WANTED,
             {"train": request.train, "dest": arrival_ends(request.arrivals)},
         )

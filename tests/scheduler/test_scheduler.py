@@ -1,4 +1,4 @@
-"""The scheduler seam: releases, ids, expansion, exhaustion, facing, gestures."""
+"""The scheduler seam: submission, ids, expansion, exhaustion, facing, gestures."""
 
 import json
 from pathlib import Path
@@ -28,9 +28,9 @@ document: the harness reads a scenario into a facing seed and a timetable, and
 those two are all that reaches here (bench/runner.py, ADR-0036)."""
 
 TIMETABLE = (
-    RequestSpec("freight_1", "yard_w.B", ("yard_e",), 0),
-    RequestSpec("express_2", "up_e.A", ("yard_w.B",), 0),
-    RequestSpec("freight_1", "yard_e.A", ("yard_w",), 2),
+    RequestSpec("freight_1", "yard_w.B", ("yard_e",)),
+    RequestSpec("express_2", "up_e.A", ("yard_w.B",)),
+    RequestSpec("freight_1", "yard_e.A", ("yard_w",)),
 )
 
 
@@ -45,17 +45,12 @@ def collect(bus: Bus, topic_filter: str) -> list[tuple[str, Payload]]:
     return seen
 
 
-def boundary(bus: Bus, n: int) -> None:
-    bus.publish("tc49/layout/boundary", {"boundary": n})
-    bus.drain()
-
-
-def test_releases_at_due_boundaries_with_deterministic_ids_and_expansion() -> None:
+def test_submits_the_whole_timetable_in_order_with_deterministic_ids() -> None:
     bus = Bus()
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded(), TIMETABLE)
 
-    boundary(bus, 0)
+    bus.drain()
     assert [p for _, p in seen] == [
         {
             "id": "freight_1-1",
@@ -69,19 +64,12 @@ def test_releases_at_due_boundaries_with_deterministic_ids_and_expansion() -> No
             "depart": "up_e.A",
             "dest": ["yard_w.B"],
         },
-    ]
-
-    boundary(bus, 1)
-    assert len(seen) == 2  # nothing due at boundary 1
-
-    boundary(bus, 2)
-    assert [p for _, p in seen[2:]] == [
         {
             "id": "freight_1-2",
             "train": "freight_1",
             "depart": "yard_e.A",
             "dest": ["yard_w.A", "yard_w.B"],
-        }
+        },
     ]
 
 
@@ -90,33 +78,30 @@ def test_exhausted_set_when_the_last_request_is_out() -> None:
     seen = collect(bus, "tc49/schedule/state/exhausted")
     Scheduler(bus, yard(), seeded(), TIMETABLE)
 
-    boundary(bus, 0)
-    assert seen == []
-    boundary(bus, 2)
+    bus.drain()
     assert [p for _, p in seen] == [{"exhausted": True}]
-    boundary(bus, 3)
+    bus.drain()
     assert len(seen) == 1  # set once, not republished
 
 
-def test_an_empty_timetable_is_exhausted_at_the_first_boundary() -> None:
+def test_an_empty_timetable_is_exhausted_at_once() -> None:
     bus = Bus()
     seen = collect(bus, "tc49/schedule/state/exhausted")
     Scheduler(bus, yard(), seeded())
 
-    boundary(bus, 0)
+    bus.drain()
     assert [p for _, p in seen] == [{"exhausted": True}]
 
 
-def test_a_run_given_no_timetable_releases_nothing() -> None:
+def test_a_run_given_no_timetable_submits_nothing() -> None:
     """Which sources a run has is configuration (ADR-0036): `tc49 live` runs
-    the same scheduler with no timetable at all, while `at` is a boundary
-    number, and the first gesture's id is still `<train>-1`."""
+    the same scheduler with no timetable at all, and the first gesture's id
+    is still `<train>-1`."""
     bus = Bus()
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
 
-    boundary(bus, 0)
-    boundary(bus, 2)
+    bus.drain()
     assert seen == []
 
 
@@ -218,7 +203,7 @@ def test_a_committed_route_faces_the_train_at_its_departure_end() -> None:
     bus = Bus()
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
-    boundary(bus, 0)  # express_2-1 goes out, so the scheduler knows whose route it is
+    bus.drain()  # express_2-1 goes out, so the scheduler knows whose route it is
     bus.publish(
         "tc49/dispatch/route_chosen",
         {
@@ -237,7 +222,7 @@ def test_facing_is_published_only_when_it_moves() -> None:
     bus = Bus()
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
-    boundary(bus, 0)
+    bus.drain()
     bus.publish("tc49/dispatch/request_admitted", {"id": "freight_1-1", "dest": []})
     bus.publish(
         "tc49/dispatch/route_chosen",
@@ -292,9 +277,9 @@ def test_gestures_and_the_timetable_share_one_undivided_counter() -> None:
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded(), TIMETABLE)
 
-    boundary(bus, 0)  # freight_1-1 and express_2-1 go out
+    bus.drain()  # the whole timetable goes out
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
-    assert seen[-1][1]["id"] == "freight_1-3"  # -2 is the timetable's, at boundary 2
+    assert seen[-1][1]["id"] == "freight_1-3"  # -2 is the timetable's return working
 
 
 def test_a_gesture_departs_from_where_facing_has_moved_to() -> None:

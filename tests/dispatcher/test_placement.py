@@ -89,7 +89,7 @@ def test_a_placement_moves_the_lock_and_redraws_the_picture(held: Assembly) -> N
     place(held, "freight_1", "up_w")
 
     assert placements(held) == [
-        {"boundary": 0, "event": "train_placed", "train": "freight_1", "block": "up_w"}
+        {"time": 0.0, "event": "train_placed", "train": "freight_1", "block": "up_w"}
     ]
     picture = last(held, "allocation")
     assert picture["trains"]["freight_1"] == "up_w"
@@ -355,10 +355,10 @@ def test_a_removal_takes_the_train_out_of_the_picture_and_frees_what_it_held(
     remove(held, "freight_1")
 
     assert removals(held) == [
-        {"boundary": 0, "event": "train_removed", "train": "freight_1"}
+        {"time": 0.0, "event": "train_removed", "train": "freight_1"}
     ]
     assert last(held, "lock_released") == {
-        "boundary": 0,
+        "time": 0.0,
         "event": "lock_released",
         "train": "freight_1",
         "resources": ["yard_w"],

@@ -6,6 +6,7 @@ from typing import cast
 import pytest
 
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.inventory import TOPICS, leaf
 from tc49.lib.trace import TraceTap
 
@@ -16,7 +17,7 @@ REVERSAL = "tc49/schedule/reversal_wanted"
 def test_line_is_flat_with_canonical_key_order() -> None:
     bus = Bus()
     out = io.StringIO()
-    TraceTap(bus, out)
+    TraceTap(bus, out, Clock())
 
     # Payload built in non-canonical key order; the tap must reorder.
     bus.publish(
@@ -26,30 +27,31 @@ def test_line_is_flat_with_canonical_key_order() -> None:
     bus.drain()
 
     assert out.getvalue() == (
-        '{"boundary":0,"event":"request_submitted",'
+        '{"time":0.0,"event":"request_submitted",'
         '"id":"re460-1","train":"re460","depart":"main_w.A","dest":["yard_e.A"]}\n'
     )
 
 
-def test_boundary_stamp_follows_the_last_boundary_event_observed() -> None:
+def test_the_time_stamp_reads_the_run_clock_as_it_records() -> None:
     bus = Bus()
     out = io.StringIO()
-    TraceTap(bus, out)
+    clock = Clock()
+    TraceTap(bus, out, clock)
 
-    # Before the first boundary (e.g. startup standing locks): stamped 0.
+    # The startup cascade lands at 0.0; later events at the clock's reading.
     bus.publish("tc49/dispatch/lock_granted", {"train": "re460", "resources": ["a"]})
-    bus.publish("tc49/layout/boundary", {"boundary": 1})
+    bus.drain()
+    clock.advance(30.0)
     bus.publish("tc49/layout/block_occupied", {"block": "b"})
-    bus.publish("tc49/layout/boundary", {"boundary": 2})
+    bus.drain()
+    clock.advance(60.0)
     bus.publish("tc49/dispatch/request_completed", {"id": "re460-1"})
     bus.drain()
 
     assert out.getvalue().splitlines() == [
-        '{"boundary":0,"event":"lock_granted","train":"re460","resources":["a"]}',
-        '{"boundary":1,"event":"boundary"}',
-        '{"boundary":1,"event":"block_occupied","block":"b"}',
-        '{"boundary":2,"event":"boundary"}',
-        '{"boundary":2,"event":"request_completed","id":"re460-1"}',
+        '{"time":0.0,"event":"lock_granted","train":"re460","resources":["a"]}',
+        '{"time":30.0,"event":"block_occupied","block":"b"}',
+        '{"time":60.0,"event":"request_completed","id":"re460-1"}',
     ]
 
 
@@ -57,7 +59,7 @@ def test_scripted_sequence_traced_twice_is_byte_identical() -> None:
     def run() -> bytes:
         bus = Bus()
         out = io.StringIO()
-        TraceTap(bus, out)
+        TraceTap(bus, out, Clock())
 
         def complete(topic: str, payload: dict[str, object]) -> None:
             bus.publish("tc49/dispatch/request_completed", {"id": payload["id"]})
@@ -66,13 +68,11 @@ def test_scripted_sequence_traced_twice_is_byte_identical() -> None:
         bus.publish(
             "tc49/dispatch/lock_granted", {"train": "re460", "resources": ["a"]}
         )
-        bus.publish("tc49/layout/boundary", {"boundary": 1})
         bus.publish(
             "tc49/dispatch/request_submitted",
             {"id": "re460-1", "train": "re460", "depart": "a.A", "dest": ["b.A"]},
         )
         bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
-        bus.publish("tc49/layout/boundary", {"boundary": 2})
         bus.drain()
         return out.getvalue().encode()
 
@@ -82,7 +82,7 @@ def test_scripted_sequence_traced_twice_is_byte_identical() -> None:
 
 def test_payload_field_outside_the_inventory_fails_loudly() -> None:
     bus = Bus()
-    TraceTap(bus, io.StringIO())
+    TraceTap(bus, io.StringIO(), Clock())
     bus.publish("tc49/layout/block_occupied", {"blokc": "a"})
 
     with pytest.raises(ValueError):
@@ -100,12 +100,12 @@ def test_a_client_frame_outside_the_inventory_is_recorded_rather_than_raised() -
     given: the fields it knows in canonical order, then the rest."""
     bus = Bus()
     out = io.StringIO()
-    TraceTap(bus, out)
+    TraceTap(bus, out, Clock())
     bus.publish(WANTED, {"junk": 1, "train": "t1"})
     bus.drain()
 
     assert out.getvalue() == (
-        '{"boundary":0,"event":"request_wanted","train":"t1","junk":1}\n'
+        '{"time":0.0,"event":"request_wanted","train":"t1","junk":1}\n'
     )
 
 
@@ -114,12 +114,12 @@ def test_every_inbound_topic_is_recorded_as_given() -> None:
     inbound topics carry whatever a browser published (#124, ADR-0034)."""
     bus = Bus()
     out = io.StringIO()
-    TraceTap(bus, out)
+    TraceTap(bus, out, Clock())
     bus.publish(REVERSAL, {"junk": 1, "train": "t1"})
     bus.drain()
 
     assert out.getvalue() == (
-        '{"boundary":0,"event":"reversal_wanted","train":"t1","junk":1}\n'
+        '{"time":0.0,"event":"reversal_wanted","train":"t1","junk":1}\n'
     )
 
 
@@ -128,10 +128,10 @@ def test_a_client_frame_that_is_not_an_object_is_recorded_whole() -> None:
     what makes a dropped gesture verifiable in the trace (#107, ADR-0036)."""
     bus = Bus()
     out = io.StringIO()
-    TraceTap(bus, out)
+    TraceTap(bus, out, Clock())
     bus.publish(WANTED, cast(Payload, ["yard_e.A"]))
     bus.drain()
 
     assert out.getvalue() == (
-        '{"boundary":0,"event":"request_wanted","payload":["yard_e.A"]}\n'
+        '{"time":0.0,"event":"request_wanted","payload":["yard_e.A"]}\n'
     )

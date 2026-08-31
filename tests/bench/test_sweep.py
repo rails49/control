@@ -128,12 +128,7 @@ def test_no_drawn_workload_is_dead_at_boundary_zero() -> None:
             m = metrics(trace)
             assert (
                 m.completed or not m.stalled
-            ), f"{scenario.name} under {locking} is dead at boundary 0"
-
-
-def test_every_request_arrives_at_boundary_zero() -> None:
-    for workload in every_workload():
-        assert all(r.at == 0 for r in generate(workload).requests)
+            ), f"{scenario.name} under {locking} is dead at the start"
 
 
 def test_generated_workloads_load_as_real_scenarios() -> None:
@@ -188,13 +183,13 @@ def test_sweep_writes_one_jsonl_row_per_run(tmp_path: Path) -> None:
             "locking",
             "status",
             "makespan",
-            "boundaries",
+            "seconds",
             "completed",
             "rejected",
             "mean_latency",
             "max_latency",
             "mean_utilization",
-            "mean_parallelism",
+            "moves_per_minute",
             "stalls",
         }
         assert row["status"] in ("ok", "stalled", "rejected")

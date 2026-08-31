@@ -27,7 +27,7 @@ def test_bench_prints_the_metrics_for_both_strategies() -> None:
     assert "FullRoute" in printed and "Incremental" in printed
     for metric in ("status", "makespan", "latency mean", "latency max"):
         assert metric in printed
-    assert "utilization" in printed and "moves/boundary" in printed
+    assert "utilization" in printed and "moves/min" in printed
     assert "stalled" not in printed
 
 
@@ -62,7 +62,6 @@ def test_the_trace_flag_dumps_the_jsonl_events() -> None:
     assert lines, "the trace should be dumped as JSONL"
     assert metrics("".join(json.dumps(line) + "\n" for line in lines)).status == "ok"
     assert {line["event"] for line in lines} >= {
-        "boundary",
         "request_admitted",
         "route_chosen",
         "move",
@@ -119,12 +118,12 @@ def test_find_root_locates_the_railroads_from_anywhere_and_says_so_if_not() -> N
         find_root(Path("/"))
 
 
-def test_a_live_session_paces_itself_slowly_enough_to_watch() -> None:
-    """Ten seconds a boundary, not two: each one moves trains, grants and
-    releases locks, realigns points and changes aspects, and at two the next
-    landed before a person had read the last (#144)."""
+def test_a_live_session_polls_for_commands_briskly() -> None:
+    """The railroad's pacing is the simulator's own transit delays
+    (ADR-0047); the period only bounds how long a gesture sits in the queue
+    before it is drained, so it stays small."""
     args = command_line().parse_args(["live", "gotthard-v0/meet"])
-    assert args.period == 10.0
+    assert args.period == 0.1
 
 
 def test_a_live_session_may_come_up_with_no_railroad_at_all() -> None:
@@ -145,7 +144,7 @@ def test_the_period_flag_still_sets_the_period_and_says_the_default(
     assert args.period == 0.5
     with pytest.raises(SystemExit):
         command_line().parse_args(["live", "--help"])
-    assert "default 10.0" in capsys.readouterr().out
+    assert "default 0.1" in capsys.readouterr().out
 
 
 def test_a_session_is_told_where_to_keep_the_run(

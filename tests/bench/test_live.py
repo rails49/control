@@ -44,9 +44,9 @@ PLACEMENT = "tc49/dispatch/placement_wanted"
 TIMEOUT = 5.0
 
 PERIOD_S = 0.02
-"""A session's boundary, for a test that has to watch one go by. Short enough
-that a handful pass in no time, long enough that a swap is a swap and not a
-race against the very first tick."""
+"""A session's command-poll period. Short enough that a handful of polls pass
+in no time, long enough that a swap is a swap and not a race against the very
+first turn."""
 
 
 @pytest.fixture
@@ -81,7 +81,7 @@ def tick_until(assembly: Assembly, done: Callable[[], bool], limit: int = 50) ->
         ticks += 1
         return done() or ticks > limit
 
-    assembly.simulator.run_live(0.0, sleep=lambda _: None, stop=stop)
+    assembly.simulator.run_live(3600.0, sleep=lambda _: None, stop=stop)
 
 
 def frames_until(client: ClientConnection, leaf: str) -> list[dict[str, Any]]:
@@ -155,13 +155,12 @@ def test_a_live_run_locks_incrementally() -> None:
 def test_there_is_no_timetable_and_facing_is_still_published(
     assembly: Assembly,
 ) -> None:
-    """crossover-yard/meet schedules three workings from boundary 0; a live
+    """crossover-yard/meet schedules three workings from the start; a live
     run is given no timetable at all (ADR-0036), so nothing is submitted and
-    the railroad just ticks. Facing is not off with it: it is where the trains
+    the railroad just waits. Facing is not off with it: it is where the trains
     were stood, and a joining page has no other source for a direction
     arrow."""
     tick_until(assembly, lambda: False, limit=10)
-    assert events(assembly.trace, "boundary")
     assert events(assembly.trace, "request_submitted") == []
     assert events(assembly.trace, "route_chosen") == []
     [placed] = events(assembly.trace, "facing")
@@ -237,12 +236,13 @@ def test_a_rejection_comes_back_with_its_reason(
 def test_a_drag_on_a_moving_train_is_answered_and_the_session_lives(
     assembly: Assembly, client: ClientConnection
 ) -> None:
-    """`wrong_origin` still stands (ADR-0021). A grant names the next block a
-    boundary before the sensor does, and facing follows the grant, so a drag on
-    train that is not idle composes a departure end in a block the dispatcher
-    does not yet have it in. The scheduler judges none of that — it composes
-    and submits like any other gesture — and the dispatcher answers, the
-    railroad ticking on around it (#73)."""
+    """A grant names the next block before the sensor does, and facing
+    follows the grant, so a drag on a train that is not idle composes a
+    departure end in a block the dispatcher does not yet have it in. The
+    scheduler judges none of that — it composes and submits like any other
+    gesture — and admission judges the drag from where the committed route
+    arrives (#135, ADR-0047): dn_w.A cannot be entered from yard_e, so the
+    answer is `unreachable`, and the railroad runs on around it (#73)."""
     first = drag(client, assembly, "freight_1", ["yard_e.A"])
     tick_until(
         assembly, lambda: bool(events(assembly.trace, "move_granted", rid=first))
@@ -251,10 +251,11 @@ def test_a_drag_on_a_moving_train_is_answered_and_the_session_lives(
     [composed] = events(assembly.trace, "request_submitted", rid=second)
     assert composed["depart"] == "dn_w.B"  # where the grant is taking it
     [rejected] = events(assembly.trace, "request_rejected", rid=second)
-    assert rejected["reason"] == "wrong_origin"
-    boundaries = len(events(assembly.trace, "boundary"))
-    tick_until(assembly, lambda: False, limit=3)
-    assert len(events(assembly.trace, "boundary")) > boundaries
+    assert rejected["reason"] == "unreachable"
+    tick_until(
+        assembly, lambda: bool(events(assembly.trace, "request_completed", rid=first))
+    )
+    assert events(assembly.trace, "request_completed", rid=first)
 
 
 def test_a_reloaded_page_is_served_the_picture_and_answered_again(
@@ -368,12 +369,13 @@ def put(client: ClientConnection, train: str, block: str) -> dict[str, Any]:
     The gesture a session's railroad is laid out with, since a run is built
     from a railroad and nothing places its trains for the operator (#171).
 
-    A boundary is waited for first. A session builds each assembly on its own
-    thread and hands it to the bridge afterwards, so a frame sent between the
-    handshake and the swap would be published onto the bus being torn down —
-    and one boundary is proof this client is being fed the new one.
+    The power value is waited for first. A session builds each assembly on
+    its own thread and hands it to the bridge afterwards, so a frame sent
+    between the handshake and the swap would be published onto the bus being
+    torn down — and the new assembly's own opening statement is proof this
+    client is being fed it.
     """
-    payload_of(client, "boundary")
+    payload_of(client, "power")
     client.send(
         json.dumps({"topic": PLACEMENT, "payload": {"train": train, "block": block}})
     )
@@ -400,7 +402,6 @@ def test_a_client_names_the_railroad_and_the_session_builds_it(
     with joining(session, "crossover-yard") as client:
         assert payload_of(client, "run")["run"] == "held"
         assert payload_of(client, "allocation")["trains"] == {}
-        assert payload_of(client, "boundary")["boundary"] == 0
 
         assert put(client, "freight_1", "yard_w") == {
             "train": "freight_1",
@@ -411,17 +412,23 @@ def test_a_client_names_the_railroad_and_the_session_builds_it(
 
 def test_the_same_path_rejoins_the_run_already_going(session: Session) -> None:
     """A reloaded tab restarts nothing: the path is the one already running,
-    so the client is served the picture and drops into the run where it is,
-    the boundary counter never rewinding to zero."""
+    so the client is served the picture — the train the first tab placed is
+    in it — and drops into the run where it is."""
     with joining(session, "crossover-yard") as client:
         put(client, "freight_1", "yard_w")
-        while payload_of(client, "boundary")["boundary"] < 2:
-            pass
         with joining(session, "crossover-yard") as rejoined:
             assert payload_of(rejoined, "allocation")["trains"]["freight_1"]
-            assert payload_of(rejoined, "boundary")["boundary"] >= 2
-        # And the first client is still being served the same run.
-        assert payload_of(client, "boundary")["boundary"] >= 2
+        # And the first client is still being served the same run: its next
+        # gesture lands on the same assembly and is answered there.
+        client.send(
+            json.dumps(
+                {
+                    "topic": PLACEMENT,
+                    "payload": {"train": "express_2", "block": "up_e"},
+                }
+            )
+        )
+        assert payload_of(client, "train_placed")["train"] == "express_2"
 
 
 def test_naming_another_railroad_swaps_the_assembly_and_closes_the_old_client(
@@ -432,7 +439,7 @@ def test_naming_another_railroad_swaps_the_assembly_and_closes_the_old_client(
     the client left on the old path is closed rather than fed another
     railroad's events."""
     with joining(session, "crossover-yard") as first:
-        assert payload_of(first, "boundary")["boundary"] == 0
+        assert payload_of(first, "power")["power"] == "on"
         with joining(session, "gotthard-v0") as second:
             assert put(second, "north", "airolo_1")["block"] == "airolo_1"
             with pytest.raises(ConnectionClosed):
@@ -446,16 +453,15 @@ def test_a_path_naming_no_railroad_is_refused_and_the_run_lives(
     """A typo must not take down a live railroad: the client is answered with
     an error frame and closed, and the run it never named ticks on."""
     with joining(session, "crossover-yard") as client:
-        assert payload_of(client, "boundary")["boundary"] == 0
+        assert payload_of(client, "power")["power"] == "on"
         with joining(session, "nonesuch") as mistaken:
             assert json.loads(mistaken.recv(timeout=TIMEOUT)) == {
                 "error": "no railroad 'nonesuch'"
             }
             with pytest.raises(ConnectionClosed):
                 mistaken.recv(timeout=TIMEOUT)
-        before = payload_of(client, "boundary")["boundary"]
-        while payload_of(client, "boundary")["boundary"] <= before:
-            pass
+        # The run it never named lives on: a gesture is still answered.
+        assert put(client, "freight_1", "yard_w")["train"] == "freight_1"
 
 
 def test_each_railroad_the_session_runs_keeps_its_own_picture(

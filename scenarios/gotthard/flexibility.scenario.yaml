@@ -40,5 +40,4 @@ requests:
       train: flexible,
       from: A2.A,
       to: [C1.A, C1.B, C2.A, C2.B, C3a.B, C3b.A],
-      at: 0,
     }
