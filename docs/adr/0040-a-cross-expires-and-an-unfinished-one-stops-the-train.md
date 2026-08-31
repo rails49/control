@@ -6,20 +6,27 @@ and it is not here."* This is where the more arrives, and it is not one
 button. It is three obligations on the **layout interface**, which is the only
 component holding a throttle.
 
+**Amended for
+[#236](https://github.com/rails49/control/issues/236):** the driver's command
+was `cross` when this was written and is now `move`, on `tc49/drive/move`. The
+text below has been rewritten to the new name; the title and the filename keep
+the old one, the number being the citation everywhere. Nothing about the
+expiry or the transit bound changed.
+
 The watchdog is **not the driver's**. The driver is a stateless, layout-blind
-translator that turns a grant into a `cross` and holds nothing
+translator that turns a grant into a `move` and holds nothing
 ([SYSTEM.md](../SYSTEM.md#driver)); it has no channel to the command station
-and nothing to stop. The control loop that executes a `cross` — throttle up,
+and nothing to stop. The control loop that executes a `move` — throttle up,
 watch the detector, stop — is private to the layout interface, where the
 braking curve and detector geometry already live
 ([ADR-0025](0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)). So the
-duty sits where the hardware is, exactly as the align-before-cross obligation
+duty sits where the hardware is, exactly as the align-before-move obligation
 already does.
 
 ## Silence alone is already safe
 
 The tempting design — a heartbeat, and stop when it stops — solves a problem
-this system does not have. A `cross` is **bounded and self-terminating**: it
+this system does not have. A `move` is **bounded and self-terminating**: it
 names one transit into one block, it ends at a detector, and that block was
 locked before the grant was published. Kill the scheduler, the dispatcher, the
 driver and the broker mid-transit and every rolling train finishes into track
@@ -30,19 +37,19 @@ short list rather than the long one, and it is a property of the command
 vocabulary rather than of any implementation. A continuous-throttle design
 would not have it, and this decision is a reason not to build one.
 
-## A cross expires
+## A move expires
 
 The hazard is not a lost command. It is a **late** one.
 
 At-least-once delivery and a persistent session mean a broker may redeliver a
-`cross` after a reconnect, seconds or minutes after it was granted. Acting on
+`move` after a reconnect, seconds or minutes after it was granted. Acting on
 it starts a train into a block whose lock has since been released — a grant
 honoured after the authority behind it has gone. `SYSTEM.md` already takes the
 at-least-once mindset seriously enough to number the boundary so a duplicate is
-trivially ignorable; a duplicated `cross` is the same argument with steel
+trivially ignorable; a duplicated `move` is the same argument with steel
 behind it.
 
-So **`cross` carries the boundary it was granted on**, and the layout interface
+So **`move` carries the boundary it was granted on**, and the layout interface
 acts on it only if that boundary is the current one or the one before —
 the N+1 skew [ADR-0009](0009-layout-interface-owns-time.md) describes, and no
 wider. Anything older is dropped and traced. The window is stated in
@@ -56,7 +63,7 @@ nothing needs to carry a number for a reader's benefit. It is wrong about
 action. A stamp applied by an observer is not available to the actor, and the
 actor here is deciding whether to move a locomotive.
 
-Rejected: **expiry by wall clock in the adapter**, dropping any `cross` more
+Rejected: **expiry by wall clock in the adapter**, dropping any `move` more
 than N milliseconds old by local receipt time. It cannot distinguish a
 redelivered command from a fresh one, which is the entire failure mode — both
 arrive now.
@@ -75,7 +82,7 @@ power with no terminating event.
 
 The control loop is therefore **bounded**: if the detector does not fire within
 the transit's allowance, the layout interface stops the train and gives up on
-the `cross`.
+the `move`.
 
 It then publishes **nothing**. Its outbound vocabulary is anonymous occupancy
 and the boundary, and it never asserts train identity
@@ -91,7 +98,7 @@ A stalled train is a thing someone has to walk over and look at; inventing a
 topic to describe it would add a fault vocabulary to the bus and still not
 move the locomotive.
 
-Rejected: **retrying the cross.** A transit that timed out did so for a
+Rejected: **retrying the move.** A transit that timed out did so for a
 physical reason, and a second throttle-up against a derailment makes it worse.
 
 ## Stopping is two commands, and the second one is the backstop
@@ -137,14 +144,14 @@ is not already correct without it.
 
 ## Consequences
 
-**`cross` gains a field, and the inventory says so.** It becomes
+**`move` gains a field, and the inventory says so.** It becomes
 `train, connection, transit, into, boundary` — alongside the `speed` that
 [ADR-0025](0025-a-signal-is-what-the-dispatcher-tells-the-driver.md) already
 has it gaining. The driver mints neither: both ride in from `move_granted`,
 which keeps the driver stateless.
 
 **The expiry window is testable today**, before any hardware exists. The
-simulator is a layout-interface binding like any other, so a replayed `cross`
+simulator is a layout-interface binding like any other, so a replayed `move`
 can be delivered to it and refused, in the milestone-1 in-process bus. That is
 the point of putting the mechanism in the contract rather than in the adapter.
 
@@ -162,6 +169,6 @@ plus a placement.
 **This is milestone-2 work**, not milestone 1
 ([MILESTONE-1.md](../MILESTONE-1.md)) — there is no hardware adapter yet, and
 the transit bound and the power watchdog arrive with the DCC-EX driver. Only
-the `boundary` field on `cross` and its refusal rule land earlier, because they
+the `boundary` field on `move` and its refusal rule land earlier, because they
 are contract and because a stale command is dangerous the day the broker
 replaces the in-process bus, which is before any hardware.

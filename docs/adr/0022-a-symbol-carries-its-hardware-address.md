@@ -52,7 +52,7 @@ set up, turnouts and signal states included. So `align` is the dispatcher's
 command rather than the driver's. It names a connection and a transit, and
 carries the points that transit needs as address-and-position pairs. A
 `move_granted` is then the green signal: the driver sees it and publishes
-`cross`, nothing else. Today the driver is a stateless translator publishing
+`move`, nothing else. Today the driver is a stateless translator publishing
 both (`src/tc49/driver/driver.py`).
 
 The dispatcher knows an `addr` because the drawing's yaml holds it. How it

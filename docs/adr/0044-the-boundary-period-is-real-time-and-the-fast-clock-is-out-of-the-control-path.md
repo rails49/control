@@ -15,7 +15,7 @@ On the physical railroad `layout` publishes `tc49/layout/boundary` on a
 
 Independence from the multiplier is the point.
 [ADR-0040](0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md)
-makes the `cross` expiry window two boundaries wide, so the period is part of
+makes the `move` expiry window two boundaries wide, so the period is part of
 the failure budget: it has to be long enough that a slow message is still a
 *live* one. Multiplying the railroad's clock by ten does not make the broker
 ten times faster. A period derived from the multiplier would narrow that
@@ -26,7 +26,7 @@ failure budget.
 
 So the sizing rule rather than the number: **pick the period so that two
 boundaries comfortably exceed worst-case cascade latency** — sensor,
-boundary, grant, `cross`, back to `layout` — and the expiry window is then
+boundary, grant, `move`, back to `layout` — and the expiry window is then
 never what drops a live command. ADR-0040 is unchanged: the current boundary
 or the one before, no wider. 500 ms is the default and the first train
 ([#211](https://github.com/rails49/control/issues/211)) confirms it.
@@ -116,10 +116,10 @@ extrapolate between updates. Extrapolation needs a real clock in the
 consumer, which is the thing ADR-0009 forbids.
 
 **A session epoch on the boundary number.** `layout` restarting resets the
-count, so a `cross` redelivered from before the restart can carry a number
+count, so a `move` redelivered from before the restart can carry a number
 that looks current. The answer is not a field: everything comes back at rest
 ([#123](https://github.com/rails49/control/issues/123)), the run comes up held
-and the rails come up dead, and `layout` acts on no `cross` while
+and the rails come up dead, and `layout` acts on no `move` while
 `state/power` is not `on`
 ([#204](https://github.com/rails49/control/issues/204) owns that rule).
 

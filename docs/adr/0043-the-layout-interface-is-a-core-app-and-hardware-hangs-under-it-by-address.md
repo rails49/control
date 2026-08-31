@@ -15,7 +15,7 @@ physical railroad a fixed period of real time, and the railroad's sped-up
 clock is a *second*, separate clock —
 [ADR-0044](0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)
 corrects this line), pairs `align` before
-`cross`, expires a `cross`, runs each transit — speed up, watch the far-end
+`move`, expires a `move`, runs each transit — speed up, watch the far-end
 sensor, stop, and stop anyway at the transit bound
 ([ADR-0040](0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md)) —
 folds sensor state into `block_occupied` and `block_vacated`, publishes

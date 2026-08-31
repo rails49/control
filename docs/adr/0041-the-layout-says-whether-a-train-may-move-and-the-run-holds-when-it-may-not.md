@@ -17,7 +17,7 @@ neutral. Cut power one boundary after a grant and the train stops between
 blocks. No sensor fires, so the outstanding move never clears and the block
 and the transit stay locked; that train is never granted anything again, and
 every train waiting on those resources waits with it. Meanwhile the dispatcher
-goes on granting to *other* trains, the driver goes on publishing `cross` at
+goes on granting to *other* trains, the driver goes on publishing `move` at
 dead rails, and `state/aspects` goes on showing `clear` over track with no
 volts in it — the lie ADR-0037 refuses to tell for a held run, arriving by
 another route. Restarting the process was the only cure, and a power cut that
@@ -74,7 +74,7 @@ power-up by coming back idle, held now in the app for a cut that did not take
 the process down.
 
 **GO is refused while power is not `on`.** Releasing into dead rails would
-choose routes, grant moves, publish `cross`, and strand the next train exactly
+choose routes, grant moves, publish `move`, and strand the next train exactly
 as the cut stranded the first. The dispatcher drops such a `run_wanted` in
 silence and to the trace, as it drops every gesture it cannot act on
 ([ADR-0034](0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)),
