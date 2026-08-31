@@ -9,12 +9,13 @@
 # front of the reader: "every accepted request completes, PROVIDED every train
 # blocking a pending request eventually receives a request of its own".
 #
-# `waiter` asks at boundary 0 for east_1, which `squatter` is sitting in. While
-# squatter is idle its block is a permanent obstacle, so waiter is refused at
-# every grant phase — not deadlocked, not wedged, just not served. At
-# boundary 6 squatter finally gets a request of its own and runs west; the
-# moment it
-# clears east_1, waiter launches and completes.
+# `waiter` asks first for east_1, which `squatter` is sitting in. While
+# squatter has yet to move its block is an obstacle, so waiter is refused at
+# every sweep — not deadlocked, not wedged, just not served. Squatter's own
+# request follows in the queue and runs it west; the moment it clears east_1,
+# waiter launches and completes. How *long* a blocker sits idle is submission
+# timing, which is the scheduler's (ADR-0047): the wait here is squatter's
+# whole journey, and a timetable that stretches it returns with milestone 2.
 #
 # The two latencies are the point. Both requests complete — the run drains —
 # but waiter's is several times squatter's, and the gap is entirely the wait,
@@ -30,7 +31,7 @@ trains:
   squatter: { at: east_1, facing: A }
 
 requests:
-  - { train: waiter, from: west_1.B, to: [east_1.A], at: 0 }
+  - { train: waiter, from: west_1.B, to: [east_1.A] }
   # squatter's own working, arriving late: until it does, nothing in the
   # dispatcher will move squatter, and east_1 is unroutable-to.
-  - { train: squatter, from: east_1.A, to: [west_2.B], at: 6 }
+  - { train: squatter, from: east_1.A, to: [west_2.B] }

@@ -27,4 +27,4 @@ trains:
   stock: { at: CE1, facing: A } # idle: no request names it
 
 requests:
-  - { train: stranded, from: C3b.A, to: [A1, A2, A3], at: 0 }
+  - { train: stranded, from: C3b.A, to: [A1, A2, A3] }

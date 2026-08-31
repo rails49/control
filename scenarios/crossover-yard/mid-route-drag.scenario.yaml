@@ -6,8 +6,8 @@
 # working queues behind the one in flight and means "finish what you are
 # doing, then go there".
 #
-# `from: dn_w.B` is what a panel composes at boundary 2 — correct for the
-# block freight stands in then, and meaningless for yard_e, which is where the
+# `from: dn_w.B` is what a panel composes mid-run — correct for a block
+# freight passes through, and meaningless for yard_e, which is where the
 # working will actually launch from. Nobody can state that end at drag time:
 # the origin is a dispatcher choice not yet made. The dispatcher supplies it
 # from the route the train arrives on, and because yard_e is a terminal block
@@ -27,6 +27,7 @@ trains:
 
 requests:
   # Out over the down main, which the lexicographic tie-break prefers.
-  - { train: freight, from: yard_w.B, to: [yard_e.A], at: 0 }
-  # The drag, released while freight is standing in dn_w.
-  - { train: freight, from: dn_w.B, to: [yard_w.B], at: 2 }
+  - { train: freight, from: yard_w.B, to: [yard_e.A] }
+  # The drag. Grants are immediate (ADR-0047), so the first working is under
+  # way — freight mid-transit on the down main — by the time this arrives.
+  - { train: freight, from: dn_w.B, to: [yard_w.B] }

@@ -12,7 +12,7 @@
 # end is fine, so the request survives fit and entry and dies on reachability:
 # the train is idle, nothing of its own is queued ahead of it, so the origin is
 # known where the request arrives and it is rejected `unreachable` there (#135)
-# rather than a boundary later at the first launch attempt.
+# rather than later at the first launch attempt.
 #
 # It is placed facing B, the one end it could leave by, because a placement
 # facing a wall is refused at load (#145). The request states its own
@@ -30,5 +30,5 @@ trains:
   hauler: { at: up_e, facing: B }
 
 requests:
-  - { train: shunter, from: yard_w.A, to: [dn_e.A], at: 0 }
-  - { train: hauler, from: up_e.B, to: [yard_e.A], at: 0 }
+  - { train: shunter, from: yard_w.A, to: [dn_e.A] }
+  - { train: hauler, from: up_e.B, to: [yard_e.A] }

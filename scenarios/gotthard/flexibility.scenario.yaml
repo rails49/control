@@ -6,7 +6,7 @@
 #   fixed     to: [C2.A]                          one track, one way round
 #   flexible  to: the six line-facing Claro ends  any track, either way round
 #
-# Both are Airolo -> Claro workings, both launched at boundary 0, and `resident`
+# Both are Airolo -> Claro workings, both launched together, and `resident`
 # sits in C2 with no request of its own, so the one track `fixed` names is
 # permanently unavailable. `fixed` stalls; `flexible` names the same obstructed
 # track among five other ends and finishes on one of them.
@@ -35,7 +35,7 @@ trains:
   resident: { at: C2, facing: A } # idle: no request names it
 
 requests:
-  - { train: fixed, from: A1.A, to: [C2.A], at: 0 }
+  - { train: fixed, from: A1.A, to: [C2.A] }
   - {
       train: flexible,
       from: A2.A,

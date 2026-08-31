@@ -26,5 +26,5 @@ trains:
   second: { at: west_2, facing: B }
 
 requests:
-  - { train: first, from: west_1.B, to: [east_1.A, east_2.A], at: 0 }
-  - { train: second, from: west_2.B, to: [east_1.A, east_2.A], at: 0 }
+  - { train: first, from: west_1.B, to: [east_1.A, east_2.A] }
+  - { train: second, from: west_2.B, to: [east_1.A, east_2.A] }

@@ -37,9 +37,9 @@ trains:
 
 requests:
   # t1 heads for the down main; its only 2-transit route runs through dn_e.
-  - { train: t1, from: yard_w.B, to: [dn_e.A], at: 0 }
+  - { train: t1, from: yard_w.B, to: [dn_e.A] }
   # t2 heads for the east yard, reachable over either main. Its candidates tie
   # at two transits; t1's committed route congests dn_e, so costing puts the
   # up line first — before #33, the lexicographic tie-break put dn_e first,
   # straight across t1's path.
-  - { train: t2, from: up_w.B, to: [yard_e.A], at: 0 }
+  - { train: t2, from: up_w.B, to: [yard_e.A] }

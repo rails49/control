@@ -20,7 +20,7 @@ trains:
   freight_1: { at: yard_w, facing: B }
   express_2: { at: up_e, facing: A }
 
-# request = (train, departure end, arrival ends, arrival boundary), per ADR-0007.
+# request = (train, departure end, arrival ends), per ADR-0007.
 #
 # `to` is a list and any one entry satisfies the request. A bare block id means
 # either end of it, so `to: [yard_e]` is `yard_e.A` and `yard_e.B` — and since
@@ -40,6 +40,6 @@ trains:
 # when its request completes, and an idle train's block is permanently
 # unavailable (SAFETY.md) — a return to yard_w could never complete.
 requests:
-  - { train: freight_1, from: yard_w.B, to: [yard_e], at: 0 }
-  - { train: express_2, from: up_e.A, to: [yard_w], at: 0 }
-  - { train: freight_1, from: yard_e.A, to: [dn_w], at: 12 } # return working
+  - { train: freight_1, from: yard_w.B, to: [yard_e] }
+  - { train: express_2, from: up_e.A, to: [yard_w] }
+  - { train: freight_1, from: yard_e.A, to: [dn_w] } # return working
