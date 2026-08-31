@@ -481,7 +481,7 @@ def test_grants_are_a_pure_function_of_the_buffered_sensor_set() -> None:
                 "dest": ["yard_w.B"],
             },
         ):
-            bus.publish("tc49/schedule/request_submitted", dict(submitted))
+            bus.publish("tc49/dispatch/request_submitted", dict(submitted))
         bus.publish("tc49/layout/boundary", {"boundary": 0})
         bus.publish("tc49/layout/boundary", {"boundary": 1})  # freight launches
         bus.publish("tc49/layout/block_vacated", {"block": "yard_w"})

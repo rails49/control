@@ -13,7 +13,7 @@ Driven at the bus, which is where a person's press arrives: `run_wanted` in,
 from tc49.bench.runner import Assembly
 from tests.harness import RUN_WANTED, leaves, live, press, run_wanted, runs, ticks
 
-REQUEST_WANTED = "tc49/ui/request_wanted"
+REQUEST_WANTED = "tc49/schedule/request_wanted"
 
 
 def ids(assembly: Assembly, leaf: str) -> list[str]:

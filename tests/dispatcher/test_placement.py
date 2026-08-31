@@ -1,6 +1,6 @@
 """A person says where a train actually stands (ADR-0037, #152).
 
-`tc49/ui/placement_wanted` is the correction an operator makes with their own
+`tc49/dispatch/placement_wanted` is the correction an operator makes with their own
 eyes: this train is *here*. One gesture, one authority — the dispatcher alone
 reads it, because "is that block free" is knowledge only it has, and having
 accepted it announces `tc49/dispatch/train_placed` for everyone else to
@@ -23,8 +23,8 @@ from tc49.lib import durable
 from tc49.lib.scenario import TrainSpec
 from tests.harness import RUN_WANTED, events, load, press, stock, ticks
 
-PLACEMENT_WANTED = "tc49/ui/placement_wanted"
-REQUEST_WANTED = "tc49/ui/request_wanted"
+PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
+REQUEST_WANTED = "tc49/schedule/request_wanted"
 
 
 STOCK = stock(freight_1=1100, leviathan=2000, railcar_3=600, shunter=600)
@@ -490,7 +490,7 @@ def test_a_request_for_a_train_just_taken_off_the_layout_is_answered(
 
     press(
         held,
-        "tc49/schedule/request_submitted",
+        "tc49/dispatch/request_submitted",
         {
             "id": "freight_1-9",
             "train": "freight_1",

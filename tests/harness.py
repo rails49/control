@@ -126,7 +126,7 @@ def ticks(
     assembly.simulator.run_live(0.0, sleep=lambda _: None, stop=stop)
 
 
-RUN_WANTED = "tc49/ui/run_wanted"
+RUN_WANTED = "tc49/dispatch/run_wanted"
 """The leaf a person's press of the run's one button lands on. Every
 dispatcher suite that drives the run names it, so it is named here once."""
 

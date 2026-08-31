@@ -4,43 +4,60 @@ Mirrors the inventory table of SYSTEM.md. The trace's canonical key order
 depends on this module; leaf names are globally unique across all topics
 (tested), because the trace's ``event`` field is the leaf alone.
 
-Adding a ``tc49/ui`` event row grants the browser write access to it, because
-``INBOUND`` below is read off this table rather than listed (SYSTEM.md, event
-inventory).
+A topic names the component that **declares** it: the events that component
+emits, and the requests it responds to. Nothing in a name says who sent a
+request, and no responder may read or infer it (SYSTEM.md, rule 4).
+
+Browser-writability is a mark on the row rather than a prefix to read:
+``INBOUND`` below is the marked rows, so a page's write surface widens only
+where somebody writes ``browser=True``.
 
 Where a field's *values* are a closed set the contract names, they live here
 too, beside the field they belong to: ``run`` and ``power`` are those fields.
 What an **enum** is, and which way an unreadable one falls, is CONTEXT.md.
 """
 
-TOPICS: dict[str, tuple[str, ...]] = {
-    "tc49/layout/boundary": ("boundary",),
-    "tc49/layout/block_occupied": ("block",),
-    "tc49/layout/block_vacated": ("block",),
-    "tc49/layout/state/power": ("power",),
-    "tc49/schedule/request_submitted": ("id", "train", "depart", "dest"),
-    "tc49/schedule/state/exhausted": ("exhausted",),
-    "tc49/schedule/state/facing": ("facing",),
-    "tc49/ui/request_wanted": ("train", "dest"),
-    "tc49/ui/reversal_wanted": ("train",),
-    "tc49/ui/run_wanted": ("run",),
-    "tc49/ui/placement_wanted": ("train", "block"),
-    "tc49/dispatch/request_admitted": ("id", "dest", "pruned"),
-    "tc49/dispatch/request_rejected": ("id", "reason"),
-    "tc49/dispatch/request_completed": ("id",),
-    "tc49/dispatch/route_chosen": ("id", "route", "k_tried"),
-    "tc49/dispatch/move_granted": ("id", "train", "transit", "into", "aspect"),
-    "tc49/dispatch/grant_refused": ("id", "reason", "obstacles"),
-    "tc49/dispatch/lock_granted": ("train", "resources"),
-    "tc49/dispatch/lock_released": ("train", "resources"),
-    "tc49/dispatch/train_placed": ("train", "block"),
-    "tc49/dispatch/train_removed": ("train",),
-    "tc49/dispatch/state/run": ("run",),
-    "tc49/dispatch/state/aspects": ("aspects",),
-    "tc49/dispatch/state/disputed": ("trains", "blocks"),
-    "tc49/dispatch/state/allocation": ("trains", "crossing", "locks", "requests"),
-    "tc49/dispatch/align": ("connection", "transit", "points"),
-    "tc49/drive/move": ("train", "connection", "transit", "into"),
+from typing import NamedTuple
+
+
+class Topic(NamedTuple):
+    """One inventory row: the payload's fields in the trace's canonical
+    order, and whether a browser may publish on the topic."""
+
+    fields: tuple[str, ...]
+    browser: bool = False
+
+
+TOPICS: dict[str, Topic] = {
+    "tc49/layout/boundary": Topic(("boundary",)),
+    "tc49/layout/block_occupied": Topic(("block",)),
+    "tc49/layout/block_vacated": Topic(("block",)),
+    "tc49/layout/state/power": Topic(("power",)),
+    "tc49/layout/align": Topic(("connection", "transit", "points")),
+    "tc49/layout/move": Topic(("train", "connection", "transit", "into")),
+    "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
+    "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
+    "tc49/schedule/state/exhausted": Topic(("exhausted",)),
+    "tc49/schedule/state/facing": Topic(("facing",)),
+    "tc49/dispatch/request_submitted": Topic(("id", "train", "depart", "dest")),
+    "tc49/dispatch/run_wanted": Topic(("run",), browser=True),
+    "tc49/dispatch/placement_wanted": Topic(("train", "block"), browser=True),
+    "tc49/dispatch/request_admitted": Topic(("id", "dest", "pruned")),
+    "tc49/dispatch/request_rejected": Topic(("id", "reason")),
+    "tc49/dispatch/request_completed": Topic(("id",)),
+    "tc49/dispatch/route_chosen": Topic(("id", "route", "k_tried")),
+    "tc49/dispatch/move_granted": Topic(("id", "train", "transit", "into", "aspect")),
+    "tc49/dispatch/grant_refused": Topic(("id", "reason", "obstacles")),
+    "tc49/dispatch/lock_granted": Topic(("train", "resources")),
+    "tc49/dispatch/lock_released": Topic(("train", "resources")),
+    "tc49/dispatch/train_placed": Topic(("train", "block")),
+    "tc49/dispatch/train_removed": Topic(("train",)),
+    "tc49/dispatch/state/run": Topic(("run",)),
+    "tc49/dispatch/state/aspects": Topic(("aspects",)),
+    "tc49/dispatch/state/disputed": Topic(("trains", "blocks")),
+    "tc49/dispatch/state/allocation": Topic(
+        ("trains", "crossing", "locks", "requests")
+    ),
 }
 
 
@@ -73,27 +90,26 @@ def is_state_topic(topic: str) -> bool:
     return len(levels) >= 2 and levels[-2] == "state"
 
 
-INBOUND = frozenset(
-    topic
-    for topic in TOPICS
-    if topic.startswith("tc49/ui/") and not is_state_topic(topic)
-)
+INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
 """The topics a client writes: the panel's write surface, and what a broker's
 ACL will grant it once the bridge is gone (ADR-0034). Named here rather than
-in the bridge because the fact outlives the relay, and read off the role
-rather than listed, `tc49/ui/*` being what the ACL would name — a topic under
-`ui` is one a person's page writes, that being what the role means
-(ADR-0035).
+in the bridge because the fact outlives the relay, and read off the rows'
+marks rather than off a prefix — a topic now names the component that
+responds to it, so the four gestures sit under `schedule` and `dispatch`
+beside everything else those two answer, and only the mark says a page may
+send them.
 
-Event topics only. A `ui` role with concurrent instances may not write a state
-topic at all (ADR-0035), and the bridge relies on it besides: a client's frame
-is published from that client's own handler thread, and publishing a state
-topic would write the bus's last-value map from there. So a `tc49/ui/state/…`
-leaf added to the table above stays outbound, and the bridge refuses it.
+Event topics only. A page has concurrent instances — two tabs are two of
+them — and concurrent writers may not write a state topic at all
+(ADR-0035), and the bridge relies on it besides: a client's frame is
+published from that client's own handler thread, and publishing a state topic
+would write the bus's last-value map from there. So `browser=True` belongs on
+event rows, and a state row must never carry it.
 
-Gestures, never requests: `tc49/schedule/request_submitted` is refused
-inbound like any other topic, which is what makes the scheduler's
-single-minter claim something the topic check enforces (ADR-0036)."""
+Gestures, never requests: `tc49/dispatch/request_submitted` carries no mark
+and is refused inbound like any other unmarked topic, which is what makes the
+scheduler's single-minter claim something the topic check enforces
+(ADR-0036)."""
 
 
 def leaf(topic: str) -> str:
@@ -101,5 +117,5 @@ def leaf(topic: str) -> str:
 
 
 LEAF_FIELDS: dict[str, tuple[str, ...]] = {
-    leaf(topic): fields for topic, fields in TOPICS.items()
+    leaf(topic): row.fields for topic, row in TOPICS.items()
 }

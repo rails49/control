@@ -9,8 +9,8 @@ from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import TOPICS, leaf
 from tc49.lib.trace import TraceTap
 
-WANTED = "tc49/ui/request_wanted"
-REVERSAL = "tc49/ui/reversal_wanted"
+WANTED = "tc49/schedule/request_wanted"
+REVERSAL = "tc49/schedule/reversal_wanted"
 
 
 def test_line_is_flat_with_canonical_key_order() -> None:
@@ -20,7 +20,7 @@ def test_line_is_flat_with_canonical_key_order() -> None:
 
     # Payload built in non-canonical key order; the tap must reorder.
     bus.publish(
-        "tc49/schedule/request_submitted",
+        "tc49/dispatch/request_submitted",
         {"dest": ["yard_e.A"], "id": "re460-1", "depart": "main_w.A", "train": "re460"},
     )
     bus.drain()
@@ -62,13 +62,13 @@ def test_scripted_sequence_traced_twice_is_byte_identical() -> None:
         def complete(topic: str, payload: dict[str, object]) -> None:
             bus.publish("tc49/dispatch/request_completed", {"id": payload["id"]})
 
-        bus.subscribe("tc49/schedule/request_submitted", complete)
+        bus.subscribe("tc49/dispatch/request_submitted", complete)
         bus.publish(
             "tc49/dispatch/lock_granted", {"train": "re460", "resources": ["a"]}
         )
         bus.publish("tc49/layout/boundary", {"boundary": 1})
         bus.publish(
-            "tc49/schedule/request_submitted",
+            "tc49/dispatch/request_submitted",
             {"id": "re460-1", "train": "re460", "depart": "a.A", "dest": ["b.A"]},
         )
         bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})

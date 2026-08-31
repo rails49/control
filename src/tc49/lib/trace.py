@@ -7,7 +7,7 @@ stamped from the last boundary event observed, ``0`` before the first. A
 topic or payload field outside the inventory fails loudly: the trace is
 load-bearing, and a stray field must break a test, not rot quietly.
 
-That is a promise about what the *apps* write. The topics a client writes
+That is a promise about what the *apps* write. The browser-writable topics
 carry whatever a browser published, and an unreadable frame's only record is
 its trace line — the dispatcher answers what it can address and drops the
 rest (ADR-0034) — so the tap records those topics as they came: canonical

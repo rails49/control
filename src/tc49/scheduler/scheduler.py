@@ -1,7 +1,9 @@
 """Scheduler: the one writer of requests, and the holder of facing.
 
 Its sources are configuration rather than a rule (ADR-0036): a timetable
-released at its `at` boundaries, and a person gesturing on `tc49/ui/*`.
+released at its `at` boundaries, and a person gesturing on the two topics
+the scheduler declares, `tc49/schedule/request_wanted` and
+`tc49/schedule/reversal_wanted`.
 `tc49 bench` runs with a timetable, `tc49 live` with none while `at` is
 still a boundary count. A gesture is not a request — it names a train and
 where to put it, and the id and the departure end are what the scheduler
@@ -25,7 +27,7 @@ other source for one. Where the bus binding has kept that topic across a
 restart the scheduler adopts what it finds there instead of the placement,
 which is what a broker that outlived it would have delivered (#123).
 Deliberate reversal at rest is the one change routes do not account for, and
-it arrives as its own gesture on `tc49/ui/reversal_wanted` (#124).
+it arrives as its own gesture on `tc49/schedule/reversal_wanted` (#124).
 """
 
 from collections import Counter
@@ -90,7 +92,7 @@ class Scheduler:
         self._publish_facing()
         bus.subscribe("tc49/layout/boundary", self._on_boundary)
         bus.subscribe("tc49/dispatch/#", self._on_dispatch)
-        bus.subscribe("tc49/ui/#", self._on_gesture)
+        bus.subscribe("tc49/schedule/#", self._on_gesture)
 
     def _on_boundary(self, topic: str, payload: Payload) -> None:
         now = payload["boundary"]
@@ -104,12 +106,19 @@ class Scheduler:
 
     def _submit(self, event: Payload) -> None:
         self._train_of[event["id"]] = event["train"]
-        self._bus.publish("tc49/schedule/request_submitted", event)
+        self._bus.publish("tc49/dispatch/request_submitted", event)
 
     # -- gestures ----------------------------------------------------------
 
     def _on_gesture(self, topic: str, payload: Payload) -> None:
         """A person's action on a page: which of the two leaves it came on.
+
+        The filter is the whole of `tc49/schedule`, as rule 3 asks, so the
+        scheduler's own two state topics come back through here and are
+        ignored on the way past. Nothing in the topic or the payload says who
+        sent a gesture, and nothing here asks: a page sends these today, and
+        anything else that composes one is served the same (SYSTEM.md,
+        rule 4).
 
         What the scheduler cannot act on it **drops**, in silence and to the
         trace, whichever leaf it was. A gesture carries no id, so there is
@@ -200,6 +209,11 @@ class Scheduler:
         there is no end to face away towards, and it gives back the one end a
         connection holds (#145). The second needs no correction — a route's
         departure end is a transit's end and so always connected.
+
+        `request_submitted` is on this filter too, the scheduler's own
+        included, because the topic names the dispatcher that responds to it.
+        It is ignored here like every other leaf the scheduler does not act
+        on.
         """
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "move_granted":

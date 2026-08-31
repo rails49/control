@@ -42,14 +42,14 @@ def test_publish_inside_handler_joins_back_of_queue() -> None:
     bus.subscribe("tc49/#", lambda topic, payload: seen.append(f"tap:{topic}"))
 
     bus.publish("tc49/layout/boundary", {"boundary": 1})
-    bus.publish("tc49/schedule/request_submitted", {"id": "t-1"})
+    bus.publish("tc49/dispatch/request_submitted", {"id": "t-1"})
     bus.drain()
 
     # Breadth-first: the nested publish lands after everything already queued.
     assert seen == [
         "tc49/layout/boundary",
         "tap:tc49/layout/boundary",
-        "tap:tc49/schedule/request_submitted",
+        "tap:tc49/dispatch/request_submitted",
         "tap:tc49/dispatch/move_granted",
     ]
 

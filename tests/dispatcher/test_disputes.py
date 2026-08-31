@@ -33,7 +33,7 @@ from tests.harness import RUN_WANTED, load
 DISPUTED = "tc49/dispatch/state/disputed"
 OCCUPIED = "tc49/layout/block_occupied"
 VACATED = "tc49/layout/block_vacated"
-PLACEMENT_WANTED = "tc49/ui/placement_wanted"
+PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 
 MOVED: dict[str, Any] = {
     "trains": {"express_2": "up_w", "freight_1": "dn_e"},

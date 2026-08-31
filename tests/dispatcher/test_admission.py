@@ -24,7 +24,7 @@ from tc49.lib.bus import Bus, Payload
 from tc49.lib.scenario import Scenario, TrainSpec
 from tests.harness import events, load, stock
 
-REQUESTS = "tc49/schedule/request_submitted"
+REQUESTS = "tc49/dispatch/request_submitted"
 
 GOOD: Payload = {
     "id": "freight_1-1",

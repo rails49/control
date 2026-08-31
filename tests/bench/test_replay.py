@@ -2,7 +2,7 @@
 
 A run is built from a railroad and a person places its trains, so the harness
 keeps its file format by standing where the person stands: it publishes one
-`tc49/ui/placement_wanted` per train, turns the ones the document faces the
+`tc49/dispatch/placement_wanted` per train, turns the ones the document faces the
 other way, presses GO, and feeds the requests at their `at` boundaries — every
 one of them a topic a browser writes.
 

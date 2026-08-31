@@ -6,15 +6,16 @@ payload is **read** rather than trusted, and reading it **never raises**
 and what a failed read is worth is the caller's — an answer where there is an
 id to address, a drop where there is not.
 
-The scheduler reads a gesture off `tc49/ui/request_wanted`, the dispatcher a
-request off `tc49/schedule/request_submitted`. The two differ by the id and
-the departure end the scheduler adds (ADR-0036) and agree on the two fields a
-gesture is, so those two are read here and each app keeps its own shape. The
-scheduler's other leaf, `tc49/ui/reversal_wanted`, names a train and nothing
-else, and is read here for the same reason: nothing raises. The dispatcher's
-own two leaves, `tc49/ui/run_wanted` and `tc49/ui/placement_wanted`, are read
-here beside them: which app reads a gesture is not what decides where the
-reading lives — that nothing raises is (#152).
+The scheduler reads a gesture off `tc49/schedule/request_wanted`, the
+dispatcher a request off `tc49/dispatch/request_submitted`. The two differ by
+the id and the departure end the scheduler adds (ADR-0036) and agree on the
+two fields a gesture is, so those two are read here and each app keeps its own
+shape. The scheduler's other leaf, `tc49/schedule/reversal_wanted`, names a
+train and nothing else, and is read here for the same reason: nothing raises.
+The dispatcher's own two leaves, `tc49/dispatch/run_wanted` and
+`tc49/dispatch/placement_wanted`, are read here beside them: which app reads a
+gesture is not what decides where the reading lives — that nothing raises is
+(#152).
 
 `tc49/layout/state/power` is read here for that reason and not the first one:
 no page writes it, but the layout binding is another process, and a dispatcher
@@ -161,7 +162,7 @@ def placement(payload: object) -> Placement | None:
     accept. This says only that a train and a place were named.
 
     A **missing** `block` fails the read and an explicit `null` succeeds, so
-    the key's presence is load-bearing. `tc49/ui/*` is read and never trusted,
+    the key's presence is load-bearing. A gesture is read and never trusted,
     and a frame that lost a field on the way is indistinguishable from one
     that never carried it — taking a train off the layout is too much to read
     into an absence, where a `null` a page wrote is a positive statement that

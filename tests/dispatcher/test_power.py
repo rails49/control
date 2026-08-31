@@ -9,7 +9,7 @@ presses GO — and a GO pressed while the rails are dead is dropped, releasing
 into them being how the next train is stranded like the first.
 
 Driven at the bus, which is where both arrive: `tc49/layout/state/power` from
-the layout binding, `tc49/ui/run_wanted` from a page.
+the layout binding, `tc49/dispatch/run_wanted` from a page.
 
 A payload the reader cannot make an enum value of is one of the "not `on`"
 cases too, and is driven at a dispatcher with no trace on its bus (#175).
