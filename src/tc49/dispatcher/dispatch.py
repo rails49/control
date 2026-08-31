@@ -1,11 +1,15 @@
-"""Dispatcher: admission, queue, lock table, buffered sensors, grant phase.
+"""Dispatcher: admission, queue, lock table, sensor roles, grant sweep.
 
 Fully asynchronous at the bus boundary (SYSTEM.md, dispatcher footprint):
 requests arrive as events, every fate is announced as an event, and the
-request id is both correlation and idempotency key. Sensor events are
-buffered until the boundary and treated as a set, so grants are a pure
-function of the buffered set, never of delivery order (DISPATCH.md, time
-model). Standing locks are seeded and published at startup — from the last
+request id is both correlation and idempotency key. The dispatcher grants on
+the events that arrive (ADR-0047): a sensor reading is applied where it
+lands, and a **sweep** — one grant pass over the active trains and the whole
+pending queue — runs wherever the lock table or the waiting set changes: a
+request admitted, a vacated block releasing what a move held, the run
+released. Every grant is `safe()`-checked before it commits, so arrival
+order picks among safe options and never reaches an unsafe state.
+Standing locks are seeded and published at startup — from the last
 picture where the bus binding has kept one across a restart, and from the
 placement the run was built with where it has not (#123). The locking
 discipline is the pluggable strategy of locking.py.
@@ -47,7 +51,7 @@ class Request:
     depart: str  # end, or bare letter for a chained request
     arrivals: tuple[str, ...]  # surviving arrival ends
     seq: int  # admission order; the pending queue's tie-break key
-    phase: int  # grant phases run when admitted; the arrival-order key
+    phase: int  # sweeps run when admitted; the arrival-order key
     refusals: int = 0  # launch refusals so far; the aging key (#34)
 
 
@@ -108,23 +112,22 @@ class State:
     # with no route behind it, which is what makes it a placement hint and
     # not a resumed move.
     crossing: dict[str, str] = field(default_factory=dict[str, str])
-    # `held` or `running`: whether the dispatcher may commit anything at the
-    # next boundary (ADR-0037). A brake and not an emergency stop — a move
-    # already granted is not retractable — so it gates the grant phase and
-    # the aspects, and nothing else. State rather than a flag on the
-    # dispatcher because `aspects()` answers off it.
+    # `held` or `running`: whether the dispatcher may commit anything
+    # (ADR-0037). A brake and not an emergency stop — a move already granted
+    # is not retractable — so it gates the sweep's grant pass and the
+    # aspects, and nothing else. State rather than a flag on the dispatcher
+    # because `aspects()` answers off it.
     run: str = RUNNING
     # `on`, `stopped` or `off`: what the layout last said about whether a
     # train may move at all (ADR-0041). Read only as "not `on`", the two ways
     # of standing still differing for the person recovering and not here.
     # `on` until the layout says otherwise, which is the same opening the run
     # takes: the binding states it from its constructor, so the value arrives
-    # before the first boundary.
+    # before anything is granted.
     power: str = ON
-    # block -> whether the layout last reported it occupied. What the
-    # detectors have *said*, which is not the same as what the dispatcher has
-    # acted on: a block enters this from the report that named it, while the
-    # buffered set below is about when a grant may follow (#153). Only blocks
+    # block -> whether the layout last reported it occupied: the level each
+    # detector last stated, which is what makes an at-least-once repeat a
+    # no-op (ADR-0047), and what the dispute check compares (#153). Only blocks
     # the layout has actually reported on are keys — silence is not a clear
     # reading, and a binding that reports nothing disputes nothing rather
     # than the whole railroad.
@@ -161,7 +164,7 @@ class State:
         is fixed (ADR-0002), the placed train is idle and its standing lock
         is therefore a permanent obstacle (SAFETY.md), and nothing cancels a
         request — so the committed train is refused `unsafe` at every
-        boundary for the rest of the session.
+        sweep for the rest of the session.
         """
         if block in self.locks:
             return False
@@ -508,7 +511,7 @@ class Dispatcher:
             # (#171) — the hold is what lets them lay the railroad out.
             #
             # What is left is the harness's batch loop, whose document stands
-            # its trains before the first boundary: nothing is left to place,
+            # its trains before anything runs: nothing is left to place,
             # and a run that refused to grant with nobody at a panel would be
             # a fault that looks like a hang (ADR-0037).
             run=HELD if picture or not adopted.standing else RUNNING,
@@ -522,9 +525,7 @@ class Dispatcher:
         self._pending: list[Request] = []
         self._seen_ids: set[str] = set()
         self._next_seq = 0
-        self._phases = 0  # grant phases run; stamps admissions for grant order
-        # (leaf, block) sensor events buffered since the last grant boundary.
-        self._buffered: list[tuple[str, str]] = []
+        self._phases = 0  # sweeps run; stamps admissions for grant order
         self._aspects: dict[str, str] = {}  # last published, so only changes go
         self._allocation: Payload = {}  # likewise: the picture, when it moves
         self._disputed: Payload = {}  # and what the detectors dispute
@@ -654,7 +655,8 @@ class Dispatcher:
             "tc49/dispatch/request_admitted",
             {"id": rid, "dest": surviving, "pruned": pruned},
         )
-        self._publish_allocation()
+        # The waiting set grew: the request is considered now, not at a beat.
+        self._sweep()
 
     def _reject(self, rid: str, reason: Reason) -> None:
         self._publish("request_rejected", {"id": rid, "reason": reason})
@@ -753,12 +755,9 @@ class Dispatcher:
     def _set_run(self, payload: Payload) -> None:
         """Hold the run, or release it.
 
-        Releasing sets the state and nothing else: the next
-        `tc49/layout/boundary` runs an ordinary grant phase. Granting from
-        here would make the boundary no longer the sole trigger, and would
-        grant against a sensor buffer filled over part of a period, which is
-        the one thing the time model rules out (DISPATCH.md). The cost is up
-        to one period between the press and the first wheel turning.
+        Releasing runs a sweep: the release is what re-opens the gate the
+        hold closed, so the waiting set is reconsidered here and the first
+        wheel turns with the press (ADR-0047).
 
         A release is **refused while the track has no power**, dropped in
         silence and to the trace as every other gesture the dispatcher cannot
@@ -792,6 +791,8 @@ class Dispatcher:
         # running dispatcher's placement follows the sensors move by move, so
         # there is nothing left for the check to compare (#153).
         self._publish_disputed()
+        if wanted == RUNNING:
+            self._sweep()
 
     def _place(self, payload: Payload) -> None:
         """Where a train actually is, said by the person who can see it: the
@@ -907,7 +908,7 @@ class Dispatcher:
         self._publish_allocation()
         self._publish_disputed()
 
-    # -- the grant phase ---------------------------------------------------
+    # -- the sensors, and the sweep they trigger ----------------------------
 
     def _on_layout(self, topic: str, payload: Payload) -> None:
         """What the layout interface says, and the two commands sent to it.
@@ -918,9 +919,7 @@ class Dispatcher:
         than being taken for a reading with no block in it.
         """
         leaf = topic.rsplit("/", 1)[-1]
-        if leaf == "boundary":
-            self._grant_phase()
-        elif leaf == "power":
+        if leaf == "power":
             self._on_power(payload)
         elif leaf in ("block_occupied", "block_vacated"):
             block = occupancy(payload)
@@ -931,18 +930,79 @@ class Dispatcher:
                 # it. Why this direction and not the power enum's is
                 # SYSTEM.md, sole payload authority (#181).
                 return
-            self._buffered.append((leaf, block))
-            # Recorded where it arrives rather than where the buffer is
-            # applied. A reading is a fact the moment the layout states it,
-            # and the dispute it may settle commits nothing — the buffer
-            # exists so that *grants* are a function of a whole period's
-            # sensors (DISPATCH.md, time model), which is a rule about
-            # acting. It also has to be so for the case this is for: the
-            # detectors asserting on power-up explain no move the dispatcher
-            # granted, and a boundary is not where such a reading survives
-            # (SYSTEM.md, the standing assumption).
-            self._state.reported[block] = leaf == "block_occupied"
-            self._publish_disputed()
+            self._on_sensor(leaf == "block_occupied", block)
+
+    def _on_sensor(self, occupied: bool, block: str) -> None:
+        """One detector reading, applied where it lands (ADR-0047).
+
+        A detector reports presence, which is a level: a reading that
+        re-asserts what `reported` already holds is an at-least-once repeat
+        and a no-op, so delivery needs no counter and no dedup. A reading
+        that *changes* the level either explains a granted move — recorded
+        arrival for `block_occupied`, a finished move for `block_vacated` —
+        or explains nothing: while held that is the dispute check's business
+        (#153, the detectors asserting on power-up), and while running it is
+        the standing assumption violated (SYSTEM.md, layout interface) and
+        raises rather than guessing.
+        """
+        if self._state.reported.get(block) == occupied:
+            return
+        self._state.reported[block] = occupied
+        self._publish_disputed()
+        if occupied:
+            self._arrived(block)
+        else:
+            self._cleared(block)
+
+    def _explained(self, block: str) -> tuple[str, Active, Move] | None:
+        """The train whose outstanding move this reading reports on, or None
+        where no grant accounts for it."""
+        train = self._state.locks.get(block)
+        if train is None:
+            return None
+        active = self._state.active.get(train)
+        if active is None or active.outstanding is None:
+            return None
+        return train, active, active.outstanding
+
+    def _unexplained(self, reading: str) -> None:
+        if self._state.run == RUNNING:
+            raise RuntimeError(f"no granted move explains the reading: {reading}")
+
+    def _arrived(self, block: str) -> None:
+        """`block_occupied` records where the train arrived. The move is not
+        over: the tail is still in the origin block, the train is between
+        blocks, and it takes no further grant until the vacate ends the move
+        (ADR-0047)."""
+        found = self._explained(block)
+        if found is None or found[2].into != block:
+            self._unexplained(f"'{block}' occupied")
+            return
+        train, _active, _move = found
+        self._state.block_of[train] = block
+        self._publish_allocation()
+
+    def _cleared(self, block: str) -> None:
+        """`block_vacated` releases the origin block and the transit, ends
+        the move and completes the request — and what it released is why a
+        sweep runs here (ADR-0047)."""
+        state = self._state
+        found = self._explained(block)
+        if found is None or found[2].from_block != block:
+            self._unexplained(f"'{block}' vacated")
+            return
+        train, active, move = found
+        del state.locks[block]
+        del state.locks[move.transit]
+        self._publish(
+            "lock_released", {"train": train, "resources": [block, move.transit]}
+        )
+        active.outstanding = None
+        del state.crossing[train]
+        if active.cur_index == len(active.route.blocks) - 1:
+            del state.active[train]
+            self._publish("request_completed", {"id": active.request.id})
+        self._sweep()
 
     def _on_power(self, payload: Payload) -> None:
         """What the layout says about whether a train may move at all.
@@ -975,26 +1035,25 @@ class Dispatcher:
         if self._state.power != ON:
             self._move_run(HELD)
 
-    def _grant_phase(self) -> None:
-        """The boundary's work: the buffered sensors, then the grants.
+    def _sweep(self) -> None:
+        """One grant pass, run where the lock table or the waiting set
+        changed: a request admitted, a vacated block releasing what a move
+        held, the run released. A sweep covers the whole waiting set, so
+        every pending request accrues a refusal in the same sweep and the
+        aging keeps its order (ADR-0012, ADR-0047).
 
-        While the run is held the sensors are applied and the phase stops
-        there (ADR-0037). The hold is a brake and not an emergency stop —
-        nothing on the bus retracts a `move` already sent — so an
-        outstanding move still completes and releases its locks, and what is
+        While the run is held nothing commits (ADR-0037): the hold is a brake
+        and not an emergency stop — nothing on the bus retracts a `move`
+        already sent — so a sensor still applies where it lands, and what is
         withheld is everything that would commit something new. `_phases`
         keeps counting either way: a held run is still a run, and the count
         is what stamps an admission with the grant order it joined at.
         """
         self._phases += 1
-        self._apply_sensors()
         if self._state.run == RUNNING:
             self._grant()
         self._publish_aspects()
         self._publish_allocation()
-        # The sensors just applied moved the placement the check compares
-        # against: an outstanding move completing while held is the one thing
-        # that resolves a dispute without a person saying anything.
         self._publish_disputed()
 
     def _grant(self) -> None:
@@ -1063,31 +1122,6 @@ class Dispatcher:
             else:
                 waiting.add(req.train)
                 self._launch(req, result)
-
-    def _apply_sensors(self) -> None:
-        """The buffered set, in canonical order — never delivery order."""
-        state = self._state
-        vacated = sorted(b for leaf, b in self._buffered if leaf == "block_vacated")
-        occupied = sorted(b for leaf, b in self._buffered if leaf == "block_occupied")
-        self._buffered.clear()
-        for block in vacated:
-            train = state.locks[block]
-            move = state.active[train].outstanding
-            assert move is not None and move.from_block == block
-            del state.locks[block]
-            del state.locks[move.transit]
-            self._publish(
-                "lock_released", {"train": train, "resources": [block, move.transit]}
-            )
-        for block in occupied:
-            train = state.locks[block]
-            active = state.active[train]
-            active.outstanding = None
-            del state.crossing[train]
-            state.block_of[train] = block
-            if active.cur_index == len(active.route.blocks) - 1:
-                del state.active[train]
-                self._publish("request_completed", {"id": active.request.id})
 
     def _launch(self, req: Request, launched: Launched) -> None:
         self._pending.remove(req)
@@ -1215,8 +1249,8 @@ class Dispatcher:
         """What the detectors make of the placement, on a last-value topic,
         when it moves — the panel points a person at it, and a panel joining
         later must find it there (ADR-0032). Published from every place that
-        moves either side of the comparison: a reading arriving, the sensors
-        applied at a boundary, a placement, and the hold itself."""
+        moves either side of the comparison: a reading arriving, a placement,
+        and the hold itself."""
         found = disputed(self._state)
         if found != self._disputed:
             self._disputed = found
