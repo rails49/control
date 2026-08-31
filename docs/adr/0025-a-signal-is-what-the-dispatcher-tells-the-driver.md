@@ -6,6 +6,11 @@ While the run is `held` every signalled end shows `stop`, whatever the locks
 say. The reading below is unchanged and gated: an aspect answers "may the
 train in this block leave via this end", and while held the answer is no.
 
+**Amended for
+[#235](https://github.com/rails49/control/issues/235):** the middle aspect was
+`approach` when this was written and is now `caution`. The text below has been
+rewritten to the new name; nothing about the reading changed.
+
 The dispatcher's authority reaches the driver as a **signal aspect**, and the
 driver's whole job is to turn that aspect into a speed. It decides nothing
 about where the train goes: the turnouts are already thrown when the aspect
@@ -19,6 +24,16 @@ Three aspects, read off how far ahead the dispatcher has locked:
 | nothing | `stop` | stand |
 | one block | `caution` | proceed, prepared to stop at the next signal |
 | two or more | `clear` | full speed |
+
+**The three against the Swiss system**: `stop` = Halt, `caution` = Fb 2,
+`clear` = Freie Fahrt (Fb 1)
+([reference](https://gleis3a.de/threads/signalsystemschweiz)). `clear` already
+is Freie Fahrt in signalling English and says line speed rather than mere
+permission. `approach` was the odd one out: in signalling English it means
+"prepared to stop at the next signal", a braking instruction, while Fb 2 names
+a speed. `caution` says the same braking instruction in ordinary words. Whether
+the middle aspect stays a braking instruction or becomes a speed is the open
+speed-signalling subject in [GOALS.md](../GOALS.md#driving).
 
 **Three is exactly sufficient, not a compromise.** A fourth aspect would need a
 fourth speed regime to name, and there is none: full speed is full speed, so

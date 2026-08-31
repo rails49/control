@@ -73,13 +73,24 @@ a signal that could only show `stop` being furniture.
 _Avoid_: light, head, semaphore, distant
 
 **Aspect**:
-What a signal shows, one of exactly three — `stop`, `caution` (proceed,
-prepared to stop at the next signal), and `clear` (full speed) — read off how
-far ahead the dispatcher has locked: nothing, one block, two or more
-([ADR-0025](docs/adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+What a signal shows, one of exactly three, read off how far ahead the
+dispatcher has locked
+([ADR-0025](docs/adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)):
+
+| Aspect | Locked ahead | Swiss | Meaning to the driver |
+| --- | --- | --- | --- |
+| `stop` | nothing | Halt | stand |
+| `caution` | one block | Fb 2 | proceed, prepared to stop at the next signal |
+| `clear` | two or more | Freie Fahrt (Fb 1) | full speed |
+
+The Swiss column is what each aspect answers to and not a translation: Fb 2
+names a speed, 40 km/h, where `caution` names a braking instruction, and which
+of the two the middle aspect finally is stays open (ADR-0025).
+
 `stop` unless a block beyond has been reserved, which follows from the locks
 rather than being a rule of its own.
-_Avoid_: indication, state, colour, signal (the signal shows the aspect)
+_Avoid_: indication, state, colour, signal (the signal shows the aspect),
+approach (the middle aspect's earlier name)
 
 **Lamp**:
 One of a signal's three lights, named for its colour: green, red, amber. An
