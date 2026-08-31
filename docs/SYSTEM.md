@@ -270,35 +270,35 @@ drives with is the case it is right for
 should not write is under the wrong role, and belongs to the role that may
 write it.
 
-| Topic | Kind | Publisher | Payload gist |
+| Topic | Kind | Publisher | Meaning |
 | --- | --- | --- | --- |
-| `tc49/layout/boundary` | event | layout | deterministic counter |
-| `tc49/layout/block_occupied` | event | layout | block |
-| `tc49/layout/block_vacated` | event | layout | block |
-| `tc49/layout/state/power` | state | layout | last-value enum, `on`, `stopped` or `off` — whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
-| `tc49/schedule/request_submitted` | event | scheduler | id, train, depart, dest ends |
-| `tc49/schedule/state/exhausted` | state | scheduler | last-value flag |
-| `tc49/schedule/state/facing` | state | scheduler | last-value map of train to the end it would depart through |
-| `tc49/ui/request_wanted` | event | UI | train, dest ends — a request minus the id and depart the scheduler owns |
-| `tc49/ui/reversal_wanted` | event | UI | train — turn it around where it stands; the scheduler flips its facing and composes no request |
-| `tc49/ui/run_wanted` | event | UI | run (`held`, `running`) — hold the run or release it |
-| `tc49/ui/placement_wanted` | event | UI | train, block — where a train actually is, reported by the person who can see it; `block: null` means off the layout ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
-| `tc49/dispatch/request_admitted` | event | dispatcher | id, surviving dest ends, pruned |
-| `tc49/dispatch/request_rejected` | event | dispatcher | id, reason (`no_fit`, `no_entry`, `unreachable`, `no_origin`, `wrong_origin`, `unknown_train`, `unknown_block`, `malformed` — the set is `tc49.lib.rejection`, and the UI's copy of it is generated) |
-| `tc49/dispatch/request_completed` | event | dispatcher | id |
-| `tc49/dispatch/route_chosen` | event | dispatcher | id, route, k_tried |
-| `tc49/dispatch/move_granted` | event | dispatcher | id, train, transit, into, aspect |
-| `tc49/dispatch/grant_refused` | event | dispatcher | id, reason (`unsafe`, `held`, `transit_conflict`), obstacles `[{resource, holder}]` |
-| `tc49/dispatch/lock_granted` | event | dispatcher | train, resources |
-| `tc49/dispatch/lock_released` | event | dispatcher | train, resources |
-| `tc49/dispatch/train_placed` | event | dispatcher | train, block — a placement accepted, the standing lock moved with it |
-| `tc49/dispatch/train_removed` | event | dispatcher | train — taken off the layout; whatever it held is released first |
-| `tc49/dispatch/state/run` | state | dispatcher | last-value enum, `held` or `running` ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)) |
-| `tc49/dispatch/state/aspects` | state | dispatcher | last-value map of signalled block end to aspect |
-| `tc49/dispatch/state/allocation` | state | dispatcher | last-value picture of the run: standing trains, the transit each crossing train is on, locks and holders, committed routes, live requests |
-| `tc49/dispatch/state/disputed` | state | dispatcher | last-value pair of lists: trains standing in a block that reads clear, and blocks that read occupied with nothing claiming them. Empty unless the run is held ([#153](https://github.com/rails49/control/issues/153)) |
-| `tc49/dispatch/align` | command | dispatcher | connection, transit, points `[{addr, position}]` |
-| `tc49/drive/move` | command | driver | train, connection, transit, into |
+| `tc49/layout/boundary` | event | layout | the grant beat, numbered |
+| `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
+| `tc49/layout/block_vacated` | event | layout | a detector saw a block empty |
+| `tc49/layout/state/power` | state | layout | whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
+| `tc49/schedule/request_submitted` | event | scheduler | a request, composed and released |
+| `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
+| `tc49/schedule/state/facing` | state | scheduler | the end each train would depart through |
+| `tc49/ui/request_wanted` | event | UI | a gesture: the request minus the id and depart the scheduler owns |
+| `tc49/ui/reversal_wanted` | event | UI | turn a train around where it stands |
+| `tc49/ui/run_wanted` | event | UI | hold the run or release it |
+| `tc49/ui/placement_wanted` | event | UI | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
+| `tc49/dispatch/request_admitted` | event | dispatcher | admission accepted it, with what survived pruning |
+| `tc49/dispatch/request_rejected` | event | dispatcher | admission refused it, and why |
+| `tc49/dispatch/request_completed` | event | dispatcher | the train arrived |
+| `tc49/dispatch/route_chosen` | event | dispatcher | the route a launch fixed |
+| `tc49/dispatch/move_granted` | event | dispatcher | one transit authorised |
+| `tc49/dispatch/grant_refused` | event | dispatcher | a grant blocked, and by what |
+| `tc49/dispatch/lock_granted` | event | dispatcher | resources claimed for a train |
+| `tc49/dispatch/lock_released` | event | dispatcher | resources released |
+| `tc49/dispatch/train_placed` | event | dispatcher | a placement accepted, the standing lock moved with it |
+| `tc49/dispatch/train_removed` | event | dispatcher | a train taken off the layout |
+| `tc49/dispatch/state/run` | state | dispatcher | held or running ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)) |
+| `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
+| `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
+| `tc49/dispatch/state/disputed` | state | dispatcher | where the detectors contradict the placement ([#153](https://github.com/rails49/control/issues/153)) |
+| `tc49/dispatch/align` | command | dispatcher | set the route: throw these points |
+| `tc49/drive/move` | command | driver | take the train across |
 
 | Consumer | Filter(s) |
 | --- | --- |
@@ -338,8 +338,105 @@ lets the stall report of
 [BENCHMARKS.md](bench/BENCHMARKS.md#termination) be derived from the trace
 rather than stored.
 
-The payload column gives the gist of an event, not a field schema. Field
-schemas wait until there is a second consumer that needs one.
+### Payload schemas
+
+Every payload is a JSON object. The listings give each topic's fields in the
+trace's canonical key order, which `tc49.lib.inventory` fixes. Every field is
+**required unless marked *optional***; an enum's values are the field's whole
+vocabulary, and which way an unreadable one falls is declared with it
+(CONTEXT.md). Names are strings throughout: a **train** as the roster names
+it, a **block** as the layout names it, a **block end** as `<block>.<A|B>`,
+and a **transit** either qualified as `<connection>.<transit>` or split into
+its two names, as each topic states.
+
+#### `layout`
+
+- `tc49/layout/boundary` — `boundary`: integer, the boundary number,
+  strictly increasing; what lets a consumer ignore an at-least-once
+  duplicate.
+  [ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)
+  adds `clock`, fast seconds since the session started; decided but published
+  by no binding yet, so its row lands with the implementation.
+- `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
+  block a detector reported on. Anonymous: no train field, because a detector
+  cannot name one.
+- `tc49/layout/state/power` — `power`: enum `on`, `stopped` or `off`. An
+  unreadable payload reads as `off`: dropping it would mean *not* holding the
+  run, over track whose state could not be read.
+
+#### `schedule`
+
+- `tc49/schedule/request_submitted` — `id`: opaque unique string
+  ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)); `train`;
+  `depart`: the block end the train departs through; `dest`: list of arrival
+  block ends, at least one.
+- `tc49/schedule/state/exhausted` — `exhausted`: boolean, `true` once the
+  last timetable request has gone out.
+- `tc49/schedule/state/facing` — `facing`: map of train to the block end it
+  would depart through.
+
+#### `ui`
+
+Browser-writable, which is where rule 4 bites hardest: each payload is read
+defensively, and one that fails the read is dropped.
+
+- `tc49/ui/request_wanted` — `train`; `dest`: list, each entry a block or a
+  block end, a bare block meaning either end.
+- `tc49/ui/reversal_wanted` — `train`.
+- `tc49/ui/run_wanted` — `run`: enum `held` or `running`; any other value is
+  dropped. The ordinary-shutdown drain adds `draining`
+  ([#123](https://github.com/rails49/control/issues/123)).
+- `tc49/ui/placement_wanted` — `train`; `block`: block name, or `null` for
+  off the layout. The key's presence is load-bearing: a payload without
+  `block` fails the read, while an explicit `null` is a positive statement
+  ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
+
+#### `dispatch`
+
+- `tc49/dispatch/request_admitted` — `id`; `dest`: the arrival ends that
+  survived pruning; `pruned`: list of `{end, reason}`, `reason` one of
+  `no_fit`, `no_entry`, `unreachable`.
+- `tc49/dispatch/request_rejected` — `id`; `reason`: enum `malformed`,
+  `unknown_train`, `unknown_block`, `no_origin`, `wrong_origin`, `no_fit`,
+  `no_entry`, `unreachable` — the set is `tc49.lib.rejection`, and the UI's
+  copy of it is generated.
+- `tc49/dispatch/request_completed` — `id`.
+- `tc49/dispatch/route_chosen` — `id`; `route`: list alternating block and
+  transit names, starting and ending on a block, a single block for the
+  degenerate already-there case; `k_tried`: integer, candidate routes
+  examined, `0` for the degenerate case.
+- `tc49/dispatch/move_granted` — `id`; `train`; `transit`: qualified
+  `<connection>.<transit>`; `into`: the block entered; `aspect`: enum `stop`,
+  `caution` or `clear`
+  ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+- `tc49/dispatch/grant_refused` — `id`; `reason`: enum `unsafe`, `held` or
+  `transit_conflict`; `obstacles`: list of `{resource, holder}` — the block
+  or transit that blocked a candidate, and the train holding it.
+- `tc49/dispatch/lock_granted`, `tc49/dispatch/lock_released` — `train`;
+  `resources`: list of blocks and transits.
+- `tc49/dispatch/train_placed` — `train`; `block`.
+- `tc49/dispatch/train_removed` — `train`.
+- `tc49/dispatch/state/run` — `run`: enum `held` or `running`; a reader drops
+  an unreadable value (CONTEXT.md). `draining` arrives with the drain
+  ([#123](https://github.com/rails49/control/issues/123)).
+- `tc49/dispatch/state/aspects` — `aspects`: map of signalled block end to
+  aspect. An end nothing ever leaves does not appear.
+- `tc49/dispatch/state/disputed` — `trains`: sorted list of trains standing
+  in a block that reads clear; `blocks`: sorted list of blocks reading
+  occupied with nothing claiming them. Both empty unless the run is held.
+- `tc49/dispatch/state/allocation` — `trains`: map of train to standing
+  block; `crossing`: map of crossing train to its transit; `locks`: map of
+  resource to holding train; `requests`: list of
+  `{id, train, depart, dest, route}` in admission order, `route` *optional*
+  — present once the route is committed.
+- `tc49/dispatch/align` — `connection`; `transit`: bare name within the
+  connection; `points`: list of `{addr, position}`, `position` enum `closed`
+  or `thrown`; `[]` where nothing needs throwing.
+
+#### `drive`
+
+- `tc49/drive/move` — `train`; `connection`; `transit`: bare name, the
+  grant's qualified transit split; `into`: the block entered.
 
 ## Time
 
