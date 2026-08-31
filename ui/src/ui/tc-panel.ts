@@ -618,7 +618,7 @@ export class TcPanel extends LitElement {
    * (model/panel.ts). Worked out afresh on each render, being the last frame's
    * answer like everything else the picture says.
    *
-   * Nothing, with no session joined, as the run's word and the supply's are.
+   * Nothing, with no session joined, as the run's value and the supply's are.
    * `leave` keeps the model so that rejoining does not flash, but a page that
    * has left a session is being told nothing — and what this answers freezes
    * the drawing, which must not outlive the knowledge it rests on: a page

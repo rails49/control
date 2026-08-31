@@ -10,7 +10,7 @@ inventory).
 
 Where a field's *values* are a closed set the contract names, they live here
 too, beside the field they belong to: ``run`` and ``power`` are those fields.
-What a **word** is, and which way an unreadable one falls, is CONTEXT.md.
+What an **enum** is, and which way an unreadable one falls, is CONTEXT.md.
 """
 
 TOPICS: dict[str, tuple[str, ...]] = {
@@ -46,7 +46,7 @@ TOPICS: dict[str, tuple[str, ...]] = {
 
 HELD = "held"
 RUNNING = "running"
-"""The two values of ``tc49/dispatch/state/run``. A word and not a boolean:
+"""The two values of ``tc49/dispatch/state/run``. An enum and not a boolean:
 the ordinary-shutdown drain adds ``draining`` as a third value here rather
 than inventing a state of its own (#123). Not to be read as the ``held``
 ``grant_refused`` reason, which says a resource is locked by another train

@@ -138,9 +138,9 @@ def timetabled() -> Assembly:
     return build(*load("crossover-yard/meet"))
 
 
-def run_wanted(word: str) -> tuple[str, Payload]:
+def run_wanted(state: str) -> tuple[str, Payload]:
     """A press of the run's one button, as `ticks` plans one."""
-    return (RUN_WANTED, {"run": word})
+    return (RUN_WANTED, {"run": state})
 
 
 def leaves(assembly: Assembly, leaf: str) -> list[Payload]:
@@ -149,5 +149,5 @@ def leaves(assembly: Assembly, leaf: str) -> list[Payload]:
 
 
 def runs(assembly: Assembly) -> list[str]:
-    """Every word `tc49/dispatch/state/run` took, in the order it took them."""
+    """Every value `tc49/dispatch/state/run` took, in the order it took them."""
     return [str(line["run"]) for line in leaves(assembly, "run")]

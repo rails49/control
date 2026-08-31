@@ -93,7 +93,7 @@ describe("reversal", () => {
 
 /** Holding the run and releasing it (ADR-0037): the third thing the page may
  *  write. It says where the run should stand rather than asking for a change,
- *  so two presses of the same word are not a race. */
+ *  so two presses of the same value are not a race. */
 describe("runWanted", () => {
   it("names where the run should stand and nothing else", () => {
     expect(JSON.parse(runWanted("held"))).toEqual({

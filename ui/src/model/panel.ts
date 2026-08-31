@@ -448,7 +448,7 @@ export class Panel {
       }
       case "power": {
         // What the layout says about the supply, whole from the topic. The
-        // dispatcher reads the same word and holds the run on anything but
+        // dispatcher reads the same value and holds the run on anything but
         // `on`; the panel says which of the two it is, the person recovering
         // clearing an emergency stop or switching a supply back on.
         const { power } = event as unknown as { power: Power };

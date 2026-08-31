@@ -11,8 +11,8 @@ into them being how the next train is stranded like the first.
 Driven at the bus, which is where both arrive: `tc49/layout/state/power` from
 the layout binding, `tc49/ui/run_wanted` from a page.
 
-A payload the reader cannot make a word of is one of the "not `on`" cases
-too, and is driven at a dispatcher with no trace on its bus (#175).
+A payload the reader cannot make an enum value of is one of the "not `on`"
+cases too, and is driven at a dispatcher with no trace on its bus (#175).
 
 The cut itself is driven with the boundary published by hand and the
 simulator left standing: a layout binding keeps its beat while the supply is
@@ -34,9 +34,9 @@ BOUNDARY = "tc49/layout/boundary"
 POWER = "tc49/layout/state/power"
 
 
-def power(word: str) -> tuple[str, Payload]:
+def power(state: str) -> tuple[str, Payload]:
     """The layout reporting its supply, as `ticks` plans an event."""
-    return (POWER, {"power": word})
+    return (POWER, {"power": state})
 
 
 def dead(assembly: Assembly, first: int, last: int) -> None:
@@ -71,29 +71,29 @@ def told(payload: object) -> Dispatcher:
 
 
 def test_power_leaving_on_holds_a_running_run() -> None:
-    """Either word: the dispatcher branches on "not `on`" and nothing else."""
-    for word in ("off", "stopped"):
+    """Either value: the dispatcher branches on "not `on`" and nothing else."""
+    for state in ("off", "stopped"):
         assembly = assemble(*load("crossover-yard/meet"))
-        ticks(assembly, 3, at={2: power(word)})
-        assert runs(assembly) == ["running", "held"], word
+        ticks(assembly, 3, at={2: power(state)})
+        assert runs(assembly) == ["running", "held"], state
         # And no end goes on showing `clear` over track with no volts in it,
         # which is the lie the hold refuses to tell (ADR-0037).
         shown = leaves(assembly, "aspects")[-1]["aspects"]
-        assert set(shown.values()) == {"stop"}, word
+        assert set(shown.values()) == {"stop"}, state
 
 
 @pytest.mark.parametrize(
     "payload",
     [{}, {"power": 42}, {"power": "sideways"}, "off"],
-    ids=["no field", "not a word", "outside the set", "not an object"],
+    ids=["no field", "not a string", "outside the set", "not an object"],
 )
 def test_a_power_payload_that_cannot_be_read_holds_the_run(payload: object) -> None:
     """Nothing on this topic takes the dispatcher down, and an unreadable
-    word is no reason to go on running.
+    value is no reason to go on running.
 
     Anything at all can arrive once the bus is not in-process (#173), so the
-    word is read rather than subscripted. It fails towards the hold: a
-    dropped power word would mean *not* holding, leaving the run committing
+    value is read rather than subscripted. It fails towards the hold: a
+    dropped power value would mean *not* holding, leaving the run committing
     over track whose state could not be read. So an unreadable payload is
     one of the "anything but `on`" cases the contract already has
     (DISPATCH.md), and the run holds exactly as `stopped` or `off` holds it.
@@ -104,7 +104,7 @@ def test_a_power_payload_that_cannot_be_read_holds_the_run(payload: object) -> N
     assert dispatcher.state.run == HELD
 
 
-def test_the_same_word_twice_republishes_nothing(timetabled: Assembly) -> None:
+def test_the_same_value_twice_republishes_nothing(timetabled: Assembly) -> None:
     """A binding that restates its supply on a timer says nothing new, and an
     already-held run is not held again."""
     ticks(timetabled, 5, at={1: power("off"), 2: power("off"), 3: power("off")})
@@ -177,7 +177,7 @@ def test_a_go_is_dropped_while_the_rails_are_dead(timetabled: Assembly) -> None:
 
 
 def test_a_go_is_honoured_once_the_power_is_back(timetabled: Assembly) -> None:
-    """The same press, after the same supply returned: the word is the run's
+    """The same press, after the same supply returned: the value is the run's
     answer to the rails and not to how often it was asked."""
     ticks(
         timetabled,

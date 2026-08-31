@@ -25,7 +25,7 @@ def test_a_cold_session_says_it_is_running_before_anything_moves(
 ) -> None:
     """The value is served rather than inferred from an absence (ADR-0032):
     the constructor states it, so a client joining an idle railroad reads a
-    word instead of guessing one."""
+    value instead of guessing one."""
     ticks(timetabled, 1)
     assert runs(timetabled) == ["running"]
     assert leaves(timetabled, "run")[0]["boundary"] == 0
@@ -99,10 +99,10 @@ def test_release_grants_at_the_next_boundary_and_not_on_the_gesture(
     assert ids(timetabled, "route_chosen") == ["freight_1-1"]
 
 
-def test_a_word_that_is_no_run_state_leaves_the_run_alone(
+def test_a_value_that_is_no_run_state_leaves_the_run_alone(
     timetabled: Assembly,
 ) -> None:
-    """A gesture has no id to address an answer to, so a third word is
+    """A gesture has no id to address an answer to, so a third value is
     dropped in silence and to the trace (ADR-0034)."""
     press(timetabled, RUN_WANTED, {"run": "draining"})
     press(timetabled, RUN_WANTED, {"held": True})
@@ -112,7 +112,7 @@ def test_a_word_that_is_no_run_state_leaves_the_run_alone(
     assert ids(timetabled, "route_chosen") == ["freight_1-1"]
 
 
-def test_the_same_word_twice_republishes_nothing(timetabled: Assembly) -> None:
+def test_the_same_value_twice_republishes_nothing(timetabled: Assembly) -> None:
     """A state topic moves when its value moves, as every other one here
     does; a press that changes nothing is not a change."""
     press(timetabled, RUN_WANTED, {"run": "held"})

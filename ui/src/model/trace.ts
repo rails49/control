@@ -79,7 +79,7 @@ export const PLACEMENT_WANTED = "tc49/ui/placement_wanted";
 /** How a run stands: the dispatcher will commit nothing while it is `held`,
  *  and a person moves it either way
  *  ([ADR-0037](../../../docs/adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
- *  A word and not a boolean, on the topic and here. */
+ *  An enum and not a boolean, on the topic and here. */
 export type Run = "held" | "running";
 
 /** What the layout says about whether a train may move at all: `on`, or one

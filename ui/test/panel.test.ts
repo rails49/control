@@ -1218,7 +1218,7 @@ describe("what is still disputed, in words", () => {
   });
 });
 
-/** Whether a train may move at all (ADR-0041): the layout's own word, read
+/** Whether a train may move at all (ADR-0041): the layout's own value, read
  *  and never derived. The layout states it from its constructor, so a joined
  *  session has been told, and silence is a page that has joined none. */
 describe("whether the rails have power", () => {
@@ -1226,7 +1226,7 @@ describe("whether the rails have power", () => {
     expect(panel().power).toBeNull();
   });
 
-  it("takes the word the topic carries, either way of standing still", () => {
+  it("takes the value the topic carries, either way of standing still", () => {
     const model = panel();
     feed(model, { event: "power", power: "off" });
     expect(model.power).toBe("off");
@@ -1244,15 +1244,15 @@ describe("whether the rails have power", () => {
   });
 });
 
-/** How the run stands (ADR-0037): the dispatcher's own word, read and never
+/** How the run stands (ADR-0037): the dispatcher's own value, read and never
  *  derived. The button that moves it draws what this says, so a press that
- *  did not land leaves the word where it was. */
+ *  did not land leaves the value where it was. */
 describe("whether the run is held", () => {
   it("says nothing before the dispatcher has", () => {
     expect(panel().run).toBeNull();
   });
 
-  it("takes the word the topic carries", () => {
+  it("takes the value the topic carries", () => {
     const model = panel();
     feed(model, { event: "run", run: "held" });
     expect(model.run).toBe("held");

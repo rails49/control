@@ -1,7 +1,7 @@
 """What the simulator says about track power (#159).
 
 Simulated track is always live. The binding states `on` from its constructor
-so a joining client is served the word rather than reading one out of an
+so a joining client is served a value rather than reading one out of an
 absence (ADR-0032), and never says anything else: a power cut is a physical
 act, and simulating one would be the field or the branch ADR-0030 keeps out
 of every app.
@@ -20,7 +20,7 @@ def heard(bus: Bus) -> list[Payload]:
     return seen
 
 
-def test_the_word_is_stated_before_anything_is_asked() -> None:
+def test_the_value_is_stated_before_anything_is_asked() -> None:
     """Retained and published from the constructor, so a subscriber that
     arrives afterwards is served it too — which is the case that matters,
     every consumer of the layout being built before the layout is."""
@@ -34,7 +34,7 @@ def test_the_word_is_stated_before_anything_is_asked() -> None:
 
 
 def test_a_whole_run_says_it_once_and_never_changes_it() -> None:
-    """Nothing in the simulator moves the word: it is on the trace at
+    """Nothing in the simulator moves the value: it is on the trace at
     boundary 0 and appears nowhere after."""
     layout, _roster, scenario = load("crossover-yard/meet")
     assembly = build(layout, _roster, scenario)
