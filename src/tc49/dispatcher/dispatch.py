@@ -11,10 +11,13 @@ placement the run was built with where it has not (#123). The locking
 discipline is the pluggable strategy of locking.py.
 
 It is also the sole payload authority (SYSTEM.md, dispatcher footprint):
-anything at all may be published on the inbound topic, so admission reads a
+anything at all may be published on a topic it declares, so admission reads a
 payload rather than trusting one and never raises on what it finds — an
 unreadable request is an answer where it can be addressed and a drop where
-it cannot (ADR-0034).
+it cannot (ADR-0034). Who sent one is not asked and is nowhere to be read:
+`tc49/dispatch/request_submitted` names the dispatcher that answers it, and a
+second scheduler submitting alongside the first needs no change here
+(SYSTEM.md, rule 4).
 """
 
 from collections.abc import Sequence
@@ -542,8 +545,7 @@ class Dispatcher:
         self._publish_allocation()
         self._publish_disputed()
         bus.subscribe("tc49/layout/#", self._on_layout)
-        bus.subscribe("tc49/schedule/request_submitted", self._on_request)
-        bus.subscribe("tc49/ui/#", self._on_gesture)
+        bus.subscribe("tc49/dispatch/#", self._on_dispatch)
 
     # -- live state, for the property tests' oracles ------------------------
 
@@ -557,7 +559,7 @@ class Dispatcher:
 
     # -- admission ---------------------------------------------------------
 
-    def _on_request(self, topic: str, payload: Payload) -> None:
+    def _on_request(self, payload: Payload) -> None:
         """The one place a payload from outside is read, and nothing in it
         raises: the submitter may be a browser, and once the relay is deleted
         nothing stands in front of the dispatcher at all (ADR-0034)."""
@@ -723,19 +725,27 @@ class Dispatcher:
             )
         )
 
-    # -- gestures ----------------------------------------------------------
+    # -- what is addressed to the dispatcher --------------------------------
 
-    def _on_gesture(self, topic: str, payload: Payload) -> None:
-        """A person's action on a page, on the leaves the dispatcher owns.
+    def _on_dispatch(self, topic: str, payload: Payload) -> None:
+        """The three topics the dispatcher responds to, on one filter.
 
-        `request_wanted` and `reversal_wanted` are the scheduler's and pass
-        by here unread — the filter is the role, as every consumer's is
-        (SYSTEM.md, rule 3). What it cannot act on it drops, in silence and
-        to the trace: a gesture carries no id and there is nothing to address
-        an answer to (ADR-0034).
+        A request, and the two gestures a person makes on a page: all three
+        name the dispatcher because the dispatcher is what answers them, and
+        none of them says who sent it. The scheduler submits requests today
+        and a second one could submit them tomorrow with nothing here to
+        change (SYSTEM.md, rule 4).
+
+        Everything else on `tc49/dispatch/#` is the dispatcher's own
+        announcements coming back past it, and is ignored — the filter is the
+        component, as every consumer's is (SYSTEM.md, rule 3). What it cannot
+        act on it drops, in silence and to the trace: a gesture carries no id
+        and there is nothing to address an answer to (ADR-0034).
         """
         leaf = topic.rsplit("/", 1)[-1]
-        if leaf == "run_wanted":
+        if leaf == "request_submitted":
+            self._on_request(payload)
+        elif leaf == "run_wanted":
             self._set_run(payload)
         elif leaf == "placement_wanted":
             self._place(payload)
@@ -900,12 +910,19 @@ class Dispatcher:
     # -- the grant phase ---------------------------------------------------
 
     def _on_layout(self, topic: str, payload: Payload) -> None:
+        """What the layout interface says, and the two commands sent to it.
+
+        `align` and `move` are on this filter because they name the component
+        that responds to them, and the dispatcher is not that component: the
+        sensor leaves are named here so a command passes by unread rather
+        than being taken for a reading with no block in it.
+        """
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "boundary":
             self._grant_phase()
         elif leaf == "power":
             self._on_power(payload)
-        else:
+        elif leaf in ("block_occupied", "block_vacated"):
             block = occupancy(payload)
             if block is None:
                 # Dropped, and on the trace already by virtue of having been
@@ -1149,15 +1166,17 @@ class Dispatcher:
 
         Setting the route is the dispatcher's responsibility — it answers for
         the route being free and correctly set up — so `align` is its command
-        and not the driver's (ADR-0022). It carries the points the transit
+        and not the driver's (ADR-0022). The topic is the layout interface's,
+        `tc49/layout/align`, because that is what responds to it; nothing on
+        it says the dispatcher sent it. It carries the points the transit
         needs, read from the layout (ADR-0031), so the layout interface throws
         what it is told and holds no table of its own. Always `points`, `[]`
         where nothing needs throwing: the document is quiet, the wire explicit.
         """
         connection, _, transit = transit_id.partition(".")
         needed = self._state.layout.connections[connection].points.get(transit, ())
-        self._publish(
-            "align",
+        self._bus.publish(
+            "tc49/layout/align",
             {
                 "connection": connection,
                 "transit": transit,

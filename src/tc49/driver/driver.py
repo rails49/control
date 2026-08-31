@@ -18,7 +18,7 @@ class Driver:
     def _on_move(self, topic: str, payload: Payload) -> None:
         connection, _, transit = payload["transit"].partition(".")
         self._bus.publish(
-            "tc49/drive/move",
+            "tc49/layout/move",
             {
                 "train": payload["train"],
                 "connection": connection,

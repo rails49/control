@@ -1,11 +1,15 @@
 """Simulator: the milestone-1 layout interface.
 
 Commands in, observations out, plus ownership of time (SYSTEM.md, layout
-interface; ADR-0009). The commands have two publishers — `align` is the
-dispatcher's, `move` the driver's — so it subscribes to both, and the
-obligation that comes with the split is satisfied for free: batching to the
-tick is why it can never act on a `move` before the `align` naming the same
-transit (ADR-0031). The **tick** is this binding's word for its beat; what
+interface; ADR-0009). The two commands it responds to, `tc49/layout/align`
+and `tc49/layout/move`, are named for it rather than for whoever sends them,
+and it never asks which component did: today the dispatcher sends one and the
+driver the other, and nothing here would change if that moved. The obligation
+that comes with two senders is satisfied for free: batching to the tick is
+why it can never act on a `move` before the `align` naming the same transit
+(ADR-0031). It names its two commands rather than filtering by prefix, which
+is the one exception rule 3 allows: a `tc49/layout/#` filter would hand it
+back its own sensor events and its own boundary. The **tick** is this binding's word for its beat; what
 goes on the bus is the grant boundary every binding publishes
 (`tc49/layout/boundary`, ADR-0027). Each advance executes the buffered
 commands, publishes their sensor events, then the boundary — a tick's
@@ -78,8 +82,8 @@ class Simulator:
         # keeps out of every app. What exercises the dispatcher's side of it
         # is the topic, published by a test.
         bus.publish("tc49/layout/state/power", {"power": ON})
-        bus.subscribe("tc49/drive/+", self._on_command)
-        bus.subscribe("tc49/dispatch/align", self._on_command)
+        bus.subscribe("tc49/layout/align", self._on_command)
+        bus.subscribe("tc49/layout/move", self._on_command)
         bus.subscribe("tc49/dispatch/train_placed", self._on_placed)
         bus.subscribe("tc49/dispatch/train_removed", self._on_removed)
         bus.subscribe("tc49/schedule/state/exhausted", self._on_exhausted)

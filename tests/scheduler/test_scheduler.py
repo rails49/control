@@ -52,7 +52,7 @@ def boundary(bus: Bus, n: int) -> None:
 
 def test_releases_at_due_boundaries_with_deterministic_ids_and_expansion() -> None:
     bus = Bus()
-    seen = collect(bus, "tc49/schedule/request_submitted")
+    seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded(), TIMETABLE)
 
     boundary(bus, 0)
@@ -112,7 +112,7 @@ def test_a_run_given_no_timetable_releases_nothing() -> None:
     the same scheduler with no timetable at all, while `at` is a boundary
     number, and the first gesture's id is still `<train>-1`."""
     bus = Bus()
-    seen = collect(bus, "tc49/schedule/request_submitted")
+    seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
 
     boundary(bus, 0)
@@ -247,7 +247,7 @@ def test_facing_is_published_only_when_it_moves() -> None:
     assert len(seen) == 1
 
 
-WANTED = "tc49/ui/request_wanted"
+WANTED = "tc49/schedule/request_wanted"
 
 
 def gesture(bus: Bus, payload: object) -> None:
@@ -259,7 +259,7 @@ def test_a_gesture_is_composed_into_the_request_it_asks_for() -> None:
     """The two fields a gesture omits are the two the scheduler owns: the id
     it mints and the departure end it holds as facing (ADR-0036)."""
     bus = Bus()
-    seen = collect(bus, "tc49/schedule/request_submitted")
+    seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
 
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A", "dn_e.B"]})
@@ -278,7 +278,7 @@ def test_a_drag_out_of_a_terminal_block_departs_by_its_connected_end() -> None:
     facing a wall composed a request rejected `unreachable`, over and over for
     the rest of the session (#145)."""
     bus = Bus()
-    seen = collect(bus, "tc49/schedule/request_submitted")
+    seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded(TWO_TRAINS | {"freight_1": TrainSpec("yard_w", "A")}))
 
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
@@ -289,7 +289,7 @@ def test_gestures_and_the_timetable_share_one_undivided_counter() -> None:
     """An id that tells you who minted it is a shape, and no consumer reads
     the shape (ADR-0033): a person's drag simply takes the next number."""
     bus = Bus()
-    seen = collect(bus, "tc49/schedule/request_submitted")
+    seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded(), TIMETABLE)
 
     boundary(bus, 0)  # freight_1-1 and express_2-1 go out
@@ -302,7 +302,7 @@ def test_a_gesture_departs_from_where_facing_has_moved_to() -> None:
     end, so what the scheduler has carried forward is what the request
     states."""
     bus = Bus()
-    seen = collect(bus, "tc49/schedule/request_submitted")
+    seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
     bus.publish(
         "tc49/dispatch/move_granted",
@@ -323,7 +323,7 @@ def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
     none of it raises out of the handler (ADR-0034): what cannot be composed
     leaves no request behind, and the next honest drag still composes."""
     bus = Bus()
-    seen = collect(bus, "tc49/schedule/request_submitted")
+    seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
 
     for payload in [
@@ -341,7 +341,7 @@ def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
     assert [p["id"] for _, p in seen] == ["freight_1-1"]
 
 
-REVERSAL = "tc49/ui/reversal_wanted"
+REVERSAL = "tc49/schedule/reversal_wanted"
 
 
 def reversal(bus: Bus, payload: object) -> None:
@@ -386,7 +386,7 @@ def test_a_reversal_composes_no_request_and_tells_the_dispatcher_nothing() -> No
     """Nothing moves, so there is nothing to ask for: the dispatcher never
     learns the gesture happened."""
     bus = Bus()
-    seen = collect(bus, "tc49/schedule/request_submitted")
+    seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
 
     reversal(bus, {"train": "freight_1"})
@@ -454,7 +454,7 @@ def test_a_reversal_that_cannot_be_read_is_dropped() -> None:
 
 
 PLACED = "tc49/dispatch/train_placed"
-PLACEMENT_WANTED = "tc49/ui/placement_wanted"
+PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 
 
 def placed(bus: Bus, payload: Payload) -> None:

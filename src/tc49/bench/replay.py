@@ -2,10 +2,11 @@
 
 A scenario is the harness's file format — a roster's worth of placement and a
 canned request list — and `tc49 live --scenario` is the harness running one as
-a test run. It does that from **outside**: one `tc49/ui/placement_wanted` per
-train, a `tc49/ui/reversal_wanted` where the document faces a train the other
-way, `tc49/ui/run_wanted` to release the hold, and then the requests at their
-`at` boundaries, all over the topics a browser writes.
+a test run. It does that from **outside**: one
+`tc49/dispatch/placement_wanted` per train, a
+`tc49/schedule/reversal_wanted` where the document faces a train the other
+way, `tc49/dispatch/run_wanted` to release the hold, and then the requests at
+their `at` boundaries, all over the topics a browser writes.
 
 So no app is given a scenario and every app keeps one placement path; the
 branch lives here, in the harness, which is ADR-0030's shape. It also makes a
@@ -31,10 +32,10 @@ from tc49.lib.inventory import RUNNING
 from tc49.lib.layout import Layout, connected_end
 from tc49.lib.scenario import RequestSpec, Scenario
 
-PLACEMENT_WANTED = "tc49/ui/placement_wanted"
-REVERSAL_WANTED = "tc49/ui/reversal_wanted"
-REQUEST_WANTED = "tc49/ui/request_wanted"
-RUN_WANTED = "tc49/ui/run_wanted"
+PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
+REVERSAL_WANTED = "tc49/schedule/reversal_wanted"
+REQUEST_WANTED = "tc49/schedule/request_wanted"
+RUN_WANTED = "tc49/dispatch/run_wanted"
 
 
 def arrival_ends(arrivals: tuple[str, ...]) -> list[str]:

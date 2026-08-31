@@ -37,9 +37,9 @@ from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Payload
 from tests.harness import ROOT, events, load
 
-WANTED = "tc49/ui/request_wanted"
-REVERSAL = "tc49/ui/reversal_wanted"
-PLACEMENT = "tc49/ui/placement_wanted"
+WANTED = "tc49/schedule/request_wanted"
+REVERSAL = "tc49/schedule/reversal_wanted"
+PLACEMENT = "tc49/dispatch/placement_wanted"
 
 TIMEOUT = 5.0
 

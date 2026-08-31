@@ -2,8 +2,11 @@
 
 A relay and nothing more (ui/PANEL.md, #71): every `tc49/#` event goes out
 to every connected client as one JSON frame, ``{"topic": …, "payload": …}``,
-and a frame on an inbound topic — a ``tc49/ui`` leaf, those being the panel's
-write surface — is published as the event it names. Anything else inbound is
+and a frame on an inbound topic — an inventory row marked browser-writable,
+those being the panel's write surface — is published as the event it names.
+The mark is what the relay reads, not a prefix: a topic names the component
+that responds to it, so the four gestures sit under ``schedule`` and
+``dispatch`` beside the announcements those two make. Anything else inbound is
 refused with an error frame, ``request_submitted`` included: the browser
 writes gestures and never requests, so the scheduler stays the single minter
 and the dispatcher the sole feasibility authority precisely because nothing
@@ -20,7 +23,7 @@ so it re-picks rather than rendering one railroad fed by another's events
 for by ``wants`` and waits out of earshot until its swap lands; naming one
 that does not exist is an error frame and a close, the running railroad
 untouched. No inbound topic carries any of this: the set stays exactly the
-``tc49/ui`` leaves, which is what ADR-0034's broker ACL will grant.
+marked rows, which is what ADR-0034's broker ACL will grant.
 
 On connect a client is sent each state topic's last value, before any live
 frame and in the same schema — the frames it would have had were it already

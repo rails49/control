@@ -19,7 +19,7 @@ from tc49.lib.inventory import TOPICS
 from tc49.simulator import Simulator, placement_file
 from tests.harness import load
 
-MOVE = "tc49/drive/move"
+MOVE = "tc49/layout/move"
 
 
 def sensors(bus: Bus) -> list[tuple[str, Payload]]:

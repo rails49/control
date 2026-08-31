@@ -21,10 +21,10 @@ from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import INBOUND, is_state_topic
 
-WANTED = "tc49/ui/request_wanted"
-REVERSAL = "tc49/ui/reversal_wanted"
-RUN = "tc49/ui/run_wanted"
-PLACEMENT = "tc49/ui/placement_wanted"
+WANTED = "tc49/schedule/request_wanted"
+REVERSAL = "tc49/schedule/reversal_wanted"
+RUN = "tc49/dispatch/run_wanted"
+PLACEMENT = "tc49/dispatch/placement_wanted"
 
 TIMEOUT = 5.0  # generous: a loaded CI box, not a slow relay
 
@@ -111,37 +111,35 @@ def test_a_reversal_wanted_frame_becomes_the_event(
     assert seen == [{"train": "t1"}]
 
 
-def test_the_inbound_topics_are_the_ui_roles_own_event_leaves() -> None:
-    """What a broker's ACL would grant a page is `tc49/ui/#`, and the role is
-    what says so (ADR-0035): the set is read off the inventory rather than
-    listed, so a leaf added there is inbound without a second edit.
+def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
+    """What a broker's ACL would grant a page is the inventory's
+    browser-writable rows (#263): the set is read off the rows' marks rather
+    than off a prefix, a topic now naming the component that responds to it.
 
-    The equality below is where that stops being silent (#158). Deriving the
-    set means a new `tc49/ui` row widens the browser's write surface with no
-    diff line saying so; pinning it exactly means the row fails here instead,
-    and whoever adds it grants the write deliberately by naming it. Do not
-    relax this to a subset check.
+    The equality below is where widening stops being silent (#158). Marking a
+    row grants every page the write, so pinning the set exactly means a new
+    mark fails here instead, and whoever adds it grants the write
+    deliberately by naming it. Do not relax this to a subset check.
 
-    Event leaves only. A role with concurrent instances may not write a state
-    topic, and the bridge relies on it: a client's frame is published from
-    that client's own handler thread, and a state topic would write the bus's
-    last-value map from there."""
+    Event rows only. A page has concurrent instances and may not write a
+    state topic, and the bridge relies on it: a client's frame is published
+    from that client's own handler thread, and a state topic would write the
+    bus's last-value map from there."""
     assert INBOUND == {WANTED, REVERSAL, RUN, PLACEMENT}
     assert not any(is_state_topic(topic) for topic in INBOUND)
-    assert is_state_topic("tc49/ui/state/throttle")  # what the filter keeps out
 
 
-def test_the_bridge_refuses_every_topic_outside_the_ui_role(
+def test_the_bridge_refuses_every_topic_outside_the_marked_rows(
     bus: Bus, client: ClientConnection
 ) -> None:
-    """The `tc49/ui` leaves are the only inbound path (#67): a client that
+    """The marked rows are the only inbound path (#67): a client that
     tries to drive a train or fake a sensor gets a refusal frame naming the
     topic and what it may write instead, and nothing reaches the bus."""
     seen: list[tuple[str, Payload]] = []
     bus.subscribe("tc49/#", lambda topic, payload: seen.append((topic, payload)))
-    client.send(json.dumps({"topic": "tc49/drive/move", "payload": {"train": "t1"}}))
+    client.send(json.dumps({"topic": "tc49/layout/move", "payload": {"train": "t1"}}))
     refusal = receive(client)
-    assert "tc49/drive/move" in refusal["error"]
+    assert "tc49/layout/move" in refusal["error"]
     assert WANTED in refusal["error"] and REVERSAL in refusal["error"]
     bus.drain()
     assert seen == []
@@ -155,7 +153,7 @@ def test_a_topic_that_is_not_a_string_is_refused_rather_than_raised(
     of answering the client."""
     seen: list[tuple[str, Payload]] = []
     bus.subscribe("tc49/#", lambda topic, payload: seen.append((topic, payload)))
-    client.send(json.dumps({"topic": ["tc49/ui/request_wanted"], "payload": {}}))
+    client.send(json.dumps({"topic": ["tc49/schedule/request_wanted"], "payload": {}}))
     assert "error" in receive(client)
     bus.drain()
     assert seen == []
@@ -173,10 +171,10 @@ def test_a_request_submitted_frame_is_refused_like_any_other(
     bus.subscribe("tc49/#", lambda topic, payload: seen.append((topic, payload)))
     request = {"id": "t1-1", "train": "t1", "depart": "a.B", "dest": ["b.A"]}
     client.send(
-        json.dumps({"topic": "tc49/schedule/request_submitted", "payload": request})
+        json.dumps({"topic": "tc49/dispatch/request_submitted", "payload": request})
     )
     refusal = receive(client)
-    assert "tc49/schedule/request_submitted" in refusal["error"]
+    assert "tc49/dispatch/request_submitted" in refusal["error"]
     bus.drain()
     assert seen == []
 

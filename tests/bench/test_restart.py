@@ -25,8 +25,8 @@ from tc49.lib.layout import block_of
 from tc49.simulator import placement_file
 from tests.harness import RUN_WANTED, events, load
 
-WANTED = "tc49/ui/request_wanted"
-PLACED = "tc49/ui/placement_wanted"
+WANTED = "tc49/schedule/request_wanted"
+PLACED = "tc49/dispatch/placement_wanted"
 
 
 def tick_until(assembly: Assembly, done: Callable[[], bool], limit: int = 50) -> None:

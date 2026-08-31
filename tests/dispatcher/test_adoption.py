@@ -32,7 +32,7 @@ from tc49.lib.scenario import TrainSpec
 from tests.harness import load
 
 RUN = "tc49/dispatch/state/run"
-REQUESTS = "tc49/schedule/request_submitted"
+REQUESTS = "tc49/dispatch/request_submitted"
 
 MOVED: dict[str, Any] = {
     "trains": {"express_2": "up_w", "freight_1": "dn_e"},
