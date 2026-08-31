@@ -367,7 +367,7 @@ granted, no lock taken — until a person releases it. The run's own state,
 A brake and not an emergency stop: a move already granted runs to its sensor,
 and what keeps a railroad still after a power cut is track power, one layer
 down. The layout holds it too: `tc49/layout/state/power` arriving as anything
-but `on` sets the word to `held`, and a release is refused until it is back
+but `on` sets `run` to `held`, and a release is refused until it is back
 ([ADR-0041](docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 Admission is untouched — requests queue up while held. A run **comes up
 held unless its own document stood its trains on the rails**: a restored
@@ -455,21 +455,22 @@ happened and is never replayed; a state topic is last-value-wins, delivered
 to late subscribers, and marked in the path (`…/state/<name>`).
 _Avoid_: retained message (the MQTT mechanism, not the model concept)
 
-**Word**:
-What a field carries when its values are a closed set the contract names,
-listed beside the field in `tc49.lib.inventory`. Two fields have one: `run`,
-`held` or `running`, and `power`, `on`, `stopped` or `off`. The word goes
-wherever the field goes — `run` is a word on the run's own state topic and on
-the gesture that asks to move it — so a fresh word is a change to the contract
+**Enum**:
+A field whose values are a closed set the contract names, listed beside the
+field in `tc49.lib.inventory`. Two fields are enums: `run`, `held` or
+`running`, and `power`, `on`, `stopped` or `off`. The closed set goes wherever
+the field goes — `run` is an enum on the run's own state topic and on the
+gesture that asks to move it — so a fresh value is a change to the contract
 and not a payload a reader tolerates.
-Which way an unreadable word falls is not the word's but the reader's, decided
-by what a drop would cost: the power word is read as `off` and holds the run,
-where dropping it would leave the run committing over track whose state could
-not be read; the run word is dropped and nothing is set
-([#175](https://github.com/rails49/control/issues/175)).
-_Avoid_: enum, value, status. Not a **flag**, which is what
-[SYSTEM.md](docs/SYSTEM.md) calls a state topic carrying a boolean —
-`exhausted` is one and is not a word.
+Which way an unreadable value falls is not the field's but the reader's,
+decided by what a drop would cost: an unreadable `power` is read as `off` and
+holds the run, where dropping it would leave the run committing over track
+whose state could not be read; an unreadable `run` is dropped and nothing is
+set ([#175](https://github.com/rails49/control/issues/175)).
+_Avoid_: word (the term this entry used until
+[#242](https://github.com/rails49/control/issues/242)), value, status. Not a
+**flag**, which is what [SYSTEM.md](docs/SYSTEM.md) calls a state topic
+carrying a boolean — `exhausted` is one and is not an enum.
 
 **Command**:
 An imperative event the layout interface executes: `align` (set a connection
