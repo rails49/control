@@ -441,12 +441,14 @@ speaks
 ### Bus
 
 **Topic**:
-A named bus channel, `tc49/<role>/<leaf>`, the role — `layout`, `schedule`,
-`dispatch`, `drive`, `ui` — naming its single writing **role**, of which there
-may be concurrent instances on an event topic and never on a state topic
-([ADR-0035](docs/adr/0035-a-topic-has-one-writing-role.md)). Consumers
-subscribe by prefix filter; the full inventory is
-[SYSTEM.md](docs/SYSTEM.md#event-inventory).
+A named bus channel, `tc49/<component>/<leaf>`, the component — `layout`,
+`schedule`, `dispatch` — being the one that **declares** it: the events it
+emits, of which it is the single writer, and the requests it responds to,
+which any number of writers may send and which disclose their source nowhere
+([ADR-0035](docs/adr/0035-a-topic-has-one-writing-role.md),
+[#263](https://github.com/rails49/control/issues/263)). Concurrent writers
+are for event topics, never state topics. Consumers subscribe by prefix
+filter; the full inventory is [SYSTEM.md](docs/SYSTEM.md#event-inventory).
 _Avoid_: channel, queue
 
 **Event topic / state topic**:
@@ -477,7 +479,7 @@ An imperative event the layout interface executes: `align` (set a connection
 to a transit) and `move` (a train crosses a transit into a block, at a stated
 speed). The only imperatives on the bus — everything else is a past-tense fact.
 The grant and the command share a word — `tc49/dispatch/move_granted` and
-`tc49/drive/move` — because the second is the first restated as an imperative.
+`tc49/layout/move` — because the second is the first restated as an imperative.
 _Avoid_: instruction, `cross` (the name this command carried until
 [#236](https://github.com/rails49/control/issues/236)); the verb stays
 sanctioned, and **Transit** says where.

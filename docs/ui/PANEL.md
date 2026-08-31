@@ -244,7 +244,7 @@ run is held, which the hold deliberately keeps working for a timetable
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 
 **Dragging** a train from its block to a destination block publishes
-`tc49/ui/request_wanted` — `{train, dest}` — and the scheduler composes the
+`tc49/schedule/request_wanted` — `{train, dest}` — and the scheduler composes the
 request the dispatcher then answers with `request_admitted` or
 `request_rejected`. The block's outer thirds name one arrival end — the end
 the train enters through, as [CONTEXT.md](../../CONTEXT.md) defines it — and
@@ -291,7 +291,7 @@ the panel renders the roster from the run — so an honest drag cannot produce
 one ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 
 **Dragging a roster row onto a block**, and **dragging a train's marker onto
-the pane**, are the two directions of one gesture: `tc49/ui/placement_wanted`,
+the pane**, are the two directions of one gesture: `tc49/dispatch/placement_wanted`,
 `{train, block}`, with `block: null` for off the layout
 ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)). Putting a
 locomotive on the track and lifting it off are the same act with a different
@@ -313,7 +313,7 @@ derailment case, and cancelling is
 [#123](https://github.com/rails49/control/issues/123)'s.
 
 **Right-clicking** the block a train stands in opens a menu with one item,
-**Turn around**, which publishes `tc49/ui/reversal_wanted` (`{train}`). The
+**Turn around**, which publishes `tc49/schedule/reversal_wanted` (`{train}`). The
 scheduler flips that train's **facing** to the other end it can leave the
 block by, and the arrow turns. That is the whole of the feedback: nothing
 moves, no request is composed, and no `tc49/dispatch` topic carries anything.
@@ -333,7 +333,7 @@ before you commit, which suits a gesture whose entire effect is one arrow
 rotating, and no motion the drag uses can reach it: a plain click on a train's
 own block is already the drag's cancel. Not "Reverse", which is the throttle's
 word; this moves nothing. The menu is where the human driver's throttle will
-hang later, when `tc49/ui` grows its third leaf.
+hang later, as a third browser-writable topic.
 
 Over bare paper, over an empty block, or with no session joined no menu opens,
 and neither does the browser's own, which the drawing suppresses throughout.
@@ -399,7 +399,7 @@ drawing to render and which railroad feeds it. A socket opened without it would 
 one railroad on another's events, which is what a session whose railroad was
 fixed at launch allowed (#148). Switching is a reconnect, which is what
 joining already was. No inbound topic carries any of it: the set stays exactly
-the `tc49/ui` leaves that ADR-0034's broker ACL will grant, and that is what
+the browser-writable rows that ADR-0034's broker ACL will grant, and that is what
 keeps ADR-0036's single-minter argument holding.
 
 `tc49 live` takes the railroad as an optional argument. With none it comes up
@@ -586,7 +586,7 @@ and a clearly labelled button is the explicit GO
 It draws `tc49/dispatch/state/run` off the picture rather than the last press,
 so a gesture that did not land leaves the value where it was, and it is dead
 with no session joined and until the dispatcher has said where the run stands.
-The gesture is `tc49/ui/run_wanted`, which names where the run should stand
+The gesture is `tc49/dispatch/run_wanted`, which names where the run should stand
 rather than asking for a change: two presses of the same value are not a race.
 
 **The band says whether the rails have power**, reading
