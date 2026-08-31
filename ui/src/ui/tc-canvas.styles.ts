@@ -327,7 +327,7 @@ const running = css`
   }
 
   /* Signal aspects, as the Swiss standard sets them: stop is red alone,
-     approach is green with amber, clear is green alone. The artwork draws
+     caution is green with amber, clear is green alone. The artwork draws
      every lamp and the aspect lights a set of them, so the aspect is a class
      on the signal's group and never on a lamp (ui/PANEL.md). Every end rests
      at stop, which is what an end no train may leave by keeps showing.
@@ -343,8 +343,8 @@ const running = css`
   }
 
   :host([mode="run"]) .signal.stop .lamp.red,
-  :host([mode="run"]) .signal.approach .lamp.green,
-  :host([mode="run"]) .signal.approach .lamp.amber,
+  :host([mode="run"]) .signal.caution .lamp.green,
+  :host([mode="run"]) .signal.caution .lamp.amber,
   :host([mode="run"]) .signal.clear .lamp.green {
     opacity: 1;
   }

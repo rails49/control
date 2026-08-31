@@ -490,12 +490,12 @@ describe("signals", () => {
     placed(model);
     feed(model, {
       event: "aspects",
-      aspects: { "a.B": "clear", "b.A": "stop", "b.B": "approach" },
+      aspects: { "a.B": "clear", "b.A": "stop", "b.B": "caution" },
     });
     expect(shown(model)).toEqual({
       "a.B": "clear",
       "b.A": "stop",
-      "b.B": "approach",
+      "b.B": "caution",
     });
     // a.A was never named: nothing ever leaves it, so it carries no signal
     // and is absent rather than dark.
@@ -508,9 +508,9 @@ describe("signals", () => {
     feed(
       model,
       { event: "aspects", aspects: { "a.B": "clear", "b.A": "stop" } },
-      { event: "aspects", aspects: { "a.B": "stop", "b.A": "approach" } },
+      { event: "aspects", aspects: { "a.B": "stop", "b.A": "caution" } },
     );
-    expect(shown(model)).toEqual({ "a.B": "stop", "b.A": "approach" });
+    expect(shown(model)).toEqual({ "a.B": "stop", "b.A": "caution" });
   });
 
   it("derives no aspect of its own from the lock ledger", () => {
@@ -522,10 +522,10 @@ describe("signals", () => {
     feed(model, { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] });
     expect(model.aspects().size).toBe(0);
 
-    feed(model, { event: "aspects", aspects: { "a.B": "approach" } });
-    expect(shown(model)).toEqual({ "a.B": "approach" });
+    feed(model, { event: "aspects", aspects: { "a.B": "caution" } });
+    expect(shown(model)).toEqual({ "a.B": "caution" });
     feed(model, { event: "lock_released", train: "t1", resources: ["sw.main"] });
-    expect(shown(model)).toEqual({ "a.B": "approach" });
+    expect(shown(model)).toEqual({ "a.B": "caution" });
   });
 });
 

@@ -73,8 +73,8 @@ describe("a signal's lamps", () => {
 
 describe("an aspect", () => {
   it("is a class on the signal's group, not on a lamp", () => {
-    const root = drawn(new Map([["A", "approach"]]));
-    expect(root.querySelector(".signal.end-A")!.classList).toContain("approach");
+    const root = drawn(new Map([["A", "caution"]]));
+    expect(root.querySelector(".signal.end-A")!.classList).toContain("caution");
     // The lamps stay named for their colours whatever is showing: an aspect
     // is a set of lit lamps, so no lamp can carry the aspect's name.
     const classes = [...root.querySelectorAll(".signal.end-A circle.lamp")].map(
@@ -86,7 +86,7 @@ describe("an aspect", () => {
   it("leaves an unnamed end with no aspect at all, which is edit mode", () => {
     const root = drawn(new Map([["A", "clear"]]));
     const b = root.querySelector(".signal.end-B")!;
-    for (const aspect of ["stop", "approach", "clear"]) {
+    for (const aspect of ["stop", "caution", "clear"]) {
       expect(b.classList).not.toContain(aspect);
     }
   });
@@ -125,7 +125,7 @@ describe("an aspect's name", () => {
     // suite noticed: the classes were all correct and only the paint was
     // wrong, which is what a screenshot catches and a DOM assertion does not.
     const drawn = drawnClasses();
-    for (const aspect of ["stop", "approach", "clear"]) {
+    for (const aspect of ["stop", "caution", "clear"]) {
       expect([...drawn]).not.toContain(aspect);
     }
   });

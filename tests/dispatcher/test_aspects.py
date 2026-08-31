@@ -69,7 +69,7 @@ def test_the_aspect_is_how_far_ahead_the_dispatcher_has_locked() -> None:
     route = a_route(layout)
     end = end_on(layout, route.blocks[0], route.transits[0])
 
-    for ahead, expected in ((0, "stop"), (1, "approach"), (2, "clear"), (3, "clear")):
+    for ahead, expected in ((0, "stop"), (1, "caution"), (2, "clear"), (3, "clear")):
         shown = aspects(a_state(layout, route, ahead))
         assert shown[end] == expected, f"{ahead} ahead should show {expected}"
 
@@ -143,7 +143,7 @@ def test_the_grant_and_the_state_topic_tell_the_same_story() -> None:
                 on_topic[shown] = on_topic.get(shown, 0) + 1
 
     assert on_grants == on_topic
-    assert set(on_grants) == {"approach", "clear"}, "the run must show both"
+    assert set(on_grants) == {"caution", "clear"}, "the run must show both"
 
 
 def test_the_state_topic_carries_the_whole_picture_and_only_on_a_change() -> None:

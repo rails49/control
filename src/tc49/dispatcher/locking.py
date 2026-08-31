@@ -43,7 +43,7 @@ class Move:
     locked: list[str]  # resources newly locked for this move; [] under FullRoute
     # The second increment, when it was obtained: a separate grant, published
     # as its own lock_granted so a grant stays one transit with its far block
-    # (ADR-0029). Empty means it was not obtained, which is the `approach`
+    # (ADR-0029). Empty means it was not obtained, which is the `caution`
     # aspect rather than an error.
     ahead: list[str]
 
@@ -145,8 +145,8 @@ class Incremental:
 
     The second increment is asked for and not required (ADR-0029): a train
     that gets it holds two blocks beyond where it stands and runs at
-    `clear`, one that does not runs at `approach`. Refusing the move
-    because the second increment was unavailable would make `approach`
+    `clear`, one that does not runs at `caution`. Refusing the move
+    because the second increment was unavailable would make `caution`
     unreachable, which is the aspect it exists to express."""
 
     def __init__(self, layout: Layout, k: int) -> None:
@@ -234,7 +234,7 @@ class Incremental:
         """The second increment, asked for once the first is granted. Returns
         what it locked, or [] — obstructed, unsafe, or a route with nothing
         that far ahead. Never a refusal: the move has already been granted,
-        and an empty answer is what the `approach` aspect reports.
+        and an empty answer is what the `caution` aspect reports.
 
         The safety check is the same one the first increment passed, with the
         train now standing at the far block and holding the one beyond it —

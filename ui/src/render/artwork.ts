@@ -28,7 +28,7 @@ import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W } from "./units.js";
 
 const NONE: ReadonlySet<string> = new Set();
 /** What a signal shows, as the dispatcher publishes it (CONTEXT.md). */
-export type Aspect = "stop" | "approach" | "clear";
+export type Aspect = "stop" | "caution" | "clear";
 
 const RESTING: ReadonlyMap<string, Aspect> = new Map();
 

@@ -17,7 +17,7 @@ Three aspects, read off how far ahead the dispatcher has locked:
 | Locked ahead | Aspect | Meaning to the driver |
 | --- | --- | --- |
 | nothing | `stop` | stand |
-| one block | `approach` | proceed, prepared to stop at the next signal |
+| one block | `caution` | proceed, prepared to stop at the next signal |
 | two or more | `clear` | full speed |
 
 **Three is exactly sufficient, not a compromise.** A fourth aspect would need a

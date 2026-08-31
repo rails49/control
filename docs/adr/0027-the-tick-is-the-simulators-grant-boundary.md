@@ -27,7 +27,7 @@ the binding. The simulator's is the **tick**: one transit per beat, published
 when the bus is quiescent, and deterministic. A hardware adapter derives its
 own from a real clock at whatever period suits it, with transit times varying
 freely underneath: a long return loop takes longer than a station ladder, and
-a train creeping under `approach` takes longer through a block than one
+a train creeping under `caution` takes longer through a block than one
 running `clear`.
 
 `tick` therefore names the simulator's beat behind the boundary, not a unit of

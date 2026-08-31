@@ -207,7 +207,7 @@ def aspect_of(depth: int) -> str:
     """The aspect a signal shows for a locked-ahead depth (ADR-0025)."""
     if depth >= 2:
         return "clear"
-    return "approach" if depth else "stop"
+    return "caution" if depth else "stop"
 
 
 def aspects(state: State) -> dict[str, str]:
@@ -528,7 +528,7 @@ class Dispatcher:
         # The opening statement is the whole of what the dispatcher holds, in
         # the order a grant phase says it. Aspects are in it because a restart
         # has a previous value on that topic too: the last session's
-        # `approach` for a route this one did not restore would stand until
+        # `caution` for a route this one did not restore would stand until
         # the first grant phase, and a panel joining in that window draws a
         # clear road nothing holds a lock on. The run state opens it for the
         # same reason and one step earlier: it is the frame the rest is read

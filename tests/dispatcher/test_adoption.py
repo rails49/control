@@ -328,13 +328,13 @@ def test_the_opening_statement_corrects_a_stale_aspect(tmp_path: Path) -> None:
     it, and aspects is one of them.
 
     The last session was cut off mid-route, so the file shows a signal at
-    `approach` for a route no longer restored. Left alone that value stands
+    `caution` for a route no longer restored. Left alone that value stands
     until the first grant phase — a whole boundary, ten seconds of a session
     the operator is reconnecting into — and the panel joining draws a train a
     clear road it has no lock on. So the opening statement says the aspects
     too, beside the standing locks and the picture.
     """
-    _, _, said = restarted(tmp_path, MOVED, aspects={"dn_e.B": "approach"})
+    _, _, said = restarted(tmp_path, MOVED, aspects={"dn_e.B": "caution"})
 
     shown = [line for line in said if line["event"] == ASPECTS]
     assert shown, "the opening statement said nothing about the signals"

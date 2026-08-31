@@ -338,9 +338,9 @@ dispatcher the same way.
    and two is what buys full speed, and it never asks for a third
    ([ADR-0026](../adr/0026-two-blocks-ahead-is-full-speed.md)). The second
    increment is **asked for, not required**: obstructed or unsafe, the move
-   happens anyway and the train runs at `approach` instead of `clear`
+   happens anyway and the train runs at `caution` instead of `clear`
    ([ADR-0029](../adr/0029-a-lock-held-ahead-is-a-block-the-check-must-see.md)).
-   Refusing the move on its account would leave `approach` with nothing to
+   Refusing the move on its account would leave `caution` with nothing to
    describe. A lookahead lock is an ordinary grant made early, so
    [ADR-0003](../adr/0003-route-aware-bankers-safety-check.md)'s check answers
    it unchanged — but it is told what a train holds ahead of where it stands,
