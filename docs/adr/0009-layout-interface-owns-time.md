@@ -1,5 +1,12 @@
 # The layout interface owns time
 
+*(Amended under
+[ADR-0047](0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md):
+the boundary event is gone, so owning time now means the run clock advances on
+the events the layout interface publishes. No payload carries a timestamp; the
+trace tap stamps each line with `time`. The decision itself — no app component
+reads a clock — is unchanged.)*
+
 *(Amended for #198: the boundary payload carries a second field, the
 railroad's fast clock, minted by the same single writer so that no app has to
 interpolate one — which is this page's rule, not an exception to it

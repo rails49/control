@@ -6,6 +6,14 @@ and it is not here."* This is where the more arrives, and it is not one
 button. It is three obligations on the **layout interface**, which is the only
 component holding a throttle.
 
+**Amended under
+[ADR-0047](0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md):**
+the first leg, "a move expires", is deleted — it was never implemented, and
+the boundary it was stamped against leaves the contract. Its replacement is
+stronger: the layout acts on a `move` only if that train is standing at the
+transit's near end. The other two legs — the transit bound and the power
+relay — stand as written.
+
 **Amended for
 [#236](https://github.com/rails49/control/issues/236):** the driver's command
 was `cross` when this was written and is now `move`, on `tc49/drive/move`. The
