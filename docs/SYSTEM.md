@@ -115,7 +115,7 @@ MQTT arrives:
 A component that needs an answer to a question does not use the bus. The asset
 store answers questions, and exists for that reason.
 
-**Three rules govern the topics listed in the next section.**
+**Four rules govern the topics listed in the next section.**
 
 1. **Single writer.** Exactly one role publishes on a given topic, a role
    being `layout`, `schedule`, `dispatch`, `drive` or `ui` rather than a
@@ -138,6 +138,27 @@ store answers questions, and exists for that reason.
 3. **Prefix-filter consumption.** Each consumer subscribes with a small fixed
    set of prefix filters under `tc49/`, written with `+` and `#`, rather than
    naming individual topics.
+4. **Any source.** The bus does not authenticate a publisher: a topic's role
+   says who *should* write it, not who can. A consumer therefore validates
+   every payload it reads and never raises on one — a payload proves nothing
+   about its sender
+   ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md),
+   [ADR-0035](adr/0035-a-topic-has-one-writing-role.md)). What a failed read
+   is worth is the consumer's own rule: an answer where the payload carries an
+   id, a drop where it does not, and `state/power` failing towards `off`
+   ([#181](https://github.com/rails49/control/issues/181)).
+
+**The inventory is open.** A new topic, a new *optional* field on an existing
+payload, or a new value in an enum whose readers declare a fallback
+(CONTEXT.md) is a compatible change: one communication issue
+(docs/agents/issue-tracker.md), and a consumer built before it keeps working,
+because a consumer ignores fields it does not recognize. Removing, renaming
+or repurposing a field or a topic, or making an optional field required,
+breaks consumers and needs the stronger argument. A field can leave and come
+back the same way: `at` was dropped from the request and returns, if it does,
+as one communication issue once its requirements are understood. An added
+field still changes the trace, so recorded fixtures regenerate — a cost each
+addition pays, not breakage.
 
 **How milestone 1 implements the bus.** One thread and one queue. `publish()`
 adds the event to the queue and returns. A loop takes events off the front and
@@ -860,7 +881,11 @@ event's fields in inventory order — which is what lets two runs be compared
 byte for byte ([ARCHITECTURE.md](ARCHITECTURE.md#tests)).
 
 A payload field the inventory does not list raises, which is a promise about
-what the **apps** write. On the topics a client writes, the tap records what
+what the **apps** write. That strictness is the harness checking app
+discipline against the inventory, not consumer behaviour — a consumer ignores
+an unknown field (the openness rule) — and it holds while everything deploys
+in lockstep. The tap becomes tolerant when apps deploy independently, or a
+newer publisher would take an older tap down. On the topics a client writes, the tap records what
 it was given: the inventory's fields in order, then anything else, and a
 payload that is not an object under `payload`. That line is the whole record
 of a frame the dispatcher drops
