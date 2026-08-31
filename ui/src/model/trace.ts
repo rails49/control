@@ -71,10 +71,10 @@ export class Live {
  *  (SYSTEM.md, the bridge). Anything else inbound the relay refuses,
  *  `request_submitted` included: the browser writes gestures and never
  *  requests ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). */
-export const REQUEST_WANTED = "tc49/ui/request_wanted";
-export const REVERSAL_WANTED = "tc49/ui/reversal_wanted";
-export const RUN_WANTED = "tc49/ui/run_wanted";
-export const PLACEMENT_WANTED = "tc49/ui/placement_wanted";
+export const REQUEST_WANTED = "tc49/schedule/request_wanted";
+export const REVERSAL_WANTED = "tc49/schedule/reversal_wanted";
+export const RUN_WANTED = "tc49/dispatch/run_wanted";
+export const PLACEMENT_WANTED = "tc49/dispatch/placement_wanted";
 
 /** How a run stands: the dispatcher will commit nothing while it is `held`,
  *  and a person moves it either way

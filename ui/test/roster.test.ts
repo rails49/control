@@ -268,7 +268,7 @@ describe("its drags", () => {
     await dragRow(shell, "shunter", MIDDLE.b);
 
     expect(written()).toContainEqual({
-      topic: "tc49/ui/placement_wanted",
+      topic: "tc49/dispatch/placement_wanted",
       payload: { train: "shunter", block: "b" },
     });
   });
@@ -308,7 +308,7 @@ describe("its drags", () => {
 
     expect(written()).toEqual([
       {
-        topic: "tc49/ui/placement_wanted",
+        topic: "tc49/dispatch/placement_wanted",
         payload: { train: "goods", block: null },
       },
     ]);
