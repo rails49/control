@@ -29,7 +29,6 @@ class RequestSpec:
     train: str
     depart: str  # '<block>.<end>', or a bare end letter for chained requests
     arrivals: tuple[str, ...]  # arrival ends: '<block>.<end>' or bare '<block>'
-    at: int
 
 
 @dataclass(frozen=True)

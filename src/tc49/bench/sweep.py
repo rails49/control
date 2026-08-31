@@ -148,12 +148,11 @@ def generate(workload: Workload) -> Scenario:
                     # previous working's arrival ends.
                     f"{placement}.{end}" if working == 0 else end,
                     arrivals,
-                    0,  # 3. Arrival — batch, every request at boundary 0.
                 )
             )
             here = STATIONS[target][0]  # only the station matters from here on
 
-    # 4. Redraw — until every train's first request can eventually launch.
+    # 3. Redraw — until every train's first request can eventually launch.
     # A head-on swap makes each train's arrival blocks the other's standing
     # lock and the run dead at boundary 0 (#36); redraw each stuck request, end
     # first then arrival ends, keeping the workings count (BENCHMARKS.md).
@@ -166,9 +165,7 @@ def generate(workload: Workload) -> Scenario:
             placement = placement_of[train]
             end = line_end(placement, rng.choice(["A", "B"]))
             arrivals = _arrivals(rng, other_station(placement), workload.dest)
-            requests[first[train]] = RequestSpec(
-                train, f"{placement}.{end}", arrivals, 0
-            )
+            requests[first[train]] = RequestSpec(train, f"{placement}.{end}", arrivals)
 
     return Scenario(_name(workload), workload.layout, trains, tuple(requests))
 

@@ -1,11 +1,13 @@
 """The trace tap: a bus subscriber that writes one JSONL line per event.
 
 Per SYSTEM.md "The trace": subscribes ``tc49/#`` and writes each delivered
-event flat, in canonical key order — ``boundary``, ``event`` (the topic's
-leaf), then the payload fields in inventory order — with ``boundary``
-stamped from the last boundary event observed, ``0`` before the first. A
-topic or payload field outside the inventory fails loudly: the trace is
-load-bearing, and a stray field must break a test, not rot quietly.
+event flat, in canonical key order — ``time``, ``event`` (the topic's
+leaf), then the payload fields in inventory order — with ``time`` stamped
+from the run clock: float seconds since the session started, simulated in
+batch and wall live (ADR-0047). ``time`` is observation only — no payload
+carries a timestamp, so no app can read one. A topic or payload field
+outside the inventory fails loudly: the trace is load-bearing, and a stray
+field must break a test, not rot quietly.
 
 That is a promise about what the *apps* write. The browser-writable topics
 carry whatever a browser published, and an unreadable frame's only record is
@@ -18,20 +20,19 @@ import json
 from typing import TextIO, cast
 
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.inventory import INBOUND, LEAF_FIELDS, leaf
 
 
 class TraceTap:
-    def __init__(self, bus: Bus, out: TextIO) -> None:
+    def __init__(self, bus: Bus, out: TextIO, clock: Clock) -> None:
         self._out = out
-        self._boundary = 0
+        self._clock = clock
         bus.subscribe("tc49/#", self._record)
 
     def _record(self, topic: str, payload: Payload) -> None:
         event = leaf(topic)
-        if event == "boundary":
-            self._boundary = payload["boundary"]
-        line: Payload = {"boundary": self._boundary, "event": event}
+        line: Payload = {"time": self._clock.now, "event": event}
         fields = LEAF_FIELDS[event]
         if topic in INBOUND:
             line.update(_as_given(payload, fields))

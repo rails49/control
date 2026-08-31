@@ -29,7 +29,6 @@ class Topic(NamedTuple):
 
 
 TOPICS: dict[str, Topic] = {
-    "tc49/layout/boundary": Topic(("boundary",)),
     "tc49/layout/block_occupied": Topic(("block",)),
     "tc49/layout/block_vacated": Topic(("block",)),
     "tc49/layout/state/power": Topic(("power",)),
