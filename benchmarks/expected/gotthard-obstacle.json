@@ -5,13 +5,13 @@
     "FullRoute": {
       "status": "stalled",
       "makespan": null,
-      "boundaries": 1,
+      "seconds": 0.0,
       "completed": 0,
       "rejected": 0,
       "mean_latency": null,
       "max_latency": null,
-      "mean_utilization": 1.0,
-      "mean_parallelism": 0.0,
+      "mean_utilization": 0.0,
+      "moves_per_minute": 0.0,
       "stalls": [
         {
           "id": "stranded-1",
@@ -25,13 +25,13 @@
     "Incremental": {
       "status": "stalled",
       "makespan": null,
-      "boundaries": 1,
+      "seconds": 0.0,
       "completed": 0,
       "rejected": 0,
       "mean_latency": null,
       "max_latency": null,
-      "mean_utilization": 1.0,
-      "mean_parallelism": 0.0,
+      "mean_utilization": 0.0,
+      "moves_per_minute": 0.0,
       "stalls": [
         {
           "id": "stranded-1",
