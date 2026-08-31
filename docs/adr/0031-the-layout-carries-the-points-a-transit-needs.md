@@ -113,7 +113,7 @@ unchanged by an address's presence, and that stands for everything except the
 ## Setting before moving
 
 Splitting the two commands between two apps costs a guarantee that was never
-written down. Today one component publishes `align` and `cross` back to back;
+written down. Today one component publishes `align` and `move` back to back;
 after this, the dispatcher publishes one and the driver the other. The bus
 contract refuses cross-topic ordering
 ([ADR-0008](0008-bus-contract-is-the-mqtt-safe-intersection.md)) precisely so
@@ -121,21 +121,21 @@ that nothing leans on it, and SYSTEM.md leaned on it in prose: "publishing
 `align` for each so the route is set before anything moves."
 
 Under the milestone binding the guarantee survives either publish order, since
-the driver's `cross` is enqueued while `move_granted` is being delivered and
+the driver's `move` is enqueued while `move_granted` is being delivered and
 joins the back of a queue `align` is already in. Under MQTT, two clients on two
-topics promise nothing, and a hardware adapter can receive the crossing first
+topics promise nothing, and a hardware adapter can receive the `move` first
 and start a train onto points that have not thrown.
 
 So the duty is stated where it can be honoured: **the layout interface must not
-act on a `cross` before the `align` naming the same transit.** How it holds
+act on a `move` before the `align` naming the same transit.** How it holds
 that is its own business — the simulator gets it free by batching commands to
 the tick, a hardware adapter pairs them — which is where binding-specific
 behaviour belongs
 ([ADR-0030](0030-the-physical-railroad-is-the-normative-binding.md)).
 
-The alternative was to make it structural by folding the points into `cross`,
+The alternative was to make it structural by folding the points into `move`,
 leaving one command and no ordering question. That reverses #97: either the
-dispatcher publishes the crossing, which is the driver's, or the driver
+dispatcher publishes the `move`, which is the driver's, or the driver
 publishes the points, which is the arrangement being left behind.
 
 ## Consequences

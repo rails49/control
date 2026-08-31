@@ -28,9 +28,9 @@ it.
 
 The hold stops the dispatcher granting. It does **not** stop a move already
 granted: at the moment of a hold a train can have an outstanding move, its
-connection already aligned and `tc49/drive/cross` already sent, and nothing on
+connection already aligned and `tc49/drive/move` already sent, and nothing on
 the bus can retract that. The driver is stateless and `tc49/drive/` carries
-only `cross`.
+only `move`.
 
 So the buffered sensors are still applied at every boundary, held or not. An
 outstanding move completes and releases its locks; a train that arrived does
@@ -204,7 +204,7 @@ do not go back to the document with it.
 
 **The simulator is told when a hand moves a train.** It stands in for steel
 that would simply be where it was left, so `train_placed` moves its placement
-too; without it the next `cross` would vacate the block the train used to be
+too; without it the next `move` would vacate the block the train used to be
 in. That stays inside the simulator app and on no topic of its own
 ([ADR-0030](0030-the-physical-railroad-is-the-normative-binding.md)).
 

@@ -73,7 +73,7 @@ truth, projected for its two audiences.
 
 ## The driver says how fast, the layout interface says how
 
-`cross` gains a speed: *take this train into that block at this speed*. The
+`move` gains a speed: *take this train into that block at this speed*. The
 throttle-up, watch-the-detector, stop loop stays private to the layout
 interface, where the locomotive's braking curve, the decoder's speed steps and
 the detector's position already live and where they differ between a simulator

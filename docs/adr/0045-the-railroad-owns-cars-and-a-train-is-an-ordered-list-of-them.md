@@ -131,13 +131,13 @@ route to it. Facing is scheduler state
 ([ADR-0019](0019-facing-is-scheduler-state.md)) on
 `tc49/schedule/state/facing`, and `train_placed` carries train and block
 only. Either `layout` reads a scheduler topic, inverting the layering, or it
-maintains its own orientation from the placement plus every `cross` it
+maintains its own orientation from the placement plus every `move` it
 executes, routes being strict pass-throughs. It is hard to think through
 without trying, so it waits on running experience and stays fog on the map.
 
 ## `layout` reads the roster
 
-`tc49/drive/cross` names a train; ADR-0043 has `layout` writing desired speed
+`tc49/drive/move` names a train; ADR-0043 has `layout` writing desired speed
 per locomotive address. **`layout` bridges those by reading the railroad's
 roster**, as the dispatcher already does for lengths.
 
@@ -170,7 +170,7 @@ by a gesture, or calibrated afresh each session by driving and watching.
 Neither represents top-and-tail, and the second makes the first move of every
 evening a coin flip on live track.
 
-**The address on `tc49/drive/cross`**, so the driver reads the roster and
+**The address on `tc49/drive/move`**, so the driver reads the roster and
 `layout` needs none. It puts a DCC address on the dispatch-side contract,
 which is what ADR-0022, ADR-0025 and ADR-0030 have spent four decisions
 keeping out of it.
