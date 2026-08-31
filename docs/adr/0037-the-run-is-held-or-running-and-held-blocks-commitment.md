@@ -7,6 +7,12 @@ and `running`. A person moves it with `tc49/ui/run_wanted`, and while it is
 `held` the dispatcher commits nothing: no route is chosen, no move granted,
 no lock taken.
 
+**Amended for
+[#242](https://github.com/rails49/control/issues/242):** a field whose values
+are a closed set is an **enum**; this ADR calls it a *word*, the term
+`CONTEXT.md` used until #242. Nothing below has been rewritten, so read *word*
+as *enum* throughout.
+
 The bar it was built for is @iot49's: *"after power up, no trains should move
 without operator intervention."* Nothing enforced it, and there was no gesture
 with which a person could correct a placement either — the write surface was

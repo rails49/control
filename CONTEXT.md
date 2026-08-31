@@ -468,7 +468,7 @@ holds the run, where dropping it would leave the run committing over track
 whose state could not be read; an unreadable `run` is dropped and nothing is
 set ([#175](https://github.com/rails49/control/issues/175)).
 _Avoid_: word (the term this entry used until
-[#242](https://github.com/rails49/control/issues/242)), value, status. Not a
+[#242](https://github.com/rails49/control/issues/242)), status. Not a
 **flag**, which is what [SYSTEM.md](docs/SYSTEM.md) calls a state topic
 carrying a boolean — `exhausted` is one and is not an enum.
 

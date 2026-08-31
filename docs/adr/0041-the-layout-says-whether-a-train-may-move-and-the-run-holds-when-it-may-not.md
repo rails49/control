@@ -6,6 +6,12 @@ written by the layout interface — one writing role, like every other topic
 `stopped` and `off`. The dispatcher reads it, and anything but `on` holds the
 run ([ADR-0037](0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 
+**Amended for
+[#242](https://github.com/rails49/control/issues/242):** a field whose values
+are a closed set is an **enum**; this ADR calls it a *word*, the term
+`CONTEXT.md` used until #242. Nothing below has been rewritten, so read *word*
+as *enum* throughout.
+
 Before this, track power was invisible to the software, and that was not
 neutral. Cut power one boundary after a grant and the train stops between
 blocks. No sensor fires, so the outstanding move never clears and the block
