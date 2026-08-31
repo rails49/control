@@ -5,8 +5,8 @@ canned request list — and `tc49 live --scenario` is the harness running one as
 a test run. It does that from **outside**: one
 `tc49/dispatch/placement_wanted` per train, a
 `tc49/schedule/reversal_wanted` where the document faces a train the other
-way, `tc49/dispatch/run_wanted` to release the hold, and then the requests at
-their `at` boundaries, all over the topics a browser writes.
+way, `tc49/dispatch/run_wanted` to release the hold, and then the requests in
+the file's order, all over the topics a browser writes.
 
 So no app is given a scenario and every app keeps one placement path; the
 branch lives here, in the harness, which is ADR-0030's shape. It also makes a
@@ -55,12 +55,11 @@ def arrival_ends(arrivals: tuple[str, ...]) -> list[str]:
 
 class Replay:
     """Lays the railroad out from `scenario`, releases the run, and feeds the
-    timetable at its boundaries. Built onto an assembly that is already up.
+    timetable in the file's order. Built onto an assembly that is already up.
     """
 
     def __init__(self, bus: Bus, layout: Layout, scenario: Scenario) -> None:
         self._bus = bus
-        self._pending = list(scenario.requests)
         self._standing: set[str] = set()
         bus.subscribe("tc49/dispatch/train_placed", self._on_placed)
         for train, spec in scenario.trains.items():
@@ -87,7 +86,8 @@ class Replay:
         # GO. Every placement had to land before it: a placement is honoured
         # while held and dropped while running (ADR-0037).
         self._send(RUN_WANTED, {"run": RUNNING})
-        bus.subscribe("tc49/layout/boundary", self._on_boundary)
+        for request in scenario.requests:
+            self._drag(request)
 
     def _on_placed(self, topic: str, payload: Payload) -> None:
         self._standing.add(payload["train"])
@@ -95,13 +95,6 @@ class Replay:
     def _send(self, topic: str, payload: Payload) -> None:
         self._bus.publish(topic, payload)
         self._bus.drain()
-
-    def _on_boundary(self, topic: str, payload: Payload) -> None:
-        now = payload["boundary"]
-        due = [request for request in self._pending if request.at <= now]
-        self._pending = [request for request in self._pending if request.at > now]
-        for request in due:
-            self._drag(request)
 
     def _drag(self, request: RequestSpec) -> None:
         """One request as the drag that asks for it: the train, and the ends

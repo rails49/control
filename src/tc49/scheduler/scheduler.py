@@ -1,17 +1,18 @@
 """Scheduler: the one writer of requests, and the holder of facing.
 
 Its sources are configuration rather than a rule (ADR-0036): a timetable
-released at its `at` boundaries, and a person gesturing on the two topics
-the scheduler declares, `tc49/schedule/request_wanted` and
-`tc49/schedule/reversal_wanted`.
-`tc49 bench` runs with a timetable, `tc49 live` with none while `at` is
-still a boundary count. A gesture is not a request — it names a train and
+submitted whole at the start of a run, in the file's order, and a person
+gesturing on the two topics the scheduler declares,
+`tc49/schedule/request_wanted` and `tc49/schedule/reversal_wanted`. Time is
+the scheduler's responsibility, and a timetable released against a clock is
+a milestone-2 feature nothing needs yet (ADR-0047); the queue does the
+staggering, there never being enough tracks to satisfy every request at
+once. A gesture is not a request — it names a train and
 where to put it, and the id and the departure end are what the scheduler
 adds. Ids are minted deterministically in the timetable's order
 (`<train>-1`, `<train>-2`, ...) from one undivided counter, the arrival-end
 expansion is purely mechanical (a bare block becomes both of its ends), and
-when the last timetable request is out the `exhausted` state topic is set —
-the milestone-1 termination signal.
+`exhausted` is set as soon as the last timetable request is out.
 
 It **holds facing** (ADR-0019), seeded where a run was built from a document
 and carried forward from the bus: a train faces away from the end it entered
@@ -73,36 +74,21 @@ class Scheduler:
         )
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
         self._counters: Counter[str] = Counter()  # one undivided minter
-        self._pending: list[tuple[int, Payload]] = []
-        for request in timetable:
-            self._counters[request.train] += 1
-            self._pending.append(
-                (
-                    request.at,
-                    {
-                        "id": f"{request.train}-{self._counters[request.train]}",
-                        "train": request.train,
-                        "depart": request.depart,
-                        "dest": _expand(request.arrivals),
-                    },
-                )
-            )
-        self._exhausted = False
         self._published: Payload = {}  # the facing last sent, so only changes go
         self._publish_facing()
-        bus.subscribe("tc49/layout/boundary", self._on_boundary)
+        for request in timetable:
+            self._counters[request.train] += 1
+            self._submit(
+                {
+                    "id": f"{request.train}-{self._counters[request.train]}",
+                    "train": request.train,
+                    "depart": request.depart,
+                    "dest": _expand(request.arrivals),
+                }
+            )
+        self._bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
         bus.subscribe("tc49/dispatch/#", self._on_dispatch)
         bus.subscribe("tc49/schedule/#", self._on_gesture)
-
-    def _on_boundary(self, topic: str, payload: Payload) -> None:
-        now = payload["boundary"]
-        due = [event for at, event in self._pending if at <= now]
-        self._pending = [(at, event) for at, event in self._pending if at > now]
-        for event in due:
-            self._submit(event)
-        if not self._pending and not self._exhausted:
-            self._exhausted = True
-            self._bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
 
     def _submit(self, event: Payload) -> None:
         self._train_of[event["id"]] = event["train"]

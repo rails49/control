@@ -123,7 +123,7 @@ def assemble(
     bus = Bus()
     out = io.StringIO()
     clock = Clock()
-    TraceTap(bus, out)
+    TraceTap(bus, out, clock)
     stood = placement(scenario.trains)
     Scheduler(bus, layout, facing(layout, scenario.trains), scenario.requests)
     dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
@@ -147,11 +147,10 @@ def assemble_live(
     The bridge a caller attaches to the bus is the only inbound path.
 
     Which sources a run has is configuration rather than a rule (ADR-0036), and
-    a live run is given no timetable at all: a scenario's `at` is a boundary
-    count, so releasing one into a ten-second wall clock would dump a
-    timetable on an operator in the first minute.
+    a live run is given no timetable at all: a scenario is the harness's file
+    format, and `tc49 live --scenario` replays one as gestures instead.
 
-    `trains` stands them before the first boundary instead, and is the
+    `trains` stands them before anything runs instead, and is the
     harness's own: the suite's runs, and the baseline `tc49 live --scenario`'s
     replay is measured against. `tc49 live` itself passes none — a run an
     operator drives comes up with an empty layout and held, and the trains
@@ -175,7 +174,7 @@ def assemble_live(
     bus = Bus(state)
     out = io.StringIO()
     clock = Clock()
-    TraceTap(bus, out)
+    TraceTap(bus, out, clock)
     Scheduler(bus, layout, facing(layout, document))
     dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
@@ -197,9 +196,9 @@ def run_scenario(
     scenario: Scenario,
     make_strategy: StrategyFactory = FullRoute,
     k: int = DEFAULT_K,
-    tick_limit: int = 10_000,
+    event_limit: int = 100_000,
 ) -> str:
     """Wire everything on one bus, run to quiescence, return the trace."""
     assembly = assemble(layout, roster, scenario, make_strategy, k)
-    assembly.simulator.run(tick_limit)
+    assembly.simulator.run(event_limit)
     return assembly.trace

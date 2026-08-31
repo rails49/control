@@ -202,19 +202,14 @@ class AssetStore:
             raise TypeError(f"{where}: requests must be a list")
         for i, spec in enumerate(cast(list[Any], doc["requests"])):
             here = f"{where}: request {i + 1}"
-            check_keys(spec, here, {"train", "from", "to"}, {"at"})
-            train, depart, to, at = (
+            check_keys(spec, here, {"train", "from", "to"})
+            train, depart, to = (
                 str(spec["train"]),
                 str(spec["from"]),
                 spec["to"],
-                spec.get("at", 0),  # omitted means the first boundary
             )
             if train not in trains:
                 raise ValueError(f"{here}: unknown train '{train}'")
-            if not isinstance(at, int) or at < 0:
-                raise ValueError(
-                    f"{here}: 'at' must be a non-negative boundary, got {at!r}"
-                )
             _check_departure_end(depart, layout, here)
             if not isinstance(to, list) or not to:
                 raise ValueError(
@@ -230,7 +225,7 @@ class AssetStore:
                 if "." in entry:
                     check_end(entry, layout.blocks, here)
                 arrivals.append(entry)
-            requests.append(RequestSpec(train, depart, tuple(arrivals), at))
+            requests.append(RequestSpec(train, depart, tuple(arrivals)))
 
         return Scenario(name, layout_id, trains, tuple(requests))
 
