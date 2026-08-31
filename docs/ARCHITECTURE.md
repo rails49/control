@@ -71,7 +71,7 @@ src/tc49/
                               every arrival end merged, DISPATCH.md's
                               ordering
                 safety.py     safe()
-  driver/       Driver — move_granted → cross
+  driver/       Driver — move_granted → move
   simulator/    Simulator — the milestone-1 layout interface: applies
                 commands, emits sensors, publishes the boundary, owns pacing
                 and termination

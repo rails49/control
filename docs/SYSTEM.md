@@ -68,7 +68,7 @@ One cycle of the machine:
 3. The dispatcher runs its grant phase over everything buffered since the
    previous boundary and publishes granted moves. It publishes `align` for
    each, so the route is set before anything moves.
-4. The driver turns each grant it sees into a `cross`.
+4. The driver turns each grant it sees into a `move`.
 5. The layout interface executes both and reports occupancy, which the
    dispatcher buffers for the next boundary.
 
@@ -225,7 +225,7 @@ Naming topics this way means rule 1 can be checked by reading the name,
 UI that wants everything the dispatcher says subscribes to `tc49/dispatch/#`.
 
 A leaf names something that has happened, in the past tense. There are two
-exceptions. The two commands, `align` and `cross`, are imperative, because a
+exceptions. The two commands, `align` and `move`, are imperative, because a
 command is sent before what it asks for happens. And `boundary` is a noun,
 naming a beat rather than a change. `align` sits under `dispatch` because the
 dispatcher publishes it: setting the route is the dispatcher's job, and moving
@@ -277,7 +277,7 @@ write it.
 | `tc49/dispatch/state/allocation` | state | dispatcher | last-value picture of the run: standing trains, the transit each crossing train is on, locks and holders, committed routes, live requests |
 | `tc49/dispatch/state/disputed` | state | dispatcher | last-value pair of lists: trains standing in a block that reads clear, and blocks that read occupied with nothing claiming them. Empty unless the run is held ([#153](https://github.com/rails49/control/issues/153)) |
 | `tc49/dispatch/align` | command | dispatcher | connection, transit, points `[{addr, position}]` |
-| `tc49/drive/cross` | command | driver | train, connection, transit, into |
+| `tc49/drive/move` | command | driver | train, connection, transit, into |
 
 | Consumer | Filter(s) |
 | --- | --- |
@@ -343,7 +343,7 @@ how the simulator behaves rather than how the model treats time
 
 **On the physical railroad the period is a fixed span of real time**, 500 ms
 by default and set per railroad. It is *not* scaled by the railroad's fast
-clock, described below. A `cross` expires after two boundaries
+clock, described below. A `move` expires after two boundaries
 ([ADR-0040](adr/0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md)),
 so the period decides how much delay the system tolerates. Choose it so that
 two boundaries are comfortably longer than the worst case for a cascade of
@@ -563,7 +563,7 @@ A person moves it with `tc49/ui/run_wanted`. While it is `held` the dispatcher
 then stops, so no route is chosen, no move granted and no lock taken, while
 admission goes on accepting and queuing. A move already granted still
 completes and releases its locks. A hold stops new commitments and does not
-stop a train that is already moving, and nothing on the bus retracts a `cross`
+stop a train that is already moving, and nothing on the bus retracts a `move`
 already sent. Every signalled end shows `stop` for as long as the hold lasts.
 Releasing sets `run` and nothing else; the next boundary grants
 ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
@@ -691,21 +691,21 @@ the utilization metric cannot see idle trains.
 ### Driver
 
 *Reads* nothing. *Subscribes* `tc49/dispatch/move_granted`. *Publishes*
-`cross`.
+`move`.
 
 The driver is a **translator that holds no state and knows nothing of the
-layout**: for each granted move it immediately publishes `cross`, which is the
-move restated as a command. Setting the route belongs to the dispatcher, which
+layout**: for each granted move it immediately publishes `move`, which is the
+grant restated as a command. Setting the route belongs to the dispatcher, which
 publishes `align`
 ([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)), so a grant is
 all the driver needs in order to act.
 
 The grant carries the aspect and the driver ignores it. Turning an aspect into
-a speed would need `cross` to carry a speed and transits to take time, both of
+a speed would need `move` to carry a speed and transits to take time, both of
 which milestone 1 leaves out
 ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md),
-[MILESTONE-1.md](MILESTONE-1.md)). The move payload already carries every
-field `cross` needs, which is why the driver holds no state and reads no
+[MILESTONE-1.md](MILESTONE-1.md)). The grant payload already carries every
+field `move` needs, which is why the driver holds no state and reads no
 assets.
 
 It does not subscribe to the boundary. The N+1 skew is a property of the
@@ -735,7 +735,7 @@ in the drawing
 rather than being kept by an adapter.
 
 One **obligation** comes with them: the layout interface must not act on a
-`cross` before the `align` that names the same transit. The two commands have
+`move` before the `align` that names the same transit. The two commands have
 two publishers and the bus promises no ordering between topics, so nothing
 upstream can guarantee the route is set before the train moves. Starting a
 train onto points that have not thrown is a collision, so the duty has to sit
@@ -749,10 +749,10 @@ On the physical railroad the layout interface is the core app `layout`, and
 hardware sits under it by address, as thin translators speaking a device-level
 vocabulary on the bus
 ([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
-The control loop that carries out a `cross` — throttle up, watch the detector,
+The control loop that carries out a `move` — throttle up, watch the detector,
 stop — stays private hardware configuration.
 
-The milestone-1 **simulator** applies `align` and `cross` at the next tick,
+The milestone-1 **simulator** applies `align` and `move` at the next tick,
 and it owns pacing and termination: it stops advancing when the scheduler is
 `exhausted` and a tick produced no commands
 ([BENCHMARKS.md](bench/BENCHMARKS.md#termination)). That stop rule is
@@ -778,7 +778,7 @@ and an emergency stop is a hardwired contact rather than a message. The
 milestone-1 **simulator** publishes `on` and never changes it, simulated track
 being always live (ADR-0030).
 
-`train_placed` is the one thing besides a `cross` that moves a train, and what
+`train_placed` is the one thing besides a `move` that moves a train, and what
 a binding does with it is its own business. The simulator stands in for a
 train that would simply be where a hand left it, so it is told where the hand
 put it. It is not a command: nothing is buffered, and no boundary moves.
@@ -820,7 +820,7 @@ facing rather than on a generator
 
 | Growth | Why | Where |
 | --- | --- | --- |
-| `cross` carries a **speed** | the driver decides how fast; the layout interface keeps throttle-up-watch-the-detector-stop, where the braking curve and detector geometry live | same |
+| `move` carries a **speed** | the driver decides how fast; the layout interface keeps throttle-up-watch-the-detector-stop, where the braking curve and detector geometry live | same |
 | The scheduler **invents traffic** | continual generated traffic has to name an idle train and a reachable destination, which is what it now reads the layout for; the dispatcher stays the single feasibility authority | [ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md) |
 | The boundary event's cadence comes from a **clock**, transits vary in length | `tick` is the simulator's beat behind the boundary, not the model's unit of time | [ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md) |
 
@@ -870,7 +870,7 @@ of a frame the dispatcher drops
 derived from recorded events**. Makespan comes from the `request_admitted` and
 `request_completed` stamps and latency from the same pair, utilization from
 the span between `lock_granted` and `lock_released`, parallelism from the
-`cross` commands per boundary, and the stall report from the last
+`move` commands per boundary, and the stall report from the last
 `grant_refused` of each request that never completed. An event that stops
 being published therefore breaks a metric and fails a test rather than going
 unnoticed. The derivations live in [bench/METRICS.md](bench/METRICS.md).

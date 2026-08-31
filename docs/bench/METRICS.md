@@ -15,7 +15,7 @@ derives from the tapped events of [SYSTEM.md](../SYSTEM.md#the-trace):
   fraction of the whole run: boundary 0 through the trace's last. Standing
   locks are in the trace from the dispatcher's startup emission
   ([SYSTEM.md](../SYSTEM.md#dispatcher)), so idle trains count.
-- **Parallelism** — `cross` commands per boundary.
+- **Parallelism** — `move` commands per boundary.
 - **Stall report** — for each request admitted but never completed when the
   trace ends, the last `grant_refused` for its id names the obstacles: which
   train (`holder`), which block (`resource`), how many candidates were
