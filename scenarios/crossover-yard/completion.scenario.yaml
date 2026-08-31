@@ -4,10 +4,11 @@
 # changes nothing, because `dest(u)` already modeled its block as permanently
 # held; it simply becomes an idle obstacle under a different name."
 #
-# `arriver` runs to dn_e and finishes there. `latecomer` then asks for dn_e,
-# its request timed to arrive well after that completion, and is refused
-# exactly as it would have been had `arriver` been parked in dn_e from the
-# start — same reason, same holder, same block.
+# `arriver` runs to dn_e and finishes there. `latecomer` asks for dn_e and is
+# refused while arriver is under way; the refusal that matters is the last
+# one, at the sweep arriver's completion triggers — the same reason, the same
+# holder and the same block as if arriver had been parked in dn_e from the
+# start.
 #
 # What makes completion a non-event is visible in the lock ledger: completing
 # releases the block behind the train and the transit it crossed, and nothing
@@ -24,8 +25,8 @@ trains:
   latecomer: { at: yard_e, facing: A }
 
 requests:
-  - { train: arriver, from: yard_w.B, to: [dn_e.A], at: 0 }
-  # Late enough that arriver has finished: the obstacle latecomer meets is a
-  # completed train, not an active one. It enters dn_e through .B, the only
-  # end reachable from the east yard.
-  - { train: latecomer, from: yard_e.A, to: [dn_e.B], at: 8 }
+  - { train: arriver, from: yard_w.B, to: [dn_e.A] }
+  # The obstacle latecomer finally meets is a completed train, not an active
+  # one: its stall names arriver idle in dn_e. It enters dn_e through .B, the
+  # only end reachable from the east yard.
+  - { train: latecomer, from: yard_e.A, to: [dn_e.B] }

@@ -1,7 +1,7 @@
 # gotthard-v0/meet — two trains, opposite directions (docs/BENCHMARKS.md, #31).
 #
 # The smallest story the real railroad can tell: one train each way between the
-# stations, launched on the same boundary, with three line sections to share out
+# stations, launched together, with three line sections to share out
 # between them.
 #
 # The asymmetry BENCHMARKS.md describes is what makes it worth running. `south`
@@ -22,5 +22,5 @@ trains:
   north: { at: airolo_1, facing: A }
 
 requests:
-  - { train: south, from: claro_2.B, to: [airolo_2], at: 0 }
-  - { train: north, from: airolo_1.A, to: [claro_1], at: 0 }
+  - { train: south, from: claro_2.B, to: [airolo_2] }
+  - { train: north, from: airolo_1.A, to: [claro_1] }

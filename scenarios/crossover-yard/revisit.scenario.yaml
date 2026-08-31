@@ -27,7 +27,7 @@ requests:
   # Out. Both arrival ends of yard_e survive admission — yard_e is terminal,
   # so .B is pruned `no_entry` — and the route runs over the down main, which
   # the lexicographic tie-break prefers to the up.
-  - { train: shuttle, from: yard_w.B, to: [yard_e], at: 0 }
+  - { train: shuttle, from: yard_w.B, to: [yard_e] }
   # Back, over the same three blocks in reverse. It departs by the end it
   # arrived through: reversal at rest between requests (ADR-0001).
-  - { train: shuttle, from: yard_e.A, to: [yard_w.B], at: 0 }
+  - { train: shuttle, from: yard_e.A, to: [yard_w.B] }

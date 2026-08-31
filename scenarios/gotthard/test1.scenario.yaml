@@ -8,4 +8,4 @@ trains:
   too_long: { at: A2, facing: A }
 
 requests:
-  - { train: short, from: C1.A, to: [A1, A2, A3], at: 0 }
+  - { train: short, from: C1.A, to: [A1, A2, A3] }

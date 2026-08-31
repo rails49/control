@@ -22,4 +22,4 @@ trains:
   mover: { at: C4, facing: A }
 
 requests:
-  - { train: mover, from: C4.A, to: [A2.A], at: 0 }
+  - { train: mover, from: C4.A, to: [A2.A] }
