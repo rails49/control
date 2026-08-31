@@ -474,9 +474,13 @@ carrying a boolean — `exhausted` is one and is not an enum.
 
 **Command**:
 An imperative event the layout interface executes: `align` (set a connection
-to a transit) and `cross` (a train crosses a transit into a block, at a stated
+to a transit) and `move` (a train crosses a transit into a block, at a stated
 speed). The only imperatives on the bus — everything else is a past-tense fact.
-_Avoid_: instruction
+The grant and the command share a word — `tc49/dispatch/move_granted` and
+`tc49/drive/move` — because the second is the first restated as an imperative.
+_Avoid_: instruction, `cross` (the name this command carried until
+[#236](https://github.com/rails49/control/issues/236)); the verb stays
+sanctioned, and **Transit** says where.
 
 **Gesture**:
 What a person's action on a UI puts on the bus: a train and where to put it,
