@@ -7,7 +7,10 @@ and it never asks which component did: today the dispatcher sends one and the
 driver the other, and nothing here would change if that moved. The obligation
 that comes with two senders is satisfied for free: batching to the tick is
 why it can never act on a `move` before the `align` naming the same transit
-(ADR-0031). It names its two commands rather than filtering by prefix, which
+(ADR-0031). It acts on a `move` only if that train is standing at the
+transit's near end (ADR-0047): a stale redelivery arrives after the train
+has left, so it is a no-op on state alone — no clock, no stamp, no
+agreement between apps. It names its two commands rather than filtering by prefix, which
 is the one exception rule 3 allows: a `tc49/layout/#` filter would hand it
 back its own sensor events and its own boundary. The **tick** is this binding's word for its beat; what
 goes on the bus is the grant boundary every binding publishes
@@ -37,6 +40,7 @@ from pathlib import Path
 from tc49.lib import durable
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import ON
+from tc49.lib.layout import Layout, block_of
 
 
 def placement_file(state: Path) -> Path:
@@ -50,10 +54,14 @@ class Simulator:
     def __init__(
         self,
         bus: Bus,
+        layout: Layout,
         position: dict[str, str] | None = None,
         placement: Path | None = None,
     ) -> None:
-        """`position`: where the steel stands before anything has run, train to
+        """`layout`: the track this binding stands in for; what resolves a
+        move's transit to the block its train must be standing in.
+
+        `position`: where the steel stands before anything has run, train to
         block, which is the harness's — a run built from a scenario document
         (`bench/runner.py`). A run an operator drives is given none: its steel
         arrives block by block as the dispatcher accepts each placement.
@@ -68,6 +76,7 @@ class Simulator:
         standing, if anywhere.
         """
         self._bus = bus
+        self._layout = layout
         self._placement = placement
         stood = durable.read(placement) if placement is not None else {}
         self._position = dict(position or {}) | dict(stood)
@@ -124,19 +133,31 @@ class Simulator:
     def _on_exhausted(self, topic: str, payload: Payload) -> None:
         self._exhausted = payload["exhausted"]
 
+    def _near_end(self, move: Payload) -> str:
+        """The block a train must stand in to take this move's transit: the
+        transit end that is not the block entered."""
+        a, b = self._layout.connections[move["connection"]].transits[move["transit"]]
+        return block_of(b) if block_of(a) == move["into"] else block_of(a)
+
     def _advance(self) -> None:
         """Execute the moves buffered since the last tick: each train
         reaches the block it was told to cross into, and its sensors say so.
         The only thing that moves a train, and so the only thing that has to
-        write the placement file."""
+        write the placement file. A move whose train is not standing at the
+        transit's near end is stale — redelivered after arrival, or overtaken
+        by a hand's placement — and is ignored (ADR-0047)."""
         moves, self._moves = self._moves, []
+        executed = False
         for move in moves:
             train, into = move["train"], move["into"]
-            origin = self._position[train]
+            origin = self._near_end(move)
+            if self._position.get(train) != origin:
+                continue
             self._position[train] = into
             self._bus.publish("tc49/layout/block_vacated", {"block": origin})
             self._bus.publish("tc49/layout/block_occupied", {"block": into})
-        if moves and self._placement is not None:
+            executed = True
+        if executed and self._placement is not None:
             durable.write(self._placement, self._position)
 
     def run(self, tick_limit: int = 10_000) -> None:

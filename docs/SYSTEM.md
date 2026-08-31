@@ -497,11 +497,7 @@ how the simulator behaves rather than how the model treats time
 
 **On the physical railroad the period is a fixed span of real time**, 500 ms
 by default and set per railroad. It is *not* scaled by the railroad's fast
-clock, described below. A `move` expires after two boundaries
-([ADR-0040](adr/0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md)),
-so the period decides how much delay the system tolerates. Choose it so that
-two boundaries are comfortably longer than the worst case for a cascade of
-messages, because a slow message still has to arrive as a live one.
+clock, described below.
 
 `layout` publishes the boundary whenever it is running, including a held run
 and dead rails. A boundary is therefore a liveness pulse as well as a grant
@@ -911,6 +907,15 @@ somewhere, and this is the only component that sees both commands.
 How the obligation is met is the binding's own business: the simulator gets it
 for nothing by batching commands to its tick, and a hardware adapter pairs
 them.
+
+A second obligation guards against a stale command: the layout interface
+**acts on a `move` only if that train is standing at the transit's near end**
+([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
+At-least-once delivery can repeat a `move` minutes late after a reconnect;
+after arrival the train has left the near end, so the redelivery is a no-op
+on state alone — no clock, no stamp, no agreement between apps. The same
+check refuses a command overtaken by a hand's placement, and one naming a
+train no longer on the layout.
 
 On the physical railroad the layout interface is the core app `layout`, and
 hardware sits under it by address, as thin translators speaking a device-level
