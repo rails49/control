@@ -150,10 +150,10 @@ of every sensor on the railroad, and a second camera could then not join
 `device/point` is published only where the hardware actually reports a
 position, and a commanded one is never echoed back as a measured one
 (ADR-0022): on this railroad turnouts have no feedback, so the `dccex`
-translator writes none. `device/link` is where the physical connection
-becomes observable, so a UI can say the command station is unreachable rather
-than the railroad merely looking idle — reported at runtime to a person who
-can act on it, which is where verification of a link belongs (ADR-0050, #217).
+translator writes none. `device/link` is where a broken link becomes
+observable, so a UI can say the command station is unreachable rather than the
+railroad merely looking idle — reported at runtime to a person who can act on
+it, which is where verifying a link belongs (ADR-0050, #217).
 
 Separate from ``TOPICS`` rather than in it because ``TOPICS`` maps a whole
 topic to its field order, and a device row's whole topic is not knowable until
