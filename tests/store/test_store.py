@@ -10,7 +10,7 @@ from ruamel.yaml.representer import RepresenterError
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore, yamlfile
-from tests.harness import ROOT
+from tests.harness import ROOT, catalogued
 from tests.store.railroads import RAILROADS
 
 
@@ -21,6 +21,7 @@ def store() -> AssetStore:
 
 @pytest.fixture
 def scratch_store(tmp_path: Path) -> AssetStore:
+    catalogued(tmp_path)
     (tmp_path / "layouts").mkdir()
     # The drawing and the roster together: a railroad is both, and a scenario
     # places trains the roster names (ADR-0039).
@@ -35,6 +36,7 @@ def scratch_store(tmp_path: Path) -> AssetStore:
 @pytest.fixture
 def drawings(tmp_path: Path) -> AssetStore:
     """Every committed railroad, somewhere writable."""
+    catalogued(tmp_path)
     (tmp_path / "layouts").mkdir()
     for path in (ROOT / "layouts").glob("*.yaml"):
         shutil.copy(path, tmp_path / "layouts" / path.name)
