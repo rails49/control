@@ -13,7 +13,10 @@ timetable mints and is granted in the opening drain, before any press could
 land, so what queues into a held run arrives as gestures.
 """
 
+from typing import cast
+
 from tc49.bench.runner import Assembly
+from tc49.lib.bus import Payload
 from tests.harness import RUN_WANTED, leaves, live, press, run_wanted, runs, ticks
 
 REQUEST_WANTED = "tc49/schedule/request_wanted"
@@ -114,9 +117,12 @@ def test_a_value_that_is_no_run_state_leaves_the_run_alone(
     timetabled: Assembly,
 ) -> None:
     """A gesture has no id to address an answer to, so a third value is
-    dropped in silence and to the trace (ADR-0034)."""
+    dropped in silence and to the trace (ADR-0034). The frame is read to the
+    bottom — anyone may publish on the topic, and nothing here subscripts
+    what it has not read (SYSTEM.md, rule 4)."""
     press(timetabled, RUN_WANTED, {"run": "draining"})
     press(timetabled, RUN_WANTED, {"held": True})
+    press(timetabled, RUN_WANTED, cast(Payload, "hold everything"))
     ticks(timetabled, 2)
 
     assert runs(timetabled) == ["running"]
