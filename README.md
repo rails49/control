@@ -35,6 +35,9 @@ Each app's implementation details live beside it:
   [scenarios/](scenarios).
 - [Bench](docs/bench) — the [benchmark suite](docs/bench/BENCHMARKS.md) and
   the [metrics derivations](docs/bench/METRICS.md).
+- [Station](docs/station) — the [command station mirror](docs/station/README.md):
+  one process owns the USB device and serves it on TCP 2560, so the `dccex`
+  translator, JMRI and hand-held throttles share one station.
 - [UI](docs/ui) — one app with two views of the loaded railroad, the [layout
   editor](docs/ui/EDITOR.md) and the [run view](docs/ui/PANEL.md), living in
   [ui/](ui).

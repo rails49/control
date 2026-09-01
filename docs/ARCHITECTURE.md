@@ -11,11 +11,18 @@ its own page: the dispatcher's are
 ## Apps
 
 An **app** is a unit that will run as its own container
-([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are five in
-Python — store, scheduler, dispatcher, driver, simulator — and one in the
-browser: `ui/`, which is **one** app, one page holding one loaded railroad and
-a list of views of it
+([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are six in
+Python — store, scheduler, dispatcher, driver, simulator, station — and one in
+the browser: `ui/`, which is **one** app, one page holding one loaded railroad
+and a list of views of it
 ([ADR-0038](adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
+
+`station` is the first of the apps that hang under the layout interface
+([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)):
+it owns the command station's serial device and serves it on a TCP port. It
+is an app by the same rule as the rest — its own container, on the machine the
+device is plugged into — and it is the one that meets neither the bus nor the
+store, having no contract of ours to speak (docs/station/README.md).
 
 Apps import `tc49.lib` and themselves, **never each other**. They meet only
 over the event bus and the asset store's CRUD contract, so each one can be
@@ -76,6 +83,12 @@ src/tc49/
                 discrete-event engine that schedules each accepted move's
                 sensors on fixed delays, owns the run clock, pacing and
                 termination
+  station/      station.py  Station — the command station's serial device
+                            mirrored on a TCP port: every byte fanned out to
+                            every client, a client's bytes written whole
+                framing.py  frame() — bytes in, whole `<…>` messages out
+                __main__.py `python -m tc49.station --device … --port …`,
+                            the command line deploy/station.Dockerfile runs
 
   bench/        runner.py   assemble the apps on one bus and run a scenario
                             to quiescence — the one wiring, shared by the
@@ -152,6 +165,7 @@ docs/
   store/           LAYOUT.md  DRAWING.md
   bench/           BENCHMARKS.md  METRICS.md
   ui/              EDITOR.md  PANEL.md — design pages for the app to come
+  station/         README.md
   agents/          how agent skills should consume this repo
   research/        background reading
 ```
@@ -159,7 +173,9 @@ docs/
 An app gets a folder when it has internals worth writing down. `scheduler`,
 `driver` and `simulator` have none: their whole behaviour is their footprint
 in [SYSTEM.md](SYSTEM.md#component-footprints), and an empty folder would
-suggest otherwise.
+suggest otherwise. `station` has one for the opposite reason — it has no
+footprint there at all, so its page is the only place its behaviour is
+written down.
 
 **ADRs are not split by app.** They stay one numbered sequence in `adr/`,
 because the numbering is a chronological record rather than a filing system,
@@ -180,6 +196,7 @@ tests/
   scheduler/   test_scheduler
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks
+  station/     test_framing  test_station
   system/      test_skeleton  test_properties  test_safety_conditions
                test_app_boundaries
 ```
