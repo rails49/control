@@ -6,6 +6,7 @@ convenience the tests want.
 """
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,7 @@ __all__ = [
     "Assembly",
     "StrategyFactory",
     "build",
+    "catalogued",
     "events",
     "leaves",
     "live",
@@ -46,6 +48,19 @@ __all__ = [
 ]
 
 ROOT = find_root()  # one definition of where the railroads live
+
+
+def catalogued(root: Path) -> Path:
+    """`root` given the installation's catalogue, which a copied roster needs.
+
+    A roster does not travel alone: its cars name models, and a model belongs
+    to the installation rather than to the railroad (ADR-0045), so a scratch
+    root with `layouts/` and no `catalogue/` is a roster naming models nothing
+    has.
+    """
+    shutil.copytree(ROOT / "catalogue", root / "catalogue")
+    return root
+
 
 build = assemble
 run = run_scenario

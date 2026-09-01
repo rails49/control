@@ -18,11 +18,12 @@ import pytest
 
 from tc49.store import AssetStore
 from tc49.store.server import handle, make_server
-from tests.harness import ROOT
+from tests.harness import ROOT, catalogued
 
 
 @pytest.fixture
 def store(tmp_path: Path) -> AssetStore:
+    catalogued(tmp_path)
     (tmp_path / "layouts").mkdir()
     for path in (ROOT / "layouts").glob("*.yaml"):
         shutil.copy(path, tmp_path / "layouts" / path.name)
