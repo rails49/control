@@ -376,8 +376,10 @@ The item is **greyed while that train has a request in flight**, meaning any
 request from submit to completion. This is the panel's one pre-judgement of a
 gesture, against the filter-free drag, and it earns the exception: a disabled
 item says the train is busy, where silence says nothing. Reversing under a
-queued request would produce a lie, since the request still departs the old
-end and `route_chosen` turns the arrow back when it launches. A **rejected**
+queued request would produce a lie, since the request still departs the end the
+facing named when it was composed: the train the arrow now points one way would
+leave the other
+([#295](https://github.com/rails49/control/issues/295)). A **rejected**
 request leaves the train idle, its marker still on screen but nothing left to
 move it, and that is precisely when you want to turn around. The scheduler
 drops such a gesture anyway, a stale page always being able to send one.

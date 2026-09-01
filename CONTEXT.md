@@ -291,15 +291,21 @@ The run a parked train would make across its block, written **`A-to-B`** or
 Said as the run and not as the end reached, so the value can be read without
 the convention in front of you; the end is one question away
 (`lib.layout.departure_end`) and the two spellings are one fact.
-Declared with initial placement and thereafter determined by three rules:
-routes are strict pass-throughs, so a train faces away from the end it
-entered through; on a **terminal block** there is no end to face away
-towards, and facing is the run that departs by its one connected end whatever
-a placement or a route would say; and deliberate reversal at rest is the one
-change routes do not account for. Held by the scheduler and published on its
-own state topic as `<block>.A-to-B`, which every view reads to draw a train's
-direction. Not dispatcher state — a request's departure end carries
-everything the dispatcher needs, and may contradict facing.
+Declared with initial placement and thereafter determined by four rules:
+routes are strict pass-throughs, so a train that left nose-first faces away
+from the end it entered through; a train **propelled** — pushed out of the end
+its nose points away from, which a request's **departure end** may ask for —
+enters the next block tail-first and so faces the end it entered through; on a
+**terminal block** there is no end to face away towards, and facing is the run
+that departs by its one connected end whatever a placement or a route would
+say; and deliberate reversal at rest is the one change routes do not account
+for. Every one of those is a change the stock actually underwent: committing
+to a route is a plan and moves no arrow
+([#295](https://github.com/rails49/control/issues/295)). Held by the scheduler
+and published on its own state topic as `<block>.A-to-B`, which every view
+reads to draw a train's direction. Not dispatcher state — a request's
+departure end carries everything the dispatcher needs, and may contradict
+facing.
 _Avoid_: direction (ambiguous with travel direction), heading, orientation.
 The bare end letter the value once was is retired
 ([#241](https://github.com/rails49/control/issues/241)): it is refused at
@@ -361,7 +367,10 @@ a dispatcher choice not yet made. Where the stated end is one no train can
 leave by — the wall of a **terminal block** — the one connected end is the
 answer, that being all a stub has. A request's departure end, not **facing**,
 is what the dispatcher routes from, and the two may disagree
-([ADR-0019](docs/adr/0019-facing-is-scheduler-state.md)).
+([ADR-0019](docs/adr/0019-facing-is-scheduler-state.md)). What the
+disagreement means is that the train is pushed: it leaves through the end its
+tail stands at, and every block of that route it enters tail-first
+([#295](https://github.com/rails49/control/issues/295)).
 _Avoid_: leaving end, origin end, exit
 
 **Arrival end**:

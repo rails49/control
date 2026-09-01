@@ -779,8 +779,9 @@ export class Panel {
    *
    * The panel pre-judges one gesture on this and no other (ui/PANEL.md).
    * Turning a train around while a request of its own is queued would flip
-   * the arrow under it: the request still departs the old end, and
-   * `route_chosen` turns the arrow back when it launches. A rejected request
+   * the arrow under it: the request still departs the end the facing named
+   * when it was composed, so the train would leave the other way round from
+   * the way the arrow now points (#295). A rejected request
    * leaves the train idle — its marker stays on screen, but nothing is going
    * to move it — and that is precisely when the operator wants to turn it
    * around.
