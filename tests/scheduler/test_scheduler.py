@@ -663,7 +663,9 @@ def test_an_announcement_that_cannot_be_read_leaves_facing_where_it_was() -> Non
     Two of the shapes are the layout's rather than the payload's — a transit
     no connection here holds, and one that crosses neither end of the block
     named — and are dropped for the same reason: there is no end to face away
-    from.
+    from. That second one is the shared rule and not this reader's own
+    (SYSTEM.md, #276): the layout interface drops the `move` of the same shape
+    rather than run a train over track the layout does not have.
     """
     bus = Bus()
     seen = collect(bus, FACING)
