@@ -191,6 +191,14 @@ whatever is on hand.
 **Traefik logs nothing at all** — that is success. It reports failures, so a
 quiet log and a `/acme/acme.json` with bytes in it is a certificate.
 
+**noVNC serves its page on 6901 but Connect fails** — the VNC server came up
+on a display other than `:1`, and the page dials 5901 regardless. The image's
+`vncserver` takes the first display with no socket in `/tmp/.X11-unix`, and a
+restart that keeps the writable layer leaves the old one behind, so each
+restart moves the server one port further away. `tmpfs: [/tmp]` on the `jmri`
+service in `deploy/compose.yaml` gives it an empty `/tmp` every start, which
+is what keeps it on `:1` and 5901.
+
 **No certificate, and the log says the challenge failed** — the token is
 scoped to the wrong zone, or lacks `DNS:Edit`. Renewal, and first issue, use
 the same permission. `scripts/dns.sh` exercises it: if that can move a record,
