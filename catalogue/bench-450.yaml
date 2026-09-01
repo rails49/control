@@ -1,0 +1,9 @@
+# A synthetic 450 mm car, one of the lengths the library railroads' rosters
+# use (#223). Nobody owns one: `t1`..`t6` drive the sweep and the rest are
+# the suites' own stock, so the model carries length and kind and no functions.
+# `freight` because these cars are hauled — a train made of them derives
+# `freight` rather than `light engine` (CONTEXT.md, **Kind**).
+
+model: bench-450
+kind: freight
+length: 450
