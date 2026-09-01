@@ -18,7 +18,10 @@ the client stays connected. A command is honored now or ignored: a queue that
 flushes on reconnect is a train that moves minutes after someone asked for
 it. Reopening the device is this app's own business — it goes away when the
 command station is switched off — so it retries with backoff, and a client
-notices only that what it sent meanwhile did nothing.
+notices only that what it sent meanwhile did nothing. Every way the device
+can fail to be there is the same outage — a path that is not there, one that
+will not take the line discipline, one that is gone again the moment it is
+open — and the watcher outlives all of them.
 
 There is no client limit beyond the OS's and no authentication: the LAN is
 the trust boundary (ADR-0042), and the port is published to it by the
@@ -188,11 +191,10 @@ class Station:
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, self._max_backoff_s)
                 continue
-            backoff = self._first_backoff_s
             self._fd = fd
             self._log(f"serial open {self._device}")
             try:
-                await self._mirror(fd)
+                spoke = await self._mirror(fd)
             finally:
                 self._fd = None
                 # The outage that starts here is news again, however many
@@ -200,13 +202,28 @@ class Station:
                 self._dropped = False
                 os.close(fd)
                 self._log(f"serial closed {self._device}")
+            # Opening is not proof the device is there: a session that ends
+            # without a byte keeps the backoff it was reached with, and only
+            # one that carried traffic starts over. Either way the next
+            # attempt waits, because reopening a device that is gone again at
+            # once is a hot loop with a log line per turn.
+            if spoke:
+                backoff = self._first_backoff_s
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, self._max_backoff_s)
 
-    async def _mirror(self, fd: int) -> None:
-        """Fan every byte the device sends to every client, until it goes away."""
+    async def _mirror(self, fd: int) -> bool:
+        """Fan every byte the device sends to every client, until it goes away.
+
+        Says whether the device spoke at all, which is what tells a session
+        that ended from a device that was never really there.
+        """
         loop = asyncio.get_running_loop()
         gone: asyncio.Future[None] = loop.create_future()
+        spoke = False
 
         def readable() -> None:
+            nonlocal spoke
             try:
                 arrived = os.read(fd, READ_SIZE)
             except BlockingIOError:
@@ -217,6 +234,7 @@ class Station:
                 if not gone.done():
                     gone.set_result(None)
                 return
+            spoke = True
             for writer in tuple(self._clients):
                 if not writer.is_closing():
                     writer.write(arrived)
@@ -226,6 +244,7 @@ class Station:
             await gone
         finally:
             loop.remove_reader(fd)
+        return spoke
 
     def _serving(self) -> asyncio.Server:
         if self._server is None:
