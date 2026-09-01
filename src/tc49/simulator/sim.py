@@ -176,12 +176,14 @@ class Simulator:
     def _near_end(self, commanded: Move) -> str | None:
         """The block a train must stand in to take this move's transit: the
         block at the far end of it from the one the command says the train is
-        entering, or None where this railroad has no such transit.
+        entering, or None where this railroad has no such transit or that
+        transit reaches neither end of the block named.
 
         The command states the connection and a bare transit and the layout
         names a transit qualified, so the two halves go back together to ask
-        it. A command naming a transit that is not there is not an error to
-        raise on but a command with nowhere to go (rule 4).
+        it. Either way the command names no block a train could start from —
+        there is no track over that transit into that block — and neither is
+        an error to raise on but a command with nowhere to go (rule 4).
         """
         end = far_end(
             self._layout,
@@ -198,10 +200,11 @@ class Simulator:
         — redelivered after arrival, mid-move, or overtaken by a hand's
         placement — and is ignored (ADR-0047). A command that cannot be read,
         or that names a transit this railroad does not hold, goes the same
-        way: nothing rolls, and nothing raises. What a command naming a
-        transit that misses the block it says the train is entering does is
-        unchanged — the near end comes back the transit's first end, and the
-        train is standing there or it is not."""
+        way: nothing rolls, and nothing raises. So does one whose transit
+        reaches neither end of the block it says the train is entering
+        (#276): that transit crosses no track to there, so the command names
+        no near end to be standing at, and a train that happens to stand at
+        one end of it is not being asked for a run this railroad can make."""
         commanded = move(payload)
         if commanded is None:
             return
