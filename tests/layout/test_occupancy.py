@@ -13,14 +13,19 @@ all without making the suite wait for it.
 
 import logging
 
+from tc49.layout import LayoutInterface
+from tc49.lib.clock import Clock
 from tests.layout.railroad import (
     BLOCK_OCCUPIED,
     BLOCK_VACATED,
+    DEVICE_SENSOR,
+    Unstamped,
     align,
     elapse,
     energised,
     move,
     occupancy,
+    railroad,
     reads,
     settle,
     stand,
@@ -309,6 +314,30 @@ def test_a_move_that_was_not_acted_on_leaves_no_crossing_behind() -> None:
     settle(bus, app, clock)
 
     assert seen == [(BLOCK_OCCUPIED, {"block": "dn_e"})]
+
+
+def test_a_reading_older_than_the_one_held_is_ignored() -> None:
+    """Delivered backwards, the older value would leave a block end reading
+    clear after the reading that said a train is on it — and the row keeps its
+    last message, so it would stand for good (#240)."""
+    clock = Clock()
+    bus = Unstamped(clock)
+    app = LayoutInterface(bus, railroad(), clock)
+    bus.drain()
+    seen = occupancy(bus)
+
+    bus.publish(
+        DEVICE_SENSOR + "/up_e.A",
+        {"at": 20.0, "addr": "up_e.A", "occupancy": "occupied"},
+    )
+    bus.publish(
+        DEVICE_SENSOR + "/up_e.A",
+        {"at": 10.0, "addr": "up_e.A", "occupancy": "clear"},
+    )
+    bus.drain()
+    settle(bus, app, clock)
+
+    assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
 
 
 def test_nothing_settles_while_the_clock_stands_still() -> None:
