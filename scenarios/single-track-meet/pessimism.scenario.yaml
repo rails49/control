@@ -21,8 +21,8 @@ scenario: pessimism
 layout: single-track-meet
 
 trains:
-  runner: { at: west_1, facing: B }
-  blocker: { at: e_main, facing: A } # idle: no request names it
+  runner: { at: west_1, facing: A-to-B }
+  blocker: { at: e_main, facing: B-to-A } # idle: no request names it
 
 requests:
   - { train: runner, from: west_1.B, to: [east_1.A] }

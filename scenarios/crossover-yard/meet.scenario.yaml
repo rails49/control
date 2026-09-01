@@ -17,8 +17,8 @@ layout: crossover-yard
 # the dispatcher never reads (ADR-0019): file scenarios like this one state the
 # departure end per request, and a request is free to contradict the facing.
 trains:
-  freight_1: { at: yard_w, facing: B }
-  express_2: { at: up_e, facing: A }
+  freight_1: { at: yard_w, facing: A-to-B }
+  express_2: { at: up_e, facing: B-to-A }
 
 # request = (train, departure end, arrival ends), per ADR-0007.
 #

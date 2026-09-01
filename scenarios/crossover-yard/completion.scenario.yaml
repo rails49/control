@@ -21,8 +21,8 @@ scenario: completion
 layout: crossover-yard
 
 trains:
-  arriver: { at: yard_w, facing: B }
-  latecomer: { at: yard_e, facing: A }
+  arriver: { at: yard_w, facing: A-to-B }
+  latecomer: { at: yard_e, facing: B-to-A }
 
 requests:
   - { train: arriver, from: yard_w.B, to: [dn_e.A] }

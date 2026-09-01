@@ -19,8 +19,8 @@ scenario: obstacle
 layout: gotthard-v0
 
 trains:
-  stranded: { at: claro_3, facing: B }
-  stock: { at: line_blue_1, facing: A } # idle: no request names it
+  stranded: { at: claro_3, facing: A-to-B }
+  stock: { at: line_blue_1, facing: B-to-A } # idle: no request names it
 
 requests:
   - {

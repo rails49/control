@@ -32,8 +32,8 @@ scenario: route-blindness
 layout: crossover-yard
 
 trains:
-  t1: { at: yard_w, facing: B }
-  t2: { at: up_w, facing: B }
+  t1: { at: yard_w, facing: A-to-B }
+  t2: { at: up_w, facing: A-to-B }
 
 requests:
   # t1 heads for the down main; its only 2-transit route runs through dn_e.
