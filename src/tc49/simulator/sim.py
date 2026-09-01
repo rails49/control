@@ -12,6 +12,18 @@ is standing at the transit's near end (ADR-0047): a stale redelivery
 arrives after the train has left, so it is a no-op on state alone — no
 clock, no stamp, no agreement between apps.
 
+Everything the bus hands it is **read** and never trusted (#262, rule 4): the
+`move` it acts on and the two placements that move steel without one. A leaf
+names the component that answers for it and not the process that published
+this frame — under MQTT the driver, the dispatcher and a page are each another
+container — so a payload proves nothing, and a binding that raised on one
+would be taken down by whoever published it, leaving the railroad running
+without the thing that watches it. A frame that cannot be read is **dropped**,
+silently and to the trace: this binding reports observations and answers
+nothing, so a refusal would have nowhere to go even where a frame carried an
+id (ADR-0034). The reading itself is `lib.payload`'s, and whether the names
+it read name anything on this railroad is `lib.layout`'s.
+
 It mimics what real trains do, with fixed delays standing in for travel
 time. On a `move` it schedules `block_occupied(destination)` after the
 transit delay and `block_vacated(origin)` after a second one — the head
@@ -46,7 +58,8 @@ from tc49.lib import durable
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import ON
-from tc49.lib.layout import Layout, block_of
+from tc49.lib.layout import Layout, block_of, far_end
+from tc49.lib.payload import Move, move, named_train, placement
 
 # One scheduled sensor event: fires at a time, in scheduling order among
 # equals, and says which train's head or tail passed which detector.
@@ -116,6 +129,8 @@ class Simulator:
         # Simulated points are always aligned; subscribed because the layout
         # interface declares the command, and the ordering obligation is met
         # by the bus delivering `align` before the `move` that follows it.
+        # Nothing is read off it, so nothing on it can fail to be read: the
+        # command whose payload this binding does act on is `move`.
         bus.subscribe("tc49/layout/align", lambda topic, payload: None)
         bus.subscribe("tc49/layout/move", self._on_move)
         bus.subscribe("tc49/dispatch/train_placed", self._on_placed)
@@ -130,8 +145,16 @@ class Simulator:
         and `train_placed` is the dispatcher having accepted that it was.
         Without it the next `move` would vacate the block the train used to
         be in and the sensors would describe a railroad nobody is on.
+
+        The fact is read like any other payload, and one naming no block is
+        dropped with the rest: `train_placed` never carries a null — a train
+        taken off the layout is `train_removed`, which names the train alone
+        (ADR-0039) — so there is no steel to stand anywhere.
         """
-        self._position[payload["train"]] = payload["block"]
+        placed = placement(payload)
+        if placed is None or placed.block is None:
+            return
+        self._position[placed.train] = placed.block
         if self._placement is not None:
             durable.write(self._placement, self._position)
 
@@ -143,15 +166,30 @@ class Simulator:
         the binding reports occupancy when a train crosses, and this train
         crosses nothing now.
         """
-        self._position.pop(payload["train"], None)
+        train = named_train(payload)
+        if train is None:
+            return
+        self._position.pop(train, None)
         if self._placement is not None:
             durable.write(self._placement, self._position)
 
-    def _near_end(self, move: Payload) -> str:
+    def _near_end(self, commanded: Move) -> str | None:
         """The block a train must stand in to take this move's transit: the
-        transit end that is not the block entered."""
-        a, b = self._layout.connections[move["connection"]].transits[move["transit"]]
-        return block_of(b) if block_of(a) == move["into"] else block_of(a)
+        block at the far end of it from the one the command says the train is
+        entering, or None where this railroad has no such transit or that
+        transit crosses no end of that block.
+
+        The command states the connection and a bare transit and the layout
+        names a transit qualified, so the two halves go back together to ask
+        it. A command naming a transit that is not there is not an error to
+        raise on but a command with nowhere to go (rule 4).
+        """
+        end = far_end(
+            self._layout,
+            commanded.into,
+            f"{commanded.connection}.{commanded.transit}",
+        )
+        return None if end is None else block_of(end)
 
     def _on_move(self, topic: str, payload: Payload) -> None:
         """One transit accepted: the train starts rolling and its two sensor
@@ -159,9 +197,16 @@ class Simulator:
         transit delay, the tail off the origin after the clearing one. A
         move whose train is not standing at the transit's near end is stale
         — redelivered after arrival, mid-move, or overtaken by a hand's
-        placement — and is ignored (ADR-0047)."""
-        train, into = payload["train"], payload["into"]
-        origin = self._near_end(payload)
+        placement — and is ignored (ADR-0047). A command that cannot be read,
+        or that names a transit this railroad does not hold, goes the same
+        way: nothing rolls, and nothing raises."""
+        commanded = move(payload)
+        if commanded is None:
+            return
+        train, into = commanded.train, commanded.into
+        origin = self._near_end(commanded)
+        if origin is None:
+            return
         if train in self._rolling or self._position.get(train) != origin:
             return
         self._rolling.add(train)
