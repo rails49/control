@@ -83,10 +83,10 @@ first.
 Decides which train departs from where, to what destination, and when — as
 soon as possible, or at a stated time. A stated time is read off the
 railroad's **fast clock**, the scaled time a model railroad runs its
-operations on and the only thing a timetable can be written against; it is not
-a count of the simulator's grant boundaries
-([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)), which a
-hardware adapter does not produce. Its prototype counterpart is the timetable,
+operations on and the only thing a timetable can be written against; posting
+a request at its time is the scheduler's own responsibility, and nothing of
+it reaches the dispatcher's contract
+([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)). Its prototype counterpart is the timetable,
 though a model railroad more often wants plausible random traffic than an
 exact one. Requests arrive continually; a schedule may also be set up in
 advance.
@@ -187,9 +187,9 @@ The layout interface also owns time
 ([ADR-0009](adr/0009-layout-interface-owns-time.md)) and is the only part that
 knows how a locomotive actually behaves: told to take a train into a block at a
 speed, it is what throttles up, watches the detector and stops. Under the
-simulator time is a tick and a train crosses one transit per beat; on a
-physical railroad a clock sets the beat and transits take as long as they take
-([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
+simulator travel time is a pair of fixed delays of the simulator's own; on a
+physical railroad transits take as long as they take
+([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 
 ### Hardware that lies
 

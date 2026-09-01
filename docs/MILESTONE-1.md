@@ -19,13 +19,13 @@ in-process bus — plus a benchmark harness. Where each part landed:
   [SAFETY.md](dispatcher/SAFETY.md) as the research core: `dispatcher/locking.py`,
   over the state of `dispatcher/dispatch.py`.
 - The **scheduler** and **driver** — thin but real bus components: the
-  scheduler composes a person's gestures into requests and releases a
-  timetable's at their `at` boundaries, the driver translates each granted
+  scheduler composes a person's gestures into requests and submits a
+  timetable whole at the start of a run, the driver translates each granted
   move into layout commands:
   `scheduler/scheduler.py` and `driver/driver.py`, the latter stateless.
-- The **simulator**, implementing the layout interface: executes commands,
-  reports occupancy, publishes the boundary, and owns pacing and termination:
-  `simulator/sim.py`.
+- The **simulator**, implementing the layout interface: a discrete-event
+  engine that executes commands, reports occupancy on fixed delays of its
+  own, and owns the run clock, pacing and termination: `simulator/sim.py`.
 - The **asset store** in its milestone-1 binding — the Python library over
   the YAML files of [DRAWING.md](store/DRAWING.md) and
   [LAYOUT.md](store/LAYOUT.md): `store/`.
@@ -55,19 +55,18 @@ whole subject; the other two are real components kept to the minimum that
 exercises it:
 
 - **Scheduling** is a person's drags, and a fixed request list the harness
-  reads from a scenario file for a benchmark run, released by the scheduler of
+  reads from a scenario file for a benchmark run, submitted whole at the
+  start by the scheduler of
   [SYSTEM.md](SYSTEM.md#scheduler) — which reads the layout, but only to keep
   facing, and invents nothing
   ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). There
-  is no arrival process and no continual-arrivals scheduler. A request's `at`
-  is a **boundary count**, and that is the milestone binding rather than the
-  model: [GOALS.md](GOALS.md#scheduling) says a request comes due at a stated
-  time, read off the fast clock, and a boundary count is not a time — a
-  hardware adapter picks its own cadence, so counting beats tells a timetable
-  nothing. A counted `at` is the same shape of simplification as one transit
-  per tick ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
+  is no arrival process and no continual-arrivals scheduler, and a scenario
+  states no submission times: [GOALS.md](GOALS.md#scheduling) says a request
+  comes due at a stated time, read off the fast clock, and posting one then
+  is the end-state scheduler's own work
+  ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 - **Driving** is the stateless translator of [SYSTEM.md](SYSTEM.md#driver),
-  with the simulator advancing each train one transit per tick. A train has no
+  with the simulator carrying each train across a transit on fixed delays. A train has no
   speed here and reads no signal: the grant it is handed is the whole of what
   it is told.
 
@@ -99,14 +98,14 @@ unless its row says otherwise:
 | MQTT transport, out-of-process deployment | the bus contract is already MQTT-safe ([ADR-0008](adr/0008-bus-contract-is-the-mqtt-safe-intersection.md)); the in-process bus is the milestone binding |
 | A real scheduler with continual arrivals | requests are a fixed batch or a person's gestures here; the end-state scheduler *generates* traffic, which is what its layout knowledge is ultimately for ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md)) |
 | A driver that obeys the aspect | the dispatcher publishes `stop`/`caution`/`clear`, on the grant and on a last-value topic, and the driver ignores it: acting on it needs a speed on `move` and transits that take time ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)) |
-| Trains that have a speed | one transit per tick, and a tick is the simulator's boundary rather than the model's unit of time ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)) |
+| Trains that have a speed | a transit costs the simulator's fixed delays, a stand-in of its own rather than the model's unit of time ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
 | Braking distance | an open subject even in the end state, with a working answer and no decision ([GOALS.md](GOALS.md#driving)) |
-| A request due at a *time* | `at` is a boundary count here; the fast clock a timetable is written against is end-state work ([GOALS.md](GOALS.md#scheduling)) |
+| A request due at a *time* | a scenario's requests go in whole at the start; the fast clock a timetable is written against is end-state work ([GOALS.md](GOALS.md#scheduling)) |
 | Human driving | the simulator drives |
 | UI / visualization | the event trace was the hook for a future one. **Since crossed**: `ui/` ships the [layout editor](ui/EDITOR.md) and the [dispatch panel](ui/PANEL.md), and the scheduler moved out of the browser to serve them ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)) |
 | Mechanized deadlock-freedom proof | argument only, per the rigor bar above |
 | Mid-route rerouting | [ADR-0002](adr/0002-fixed-route-per-request.md) |
 | Request priorities (express > local) | the pluggable queue-ordering key of [DISPATCH.md](dispatcher/DISPATCH.md#queue-discipline) preserves the upgrade path |
-| Transit durations proportional to length | every transit costs one tick, so makespan is a boundary count; on a physical railroad they vary by construction ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)), so revisit here only if makespan realism becomes a question |
+| Transit durations proportional to length | every transit costs the same fixed delays, so makespan is simulated seconds of a uniform stand-in; on a physical railroad they vary by construction ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)), so revisit here only if makespan realism becomes a question |
 | An aging / anti-starvation rule | starvation is measured by max latency first; add a rule only if the benchmarks show one is needed |
 | Guaranteeing an obstructing train eventually gets a request | a **scheduler obligation** the dispatcher's liveness is explicitly conditional on ([SAFETY.md](dispatcher/SAFETY.md)); the dispatcher neither detects nor resolves it — the harness only names it and reports the run `stalled` |
