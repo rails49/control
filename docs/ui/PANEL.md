@@ -310,10 +310,18 @@ same reason — a still row says the run is running, where a swallowed gesture
 says nothing. A drop with no block under it — back on the pane, or on bare
 paper — writes nothing.
 
-A train **mid-request cannot be lifted off**: nothing cancels a request, so
-the way out is to release the hold and let the train run. That is the
-derailment case, and cancelling is
-[#123](https://github.com/rails49/control/issues/123)'s.
+A train **mid-request is lifted off with its request**: the dispatcher cancels
+whatever that train has and then takes it off, so `request_cancelled` arrives
+before `train_removed` and the marker leaves a picture with no request behind
+it ([ADR-0049](../adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
+That is the derailment case, and it is now a drag rather than a wait: a
+locomotive that has stopped comes off in a person's hand instead of the hold
+being released so the railroad can run it somewhere it is no longer going.
+Dropping it back into a block is the same act pointed the other way, and
+cancels the same request — `displaced` where `removed` was.
+
+The gesture that ends a request **without** moving the train,
+`tc49/dispatch/cancel_wanted`, is the panel's to place and is not drawn yet.
 
 **Right-clicking** the block a train stands in opens a menu with one item,
 **Turn around**, which publishes `tc49/schedule/reversal_wanted` (`{train}`). The

@@ -183,10 +183,13 @@ class State:
         the lock table alone would call those blocks free.
 
         Placing a train into one strands the request that owns it: the route
-        is fixed (ADR-0002), the placed train is idle and its standing lock is
-        therefore a permanent obstacle (SAFETY.md), and nothing cancels a
-        request — so the committed train is refused `unsafe` at every
-        sweep for the rest of the session.
+        is fixed (ADR-0002), and the placed train is idle, so its standing
+        lock is a permanent obstacle (SAFETY.md) and the committed train is
+        refused `unsafe` at every sweep for the rest of the session. That is
+        why the placement's *own* request is cancelled before this is asked
+        (ADR-0049) — the cancellation releases what that train held, and what
+        is left here is another train's claim, which a placement may not walk
+        into.
         """
         if block in self.locks:
             return False
@@ -820,15 +823,29 @@ class Dispatcher:
         destination, so `block: null` is a placement whose answer is *off the
         layout* rather than a leaf of its own.
 
-        Three preconditions are the same either way: the run is held, the
-        train is known, and it has no request in flight. The last mirrors
-        `reversal_wanted` and adds a worse reason of its own — on release the
-        grant phase launches from `block_of`, so a pending request would
-        depart from wherever the train was just put, having been admitted
-        against the block it was in when it was asked for. It is also what
-        keeps every queued request naming a train with a block: nothing here
-        can unplace a train that has one queued, so admission's `no_origin`
-        answer stays the only way in.
+        Two preconditions are the same either way: the run is held, and the
+        train is known. A **request in flight was a third** and is not one any
+        more (ADR-0049): the gesture cancels it first and then places the
+        train, so `request_cancelled` precedes `train_placed` or
+        `train_removed` and those two always describe a train with no request.
+        The reason says which direction the gesture pointed — `removed` off
+        the layout, `displaced` into a block.
+
+        Cancelling first is what makes the placement possible at all rather
+        than merely permitted: the train's own route holds the blocks it was
+        going to run through, so a person standing it in one of them would be
+        refused by `free` for a claim that belongs to the very request their
+        gesture is ending. What the old precondition protected still holds
+        with nothing left to protect it — a cancelled request departs from
+        nowhere, and no queued request outlives the placement to depart from
+        the wrong block.
+
+        A block the railroad does not have, or one the train does not fit in,
+        is judged **before** the cancellation. Those two are facts about the
+        gesture rather than about what the train holds, so a mistyped block
+        drops the whole gesture and leaves the request running, where a block
+        that is merely claimed is judged after — the claim may be the
+        cancellation's to release.
 
         Where the train stands *now* is no precondition at all: one adoption
         placed nowhere (`restored`) is exactly the train a person has to say
@@ -840,30 +857,40 @@ class Dispatcher:
             return
         if wanted.train not in state.roster:
             return
-        if self._has_pending(wanted.train) or wanted.train in state.active:
+        if wanted.block is not None and not self._fits(wanted.train, wanted.block):
             return
+        self._cancel(
+            wanted.train,
+            Cancellation.REMOVED if wanted.block is None else Cancellation.DISPLACED,
+        )
         if wanted.block is None:
             self._remove(wanted.train)
         else:
             self._stand(wanted.train, wanted.block)
 
+    def _fits(self, train: str, block: str) -> bool:
+        """Whether the railroad has that block and the train is short enough
+        for it: the whole of what a placement can be judged on before the
+        request under it is cancelled."""
+        state = self._state
+        if block not in state.layout.blocks:
+            return False
+        return state.roster[train] <= state.layout.blocks[block]
+
     def _stand(self, train: str, block: str) -> None:
         """A train put on the layout, or moved by hand from where it was.
 
-        The block has to exist, be free of every claim, and fit the train.
-        Having accepted, the dispatcher moves the train's standing lock and
-        announces `train_placed`. That event is the ledger line for a
+        The block has to be **free of every claim**, its existence and the fit
+        having been settled before the cancellation that got this far
+        (`_place`). Having accepted, the dispatcher moves the train's standing
+        lock and announces `train_placed`. That event is the ledger line for a
         placement: a `lock_released` and a `lock_granted` would say a route
         gave a block up and took another, which is not what happened — a hand
         lifted a locomotive, and the fact has its own leaf so a reader can
         tell the two apart.
         """
         state = self._state
-        if block not in state.layout.blocks:
-            return
         if not state.free(block):
-            return
-        if state.roster[train] > state.layout.blocks[block]:
             return
         # A train that is off the layout holds no standing lock and has none
         # to give up: this gesture is what puts it back on (ADR-0039, #164).
