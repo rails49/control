@@ -77,7 +77,10 @@ def restarted(
         # and placed by the document (ADR-0039).
         roster = replace(
             roster,
-            trains={**roster.trains, **{train: Train(600) for train in added}},
+            trains={
+                **roster.trains,
+                **{train: Train(stated_length=600) for train in added},
+            },
         )
         scenario = replace(
             scenario,

@@ -77,7 +77,9 @@ def stock(**lengths: int) -> Roster:
     scenario places nowhere is exactly the train that comes up **off the
     layout**.
     """
-    return Roster("test", {name: Train(length) for name, length in lengths.items()})
+    return Roster(
+        "test", {name: Train(stated_length=length) for name, length in lengths.items()}
+    )
 
 
 def events(

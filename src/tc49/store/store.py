@@ -2,7 +2,8 @@
 
 Two coarse document types (ADR-0010) keyed by name — `crossover-yard` for
 drawings, layout-qualified `crossover-yard/meet` for scenarios, with a
-railroad's **roster** beside its drawing under the same name. Verbs:
+railroad's **roster** beside its drawing under the same name and the
+installation's **catalogue** beside them both. Verbs:
 ``get``, ``put`` (whole-document create-or-replace), ``delete``, ``list``.
 Validation — schema and referential integrity — runs at ``put`` and again
 at ``get``, because the YAML files are hand-authored and never passed
@@ -19,6 +20,11 @@ so a scenario names trains from it and states no length of its own: one train
 has one length however many scenarios place it. ``_load_scenario`` joins the
 two, which is why a :class:`~tc49.lib.scenario.Scenario` carries placement
 alone and the length comes back on the :class:`~tc49.lib.roster.Roster`.
+
+The **catalogue** is the installation's and belongs to no railroad, a model
+being what a product is (ADR-0045); a roster is read against it, since a car
+names a model and is complete only once merged onto one. Both stock documents
+are validated in :mod:`tc49.store.stock`.
 """
 
 from pathlib import Path
@@ -33,13 +39,12 @@ from tc49.lib.layout import (
     block_of,
     check_end,
     check_keys,
-    check_length,
     check_name,
     facing_ends,
 )
-from tc49.lib.roster import Roster, Train
+from tc49.lib.roster import Model, Roster
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
-from tc49.store import yamlfile
+from tc49.store import stock, yamlfile
 from tc49.store.drawing import Drawing
 
 
@@ -56,7 +61,8 @@ class AssetStore:
         return doc
 
     def roster(self, name: str) -> Roster:
-        """The trains a railroad owns (ADR-0039).
+        """The stock a railroad owns: its cars, and the trains made up from
+        them (ADR-0039, ADR-0045).
 
         A railroad with no roster file owns nothing yet, which is what a
         drawing made this morning is: nothing about a drawing implies a file
@@ -72,6 +78,21 @@ class AssetStore:
         if roster.railroad != name:
             raise ValueError(f"roster '{name}': file names itself '{roster.railroad}'")
         return roster
+
+    def catalogue(self) -> dict[str, Model]:
+        """The models this installation knows, by name.
+
+        Beside `layouts/` rather than under it: a model is what a product is,
+        and a product does not become a different product on another layout,
+        so every railroad reads the same ones (CONTEXT.md, **Catalogue**). An
+        installation with no `catalogue/` directory knows none, which is a
+        railroad whose stock is still written the old way and not a fault.
+        """
+        models: dict[str, Model] = {}
+        for path in sorted((self._root / "catalogue").glob("*.yaml")):
+            name = path.name.removesuffix(".yaml")
+            models[name] = stock.validate_model(self._read(path), name)
+        return models
 
     def get(self, name: str) -> Layout | Scenario:
         if "/" in name:
@@ -137,16 +158,9 @@ class AssetStore:
     def validate_roster(self, doc: Any) -> Roster:
         """Validate a roster document without storing it — the path a
         generated fixture takes, so it is checked exactly as a committed file
-        is."""
-        check_keys(doc, "roster document", {"roster", "trains"})
-        railroad = doc["roster"]
-        check_name(railroad, "roster's railroad")
-        where = f"roster '{railroad}'"
-        trains: dict[str, Train] = {}
-        for train, spec in as_mapping(doc["trains"], f"{where}: trains").items():
-            check_keys(spec, f"{where}: train '{train}'", {"length"})
-            trains[train] = Train(check_length(spec["length"], f"{where}: '{train}'"))
-        return Roster(railroad, trains)
+        is. Against the catalogue, because a car naming a model the
+        installation does not have is a car with no length."""
+        return stock.validate_roster(doc, self.catalogue())
 
     def validate_scenario(self, doc: Any) -> Scenario:
         """Validate a scenario document without storing it — the path a
