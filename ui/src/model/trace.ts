@@ -10,7 +10,8 @@
 /** One bus event as the model reads it: the topic leaf, and the payload's
  *  own fields flattened beside it. The shape the bench tap writes a trace
  *  line in, minus the tap's own `time` stamp — observation the tap adds for
- *  the harness, carried by no payload and read by no view (ADR-0047). */
+ *  the harness, and not the `at` a state payload carries of its own
+ *  (`Ordering` below, #240). */
 export interface TraceEvent {
   event: string;
   [field: string]: unknown;
@@ -128,4 +129,82 @@ export interface Submission {
   train: string;
   depart: string;
   dest: string[];
+}
+
+
+/** The leaves of the state topics: the events that carry a last value rather
+ *  than reporting something that happened (SYSTEM.md, rule 2).
+ *
+ *  A leaf and not a topic because the relay hands the model the leaf alone,
+ *  which is all `Live` keeps of a frame. The list is the state rows of
+ *  `tc49.lib.inventory` and cannot drift from them: a Python test reads it
+ *  out of this file and asserts the two match. The device rows under
+ *  `tc49/layout/state/wanted/` are not here — a device topic is named by its
+ *  row and its address rather than by a leaf, and no view reads one
+ *  ([ADR-0043](../../../docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)). */
+export const STATE_LEAVES: ReadonlySet<string> = new Set([
+  "power",
+  "mode",
+  "exhausted",
+  "facing",
+  "run",
+  "aspects",
+  "disputed",
+  "allocation",
+]);
+
+/**
+ * The stamps a view holds, one per state leaf: what it takes to keep the
+ * later of two values of one state topic whichever order they arrive in
+ * (#240).
+ *
+ * The browser's half of the rule the dispatcher keeps in `tc49.lib.payload`.
+ * MQTT promises order from one publisher on one topic, and not across that
+ * publisher's reconnect or a retransmission, so a pair delivered backwards
+ * would leave a page showing the older value for good — a signal's aspects,
+ * or a track with no power in it.
+ *
+ * Later wins, an equal stamp replaces, and an earlier one is ignored. An
+ * unstamped value is taken and clears the held stamp, so ordering restarts
+ * from the next stamped value: the publisher owns the value, and a held
+ * stamp must not go on refusing values whose own stamp is gone. A boolean is
+ * not a stamp — JSON `true` is not one second.
+ *
+ * State leaves only. An event reports something that happened and is never
+ * replayed, so there is no held value for a late one to lose to, and a
+ * repeated sensor reading must go on arriving.
+ */
+export class Ordering {
+  private held = new Map<string, number>();
+
+  /** Whether this event is the one to keep. */
+  accepts(event: TraceEvent): boolean {
+    if (!STATE_LEAVES.has(event.event)) return true;
+    const at = stamp(event);
+    if (at === null) {
+      this.held.delete(event.event);
+      return true;
+    }
+    const last = this.held.get(event.event);
+    if (last !== undefined && at < last) return false;
+    this.held.set(event.event, at);
+    return true;
+  }
+
+  /** Forget every stamp: a page rejoining meets a session whose clock starts
+   *  where that session started, and stamps from the last one would refuse
+   *  everything the new one says. */
+  reset(): void {
+    this.held.clear();
+  }
+}
+
+/** The instant a state payload states it was published at, or `null` where
+ *  it states none — seconds since the session started, the run clock's own
+ *  reading. A boolean is not a number here, so the one check that keeps a
+ *  string out keeps `true` out too; the Python reader has to refuse it in a
+ *  line of its own, `True` being an `int` there. */
+function stamp(event: TraceEvent): number | null {
+  const at = event["at"];
+  return typeof at === "number" ? at : null;
 }
