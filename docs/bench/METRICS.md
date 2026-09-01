@@ -9,13 +9,13 @@ derives from the tapped events of [SYSTEM.md](../SYSTEM.md#the-trace):
 
 - **Makespan** — first `request_admitted` stamp to last `request_completed`
   stamp.
-- **Per-request latency** — `request_completed` stamp minus the request's
-  `at` boundary, correlated by id; mean and max.
+- **Per-request latency** — `request_completed` stamp minus the
+  `request_submitted` stamp, correlated by id; mean and max.
 - **Utilization** — `lock_granted`/`lock_released` spans per resource, as a
-  fraction of the whole run: boundary 0 through the trace's last. Standing
-  locks are in the trace from the dispatcher's startup emission
+  fraction of the whole run: the start through the trace's last stamp.
+  Standing locks are in the trace from the dispatcher's startup emission
   ([SYSTEM.md](../SYSTEM.md#dispatcher)), so idle trains count.
-- **Parallelism** — `move` commands per boundary.
+- **Throughput** — `move` commands per simulated minute.
 - **Stall report** — for each request admitted but never completed when the
   trace ends, the last `grant_refused` for its id names the obstacles: which
   train (`holder`), which block (`resource`), how many candidates were

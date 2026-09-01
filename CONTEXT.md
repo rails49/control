@@ -397,46 +397,39 @@ nothing in the dispatcher will move it; this is what
 [SAFETY.md](docs/dispatcher/SAFETY.md) means by a permanent obstacle.
 _Avoid_: running/stopped, busy/free
 
-**Grant boundary**:
-The beat the layout interface publishes and the dispatcher grants on: each one
-triggers a grant phase over the sensor events buffered since the last, so
-grants are a function of that set and not of arrival order
-([ADR-0009](docs/adr/0009-layout-interface-owns-time.md)). Every binding
-publishes it as `tc49/layout/boundary` carrying a `boundary` count, numbered
-rather than bare so that a redelivery cannot double-advance anything counting
-it. What generates it is the binding — the simulator's tick; on a physical
-railroad a **boundary period**, a fixed span of real time (500 ms by default)
-that is never scaled by the fast clock and is sized so that two boundaries
-exceed worst-case cascade latency
-([ADR-0044](docs/adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).
-The dispatcher never reads a clock either way. A boundary is also a
-**liveness pulse**: it is published whenever the layout interface runs, a
-held run and dead rails included, so its stopping is what a watchdog reads.
-_Avoid_: beat, round, cycle — including for the period, which is the
-*boundary period*
+**Sweep**:
+The dispatcher's grant pass, run where the lock table or the waiting set
+changes — a request admitted, a `block_vacated` releasing what a move held,
+the run released
+([ADR-0047](docs/adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
+A sweep covers the active trains and the whole pending queue, so a refused
+train is reconsidered exactly when the resource it waited on frees and every
+pending request accrues a refusal in the same sweep, which is what carries
+the aging order
+([ADR-0012](docs/adr/0012-the-pending-scan-ages-by-refusal-count.md)). There
+is no grant boundary and no beat: the dispatcher grants on the events that
+arrive, and every grant is `safe()`-checked before it commits.
+_Avoid_: grant phase said of a beat, boundary, tick — the old grant boundary
+left the contract with ADR-0047
 
 **Fast clock**:
-The railroad's scaled operating time, wall clock times a configurable
-multiplier, minted by the layout interface and carried on the grant boundary
-as fast seconds since the session's start. It is what a departure's `at` is
-written against and what a scenic lighting cycle would follow. Free-running
-and settable, and **never read in the control path** — a train waits on
+The railroad's scaled operating time: the wall clock with a start time and a
+multiplier, both railroad configuration, so anything that wants it derives it
+— it has no carrier on the bus. It is what a scenic lighting cycle would
+follow and what a milestone-2 timetable is written against. Free-running and
+settable, and **never read in the control path** — a train waits on
 detectors, so a late train is just late and moving the clock commands nothing
-([ADR-0044](docs/adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).
-_Avoid_: scale time, sim time. Not a synonym for *grant boundary*: the two
-are separate clocks, and the multiplier never touches the boundary period
+(ADR-0044's surviving rule, ADR-0047).
+_Avoid_: scale time, sim time. Not the run clock the trace's `time` stamp
+reads, which is elapsed seconds since the session started
 
 **Tick**:
-The **simulator's** beat, published as its grant boundary and carrying a
-deterministic counter: each tick a moving train completes one transit, and
-travel time within blocks and transit length are ignored. That is a property
-of the simulator, not of the model — on a physical railroad a transit takes as
-long as it takes
-([ADR-0027](docs/adr/0027-the-tick-is-the-simulators-grant-boundary.md)). The
-dispatcher never learns the boundary number.
-_Avoid_: step, cycle. Not a synonym for *grant boundary*: say that where any
-binding's beat would do, and never on the contract, which every binding
-speaks
+The **simulator's** old word for its beat, retired with the grant boundary
+(ADR-0047): the simulator is a discrete-event engine now, scheduling each
+accepted move's two sensor events on fixed delays of its own. Travel time is
+those delays, a property of the simulator and not of the model — on a
+physical railroad a transit takes as long as it takes.
+_Avoid_: step, cycle, or reusing tick for the live loop's command poll
 
 ### Bus
 

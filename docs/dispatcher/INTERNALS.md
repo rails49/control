@@ -13,8 +13,8 @@ Routing, queueing, locking and the safety check all sit behind the bus
 footprint of [SYSTEM.md](../SYSTEM.md#dispatcher), and the dispatcher holds no
 collaborators: it reads its layout and stock snapshot at startup and
 thereafter only consumes and publishes events. Its state is the
-pending-request queue, the lock table, the set of active routes, and the
-sensor events buffered since the last grant boundary.
+pending-request queue, the lock table, and the set of active routes
+(ADR-0047).
 
 `Request`, `Route`, `Move` and friends are internal dataclasses, the in-memory
 forms of what travels the bus as JSON. The wire vocabulary is the event

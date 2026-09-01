@@ -150,7 +150,7 @@ requests:
 - **A scenario reaches a run two ways, and both are the harness's**:
   `tc49 bench` builds a batch run from it, and `tc49 live --scenario` replays
   it as the gestures a person would make — a placement per train, then the
-  requests at their `at` boundaries
+  requests in the file's order
   ([#171](https://github.com/rails49/control/issues/171)). A gesture carries no
   departure end, so a replay cannot state `from` and a scenario whose `from`
   contradicts its facing replays by the facing.
@@ -182,9 +182,10 @@ requests:
   moving, whichever end that arrival names, because there is no final transit
   to constrain and the dispatcher holds nothing to check the end against
   ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)).
-- **`at` is the boundary the request is released on, and is optional.** A
-  request that omits it is due at boundary 0, which is what a batch workload
-  wants and what most requests say; write one only to stagger a scenario.
+- **Requests go in at the start of a run, in the file's order.** A scenario
+  states no submission times: the queue does the staggering, and a timetable
+  released against a clock is the scheduler's own milestone-2 work
+  ([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 - **`from` requires the end and takes the block optionally.** `from: yard_w.B`
   states the working the way a reader wants to see it, and is checked by the
   dispatcher at admission against where the train actually stands — every
@@ -194,7 +195,7 @@ requests:
   train is a dispatcher choice among that request's arrival ends, unknown when
   the file is written. Those write `from: A`, and the block is whatever the
   train is standing in. Where the block *is* written, an authoring slip is
-  rejected at a known boundary, as `request_rejected` with reason
+  rejected when it is judged, as `request_rejected` with reason
   `wrong_origin`
   ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)), rather
   than running as a silently different experiment.

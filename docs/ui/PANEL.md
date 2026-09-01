@@ -470,13 +470,13 @@ A railroad the session has just built needs no handshake either. Its
 registered, the swap requested, and the new run's opening drain delivers
 placement, facing and aspects as live frames, in order.
 
-A session ticks on a wall clock, one knob: `tc49 live --period`. The knob is
-the session's and applies to every railroad it runs, so it is not the panel's
-to turn: a joined panel names the railroad and nothing else.
-The default is 10 seconds, picked by watching the panel rather than by
-argument: a boundary moves trains, grants and releases locks, realigns points
-and changes aspects, and at the 2 seconds this started out as the next one
-landed before a person had finished reading the last.
+A session paces itself on a wall clock: the simulator's transit delays are
+the railroad's tempo, and `tc49 live --period` only sets how often the loop
+polls for commands arriving over the bridge
+([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
+The knob is the session's and applies to every railroad it runs, so it is
+not the panel's to turn: a joined panel names the railroad and nothing
+else.
 
 **A panel may join a session already running.** On connect, the path naming
 the railroad that is running, the bridge sends each state topic's last value
@@ -590,7 +590,7 @@ The gesture is `tc49/dispatch/run_wanted`, which names where the run should stan
 rather than asking for a change: two presses of the same value are not a race.
 
 **The band says whether the rails have power**, reading
-`tc49/layout/state/power` beside the bridge and the boundary, and it says
+`tc49/layout/state/power` beside the bridge and the session clock, and it says
 which of the two ways of standing still it is: *emergency stop* for `stopped`
 and *power off* for `off`. The person recovering clears the one and switches
 the other back on, which are different actions

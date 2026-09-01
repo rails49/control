@@ -59,17 +59,17 @@ flowchart TB
 ```
 
 - **Scheduler** — the one writer of requests. It composes a person's gestures
-  into requests, and publishes each timetable request on the first boundary
-  that has reached its `at`.
+  into requests, and submits a timetable whole at the start of a run, in the
+  file's order.
 - **Dispatcher** — admits requests, chooses routes, and grants moves without
   deadlock ([DISPATCH.md](dispatcher/DISPATCH.md),
   [SAFETY.md](dispatcher/SAFETY.md)).
 - **Driver** — turns each granted move into the command that moves the train.
   In the end state it reads the aspect it is handed and decides how fast
   ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
-- **Layout interface** — the boundary to whatever runs the track. Sensor
-  readings and the grant boundary come out; turnout and throttle commands go
-  in. A simulator implements it in milestone 1, a hardware adapter later.
+- **Layout interface** — the seam to whatever runs the track. Sensor
+  readings come out; turnout and throttle commands go in. A simulator
+  implements it in milestone 1, a hardware adapter later.
 - **Asset store** — serves the drawing a layout derives from and the
   railroad's roster. It is not on the bus, because it answers queries and the
   bus does not.
@@ -84,16 +84,18 @@ implementations can sit behind unchanged. The simulator and a hardware adapter
 publish the same layout topics, and a future scheduling UI or freight
 generator publishes the same schedule topics as the milestone-1 scheduler.
 
-One cycle of the machine:
+One turn of the machine (ADR-0047):
 
-1. The layout interface publishes the boundary.
-2. The scheduler releases the requests that have come due.
-3. The dispatcher runs its grant phase over everything buffered since the
-   previous boundary and publishes granted moves. It publishes `align` for
-   each, so the route is set before anything moves.
-4. The driver turns each grant it sees into a `move`.
-5. The layout interface executes both and reports occupancy, which the
-   dispatcher buffers for the next boundary.
+1. The scheduler submits a request — the timetable at the start of a run, a
+   person's gesture whenever it lands.
+2. The dispatcher admits it and sweeps: it chooses routes and publishes
+   granted moves, `align` before each, so the route is set before anything
+   moves.
+3. The driver turns each grant it sees into a `move`.
+4. The layout interface executes it and reports occupancy: the head into the
+   next block, then the tail off the last one.
+5. The vacate releases the origin block and the transit, ends the move, and
+   the sweep it triggers grants whatever that freed.
 
 The trace tap watches all of it.
 
@@ -197,9 +199,8 @@ after everything already waiting.
 Delivery order therefore depends only on the order of publishes and
 subscribes, which is what makes a replayed run produce a byte-identical trace
 ([ARCHITECTURE.md](ARCHITECTURE.md#tests)). It also means an event published
-while handling boundary `N` is never delivered before the handling of `N` has
-finished, which is the same-boundary causality the contract refuses: MQTT
-would never deliver it any sooner.
+while another is being handled is never delivered before that handling has
+finished: MQTT would never deliver it any sooner.
 
 **The last value of a state topic survives a restart.** Given a file, the bus
 loads it at startup and rewrites it whenever any `tc49/*/state/*` value
@@ -276,10 +277,9 @@ to. Naming topics this way means rule 1 can be checked by reading the name,
 `tc49/layout/*` keeps its meaning when hardware replaces the simulator, and a
 UI that wants everything the dispatcher says subscribes to `tc49/dispatch/#`.
 
-A leaf names something that has happened, in the past tense. There are two
-exceptions. The two commands, `align` and `move`, are imperative, because a
-command is sent before what it asks for happens. And `boundary` is a noun,
-naming a beat rather than a change. `align` and `move` sit under `layout`
+A leaf names something that has happened, in the past tense. The two
+commands, `align` and `move`, are the exception: they are imperative, because
+a command is sent before what it asks for happens. They sit under `layout`
 because the layout interface is what responds to them; setting the route is
 still the dispatcher's job, and moving locomotives the driver's, which is who
 sends each — a fact the names no longer carry (rule 4,
@@ -303,7 +303,6 @@ writers (rule 1), and `any (browser)` is the mark above.
 
 | Topic | Kind | Writer | Meaning |
 | --- | --- | --- | --- |
-| `tc49/layout/boundary` | event | layout | the grant beat, numbered |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
 | `tc49/layout/block_vacated` | event | layout | a detector saw a block empty |
 | `tc49/layout/state/power` | state | layout | whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
@@ -333,7 +332,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 
 | Consumer | Filter(s) |
 | --- | --- |
-| Scheduler | `tc49/layout/boundary`, `tc49/dispatch/#` **and** `tc49/schedule/#` |
+| Scheduler | `tc49/dispatch/#` **and** `tc49/schedule/#` |
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
 | Layout interface | `tc49/layout/align`, `tc49/layout/move` **and** `tc49/dispatch/train_placed` / `train_removed` |
@@ -353,9 +352,8 @@ Two things the inventory has to keep true:
   ordinary work. The layout interface is the one exception to the
   prefix-filter shape and stays the only one. It acts on its two commands
   and on the two placement facts; a `tc49/layout/#` filter would hand it
-  back its own sensors and boundary, and subscribing to the whole of
-  `dispatch` would mean discarding most of what it heard. It also counts the
-  commands it was sent, which is how it knows when it is quiet.
+  back its own sensors, and subscribing to the whole of `dispatch` would
+  mean discarding most of what it heard.
 
 **What a payload carries.** Events are tied together by the request id, and
 no event repeats what another has already said. An event in a request's life
@@ -366,7 +364,7 @@ and `dest`, which a reader can take from `request_submitted`, while
 `lock_granted` and `lock_released` carry `train` rather than the id, because
 the utilization metric groups by resource. `request_completed` carries no
 latency: the dispatcher has no clock to measure one, so metrics works it out
-from the boundary numbers the trace stamps. `grant_refused` carries one
+from the time stamps the trace carries. `grant_refused` carries one
 `{resource, holder}` entry for each candidate route that was blocked, which is
 one entry when a fixed route advances and up to `k` at a launch. That is what
 lets the stall report of
@@ -386,15 +384,13 @@ its two names, as each topic states.
 
 #### `layout`
 
-- `tc49/layout/boundary` — `boundary`: integer, the boundary number,
-  strictly increasing; what lets a consumer ignore an at-least-once
-  duplicate.
-  [ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)
-  removes this row; it stays until
-  [#264](https://github.com/rails49/control/issues/264) lands.
 - `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
   block a detector reported on. Anonymous: no train field, because a detector
-  cannot name one.
+  cannot name one. A detector reports a **level**, so a repeated reading
+  re-asserts what a consumer already holds and at-least-once delivery needs
+  no counter; the physical order is occupied then vacated, the head into the
+  next block before the tail clears the last
+  ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 - `tc49/layout/state/power` — `power`: enum `on`, `stopped` or `off`. An
   unreadable payload reads as `off`: dropping it would mean *not* holding the
   run, over track whose state could not be read.
@@ -471,59 +467,24 @@ is dropped.
 
 ## Time
 
-[ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)
-removes the boundary: the dispatcher grants on the events that arrive, and the
-trace line carries `time` instead. This section describes the milestone-1
-binding until [#264](https://github.com/rails49/control/issues/264) lands.
-
 **The layout interface owns time**
-([ADR-0009](adr/0009-layout-interface-owns-time.md)). It publishes
-`tc49/layout/boundary`; the four app components only subscribe. This keeps
-every one of them clock-free — the dispatcher never learns which boundary it
-is on.
+([ADR-0009](adr/0009-layout-interface-owns-time.md),
+[ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)):
+the run clock advances on the events it publishes, and the app components
+stay clock-free — the dispatcher grants on the events that arrive, never on
+a beat, and never learns what time it is.
 
-In milestone 1 the simulator advances only when the bus queue is empty. That
-is the simulator pacing its own loop, not something the bus contract promises.
-Advancing means: run the pending commands, publish the sensor events they
-caused, and **then** publish the boundary. A beat's sensors go out before the
-boundary itself, so the grant phase the boundary starts already has them in
-its buffer. Publishing the boundary first would delay every grant by one.
+**Time is the scheduler's responsibility.** A schedule says "this train,
+every workday at 7:00"; the scheduler posts the request that morning. The
+dispatcher's contract carries no time, and a simulator that wants timed
+submissions owns that timing itself, inside the `simulator` app
+(ADR-0047). Milestone 1 needs none of it: a timetable goes in whole at the
+start of a run, and the queue does the staggering.
 
-The component that publishes the boundary can change without the contract
-changing. The contract is named for what it needs, the **boundary**. `tick` is
-the simulator's name for its own beat, and "one transit per beat" describes
-how the simulator behaves rather than how the model treats time
-([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
-
-**On the physical railroad the period is a fixed span of real time**, 500 ms
-by default and set per railroad. It is *not* scaled by the railroad's fast
-clock, described below.
-
-`layout` publishes the boundary whenever it is running, including a held run
-and dead rails. A boundary is therefore a liveness pulse as well as a grant
-edge, and its stopping is what a watchdog reads
-([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).
-
-**The boundary event is what the dispatcher grants on.** There is no second
-event. On each boundary the scheduler publishes the requests that have come
-due, the dispatcher runs its grant phase over the sensor events buffered since
-the previous boundary
-([DISPATCH.md](dispatcher/DISPATCH.md#time-model)), and the driver takes the
-granted moves forward. Because the bus delivers from one queue, anything
-published in reaction to boundary `N` arrives after the dispatcher has
-finished handling boundary `N`, so it is granted at `N+1`. That is the
-one-boundary skew the dispatch model's no-same-boundary-handoff rule
-describes.
-
-**The boundary carries its number; nothing else does.** The payload is a
-counter, produced in order by the topic's single writer. The number is
-needed because delivery is at-least-once: a consumer counting bare boundary
-events would advance twice on a duplicate, while a numbered one lets it ignore
-a repeat. That argument is not the simulator's — every binding numbers its
-boundary, a hardware adapter included. No other event carries a boundary
-field. The trace tap stamps each event it records with the last boundary
-number it has seen, which is deterministic in milestone 1 because the tap sees
-every event in delivery order.
+**No payload carries a timestamp.** Time on the record is observation: the
+trace tap stamps each line with `time`, seconds since the session started —
+simulated in batch, wall live — and no event, request or grant carries one,
+so no app can read one or come to depend on it.
 
 **The fast clock has no carrier.** It is the railroad's operating time: the
 wall clock with a start time and a multiplier, both railroad configuration, so
@@ -614,30 +575,20 @@ for exactly that much and no more.
 
 ### Scheduler
 
-*Reads* the layout. *Subscribes* `tc49/layout/boundary`, `tc49/dispatch/#`
-and `tc49/schedule/#` — the gestures it responds to sit under its own name,
-and its own state topics come back past it ignored. *Publishes*
+*Reads* the layout. *Subscribes* `tc49/dispatch/#` and `tc49/schedule/#` —
+the gestures it responds to sit under its own name, and its own state topics
+come back past it ignored. *Publishes*
 `request_submitted` on the dispatcher's topic, and the `state/exhausted` and
 `state/facing` last-value topics.
 
 The scheduler is the **one writer of requests**. It has three sources: a
-timetable, whose requests go out as their `at` is reached; a person gesturing
-on the panel; and, later, a generator inventing traffic. Those are three
+timetable, submitted whole at the start of a run in the file's order; a
+person gesturing on the panel; and, later, a generator inventing traffic. Those are three
 sources inside one scheduler, not three publishers
 ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md),
 [GOALS.md](GOALS.md#scheduling)). Which of them a run has is configuration
 rather than a rule: `tc49 live` is given no timetable at all
 ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
-
-**`at` is a point on the fast clock.** On the wire it is fast seconds since
-the session started, which only increases, compares directly and does not wrap
-at midnight. In a document a person writes it as a time of day, and the
-scheduler converts it when the document loads, the way it expands arrival ends
-below
-([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).
-Milestone 1 still binds it as a **boundary count**, which means nothing to a
-timetable or to the person writing one. That binding goes when the physical
-railroad arrives ([MILESTONE-1.md](MILESTONE-1.md#scope)).
 
 From a timetable request the scheduler does one thing: it expands the arrival
 ends, `to: [yard_e]` becoming `yard_e.A, yard_e.B`, which is *syntax* and
@@ -722,14 +673,15 @@ that picture says where the last session believed the railroad was rather than
 where it stands now.
 
 A person moves it with `tc49/dispatch/run_wanted`. While it is `held` the dispatcher
-**commits nothing**: the grant phase applies the sensors it has buffered and
-then stops, so no route is chosen, no move granted and no lock taken, while
-admission goes on accepting and queuing. A move already granted still
-completes and releases its locks. A hold stops new commitments and does not
-stop a train that is already moving, and nothing on the bus retracts a `move`
-already sent. Every signalled end shows `stop` for as long as the hold lasts.
-Releasing sets `run` and nothing else; the next boundary grants
-([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
+**commits nothing**: a sensor still applies where it lands, and the sweep's
+grant pass is what stops, so no route is chosen, no move granted and no lock
+taken, while admission goes on accepting and queuing. A move already granted
+still completes and releases its locks. A hold stops new commitments and does
+not stop a train that is already moving, and nothing on the bus retracts a
+`move` already sent. Every signalled end shows `stop` for as long as the hold
+lasts. Releasing runs a sweep, so the press itself grants
+([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md),
+ADR-0047).
 
 **The layout can hold it too.** A `tc49/layout/state/power` value that is
 anything but `on` sets `run` to `held`, along the path a person's gesture
@@ -829,11 +781,18 @@ a departure block its train is not standing in gets one of those answers,
 `wrong_origin`, rather than raising, because the submitter may be a browser
 ([ADR-0021](adr/0021-a-bad-request-is-answered-not-raised.md)).
 
-Sensor events are **buffered until the boundary** and then treated as a set,
-with the canonical grant order applied to the whole of it. What is granted
-therefore depends on the contents of that set and never on the order the
-events arrived in. Under MQTT a sensor that arrives late is handled at the
-next boundary, which delays a grant rather than producing a wrong one.
+Sensor events are **applied where they land** (ADR-0047). A reading that
+re-asserts the level the dispatcher already holds is an at-least-once repeat
+and a no-op. A change either explains a granted move — `block_occupied`
+records where the train arrived, `block_vacated` releases the origin block
+and the transit, ends the move and completes the request — or explains
+nothing, which while held is the dispute check's business and while running
+is the standing assumption violated. The grant pass is a **sweep** over the
+whole waiting set, run where the lock table or the waiting set changes: a
+request admitted, a vacate, the run released. Every grant is `safe()`-checked
+before it commits, so arrival order picks among safe options and never
+reaches an unsafe state; under MQTT a sensor that arrives late delays a grant
+rather than producing a wrong one.
 
 The aspect of every signalled block end goes on the `state/aspects` state
 topic, republished whenever any of them changes. Signal heads, the panel and a
@@ -871,23 +830,26 @@ which milestone 1 leaves out
 field `move` needs, which is why the driver holds no state and reads no
 assets.
 
-It does not subscribe to the boundary. The N+1 skew is a property of the
-boundary, and waiting for a boundary here as well would land grants at N+2. A
-**human driver** takes its place by reading the same grants as a display and
-publishing nothing, sensors remaining the sole truth, and a component that
-drives realistically later grows behind the same topic.
+A **human driver** takes its place by reading the same grants as a display
+and publishing nothing, sensors remaining the sole truth, and a component
+that drives realistically later grows behind the same topic.
 
 ### Layout interface
 
 *Reads* the layout. *Subscribes* `tc49/layout/align`, `tc49/layout/move` and
-`tc49/dispatch/train_placed` / `train_removed`. *Publishes* the boundary, the
-sensor events and `state/power`.
+`tc49/dispatch/train_placed` / `train_removed`. *Publishes* the sensor
+events and `state/power`.
 
 The layout interface is where the system meets the track: **commands in,
 observations out**, and it owns time. What it publishes is exactly what
-hardware can produce: anonymous occupancy sensors, track power and the
-boundary. It never says which train it saw, because a detector cannot report
-that. The dispatcher recovers identity from its own lock table.
+hardware can produce: anonymous occupancy sensors and track power. It never
+says which train it saw, because a detector cannot report that. The
+dispatcher recovers identity from its own lock table. A block has **two
+detectors, both inside the interface**: a train entering trips the far
+block's first detector with its head and its second once it is fully in, so
+the interface publishes `block_occupied` on the way in and `block_vacated`
+for the block behind once the tail clears — occupied then vacated, the only
+order the physical railroad can produce (ADR-0047).
 
 Commands name a **transit** rather than a piece of hardware. An `align` names
 a connection and a transit, and carries the points that transit needs as
@@ -904,8 +866,8 @@ upstream can guarantee the route is set before the train moves. Starting a
 train onto points that have not thrown is a collision, so the duty has to sit
 somewhere, and this is the only component that sees both commands.
 
-How the obligation is met is the binding's own business: the simulator gets it
-for nothing by batching commands to its tick, and a hardware adapter pairs
+How the obligation is met is the binding's own business: under the
+milestone-1 bus the `align` is delivered first, and a hardware adapter pairs
 them.
 
 A second obligation guards against a stale command: the layout interface
@@ -924,12 +886,13 @@ vocabulary on the bus
 The control loop that carries out a `move` — throttle up, watch the detector,
 stop — stays private hardware configuration.
 
-The milestone-1 **simulator** applies `align` and `move` at the next tick,
-and it owns pacing and termination: it stops advancing when the scheduler is
-`exhausted` and a tick produced no commands
-([BENCHMARKS.md](bench/BENCHMARKS.md#termination)). That stop rule is
-milestone-1 pacing rather than part of the bus contract, and a hardware
-adapter never terminates at all.
+The milestone-1 **simulator** is a discrete-event engine: on an accepted
+`move` it schedules the two sensor events on fixed delays of its own, and it
+owns pacing and termination — a batch run jumps the clock event to event and
+stops when nothing is scheduled, nothing pending and no train rolling
+([BENCHMARKS.md](bench/BENCHMARKS.md#termination)); live mode sleeps the same
+spans and never terminates. That stop rule is milestone-1 pacing rather than
+part of the bus contract, and a hardware adapter never terminates at all.
 
 Sensor events report moves only. Initial occupancy is never published: the
 dispatcher's standing locks come from its own placement, and the occupancy
@@ -953,14 +916,15 @@ being always live (ADR-0030).
 `train_placed` is the one thing besides a `move` that moves a train, and what
 a binding does with it is its own business. The simulator stands in for a
 train that would simply be where a hand left it, so it is told where the hand
-put it. It is not a command: nothing is buffered, and no boundary moves.
+put it. It is not a command, and nothing moves on it.
 
 It comes with an **assumption** about the sensor stream that milestone 1 makes
 and does not yet enforce: every sensor event explains a move the dispatcher
 granted. The dispatcher recovers train identity from its lock table, so a
 `block_occupied` that no grant accounts for — a hand putting a locomotive on a
 detected block, or a train pushed while the power was off — is not something
-it can read, and it raises rather than guessing.
+it can read: while held it is the dispute check's business, and while
+running it raises rather than guessing.
 
 The simulator publishes no sensors for a placement, which is what makes the
 gesture safe today. On a layout that detects occupancy the dispatcher will
@@ -968,10 +932,10 @@ have to be told what an unexpected sensor means, and that is still open. Track
 power
 ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md))
 answers what to do with the observation and not what to do with the assertion,
-so a `block_occupied` that no grant accounts for still raises at the next
-boundary. The **dispute check** is not that answer either: it records every
+so a `block_occupied` that no grant accounts for still raises on a running
+railroad. The **dispute check** is not that answer either: it records every
 reading as it arrives, explained or not, and compares them, and comparing
-commits nothing. What the *boundary* then does with a reading no grant
+commits nothing. What a running dispatcher should do with a reading no grant
 accounts for is the part still open.
 
 ### Asset store
@@ -994,7 +958,7 @@ facing rather than on a generator
 | --- | --- | --- |
 | `move` carries a **speed** | the driver decides how fast; the layout interface keeps throttle-up-watch-the-detector-stop, where the braking curve and detector geometry live | same |
 | The scheduler **invents traffic** | continual generated traffic has to name an idle train and a reachable destination, which is what it now reads the layout for; the dispatcher stays the single feasibility authority | [ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md) |
-| The boundary event's cadence comes from a **clock**, transits vary in length | `tick` is the simulator's beat behind the boundary, not the model's unit of time | [ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md) |
+| Transits **vary in length** on real steel | the simulator's fixed delays are its own stand-in for travel time, not the model's unit of time | [ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md) |
 
 None of the three adds a component, a writer or a query. Each lands on a
 topic that already exists, or on a state topic under a component that already
@@ -1025,13 +989,14 @@ under the milestone-1 bus. There is no separate channel for tracing. The
 events the trace records are the events the components exchange, so a UI later
 subscribes to exactly what the trace has already shown to be enough.
 
-Each line is flat: `{"boundary": …, "event": …, …payload}`. `event` is the
-topic's leaf, which the inventory keeps unique. `boundary` is stamped by the
-tap from the last boundary number it observed, or `0` for an event delivered
-before the first boundary event, such as the standing locks published at
-startup. The keys are always in the same order — `boundary`, `event`, then the
-event's fields in inventory order — which is what lets two runs be compared
-byte for byte ([ARCHITECTURE.md](ARCHITECTURE.md#tests)).
+Each line is flat: `{"time": …, "event": …, …payload}`. `event` is the
+topic's leaf, which the inventory keeps unique. `time` is stamped by the tap
+from the run clock as it records: float seconds since the session started,
+simulated in batch and wall live (ADR-0047). It is observation only — no
+payload carries a timestamp. The keys are always in the same order — `time`,
+`event`, then the event's fields in inventory order — which is what lets two
+runs be compared byte for byte
+([ARCHITECTURE.md](ARCHITECTURE.md#tests)).
 
 A payload field the inventory does not list raises, which is a promise about
 what the **apps** write. That strictness is the harness checking app
@@ -1047,8 +1012,8 @@ of a frame the dispatcher drops
 `metrics(trace)` depends on nothing but the trace, and **every metric is
 derived from recorded events**. Makespan comes from the `request_admitted` and
 `request_completed` stamps and latency from the same pair, utilization from
-the span between `lock_granted` and `lock_released`, parallelism from the
-`move` commands per boundary, and the stall report from the last
+the span between `lock_granted` and `lock_released`, throughput from the
+`move` commands per simulated minute, and the stall report from the last
 `grant_refused` of each request that never completed. An event that stops
 being published therefore breaks a metric and fails a test rather than going
 unnoticed. The derivations live in [bench/METRICS.md](bench/METRICS.md).

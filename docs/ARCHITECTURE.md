@@ -60,11 +60,11 @@ src/tc49/
                             (ui/EDITOR.md)
                 symbols.py  render() — the symbol library as the TypeScript
                             the editor draws against
-  scheduler/    Scheduler — composes gestures into requests and releases a
-                timetable's at their `at` boundaries, mechanical arrival-end
+  scheduler/    Scheduler — composes gestures into requests and submits a
+                timetable whole at the start of a run, mechanical arrival-end
                 expansion, deterministic ids, exhausted state topic
   dispatcher/   dispatch.py   Dispatcher — admission, queue, lock table,
-                              buffered sensors, grant phase, align
+                              sensor roles, grant sweep, align
                 locking.py    LockingStrategy, FullRoute, Incremental
                 routing.py    candidates(layout, origin, depart_end,
                               arrivals, train_length, k) — k-shortest over
@@ -72,9 +72,10 @@ src/tc49/
                               ordering
                 safety.py     safe()
   driver/       Driver — move_granted → move
-  simulator/    Simulator — the milestone-1 layout interface: applies
-                commands, emits sensors, publishes the boundary, owns pacing
-                and termination
+  simulator/    Simulator — the milestone-1 layout interface: a
+                discrete-event engine that schedules each accepted move's
+                sensors on fixed delays, owns the run clock, pacing and
+                termination
 
   bench/        runner.py   assemble the apps on one bus and run a scenario
                             to quiescence — the one wiring, shared by the
@@ -240,7 +241,8 @@ Four properties:
    is committed as
    [`crossover-yard/route-blindness`](../scenarios/crossover-yard/route-blindness.scenario.yaml)
    and asserted exactly in `tests/dispatcher/test_incremental.py`: two trains,
-   no idle obstacle, no starvation, and `FullRoute` a boundary faster.
+   no idle obstacle, no starvation, and `FullRoute` a transit faster (a
+   boundary, in the units of the day).
 
    The mechanism was that locking a whole route up front is not merely
    conservative but **informative**, and route selection is what consumes the
@@ -270,10 +272,10 @@ Four properties:
    that change of binding and this one does not, which a hardware effort should
    know before reading the suite
    ([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)).
-   What does survive is what determinism is testing for: that grants are a pure
-   function of the buffered sensor set rather than of arrival order, which is a
-   dispatcher property and the reason the boundary exists
-   ([ADR-0027](adr/0027-the-tick-is-the-simulators-grant-boundary.md)).
+   What does survive is what determinism is testing for: that a run is a pure
+   function of its inputs — fixed transit delays, no RNG, one delivery order —
+   and that arrival order picks only among grants that were all safe
+   ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 
 **The library-core seam is pure functions only.** Direct unit tests cover
 `safe()` on hand-built states, layout graph queries, route policies, and the

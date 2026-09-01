@@ -86,8 +86,8 @@ both being drawings that derive
 
 And beside that, the other thing the band says about the drawing: that it is
 **frozen**, trains being on the layout ([Trains on the layout freeze the
-drawing](#trains-on-the-layout-freeze-the-drawing)). It reads as the boundary
-count does rather than as the refusal above it — a railroad with trains on it
+drawing](#trains-on-the-layout-freeze-the-drawing)). It reads as the session
+clock does rather than as the refusal above it — a railroad with trains on it
 is the ordinary state and nothing about it is wrong — and it is what explains
 an Edit menu of dead verbs to whoever opens one.
 

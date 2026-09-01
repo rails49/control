@@ -21,7 +21,7 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
 - **No reversal** — routes are strict pass-throughs; terminal blocks occur
   only as endpoints ([ADR-0001](../adr/0001-no-reversal-within-a-route.md)).
 - **Event-driven** — the dispatcher reacts to bus events and never reads a
-  clock — it never even learns the boundary number
+  clock — it never learns what time it is
   ([SYSTEM.md](../SYSTEM.md#time)) — so a simulator and a physical layout drive
   it the same way.
 - **Signalled** — how far the dispatcher has locked ahead of a train is what
@@ -34,7 +34,7 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
 
 ### Requests
 
-A request is `(train, departure end, arrival ends, arrival boundary)`. The
+A request is `(train, departure end, arrival ends)`. The
 train is
 named explicitly — its origin block follows from where it stands — and the
 departure end fixes the first transit. The **arrival ends** are a set, and any
@@ -86,7 +86,7 @@ need different information:
   a route is fixed once chosen
   ([ADR-0002](../adr/0002-fixed-route-per-request.md)), so the block it
   arrives at and the end it leaves the train facing are both settled and a
-  drag on a moving train is answered at the boundary it is asked. That is
+  drag on a moving train is answered as it is asked. That is
   sound because reachability is a pure function of layout, origin, departure
   end, arrival ends and train length: route selection prunes only on fit and
   on the simple-path rule, congestion enters solely as a sort key and `k`
@@ -103,9 +103,8 @@ need different information:
 Either stage rejects the request if it empties the set. The admission stage
 records what it dropped, with reasons, on `request_admitted`
 ([SYSTEM.md](../SYSTEM.md#event-inventory)) — that is where an authoring
-slip shows up, so a mistyped end is visible at a known boundary instead of
-silently
-narrowing the experiment. The launch stage records nothing unless it rejects,
+slip shows up, so a mistyped end is visible when it is made instead of
+silently narrowing the experiment. The launch stage records nothing unless it rejects,
 because a prune that leaves candidates standing changes nothing observable: the
 chooser simply has fewer routes to order, and `route_chosen`'s `k_tried`
 already says how many it examined.
@@ -135,9 +134,9 @@ whichever end that arrival names. Whether a request is degenerate is decided
 at the **first launch attempt** — it depends on the origin block, which for a
 request queued behind a pending one is unknown until the predecessor
 completes, and an end in the origin block is therefore never pruned for
-reachability. The launch commits an empty route and completes in the same grant
-phase, moving nothing and locking nothing, so the request's latency is the
-one-boundary admission-to-scan skew every request pays. An empty route has no
+reachability. The launch commits an empty route and completes in the same sweep,
+moving nothing and locking nothing, so the request's latency is next to
+nothing. An empty route has no
 final transit for the end to constrain, and the dispatcher holds no facing to
 check it against — facing is scheduler state it never sees
 ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)) — so this is the one
@@ -157,8 +156,8 @@ topology ordering; #33 made it congestion-aware. The chooser:
    The arrival ends are unordered and equally acceptable, so the ordering below
    decides between them; the request states no preference among them.
 2. Consider only routes whose every block fits the train.
-3. Order by transit count — which under the simulator is boundary count, since
-   every transit costs one tick regardless of length.
+3. Order by transit count — which under the simulator is travel time, since
+   every transit costs the same fixed delays regardless of length.
 4. Break ties on congestion: the number of route blocks beyond the origin that
    are locked by another train — idle holders included — or lie on the
    committed remaining route of another active train.
@@ -238,48 +237,43 @@ what keeps the avoidance layer the single place deadlock is reasoned about.
 With a set of arrival ends the refusal is rarer but unchanged in kind: the
 launch waits only when *every* candidate is refused, not merely the first.
 
-A request completes on the boundary its final transit finishes: the trailing
-transit and origin block release, and the train parks holding only its standing
-lock. Latency is completion boundary − arrival boundary.
+A request completes as its final transit finishes: the trailing transit and
+origin block release, and the train parks holding only its standing lock.
+Latency is completion time − arrival time.
 
 ## Time model
 
-The dispatcher grants at a **boundary** the layout interface publishes, and
-what follows is its semantics at that boundary. Under the milestone-1
-simulator the boundary is a **tick**: each tick, every moving train completes
-one transit into its next block, travel time within blocks is ignored and so
-is transit length — the long return loop and a station ladder both cost one
-tick. That is the simulator's behaviour rather than the model's time
-([ADR-0027](../adr/0027-the-tick-is-the-simulators-grant-boundary.md)); on a
-physical railroad a clock sets the cadence and a transit takes as long as it
-takes. Either way the dispatcher never reads a clock and never learns the
-boundary number, and the boundary's ownership and mechanics belong to
-[SYSTEM.md](../SYSTEM.md#time).
+The dispatcher grants on **the events that arrive**
+([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)):
+there is no grant beat, no sensor buffer and no clock — a simulator and a
+physical railroad drive it the same way, each pacing its own sensor stream.
 
-**Buffer until the boundary.** Sensor events arrive as atomic facts and are
-buffered; the boundary event triggers the grant phase, which treats everything
-buffered since the previous boundary as a **set**. Grants are a pure function of
-that set, never of the order events happened to arrive — and under a future
-MQTT transport a straggling sensor is simply processed at the next boundary:
-a deferred grant, conservative and safe, never an unsafe one.
+**A reading applies where it lands.** A detector reports a level, so a
+repeated reading re-asserts what the dispatcher already holds and is an
+at-least-once no-op. A change splits the move's two facts by role:
+`block_occupied` records where the train arrived, and `block_vacated` —
+which follows it, the tail clearing after the head arrives — releases the
+origin block and the transit, ends the move and completes the request.
+Between the two the train is between blocks and takes no further grant.
+Every grant is `safe()`-checked before it commits, so arrival order picks
+among options that were all safe and never reaches an unsafe state; under a
+future MQTT transport a straggling sensor delays a grant, conservative and
+safe, never an unsafe one.
 
-**One boundary still produces the three phases**, now as the cascade the
-boundary event causes rather than a loop written out: the layout executes the previous
-grant phase's commands and reports the moves (`block_occupied(new)`,
-`block_vacated(old)` — the origin block and transit release atomically); the
-scheduler's due requests arrive and are admitted on receipt; the grant phase
-runs over the buffered set. Everything published in reaction to one boundary
-is handled at the next, so grants take effect one boundary after the releases
-that enabled them.
+**The sweep is the grant phase**, run where the lock table or the waiting
+set changes: a request admitted, a vacate releasing what a move held, the
+run released. A sweep covers the active trains and the whole pending queue,
+so a refused train is reconsidered exactly when the resource it waited on
+frees, and every pending request accrues a refusal in the same sweep — no
+backstop timer, and the aging order unchanged
+([ADR-0012](../adr/0012-the-pending-scan-ages-by-refusal-count.md)).
 
-**A held run commits nothing.** While `tc49/dispatch/state/run` is `held` the
-phase applies its buffered sensors and stops there: an outstanding move
-completes and releases its locks, and no route is chosen, no move granted and
-no lock taken until a person releases it. Admission is untouched, so the queue
+**A held run commits nothing.** While `tc49/dispatch/state/run` is `held` a
+sensor still applies where it lands: an outstanding move completes and
+releases its locks, and no route is chosen, no move granted and no lock
+taken until a person releases it. Admission is untouched, so the queue
 accumulates and — nobody having accrued a refusal meanwhile — drains in the
-order it accumulated. Releasing sets `run` and nothing else; the next
-boundary runs an ordinary phase, which is what keeps the boundary the sole
-trigger
+order it accumulated. Releasing runs a sweep, so the press itself grants
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 The layout holds it too: `tc49/layout/state/power` arriving as anything but
 `on` sets `run` to `held` by the same path, and a release is dropped until
@@ -290,10 +284,10 @@ it is back
 reported are compared against the placement, and the two contradictions — a
 train standing in a block that reads clear, a block reading occupied with
 nothing claiming it — go out on `tc49/dispatch/state/disputed` for a person to
-walk. A reading is recorded where it arrives rather than where the buffer is
-applied: the buffer exists so that *grants* are a function of a whole period's
-sensors, and comparing grants nothing. Blocks nothing has reported on take no
-part, so a layout binding that publishes no occupancy disputes nothing
+walk. Comparing commits nothing, and a reading that explains no granted move
+is the check's whole subject while the run is held. Blocks nothing has
+reported on take no part, so a layout binding that publishes no occupancy
+disputes nothing
 ([#153](https://github.com/rails49/control/issues/153)).
 
 **Lock footprint.** A train moving from `X` through `T` into `Y` holds
@@ -301,23 +295,19 @@ part, so a layout binding that publishes no occupancy disputes nothing
 and `Y` are granted together, which is what makes a transit never held across a
 wait — the premise the whole deadlock argument rests on.
 
-**Grant order** — within the grant phase, active trains first (by request
-arrival boundary, tie-break train id), then pending launches in the aging order
-of the queue discipline above.
+**Grant order** — within a sweep, active trains first (by request arrival
+order, tie-break train id), then pending launches in the aging order of the
+queue discipline above.
 Draining work in progress before admitting new holders favours makespan and
 mirrors the progress argument of [SAFETY.md](SAFETY.md): advancing the head of
 the witness ordering is always safe, while launching adds a resource holder.
-Because the grant phase takes the whole buffered set, this order never depends
-on the order sensors happen to fire.
 
-**No same-boundary handoff.** A lock released by the moves reported at
-boundary `n` is grantable in boundary `n`'s grant phase, but the grantee's
-`move` command executes at `n+1`. A convoy
-therefore starts with a one-boundary stagger and then flows at one block per
-train per boundary — the backward-propagating start wave real trains have.
-Minimum latency is the one-boundary admission-to-scan skew plus one boundary
-per transit;
-the degenerate request's launch-and-complete is the zero-transit case.
+**Handoff follows the vacate.** A lock a move held is released by the
+`block_vacated` that ends it, and the sweep that vacate triggers is where the
+waiting train is granted — a convoy flows as each tail clears the block
+behind it, the backward-propagating start wave real trains have. Minimum
+latency is the travel time of the route's transits; the degenerate request's
+launch-and-complete is the zero-transit case.
 
 **Sensors are anonymous.** The layout interface reports only
 `block_occupied(block)` and `block_vacated(block)`, with no train identity —
@@ -380,11 +370,11 @@ metrics below; the suite that produces them is [BENCHMARKS.md](../bench/BENCHMAR
 and each metric is computed as a pure function of the event trace
 ([bench/METRICS.md](../bench/METRICS.md)).
 
-- **Makespan** (headline) — boundaries from the first arrival until the last
-  request completes.
+- **Makespan** (headline) — simulated seconds from the first arrival until
+  the last request completes.
 - **Per-request latency** — completion − arrival; mean and max (catches
   starvation).
-- **Resource utilization** — fraction of boundaries each block/transit is
-  occupied or locked, over the whole run (boundary 0 through the trace's
-  last).
-- **`move` commands per boundary** — instantaneous parallelism.
+- **Resource utilization** — fraction of the run each block/transit is
+  occupied or locked, over the whole of it (the start through the trace's
+  last stamp).
+- **`move` commands per simulated minute** — throughput.
