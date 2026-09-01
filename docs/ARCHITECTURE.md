@@ -209,17 +209,20 @@ tests/
   scheduler/   test_scheduler
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks
+  driver/      test_driver
+  simulator/   test_move  test_power  test_placement  test_pacing  test_live
+               test_reading
   layout/      test_align  test_move  test_aspects  test_power  test_reading
   station/     test_framing  test_station
   system/      test_skeleton  test_properties  test_safety_conditions
                test_app_boundaries
 ```
 
-`driver` has no test package: it has no test of its own, and is covered only
-through the assembly tests. `simulator` has one because a stale command is
-refused at the layout interface and that is where it has to be driven from;
-`layout` has one for the same reason, and it is the whole of that app's cover
-— nothing assembles it, a run having one binding of the interface.
+Every app has a test package. The two bindings of the layout interface each
+have one because what they refuse — a stale command, a dead railroad — is
+refused at the interface and has to be driven from there; for `layout` that
+package is the whole of the app's cover, nothing assembling it, since a run has
+one binding of the interface.
 
 `test_app_boundaries` checks the import rule above by parsing each app's
 modules and reading off what they import. The rule is the kind that decays
