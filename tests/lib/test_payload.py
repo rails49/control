@@ -11,6 +11,7 @@ from tc49.lib.payload import (
     chosen,
     gesture,
     grant,
+    granted_aspect,
     kept_allocation,
     kept_facing,
     move,
@@ -95,6 +96,40 @@ def test_a_payload_naming_no_granted_move_reads_as_none() -> None:
     ]
     for payload in refused:
         assert grant(payload) is None, payload
+
+
+def test_the_aspect_a_grant_shows_reads_beside_the_move_it_authorises() -> None:
+    """The field the driver adds to the three, read on its own so that a
+    scheduler wanting only the facing is not made to care about it (#283).
+
+    Every aspect reads, `stop` included: what a name is worth is the driver's
+    mapping and not this reading, and a payload holds names.
+    """
+    granted = {
+        "id": "freight_1-1",
+        "train": "freight_1",
+        "transit": "west_ladder.to_dn",
+        "into": "dn_w",
+    }
+    for aspect in ("clear", "caution", "stop", "unheard_of"):
+        assert granted_aspect({**granted, "aspect": aspect}) == aspect
+
+
+def test_a_payload_showing_no_aspect_reads_as_none() -> None:
+    """A grant is still a grant with an unreadable aspect — `grant` reads the
+    three names off the last of these — and it is the driver, which has no
+    speed to command, that turns the None into a dropped frame."""
+    refused: list[object] = [
+        "clear",  # not an object at all
+        ["clear"],
+        {},
+        {"aspect": None},
+        {"aspect": 1.0},
+        {"aspect": ["clear"]},
+        {"train": "freight_1", "transit": "west_ladder.to_dn", "into": "dn_w"},
+    ]
+    for payload in refused:
+        assert granted_aspect(payload) is None, payload
 
 
 def test_a_chosen_route_reads_as_the_id_and_the_names_in_order() -> None:
