@@ -12,12 +12,12 @@ from tc49.lib.layout import (
     connected_end,
     connected_facing,
     departure_end,
+    end_across,
     end_crossed,
     end_letter,
     end_on,
     facing_ends,
     facing_towards,
-    far_end,
     opposite_end,
 )
 from tc49.store import AssetStore
@@ -186,10 +186,11 @@ def test_a_transit_the_layout_does_not_hold_crosses_no_end() -> None:
     assert end_crossed(layout, "ghost", "west_ladder.to_dn") is None
 
 
-def test_a_transit_crosses_a_far_end_from_the_block_it_is_asked_about() -> None:
+def test_a_transit_crosses_an_end_across_from_the_block_asked_about() -> None:
     """`end_on` read from the other side, and what a binding handed a `move`
-    asks: the command names the block the train is entering, and the far end
-    of the transit from there is the end it must be standing at (ADR-0047).
+    asks: the command names the block the train is entering, and the end
+    across the transit from there is the one it must be standing at
+    (ADR-0047).
 
     A transit the layout does not hold answers None, where reaching into the
     layout with a name off the bus raises. A transit the layout does hold
@@ -201,13 +202,13 @@ def test_a_transit_crosses_a_far_end_from_the_block_it_is_asked_about() -> None:
     answer the end on the other side."""
     layout, _roster, _ = load("crossover-yard/meet")
 
-    assert far_end(layout, "dn_w", "west_ladder.to_dn") == "yard_w.B"
-    assert far_end(layout, "yard_w", "west_ladder.to_dn") == "dn_w.A"
-    assert far_end(layout, "dn_w", "ghost.to_dn") is None
-    assert far_end(layout, "dn_w", "west_ladder.ghost") is None
-    assert far_end(layout, "dn_w", "to_dn") is None  # unqualified
-    assert far_end(layout, "up_e", "west_ladder.to_dn") is None
-    assert far_end(layout, "ghost", "west_ladder.to_dn") is None
+    assert end_across(layout, "dn_w", "west_ladder.to_dn") == "yard_w.B"
+    assert end_across(layout, "yard_w", "west_ladder.to_dn") == "dn_w.A"
+    assert end_across(layout, "dn_w", "ghost.to_dn") is None
+    assert end_across(layout, "dn_w", "west_ladder.ghost") is None
+    assert end_across(layout, "dn_w", "to_dn") is None  # unqualified
+    assert end_across(layout, "up_e", "west_ladder.to_dn") is None
+    assert end_across(layout, "ghost", "west_ladder.to_dn") is None
 
 
 def test_a_block_with_both_ends_connected_answers_the_candidate(

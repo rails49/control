@@ -14,8 +14,8 @@ The ``check_*`` helpers are shared with the scenario validation in
 ``store.py``. The ``<block>.<A|B>`` end form is parsed here and nowhere else:
 ``check_end`` validates one, ``block_of``, ``end_letter`` and ``opposite_end``
 take one apart, ``end_on`` reads one off a transit and ``end_crossed`` does
-the same for a transit that came off the bus with ``far_end`` answering the
-other side of it, ``connected_end`` says which end of a block a connection
+the same for a transit that came off the bus with ``end_across`` answering
+the other side of it, ``connected_end`` says which end of a block a connection
 holds, and ``departure_end`` composes that over ``opposite_end`` into the end
 a train leaves a block by. The ``<block>.<A-to-B|B-to-A>`` **facing** form is
 parsed beside it and nowhere else: ``FACINGS`` is the vocabulary,
@@ -132,7 +132,7 @@ class Layout:
         return cls(name, blocks, connections, terminals, end_owner)
 
     def transits_at(self, end: str) -> list[tuple[str, str]]:
-        """The transits crossing `end`, as (qualified transit id, far end)."""
+        """The transits crossing `end`, as (qualified transit id, end across)."""
         conn = self.end_connection.get(end)
         if conn is None:
             return []
@@ -405,15 +405,20 @@ def end_crossed(layout: Layout, block: str, transit: str) -> str | None:
     return second if block_of(second) == block else None
 
 
-def far_end(layout: Layout, block: str, transit: str) -> str | None:
+def end_across(layout: Layout, block: str, transit: str) -> str | None:
     """The end `transit` crosses on its other side from `block`, or None where
     the layout holds no such transit or that transit crosses neither end of
     that block.
 
     `end_on` read from the other side and asked of names that came off the
     bus, which is what a binding handed a `move` asks: the command names the
-    block the train is to end up in, and the block at the far end of the
-    transit from there is the one it must be standing in now (ADR-0047).
+    block the train is to end up in, and the block across the transit from
+    there is the one it must be standing in now (ADR-0047).
+
+    Named for the axis it reads along. The far end of a *block* is its second
+    sensor, the one a train trips after the near one as it enters, so the name
+    this lookup carried until #279 said a different axis in the very module a
+    hardware binding reads.
 
     It fails the two ways `end_crossed` fails, and answers None for both. A
     transit under no connection here, or one no connection declares, is a

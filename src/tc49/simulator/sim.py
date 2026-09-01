@@ -65,8 +65,8 @@ from tc49.lib import durable
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import ON
-from tc49.lib.layout import Layout, block_of, far_end
-from tc49.lib.payload import Move, move, named_train, placement
+from tc49.lib.layout import Layout, block_of, end_across
+from tc49.lib.payload import Command, command, named_train, placement
 
 # One scheduled sensor event: fires at a time, in scheduling order among
 # equals, and says which train's head or tail passed which detector.
@@ -180,11 +180,11 @@ class Simulator:
         if self._placement is not None:
             durable.write(self._placement, self._position)
 
-    def _near_end(self, commanded: Move) -> str | None:
+    def _near_end(self, commanded: Command) -> str | None:
         """The block a train must stand in to take this move's transit: the
-        block at the far end of it from the one the command says the train is
-        entering, or None where this railroad has no such transit or that
-        transit reaches neither end of the block named.
+        block across it from the one the command says the train is entering,
+        or None where this railroad has no such transit or that transit
+        reaches neither end of the block named.
 
         The command states the connection and a bare transit and the layout
         names a transit qualified, so the two halves go back together to ask
@@ -192,7 +192,7 @@ class Simulator:
         there is no track over that transit into that block — and neither is
         an error to raise on but a command with nowhere to go (rule 4).
         """
-        end = far_end(
+        end = end_across(
             self._layout,
             commanded.into,
             f"{commanded.connection}.{commanded.transit}",
@@ -212,7 +212,7 @@ class Simulator:
         (#276): that transit crosses no track to there, so the command names
         no near end to be standing at, and a train that happens to stand at
         one end of it is not being asked for a run this railroad can make."""
-        commanded = move(payload)
+        commanded = command(payload)
         if commanded is None:
             return
         train, into = commanded.train, commanded.into

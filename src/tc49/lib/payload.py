@@ -343,7 +343,7 @@ def placement(payload: object) -> Placement | None:
 
 
 @dataclass(frozen=True)
-class Move:
+class Command:
     """The four names a `move` command states: which train, over which
     connection's which transit, into which block.
 
@@ -360,14 +360,14 @@ class Move:
     into: str
 
 
-def move(payload: object) -> Move | None:
+def command(payload: object) -> Command | None:
     """The move the payload commands, or None where it commands none.
 
     The transit is bare and the connection stands beside it, which is the
     shape the command has and the grant has not: the driver splits the
     qualified transit, and a binding that has to ask the layout puts the two
-    halves back together (`lib.layout.far_end`). Whether they name anything on
-    this railroad is that layout question and not this one — a name is all
+    halves back together (`lib.layout.end_across`). Whether they name anything
+    on this railroad is that layout question and not this one — a name is all
     there is to read in a payload.
     """
     if not isinstance(payload, dict):
@@ -377,7 +377,7 @@ def move(payload: object) -> Move | None:
     if not all(isinstance(name, str) for name in named):
         return None
     train, connection, transit, into = cast(list[str], named)
-    return Move(train, connection, transit, into)
+    return Command(train, connection, transit, into)
 
 
 def kept_facing(payload: object) -> dict[str, str] | None:

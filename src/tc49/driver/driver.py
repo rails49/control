@@ -72,23 +72,23 @@ class Driver:
         a drop is what a grant this driver cannot act on is worth, since it
         commands and answers nothing (SYSTEM.md, rule 4).
         """
-        move = grant(payload)
-        if move is None:
+        granted = grant(payload)
+        if granted is None:
             return
         aspect = granted_aspect(payload)
         speed = self._speeds.get(aspect) if aspect is not None else None
         if speed is None:
             return
-        connection, _, transit = move.transit.partition(".")
+        connection, _, transit = granted.transit.partition(".")
         if not connection or not transit:
             return
         self._bus.publish(
             "tc49/layout/move",
             {
-                "train": move.train,
+                "train": granted.train,
                 "connection": connection,
                 "transit": transit,
-                "into": move.into,
+                "into": granted.into,
                 "speed": speed,
             },
         )

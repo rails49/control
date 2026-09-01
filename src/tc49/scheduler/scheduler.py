@@ -297,13 +297,15 @@ class Scheduler:
         Here it leaves nothing to face away from. The layout the scheduler
         holds is what makes that a real question rather than a guess.
         """
-        move = grant(payload)
-        if move is None:
+        granted = grant(payload)
+        if granted is None:
             return
-        entered = end_crossed(self._layout, move.into, move.transit)
+        entered = end_crossed(self._layout, granted.into, granted.transit)
         if entered is None:  # not a transit into that block on this railroad
             return
-        self._facing[move.train] = facing_towards(departure_end(self._layout, entered))
+        self._facing[granted.train] = facing_towards(
+            departure_end(self._layout, entered)
+        )
 
     def _launched(self, payload: Payload) -> None:
         """Facing after a route was committed: the end it will leave by.
