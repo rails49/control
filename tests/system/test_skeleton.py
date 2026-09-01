@@ -50,7 +50,7 @@ def test_no_fit_pruning_rejects_at_admission() -> None:
     scenario = Scenario(
         "long",
         "crossover-yard",
-        {"leviathan": TrainSpec("up_w", "B")},
+        {"leviathan": TrainSpec("up_w", "A-to-B")},
         (RequestSpec("leviathan", "up_w.B", ("yard_e",)),),
     )
     trace = run(layout, stock(leviathan=2000), scenario)
@@ -72,7 +72,7 @@ def test_unreachable_rejection_where_the_origin_is_known_at_admission() -> None:
     scenario = Scenario(
         "stuck",
         "mini",
-        {"t1": TrainSpec("a", "A")},
+        {"t1": TrainSpec("a", "B-to-A")},
         # Departing through a.A, the unconnected end: no route can exist.
         (RequestSpec("t1", "a.A", ("b.A",)),),
     )
@@ -92,8 +92,8 @@ def test_a_stated_departure_the_train_is_not_at_is_rejected() -> None:
         "stale",
         "crossover-yard",
         {
-            "freight": TrainSpec("yard_w", "B"),
-            "express": TrainSpec("up_e", "A"),
+            "freight": TrainSpec("yard_w", "A-to-B"),
+            "express": TrainSpec("up_e", "B-to-A"),
         },
         (
             # freight stands in yard_w; this states the far yard.
@@ -117,7 +117,7 @@ def second_request(layout: Layout, depart: str, dest: tuple[str, ...]) -> str:
     scenario = Scenario(
         "midroute",
         "crossover-yard",
-        {"freight": TrainSpec("yard_w", "B")},
+        {"freight": TrainSpec("yard_w", "A-to-B")},
         (
             RequestSpec("freight", "yard_w.B", ("yard_e.A",)),
             RequestSpec("freight", depart, dest),
@@ -216,8 +216,8 @@ def test_a_request_queued_behind_a_pending_one_settles_reachability_late() -> No
         "late",
         "crossover-yard",
         {
-            "freight": TrainSpec("yard_w", "B"),
-            "express": TrainSpec("dn_w", "B"),
+            "freight": TrainSpec("yard_w", "A-to-B"),
+            "express": TrainSpec("dn_w", "A-to-B"),
         },
         (
             RequestSpec("freight", "yard_w.B", ("dn_w.A",)),
@@ -297,7 +297,7 @@ def test_an_idle_trains_request_departs_by_the_end_it_states() -> None:
     scenario = Scenario(
         "reversal",
         "crossover-yard",
-        {"freight": TrainSpec("yard_w", "B")},
+        {"freight": TrainSpec("yard_w", "A-to-B")},
         (
             RequestSpec("freight", "yard_w.B", ("dn_e.A",)),
             RequestSpec("freight", "dn_e.A", ("yard_w.B",)),
@@ -323,7 +323,7 @@ def test_a_request_behind_work_that_moved_nothing_keeps_its_stated_end() -> None
     scenario = Scenario(
         "moved-nothing",
         "crossover-yard",
-        {"freight": TrainSpec("yard_w", "B")},
+        {"freight": TrainSpec("yard_w", "A-to-B")},
         (
             RequestSpec("freight", "yard_w.B", ("yard_w.A",)),
             RequestSpec("freight", "yard_e.A", ("yard_w.B",)),
@@ -396,7 +396,7 @@ def test_degenerate_request_completes_without_moving_whichever_end() -> None:
         scenario = Scenario(
             "stay",
             "crossover-yard",
-            {"parked": TrainSpec("yard_w", "B")},
+            {"parked": TrainSpec("yard_w", "A-to-B")},
             (RequestSpec("parked", "yard_w.B", (end,)),),
         )
         trace = run(layout, stock(parked=600), scenario)
@@ -418,8 +418,8 @@ def test_a_refused_request_is_not_overtaken_by_the_trains_next_one() -> None:
         "queued",
         "crossover-yard",
         {
-            "freight": TrainSpec("yard_w", "B"),
-            "express": TrainSpec("dn_w", "A"),
+            "freight": TrainSpec("yard_w", "A-to-B"),
+            "express": TrainSpec("dn_w", "B-to-A"),
         },
         (
             RequestSpec("freight", "yard_w.B", ("dn_w.A",)),
@@ -488,7 +488,7 @@ def one_crossing(layout: Layout) -> str:
     scenario = Scenario(
         "cross",
         layout.name,
-        {"t1": TrainSpec("a", "B")},
+        {"t1": TrainSpec("a", "A-to-B")},
         (RequestSpec("t1", "a.B", ("b.A",)),),
     )
     return run(layout, stock(t1=500), scenario)

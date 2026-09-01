@@ -21,7 +21,7 @@ class TrainSpec:
     roster's and so is its length; this is the placement alone."""
 
     at: str  # starting block
-    facing: str  # 'A' or 'B': the end of `at` it would depart through nose-first
+    facing: str  # 'A-to-B' or 'B-to-A': the run across `at` it would make
 
 
 @dataclass(frozen=True)

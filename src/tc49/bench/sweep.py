@@ -128,7 +128,9 @@ def generate(workload: Workload) -> Scenario:
     # and prunes nothing. Facing is scheduler state batch runs never read
     # (ADR-0019); a constant keeps it out of the rng stream, so the drawn
     # requests stay byte-identical.
-    trains = {f"t{i + 1}": TrainSpec(track, "A") for i, track in enumerate(placements)}
+    trains = {
+        f"t{i + 1}": TrainSpec(track, "B-to-A") for i, track in enumerate(placements)
+    }
 
     # 2. Workings — per train in id order, a chained walk between the stations.
     requests: list[RequestSpec] = []

@@ -20,8 +20,8 @@ def yard() -> Layout:
 
 
 TWO_TRAINS = {
-    "freight_1": TrainSpec("yard_w", "B"),
-    "express_2": TrainSpec("up_e", "A"),
+    "freight_1": TrainSpec("yard_w", "A-to-B"),
+    "express_2": TrainSpec("up_e", "B-to-A"),
 }
 """Where a document stands the two trains. The scheduler is never handed the
 document: the harness reads a scenario into a facing seed and a timetable, and
@@ -117,7 +117,7 @@ def test_the_documents_placement_is_the_first_facing() -> None:
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
     assert [p["facing"] for _, p in seen] == [
-        {"express_2": "up_e.A", "freight_1": "yard_w.B"}
+        {"express_2": "up_e.B-to-A", "freight_1": "yard_w.A-to-B"}
     ]
 
 
@@ -128,7 +128,7 @@ def test_a_retained_facing_is_adopted_in_place_of_the_placement(
     facing, kept across the process by the bus binding, and takes it (#123).
     The document's placement is the cold start's seed and nothing more."""
     path = tmp_path / "session.json"
-    path.write_text(json.dumps({FACING: {"facing": {"freight_1": "dn_e.A"}}}))
+    path.write_text(json.dumps({FACING: {"facing": {"freight_1": "dn_e.B-to-A"}}}))
     bus = Bus(path)
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
@@ -136,14 +136,59 @@ def test_a_retained_facing_is_adopted_in_place_of_the_placement(
 
     # `express_2` is not in the file, so it falls back to its placement: a
     # train added to the document since the last run is a cold start of one.
-    assert seen[-1][1]["facing"] == {"express_2": "up_e.A", "freight_1": "dn_e.A"}
+    assert seen[-1][1]["facing"] == {
+        "express_2": "up_e.B-to-A",
+        "freight_1": "dn_e.B-to-A",
+    }
+
+
+def test_a_facing_the_state_file_spells_the_old_way_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A durable state file written by a build from before #241 carries
+    `dn_e.A`, which meant the end the train departs by and reads as no run at
+    all. It is dropped rather than guessed at — reading it as `A-to-B` would
+    turn the train round — and `freight_1` falls back to the placement the
+    document gives it."""
+    path = tmp_path / "session.json"
+    path.write_text(json.dumps({FACING: {"facing": {"freight_1": "dn_e.A"}}}))
+    bus = Bus(path)
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    bus.drain()
+
+    assert facing(seen) == {
+        "express_2": "up_e.B-to-A",
+        "freight_1": "yard_w.A-to-B",
+    }
+
+
+def test_a_train_only_the_old_spelling_names_comes_up_with_no_facing(
+    tmp_path: Path,
+) -> None:
+    """The same refusal where there is no placement under it: a train a hand
+    put on the rails last session is not held at all this one, and its drags
+    are uncomposable until it is placed again (SYSTEM.md, ADR-0039). A
+    guessed facing would send it the wrong way the first time it is asked to
+    move."""
+    path = tmp_path / "session.json"
+    path.write_text(json.dumps({FACING: {"facing": {"shunter": "up_w.B"}}}))
+    bus = Bus(path)
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+    bus.drain()
+
+    assert "shunter" not in facing(seen)
+
+    placed(bus, {"train": "shunter", "block": "up_w"})
+    assert facing(seen)["shunter"] == "up_w.B-to-A"
 
 
 def test_a_granted_move_turns_the_train_away_from_the_end_it_entered() -> None:
     """`move_granted` carries the transit and the block entered, never the
     end entered through, so the layout is what says which ends the transit
     joins: `to_dn` joins dn_w.A to yard_w.B, so a train granted into dn_w
-    comes in through A and faces B."""
+    comes in through A and faces A-to-B."""
     bus = Bus()
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
@@ -158,27 +203,30 @@ def test_a_granted_move_turns_the_train_away_from_the_end_it_entered() -> None:
         },
     )
     bus.drain()
-    assert seen[-1][1]["facing"]["freight_1"] == "dn_w.B"
+    assert seen[-1][1]["facing"]["freight_1"] == "dn_w.A-to-B"
 
 
 def test_a_train_seeded_into_a_terminal_block_faces_its_connected_end() -> None:
     """`yard_w.A` is a wall — no connection holds it — so a train placed
-    there could never leave, and every drag would compose a request rejected
-    `unreachable`. A terminal block has one end a train can leave by and the
+    facing B-to-A there could never leave, and every drag would compose a
+    request rejected `unreachable`. A terminal block has one end a train can leave by and the
     document does not get to choose otherwise (#145): a scheduler fed a
     document from anywhere is still right."""
     bus = Bus()
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(TWO_TRAINS | {"freight_1": TrainSpec("yard_w", "A")}))
+    Scheduler(
+        bus, yard(), seeded(TWO_TRAINS | {"freight_1": TrainSpec("yard_w", "B-to-A")})
+    )
     bus.drain()
-    assert seen[-1][1]["facing"]["freight_1"] == "yard_w.B"
+    assert seen[-1][1]["facing"]["freight_1"] == "yard_w.A-to-B"
 
 
 def test_a_granted_move_into_a_terminal_block_faces_its_connected_end() -> None:
     """The pass-through rule was incomplete rather than wrong: `to_dn` joins
     dn_w.A to yard_w.B, so a train granted into yard_w comes in through B and
-    would face A — the end no connection holds. It faces B, the one end it
-    can leave by, and the physical railroad is what settles it (#145)."""
+    would face B-to-A, out through the end no connection holds. It faces
+    A-to-B, the one end it can leave by, and the physical railroad is what
+    settles it (#145)."""
     bus = Bus()
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
@@ -193,7 +241,7 @@ def test_a_granted_move_into_a_terminal_block_faces_its_connected_end() -> None:
         },
     )
     bus.drain()
-    assert seen[-1][1]["facing"]["express_2"] == "yard_w.B"
+    assert seen[-1][1]["facing"]["express_2"] == "yard_w.A-to-B"
 
 
 def test_a_committed_route_faces_the_train_at_its_departure_end() -> None:
@@ -213,7 +261,7 @@ def test_a_committed_route_faces_the_train_at_its_departure_end() -> None:
         },
     )
     bus.drain()
-    assert seen[-1][1]["facing"]["express_2"] == "up_e.B"
+    assert seen[-1][1]["facing"]["express_2"] == "up_e.A-to-B"
 
 
 def test_facing_is_published_only_when_it_moves() -> None:
@@ -264,7 +312,9 @@ def test_a_drag_out_of_a_terminal_block_departs_by_its_connected_end() -> None:
     the rest of the session (#145)."""
     bus = Bus()
     seen = collect(bus, "tc49/dispatch/request_submitted")
-    Scheduler(bus, yard(), seeded(TWO_TRAINS | {"freight_1": TrainSpec("yard_w", "A")}))
+    Scheduler(
+        bus, yard(), seeded(TWO_TRAINS | {"freight_1": TrainSpec("yard_w", "B-to-A")})
+    )
 
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
     assert seen[-1][1]["depart"] == "yard_w.B"
@@ -336,8 +386,8 @@ def reversal(bus: Bus, payload: object) -> None:
 
 def test_a_reversal_turns_the_train_around_where_it_stands() -> None:
     """The whole of the gesture is the little arrow in the block the train
-    stands in (#124): facing goes to the other end of the same block, which
-    ADR-0019 named as the one change routes do not account for.
+    stands in (#124): facing becomes the other run across the same block,
+    which ADR-0019 named as the one change routes do not account for.
 
     `express_2` stands in `up_e`, a through block, which is where the flip
     has two ends to choose between at all."""
@@ -346,25 +396,31 @@ def test_a_reversal_turns_the_train_around_where_it_stands() -> None:
     Scheduler(bus, yard(), seeded())
 
     reversal(bus, {"train": "express_2"})
-    assert seen[-1][1]["facing"] == {"express_2": "up_e.B", "freight_1": "yard_w.B"}
+    assert seen[-1][1]["facing"] == {
+        "express_2": "up_e.A-to-B",
+        "freight_1": "yard_w.A-to-B",
+    }
 
 
 def test_a_reversal_on_a_terminal_block_leaves_the_arrow_alone() -> None:
     """`freight_1` stands in `yard_w`, whose `A` end no connection holds. The
-    other end of the block is the wall, so the flip goes through
-    `connected_end` and gives back the end it started on: one end is all the
-    train can leave by, whichever way it is pointed (#145).
+    end the flip would leave it pointing at is the wall, so it goes through
+    `connected_end` and gives back the run it started with: one end is all
+    the train can leave by, whichever way it is pointed (#145).
 
-    Turned around with a bare `opposite_end` it faced `yard_w.A`, which is
-    the placement the store refuses at load, and the next drag departed by
-    the wall and was rejected `unreachable` — the train stuck for the rest of
-    the session."""
+    Turned around with a bare flip of the value it faced `yard_w.B-to-A`,
+    which is the placement the store refuses at load, and the next drag
+    departed by the wall and was rejected `unreachable` — the train stuck for
+    the rest of the session."""
     bus = Bus()
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
 
     reversal(bus, {"train": "freight_1"})
-    assert seen[-1][1]["facing"] == {"express_2": "up_e.A", "freight_1": "yard_w.B"}
+    assert seen[-1][1]["facing"] == {
+        "express_2": "up_e.B-to-A",
+        "freight_1": "yard_w.A-to-B",
+    }
 
 
 def test_a_reversal_composes_no_request_and_tells_the_dispatcher_nothing() -> None:
@@ -394,7 +450,7 @@ def test_a_reversal_is_dropped_while_the_train_has_a_request_in_flight() -> None
 
     reversal(bus, {"train": "express_2"})
     assert len(seen) == published
-    assert seen[-1][1]["facing"]["express_2"] == "up_e.A"
+    assert seen[-1][1]["facing"]["express_2"] == "up_e.B-to-A"
 
 
 def test_a_reversal_lands_once_the_request_is_answered() -> None:
@@ -415,7 +471,7 @@ def test_a_reversal_lands_once_the_request_is_answered() -> None:
     bus.drain()
 
     reversal(bus, {"train": "express_2"})
-    assert seen[-1][1]["facing"]["express_2"] == "up_e.B"
+    assert seen[-1][1]["facing"]["express_2"] == "up_e.A-to-B"
 
 
 def test_a_reversal_that_cannot_be_read_is_dropped() -> None:
@@ -453,7 +509,7 @@ def facing(seen: list[tuple[str, Payload]]) -> dict[str, str]:
 
 
 def test_facing_follows_a_train_the_dispatcher_has_accepted_as_placed() -> None:
-    """The end letter is carried into the new block (#152). Arbitrary,
+    """The facing is carried into the new block (#152). Arbitrary,
     because the layout is topological and there is nothing better to derive
     from; `reversal_wanted` is the correction where it lands the train the
     wrong way round, which is the shape the eventual roster drag wants
@@ -463,19 +519,22 @@ def test_facing_follows_a_train_the_dispatcher_has_accepted_as_placed() -> None:
     Scheduler(bus, yard(), seeded())
 
     placed(bus, {"train": "freight_1", "block": "up_w"})
-    assert seen[-1][1]["facing"] == {"express_2": "up_e.A", "freight_1": "up_w.B"}
+    assert seen[-1][1]["facing"] == {
+        "express_2": "up_e.B-to-A",
+        "freight_1": "up_w.A-to-B",
+    }
 
 
 def test_a_train_placed_into_a_terminal_block_faces_its_connected_end() -> None:
     """`yard_e.B` is the buffer stop. Every facing site goes through
-    `connected_end`, so the letter carried over is corrected to the one end the
+    `connected_facing`, so the run carried over is turned to the one end the
     train can leave by rather than pointing it at the wall (#145)."""
     bus = Bus()
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
 
     placed(bus, {"train": "express_2", "block": "yard_e"})
-    assert seen[-1][1]["facing"]["express_2"] == "yard_e.A"
+    assert seen[-1][1]["facing"]["express_2"] == "yard_e.B-to-A"
 
 
 def test_the_scheduler_never_reads_the_placement_gesture() -> None:
@@ -498,8 +557,8 @@ def test_the_scheduler_never_reads_the_placement_gesture() -> None:
 def test_a_train_nothing_placed_gains_a_facing_when_it_is_placed() -> None:
     """A train off the layout has no facing, there being no block for one to
     be an end of. Placing it is where its facing begins: `train_placed` is the
-    dispatcher having accepted the train as known, so the scheduler carries no
-    letter across and starts from `A`, which `reversal_wanted` corrects
+    dispatcher having accepted the train as known, so the scheduler carries
+    nothing across and starts from `B-to-A`, which `reversal_wanted` corrects
     (ADR-0019, ADR-0039)."""
     bus = Bus()
     seen = collect(bus, FACING)
@@ -508,7 +567,7 @@ def test_a_train_nothing_placed_gains_a_facing_when_it_is_placed() -> None:
     assert "shunter" not in facing(seen)
 
     placed(bus, {"train": "shunter", "block": "up_w"})
-    assert facing(seen)["shunter"] == "up_w.A"
+    assert facing(seen)["shunter"] == "up_w.B-to-A"
 
 
 def test_a_restart_keeps_the_facing_of_a_train_no_document_places(
@@ -520,13 +579,13 @@ def test_a_restart_keeps_the_facing_of_a_train_no_document_places(
     operator would find one train on the railroad that can be sent
     nowhere."""
     path = tmp_path / "session.json"
-    path.write_text(json.dumps({FACING: {"facing": {"shunter": "up_w.B"}}}))
+    path.write_text(json.dumps({FACING: {"facing": {"shunter": "up_w.A-to-B"}}}))
     bus = Bus(path)
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     bus.drain()
 
-    assert facing(seen)["shunter"] == "up_w.B"
+    assert facing(seen)["shunter"] == "up_w.A-to-B"
 
 
 def test_a_train_taken_off_the_layout_loses_its_facing() -> None:
@@ -608,7 +667,7 @@ def test_an_announcement_that_cannot_be_read_leaves_facing_where_it_was() -> Non
             "aspect": "clear",
         },
     )
-    assert facing(seen)["freight_1"] == "dn_w.B"
+    assert facing(seen)["freight_1"] == "dn_w.A-to-B"
 
 
 def test_a_leaf_the_scheduler_does_not_act_on_is_ignored() -> None:
@@ -656,4 +715,4 @@ def test_an_answer_that_cannot_be_read_leaves_the_request_in_flight() -> None:
 
     announce(bus, "request_completed", {"id": "express_2-1"})
     reversal(bus, {"train": "express_2"})
-    assert facing(seen)["express_2"] == "up_e.B"
+    assert facing(seen)["express_2"] == "up_e.A-to-B"

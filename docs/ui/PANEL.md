@@ -176,6 +176,9 @@ here at all: it is the train's **facing**, read off
 each granted transit and from a committed route's departure end
 ([ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). A
 train that has never moved has an arrow for the same reason a moved one does.
+The value is the run the train would make across its block, `<block>.A-to-B`
+or `<block>.B-to-A` (CONTEXT.md, **Facing**), and the arrow points at the end
+that run comes out at — B for `A-to-B` — which is the whole of the reading.
 
 **Point positions are read off `align`.** The command carries the points it
 needs as address-and-position pairs
@@ -314,8 +317,8 @@ derailment case, and cancelling is
 
 **Right-clicking** the block a train stands in opens a menu with one item,
 **Turn around**, which publishes `tc49/schedule/reversal_wanted` (`{train}`). The
-scheduler flips that train's **facing** to the other end it can leave the
-block by, and the arrow turns. That is the whole of the feedback: nothing
+scheduler flips that train's **facing** to the other run across the block —
+`A-to-B` becomes `B-to-A` — and the arrow turns. That is the whole of the feedback: nothing
 moves, no request is composed, and no `tc49/dispatch` topic carries anything.
 On a **terminal block** the gesture is a no-op — one end is all the train can
 leave by whichever way it is pointed, and facing never names an end that

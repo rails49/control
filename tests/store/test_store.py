@@ -59,7 +59,7 @@ def meet_document() -> dict[str, Any]:
     return {
         "scenario": "meet",
         "layout": "crossover-yard",
-        "trains": {"freight_1": {"at": "yard_w", "facing": "B"}},
+        "trains": {"freight_1": {"at": "yard_w", "facing": "A-to-B"}},
         "requests": [
             {"train": "freight_1", "from": "yard_w.B", "to": ["yard_e"]},
         ],
@@ -286,7 +286,7 @@ def test_a_scenario_may_only_place_trains_the_roster_has(
     """A train's length is the roster's, so a scenario naming a train the
     railroad does not own has nothing to read (ADR-0039)."""
     doc = meet_document()
-    doc["trains"]["phantom"] = {"at": "up_w", "facing": "B"}
+    doc["trains"]["phantom"] = {"at": "up_w", "facing": "A-to-B"}
     with pytest.raises(ValueError, match="phantom.*roster"):
         scratch_store.put(doc)
 
@@ -308,7 +308,7 @@ def test_meet_scenario_loads_clean(store: AssetStore) -> None:
     assert isinstance(scenario, Scenario)
     assert scenario.layout == "crossover-yard"
     assert scenario.trains["express_2"].at == "up_e"
-    assert scenario.trains["freight_1"].facing == "B"
+    assert scenario.trains["freight_1"].facing == "A-to-B"
     first = scenario.requests[0]
     assert (first.train, first.depart, first.arrivals) == (
         "freight_1",
@@ -338,10 +338,24 @@ def test_train_must_declare_its_facing(scratch_store: AssetStore) -> None:
         scratch_store.put(doc)
 
 
-def test_facing_must_be_an_end_letter(scratch_store: AssetStore) -> None:
+def test_facing_must_be_one_of_the_two_runs_across_a_block(
+    scratch_store: AssetStore,
+) -> None:
     doc = meet_document()
-    doc["trains"]["freight_1"]["facing"] = "yard_w.B"
+    doc["trains"]["freight_1"]["facing"] = "yard_w.A-to-B"
     with pytest.raises(ValueError, match="freight_1"):
+        scratch_store.put(doc)
+
+
+def test_the_end_letter_facing_once_was_is_refused(
+    scratch_store: AssetStore,
+) -> None:
+    """`B` is what this document said before #241 and it is not read as
+    anything now: the refusal names the train, so a file written for an older
+    build is a load-time error rather than a train pointed the other way."""
+    doc = meet_document()
+    doc["trains"]["freight_1"]["facing"] = "B"
+    with pytest.raises(ValueError, match="meet.*freight_1.*facing.*'B'"):
         scratch_store.put(doc)
 
 
@@ -355,7 +369,7 @@ def test_facing_must_name_an_end_a_connection_holds(
     (ADR-0019) — but a placement is what every later request is composed
     from, so it is checked at load."""
     doc = meet_document()
-    doc["trains"]["freight_1"]["facing"] = "A"
+    doc["trains"]["freight_1"]["facing"] = "B-to-A"
     with pytest.raises(ValueError, match="meet.*freight_1.*yard_w.A"):
         scratch_store.put(doc)
 

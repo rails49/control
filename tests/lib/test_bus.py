@@ -190,7 +190,9 @@ def test_a_retained_value_outlives_the_bus_that_held_it(tmp_path: Path) -> None:
     topic when a process that was not there comes up and subscribes."""
     path = tmp_path / "session.json"
     first = Bus(path)
-    first.publish("tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.B"}})
+    first.publish(
+        "tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.A-to-B"}}
+    )
     first.drain()
 
     seen: list[tuple[str, Payload]] = []
@@ -199,7 +201,7 @@ def test_a_retained_value_outlives_the_bus_that_held_it(tmp_path: Path) -> None:
     restored.drain()
 
     assert seen == [
-        ("tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.B"}})
+        ("tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.A-to-B"}})
     ]
 
 
@@ -222,12 +224,16 @@ def test_every_change_rewrites_the_whole_file(tmp_path: Path) -> None:
     picture and never a log to replay."""
     path = tmp_path / "session.json"
     bus = Bus(path)
-    bus.publish("tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.A"}})
+    bus.publish(
+        "tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.B-to-A"}}
+    )
     bus.publish("tc49/schedule/state/exhausted", {"exhausted": False})
-    bus.publish("tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.B"}})
+    bus.publish(
+        "tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.A-to-B"}}
+    )
 
     assert json.loads(path.read_text()) == {
-        "tc49/schedule/state/facing": {"facing": {"freight_1": "yard_w.B"}},
+        "tc49/schedule/state/facing": {"facing": {"freight_1": "yard_w.A-to-B"}},
         "tc49/schedule/state/exhausted": {"exhausted": False},
     }
 

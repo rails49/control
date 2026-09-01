@@ -105,7 +105,7 @@ def test_the_replay_places_every_train_through_the_gesture() -> None:
 
 def test_the_replay_faces_each_train_the_way_the_document_does() -> None:
     """A placement carries no facing — the scheduler gives a train that was
-    off the layout the letter `A` — so the document's other letter is a
+    off the layout `B-to-A` — so a document facing the other way is a
     `reversal_wanted`, which is the correction a person would make (ADR-0019).
 
     Asserted at the moment the railroad is laid out: the facing in force
@@ -122,8 +122,8 @@ def test_the_replay_faces_each_train_the_way_the_document_does() -> None:
     )
     laid_out = [line for line in lines[:first] if line["event"] == "facing"][-1]
     assert laid_out["facing"] == {
-        "express_2": "up_e.A",
-        "freight_1": "yard_w.B",
+        "express_2": "up_e.B-to-A",
+        "freight_1": "yard_w.A-to-B",
     }
 
 
@@ -163,7 +163,7 @@ def test_a_placement_the_dispatcher_refuses_stops_the_replay() -> None:
     layout, roster, scenario = load(SCENARIO)
     doubled = replace(
         scenario,
-        trains={train: TrainSpec("yard_w", "B") for train in scenario.trains},
+        trains={train: TrainSpec("yard_w", "A-to-B") for train in scenario.trains},
     )
     assembly = assemble_live(layout, roster)
 

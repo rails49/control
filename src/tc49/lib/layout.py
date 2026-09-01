@@ -270,7 +270,8 @@ def block_of(end: str) -> str:
 
 
 def end_letter(end: str) -> str:
-    """The 'A' or 'B' of a validated '<block>.<A|B>' end reference."""
+    """The 'A' or 'B' of a validated '<block>.<A|B>' end reference, and — a
+    facing being written the same way — the 'A-to-B' or 'B-to-A' of one."""
     return end.partition(".")[2]
 
 

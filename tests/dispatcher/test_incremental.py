@@ -56,7 +56,7 @@ def test_facing_pair_refuses_a_launch_and_quiesces() -> None:
     scenario = Scenario(
         "swap",
         "facing-pair",
-        {"t_west": TrainSpec("west", "B"), "t_east": TrainSpec("east", "A")},
+        {"t_west": TrainSpec("west", "A-to-B"), "t_east": TrainSpec("east", "B-to-A")},
         (
             RequestSpec("t_west", "west.B", ("east.A",)),
             RequestSpec("t_east", "east.A", ("west.B",)),
@@ -86,7 +86,7 @@ def test_concurrent_pair_held_simultaneously_and_undeclared_pairs_never() -> Non
     straights = Scenario(
         "parallel",
         "crossover-yard",
-        {"t_up": TrainSpec("up_w", "B"), "t_dn": TrainSpec("dn_w", "B")},
+        {"t_up": TrainSpec("up_w", "A-to-B"), "t_dn": TrainSpec("dn_w", "A-to-B")},
         (
             RequestSpec("t_up", "up_w.B", ("up_e.A",)),
             RequestSpec("t_dn", "dn_w.B", ("dn_e.A",)),
@@ -107,7 +107,7 @@ def test_concurrent_pair_held_simultaneously_and_undeclared_pairs_never() -> Non
     crossing = Scenario(
         "crossing",
         "crossover-yard",
-        {"t_up": TrainSpec("up_w", "B"), "t_dn": TrainSpec("dn_w", "B")},
+        {"t_up": TrainSpec("up_w", "A-to-B"), "t_dn": TrainSpec("dn_w", "A-to-B")},
         (
             RequestSpec("t_up", "up_w.B", ("dn_e.A",)),
             RequestSpec("t_dn", "dn_w.B", ("up_e.A",)),
@@ -141,8 +141,8 @@ def test_shared_destination_refusal_names_the_committed_train() -> None:
         "collide",
         "gotthard-v0",
         {
-            "t_blue": TrainSpec("claro_1", "B"),
-            "t_yellow": TrainSpec("claro_3", "A"),
+            "t_blue": TrainSpec("claro_1", "A-to-B"),
+            "t_yellow": TrainSpec("claro_3", "B-to-A"),
         },
         (
             RequestSpec("t_blue", "claro_1.B", ("airolo_1.A",)),

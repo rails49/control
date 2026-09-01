@@ -29,7 +29,7 @@ cannot be stood up is a broken fixture rather than a run to report on.
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import RUNNING
-from tc49.lib.layout import Layout, connected_end
+from tc49.lib.layout import Layout, connected_facing
 from tc49.lib.scenario import RequestSpec, Scenario
 
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
@@ -75,12 +75,12 @@ class Replay:
                     f" or the train does not fit it"
                 )
             # A placement carries no facing: the scheduler gives a train that
-            # was off the layout the letter `A`, and turning it around is the
-            # correction (ADR-0019, ADR-0039). Both ends go through
-            # `connected_end`, so a terminal block is already right and no
+            # was off the layout `B-to-A`, and turning it around is the
+            # correction (ADR-0019, ADR-0039). Both go through
+            # `connected_facing`, so a terminal block is already right and no
             # gesture is sent for it.
-            placed = connected_end(layout, f"{spec.at}.A")
-            if placed != connected_end(layout, f"{spec.at}.{spec.facing}"):
+            placed = connected_facing(layout, f"{spec.at}.B-to-A")
+            if placed != connected_facing(layout, f"{spec.at}.{spec.facing}"):
                 self._send(REVERSAL_WANTED, {"train": train})
         # The railroad is laid out, so the operator this stands in for presses
         # GO. Every placement had to land before it: a placement is honoured
