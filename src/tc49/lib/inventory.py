@@ -19,8 +19,9 @@ Browser-writability is a mark on the row rather than a prefix to read:
 where somebody writes ``browser=True``.
 
 Where a field's *values* are a closed set the contract names, they live here
-too, beside the field they belong to: ``run`` and ``power`` are those fields.
-What an **enum** is, and which way an unreadable one falls, is CONTEXT.md.
+too, beside the field they belong to: ``run``, ``power`` and ``mode`` are
+those fields. What an **enum** is, and which way an unreadable one falls, is
+CONTEXT.md.
 """
 
 from typing import NamedTuple
@@ -40,6 +41,9 @@ TOPICS: dict[str, Topic] = {
     "tc49/layout/state/power": Topic(("power",)),
     "tc49/layout/align": Topic(("connection", "transit", "points")),
     "tc49/layout/move": Topic(("train", "connection", "transit", "into", "speed")),
+    "tc49/layout/mode_wanted": Topic(("train", "mode"), browser=True),
+    "tc49/layout/throttle_wanted": Topic(("train", "speed"), browser=True),
+    "tc49/layout/state/mode": Topic(("modes",)),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
     "tc49/schedule/state/exhausted": Topic(("exhausted",)),
@@ -136,6 +140,20 @@ than inventing a state of its own (#123). Not to be read as the ``held``
 and is a different thing on a different topic (CONTEXT.md)."""
 
 
+AUTOMATIC = "automatic"
+MANUAL = "manual"
+"""The two values of ``mode`` on ``tc49/layout/mode_wanted``, and of every
+entry in the ``modes`` map on ``tc49/layout/state/mode``: who turns a train's
+throttle. `automatic` is the resting value — taking a train in a throttle
+makes it `manual` and releasing it puts it back — so a train the map does not
+name is `automatic`. An unreadable value is **dropped** and the train's mode
+stays where it was: falling to `manual` would hand a train to a person who is
+not there, and falling to `automatic` would take one out of the hands of a
+person who is (#207). Not a mode of the *system*: a manual train is still
+dispatched, still holds its block and still may be granted, and *manual* names
+only who turns the throttle (CONTEXT.md)."""
+
+
 ON = "on"
 STOPPED = "stopped"
 OFF = "off"
@@ -167,9 +185,9 @@ INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
 ACL will grant it once the bridge is gone (ADR-0034). Named here rather than
 in the bridge because the fact outlives the relay, and read off the rows'
 marks rather than off a prefix — a topic now names the component that
-responds to it, so the five gestures sit under `schedule` and `dispatch`
-beside everything else those two answer, and only the mark says a page may
-send them.
+responds to it, so the seven gestures sit under `schedule`, `dispatch` and
+`layout` beside everything else those three answer, and only the mark says a
+page may send them.
 
 Event topics only. A page has concurrent instances — two tabs are two of
 them — and concurrent writers may not write a state topic at all

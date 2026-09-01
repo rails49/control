@@ -6,6 +6,7 @@ import pytest
 from tc49.lib.inventory import (
     DEVICE_PREFIX,
     DEVICE_TOPICS,
+    INBOUND,
     TOPICS,
     device_topic,
     is_state_topic,
@@ -15,6 +16,9 @@ from tc49.lib.inventory import (
 
 POINT = "tc49/layout/state/wanted/point"
 TRACK = "tc49/layout/state/wanted/track"
+MODE_WANTED = "tc49/layout/mode_wanted"
+THROTTLE_WANTED = "tc49/layout/throttle_wanted"
+MODE = "tc49/layout/state/mode"
 
 
 @pytest.mark.parametrize("topic", sorted(TOPICS))
@@ -73,6 +77,28 @@ def test_every_device_row_is_the_layouts_and_repeats_its_address() -> None:
     for key, row in DEVICE_TOPICS.items():
         assert key.startswith(DEVICE_PREFIX)
         assert row.fields[0] == "addr" or key == TRACK
+
+
+def test_the_two_manual_driving_gestures_are_a_pages_to_write() -> None:
+    """Taking a train in a throttle and turning that throttle are gestures
+    (#284): a throttle is any number of writers — two tabs are two of them —
+    and the row names `layout`, which answers them, rather than whoever sent
+    one. The mode the two settle is `layout`'s own state topic and no page
+    writes it."""
+    assert {MODE_WANTED, THROTTLE_WANTED} <= INBOUND
+    assert MODE not in INBOUND
+    assert TOPICS[MODE_WANTED].fields == ("train", "mode")
+    assert TOPICS[THROTTLE_WANTED].fields == ("train", "speed")
+    assert TOPICS[MODE].fields == ("modes",)
+
+
+def test_no_state_row_is_browser_writable() -> None:
+    """A page has concurrent instances, and concurrent writers may not write
+    a state topic at all (ADR-0035). So a gesture may be marked and the state
+    it settles never is, however many throttles ask for one."""
+    assert not [
+        topic for topic, row in TOPICS.items() if row.browser and is_state_topic(topic)
+    ]
 
 
 def test_no_device_row_is_browser_writable() -> None:
