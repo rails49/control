@@ -74,13 +74,13 @@ def scenario_documents(
     )
     # Facing is scheduler state nothing in a batch run reads (ADR-0019), so a
     # constant keeps the search pressure on interleaving — except on a
-    # terminal block, where B may be the end no connection holds and the
+    # terminal block, where A may be the end no connection holds and the
     # store refuses the placement (#145). `connected_facing` turns it off the
     # wall, and the document carries the run without its block.
     trains = {
         f"t{i + 1}": {
             "at": block,
-            "facing": end_letter(connected_facing(layout, f"{block}.A-to-B")),
+            "facing": end_letter(connected_facing(layout, f"{block}.B-to-A")),
         }
         for i, block in enumerate(placements)
     }

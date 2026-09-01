@@ -306,19 +306,18 @@ def departure_end(layout: Layout, lie: str) -> str:
     through, `'<block>.A'`, or the **facing** it holds, `'<block>.A-to-B'`.
     The two are one trajectory: a train faces away from the end it entered
     through, so a train that came in at A and a train facing A-to-B both
-    leave by B. Which spelling a caller has is which side of ADR-0019 it is
-    on — the dispatcher holds ends and never learns facing exists, the
-    scheduler holds facing — and the rule is one rule either way.
+    leave by B. Both callers today hold the entered end; a caller holding a
+    facing asks the same question and gets the same answer, which is the
+    whole of what saying a facing as a run buys (#241).
 
     The composed rule — `connected_end` applied to the far side of the end
     the train came in through — and the whole of what a strict pass-through
     means for one block (ADR-0001, CONTEXT.md **facing**). Everything that
     settles where a train goes out asks it: the scheduler of a move it saw
-    granted and of the facing it composes a drag from, the dispatcher of the
-    route it has just committed to. It takes the end and not a route, since
-    `lib` has no reason to know what a `Route` is and two of those callers do
-    not have one to pass — reading the entered end off a route stays with the
-    dispatcher (#155).
+    granted, the dispatcher of the route it has just committed to. It takes
+    the end and not a route, since `lib` has no reason to know what a `Route`
+    is and one of those callers does not have one to pass — reading the
+    entered end off a route stays with the dispatcher (#155).
     """
     entered = lie if end_letter(lie) in ("A", "B") else facing_ends(lie)[0]
     return connected_end(layout, opposite_end(entered))

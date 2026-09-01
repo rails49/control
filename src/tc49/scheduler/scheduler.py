@@ -26,9 +26,10 @@ read (#241). Into a terminal block there is no end to face away towards, so
 arrival goes through `departure_end` and seeding through `connected_facing`,
 which turns a candidate off a wall (#145). The last-value topic it publishes
 is what every view reads to draw a direction arrow, a train that has never
-moved having no other source for one. Where the bus binding has kept that topic across a
-restart the scheduler adopts what it finds there instead of the placement,
-which is what a broker that outlived it would have delivered (#123).
+moved having no other source for one. Where the bus binding has kept that
+topic across a restart the scheduler adopts what it finds there instead of
+the placement, which is what a broker that outlived it would have delivered
+(#123).
 Deliberate reversal at rest is the one change routes do not account for, and
 it arrives as its own gesture on `tc49/schedule/reversal_wanted` (#124).
 """
@@ -145,9 +146,20 @@ class Scheduler:
         A gesture names a train and where to put it; the two fields it omits
         are the two the scheduler owns — the id it mints and the departure
         end it reads off the facing it holds (ADR-0036). A facing is the run
-        the train would make across its block and the departure end is the
-        end that run comes out at, which is `lib`'s question (#241). It
-        judges nothing else: a train that is not idle is composed and
+        the train would make across its block, so the departure end is the
+        end that run comes out at, said as an end (#241).
+
+        Read and **not corrected**: the end the facing names is the end the
+        request states, wall or not. Every site that settles a facing has
+        already turned it off a terminal block's wall (#145), so correcting
+        again here would only ever fire on a facing that arrived broken —
+        and it would fire silently, composing a request that departs by one
+        end while the published facing goes on naming the other. A facing
+        that names a wall is a fault to see, not to paper over: the store
+        refuses such a placement at load, and a drag on one is rejected
+        `unreachable`, exactly as it was before the value was rewritten.
+
+        It judges nothing else: a train that is not idle is composed and
         submitted like any other, and answered `wrong_origin` or queued.
         """
         wanted = gesture(payload)
@@ -156,7 +168,7 @@ class Scheduler:
         facing = self._facing.get(wanted.train)
         if facing is None:  # a train this session does not hold
             return
-        depart = departure_end(self._layout, facing)
+        _, depart = facing_ends(facing)
         self._counters[wanted.train] += 1
         self._submit(
             {
