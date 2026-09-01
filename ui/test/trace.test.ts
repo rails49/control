@@ -7,9 +7,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DRAINING,
   gesture,
   Live,
   Ordering,
+  POWER_WANTED,
+  powerWanted,
   REQUEST_WANTED,
   reversal,
   REVERSAL_WANTED,
@@ -95,6 +98,37 @@ describe("runWanted", () => {
     });
     expect(JSON.parse(runWanted("running")).payload).toEqual({ run: "running" });
     expect(RUN_WANTED).toBe("tc49/dispatch/run_wanted");
+  });
+
+  /** The drain is a third value of the same word rather than a state of its
+   *  own (#123, #294), and it is what the band's OFF asks for first
+   *  (ADR-0051). Written and never read: `state/run` reads back `held` or
+   *  `running`, and `held` is what the OFF sequence waits for. */
+  it("carries the drain on the same word", () => {
+    expect(JSON.parse(runWanted(DRAINING)).payload).toEqual({ run: "draining" });
+  });
+});
+
+/** Commanding track power (ADR-0051): the same three values the layout
+ *  reports, in the command direction. One topic and one axis, so no consumer
+ *  has to decide what powered-off-and-emergency-stopped means. */
+describe("powerWanted", () => {
+  it("names where the supply should stand and nothing else", () => {
+    expect(JSON.parse(powerWanted("stopped"))).toEqual({
+      topic: "tc49/layout/power_wanted",
+      payload: { power: "stopped" },
+    });
+    expect(JSON.parse(powerWanted("on")).payload).toEqual({ power: "on" });
+    expect(JSON.parse(powerWanted("off")).payload).toEqual({ power: "off" });
+    expect(POWER_WANTED).toBe("tc49/layout/power_wanted");
+  });
+
+  /** It is `layout`'s because `layout` answers it, and `layout` answers by
+   *  writing the desired power of the device vocabulary — a page never
+   *  reaches the hardware itself (ADR-0043, ADR-0051). */
+  it("is the layout's topic and not a translator's", () => {
+    expect(POWER_WANTED.startsWith("tc49/layout/")).toBe(true);
+    expect(STATE_LEAVES.has("power_wanted")).toBe(false);
   });
 });
 

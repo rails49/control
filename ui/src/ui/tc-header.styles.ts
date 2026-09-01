@@ -4,9 +4,10 @@ import { dismiss, menuBox, menuRow, menuRowChosen } from "./shared.styles.js";
 
 /**
  * The band across the top (`tc-header`): what is true of the whole system, and
- * the two controls that act on it — the railroad picker at the left and the
- * view toggle at the right. The spacer parts what is loaded from what is going
- * on, and the rest is text.
+ * the controls that act on it — the railroad picker at the left, the three
+ * track-power presses beside the reading they act on, and the view toggle at
+ * the right. The spacer parts what is loaded from what is going on, and the
+ * rest is text.
  */
 export const headerStyles = css`
   :host {
@@ -164,6 +165,51 @@ export const headerStyles = css`
     border-radius: 0.2rem;
     background: var(--wrong-body);
     color: var(--wrong);
+  }
+
+  /* ON, STOP and OFF (ADR-0051). They read as the bar's HOLD/GO reads —
+     short words in capitals — because they are the same kind of press about
+     the same railroad, and they sit next to the reading they act on. STOP
+     wears the alarm the reading beside it wears when it lands. */
+  .supply {
+    display: flex;
+    flex: none;
+    gap: 0.25rem;
+    align-items: center;
+  }
+
+  button.press {
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-size: 0.85em;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+  }
+
+  button.press:hover:not(:disabled) {
+    background: #f0eeea;
+  }
+
+  button.press.stopped {
+    border-color: var(--wrong);
+    color: var(--wrong);
+  }
+
+  /* Nothing to command, or the press would be swallowed: a dead button and
+     not a hidden one, so the row does not move under the hand. */
+  button.press:disabled {
+    color: var(--hint);
+    cursor: default;
+  }
+
+  /* The drain is outstanding, so the button says what it is waiting for
+     rather than what it would do. */
+  button.press.waiting {
+    border-color: var(--hint);
   }
 
   /* The view toggle: square around its icon, as the bar's tools are. */

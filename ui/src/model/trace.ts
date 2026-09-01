@@ -65,6 +65,7 @@ export const REQUEST_WANTED = "tc49/schedule/request_wanted";
 export const REVERSAL_WANTED = "tc49/schedule/reversal_wanted";
 export const RUN_WANTED = "tc49/dispatch/run_wanted";
 export const PLACEMENT_WANTED = "tc49/dispatch/placement_wanted";
+export const POWER_WANTED = "tc49/layout/power_wanted";
 
 /** How a run stands: the dispatcher will commit nothing while it is `held`,
  *  and a person moves it either way
@@ -80,6 +81,22 @@ export type Run = "held" | "running";
  *  The two differ for the person recovering, who clears one and switches the
  *  other back on, which is why the panel says which. */
 export type Power = "on" | "stopped" | "off";
+
+/** The ordinary shutdown: the run launches nothing more, lets what is
+ *  crossing finish, and settles at `held`. A third value of `run` and not a
+ *  state of its own
+ *  ([#123](https://github.com/rails49/control/issues/123)), and the
+ *  dispatcher's half of it is
+ *  [#294](https://github.com/rails49/control/issues/294). It is written here
+ *  because OFF is the drain trigger
+ *  ([ADR-0051](../../../docs/adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)),
+ *  and it is written and never read: `state/run` reads back `held` or
+ *  `running`, and what the OFF sequence waits for is `held`. */
+export const DRAINING = "draining";
+
+/** What a `run_wanted` may name: where the run should stand. The two values
+ *  the run reads back, and the drain that ends at the first of them. */
+export type RunWanted = Run | typeof DRAINING;
 
 /** A `request_wanted` payload: what a drag means. A request minus the two
  *  fields the scheduler owns — no `id`, because the scheduler is the single
@@ -117,8 +134,22 @@ export function placement(train: string, block: string | null): string {
  *  should stand rather than asking for a change, so a press that agrees with
  *  where it already stands is not a race — and the dispatcher is the one
  *  writer of `state/run`, this being a gesture like the other two. */
-export function runWanted(run: Run): string {
+export function runWanted(run: RunWanted): string {
   return JSON.stringify({ topic: RUN_WANTED, payload: { run } });
+}
+
+/** A `power_wanted` frame: give the track power, stop every locomotive where
+ *  it stands, or remove the supply. The same three values the layout reports
+ *  on `state/power`, in the command direction — one topic and one axis, so no
+ *  consumer has to decide what powered-off-and-emergency-stopped means
+ *  (ADR-0041, ADR-0051).
+ *
+ *  It names where the power should stand rather than asking for a change, as
+ *  `run_wanted` does, so a press that agrees with where it already stands is
+ *  not a race. `layout` is what answers it, and a page never reaches the
+ *  hardware itself. */
+export function powerWanted(power: Power): string {
+  return JSON.stringify({ topic: POWER_WANTED, payload: { power } });
 }
 
 /** A `request_submitted` payload: what the scheduler composes out of a

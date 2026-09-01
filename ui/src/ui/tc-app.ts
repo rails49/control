@@ -39,7 +39,7 @@ import {
 import { emptyDrawing } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { Filing } from "../model/filing.js";
-import type { Run } from "../model/trace.js";
+import type { Power, Run } from "../model/trace.js";
 import { hashOf, viewOf, VIEWS, type ViewId } from "../model/views.js";
 import { appStyles } from "./tc-app.styles.js";
 import "./tc-editor.js";
@@ -65,6 +65,7 @@ const QUIET: RunStatus = {
   linked: false,
   run: null,
   power: null,
+  draining: false,
   trouble: null,
   placed: 0,
 };
@@ -135,8 +136,10 @@ export class TcApp extends LitElement {
         .joined=${this.status.joined}
         .linked=${this.status.linked}
         .power=${this.status.power}
+        .draining=${this.status.draining}
         .frozen=${still}
         .view=${this.view}
+        @power-wanted=${(event: CustomEvent<Power>) => this.supplying(event.detail)}
         @railroad-wanted=${(event: CustomEvent<string>) => this.discard(event.detail)}
         @view-wanted=${(event: CustomEvent<ViewId>) => this.showing(event.detail)}
         @picker-open=${(event: CustomEvent<boolean>) => {
@@ -218,6 +221,13 @@ export class TcApp extends LitElement {
    *  neither decides anything about the run. */
   private held(run: Run): void {
     this.running?.press(run);
+  }
+
+  /** ON, STOP or OFF, pressed on the band. The same path HOLD and GO take and
+   *  for the same reason: the socket is the run view's, and the band decides
+   *  nothing about the railroad it is naming (ADR-0051). */
+  private supplying(power: Power): void {
+    this.running?.pressPower(power);
   }
 
   // --- the bar and the keyboard --------------------------------------------

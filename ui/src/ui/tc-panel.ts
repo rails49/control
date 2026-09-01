@@ -53,9 +53,11 @@ import {
 import { positionsBySymbol } from "../model/scene.js";
 import { readRoster, UNREVIEWED, type Review } from "../model/store.js";
 import {
+  DRAINING,
   gesture,
   Live,
   placement,
+  powerWanted,
   reversal,
   runWanted,
   type Power,
@@ -85,6 +87,11 @@ export interface RunStatus {
    *  before the layout has said (ADR-0041). The band says which it is, and
    *  the bar's GO is greyed while it is anything but `on`. */
   power: Power | null;
+  /** Whether the band's OFF is waiting on the drain: it has asked for
+   *  `draining` and publishes `power_wanted: off` when the run reaches
+   *  `held`, and not before (ADR-0051). The band says so on the button, a
+   *  drain that never lands leaving the railroad powered. */
+  draining: boolean;
   /** What a session refused, or the store not answering. Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
   trouble: string | null;
@@ -180,6 +187,10 @@ export class TcPanel extends LitElement {
   /** Whether the run was running when the last frame was applied, which is
    *  what says a fresh hold has begun. */
   private wasRunning = false;
+  /** Whether an OFF is waiting on the drain (ADR-0051). The press asks the
+   *  run to drain and stops there; the supply is removed when `state/run`
+   *  reads `held`, which is the whole of what makes OFF safe. */
+  @state() private draining = false;
   /** The railroad the model was built for, so it is rebuilt when the app loads
    *  another and kept when anything else changes. */
   private built: string | null = null;
@@ -368,6 +379,12 @@ export class TcPanel extends LitElement {
     const running = this.panel.run === "running";
     if (this.wasRunning && !running) this.released = null;
     this.wasRunning = running;
+    // The drain the OFF press asked for has landed, so the supply goes now
+    // and not before: nothing is crossing, nothing is committed, and every
+    // grant re-aligns, so the point positions the cut costs cost nothing
+    // (ADR-0051). A run that never reaches `held` leaves the railroad
+    // powered and the button saying it is still waiting.
+    if (this.draining && this.panel.run === "held") this.cut();
     this.beat++;
   }
 
@@ -393,6 +410,46 @@ export class TcPanel extends LitElement {
     this.socket.send(runWanted(run));
   }
 
+  /**
+   * ON, STOP or OFF, pressed on the band: what the whole railroad's supply
+   * should be doing ([ADR-0051](../../../docs/adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
+   * The socket is this view's, so the press comes here, as HOLD and GO do.
+   *
+   * **OFF is the drain trigger and never an immediate cut.** It asks the run
+   * to drain and waits for `state/run` to read `held`; an abrupt `off` would
+   * leave no point position trustworthy and strand whatever was mid-transit.
+   * Both topics are ones the panel already writes, so `layout` never
+   * subscribes to the dispatcher.
+   *
+   * ON and STOP go out at once, and each abandons a wait the drain left
+   * standing: the person has said what they want the supply to do, and a cut
+   * arriving later out of a press they have moved on from is exactly the
+   * surprise this button exists to avoid. Neither writes `run_wanted` —
+   * returning to `on` releases nothing on its own (ADR-0041), and an
+   * emergency stop asks the rails for less rather than the run for more.
+   */
+  pressPower(power: Power): void {
+    if (this.socket === null || !this.connected || this.panel === null) return;
+    if (power === "off") {
+      this.draining = true;
+      this.socket.send(runWanted(DRAINING));
+      // A run that already reads `held` has nothing left to drain — nothing
+      // is crossing and nothing is committed, which is the whole of what the
+      // wait waits for — and the dispatcher answering `held` with `held`
+      // publishes no frame for `heard` to see.
+      if (this.panel.run === "held") this.cut();
+      return;
+    }
+    this.draining = false;
+    this.socket.send(powerWanted(power));
+  }
+
+  /** The supply removed, once the drain has landed. */
+  private cut(): void {
+    this.draining = false;
+    if (this.socket !== null && this.connected) this.socket.send(powerWanted("off"));
+  }
+
   private leave(): void {
     this.joins++; // whatever join is in flight is not this railroad's
     if (this.waiting !== null) clearTimeout(this.waiting);
@@ -402,6 +459,10 @@ export class TcPanel extends LitElement {
     this.stock = {};
     this.released = null;
     this.wasRunning = false;
+    // A session going away takes the wait with it: the run whose drain was
+    // being watched is no longer being reported on, and a cut fired at the
+    // next session's first `held` would be this one's press arriving late.
+    this.draining = false;
     // Let go of it before closing it, so the `close` that follows is one this
     // no longer owns: the handler's own guard is what keeps a late close off
     // a live session, and it reads this field.
@@ -606,6 +667,7 @@ export class TcPanel extends LitElement {
       linked: this.connected,
       run: this.session === null ? null : (this.panel?.run ?? null),
       power: this.session === null ? null : (this.panel?.power ?? null),
+      draining: this.draining,
       trouble: this.trouble,
       placed: this.standing.length,
     };
@@ -636,7 +698,7 @@ export class TcPanel extends LitElement {
   }
 
   /** The last status the app was told, so it is told again only when one of
-   *  the four has moved. */
+   *  them has moved. */
   private said: RunStatus | null = null;
 
   override updated(): void {
@@ -652,6 +714,7 @@ export class TcPanel extends LitElement {
       was.linked === now.linked &&
       was.run === now.run &&
       was.power === now.power &&
+      was.draining === now.draining &&
       was.trouble === now.trouble &&
       was.placed === now.placed
     ) {
