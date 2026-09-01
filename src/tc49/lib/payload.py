@@ -28,6 +28,15 @@ frame that role publishes can take the dispatcher down (#181). The power enum
 came first because it is the one whose *drop* would be unsafe, and the two
 readers fail in opposite directions for that reason: `occupancy` says which
 way it falls and why it may.
+
+The dispatcher's **announcements** are read here for the layout binding's
+reason and not the browser's, one step further out (#259): the scheduler
+keeps facing off `move_granted`, `route_chosen`, `train_placed` and
+`train_removed`, and a payload proves nothing about its sender, so a frame
+claiming to be one of those may not take the scheduler down. They are the
+first payloads read here that no gesture writes, which is why they are read
+by shape alone — `grant` and `chosen` say that names were named, and whether
+those names name anything is the layout's (`lib.layout.end_crossed`).
 """
 
 from dataclasses import dataclass
@@ -87,6 +96,73 @@ def readable_id(payload: object) -> str | None:
         return None
     rid = cast(dict[str, object], payload).get("id")
     return rid if isinstance(rid, str) and rid else None
+
+
+@dataclass(frozen=True)
+class Grant:
+    """The move a grant authorises: which train, over which transit, into
+    which block.
+
+    The three fields a consumer of `tc49/dispatch/move_granted` acts on. The
+    id correlates and the aspect is the driver's to come
+    (ADR-0025), and neither is read until something reads it.
+    """
+
+    train: str
+    transit: str
+    into: str
+
+
+def grant(payload: object) -> Grant | None:
+    """The granted move the payload names, or None where it names none.
+
+    The transit is the qualified `<connection>.<transit>` the inventory
+    states, and is left whole: splitting it is the driver's, and reading the
+    end it crosses is `lib.layout`'s. Both need the layout or the connection
+    to say anything, and neither is a question about the payload.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    train, transit, into = (fields.get(key) for key in ("train", "transit", "into"))
+    if not all(isinstance(field, str) for field in (train, transit, into)):
+        return None
+    return Grant(cast(str, train), cast(str, transit), cast(str, into))
+
+
+@dataclass(frozen=True)
+class Chosen:
+    """The request a launch fixed a route for, and the route it fixed:
+    the alternating sequence of block and transit names, a single block for
+    the degenerate already-there case."""
+
+    id: str
+    route: tuple[str, ...]
+
+
+def chosen(payload: object) -> Chosen | None:
+    """The route choice the payload names, or None where it names none.
+
+    The route is read as a sequence of names and not as a path: that the
+    entries alternate, that each names something, and that the something is
+    reachable are the layout's questions and the chooser's, and a reader that
+    asked them would be re-deriving the route rather than reading it. How
+    much of one a consumer needs is its own — the scheduler wants the first
+    block and the transit off it, and stops there.
+
+    `k_tried` is left behind with them: it is the sweep's own record, on the
+    trace for the benchmark to count and read by nothing.
+    """
+    rid = readable_id(payload)
+    if rid is None:
+        return None
+    route = cast(dict[str, object], payload).get("route")
+    if not isinstance(route, list):
+        return None
+    legs = cast(list[object], route)
+    if not all(isinstance(leg, str) for leg in legs):
+        return None
+    return Chosen(rid, tuple(cast(list[str], legs)))
 
 
 def run_state(payload: object) -> str | None:
@@ -173,6 +249,13 @@ class Placement:
 
 def placement(payload: object) -> Placement | None:
     """The placement the payload names, or None where it names none.
+
+    Two topics, one shape: the gesture on `tc49/dispatch/placement_wanted`,
+    and `tc49/dispatch/train_placed`, the fact the dispatcher publishes once
+    it has accepted one. The fact never carries a null block — a train taken
+    off the layout is `train_removed`, which names the train alone — so a
+    consumer of the fact reads a null the same way it reads a payload it
+    could not read at all, and drops it.
 
     Whether the block exists, is free and fits the train is not read here:
     that is knowledge only the dispatcher holds, and it drops what it cannot
