@@ -41,9 +41,11 @@ TOPICS: dict[str, Topic] = {
     "tc49/dispatch/request_submitted": Topic(("id", "train", "depart", "dest")),
     "tc49/dispatch/run_wanted": Topic(("run",), browser=True),
     "tc49/dispatch/placement_wanted": Topic(("train", "block"), browser=True),
+    "tc49/dispatch/cancel_wanted": Topic(("train",), browser=True),
     "tc49/dispatch/request_admitted": Topic(("id", "dest", "pruned")),
     "tc49/dispatch/request_rejected": Topic(("id", "reason")),
     "tc49/dispatch/request_completed": Topic(("id",)),
+    "tc49/dispatch/request_cancelled": Topic(("id", "reason")),
     "tc49/dispatch/route_chosen": Topic(("id", "route", "k_tried")),
     "tc49/dispatch/move_granted": Topic(("id", "train", "transit", "into", "aspect")),
     "tc49/dispatch/grant_refused": Topic(("id", "reason", "obstacles")),
@@ -94,7 +96,7 @@ INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
 ACL will grant it once the bridge is gone (ADR-0034). Named here rather than
 in the bridge because the fact outlives the relay, and read off the rows'
 marks rather than off a prefix — a topic now names the component that
-responds to it, so the four gestures sit under `schedule` and `dispatch`
+responds to it, so the five gestures sit under `schedule` and `dispatch`
 beside everything else those two answer, and only the mark says a page may
 send them.
 

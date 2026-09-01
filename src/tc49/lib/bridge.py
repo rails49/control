@@ -5,7 +5,7 @@ to every connected client as one JSON frame, ``{"topic": …, "payload": …}``,
 and a frame on an inbound topic — an inventory row marked browser-writable,
 those being the panel's write surface — is published as the event it names.
 The mark is what the relay reads, not a prefix: a topic names the component
-that responds to it, so the four gestures sit under ``schedule`` and
+that responds to it, so the five gestures sit under ``schedule`` and
 ``dispatch`` beside the announcements those two make. Anything else inbound is
 refused with an error frame, ``request_submitted`` included: the browser
 writes gestures and never requests, so the scheduler stays the single minter
