@@ -1,0 +1,158 @@
+"""Every payload is read and never trusted (#287, SYSTEM.md rule 4).
+
+Six topics from four publishers reach this app, and it answers none of them:
+it reports observations, so a refusal would have nowhere to go (ADR-0034). A
+frame that cannot be read is dropped, silently and to the trace, and none of
+them raises — a binding that raised on a payload would be taken down by
+whoever published it, leaving the railroad running with nothing watching it.
+"""
+
+from typing import Any, cast
+
+import pytest
+
+from tc49.lib.bus import Payload
+from tests.layout.railroad import (
+    ALIGN,
+    ASPECTS,
+    DEVICE_LINK,
+    DEVICE_TRACK,
+    MOVE,
+    PLACED,
+    POWER,
+    POWER_WANTED,
+    REMOVED,
+    WANTED_TRACK,
+    align,
+    build,
+    energised,
+    heard,
+    move,
+    stand,
+)
+
+COMMANDED = (ALIGN, MOVE, POWER_WANTED, PLACED, REMOVED, ASPECTS)
+"""Everything above the layout interface that reaches this app: two commands,
+a person's press, the two placement facts and the dispatcher's picture. A
+frame on one of these that cannot be read leaves the app exactly as it was."""
+
+FOLDED = (DEVICE_TRACK, DEVICE_LINK + "/dccex")
+"""The two device rows the railroad's power is folded from. An unreadable
+frame here is dropped in the same sense — nothing is written and nothing
+raises — but it is not *nothing*: a supply or a link that cannot be read is
+not one a train may move on, so the fold falls to `off` (#181). The two tests
+below say so."""
+
+SUBSCRIBED = COMMANDED + FOLDED
+
+UNREADABLE: tuple[Any, ...] = (
+    "up_w",
+    ["up_w"],
+    42,
+    None,
+    {},
+    {"train": None, "block": 7, "power": [], "aspects": "clear", "points": 1},
+)
+
+
+@pytest.mark.parametrize("topic", SUBSCRIBED)
+def test_an_unreadable_frame_is_dropped_and_raises_nothing(topic: str) -> None:
+    """Whatever arrives, on whichever topic: nothing is asked of the hardware
+    and no train is anywhere it was not."""
+    bus, app = build()
+    written = heard(bus, "tc49/layout/state/wanted/#")
+    bus.drain()
+    standing = len(written)
+
+    for payload in UNREADABLE:
+        bus.publish(topic, cast(Payload, payload))
+        bus.drain()
+
+    assert len(written) == standing
+    assert app.position == {}
+
+
+@pytest.mark.parametrize("topic", COMMANDED)
+def test_the_railroad_still_works_behind_a_frame_that_was_dropped(topic: str) -> None:
+    """The app read none of it and kept its own state, so the ordinary
+    sequence goes through afterwards exactly as it would have before."""
+    bus, app = build()
+    for payload in UNREADABLE:
+        bus.publish(topic, cast(Payload, payload))
+        bus.drain()
+
+    energised(bus)
+    stand(bus, "freight_1", "up_w")
+    align(bus, "crossover", "to_dn")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+    assert app.position == {"freight_1": "dn_e"}
+
+
+def test_a_placement_naming_no_block_is_read_as_no_placement() -> None:
+    """`train_placed` never carries a null block — a train taken off the
+    layout is `train_removed`, which names the train alone (ADR-0039) — so
+    one that does is read the way an unreadable frame is."""
+    bus, app = build()
+    bus.publish(PLACED, {"train": "freight_1", "block": None})
+    bus.drain()
+
+    assert app.position == {}
+
+
+def test_an_unreadable_supply_is_read_as_no_power() -> None:
+    """The one reader here that answers a value rather than dropping the
+    frame, and the reason is which way a failure falls: a supply that cannot
+    be read is not one a train may move on (#181)."""
+    bus, _app = build()
+    energised(bus)
+    assert bus.last_values[POWER]["power"] == "on"
+
+    bus.publish(DEVICE_TRACK, cast(Payload, {"power": "sideways"}))
+    bus.drain()
+    assert bus.last_values[POWER]["power"] == "off"
+
+
+def test_an_unreadable_link_is_not_a_link_that_is_up() -> None:
+    """The same direction on the row beside it: a link a consumer cannot read
+    is not one it may call good (ADR-0050)."""
+    bus, _app = build()
+    energised(bus)
+    assert bus.last_values[POWER]["power"] == "on"
+
+    bus.publish(DEVICE_LINK + "/dccex", cast(Payload, {"system": "dccex"}))
+    bus.drain()
+    assert bus.last_values[POWER]["power"] == "off"
+
+
+def test_the_rows_this_app_does_not_act_on_pass_by_unread() -> None:
+    """A `device/sensor` is the detectors' half of the occupancy fold and a
+    `device/point` is a position where hardware reports one; neither is acted
+    on yet, and both go past without being taken for something else."""
+    bus, app = build()
+    energised(bus)
+    written = heard(bus, "tc49/layout/state/wanted/#")
+    bus.drain()
+    standing = len(written)
+
+    bus.publish(
+        "tc49/layout/state/device/sensor/up_w.B",
+        {"addr": "up_w.B", "occupancy": "occupied"},
+    )
+    bus.publish(
+        "tc49/layout/state/device/point/dccex/12",
+        {"addr": "dccex/12", "position": "thrown"},
+    )
+    bus.drain()
+
+    assert len(written) == standing
+    assert bus.last_values[POWER]["power"] == "on"
+    assert app.position == {}
+
+
+def test_a_fresh_app_has_said_two_things_and_no_more() -> None:
+    """It subscribes the observed half of the device vocabulary and writes
+    the desired half, so nothing it publishes reaches its own handlers and
+    there is no cascade to come up out of: a fresh railroad is the supply
+    commanded off and the app saying it believes it is."""
+    bus, _app = build()
+    assert set(bus.last_values) == {WANTED_TRACK, POWER}
