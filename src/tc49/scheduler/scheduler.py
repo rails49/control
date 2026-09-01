@@ -15,21 +15,23 @@ expansion is purely mechanical (a bare block becomes both of its ends), and
 `exhausted` is set as soon as the last timetable request is out.
 
 It **holds facing** (ADR-0019), seeded where a run was built from a document
-and carried forward from the bus: a train faces away from the end it entered
-through, and a committed route's departure end is the end it will leave by.
-That is what the layout read is for — `move_granted` names a transit and the
-block entered, not the end entered through — and why the scheduler subscribes
-`tc49/dispatch/#` (ADR-0028's growth, spent on facing). What it holds per
-train is `lib`'s facing: the run the train would make across its block,
-`<block>.A-to-B` or `<block>.B-to-A`, out of which a drag's departure end is
-read (#241). Into a terminal block there is no end to face away towards, so
-arrival goes through `departure_end` and seeding through `connected_facing`,
-which turns a candidate off a wall (#145). The last-value topic it publishes
-is what every view reads to draw a direction arrow, a train that has never
-moved having no other source for one. Where the bus binding has kept that
-topic across a restart the scheduler adopts what it finds there instead of
-the placement, which is what a broker that outlived it would have delivered
-(#123). That retained value is **read**, through `lib.payload` like every
+and carried forward from the bus: a train that left nose-first faces away from
+the end it entered through, and a **propelled** one — pushed out of the end its
+nose points away from — faces the end it entered through. Committing to a route
+changes nothing, facing being a fact about the stock and not about the plan
+(#295). That is what the layout read is for — `move_granted` names a transit
+and the block entered, not the end entered through — and why the scheduler
+subscribes `tc49/dispatch/#` (ADR-0028's growth, spent on facing). What it
+holds per train is `lib`'s facing: the run the train would make across its
+block, `<block>.A-to-B` or `<block>.B-to-A`, out of which a drag's departure
+end is read (#241). Into a terminal block there is no end to face away
+towards, so arrival goes through `departure_end` and seeding through
+`connected_facing`, which turns a candidate off a wall (#145). The last-value
+topic it publishes is what every view reads to draw a direction arrow, a train
+that has never moved having no other source for one. Where the bus binding has
+kept that topic across a restart the scheduler adopts what it finds there
+instead of the placement, which is what a broker that outlived it would have
+delivered (#123). That retained value is **read**, through `lib.payload` like every
 payload a subscription hands over, and one that cannot be read is a cold
 start rather than a refusal to start: a value the scheduler cannot read tells
 it nothing, and an app that will not come up tells a person even less (#277).
@@ -47,13 +49,13 @@ from tc49.lib.layout import (
     connected_end,
     connected_facing,
     departure_end,
+    end_across,
     end_crossed,
     end_letter,
     facing_ends,
     facing_towards,
 )
 from tc49.lib.payload import (
-    chosen,
     gesture,
     grant,
     kept_facing,
@@ -193,10 +195,14 @@ class Scheduler:
 
         Dropped where the train has a request in flight, from submit to
         completion. Flipping the arrow under one produces a lie: the queued
-        request still departs the old end, and `route_chosen` flips the arrow
-        back when it launches, undoing the operator's gesture minutes later.
-        A **rejected** request leaves the train idle — `_train_of` has dropped
-        it — and that is precisely when you want to turn around.
+        request still departs the end the facing named when it was composed,
+        so the train the arrow now points one way would leave the other — and
+        the move that answers it would be read as a propelling one, turning
+        the arrow again on arrival. Nothing takes the gesture back any more
+        (#295): facing does not change under a queued request at all, which
+        is what makes dropping it the whole of the protection. A **rejected**
+        request leaves the train idle — `_train_of` has dropped it — and that
+        is precisely when you want to turn around.
 
         A train turned around leaves by the end it had been standing with
         its tail at, and the flip goes through `lib`'s `connected_end` on the
@@ -224,15 +230,15 @@ class Scheduler:
     def _on_dispatch(self, topic: str, payload: Payload) -> None:
         """Facing, carried forward from what the dispatcher announces.
 
-        A route is a strict pass-through, so a train faces away from the end
-        it entered through; and a committed route's departure end is the end
-        it will leave by, which a request departing against facing is allowed
-        to state (ADR-0019 makes facing a discipline, not an invariant).
-
-        The first of those is `lib`'s `departure_end`: into a terminal block
-        there is no end to face away towards, and it gives back the one end a
-        connection holds (#145). The second needs no correction — a route's
-        departure end is a transit's end and so always connected.
+        A route is a strict pass-through, so a train that left nose-first
+        faces away from the end it entered through, and a propelled one faces
+        the end it entered through. Both are answers to a move that actually
+        happened: `route_chosen` is not one, and is ignored here like every
+        other leaf the scheduler does not act on. Committing to a route is a
+        plan, and facing is a fact about the stock — where the request departs
+        the end the train's tail stands at, which ADR-0019 allows, recording
+        the departure would say the train had turned around while nothing
+        touched it (#295).
 
         A request ends by arrival, by rejection, or by **cancellation**
         (ADR-0049), and the third leaves as little behind as the other two:
@@ -262,8 +268,6 @@ class Scheduler:
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "move_granted":
             self._granted(payload)
-        elif leaf == "route_chosen":
-            self._launched(payload)
         elif leaf == "train_placed":
             placed = placement(payload)
             # A null block is `train_removed`'s statement and not this
@@ -285,17 +289,35 @@ class Scheduler:
 
     def _granted(self, payload: Payload) -> None:
         """Facing after a move the dispatcher authorised: away from the end
-        the train came in through.
+        the train came in through where it left nose-first, and **at** that
+        end where it was propelled.
 
-        The end is not on the bus — the grant names the transit and the block
-        entered — so it is read off the layout, and read there through
-        `end_crossed`. Dropping a transit no connection here holds, or one
-        that crosses neither end of the block named, is not this reader's own
-        strictness but the rule every reader of a transit and a block that
-        arrived together keeps (SYSTEM.md): the frame describes a run there is
-        no track for, so the layout interface moves no train under it either.
-        Here it leaves nothing to face away from. The layout the scheduler
-        holds is what makes that a real question rather than a guess.
+        Neither end is on the bus — the grant names the transit and the block
+        entered — so both are read off the layout, and read there through
+        `end_crossed` and `end_across`. Dropping a transit no connection here
+        holds, or one that crosses neither end of the block named, is not this
+        reader's own strictness but the rule every reader of a transit and a
+        block that arrived together keeps (SYSTEM.md): the frame describes a
+        run there is no track for, so the layout interface moves no train
+        under it either. Here it leaves nothing to face away from. The layout
+        the scheduler holds is what makes that a real question rather than a
+        guess.
+
+        A train is **propelled** where the end it left by is the end its nose
+        points *away* from — the tail end of the facing held — which is what a
+        request departing against facing asks for and ADR-0019 allows. It
+        enters the next block tail-first, so its nose points at the end it
+        came in by, and pushing it further along the same route keeps saying
+        so: routes are strict pass-throughs (ADR-0001), so every move of one
+        route gets the same answer and nothing has to be remembered between
+        them (#295). Read against the facing rather than remembered, and a
+        train the scheduler holds no facing for is the nose-first case, which
+        is what an arrival alone can say.
+
+        No correction for a terminal block in that case, unlike the
+        nose-first one: the end entered is a transit's end and so always
+        connected, and a stub's one connected end is exactly what a train
+        pushed into it faces (#145).
         """
         granted = grant(payload)
         if granted is None:
@@ -303,32 +325,12 @@ class Scheduler:
         entered = end_crossed(self._layout, granted.into, granted.transit)
         if entered is None:  # not a transit into that block on this railroad
             return
+        left_by = end_across(self._layout, granted.into, granted.transit)
+        facing = self._facing.get(granted.train)
+        propelled = facing is not None and left_by == facing_ends(facing)[0]
         self._facing[granted.train] = facing_towards(
-            departure_end(self._layout, entered)
+            entered if propelled else departure_end(self._layout, entered)
         )
-
-    def _launched(self, payload: Payload) -> None:
-        """Facing after a route was committed: the end it will leave by.
-
-        Which train that is, is the scheduler's own record of the request it
-        submitted, so a route chosen for an id it never minted moves nothing
-        — as one for a request that has since been answered does not. The
-        degenerate already-there route is a single block and has no transit
-        to read an end off, and needs none: nothing moves.
-
-        No correction for a terminal block here, unlike an arrival: a route's
-        departure end is a transit's end and so always connected.
-        """
-        launch = chosen(payload)
-        if launch is None:
-            return
-        train = self._train_of.get(launch.id)
-        if train is None or len(launch.route) < 2:
-            return
-        departure = end_crossed(self._layout, launch.route[0], launch.route[1])
-        if departure is None:  # not a transit off that block on this railroad
-            return
-        self._facing[train] = facing_towards(departure)
 
     def _placed(self, train: str, block: str) -> None:
         """Facing after a person has said where a train actually stands.
