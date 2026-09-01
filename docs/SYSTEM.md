@@ -714,10 +714,15 @@ the first was stranded. A hold is honoured whatever the power is doing
 
 **It alone reads `tc49/dispatch/placement_wanted`**, a person saying where a train
 actually is. Only the dispatcher knows whether a block is free, so a second
-reader would have to agree with it on every precondition. Three preconditions
-hold whichever way the gesture points: the run is **held**, the train is
-known, and the train has no request in flight. A gesture that fails one of
-them is dropped without an answer, and is in the trace.
+reader would have to agree with it on every precondition. Two preconditions
+hold whichever way the gesture points: the run is **held**, and the train is
+known. A gesture that fails one of them is dropped without an answer, and is
+in the trace. A request in flight was a third and is not one any more: the
+placement **cancels** it first
+([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)),
+so `request_cancelled` precedes `train_placed` or `train_removed` and both of
+those always describe a train with no request. The reason says which direction
+the gesture pointed — `displaced` into a block, `removed` off the layout.
 
 Naming a **block** puts the train there. The block has to exist, fit the
 train, and be free of every claim: no lock on it, and not on a committed
@@ -738,11 +743,12 @@ lifting it off are the same act with a different destination. The train leaves
 interface forgets it.
 
 This is not deletion: the train stays on the roster and can be placed again. A
-train with a request in flight cannot be lifted off, that being the same
-precondition, so the way out of a derailment partway through a route is to
-release the hold and let the train run. The key is read for **presence**: an
-explicit `null` says nowhere, and a frame that has lost the field is refused
-rather than read as a `null`.
+train with a request in flight **is** lifted off, its request cancelled
+`removed` on the way, so a derailment partway through a route ends with the
+locomotive in a person's hand rather than with the hold released and the train
+run on to a destination it is no longer heading for. The key is read for
+**presence**: an explicit `null` says nowhere, and a frame that has lost the
+field is refused rather than read as a `null`.
 
 **It alone reads `tc49/dispatch/cancel_wanted`**, a person ending a train's
 work without it arriving

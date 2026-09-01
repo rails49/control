@@ -18,7 +18,7 @@ from typing import Any, cast
 import pytest
 
 from tc49.bench.runner import Assembly, assemble_live
-from tc49.dispatcher import Incremental
+from tc49.dispatcher import FullRoute, Incremental
 from tc49.lib import durable
 from tc49.lib.scenario import TrainSpec
 from tests.harness import RUN_WANTED, events, load, press, stock, ticks
@@ -73,6 +73,18 @@ def last(assembly: Assembly, leaf: str) -> dict[str, Any]:
 
 def placements(assembly: Assembly) -> list[dict[str, Any]]:
     return events(assembly.trace, "train_placed")
+
+
+def cancellations(assembly: Assembly) -> list[dict[str, Any]]:
+    return events(assembly.trace, "request_cancelled")
+
+
+def order(assembly: Assembly, *leaves: str) -> list[str]:
+    """The named leaves in the order the trace carries them, which is the
+    order they were published in."""
+    return [
+        str(line["event"]) for line in events(assembly.trace) if line["event"] in leaves
+    ]
 
 
 def facing(assembly: Assembly, train: str) -> str:
@@ -152,20 +164,104 @@ def test_a_placement_into_a_block_the_train_does_not_fit_in_is_dropped(
     assert last(held, "allocation")["trains"]["leviathan"] == "dn_e"
 
 
-def test_a_placement_of_a_train_with_a_request_in_flight_is_dropped(
+def test_a_placement_cancels_the_request_in_flight_and_then_places(
     held: Assembly,
 ) -> None:
-    """On release the grant phase launches from `block_of`, so a pending
-    request would silently depart from wherever the train was just put,
-    having been admitted against the old block. Nothing cancels a request, so
-    the way out is to release and let it finish (#152, Not this issue)."""
+    """A request in flight was a precondition and is not one any more
+    (ADR-0049, #271): the gesture ends the request and then stands the train,
+    so `request_cancelled` comes before `train_placed` and the fact describes
+    a train with no request.
+
+    What the old precondition protected is kept by the cancellation rather
+    than by the refusal. On release the grant phase launches from `block_of`,
+    and there is no longer a request to launch from anywhere: the queued one
+    was admitted against the block the train has just been moved out of, and
+    it ends with the gesture that moved it.
+    """
     press(held, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
     assert events(held.trace, "request_admitted")
 
     place(held, "freight_1", "up_w")
 
+    assert cancellations(held) == [
+        {
+            "time": 0.0,
+            "event": "request_cancelled",
+            "id": "freight_1-1",
+            "reason": "displaced",
+        }
+    ]
+    assert placements(held) == [
+        {"time": 0.0, "event": "train_placed", "train": "freight_1", "block": "up_w"}
+    ]
+    assert last(held, "allocation")["trains"]["freight_1"] == "up_w"
+    assert last(held, "allocation")["requests"] == []
+    assert order(held, "request_cancelled", "train_placed") == [
+        "request_cancelled",
+        "train_placed",
+    ]
+
+
+def test_a_displaced_train_never_departs_on_the_cancelled_route(
+    held: Assembly,
+) -> None:
+    """The whole point of ending the request rather than refusing the
+    placement: releasing the run afterwards moves no wheel on work the person
+    has already ended, and the route that was chosen against the old block is
+    not run from the new one."""
+    press(held, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    place(held, "freight_1", "up_w")
+
+    press(held, RUN_WANTED, {"run": "running"})
+    ticks(held, 8)
+
+    assert events(held.trace, "route_chosen") == []
+    assert events(held.trace, "move_granted") == []
+    assert last(held, "allocation")["trains"]["freight_1"] == "up_w"
+
+
+def test_a_placement_into_a_block_the_railroad_lacks_leaves_the_request_alone(
+    held: Assembly,
+) -> None:
+    """A block that does not exist, and a block the train does not fit in,
+    are facts about the gesture rather than about what the train holds, so
+    they are judged before the cancellation: a mistyped block drops the whole
+    gesture and the request goes on running (ADR-0049)."""
+    press(held, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+
+    place(held, "freight_1", "siding_9")
+    place(held, "leviathan", "yard_e")  # known block, train too long
+
+    assert cancellations(held) == []
     assert placements(held) == []
-    assert last(held, "allocation")["trains"]["freight_1"] == "yard_w"
+    assert last(held, "allocation")["requests"][0]["id"] == "freight_1-1"
+
+
+def test_a_placement_into_a_block_the_trains_own_route_holds_succeeds() -> None:
+    """Cancelling first is what makes the placement possible rather than
+    merely permitted. Under `FullRoute` a launch locks the whole route, so
+    every block the train was going to run through is one `free` would refuse
+    — for a claim belonging to the very request the gesture is ending.
+
+    This is the derailment: the train stopped somewhere along its route, and
+    the person says where.
+    """
+    layout, _roster, _ = load("crossover-yard/meet")
+    assembly = assemble_live(layout, STOCK, two_trains(), FullRoute)
+    press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    route = last(assembly, "route_chosen")["route"]
+    press(assembly, RUN_WANTED, {"run": "held"})
+    ahead = route[2]  # the first block beyond the origin, locked by the launch
+    assert last(assembly, "allocation")["locks"][ahead] == "freight_1"
+
+    place(assembly, "freight_1", ahead)
+
+    assert last(assembly, "request_cancelled")["reason"] == "displaced"
+    assert last(assembly, "train_placed")["block"] == ahead
+    assert last(assembly, "allocation")["locks"] == {
+        ahead: "freight_1",
+        "dn_e": "leviathan",
+    }
 
 
 @pytest.mark.parametrize(
@@ -338,9 +434,11 @@ def test_a_placement_into_a_committed_block_is_dropped() -> None:
     lock table alone would call those blocks free.
 
     Placing a train into one strands the request that owns it: the route is
-    fixed (ADR-0002), the placed train is idle and its standing lock is a
-    permanent obstacle (SAFETY.md), and nothing cancels a request — so the
-    committed train would be refused for the rest of the session.
+    fixed (ADR-0002), and the placed train is idle, so its standing lock is a
+    permanent obstacle (SAFETY.md) and the committed train would be refused
+    for the rest of the session. A placement cancels its **own** train's
+    request (ADR-0049) and never another's, so what is refused here is a
+    claim the gesture has no way to release.
     """
     layout, _roster, _ = load("crossover-yard/meet")
     # `shunter` is short enough for either yard block, so the fit rule cannot
@@ -466,18 +564,42 @@ def test_a_removal_is_dropped_while_the_run_is_running() -> None:
     assert last(running, "allocation")["trains"]["freight_1"] == "yard_w"
 
 
-def test_a_removal_of_a_train_with_a_request_in_flight_is_dropped(
+def test_a_removal_cancels_the_request_in_flight_and_then_lifts_the_train(
     held: Assembly,
 ) -> None:
-    """A train mid-request cannot be taken off the layout: nothing cancels a
-    request, so the way out is to release the hold and let it run (#123)."""
+    """The other direction of the same gesture, and the case #237 asked for:
+    a train mid-request is taken off the layout, its request cancelled
+    `removed` on the way (ADR-0049, #271). A broken-down locomotive comes off
+    in a person's hand, rather than the hold being released so the railroad
+    can run it to a destination it is no longer going to.
+
+    `request_cancelled` precedes `train_removed`, so the fact describes a
+    train with no request — which is what lets the scheduler drop the facing
+    on it without wondering whether something still wants it.
+    """
     press(held, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
     assert events(held.trace, "request_admitted")
 
     remove(held, "freight_1")
 
-    assert removals(held) == []
-    assert last(held, "allocation")["trains"]["freight_1"] == "yard_w"
+    assert cancellations(held) == [
+        {
+            "time": 0.0,
+            "event": "request_cancelled",
+            "id": "freight_1-1",
+            "reason": "removed",
+        }
+    ]
+    assert removals(held) == [
+        {"time": 0.0, "event": "train_removed", "train": "freight_1"}
+    ]
+    picture = last(held, "allocation")
+    assert "freight_1" not in picture["trains"]
+    assert picture["requests"] == []
+    assert order(held, "request_cancelled", "train_removed") == [
+        "request_cancelled",
+        "train_removed",
+    ]
 
 
 def test_a_removal_naming_stock_the_railroad_lacks_is_dropped(
