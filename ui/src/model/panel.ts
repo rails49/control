@@ -548,7 +548,13 @@ export class Panel {
         request.route = route;
         return;
       }
-      case "request_completed": {
+      case "request_completed":
+      case "request_cancelled": {
+        // The two ways a request the panel was following ends: the train
+        // arrived, or somebody ended it before it did (ADR-0049). Either way
+        // the request is over and the row goes; a cancelled one leaves no
+        // marker behind, the way a rejected one does, because nothing about
+        // it is waiting to be looked at.
         const { id } = event as unknown as { id: string };
         this.requests.delete(id);
         return;
