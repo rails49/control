@@ -187,18 +187,27 @@ requests:
   released against a clock is the scheduler's own milestone-2 work
   ([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 - **`from` requires the end and takes the block optionally.** `from: yard_w.B`
-  states the working the way a reader wants to see it, and is checked by the
-  dispatcher at admission against where the train actually stands — every
-  feasibility check is the dispatcher's, whatever the scheduler happens to know
-  ([ADR-0028](../adr/0028-the-scheduler-knows-where-trains-stand.md)). But a
-  chained working can no longer state it: where the previous request parked the
-  train is a dispatcher choice among that request's arrival ends, unknown when
-  the file is written. Those write `from: A`, and the block is whatever the
-  train is standing in. Where the block *is* written, an authoring slip is
-  rejected when it is judged, as `request_rejected` with reason
-  `wrong_origin`
-  ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)), rather
-  than running as a silently different experiment.
+  states the working the way a reader wants to see it. A chained working may
+  state the block only where the file fixes one: where the previous working's
+  arrival ends all name a single block the train parks there, and where they
+  name several, which one is a dispatcher choice unknown when the file is
+  written. Those write `from: A`, and the block is whatever the train is
+  standing in.
+
+  **A stated block is checked at load**, against the block the file leaves the
+  train in — the placement for a first working, the previous working's arrival
+  block for a chained one — and a disagreement is refused there rather than
+  running as a silently different experiment. It has to be caught here because
+  nothing downstream catches it: at run time a stated block is not a routing
+  input but a hint, and the dispatcher corrects it from the route it chose
+  itself ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)), which is the
+  working a person dragging a moving train on the panel asked for. Only the
+  block is judged. Which end the train leaves by stays the file's to state
+  freely, facing being scheduler discipline rather than a fact the layout
+  holds ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)) — the run-time
+  feasibility checks remain the dispatcher's, whatever the scheduler or a file
+  happens to know
+  ([ADR-0028](../adr/0028-the-scheduler-knows-where-trains-stand.md)).
 
 ## Reading a layout
 

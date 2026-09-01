@@ -403,6 +403,61 @@ def test_departure_end_must_be_an_end_or_bare_letter(
         scratch_store.put(doc)
 
 
+def test_a_first_working_must_depart_the_block_the_train_is_placed_in(
+    scratch_store: AssetStore,
+) -> None:
+    doc = meet_document()
+    doc["requests"][0]["from"] = "dn_e.A"  # freight_1 is placed in yard_w
+    with pytest.raises(ValueError, match="departs 'dn_e'.*stands in 'yard_w'"):
+        scratch_store.put(doc)
+
+
+def test_a_chained_working_may_state_the_block_its_predecessor_fixes(
+    scratch_store: AssetStore,
+) -> None:
+    """The meet's return working: the outward one names ends in one block, so
+    where the train parks is written in the file and the working may say it."""
+    doc = meet_document()
+    doc["requests"].append(
+        {"train": "freight_1", "from": "yard_e.A", "to": ["dn_w"]},
+    )
+    scratch_store.put(doc)
+    scenario = scratch_store.get("crossover-yard/meet")
+    assert isinstance(scenario, Scenario)
+    assert scenario.requests[1].depart == "yard_e.A"
+
+
+def test_a_chained_workings_stated_block_is_refused_at_load(
+    scratch_store: AssetStore,
+) -> None:
+    """The authoring slip nothing downstream catches: at run time the
+    dispatcher takes a stated block for a hint and corrects it from the route
+    it chose (#135), so a working that departs somewhere the train never
+    stands would run as a silently different experiment (LAYOUT.md)."""
+    doc = meet_document()
+    doc["requests"].append(
+        {"train": "freight_1", "from": "dn_e.A", "to": ["dn_w"]},
+    )
+    with pytest.raises(ValueError, match="departs 'dn_e'.*stands in 'yard_e'"):
+        scratch_store.put(doc)
+
+
+def test_a_chained_working_states_no_block_where_the_file_fixes_none(
+    scratch_store: AssetStore,
+) -> None:
+    """Its predecessor's arrival ends name two blocks, so which one the train
+    parks in is a dispatcher choice: the working writes a bare end letter."""
+    doc = meet_document()
+    doc["requests"][0]["to"] = ["yard_e.A", "dn_e.A"]
+    doc["requests"].append(
+        {"train": "freight_1", "from": "yard_e.A", "to": ["dn_w"]},
+    )
+    with pytest.raises(ValueError, match="dispatcher choice.*bare end letter"):
+        scratch_store.put(doc)
+    doc["requests"][1]["from"] = "A"
+    scratch_store.put(doc)
+
+
 def test_an_address_typed_onto_a_turnout_is_read_back_unchanged(
     scratch_store: AssetStore,
 ) -> None:
@@ -422,6 +477,7 @@ def test_put_is_whole_document_create_or_replace(scratch_store: AssetStore) -> N
 
     replaced = meet_document()
     replaced["trains"]["freight_1"]["at"] = "up_w"
+    replaced["requests"][0]["from"] = "up_w.B"  # the working departs where it stands
     scratch_store.put(replaced)
 
     scenario = scratch_store.get("crossover-yard/meet")
