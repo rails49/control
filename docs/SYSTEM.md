@@ -74,7 +74,7 @@ flowchart TB
   railroad's roster. It is not on the bus, because it answers queries and the
   bus does not.
 - **UI** — the panel, and a throttle later. It watches the bus and writes
-  **gestures** on the four browser-writable topics of the inventory below. A
+  **gestures** on the five browser-writable topics of the inventory below. A
   gesture is not a request: it names a train and where to put it, and the
   scheduler composes the request
   ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
@@ -221,9 +221,10 @@ connects to a WebSocket relay ([ui/PANEL.md](ui/PANEL.md#implementation)).
 Every `tc49/#` event is sent to every client as one JSON frame,
 `{"topic": …, "payload": …}`.
 
-A client may publish only on the four browser-writable topics —
+A client may publish only on the five browser-writable topics —
 `tc49/schedule/request_wanted`, `tc49/schedule/reversal_wanted`,
-`tc49/dispatch/run_wanted` and `tc49/dispatch/placement_wanted` — and each
+`tc49/dispatch/run_wanted`, `tc49/dispatch/placement_wanted` and
+`tc49/dispatch/cancel_wanted` — and each
 frame it sends is published as the event its topic names. That list is not
 written down twice: it is every row of the inventory below that carries the
 browser mark, which is also what a broker will grant a page once the relay is
@@ -240,7 +241,7 @@ alone. The path is not a topic, so none of this changes what a client may
 publish.
 
 **A browser cannot publish a request.** `tc49/dispatch/request_submitted` is
-refused like any other topic that is not one of the four above. A browser
+refused like any other topic that is not one of the five above. A browser
 publishes gestures and the scheduler turns them into requests, so "only the
 scheduler writes requests" is something the relay checks rather than an
 intention
@@ -291,7 +292,7 @@ written down a second time, so marking a row widens the browser's write
 surface the day the mark lands, and the mark is the same permission a
 broker's ACL will carry once the relay is gone
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
-Today the mark sits on exactly the four gesture rows. The throttle a person
+Today the mark sits on exactly the five gesture rows. The throttle a person
 drives with ([#124](https://github.com/rails49/control/issues/124),
 [#148](https://github.com/rails49/control/issues/148)) arrives as one more
 marked row under the component that responds to it. Whether a row carries
@@ -315,9 +316,11 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/dispatch/request_submitted` | event | any | a request, composed and released |
 | `tc49/dispatch/run_wanted` | event | any (browser) | hold the run or release it |
 | `tc49/dispatch/placement_wanted` | event | any (browser) | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
+| `tc49/dispatch/cancel_wanted` | event | any (browser) | end a train's request without arriving ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)) |
 | `tc49/dispatch/request_admitted` | event | dispatcher | admission accepted it, with what survived pruning |
 | `tc49/dispatch/request_rejected` | event | dispatcher | admission refused it, and why |
 | `tc49/dispatch/request_completed` | event | dispatcher | the train arrived |
+| `tc49/dispatch/request_cancelled` | event | dispatcher | the request ended without arriving, and why |
 | `tc49/dispatch/route_chosen` | event | dispatcher | the route a launch fixed |
 | `tc49/dispatch/move_granted` | event | dispatcher | one transit authorised |
 | `tc49/dispatch/grant_refused` | event | dispatcher | a grant blocked, and by what |
@@ -402,7 +405,7 @@ its two names, as each topic states.
 
 #### `schedule`
 
-The four browser-writable rows here and under `dispatch` are where rule 4
+The five browser-writable rows here and under `dispatch` are where rule 4
 bites hardest: each payload is read defensively, and one that fails the read
 is dropped.
 
@@ -432,6 +435,11 @@ is dropped.
   load-bearing: a payload without `block` fails the read, while an explicit
   `null` is a positive statement
   ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
+- `tc49/dispatch/cancel_wanted` — browser-writable — `train`. The gesture
+  names no request: it ends whatever that train has, pending or active, and
+  a train with nothing in flight is dropped like any other gesture the
+  dispatcher cannot act on
+  ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
 - `tc49/dispatch/request_admitted` — `id`; `dest`: the arrival ends that
   survived pruning; `pruned`: list of `{end, reason}`, `reason` one of
   `no_fit`, `no_entry`, `unreachable`.
@@ -440,6 +448,10 @@ is dropped.
   `no_entry`, `unreachable` — the set is `tc49.lib.rejection`, and the UI's
   copy of it is generated.
 - `tc49/dispatch/request_completed` — `id`.
+- `tc49/dispatch/request_cancelled` — `id`; `reason`: enum `revoked`,
+  `removed`, `displaced` — the set is `tc49.lib.cancellation`. `revoked` is
+  the gesture that names the request's own end, and the other two are the
+  two directions of a placement that retired it.
 - `tc49/dispatch/route_chosen` — `id`; `route`: list alternating block and
   transit names, starting and ending on a block, a single block for the
   degenerate already-there case; `k_tried`: integer, candidate routes
