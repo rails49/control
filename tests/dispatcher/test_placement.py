@@ -220,6 +220,48 @@ def test_a_displaced_train_never_departs_on_the_cancelled_route(
     assert last(held, "allocation")["trains"]["freight_1"] == "up_w"
 
 
+def test_a_placement_over_an_outstanding_move_retires_the_request_at_once() -> None:
+    """The derailment, exactly: a train granted a move, a hold pressed under
+    it, and a person who can see the locomotive is not where the sensors say
+    it is going.
+
+    A `cancel_wanted` would defer here, nothing on the bus retracting a
+    `move` already sent. A placement does not: the person is answering the
+    move the sensors may never answer, so the request retires at the gesture
+    and the train is stood where they say it is (ADR-0049).
+
+    A sensor that does arrive afterwards explains nothing and holds the run
+    (ADR-0048) — which is the right answer to a detector firing under a train
+    somebody has moved by hand, and a no-op here because a placement is
+    honoured only while the run is already held.
+    """
+    layout, _roster, _ = load("crossover-yard/meet")
+    assembly = assemble_live(layout, STOCK, two_trains(), FullRoute)
+    press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    press(assembly, RUN_WANTED, {"run": "held"})
+    picture = last(assembly, "allocation")
+    assert picture["crossing"]["freight_1"], "no move is outstanding"
+
+    place(assembly, "freight_1", "up_w")
+
+    assert last(assembly, "request_cancelled") == {
+        "time": 0.0,
+        "event": "request_cancelled",
+        "id": "freight_1-1",
+        "reason": "displaced",
+    }
+    after = last(assembly, "allocation")
+    assert after["trains"]["freight_1"] == "up_w"
+    assert after["crossing"] == {}
+    assert after["requests"] == []
+    assert after["locks"] == {"up_w": "freight_1", "dn_e": "leviathan"}
+
+    ticks(assembly, 4)  # the sensors of the move nobody is making any more
+
+    assert last(assembly, "run")["run"] == "held"
+    assert last(assembly, "allocation")["trains"]["freight_1"] == "up_w"
+
+
 def test_a_placement_the_railroad_cannot_accept_still_ends_the_request(
     held: Assembly,
 ) -> None:
