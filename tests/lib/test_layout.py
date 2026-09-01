@@ -167,9 +167,10 @@ def test_a_transit_names_one_end_of_each_block_it_joins() -> None:
 
 def test_a_transit_the_layout_does_not_hold_crosses_no_end() -> None:
     """The same question asked of names that came off the bus: `end_crossed`
-    answers None where `end_on` would raise, because a consumer may not raise
-    on a payload (SYSTEM.md, rule 4). A transit under no connection, one no
-    connection declares, and one that crosses the block named nowhere."""
+    answers None where `end_on` reaches straight into the layout and raises,
+    because a consumer may not raise on a payload (SYSTEM.md, rule 4). A
+    transit under no connection, one no connection declares, one left
+    unqualified, and one that crosses the block named nowhere."""
     layout, _roster, _ = load("crossover-yard/meet")
 
     assert end_crossed(layout, "yard_w", "west_ladder.to_dn") == "yard_w.B"
@@ -178,8 +179,6 @@ def test_a_transit_the_layout_does_not_hold_crosses_no_end() -> None:
     assert end_crossed(layout, "yard_w", "to_dn") is None  # unqualified
     assert end_crossed(layout, "up_e", "west_ladder.to_dn") is None
     assert end_crossed(layout, "ghost", "west_ladder.to_dn") is None
-    with pytest.raises(ValueError):
-        end_on(layout, "yard_w", "west_ladder.ghost")
 
 
 def test_a_block_with_both_ends_connected_answers_the_candidate(

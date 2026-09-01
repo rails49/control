@@ -13,10 +13,10 @@ outside — Layout is a data structure, not a policy.
 The ``check_*`` helpers are shared with the scenario validation in
 ``store.py``. The ``<block>.<A|B>`` end form is parsed here and nowhere else:
 ``check_end`` validates one, ``block_of``, ``end_letter`` and ``opposite_end``
-take one apart, ``end_on`` reads one off a transit — ``end_crossed`` where the transit came off
-the bus — ``connected_end`` says which end of a block a connection holds, and
-``departure_end`` composes that over ``opposite_end`` into the end a train
-leaves a block by.
+take one apart, ``end_on`` reads one off a transit and ``end_crossed`` does
+the same for a transit that came off the bus, ``connected_end`` says which end
+of a block a connection holds, and ``departure_end`` composes that over
+``opposite_end`` into the end a train leaves a block by.
 """
 
 from collections.abc import Container
@@ -309,15 +309,37 @@ def departure_end(layout: Layout, entered: str) -> str:
     return connected_end(layout, opposite_end(entered))
 
 
-def end_crossed(layout: Layout, block: str, transit: str) -> str | None:
-    """The end of `block` that `transit` crosses, or None where the layout
-    holds no such transit or that transit crosses neither end of that block.
+def end_on(layout: Layout, block: str, transit: str) -> str:
+    """The end of `block` that `transit` crosses.
 
-    `end_on` asked of names that came off the bus, where a payload proves
-    nothing about its sender and a consumer may not raise on one (SYSTEM.md,
-    rule 4). The question stays the layout's: a reader in `lib.payload` can
-    say that a block and a transit were named and nothing more, and whether
-    they name anything is what a layout is for.
+    Which end that is does not depend on which way a train is going over it:
+    leaving, it is the departure end the train goes out through, and so the
+    signal the aspect belongs to; entering, it is the arrival end the train
+    comes in through. Neither is on the bus — `move_granted` names the transit
+    and the block, and `route_chosen` names the route — so both the dispatcher
+    and the scheduler read it from the layout here.
+
+    It takes the two names as the layout's own, which is what the dispatcher
+    holds: the route it just chose crosses the blocks it is made of. A caller
+    holding names that came off the bus asks `end_crossed` below.
+    """
+    connection, _, name = transit.partition(".")
+    first, second = layout.connections[connection].transits[name]
+    return first if block_of(first) == block else second
+
+
+def end_crossed(layout: Layout, block: str, transit: str) -> str | None:
+    """`end_on` asked of names that came off the bus: the end of `block` that
+    `transit` crosses, or None where the layout holds no such transit or that
+    transit crosses neither end of that block.
+
+    A consumer may not raise on a payload (SYSTEM.md, rule 4), and `end_on`
+    reaches straight into the layout, so a transit no connection here holds is
+    a `KeyError` out of a handler. The pair is read together because a grant
+    names both and neither is meaningful alone: a transit crossing no end of
+    the block named leaves no end to face away from, and answering the far
+    block's end instead would carry a frame the layout contradicts into
+    facing.
     """
     connection, _, name = transit.partition(".")
     held = layout.connections.get(connection)
@@ -328,28 +350,3 @@ def end_crossed(layout: Layout, block: str, transit: str) -> str | None:
     if block_of(first) == block:
         return first
     return second if block_of(second) == block else None
-
-
-def end_on(layout: Layout, block: str, transit: str) -> str:
-    """The end of `block` that `transit` crosses.
-
-    Which end that is does not depend on which way a train is going over it:
-    leaving, it is the departure end the train goes out through, and so the
-    signal the aspect belongs to; entering, it is the arrival end the train
-    comes in through. Neither is on the bus — `move_granted` names the transit
-    and the block, and `route_chosen` names the route — so the end is read from
-    the layout here.
-
-    The raising face of `end_crossed`, for a caller holding a transit the
-    layout itself gave it: a route the dispatcher just chose crosses the blocks
-    it is made of, so a None there is a bug in this process and not a frame
-    someone published. A caller holding a transit off the bus asks
-    `end_crossed` instead and drops what the layout does not hold.
-    """
-    end = end_crossed(layout, block, transit)
-    if end is None:
-        raise ValueError(
-            f"layout '{layout.name}': transit '{transit}' crosses no end of"
-            f" block '{block}'"
-        )
-    return end

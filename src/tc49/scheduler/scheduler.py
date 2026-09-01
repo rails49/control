@@ -81,9 +81,9 @@ class Scheduler:
         # for want of a departure end. The seed above it is a cold start's,
         # and a train the retained value does not name — one added since — is
         # a cold start of one.
-        restored = _retained(layout, bus.last_values.get(FACING, {}).get("facing"))
+        restored = bus.last_values.get(FACING, {}).get("facing", {})
         self._facing: dict[str, str] = dict(sorted((facing or {}).items())) | dict(
-            sorted(restored.items())
+            sorted(cast(dict[str, str], restored).items())
         )
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
         self._counters: Counter[str] = Counter()  # one undivided minter
@@ -305,16 +305,7 @@ class Scheduler:
         gets `A` and the same correction: it is one more arbitrary choice of
         the kind the carry already is, and the dispatcher accepting the
         placement is what says the train is known (ADR-0039).
-
-        A block this railroad does not have is dropped. Whether the block was
-        free is the dispatcher's judgment and none of the scheduler's, but
-        whether the name is a block of the layout in hand is the scheduler's
-        own: facing is a **block end**, published on a state topic every view
-        draws an arrow off, and `connected_end` would answer a well-formed
-        end of a block that does not exist.
         """
-        if block not in self._layout.blocks:
-            return
         facing = self._facing.get(train)
         letter = "A" if facing is None else end_letter(facing)
         self._facing[train] = connected_end(self._layout, f"{block}.{letter}")
@@ -324,35 +315,6 @@ class Scheduler:
         if facing != self._published:
             self._published = facing
             self._bus.publish(FACING, facing)
-
-
-def _retained(layout: Layout, kept: object) -> dict[str, str]:
-    """The facing the bus binding kept across a restart, read as the map it
-    ought to be.
-
-    The scheduler's own last value, and still read rather than trusted: it
-    comes back off a file a hand can edit today and off a retained message
-    tomorrow, where the broker holds what was last published and rule 1 is a
-    contract rather than a lock (SYSTEM.md, ADR-0042). A restart that raised
-    on it would be a railroad that will not start until someone finds the
-    file.
-
-    Read **train by train**, so one bad entry costs one train: what is left
-    out is a train with no facing, which is a cold start of one and exactly
-    what a value naming it nowhere already gives. The ends are checked
-    against the layout for the same reason `train_placed` checks its block —
-    facing is a block end, and a railroad edited between sessions is the
-    ordinary way a kept one stops being an end at all.
-    """
-    if not isinstance(kept, dict):
-        return {}
-    return {
-        train: end
-        for train, end in cast(dict[object, object], kept).items()
-        if isinstance(train, str)
-        and isinstance(end, str)
-        and end in layout.end_connection
-    }
 
 
 def _expand(arrivals: tuple[str, ...]) -> list[str]:
