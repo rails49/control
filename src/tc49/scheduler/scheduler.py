@@ -36,8 +36,21 @@ from collections.abc import Sequence
 from typing import cast
 
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.layout import Layout, connected_end, departure_end, end_letter, end_on
-from tc49.lib.payload import gesture, named_train
+from tc49.lib.layout import (
+    Layout,
+    connected_end,
+    departure_end,
+    end_crossed,
+    end_letter,
+)
+from tc49.lib.payload import (
+    chosen,
+    gesture,
+    grant,
+    named_train,
+    placement,
+    readable_id,
+)
 from tc49.lib.scenario import RequestSpec
 
 FACING = "tc49/schedule/state/facing"
@@ -68,9 +81,9 @@ class Scheduler:
         # for want of a departure end. The seed above it is a cold start's,
         # and a train the retained value does not name — one added since — is
         # a cold start of one.
-        restored = bus.last_values.get(FACING, {}).get("facing", {})
+        restored = _retained(layout, bus.last_values.get(FACING, {}).get("facing"))
         self._facing: dict[str, str] = dict(sorted((facing or {}).items())) | dict(
-            sorted(cast(dict[str, str], restored).items())
+            sorted(restored.items())
         )
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
         self._counters: Counter[str] = Counter()  # one undivided minter
@@ -200,26 +213,82 @@ class Scheduler:
         included, because the topic names the dispatcher that responds to it.
         It is ignored here like every other leaf the scheduler does not act
         on.
+
+        Every payload is **read** and never trusted, exactly as a gesture is
+        (#259). These leaves name the dispatcher because the dispatcher
+        emits them, and a name is not a sender: the bus authenticates
+        nobody, so a frame claiming to be an announcement is one more thing
+        anyone can publish, and a consumer that raised on one would be taken
+        down by whoever published it (SYSTEM.md, rule 4). What cannot be read
+        is dropped, silently and to the trace, as a gesture is: the scheduler
+        answers nothing on the bus, so there is nothing to address a refusal
+        to even where the frame carries an id (ADR-0034).
         """
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "move_granted":
-            entered = end_on(self._layout, payload["into"], payload["transit"])
-            self._facing[payload["train"]] = departure_end(self._layout, entered)
+            self._granted(payload)
         elif leaf == "route_chosen":
-            train = self._train_of.get(payload["id"])
-            route = payload["route"]
-            if train is not None and len(route) > 1:
-                self._facing[train] = end_on(self._layout, route[0], route[1])
+            self._launched(payload)
         elif leaf == "train_placed":
-            self._placed(payload["train"], payload["block"])
+            placed = placement(payload)
+            # A null block is `train_removed`'s statement and not this
+            # leaf's, so the fact that carries one is read as unreadable.
+            if placed is not None and placed.block is not None:
+                self._placed(placed.train, placed.block)
         elif leaf == "train_removed":
             # An unplaced train has no facing: facing is the end of *its
             # block* a parked train would depart through, and there is no
             # block for it to be an end of (ADR-0019, ADR-0039).
-            self._facing.pop(payload["train"], None)
+            removed = named_train(payload)
+            if removed is not None:
+                self._facing.pop(removed, None)
         elif leaf in ("request_completed", "request_rejected"):
-            self._train_of.pop(payload["id"], None)
+            answered = readable_id(payload)
+            if answered is not None:
+                self._train_of.pop(answered, None)
         self._publish_facing()
+
+    def _granted(self, payload: Payload) -> None:
+        """Facing after a move the dispatcher authorised: away from the end
+        the train came in through.
+
+        The end is not on the bus — the grant names the transit and the block
+        entered — so it is read off the layout, and read there through
+        `end_crossed`: a transit no connection here holds, or one that
+        crosses neither end of the block named, leaves nothing to face away
+        from and the frame is dropped. The layout the scheduler holds is what
+        makes that a real question rather than a guess.
+        """
+        move = grant(payload)
+        if move is None:
+            return
+        entered = end_crossed(self._layout, move.into, move.transit)
+        if entered is None:  # not a transit into that block on this railroad
+            return
+        self._facing[move.train] = departure_end(self._layout, entered)
+
+    def _launched(self, payload: Payload) -> None:
+        """Facing after a route was committed: the end it will leave by.
+
+        Which train that is, is the scheduler's own record of the request it
+        submitted, so a route chosen for an id it never minted moves nothing
+        — as one for a request that has since been answered does not. The
+        degenerate already-there route is a single block and has no transit
+        to read an end off, and needs none: nothing moves.
+
+        No correction for a terminal block here, unlike an arrival: a route's
+        departure end is a transit's end and so always connected.
+        """
+        launch = chosen(payload)
+        if launch is None:
+            return
+        train = self._train_of.get(launch.id)
+        if train is None or len(launch.route) < 2:
+            return
+        departure = end_crossed(self._layout, launch.route[0], launch.route[1])
+        if departure is None:  # not a transit off that block on this railroad
+            return
+        self._facing[train] = departure
 
     def _placed(self, train: str, block: str) -> None:
         """Facing after a person has said where a train actually stands.
@@ -236,7 +305,16 @@ class Scheduler:
         gets `A` and the same correction: it is one more arbitrary choice of
         the kind the carry already is, and the dispatcher accepting the
         placement is what says the train is known (ADR-0039).
+
+        A block this railroad does not have is dropped. Whether the block was
+        free is the dispatcher's judgment and none of the scheduler's, but
+        whether the name is a block of the layout in hand is the scheduler's
+        own: facing is a **block end**, published on a state topic every view
+        draws an arrow off, and `connected_end` would answer a well-formed
+        end of a block that does not exist.
         """
+        if block not in self._layout.blocks:
+            return
         facing = self._facing.get(train)
         letter = "A" if facing is None else end_letter(facing)
         self._facing[train] = connected_end(self._layout, f"{block}.{letter}")
@@ -246,6 +324,35 @@ class Scheduler:
         if facing != self._published:
             self._published = facing
             self._bus.publish(FACING, facing)
+
+
+def _retained(layout: Layout, kept: object) -> dict[str, str]:
+    """The facing the bus binding kept across a restart, read as the map it
+    ought to be.
+
+    The scheduler's own last value, and still read rather than trusted: it
+    comes back off a file a hand can edit today and off a retained message
+    tomorrow, where the broker holds what was last published and rule 1 is a
+    contract rather than a lock (SYSTEM.md, ADR-0042). A restart that raised
+    on it would be a railroad that will not start until someone finds the
+    file.
+
+    Read **train by train**, so one bad entry costs one train: what is left
+    out is a train with no facing, which is a cold start of one and exactly
+    what a value naming it nowhere already gives. The ends are checked
+    against the layout for the same reason `train_placed` checks its block —
+    facing is a block end, and a railroad edited between sessions is the
+    ordinary way a kept one stops being an end at all.
+    """
+    if not isinstance(kept, dict):
+        return {}
+    return {
+        train: end
+        for train, end in cast(dict[object, object], kept).items()
+        if isinstance(train, str)
+        and isinstance(end, str)
+        and end in layout.end_connection
+    }
 
 
 def _expand(arrivals: tuple[str, ...]) -> list[str]:
