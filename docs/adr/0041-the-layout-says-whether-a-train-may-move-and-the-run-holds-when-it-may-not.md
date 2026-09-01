@@ -6,6 +6,14 @@ written by the layout interface — one writing role, like every other topic
 `stopped` and `off`. The dispatcher reads it, and anything but `on` holds the
 run ([ADR-0037](0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 
+**Amended under
+[ADR-0051](0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md):**
+the command half below unparks. There is an interface to write against now, so
+the panel commands power on `tc49/layout/power_wanted`, carrying this ADR's own
+closed set, and `layout` routes it to the hardware. Everything else here stands:
+one topic and one axis, `stopped` and `off` apart for the operator and together
+for the dispatcher, and power returning to `on` releasing nothing.
+
 **Amended for
 [#242](https://github.com/rails49/control/issues/242):** a field whose values
 are a closed set is an **enum**; this ADR calls it a *word*, the term
@@ -23,7 +31,7 @@ volts in it — the lie ADR-0037 refuses to tell for a held run, arriving by
 another route. Restarting the process was the only cure, and a power cut that
 never took the apps down never reached it.
 
-## The layout reports power; it does not yet take a command
+## The layout reports power, and takes a command for it
 
 A command station has both controls, and they are different things. **Power
 off** removes the track supply: nothing moves, and the accessory decoders lose
@@ -37,10 +45,14 @@ anything else. The layout interface is *commands in, observations out*
 what hardware can implement — a booster's output state is about as
 implementable as an observation gets.
 
-The command half stays parked. Today the operator's ON is a physical action,
-there is no booster interface to write against, and an emergency stop worth
-the name is a hardwired contact rather than a message. What changes here is
-that the app can be *told*, which is all the dispatcher needs to stop lying.
+The command half stayed parked when this was written: the operator's ON was a
+physical action, there was no booster interface to write against, and an
+emergency stop worth the name was a hardwired contact rather than a message.
+What changed here is that the app can be *told*, which is all the dispatcher
+needs to stop lying. ADR-0051 unparks the other half — `tc49/layout/power_wanted`
+carries the same three values in the command direction — and leaves this
+paragraph's reasoning intact: it was the missing interface that parked it, and
+that interface now exists.
 
 It is stated from the binding's constructor, always, so a joining client is
 served the word rather than left to read one out of an absence
@@ -96,7 +108,7 @@ always live; a power cut is a physical act, and simulating one would be the
 field or the branch that stays out of every app
 ([ADR-0030](0030-the-physical-railroad-is-the-normative-binding.md)). What
 exercises the dispatcher's side of it is the topic, published by a test. A
-live session gains the button when the command half lands.
+live session gains the button with ADR-0051.
 
 A **cold session gains a line at boundary 0** and the pinned benchmark trace
 regenerates with it.

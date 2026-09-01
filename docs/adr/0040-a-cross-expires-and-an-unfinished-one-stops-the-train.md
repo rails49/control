@@ -23,6 +23,14 @@ plus a placement; a placement now cancels the train's request and releases
 what it held, so the wedge ends where the person is standing rather than at
 the next restart. Legs 2 and 3 are untouched.
 
+**Amended under
+[ADR-0051](0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md):**
+the third leg's conclusion — track power held on by a kicked watchdog dropping
+a relay — is dropped, as a workaround for an imagined problem. *Stopping is two
+commands, and the second one is the backstop* keeps its analysis and loses that
+one paragraph: the backstop is the operator, as on every layout ever built, and
+the panel now has the button. Legs 1 and 2 are untouched.
+
 **Amended for
 [#236](https://github.com/rails49/control/issues/236):** the driver's command
 was `cross` when this was written and is now `move`, on `tc49/drive/move`. The
@@ -132,13 +140,15 @@ And neither survives the adapter's own death. If the process holding the
 throttle dies, no software above it can stop a train, because every layer above
 speaks to the rails through it.
 
-So the last leg is **not software**: track power is held on by something that
+So the last leg was **not software**: track power held on by something that
 stops holding when the adapter stops running — a watchdog that must be kicked,
-dropping a relay when it isn't. This is the same layer
-[ADR-0037](0037-the-run-is-held-or-running-and-held-blocks-commitment.md)
-already leans on when it says the rails are dead until a person switches them
-on, and the same reason: a guarantee that survives the software has to live
-under it.
+dropping a relay when it isn't. That conclusion is dropped under
+[ADR-0051](0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md).
+A train rolling when the process holding the throttle dies keeps rolling until
+a person acts, and the person is the backstop; what
+[ADR-0037](0037-the-run-is-held-or-running-and-held-blocks-commitment.md) leans
+on when it says the rails are dead until a person switches them on is that same
+person, who now has the switch on the panel.
 
 ## Not built on MQTT
 
@@ -175,8 +185,7 @@ the point of putting the mechanism in the contract rather than in the adapter.
 **The simulator's binding of the other two legs is a no-op**, and stays behind
 the interface ([ADR-0030](0030-the-physical-railroad-is-the-normative-binding.md)):
 a simulated detector always fires and a simulated rail has no power. The
-timeout and the relay are the physical binding's, and no app grows a field or a
-branch for them.
+timeout is the physical binding's, and no app grows a field or a branch for it.
 
 **A wedged block has no automatic recovery**, by choice. Named here so it is
 not later discovered as a gap: the dispatcher has no notion of a failed
@@ -185,7 +194,7 @@ plus a placement.
 
 **This is milestone-2 work**, not milestone 1
 ([MILESTONE-1.md](../MILESTONE-1.md)) — there is no hardware adapter yet, and
-the transit bound and the power watchdog arrive with the DCC-EX driver. Only
+the transit bound arrives with the DCC-EX driver. Only
 the `boundary` field on `move` and its refusal rule land earlier, because they
 are contract and because a stale command is dangerous the day the broker
 replaces the in-process bus, which is before any hardware.

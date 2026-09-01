@@ -107,8 +107,7 @@ station's overload diagnostics.
   publishes to it, while the apps may still share the in-process bus. JMRI
   is a third-party container on 2560 with its GUI reachable; nothing of ours
   is in either.
-- Carried to the power ticket: a translator kicks ADR-0040's relay and
-  stops when the beat stops, and the ordering that keeps a retained speed
-  from moving a train on reconnect.
+- Carried to the power ticket: a translator stops when the beat stops, and
+  the ordering that keeps a retained speed from moving a train on reconnect.
 - `tc49/layout/*` names the bus role and has nothing to do with the store's
   layout document; the collision with the glossary's *layout* stands, noted.
