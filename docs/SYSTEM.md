@@ -902,12 +902,11 @@ that cannot be read is **dropped**: the interface reports observations and
 answers nothing, so a refusal would have nowhere to go
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)),
 and the frame is on the trace by virtue of having been published. A command
-naming a transit this railroad does not hold, or one that crosses no end of
-the block the command says the train is entering, is dropped the same way:
-there is no near end for the train to be standing at, and the layout is the
-one thing that can say so. `align` is read by whatever acts on it: the
-milestone-1 simulator throws no points and so reads nothing off it, and an
-adapter that does throw them reads the pairs it was given by the same rule.
+naming a transit this railroad does not hold is dropped the same way: it
+names no near end for the train to be standing at, and the layout is the one
+thing that can say so. `align` is read by whatever acts on it, and the
+milestone-1 simulator throws no points, so it reads nothing off that one and
+nothing on it can fail to be read.
 
 On the physical railroad the layout interface is the core app `layout`, and
 hardware sits under it by address, as thin translators speaking a device-level
