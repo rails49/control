@@ -892,6 +892,23 @@ on state alone — no clock, no stamp, no agreement between apps. The same
 check refuses a command overtaken by a hand's placement, and one naming a
 train no longer on the layout.
 
+Every payload the binding is handed is **read** and never trusted (rule 4):
+the `move` it acts on, and the two placements it hears about below. A leaf
+names the component that answers for it and not the process that published
+this frame — the driver publishes `move` today, and under MQTT it is another
+container — so a binding that raised on one would be taken down by whoever
+published it, leaving the railroad running with nothing watching it. A frame
+that cannot be read is **dropped**: the interface reports observations and
+answers nothing, so a refusal would have nowhere to go
+([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)),
+and the frame is on the trace by virtue of having been published. A command
+naming a transit this railroad does not hold, or one that crosses no end of
+the block the command says the train is entering, is dropped the same way:
+there is no near end for the train to be standing at, and the layout is the
+one thing that can say so. `align` is read by whatever acts on it: the
+milestone-1 simulator throws no points and so reads nothing off it, and an
+adapter that does throw them reads the pairs it was given by the same rule.
+
 On the physical railroad the layout interface is the core app `layout`, and
 hardware sits under it by address, as thin translators speaking a device-level
 vocabulary on the bus
