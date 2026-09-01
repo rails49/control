@@ -3,6 +3,13 @@
 Resolves [#243](https://github.com/rails49/control/issues/243);
 [#264](https://github.com/rails49/control/issues/264) executes it.
 
+**Completed by
+[ADR-0049](0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md):**
+"cancellation is contract surface that exists nowhere today" below is no
+longer true. `tc49/dispatch/cancel_wanted` and `tc49/dispatch/request_cancelled`
+are that surface, and a dead train's locks no longer survive until restart.
+Nothing else here changes.
+
 `tc49/layout/boundary` is a requirement the simulator invented. The simulator
 simulates a subset of the app's features — it is not the app, and it adds no
 requirement of its own to any contract.
