@@ -201,8 +201,12 @@ $ nc blocks49.local 2560
 The banner naming the firmware, the board and the motor shield is the station
 answering through the mirror, which is what `device/link: up` is made of; the
 `<p…>` lines are what `device/track` is folded from; and the locomotive should
-stop on `<!P>` and **stay** stopped when you send `<t 3 63 1>` again. Send
-`<t 3 0 1>` and then `<!R>` to get it back, in that order — the app's rule,
-done by hand. Sending `<!R>` alone is the failure that rule exists for, and it
-is worth doing once, on a train you are watching, to see the locomotive take
-off at the speed it was doing.
+stop on `<!P>` and **stay** stopped when you send `<t 3 63 1>` again, which is
+the lock doing what the one-shot would not.
+
+To get it back, send `<t 3 0 1>` and then `<!R>`, in that order — the app's
+rule, done by hand — and the locomotive should still be standing after the
+release. Doing it in the other order is the failure the rule exists for: the
+station is holding the speed it had when the lock went on, and a bare `<!R>`
+resumes it. Nothing in the software is in the path of those packets, so do not
+send one to find out.

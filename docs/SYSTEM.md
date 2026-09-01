@@ -1329,11 +1329,9 @@ as a measured one (ADR-0043); on this railroad turnouts have no feedback
 translator driving them writes none, a faked reply being worse than silence.
 
 Two of the observed rows are published today, both by a translator:
-`device/track`, folded from what its hardware says about the supply, and
-`device/link`, its own reachability. They are the two `layout` reads, and the
-two `state/power` is folded from. `device/sensor` waits on a detector and
-`device/point` on hardware that reports a position, which the turnouts of the
-railroad driven today do not. Folding two sensors into `block_occupied` and
+`device/track` and `device/link`, which are also the two `layout` reads and
+the two `state/power` is folded from. `device/sensor` and `device/point` are
+declared and written by nobody. Folding two sensors into `block_occupied` and
 `block_vacated`, and any debounce, are `layout`'s own work and are still to
 come.
 
