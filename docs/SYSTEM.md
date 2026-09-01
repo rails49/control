@@ -382,7 +382,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Scheduler | `tc49/dispatch/#` **and** `tc49/schedule/#` |
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
-| Layout interface | `tc49/layout/align`, `tc49/layout/move` **and** `tc49/dispatch/train_placed` / `train_removed` |
+| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects` **and** `tc49/layout/state/device/#` |
 | Trace tap | `tc49/#` |
 
 Two things the inventory has to keep true:
@@ -397,10 +397,14 @@ Two things the inventory has to keep true:
   itself, and the scheduler's `tc49/dispatch/#` brings `request_submitted`,
   its own included. Ignoring an unrecognized leaf is rule 4 doing its
   ordinary work. The layout interface is the one exception to the
-  prefix-filter shape and stays the only one. It acts on its two commands
-  and on the two placement facts; a `tc49/layout/#` filter would hand it
-  back its own sensors, and subscribing to the whole of `dispatch` would
-  mean discarding most of what it heard.
+  prefix-filter shape and stays the only one. It names the topics it acts
+  on — the two commands, the power a person presses, the two placement facts
+  and the dispatcher's aspects — because a `tc49/layout/#` filter would hand
+  it back its own sensors and its own device writes, and subscribing to the
+  whole of `dispatch` would mean discarding most of what it heard. Its one
+  prefix filter is `tc49/layout/state/device/#`, the observed half of the
+  vocabulary below, which is a filter of the ordinary shape: the addresses
+  under it are a railroad's wiring and cannot be listed.
 
 **What a payload carries.** Events are tied together by the request id, and
 no event repeats what another has already said. An event in a request's life
@@ -1025,9 +1029,20 @@ that drives realistically later grows behind the same topic.
 
 ### Layout interface
 
-*Reads* the layout. *Subscribes* `tc49/layout/align`, `tc49/layout/move` and
-`tc49/dispatch/train_placed` / `train_removed`. *Publishes* the sensor
-events and `state/power`.
+*Reads* the layout. *Subscribes* `tc49/layout/align`, `tc49/layout/move`,
+`tc49/layout/power_wanted`, `tc49/dispatch/train_placed` / `train_removed`,
+`tc49/dispatch/state/aspects` and `tc49/layout/state/device/#`. *Publishes* the
+sensor events, `state/power` and the desired half of the device vocabulary
+below.
+
+That is the **role's** footprint, and its two bindings meet different parts of
+it. The core app `layout` is all of it but the sensor events, which wait on the
+fold from `device/sensor`
+([layout/README.md](layout/README.md)); the milestone-1 simulator answers the
+two commands and the two placement facts, publishes the sensors from delays of
+its own, and states a railroad that is always live
+([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)). A run
+has one of them.
 
 The layout interface is where the system meets the track: **commands in,
 observations out**, and it owns time. What it publishes is exactly what
@@ -1116,8 +1131,11 @@ allocated. *Manual* names who turns the throttle and nothing else; an operator
 running a signal at stop is rogue operation the system does not model.
 
 The three rows are **declared and not yet acted on**: nothing publishes or
-subscribes to any of them, so the *Subscribes* and *Publishes* lines above are
-what a binding does today, and a throttle to drive from is the UI's own work.
+subscribes to any of them, they are not on the *Subscribes* line above, and a
+throttle to drive from is the UI's own work. They reach a locomotive through
+the traction write, which is why they wait on it
+([#296](https://github.com/rails49/control/issues/296),
+[#297](https://github.com/rails49/control/issues/297)).
 
 On the physical railroad the layout interface is the core app `layout`, and
 hardware sits under it by address, as thin translators speaking a device-level
@@ -1163,9 +1181,12 @@ cannot verify that the power really went away and does not try. **The railroad
 comes up with power off** — `layout` starts having written `off`, so nothing
 moves and no turnout throws until a person turns it on — and thereafter
 `layout` writes the value it was told to write and never `off` of its own
-accord. The row is declared and not yet acted on: the panel publishes it and
-nothing subscribes, so the *Subscribes* line above is still what a binding does
-today.
+accord. **`state/power` is folded from what the hardware reports**, never from
+having commanded it: the supply's own word wherever every link ever seen reads
+up, and `off` otherwise, which is where an unreadable frame on either row falls
+([layout/README.md](layout/README.md#power)). The simulator answers none of
+this — simulated track is always live, and a power cut is a physical act
+(ADR-0030).
 
 `train_placed` is the one thing besides a `move` that moves a train, and what
 a binding does with it is its own business. The simulator stands in for a
@@ -1208,7 +1229,12 @@ address nothing answers to does no harm, as a packet nobody picks up does
 ([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 The rows are `tc49.lib.inventory.DEVICE_TOPICS`.
 
-**What `layout` asks of the hardware.**
+**What `layout` asks of the hardware.** Three of the five are written today —
+`wanted/point` on each `align`, `wanted/signal` on each aspect the dispatcher
+shows, and `wanted/track` on each press of the power (#287). Traction and
+function wait on the write that composes a speed's sign out of the way a
+locomotive is parked
+([#296](https://github.com/rails49/control/issues/296)).
 
 | Topic | Payload | Values |
 | --- | --- | --- |
@@ -1298,9 +1324,11 @@ as a measured one (ADR-0043); on this railroad turnouts have no feedback
 ([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)), so the
 translator driving them writes none, a faked reply being worse than silence.
 
-Nothing publishes or subscribes to the observed rows today: they are declared,
-as the rows above them are. Folding two sensors into `block_occupied` and
-`block_vacated`, and any debounce, are `layout`'s own work.
+Nothing publishes the observed rows today. `layout` reads two of them,
+`device/track` and `device/link`, which are the two `state/power` is folded
+from; `device/sensor` and `device/point` are declared and read by nobody.
+Folding two sensors into `block_occupied` and `block_vacated`, and any
+debounce, are `layout`'s own work and are still to come.
 
 Every row of both halves is state rather than command because that is what
 makes the extra hop safe under at-least-once delivery: a replayed message

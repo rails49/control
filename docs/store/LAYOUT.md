@@ -122,8 +122,11 @@ connections:
   two ends may share one, and then two signals show one aspect together, as
   two points on one address move together. `Layout` reads it as `signal_at`,
   keyed by the `<block>.<end>` form every other end here is written in.
-  Nothing reads it yet: what shows an aspect at an end is `layout`'s, and its
-  own issue.
+  `layout` is what reads it: on each picture of the aspects the dispatcher
+  publishes it writes the signal standing at each signalled end, and skips the
+  ends that carry none ([layout/README.md](../layout/README.md#aspects)). No
+  committed railroad signals an end, so `signal_at` is empty for every railroad
+  in `layouts/` and nothing is written for any of them.
 - **`points` names transits, and only some of them.** Every key under it is a
   transit of the same connection, checked at load. A transit whose way crosses
   no point is absent rather than empty, as is the whole `points` key where a
