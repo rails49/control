@@ -2,9 +2,13 @@
 
 from tc49.lib.inventory import HELD, OFF, ON, RUNNING, STOPPED
 from tc49.lib.payload import (
+    Chosen,
     Gesture,
+    Grant,
     Placement,
+    chosen,
     gesture,
+    grant,
     named_train,
     occupancy,
     placement,
@@ -54,6 +58,70 @@ def test_a_payload_naming_no_reversal_reads_as_none() -> None:
     ]
     for payload in refused:
         assert named_train(payload) is None, payload
+
+
+def test_a_granted_move_reads_as_the_train_the_transit_and_the_block() -> None:
+    """The three fields a consumer of the grant acts on. The transit stays
+    qualified: splitting it is the driver's and reading the end it crosses is
+    the layout's, and neither is a question about the payload."""
+    assert grant(
+        {
+            "id": "freight_1-1",
+            "train": "freight_1",
+            "transit": "west_ladder.to_dn",
+            "into": "dn_w",
+            "aspect": "clear",
+        }
+    ) == Grant("freight_1", "west_ladder.to_dn", "dn_w")
+
+
+def test_a_payload_naming_no_granted_move_reads_as_none() -> None:
+    """An announcement is read exactly as a gesture is: the bus does not
+    authenticate a publisher, so a frame claiming to be the dispatcher's is
+    read and never trusted (SYSTEM.md, rule 4)."""
+    refused: list[object] = [
+        "freight_1 into dn_w",  # not an object at all
+        ["freight_1", "west_ladder.to_dn", "dn_w"],  # nor a list of its fields
+        {"transit": "west_ladder.to_dn", "into": "dn_w"},  # no train
+        {"train": "freight_1", "into": "dn_w"},  # no transit
+        {"train": "freight_1", "transit": "west_ladder.to_dn"},  # no block entered
+        {"train": "freight_1", "transit": None, "into": "dn_w"},
+        {"train": "freight_1", "transit": "west_ladder.to_dn", "into": 7},
+    ]
+    for payload in refused:
+        assert grant(payload) is None, payload
+
+
+def test_a_chosen_route_reads_as_the_id_and_the_names_in_order() -> None:
+    """The alternating sequence, whole and unexamined: which of it a consumer
+    needs is its own, and a single block is the degenerate already-there
+    case."""
+    assert chosen(
+        {
+            "id": "freight_1-1",
+            "route": ["yard_w", "west_ladder.to_dn", "dn_w"],
+            "k_tried": 2,
+        }
+    ) == Chosen("freight_1-1", ("yard_w", "west_ladder.to_dn", "dn_w"))
+    assert chosen({"id": "freight_1-1", "route": ["yard_w"], "k_tried": 0}) == Chosen(
+        "freight_1-1", ("yard_w",)
+    )
+
+
+def test_a_payload_naming_no_chosen_route_reads_as_none() -> None:
+    """Whether the names name anything, and whether they alternate, are the
+    layout's questions and the chooser's: a reader that asked them would be
+    re-deriving the route rather than reading it."""
+    refused: list[object] = [
+        "yard_w",  # not an object at all
+        {"route": ["yard_w"]},  # no id to correlate by
+        {"id": "", "route": ["yard_w"]},  # nor an id that says anything
+        {"id": "freight_1-1"},  # no route
+        {"id": "freight_1-1", "route": "yard_w"},  # one name, not a sequence
+        {"id": "freight_1-1", "route": ["yard_w", 7]},  # not all names
+    ]
+    for payload in refused:
+        assert chosen(payload) is None, payload
 
 
 def test_a_run_gesture_reads_as_the_state_it_asks_for() -> None:
