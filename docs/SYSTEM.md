@@ -830,6 +830,19 @@ which milestone 1 leaves out
 field `move` needs, which is why the driver holds no state and reads no
 assets.
 
+The grant is **read** and never trusted, exactly as a gesture is (rule 4): the
+leaf names the dispatcher because the dispatcher emits it, and a name is not a
+sender. A frame that cannot be read is **dropped** — the driver commands and
+answers nothing, so there is nowhere to address a refusal to even where the
+frame carries an id
+([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)),
+and it is on the trace by virtue of having been published. Splitting the
+qualified transit into the connection and the bare name the command states is
+part of that read and the whole of what the driver does with a grant: a
+transit missing either half names nothing to command with. Whether the halves
+name anything on this railroad is the layout interface's question, which is
+the one that holds the layout.
+
 A **human driver** takes its place by reading the same grants as a display
 and publishing nothing, sensors remaining the sole truth, and a component
 that drives realistically later grows behind the same topic.
