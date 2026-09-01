@@ -37,7 +37,7 @@ from typing import cast
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import Layout, connected_end, departure_end, end_letter, end_on
-from tc49.lib.payload import gesture, reversal
+from tc49.lib.payload import gesture, named_train
 from tc49.lib.scenario import RequestSpec
 
 FACING = "tc49/schedule/state/facing"
@@ -170,7 +170,7 @@ class Scheduler:
         refuses at load, and the next drag departs by the wall and is
         rejected `unreachable` for the rest of the session.
         """
-        train = reversal(payload)
+        train = named_train(payload)
         if train is None:
             return
         facing = self._facing.get(train)

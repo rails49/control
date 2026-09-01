@@ -26,14 +26,20 @@ second scheduler submitting alongside the first needs no change here
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import cast
 
 from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import HELD, ON, RUNNING
 from tc49.lib.layout import Layout, block_of, departure_end, end_on
-from tc49.lib.payload import gesture, occupancy, placement, power, run_state
+from tc49.lib.payload import (
+    gesture,
+    occupancy,
+    placement,
+    power,
+    readable_id,
+    run_state,
+)
 from tc49.lib.rejection import Reason
 from tc49.lib.roster import Roster
 
@@ -425,19 +431,6 @@ class Submission:
     train: str
     depart: str
     dest: tuple[str, ...]
-
-
-def readable_id(payload: object) -> str | None:
-    """The id an answer would be addressed to, or None where there is none.
-
-    Every rejection is addressed by id and broadcast, so a frame carrying no
-    readable one is answered to nobody; it is dropped instead, and the trace
-    line it already has is what keeps a client bug diagnosable (ADR-0034).
-    """
-    if not isinstance(payload, dict):
-        return None
-    rid = cast(Payload, payload).get("id")
-    return rid if isinstance(rid, str) and rid else None
 
 
 def submission(payload: Payload, rid: str) -> Submission | None:

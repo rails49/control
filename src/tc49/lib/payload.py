@@ -60,16 +60,33 @@ def gesture(payload: object) -> Gesture | None:
     return Gesture(train, tuple(cast(list[str], ends)))
 
 
-def reversal(payload: object) -> str | None:
-    """The train a reversal gesture names, or None where it names none.
+def named_train(payload: object) -> str | None:
+    """The train a payload naming one and nothing else states, or None where
+    it names none.
 
-    A train is the whole payload: turning around at rest moves nothing, so
-    there is no destination to state and no departure end to choose.
+    A train is the whole payload on `tc49/schedule/reversal_wanted`, where
+    turning around at rest moves nothing so there is no destination to state
+    and no departure end to choose, and on `tc49/dispatch/train_removed`,
+    where a train off the layout stands in no block (ADR-0039). One shape,
+    one reader: which topic it arrived on is the caller's.
     """
     if not isinstance(payload, dict):
         return None
     train = cast(dict[str, object], payload).get("train")
     return train if isinstance(train, str) else None
+
+
+def readable_id(payload: object) -> str | None:
+    """The id an answer would be addressed to, or None where there is none.
+
+    Every rejection is addressed by id and broadcast, so a frame carrying no
+    readable one is answered to nobody; it is dropped instead, and the trace
+    line it already has is what keeps a client bug diagnosable (ADR-0034).
+    """
+    if not isinstance(payload, dict):
+        return None
+    rid = cast(dict[str, object], payload).get("id")
+    return rid if isinstance(rid, str) and rid else None
 
 
 def run_state(payload: object) -> str | None:

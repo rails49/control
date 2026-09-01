@@ -5,10 +5,10 @@ from tc49.lib.payload import (
     Gesture,
     Placement,
     gesture,
+    named_train,
     occupancy,
     placement,
     power,
-    reversal,
     run_state,
 )
 
@@ -40,8 +40,8 @@ def test_a_payload_naming_no_gesture_reads_as_none() -> None:
 def test_a_reversal_reads_as_the_train_it_names() -> None:
     """A train is the whole payload: turning around at rest moves nothing, so
     there is no destination and no departure end to state (#124)."""
-    assert reversal({"train": "freight_1"}) == "freight_1"
-    assert reversal({"train": "freight_1", "dest": ["yard_e.A"]}) == "freight_1"
+    assert named_train({"train": "freight_1"}) == "freight_1"
+    assert named_train({"train": "freight_1", "dest": ["yard_e.A"]}) == "freight_1"
 
 
 def test_a_payload_naming_no_reversal_reads_as_none() -> None:
@@ -53,7 +53,7 @@ def test_a_payload_naming_no_reversal_reads_as_none() -> None:
         {"train": 7},
     ]
     for payload in refused:
-        assert reversal(payload) is None, payload
+        assert named_train(payload) is None, payload
 
 
 def test_a_run_gesture_reads_as_the_state_it_asks_for() -> None:
