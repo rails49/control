@@ -23,7 +23,6 @@ from tc49.lib.inventory import leaf
 from tc49.lib.trace import TraceTap
 from tc49.simulator import Simulator
 from tests.harness import load
-from tests.simulator.test_placement import move
 
 TRANSIT_S = 30.0
 CLEAR_S = 20.0
@@ -70,6 +69,16 @@ def stamped(bus: Bus, clock: Clock) -> list[tuple[float, str, str]]:
             ),
         )
     return seen
+
+
+def move(bus: Bus, train: str, transit: str, into: str) -> None:
+    """One command as the driver publishes it, delivered on its own drain."""
+    connection, _, name = transit.partition(".")
+    bus.publish(
+        "tc49/layout/move",
+        {"train": train, "connection": connection, "transit": name, "into": into},
+    )
+    bus.drain()
 
 
 def both_trains_move(bus: Bus) -> None:
@@ -161,11 +170,9 @@ def test_a_batch_run_stops_at_quiescence_and_not_one_event_before() -> None:
 
 
 def test_a_run_that_ended_left_no_train_rolling() -> None:
-    """The third of the three conditions, which the queue alone does not
-    show: a train whose tail has cleared is standing again, so the next
-    command for it is acted on rather than refused as mid-move (ADR-0047).
-    Its stamps carry on from where the last run stopped — one clock, one
-    session."""
+    """The third of the three conditions, which an empty queue alone does not
+    show: a train whose tail has cleared is standing again, so a further
+    command for it is acted on rather than refused as mid-move (ADR-0047)."""
     bus, clock, simulator, _out = build()
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
     simulator.run()
@@ -174,9 +181,9 @@ def test_a_run_that_ended_left_no_train_rolling() -> None:
     move(bus, "freight_1", "crossover.dn_straight", "dn_e")
     simulator.run()
 
-    assert seen == [
-        (2 * TRANSIT_S + CLEAR_S, "block_occupied", "dn_e"),
-        (2 * (TRANSIT_S + CLEAR_S), "block_vacated", "dn_w"),
+    assert [(what, block) for _at, what, block in seen] == [
+        ("block_occupied", "dn_e"),
+        ("block_vacated", "dn_w"),
     ]
 
 

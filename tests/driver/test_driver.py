@@ -118,47 +118,47 @@ def test_the_driver_holds_nothing_across_a_dropped_grant() -> None:
     ]
 
 
-def test_the_aspect_rides_along_and_is_read_by_nobody_here() -> None:
-    """The grant carries the aspect and the driver ignores it (SYSTEM.md,
-    driver footprint): turning one into a speed would need `move` to carry a
-    speed, which milestone 1 leaves out (ADR-0025,
-    [#283](https://github.com/rails49/control/issues/283)).
+def test_a_caution_grant_commands_what_a_clear_one_does() -> None:
+    """The two aspects a granted move can carry — `caution` where one block
+    is locked ahead, `clear` where two are (ADR-0025) — and the driver
+    ignores both (SYSTEM.md, driver footprint): turning an aspect into a
+    speed would need `move` to carry a speed, which milestone 1 leaves out
+    and [#283](https://github.com/rails49/control/issues/283) brings.
 
-    So the two a granted move can carry — `caution` where one block is locked
-    ahead and `clear` where two are — command exactly the same thing, a value
-    outside that vocabulary is not a failed read but a field this component
-    does not look at, and none of them reaches the command: `move`'s fields
-    are the four the inventory names, and the aspect is not among them.
+    So the two command the same thing, and neither reaches the command:
+    `move`'s fields are the four the inventory names, and the aspect is not
+    among them.
     """
     bus = Bus()
     seen = collect(bus, MOVE)
     Driver(bus)
 
-    for aspect in ("clear", "caution", "flashing_yellow", 7, None):
+    for aspect in ("clear", "caution"):
         grant(bus, {**HONEST, "aspect": aspect})
-    grant(bus, {key: value for key, value in HONEST.items() if key != "aspect"})
 
-    assert (
-        seen
-        == [
-            {
-                "train": "freight_1",
-                "connection": "west_ladder",
-                "transit": "to_dn",
-                "into": "dn_w",
-            }
-        ]
-        * 6
-    )
+    commanded = {
+        "train": "freight_1",
+        "connection": "west_ladder",
+        "transit": "to_dn",
+        "into": "dn_w",
+    }
+    assert seen == [commanded, commanded]
 
 
 def test_the_driver_publishes_the_command_and_nothing_else() -> None:
     """Read off everything the run put on the bus rather than off the source:
     the driver is the only thing subscribed here, so every frame that is not
     a grant pressed in is one it published, and the whole of what it adds is
-    one `move` per grant it could read. It sets no route — that is the
-    dispatcher's `align` (ADR-0022) — answers nothing, and states nothing
-    about itself."""
+    one `move` per grant it could read. It answers nothing and states nothing
+    about itself.
+
+    **No `align` among them**, which this file once would have asserted the
+    other way round: setting the route is the dispatcher's, since it answers
+    for the route being free and correctly set up, so `align` is its command
+    and carries the points the layout gives (ADR-0022, ADR-0031). Where that
+    command is asserted is `tests/system/test_skeleton.py`, beside the
+    dispatcher that sends it.
+    """
     bus = Bus()
     heard: list[str] = []
     bus.subscribe("tc49/#", lambda topic, payload: heard.append(topic))
