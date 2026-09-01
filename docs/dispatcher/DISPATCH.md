@@ -293,6 +293,47 @@ The layout holds it too: `tc49/layout/state/power` arriving as anything but
 it is back
 ([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 
+**A draining run launches nothing.** `draining` is the third value of the
+same topic and the ordinary way to turn a railroad off, an abrupt cut
+leaving no point position trustworthy and stranding whatever was mid-transit.
+The gate is on **launching** and not on admission — admission is cheap and
+reversible, launching is the commitment:
+
+| value | admits | launches | grants to a train already moving |
+| --- | --- | --- | --- |
+| `running` | yes | yes | yes |
+| `draining` | yes | no | yes |
+| `held` | yes | no | no |
+
+So the sweep's grant pass still covers the active trains, each running to the
+end of the route it is on, and the pending queue is passed over untouched —
+accruing no refusals, exactly as under a hold, so a drain turned back releases
+into the order the queue accumulated. Every end a granted train is leaving by
+still shows its aspect: the answer to "may this train leave" is yes, and a
+signal at stop over a train that has just been told to go would be the hold's
+lie the other way about.
+
+**The drain completes when no train is active.** The dispatcher writes `held`
+itself at the first moment no train is active and none is crossing, and that
+transition is the drain's completion — what the panel watches for before it
+cuts track power
+([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
+It is read at the end of every sweep, a sweep being what runs wherever a
+train can have stopped being active, so a drain over a railroad with nothing
+under way ends in the press that asked for it. Manual trains count by the
+same rule and need no rule of their own: every train moves on a route the
+dispatcher allocated, and *manual* names only who turns the throttle
+([#207](https://github.com/rails49/control/issues/207)).
+
+`held` published while a drain is in progress **abandons** it, at once and
+without waiting for a train to finish, and `stopped` power is always honoured
+and is not a drain. `running` resumes launching. A drain a wedged train would
+hold open forever is escaped the same way anything that train holds is: hold
+the run, take the train off the layout, and the request it was running goes
+with it
+([ADR-0049](../adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md),
+[#294](https://github.com/rails49/control/issues/294)).
+
 That value is the one state topic the dispatcher consumes, so it is the one
 place a **stamp** is compared here: a supply that went off and came back on,
 delivered backwards, would otherwise leave the dispatcher holding the run

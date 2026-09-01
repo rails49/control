@@ -403,8 +403,9 @@ _Avoid_: planned, plan, pending (a request pends, a resource does not)
 
 **Held**:
 Of a **run**: the dispatcher will commit nothing — no route chosen, no move
-granted, no lock taken — until a person releases it. The run's own state,
-`held` or `running`, published by the dispatcher and moved by a gesture
+granted, no lock taken — until a person releases it. One of the run's own
+three states, `held`, `running` or **draining**, published by the dispatcher
+and moved by a gesture
 ([ADR-0037](docs/adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 A brake and not an emergency stop: a move already granted runs to its sensor,
 and what keeps a railroad still after a power cut is track power, one layer
@@ -422,6 +423,25 @@ scenario file.
 _Avoid_: paused, stopped, frozen. Not the `held` **grant_refused** reason,
 which says a resource is locked by another train: a different thing, on a
 different topic, about one request rather than the run.
+
+**Drain**:
+The ordinary way to turn a railroad off: the run stops **launching**, the
+trains already moving run to the end of the routes they are on, and the
+dispatcher writes `held` itself at the first moment none is left. `draining`
+is the third value of the run and not a state of its own, and the gate is on
+launching rather than on admission — admission is cheap and reversible,
+launching is the commitment, so requests queue up through a drain as they do
+through a hold. It is what the panel's OFF asks for and the completion is
+what it waits for before cutting track power
+([ADR-0051](docs/adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md),
+[#294](https://github.com/rails49/control/issues/294)); an abrupt cut instead
+would leave no **position** trustworthy and could strand a train mid-transit.
+A **hold** during one abandons it at once, which is also the way out of a
+drain a wedged train would hold open forever — hold, and take that train off
+the layout.
+_Avoid_: shutdown, wind-down, quiesce, stop admitting (it is launching that
+stops). Not the queue *draining* in the order it accumulated, which is the
+ordinary verb for a queue emptying and says nothing about the run.
 
 **Cancellation**:
 A request ended without the train arriving, because a person said so: they
@@ -617,9 +637,9 @@ health, heartbeat, status
 
 **Enum**:
 A field whose values are a closed set the contract names, listed beside the
-field in `tc49.lib.inventory`. Three fields are enums: `run`, `held` or
-`running`; `power`, `on`, `stopped` or `off`; and `mode`, `automatic` or
-`manual`. The closed set goes wherever
+field in `tc49.lib.inventory`. Three fields are enums: `run`, `held`,
+`running` or `draining`; `power`, `on`, `stopped` or `off`; and `mode`,
+`automatic` or `manual`. The closed set goes wherever
 the field goes — `run` is an enum on the run's own state topic and on the
 gesture that asks to move it — so a fresh value is a change to the contract
 and not a payload a reader tolerates.
