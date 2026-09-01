@@ -62,6 +62,12 @@ hand-edited there or have been written by an older build, and rule 4 exempts
 no payload for having once been the reader's own. What subscripting one gives
 is not a dropped frame but an app that does not start at all, so the scheduler
 reads it and starts cold where it cannot.
+
+The dispatcher's **retained allocation picture** is the second of those, and
+the same rule (#278). A retained value being a payload is not a property of
+the topic it sits on: the two are read side by side here so that neither app
+has its own way of reading its own last value, and the entry-at-a-time rule
+they share is `_named`.
 """
 
 from dataclasses import dataclass
@@ -353,8 +359,68 @@ def kept_facing(payload: object) -> dict[str, str] | None:
     held = cast(dict[str, object], payload).get("facing")
     if not isinstance(held, dict):
         return None
+    return _named(cast(dict[object, object], held))
+
+
+@dataclass(frozen=True)
+class Picture:
+    """The two maps a retained `tc49/dispatch/state/allocation` value states
+    that a restart takes: where each train stood, and which transit was
+    taking it out of the block it stands in.
+
+    `locks` and `requests` are not here, and their absence is the adoption
+    policy's rather than the reading's: a restart rebuilds the lock table one
+    block per train and comes up with an empty queue (ADR-0033, #123), so
+    nothing reads those two and a reader that asked their shape would refuse
+    a picture over a part nobody adopts.
+    """
+
+    trains: dict[str, str]  # train -> the block the picture stands it in
+    crossing: dict[str, str]  # train -> the transit taking it out of there
+
+
+def kept_allocation(payload: object) -> Picture | None:
+    """The picture a retained allocation value states, or None where it
+    states none.
+
+    The dispatcher's own last value, and the second payload here whose reader
+    is also its writer (#278): a bus binding that outlived the app hands it
+    back at construction, where it can have been hand-edited or written by an
+    older build, and rule 4 exempts no payload for having once been the
+    reader's own. Subscripting one gives not a dropped frame but an app that
+    does not start at all, and the moment that value exists for is the
+    recovery after a restart or a power cut — exactly when it is most likely
+    to be damaged.
+
+    Both maps have to be maps, and a value stating either otherwise states no
+    picture: the two are one statement about where the railroad stood, and a
+    value carrying half of it was written by something other than the
+    contract. Within each, entries are read one train at a time as
+    `kept_facing` reads them, so a picture naming one train badly loses that
+    train and keeps the rest. Whether a block or a transit named here is on
+    this railroad is the layout's question and the dispatcher's, as it is for
+    `placement`.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    trains, crossing = fields.get("trains"), fields.get("crossing")
+    if not isinstance(trains, dict) or not isinstance(crossing, dict):
+        return None
+    return Picture(
+        _named(cast(dict[object, object], trains)),
+        _named(cast(dict[object, object], crossing)),
+    )
+
+
+def _named(stated: dict[object, object]) -> dict[str, str]:
+    """The entries of a map that names a string against a string, in the
+    order they were stated. What the two retained readers have in common: a
+    map that is one session's whole record of something is read an entry at a
+    time, so the unreadable ones cost their own subject and nobody else's.
+    """
     return {
-        train: value
-        for train, value in cast(dict[object, object], held).items()
-        if isinstance(train, str) and isinstance(value, str)
+        subject: value
+        for subject, value in stated.items()
+        if isinstance(subject, str) and isinstance(value, str)
     }

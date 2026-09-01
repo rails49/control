@@ -6,10 +6,12 @@ from tc49.lib.payload import (
     Gesture,
     Grant,
     Move,
+    Picture,
     Placement,
     chosen,
     gesture,
     grant,
+    kept_allocation,
     kept_facing,
     move,
     named_train,
@@ -307,3 +309,77 @@ def test_an_entry_that_cannot_be_read_loses_that_train_and_no_other() -> None:
     assert kept_facing(
         {"facing": {"freight_1": 7, "express_2": "up_e.B-to-A", "shunter": None}}
     ) == {"express_2": "up_e.B-to-A"}
+
+
+def test_a_retained_picture_reads_as_the_two_maps_a_restart_takes() -> None:
+    """The dispatcher's own last value, handed back at construction by a bus
+    binding that outlived it: where each train stood, and which transit was
+    taking it out of there (#278). `locks` and `requests` are in the payload
+    and not in the answer — a restart rebuilds the table and comes up with an
+    empty queue, so nothing adopts them."""
+    assert kept_allocation(
+        {
+            "trains": {"express_2": "up_w", "freight_1": "dn_e"},
+            "crossing": {"freight_1": "crossover.dn_straight"},
+            "locks": {"up_w": "express_2"},
+            "requests": [{"id": "freight_1-1"}],
+        }
+    ) == Picture(
+        {"express_2": "up_w", "freight_1": "dn_e"},
+        {"freight_1": "crossover.dn_straight"},
+    )
+
+
+def test_a_picture_that_states_two_empty_maps_is_still_a_picture() -> None:
+    """An idle railroad nothing has placed a train on: the picture states two
+    maps and both are empty, which is a picture and not the absence of one.
+    The dispatcher does the same with it either way, and the reader still has
+    to tell them apart — a value that says nothing about where the trains are
+    is not the same claim as one that says nowhere."""
+    assert kept_allocation(
+        {"trains": {}, "crossing": {}, "locks": {}, "requests": []}
+    ) == Picture({}, {})
+
+
+def test_a_value_stating_no_picture_reads_as_none() -> None:
+    """Rule 4 exempts no payload for having once been the reader's own, and
+    the moment this one is read is the recovery after a power cut. Every one
+    of these was an `AttributeError` out of the dispatcher's constructor
+    while it subscripted rather than read (#278) — an app that does not start
+    at all, which is worse than a dropped frame.
+
+    Both maps have to be a map: the two are one statement about where the
+    railroad stood, and a value carrying half of it was written by something
+    other than the contract."""
+    refused: list[object] = [
+        None,  # nothing retained under the topic
+        "up_w",  # not an object at all
+        [{"express_2": "up_w"}],  # nor a list of its entries
+        {},  # nothing said about anything
+        {"crossing": {}},  # no trains
+        {"trains": {"express_2": "up_w"}},  # no crossing
+        {"trains": None, "crossing": {}},
+        {"trains": "up_w", "crossing": {}},  # a value where a map belongs
+        {"trains": ["express_2"], "crossing": {}},  # trains without blocks
+        {"trains": {}, "crossing": ["freight_1"]},  # trains without transits
+    ]
+    for payload in refused:
+        assert kept_allocation(payload) is None, payload
+
+
+def test_a_train_a_picture_names_unreadably_loses_itself_and_no_other() -> None:
+    """Each map is read one train at a time, as a retained facing is: the
+    whole of a session's placement is in this one value, and dropping all of
+    it for one bad entry would cold-start every train a good entry names.
+    Whether `claro_2` is a block on this railroad is not asked here — it is a
+    string and reads as one, and the dispatcher answers that of its own
+    roster and layout."""
+    assert kept_allocation(
+        {
+            "trains": {"express_2": "up_w", "freight_1": 7, "local_3": "claro_2"},
+            "crossing": {"express_2": None, "local_3": "crossover.up_straight"},
+        }
+    ) == Picture(
+        {"express_2": "up_w", "local_3": "claro_2"},
+        {"local_3": "crossover.up_straight"},
+    )
