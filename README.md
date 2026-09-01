@@ -35,6 +35,9 @@ Each app's implementation details live beside it:
   [scenarios/](scenarios).
 - [Bench](docs/bench) — the [benchmark suite](docs/bench/BENCHMARKS.md) and
   the [metrics derivations](docs/bench/METRICS.md).
+- [Layout](docs/layout) — the [layout interface as a core
+  app](docs/layout/README.md): the three rules a command meets, and the device
+  vocabulary the hardware hangs under.
 - [Station](docs/station) — the [command station mirror](docs/station/README.md):
   one process owns the USB device and serves it on TCP 2560, so the `dccex`
   translator, JMRI and hand-held throttles share one station.

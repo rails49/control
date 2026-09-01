@@ -11,18 +11,24 @@ its own page: the dispatcher's are
 ## Apps
 
 An **app** is a unit that will run as its own container
-([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are six in
-Python — store, scheduler, dispatcher, driver, simulator, station — and one in
-the browser: `ui/`, which is **one** app, one page holding one loaded railroad
-and a list of views of it
+([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are seven in
+Python — store, scheduler, dispatcher, driver, simulator, layout, station — and
+one in the browser: `ui/`, which is **one** app, one page holding one loaded
+railroad and a list of views of it
 ([ADR-0038](adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
 
-`station` is the first of the apps that hang under the layout interface
-([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)):
-it owns the command station's serial device and serves it on a TCP port. It
-is an app by the same rule as the rest — its own container, on the machine the
-device is plugged into — and it is the one that meets neither the bus nor the
-store, having no contract of ours to speak (docs/station/README.md).
+`layout` is the physical binding of the layout interface, and the core app the
+hardware hangs under
+([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md),
+docs/layout/README.md). The `simulator` is the other binding of the same
+contract and neither knows about the other, so a run has one of them: the bench
+harness assembles the simulator, and a railroad with steel on it runs `layout`.
+
+`station` is the first of the apps that hang under `layout`: it owns the
+command station's serial device and serves it on a TCP port. It is an app by
+the same rule as the rest — its own container, on the machine the device is
+plugged into — and it is the one that meets neither the bus nor the store,
+having no contract of ours to speak (docs/station/README.md).
 
 Apps import `tc49.lib` and themselves, **never each other**. They meet only
 over the event bus and the asset store's CRUD contract, so each one can be
@@ -83,6 +89,10 @@ src/tc49/
                 discrete-event engine that schedules each accepted move's
                 sensors on fixed delays, owns the run clock, pacing and
                 termination
+  layout/       interface.py  LayoutInterface — the physical layout
+                              interface: align before move, the near-end
+                              check, nothing while the rails are dead, and
+                              the device vocabulary out (docs/layout/README.md)
   station/      station.py  Station — the command station's serial device
                             mirrored on a TCP port: every byte fanned out to
                             every client, a client's bytes written whole
@@ -165,6 +175,7 @@ docs/
   store/           LAYOUT.md  DRAWING.md
   bench/           BENCHMARKS.md  METRICS.md
   ui/              EDITOR.md  PANEL.md — design pages for the app to come
+  layout/          README.md
   station/         README.md
   agents/          how agent skills should consume this repo
   research/        background reading
@@ -173,7 +184,9 @@ docs/
 An app gets a folder when it has internals worth writing down. `scheduler`,
 `driver` and `simulator` have none: their whole behaviour is their footprint
 in [SYSTEM.md](SYSTEM.md#component-footprints), and an empty folder would
-suggest otherwise. `station` has one for the opposite reason — it has no
+suggest otherwise. `layout` has one because it is a second binding of a
+footprint the simulator also implements, and what each does with the same
+commands is its own. `station` has one for the opposite reason — it has no
 footprint there at all, so its page is the only place its behaviour is
 written down.
 
@@ -196,13 +209,17 @@ tests/
   scheduler/   test_scheduler
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks
+  layout/      test_align  test_move  test_aspects  test_power  test_reading
   station/     test_framing  test_station
   system/      test_skeleton  test_properties  test_safety_conditions
                test_app_boundaries
 ```
 
-`driver` and `simulator` have no test package: neither has a test of its own,
-and both are covered only through the assembly tests.
+`driver` has no test package: it has no test of its own, and is covered only
+through the assembly tests. `simulator` has one because a stale command is
+refused at the layout interface and that is where it has to be driven from;
+`layout` has one for the same reason, and it is the whole of that app's cover
+— nothing assembles it, a run having one binding of the interface.
 
 `test_app_boundaries` checks the import rule above by parsing each app's
 modules and reading off what they import. The rule is the kind that decays

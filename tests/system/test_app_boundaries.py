@@ -16,7 +16,15 @@ import pytest
 import tc49
 
 SRC = Path(tc49.__file__).parent
-APPS = ("store", "scheduler", "dispatcher", "driver", "simulator", "station")
+APPS = (
+    "store",
+    "scheduler",
+    "dispatcher",
+    "driver",
+    "simulator",
+    "layout",
+    "station",
+)
 
 
 def tc49_imports(tree: ast.Module) -> set[str]:
