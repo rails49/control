@@ -13,6 +13,16 @@ are held until its message is whole and then written in one write, so two
 clients never interleave a command (framing.py). A client that goes away
 mid-message takes its partial message with it.
 
+**A client that has stopped reading is cut off.** The fan-out is a write per
+client with nobody waiting on it, so a client that never takes its bytes — a
+sleeping laptop, a throttle whose Wi-Fi dropped — has them buffered for it
+without limit until the process dies of it and every other client loses the
+command station too. Once more than `MAX_OUTSTANDING_BYTES` is outstanding to
+one, its connection is closed and the log says why. Not a bounded buffer that
+discards: this direction is unframed, so dropping from the middle hands the
+client half a message it reads as garbage. It may reconnect and pick the live
+conversation up.
+
 **While the device is away a client's messages are dropped**, not queued, and
 the client stays connected. A command is honored now or ignored: a queue that
 flushes on reconnect is a train that moves minutes after someone asked for
@@ -57,6 +67,12 @@ DEVICE_AWAY = (OSError, termios.error)
 FIRST_BACKOFF_S = 0.5
 MAX_BACKOFF_S = 8.0
 
+# How far behind a client may fall before it is cut off. The device speaks at
+# 115200 baud, so this is a minute and a half of everything it has to say: a
+# client that has taken none of it in that long is not reading at all, and the
+# alternative to disconnecting it is buffering for it until the process dies.
+MAX_OUTSTANDING_BYTES = 1 << 20
+
 
 def to_stderr(line: str) -> None:
     """The default log: connects, disconnects and the device, and nothing else."""
@@ -68,7 +84,8 @@ class Station:
 
     `run()` is the whole process. Tests drive the same thing through the
     `start()` / `close()` split, ask `port` which port the OS chose, and pass
-    their own `log` and backoff bounds so an outage is over in milliseconds.
+    their own `log`, backoff bounds and bound on a client so an outage is over
+    in milliseconds and a client falls behind in kilobytes.
     """
 
     def __init__(
@@ -79,13 +96,16 @@ class Station:
         log: Callable[[str], None] = to_stderr,
         first_backoff_s: float = FIRST_BACKOFF_S,
         max_backoff_s: float = MAX_BACKOFF_S,
+        max_outstanding_bytes: int = MAX_OUTSTANDING_BYTES,
     ) -> None:
         self._device = device
         self._port = port
         self._log = log
         self._first_backoff_s = first_backoff_s
         self._max_backoff_s = max_backoff_s
+        self._max_outstanding_bytes = max_outstanding_bytes
         self._clients: set[asyncio.StreamWriter] = set()
+        self._behind: set[asyncio.StreamWriter] = set()
         self._fd: int | None = None
         self._dropped = False
         self._server: asyncio.Server | None = None
@@ -150,7 +170,10 @@ class Station:
             pass
         finally:
             self._clients.discard(writer)
-            self._log(f"client disconnected {peer}")
+            cut_off = writer in self._behind
+            self._behind.discard(writer)
+            why = " too far behind" if cut_off else ""
+            self._log(f"client disconnected {peer}{why}")
             writer.close()
             with contextlib.suppress(ConnectionError):
                 await writer.wait_closed()
@@ -174,6 +197,19 @@ class Station:
                 # thing and the watcher reopens it; this message is dropped
                 # like anything else sent into an outage.
                 self._drop()
+
+    def _cut_off(self, writer: asyncio.StreamWriter) -> None:
+        """Drop a client that has stopped reading, and its outstanding bytes with it.
+
+        Aborted rather than closed, because closing waits for what is
+        outstanding to reach the client and what got it here is a client that
+        takes nothing: that wait is the very buffer being released. Its
+        handler wakes on the abort and is where the disconnect is logged, so
+        one client leaves by one path however it went.
+        """
+        self._clients.discard(writer)
+        self._behind.add(writer)
+        writer.transport.abort()
 
     def _drop(self) -> None:
         """One line per outage: after it, the outage is the news, not the loss."""
@@ -236,8 +272,15 @@ class Station:
                 return
             spoke = True
             for writer in tuple(self._clients):
-                if not writer.is_closing():
-                    writer.write(arrived)
+                if writer.is_closing():
+                    continue
+                # Per client rather than per byte: nothing here can wait for
+                # a client to drain, so the one question a synchronous write
+                # can ask is whether this client is still keeping up.
+                if outstanding(writer) > self._max_outstanding_bytes:
+                    self._cut_off(writer)
+                    continue
+                writer.write(arrived)
 
         loop.add_reader(fd, readable)
         try:
@@ -250,6 +293,15 @@ class Station:
         if self._server is None:
             raise RuntimeError("the station is not started")
         return self._server
+
+
+def outstanding(writer: asyncio.StreamWriter) -> int:
+    """How much has been written to a client that the OS has not taken yet.
+
+    Asyncio counts it already, so this reads its count rather than keeping a
+    second one that could disagree with it.
+    """
+    return writer.transport.get_write_buffer_size()
 
 
 def open_device(path: str) -> int:
