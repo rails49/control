@@ -163,6 +163,59 @@ def test_a_facing_the_state_file_spells_the_old_way_is_refused(
     }
 
 
+def test_a_retained_value_that_states_no_facing_map_is_a_cold_start(
+    tmp_path: Path,
+) -> None:
+    """A retained value is a payload like any other, and rule 4 exempts no
+    payload for having once been the scheduler's own: what is waiting on a
+    broker that outlived the app can be hand-edited or written by an older
+    build (#277). The first three raised out of the constructor while the
+    value was subscripted, which is worse than a dropped frame — the app did
+    not start at all. The scheduler starts as a cold start does instead,
+    holding the seed its constructor was given, because a value it cannot
+    read tells it nothing and refusing to start tells a person even less."""
+    unreadable: list[object] = [
+        "nonsense",  # not an object at all
+        {"facing": "nonsense"},  # a value where the map belongs
+        {"facing": ["freight_1"]},  # the trains without their facings
+        {},  # nothing said about facing
+    ]
+    for retained in unreadable:
+        path = tmp_path / "session.json"
+        path.write_text(json.dumps({FACING: retained}))
+        bus = Bus(path)
+        seen = collect(bus, FACING)
+        Scheduler(bus, yard(), seeded(), TIMETABLE)
+        bus.drain()
+
+        assert facing(seen) == {
+            "express_2": "up_e.B-to-A",
+            "freight_1": "yard_w.A-to-B",
+        }, retained
+
+
+def test_a_train_the_retained_map_states_unreadably_loses_only_itself(
+    tmp_path: Path,
+) -> None:
+    """The map is read one train at a time: the whole session's facing is in
+    this one value, so dropping all of it for one entry would cold-start
+    every train the good entries name (#277). `freight_1` falls back to its
+    placement, and `express_2` is adopted as it always was."""
+    path = tmp_path / "session.json"
+    path.write_text(
+        json.dumps({FACING: {"facing": {"freight_1": 7, "express_2": "dn_e.A-to-B"}}})
+    )
+    bus = Bus(path)
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    bus.drain()
+
+    assert facing(seen) == {
+        "express_2": "dn_e.A-to-B",
+        "freight_1": "yard_w.A-to-B",
+    }
+
+
 def test_a_train_only_the_old_spelling_names_comes_up_with_no_facing(
     tmp_path: Path,
 ) -> None:

@@ -655,6 +655,10 @@ When the last timetable request has gone out it sets `exhausted`, which is
 how milestone 1 knows the run is over. Where a **`state/facing` value survived
 a restart** it adopts that value, and a train the value does not name — or
 names in a spelling this build refuses — has no facing until it is placed.
+That value is **read** like any other payload: rule 4 does not exempt the
+moment a retained one is read, and a value that states no facing map at all
+leaves the scheduler starting as a cold start does, with its seed and no
+restored facing, rather than refusing to start.
 
 ### Dispatcher
 

@@ -29,14 +29,16 @@ is what every view reads to draw a direction arrow, a train that has never
 moved having no other source for one. Where the bus binding has kept that
 topic across a restart the scheduler adopts what it finds there instead of
 the placement, which is what a broker that outlived it would have delivered
-(#123).
+(#123). That retained value is **read**, through `lib.payload` like every
+payload a subscription hands over, and one that cannot be read is a cold
+start rather than a refusal to start: a value the scheduler cannot read tells
+it nothing, and an app that will not come up tells a person even less (#277).
 Deliberate reversal at rest is the one change routes do not account for, and
 it arrives as its own gesture on `tc49/schedule/reversal_wanted` (#124).
 """
 
 from collections import Counter
 from collections.abc import Sequence
-from typing import cast
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import (
@@ -54,6 +56,7 @@ from tc49.lib.payload import (
     chosen,
     gesture,
     grant,
+    kept_facing,
     named_train,
     placement,
     readable_id,
@@ -352,25 +355,29 @@ class Scheduler:
             self._bus.publish(FACING, facing)
 
 
-def _kept(retained: Payload | None) -> dict[str, str]:
+def _kept(retained: object) -> dict[str, str]:
     """The facing a previous session left on the state topic, **read** rather
     than adopted whole (#123).
 
-    A retained value is a payload like any other and this one may have been
-    written by an older build, so a value outside the vocabulary is dropped
-    and the train falls back to what its placement gives — the seed under it
-    where a document places it, and no facing at all until a person places it
-    where none does (#241). Guessing which way round an `A` meant is the one
-    thing that must not happen: it would be the reading turned around.
+    The reading is `lib.payload`'s, as every payload the scheduler takes off
+    the bus is: a retained value is a payload like any other, and rule 4 does
+    not exempt the moment one is read at construction (#277). Where it states
+    no facing map at all the reader answers nothing and the scheduler starts
+    as a cold start does.
+
+    What is left here is the vocabulary, which is the layout's question: this
+    value may have been written by an older build, so a value outside it is
+    dropped and the train falls back to what its placement gives — the seed
+    under it where a document places it, and no facing at all until a person
+    places it where none does (#241). Guessing which way round an `A` meant is
+    the one thing that must not happen: it would be the reading turned around.
     """
-    values = retained.get("facing") if isinstance(retained, dict) else None
-    if not isinstance(values, dict):
+    held = kept_facing(retained)
+    if held is None:
         return {}
-    held: dict[str, str] = {}
-    for train, facing in sorted(cast(dict[str, object], values).items()):
-        if isinstance(facing, str) and end_letter(facing) in FACINGS:
-            held[train] = facing
-    return held
+    return {
+        train: lie for train, lie in sorted(held.items()) if end_letter(lie) in FACINGS
+    }
 
 
 def _expand(arrivals: tuple[str, ...]) -> list[str]:
