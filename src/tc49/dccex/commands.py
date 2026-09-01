@@ -1,0 +1,182 @@
+"""The mapping: one desired value in, the exact bytes the station is sent out.
+
+Every row of the device vocabulary this app recognises has a function here,
+and each is **pure** — no socket, no state, no clock — so the whole protocol
+is asserted as "this value, these bytes" on a machine with nothing plugged
+in. The `<…>` syntax is this app's private business and appears nowhere else
+in the repository (ADR-0043); [docs/dccex/README.md](../../../docs/dccex/README.md)
+is where it is written down.
+
+Three of the seven functions answer `None`. A value this app cannot put on a
+wire — a position that is neither `closed` nor `thrown`, an aspect no head
+here is wired for, a function value the station's binary `<F>` cannot express
+— sends **nothing** rather than something near it: a translator that guessed
+would move a turnout the layout did not ask for, and a faked action is worse
+than silence, which is the same rule that keeps a commanded position from
+being echoed back as a measured one (ADR-0022, ADR-0050).
+
+The two words that are not a table row are here too, `RELEASE` and the two a
+poll is made of, because they are bytes on the same wire and belong beside
+the rest of the protocol.
+"""
+
+from tc49.lib.inventory import OFF, ON, STOPPED
+from tc49.lib.roster import OFF_ON
+
+STEPS = 126
+"""What a speed's magnitude is scaled to. The station takes `0..126` and
+maps `1..126` onto DCC steps `2..127`, keeping step 1 for the emergency stop
+it sends itself; `0` is the ordinary stop and is what a `speed` of `0.0`
+becomes."""
+
+FORWARD = 1
+REVERSE = 0
+"""The station's direction bit: `1` is forward. A speed is signed for
+direction along the track and its magnitude is the fraction of the
+locomotive's maximum (CONTEXT.md, **Traction**), so the sign is read off here
+and never reaches the wire as a number."""
+
+CLOSED = "closed"
+THROWN = "thrown"
+"""The two positions a point takes. `thrown` writes a `1` into the accessory
+packet, which is the polarity the station's own throttles and JMRI use."""
+
+ASPECTS = {"stop": 0, "caution": 1, "clear": 2}
+"""What each aspect this system shows is worth to the head wired to it.
+`stop` is `0` because the extended accessory packet reserves it for stop; the
+other two are this railroad's wiring and nothing above the layout interface
+knows them, an **aspect** being a name rather than an enum (CONTEXT.md). A
+name absent from here is a head this translator cannot show it on, so nothing
+is sent."""
+
+LINEAR_MAX = 2044
+"""The accessory numbers a basic packet reaches, `1` upward: four
+sub-addresses under each of 511 decoder addresses. What the drawing types on
+a turnout is this number, the one a throttle and DecoderPro show, and
+splitting it into the packet's address and sub-address is this app's."""
+
+EXTENDED_MAX = 2047
+"""The addresses an extended accessory packet reaches, its address field
+being eleven bits. A signal is addressed in that space and not in the linear
+one: it takes an aspect rather than a pair of positions, so nothing is split
+off it."""
+
+RELEASE = b"<!R>"
+"""Clearing the station's emergency-stop lock. Never sent on its own — under
+the lock the station keeps every locomotive's pre-lock speed and resumes it
+here, so the release follows a `traction` of `0.0` to every locomotive this
+app has commanded (translator.py)."""
+
+STATUS = b"<s>"
+LOCK_QUERY = b"<!Q>"
+"""What a poll is made of. An overload trip is **not broadcast**: the station
+cuts the district and says so only on its USB diagnostics, so `device/track`
+telling the truth would otherwise wait for a person to notice. `<s>` makes it
+restate every track's power, and `<!Q>` makes it restate the stop lock, which
+is what lets this app read the lock back after a restart rather than
+remembering it."""
+
+
+def traction(addr: str, speed: float) -> bytes:
+    """A locomotive's speed: `<t addr step dir>`.
+
+    The magnitude is the fraction of that locomotive's maximum, so a fraction
+    past `1.0` is full speed and never more — there is nothing above the
+    maximum to ask for, and clamping is the one reading that cannot invent
+    motion. `0.0` is step `0`, the ordinary stop, and takes the forward bit
+    because a train standing still has no direction to state.
+
+    Never `None`: `speed` is a number by the time it reaches here, and every
+    number names a speed this station can be told.
+    """
+    magnitude = min(abs(speed), 1.0)
+    direction = REVERSE if speed < 0 else FORWARD
+    return f"<t {addr} {round(magnitude * STEPS)} {direction}>".encode()
+
+
+def function(addr: str, number: str, value: str) -> bytes | None:
+    """A locomotive's function: `<F addr n 0|1>`.
+
+    The station's function is a **switch**, so the two values a model may
+    leave unstated are the two that reach the wire (`tc49.lib.roster.OFF_ON`)
+    and any other — the `low` and `high` of a three-position vacuum — names a
+    state this hardware has no packet for and sends nothing. A model states
+    what its functions mean and a decoder answers to numbers; which of them a
+    railroad can actually drive is the translator's answer, given here.
+    """
+    if value not in OFF_ON:
+        return None
+    return f"<F {addr} {number} {OFF_ON.index(value)}>".encode()
+
+
+def point(addr: str, position: str) -> bytes | None:
+    """A turnout's position, as a **stateless** accessory packet:
+    `<a addr sub act>`.
+
+    Stateless is the point of it. The station also keeps turnouts of its own
+    and answers a throw with a position it has faked, and this app wants
+    neither: `align` carries the points its transit needs every time, so a
+    translator throws what it is told and holds no table (ADR-0031,
+    ADR-0043), and a faked reply is what `device/point` is never published
+    from.
+
+    The address the drawing types is the accessory number a throttle shows,
+    `1` upward; the packet wants a decoder address and a sub-address, so the
+    number is split into them here — four sub-addresses to a decoder, the
+    same arithmetic the station does for the one-argument form of the same
+    command.
+    """
+    linear = _number(addr, LINEAR_MAX, least=1)
+    if linear is None or position not in (CLOSED, THROWN):
+        return None
+    decoder, sub = divmod(linear - 1, 4)
+    return f"<a {decoder + 1} {sub} {int(position == THROWN)}>".encode()
+
+
+def signal(addr: str, aspect: str) -> bytes | None:
+    """A signal head's aspect, as an extended accessory packet:
+    `<A addr aspect>`.
+
+    Extended and not basic, because a head shows three aspects where a basic
+    packet has two positions. What each aspect is worth to the head is
+    `ASPECTS` and is wiring, not contract: the dispatcher publishes a name
+    and what a signal makes of it is a translator's (#203).
+    """
+    address = _number(addr, EXTENDED_MAX, least=0)
+    if address is None or aspect not in ASPECTS:
+        return None
+    return f"<A {address} {ASPECTS[aspect]}>".encode()
+
+
+def track(power: str) -> bytes:
+    """The railroad's power, in the one word the whole railroad shares.
+
+    `on` and `off` reach every track the station has, a power district being
+    a hardware fact that does not reach the bus: there is one railroad-wide
+    desired power and a translator maps it onto however many districts its
+    hardware drives (SYSTEM.md, *Device vocabulary*).
+
+    `stopped` is the station's emergency-stop **lock** and not its one-shot
+    stop. A one-shot that any throttle on the same port can drive away from
+    would make the power an echo of a command rather than an observation, and
+    a lie the moment a hand-held throttle moves a locomotive; the lock blocks
+    every throttle packet until it is released, and it can be asked about,
+    which is what `LOCK_QUERY` is for.
+    """
+    if power == ON:
+        return b"<1>"
+    if power == STOPPED:
+        return b"<!P>"
+    assert power == OFF, power
+    return b"<0>"
+
+
+def _number(addr: str, most: int, *, least: int) -> int | None:
+    """An address as the station's own number, or None where it is no such
+    address. Read and never trusted like any other field (SYSTEM.md, rule 4):
+    the drawing types a plain string and nothing checks its shape there, so
+    this is where a string that is no accessory number stops."""
+    if not addr.isdigit():
+        return None
+    number = int(addr)
+    return number if least <= number <= most else None
