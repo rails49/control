@@ -30,6 +30,11 @@ ALLOWED_FILES = frozenset(
     {
         "DEPLOY.md",  # the physical deployment is hardware
         "store/DRAWING.md",  # the drawing carries hardware addresses (ADR-0022)
+        # The repository's own map, which lists every package on disk — and a
+        # translator's package is named for the system it speaks to
+        # (ADR-0043). What the rule is against is a *contract* page knowing
+        # about hardware; a directory listing knows nothing (#289).
+        "ARCHITECTURE.md",
     }
 )
 

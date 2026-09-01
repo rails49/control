@@ -24,6 +24,7 @@ APPS = (
     "simulator",
     "layout",
     "station",
+    "dccex",
 )
 
 

@@ -383,6 +383,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
 | Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects` **and** `tc49/layout/state/device/#` |
+| Translator | `tc49/layout/state/wanted/#` |
 | Trace tap | `tc49/#` |
 
 Two things the inventory has to keep true:
@@ -1234,7 +1235,10 @@ The rows are `tc49.lib.inventory.DEVICE_TOPICS`.
 shows, and `wanted/track` on each press of the power (#287). Traction and
 function wait on the write that composes a speed's sign out of the way a
 locomotive is parked
-([#296](https://github.com/rails49/control/issues/296)).
+([#296](https://github.com/rails49/control/issues/296)). All five are
+**subscribed** by a translator, which acts on the addresses it recognises and
+holds no table of the ones it does not
+([#289](https://github.com/rails49/control/issues/289)).
 
 | Topic | Payload | Values |
 | --- | --- | --- |
@@ -1324,11 +1328,14 @@ as a measured one (ADR-0043); on this railroad turnouts have no feedback
 ([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)), so the
 translator driving them writes none, a faked reply being worse than silence.
 
-Nothing publishes the observed rows today. `layout` reads two of them,
-`device/track` and `device/link`, which are the two `state/power` is folded
-from; `device/sensor` and `device/point` are declared and read by nobody.
-Folding two sensors into `block_occupied` and `block_vacated`, and any
-debounce, are `layout`'s own work and are still to come.
+Two of the observed rows are published today, both by a translator:
+`device/track`, folded from what its hardware says about the supply, and
+`device/link`, its own reachability. They are the two `layout` reads, and the
+two `state/power` is folded from. `device/sensor` waits on a detector and
+`device/point` on hardware that reports a position, which the turnouts of the
+railroad driven today do not. Folding two sensors into `block_occupied` and
+`block_vacated`, and any debounce, are `layout`'s own work and are still to
+come.
 
 Every row of both halves is state rather than command because that is what
 makes the extra hop safe under at-least-once delivery: a replayed message
