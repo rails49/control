@@ -474,6 +474,49 @@ def test_a_reversal_lands_once_the_request_is_answered() -> None:
     assert seen[-1][1]["facing"]["express_2"] == "up_e.A-to-B"
 
 
+def test_a_cancelled_request_is_dropped_and_never_re_submitted() -> None:
+    """A request ends by arrival, by rejection, or by cancellation
+    (ADR-0049), and the scheduler treats the third like the other two: the
+    request and its destination go, the train is idle again — a reversal
+    lands, which is what says the scheduler has let go — and nothing is
+    composed in its place.
+
+    A destination that is still wanted is asked for again with
+    `request_wanted`. Re-submitting here would put back the very work a
+    person's gesture just ended.
+    """
+    bus = Bus()
+    seen = collect(bus, FACING)
+    submitted = collect(bus, "tc49/dispatch/request_submitted")
+    Scheduler(bus, yard(), seeded())
+    gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
+    assert len(submitted) == 1
+
+    announce(bus, "request_cancelled", {"id": "express_2-1", "reason": "revoked"})
+
+    assert len(submitted) == 1
+    reversal(bus, {"train": "express_2"})
+    assert seen[-1][1]["facing"]["express_2"] == "up_e.A-to-B"
+
+
+def test_a_cancellation_needs_no_facing_case_of_its_own() -> None:
+    """`removed` is followed by `train_removed`, which already pops the
+    facing, and `displaced` by `train_placed`, which already recomputes it.
+    The cancellation itself moves no arrow: the train is where it was until
+    one of those two says otherwise."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+    gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
+    published = len(seen)
+
+    announce(bus, "request_cancelled", {"id": "express_2-1", "reason": "removed"})
+    assert len(seen) == published
+
+    announce(bus, "train_removed", {"train": "express_2"})
+    assert "express_2" not in seen[-1][1]["facing"]
+
+
 def test_a_reversal_that_cannot_be_read_is_dropped() -> None:
     """A gesture carries no id, so there is nothing to address an answer to
     and a broadcast refusal would be uncorrelatable (ADR-0034): what cannot

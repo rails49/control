@@ -642,6 +642,15 @@ an answer to, and the frame is already a line in the trace
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 Like the dispatcher, it never raises on a bus payload.
 
+A request that ends by **cancellation** is dropped like one that ends by
+arrival or by rejection: the request and its destination go, and nothing is
+re-submitted
+([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
+A destination that is still wanted is asked for again with `request_wanted` —
+the gesture that ended it was a person's. Facing needs no case of its own:
+`removed` is followed by `train_removed`, which already pops it, and
+`displaced` by `train_placed`, which already recomputes it.
+
 When the last timetable request has gone out it sets `exhausted`, which is
 how milestone 1 knows the run is over. Where a **`state/facing` value survived
 a restart** it adopts that value, and a train the value does not name — or
