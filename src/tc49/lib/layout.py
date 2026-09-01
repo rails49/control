@@ -14,9 +14,10 @@ The ``check_*`` helpers are shared with the scenario validation in
 ``store.py``. The ``<block>.<A|B>`` end form is parsed here and nowhere else:
 ``check_end`` validates one, ``block_of``, ``end_letter`` and ``opposite_end``
 take one apart, ``end_on`` reads one off a transit and ``end_crossed`` does
-the same for a transit that came off the bus, ``connected_end`` says which end
-of a block a connection holds, and ``departure_end`` composes that over
-``opposite_end`` into the end a train leaves a block by.
+the same for a transit that came off the bus with ``far_end`` answering the
+other side of it, ``connected_end`` says which end of a block a connection
+holds, and ``departure_end`` composes that over ``opposite_end`` into the end
+a train leaves a block by.
 """
 
 from collections.abc import Container
@@ -350,3 +351,28 @@ def end_crossed(layout: Layout, block: str, transit: str) -> str | None:
     if block_of(first) == block:
         return first
     return second if block_of(second) == block else None
+
+
+def far_end(layout: Layout, block: str, transit: str) -> str | None:
+    """The end `transit` crosses on its other side from `block`, or None where
+    the layout holds no such transit or that transit crosses neither end of
+    that block.
+
+    `end_crossed`'s counterpart, asked of the same names off the bus and
+    failing the same two ways, and what a binding handed a `move` asks: the
+    command names the block the train is to end up in, and the block at the
+    far end of the transit from there is the one it must be standing in now
+    (ADR-0047). The pair is read together for `end_crossed`'s reason — a
+    transit crossing no end of the block named leaves nothing to be at the far
+    end of, and answering some other block's end would send a train across a
+    railroad the frame does not describe.
+    """
+    connection, _, name = transit.partition(".")
+    held = layout.connections.get(connection)
+    ends = held.transits.get(name) if held is not None else None
+    if ends is None:
+        return None
+    first, second = ends
+    if block_of(first) == block:
+        return second
+    return first if block_of(second) == block else None

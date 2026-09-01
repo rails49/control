@@ -13,6 +13,7 @@ from tc49.lib.layout import (
     end_crossed,
     end_letter,
     end_on,
+    far_end,
     opposite_end,
 )
 from tc49.store import AssetStore
@@ -179,6 +180,23 @@ def test_a_transit_the_layout_does_not_hold_crosses_no_end() -> None:
     assert end_crossed(layout, "yard_w", "to_dn") is None  # unqualified
     assert end_crossed(layout, "up_e", "west_ladder.to_dn") is None
     assert end_crossed(layout, "ghost", "west_ladder.to_dn") is None
+
+
+def test_a_transit_crosses_a_far_end_from_the_block_it_is_asked_about() -> None:
+    """`end_crossed`'s counterpart, and what a binding handed a `move` asks:
+    the command names the block the train is entering, and the far end of the
+    transit from there is the end it must be standing at (ADR-0047). It fails
+    the two ways `end_crossed` does, since it is the same lookup read from the
+    other side."""
+    layout, _roster, _ = load("crossover-yard/meet")
+
+    assert far_end(layout, "dn_w", "west_ladder.to_dn") == "yard_w.B"
+    assert far_end(layout, "yard_w", "west_ladder.to_dn") == "dn_w.A"
+    assert far_end(layout, "dn_w", "ghost.to_dn") is None
+    assert far_end(layout, "dn_w", "west_ladder.ghost") is None
+    assert far_end(layout, "dn_w", "to_dn") is None  # unqualified
+    assert far_end(layout, "up_e", "west_ladder.to_dn") is None
+    assert far_end(layout, "ghost", "west_ladder.to_dn") is None
 
 
 def test_a_block_with_both_ends_connected_answers_the_candidate(
