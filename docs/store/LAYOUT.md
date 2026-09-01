@@ -208,9 +208,11 @@ trains:
   of its cars; kind comes from the kinds of the cars it hauls, ignoring
   locomotives ([CONTEXT.md](../../CONTEXT.md#stock), **Kind**). A train that
   names cars and states a length as well is refused — two ways to know one
-  length is the field that rots. The five committed rosters still state a
-  length and name no cars, which is the one shape that authors one and is
-  [#223](https://github.com/rails49/control/issues/223)'s to rewrite.
+  length is the field that rots. A train that states a length and names *no*
+  cars is the shape the committed rosters had before
+  [#223](https://github.com/rails49/control/issues/223) rewrote them, and it
+  still loads so that an older file does; nothing committed is written that
+  way, every library train being one synthetic `bench-<length>` car.
 - **Unknown keys are ignored, not refused**, at every level of both stock
   documents. A field for the manufacturer, or the shelf a locomotive lives on,
   may be added and an older reader keeps working. This is deliberately the
