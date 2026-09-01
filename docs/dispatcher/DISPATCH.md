@@ -293,6 +293,22 @@ The layout holds it too: `tc49/layout/state/power` arriving as anything but
 it is back
 ([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 
+That value is the one state topic the dispatcher consumes, so it is the one
+place a **stamp** is compared here: a supply that went off and came back on,
+delivered backwards, would otherwise leave the dispatcher holding the run
+over live track — or worse, running over dead track. The later `at` wins and
+the earlier value is ignored, quietly and with the frame on the trace like
+any other (SYSTEM.md, the bus;
+[#240](https://github.com/rails49/control/issues/240)). The sensor leaves
+beside it are compared against nothing: a detector reports a level, so a
+repeat re-asserts what the dispatcher already holds, and the readings of one
+boundary are sorted before they are acted on — vacated first, then occupied
+— so a grant never depends on delivery order at all
+([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
+A request is keyed by a unique id and a duplicate is dropped, which is the
+same independence bought a different way
+([ADR-0033](../adr/0033-a-request-id-is-unique-not-meaningful.md)).
+
 **A reading no grant explains holds it too**
 ([ADR-0048](../adr/0048-an-unexplained-reading-holds-the-run.md)). The
 dispatcher recovers train identity from its lock table, so a `block_occupied`

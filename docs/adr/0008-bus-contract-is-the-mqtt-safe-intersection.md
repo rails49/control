@@ -1,5 +1,15 @@
 # The bus contract is the MQTT-safe intersection
 
+*(Amended for [#240](https://github.com/rails49/control/issues/240): the
+per-topic single-publisher FIFO below is all MQTT promises, and rather less
+than it looks — a broker keeps a topic ordered per publisher and per QoS while
+it is configured to, and not across a reconnect or a retransmission with more
+than one message in flight. So a **state** payload carries its own order: `at`,
+the publishing binding's clock reading, and a consumer keeps the later stamp.
+The contract is unchanged — the bus is asked for nothing more than it was —
+and what changes is that a state topic no longer leans on delivery order at
+all. See [SYSTEM.md](../SYSTEM.md#the-bus).)*
+
 Components communicate over a pub/sub bus whose contract promises only what
 MQTT can also deliver — per-topic single-publisher FIFO, fan-out,
 at-least-once with idempotent consumers, last-value state topics — and

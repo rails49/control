@@ -1,5 +1,12 @@
 # The layout interface owns time
 
+*(Amended for [#240](https://github.com/rails49/control/issues/240): a state
+payload carries `at`, the run clock's reading when it was published, which is
+what keeps two values of one state topic in order when the wire does not. The
+decision itself — no app component reads a clock — is unchanged and is the
+reason the **binding** stamps: the thing that publishes reads the clock, and
+nothing in an app does. No event payload carries a timestamp, as before.)*
+
 *(Amended under
 [ADR-0047](0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md):
 the boundary event is gone, so owning time now means the run clock advances on
