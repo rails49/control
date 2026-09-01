@@ -27,9 +27,10 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
     (ADR-0051). The two values are the first things the app says, and the
     order is the honest one: the supply is commanded off, and then the app
     states what it believes about it."""
-    bus = Bus(Clock())
+    clock = Clock()
+    bus = Bus(clock)
     seen = heard(bus, "tc49/#")
-    LayoutInterface(bus, railroad())
+    LayoutInterface(bus, railroad(), clock)
     bus.drain()
 
     assert seen == [

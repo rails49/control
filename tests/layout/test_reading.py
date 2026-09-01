@@ -1,6 +1,6 @@
 """Every payload is read and never trusted (#287, SYSTEM.md rule 4).
 
-Six topics from four publishers reach this app, and it answers none of them:
+Six topics from five publishers reach this app, and it answers none of them:
 it reports observations, so a refusal would have nowhere to go (ADR-0034). A
 frame that cannot be read is dropped, silently and to the trace, and none of
 them raises — a binding that raised on a payload would be taken down by
@@ -15,7 +15,9 @@ from tc49.lib.bus import Payload
 from tests.layout.railroad import (
     ALIGN,
     ASPECTS,
+    BLOCK_OCCUPIED,
     DEVICE_LINK,
+    DEVICE_SENSOR,
     DEVICE_TRACK,
     MOVE,
     PLACED,
@@ -28,7 +30,11 @@ from tests.layout.railroad import (
     energised,
     heard,
     move,
+    occupancy,
+    reads,
+    settle,
     stand,
+    wired,
 )
 
 COMMANDED = (ALIGN, MOVE, POWER_WANTED, PLACED, REMOVED, ASPECTS)
@@ -124,20 +130,15 @@ def test_an_unreadable_link_is_not_a_link_that_is_up() -> None:
     assert bus.last_values[POWER]["power"] == "off"
 
 
-def test_the_rows_this_app_does_not_act_on_pass_by_unread() -> None:
-    """A `device/sensor` is the detectors' half of the occupancy fold and a
-    `device/point` is a position where hardware reports one; neither is acted
-    on yet, and both go past without being taken for something else."""
+def test_the_row_this_app_does_not_act_on_passes_by_unread() -> None:
+    """A `device/point` is a position where hardware reports one, and this app
+    acts on none: it goes past without being taken for something else."""
     bus, app = build()
     energised(bus)
     written = heard(bus, "tc49/layout/state/wanted/#")
     bus.drain()
     standing = len(written)
 
-    bus.publish(
-        "tc49/layout/state/device/sensor/up_w.B",
-        {"addr": "up_w.B", "occupancy": "occupied"},
-    )
     bus.publish(
         "tc49/layout/state/device/point/dccex/12",
         {"addr": "dccex/12", "position": "thrown"},
@@ -147,6 +148,25 @@ def test_the_rows_this_app_does_not_act_on_pass_by_unread() -> None:
     assert len(written) == standing
     assert bus.last_values[POWER]["power"] == "on"
     assert app.position == {}
+
+
+def test_an_unreadable_reading_is_no_information_about_that_end() -> None:
+    """The third of the observed rows, and it falls the third way: `unknown`
+    is the contract's own word for no information, so a frame that cannot be
+    read leaves the end reading exactly what it last actually said and
+    produces no edge (#288)."""
+    bus, app, clock = wired()
+    seen = occupancy(bus)
+    reads(bus, "up_e.A", "occupied")
+    settle(bus, app, clock)
+    assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
+
+    for payload in UNREADABLE:
+        bus.publish(DEVICE_SENSOR + "/up_e.A", cast(Payload, payload))
+        bus.drain()
+    settle(bus, app, clock)
+
+    assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
 
 
 def test_a_fresh_app_has_said_two_things_and_no_more() -> None:
