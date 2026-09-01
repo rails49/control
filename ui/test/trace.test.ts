@@ -102,8 +102,9 @@ describe("runWanted", () => {
 
   /** The drain is a third value of the same word rather than a state of its
    *  own (#123, #294), and it is what the band's OFF asks for first
-   *  (ADR-0051). Written and never read: `state/run` reads back `held` or
-   *  `running`, and `held` is what the OFF sequence waits for. */
+   *  (ADR-0051). `state/run` reads it back like any other value of the run,
+   *  and what the OFF sequence waits for is the `held` the dispatcher writes
+   *  itself when the drain completes. */
   it("carries the drain on the same word", () => {
     expect(JSON.parse(runWanted(DRAINING)).payload).toEqual({ run: "draining" });
   });

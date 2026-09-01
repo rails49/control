@@ -581,6 +581,22 @@ describe("the word on the button", () => {
     expect(press(shell).textContent!.trim()).toBe("HOLD");
   });
 
+  /** A draining run is not a running one: it launches nothing, so the button
+   *  that would set it going again is the one to offer, and the press
+   *  resumes launching (#294). */
+  it("offers GO on a draining run", async () => {
+    const shell = await joined();
+
+    await said(shell, "tc49/dispatch/state/run", { run: "draining" });
+    expect(press(shell).textContent!.trim()).toBe("GO");
+
+    press(shell).click();
+
+    expect(written()).toEqual([
+      { topic: "tc49/dispatch/run_wanted", payload: { run: "running" } },
+    ]);
+  });
+
   /** One press, no confirmation: a clearly labelled button is the explicit
    *  GO. */
   it("writes the gesture the word names", async () => {

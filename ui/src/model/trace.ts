@@ -68,10 +68,14 @@ export const PLACEMENT_WANTED = "tc49/dispatch/placement_wanted";
 export const POWER_WANTED = "tc49/layout/power_wanted";
 
 /** How a run stands: the dispatcher will commit nothing while it is `held`,
- *  and a person moves it either way
- *  ([ADR-0037](../../../docs/adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
- *  An enum and not a boolean, on the topic and here. */
-export type Run = "held" | "running";
+ *  it commits everything while it is `running`, and while it is `draining` it
+ *  grants the trains already moving and launches nothing
+ *  ([ADR-0037](../../../docs/adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md),
+ *  [#294](https://github.com/rails49/control/issues/294)).
+ *  An enum and not a boolean, on the topic and here — which is what let the
+ *  drain take a third value rather than invent a state of its own. The same
+ *  three a person's `run_wanted` may name. */
+export type Run = "held" | "running" | "draining";
 
 /** What the layout says about whether a train may move at all: `on`, or one
  *  of the two ways of standing still — `stopped` is an emergency stop, every
@@ -83,20 +87,14 @@ export type Run = "held" | "running";
 export type Power = "on" | "stopped" | "off";
 
 /** The ordinary shutdown: the run launches nothing more, lets what is
- *  crossing finish, and settles at `held`. A third value of `run` and not a
- *  state of its own
- *  ([#123](https://github.com/rails49/control/issues/123)), and the
- *  dispatcher's half of it is
- *  [#294](https://github.com/rails49/control/issues/294). It is written here
- *  because OFF is the drain trigger
+ *  crossing finish, and settles at `held`. Named because OFF is the drain
+ *  trigger and this is the word it writes
  *  ([ADR-0051](../../../docs/adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)),
- *  and it is written and never read: `state/run` reads back `held` or
- *  `running`, and what the OFF sequence waits for is `held`. */
+ *  and what the OFF sequence then waits for is `held`, which the dispatcher
+ *  writes itself when the drain completes
+ *  ([#294](https://github.com/rails49/control/issues/294)). `state/run` reads
+ *  it back like any other value of the run. */
 export const DRAINING = "draining";
-
-/** What a `run_wanted` may name: where the run should stand. The two values
- *  the run reads back, and the drain that ends at the first of them. */
-export type RunWanted = Run | typeof DRAINING;
 
 /** A `request_wanted` payload: what a drag means. A request minus the two
  *  fields the scheduler owns — no `id`, because the scheduler is the single
@@ -130,11 +128,11 @@ export function placement(train: string, block: string | null): string {
   return JSON.stringify({ topic: PLACEMENT_WANTED, payload: { train, block } });
 }
 
-/** A `run_wanted` frame: hold the run, or release it. It says where the run
- *  should stand rather than asking for a change, so a press that agrees with
- *  where it already stands is not a race — and the dispatcher is the one
- *  writer of `state/run`, this being a gesture like the other two. */
-export function runWanted(run: RunWanted): string {
+/** A `run_wanted` frame: hold the run, release it, or drain it. It says where
+ *  the run should stand rather than asking for a change, so a press that
+ *  agrees with where it already stands is not a race — and the dispatcher is
+ *  the one writer of `state/run`, this being a gesture like the other two. */
+export function runWanted(run: Run): string {
   return JSON.stringify({ topic: RUN_WANTED, payload: { run } });
 }
 

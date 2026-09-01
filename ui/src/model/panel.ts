@@ -467,9 +467,11 @@ export class Panel {
         return;
       }
       case "run": {
-        // Held or running, whole from the topic. The button that moves it
-        // reads this, so what it offers is the run's own answer rather than
-        // the last press's.
+        // Held, running or draining, whole from the topic. The button that
+        // moves it reads this, so what it offers is the run's own answer
+        // rather than the last press's — and a drain reads back here like
+        // any other value of the run, the OFF sequence waiting on the `held`
+        // that ends it (#294).
         const { run } = event as unknown as { run: Run };
         this.runWord = run;
         return;
