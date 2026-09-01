@@ -9,11 +9,13 @@ import { describe, expect, it } from "vitest";
 import {
   gesture,
   Live,
+  Ordering,
   REQUEST_WANTED,
   reversal,
   REVERSAL_WANTED,
   RUN_WANTED,
   runWanted,
+  STATE_LEAVES,
 } from "../src/model/trace.js";
 
 describe("Live", () => {
@@ -93,5 +95,82 @@ describe("runWanted", () => {
     });
     expect(JSON.parse(runWanted("running")).payload).toEqual({ run: "running" });
     expect(RUN_WANTED).toBe("tc49/dispatch/run_wanted");
+  });
+});
+
+
+/** The stamp a state payload carries, and the order two values of one topic
+ *  are kept in (#240). The browser's half of the rule `tc49.lib.payload`
+ *  keeps in Python: MQTT promises order from one publisher on one topic, and
+ *  a pair delivered backwards would leave a page showing the older value. */
+describe("Ordering", () => {
+  const power = (at: number | undefined, value: string) =>
+    at === undefined
+      ? { event: "power", power: value }
+      : { event: "power", at, power: value };
+
+  it("keeps the later of two values and ignores the earlier", () => {
+    const ordering = new Ordering();
+    expect(ordering.accepts(power(20, "on"))).toBe(true);
+    expect(ordering.accepts(power(10, "off"))).toBe(false);
+  });
+
+  it("lets an equal stamp replace", () => {
+    const ordering = new Ordering();
+    expect(ordering.accepts(power(10, "on"))).toBe(true);
+    expect(ordering.accepts(power(10, "off"))).toBe(true);
+  });
+
+  it("takes an unstamped value and clears the held stamp", () => {
+    const ordering = new Ordering();
+    expect(ordering.accepts(power(20, "on"))).toBe(true);
+    expect(ordering.accepts(power(undefined, "off"))).toBe(true);
+    expect(ordering.accepts(power(1, "stopped"))).toBe(true);
+  });
+
+  it("reads no stamp off anything but a number", () => {
+    const ordering = new Ordering();
+    expect(ordering.accepts(power(20, "on"))).toBe(true);
+    // `true` is not a number here; in Python it is an `int`, which is why
+    // that reader refuses a boolean in a line of its own.
+    expect(ordering.accepts({ event: "power", at: true, power: "off" })).toBe(true);
+    expect(ordering.accepts({ event: "power", at: "20", power: "off" })).toBe(true);
+    expect(ordering.accepts(power(1, "stopped"))).toBe(true);
+  });
+
+  it("holds a stamp per state topic and not one for the page", () => {
+    const ordering = new Ordering();
+    expect(ordering.accepts(power(20, "off"))).toBe(true);
+    expect(ordering.accepts({ event: "run", at: 1, run: "held" })).toBe(true);
+  });
+
+  it("orders no event topic at all", () => {
+    const ordering = new Ordering();
+    expect(ordering.accepts({ event: "block_occupied", at: 20, block: "a" })).toBe(
+      true,
+    );
+    expect(ordering.accepts({ event: "block_vacated", at: 1, block: "a" })).toBe(true);
+  });
+
+  it("forgets its stamps when a page starts over", () => {
+    const ordering = new Ordering();
+    expect(ordering.accepts(power(20, "off"))).toBe(true);
+    ordering.reset();
+    expect(ordering.accepts(power(1, "on"))).toBe(true);
+  });
+
+  /** The leaves are the state rows of `tc49.lib.inventory`, and a Python
+   *  test reads this list out of the file to keep the two from drifting. */
+  it("names every state leaf a view is shown", () => {
+    expect([...STATE_LEAVES].sort()).toEqual([
+      "allocation",
+      "aspects",
+      "disputed",
+      "exhausted",
+      "facing",
+      "mode",
+      "power",
+      "run",
+    ]);
   });
 });

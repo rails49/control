@@ -25,7 +25,14 @@ import type { Position } from "../symbols.generated.js";
 import type { Wire } from "./drawing.js";
 import { WHOLE, wiresOn } from "./inspect.js";
 import { transitEnds, type Explained, type Layout } from "./store.js";
-import type { Gesture, Power, Run, Submission, TraceEvent } from "./trace.js";
+import {
+  Ordering,
+  type Gesture,
+  type Power,
+  type Run,
+  type Submission,
+  type TraceEvent,
+} from "./trace.js";
 
 /** A block end, written `<block>.<end>` as the bus writes it. */
 export type EndRef = string;
@@ -288,6 +295,11 @@ export class Panel {
    *  train that never moved. The dispatcher publishes `allocation` right
    *  after the standing locks, so the picture is the marker. */
   private started = false;
+  /** The stamp held against each state leaf: what keeps the later of two
+   *  values of one state topic when the two arrive backwards (#240). A page
+   *  is a consumer of state topics like any other, and the frames it is
+   *  handed came off the same wire. */
+  private readonly ordering = new Ordering();
 
   /** transit resource → the legs its way takes and the wires it is drawn
    *  over. Worked out once, at construction: neither answer can change while
@@ -326,6 +338,7 @@ export class Panel {
     this.powerWord = null;
     this.requests.clear();
     this.started = false;
+    this.ordering.reset();
   }
 
   /**
@@ -342,6 +355,12 @@ export class Panel {
   }
 
   apply(event: TraceEvent): void {
+    // A state value older than the one already held is ignored, whoever
+    // published it and whatever it says: the wire handed the pair over
+    // backwards, and showing a person the older one is the failure the stamp
+    // exists for (#240). Events pass straight through — a repeated sensor
+    // reading re-asserts a level, and nothing is replayed.
+    if (!this.ordering.accepts(event)) return;
     switch (event.event) {
       case "lock_granted": {
         const { train, resources } = event as unknown as {

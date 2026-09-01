@@ -1267,3 +1267,76 @@ describe("whether the run is held", () => {
     expect(model.run).toBeNull();
   });
 });
+
+/** The stamp every state payload carries (#240): a page is a consumer of
+ *  state topics like any other, and two values of one topic can come off the
+ *  wire in the order they were not published in. */
+describe("a state value that arrives out of order", () => {
+  it("keeps the later of two the wire handed over backwards", () => {
+    const model = panel();
+    // The supply went off, then came back on; the two arrive the other way
+    // about. Showing a person the `off` would be the failure the stamp is
+    // for — a page saying the rails are dead over live track.
+    feed(
+      model,
+      { event: "power", at: 20, power: "on" },
+      { event: "power", at: 10, power: "off" },
+    );
+    expect(model.power).toBe("on");
+  });
+
+  it("lets an equal stamp replace", () => {
+    const model = panel();
+    feed(
+      model,
+      { event: "power", at: 10, power: "on" },
+      { event: "power", at: 10, power: "off" },
+    );
+    expect(model.power).toBe("off");
+  });
+
+  it("takes an unstamped value and starts ordering again", () => {
+    const model = panel();
+    feed(
+      model,
+      { event: "power", at: 20, power: "on" },
+      { event: "power", power: "stopped" },
+      { event: "power", at: 1, power: "off" },
+    );
+    expect(model.power).toBe("off");
+  });
+
+  it("orders each state topic against itself alone", () => {
+    const model = panel();
+    feed(
+      model,
+      { event: "power", at: 20, power: "off" },
+      { event: "run", at: 1, run: "held" },
+    );
+    expect(model.run).toBe("held");
+  });
+
+  it("orders no event, however late", () => {
+    // Gated on the leaf being a state topic's and never on a payload
+    // carrying a number: an event reports something that happened, and the
+    // second of these two must land whatever it says about when it was sent.
+    const model = panel();
+    placed(model);
+    feed(
+      model,
+      { event: "lock_granted", at: 20, train: "t1", resources: ["b"] },
+      { event: "lock_released", at: 1, train: "t1", resources: ["b"] },
+    );
+    expect(model.blocks().get("b")).toMatchObject({ state: "free" });
+  });
+
+  it("forgets the stamps when the model starts over", () => {
+    const model = panel();
+    feed(model, { event: "power", at: 20, power: "off" });
+    model.reset();
+    // A rejoined page meets a session whose clock starts where that session
+    // did, so a stamp from the last one must not refuse what this one says.
+    feed(model, { event: "power", at: 1, power: "on" });
+    expect(model.power).toBe("on");
+  });
+});
