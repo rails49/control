@@ -679,9 +679,15 @@ class Dispatcher:
         return any(req.train == train for req in self._pending)
 
     def _expected_block(self, train: str) -> str | None:
-        """Where the train stands, active route or not (#99) — None when an
-        earlier pending request makes that a future dispatcher choice."""
-        return None if self._has_pending(train) else self._state.block_of[train]
+        """Where the train stands (#99) — None while a request of its own is
+        pending or running. Requests go in at the start of a run (ADR-0047),
+        so a chained one arrives while its train is under way, and the block
+        it states was composed against a snapshot: the launch stage judges
+        it, correcting a stated block from the end the committed route leaves
+        the train facing (#135)."""
+        if self._has_pending(train) or train in self._state.active:
+            return None
+        return self._state.block_of[train]
 
     def _launch_to_come(self, request: Submission) -> tuple[str, str] | None:
         """The origin and departure end the request will launch from, or None
