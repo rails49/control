@@ -16,10 +16,17 @@ derives from the tapped events of [SYSTEM.md](../SYSTEM.md#the-trace):
   Standing locks are in the trace from the dispatcher's startup emission
   ([SYSTEM.md](../SYSTEM.md#dispatcher)), so idle trains count.
 - **Throughput** — `move` commands per simulated minute.
-- **Stall report** — for each request admitted but never completed when the
-  trace ends, the last `grant_refused` for its id names the obstacles: which
-  train (`holder`), which block (`resource`), how many candidates were
-  blocked (the list's length).
+- **Stall report** — for each request admitted and never answered when the
+  trace ends — no `request_completed`, `request_rejected` or
+  `request_cancelled` — the last `grant_refused` for its id names the
+  obstacles: which train (`holder`), which block (`resource`), how many
+  candidates were blocked (the list's length).
+- **Status** — `stalled`, then `rejected`, then `cancelled`, then `ok`: the
+  worst thing that happened to the run. A cancelled request is work somebody
+  ended on purpose
+  ([ADR-0049](../adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)),
+  so it is neither a fault of the run nor a run that drained, and it
+  contributes no latency — there is no arrival to measure to.
 
 This is deliberate. It keeps the trace **load-bearing**: an event that stops
 being emitted breaks a metric and fails a test, rather than leaving the trace

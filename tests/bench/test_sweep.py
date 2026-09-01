@@ -186,6 +186,7 @@ def test_sweep_writes_one_jsonl_row_per_run(tmp_path: Path) -> None:
             "seconds",
             "completed",
             "rejected",
+            "cancelled",
             "mean_latency",
             "max_latency",
             "mean_utilization",

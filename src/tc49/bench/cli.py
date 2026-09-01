@@ -78,6 +78,7 @@ def format_comparison(
         ("moves/min", [_ratio(results[n][1].moves_per_minute) for n in names]),
         ("completed", [str(len(results[n][1].completed)) for n in names]),
         ("rejected", [str(len(results[n][1].rejected)) for n in names]),
+        ("cancelled", [str(len(results[n][1].cancelled)) for n in names]),
         ("seconds", [_secs(results[n][1].seconds) for n in names]),
     ]
     width = max(len(label) for label, _ in rows) + 2
