@@ -31,7 +31,8 @@ this app throws what it is told and holds no table of its own.
 `tc49/dispatch/train_removed`, `tc49/dispatch/state/aspects` and
 `tc49/layout/state/device/#`.
 
-*Publishes* `tc49/layout/state/wanted/point/<addr>`,
+*Publishes* `tc49/layout/block_occupied`, `tc49/layout/block_vacated`,
+`tc49/layout/state/wanted/point/<addr>`,
 `tc49/layout/state/wanted/signal/<addr>`, `tc49/layout/state/wanted/track` and
 `tc49/layout/state/power`.
 
@@ -43,11 +44,17 @@ core app has a command line — `scheduler`, `dispatcher` and `driver` have none
 either. `station` does, and it is the one app that speaks no bus topic at all.
 
 The app is constructed on the bus like the rest of them, with the railroad it
-answers for:
+answers for, the run clock, and the settling time the debounce below uses:
 
 ```python
-LayoutInterface(bus, layout)
+LayoutInterface(bus, layout, clock)          # 300 ms of settling
+LayoutInterface(bus, layout, clock, 0.05)    # detectors that need less
 ```
+
+The clock is required rather than defaulted for the bus's reason: an app given
+none would debounce against a clock that never moves. Whoever owns the loop
+calls `settle()`, which is what acts on a level that has stood long enough —
+there is no loop yet, so today the suite is the only caller.
 
 It gets a command line, and `deploy/` gets a container for it, the day the
 broker arrives and each app is its own process
@@ -93,7 +100,7 @@ A held command meets all three at the moment it is acted on and not at the
 moment it arrived, since the railroad can move under it while it waits.
 
 **Every payload is read and never trusted**
-([SYSTEM.md](../SYSTEM.md#event-inventory), rule 4). Six topics from four
+([SYSTEM.md](../SYSTEM.md#event-inventory), rule 4). Six topics from five
 publishers reach this app and it answers none of them — it reports observations
 — so a frame that cannot be read is **dropped**, silently and to the trace, and
 so is a command the layout contradicts: one naming a transit this railroad does
@@ -130,6 +137,62 @@ own: a held run puts every signal to stop and the dispatcher's value names
 every signalled end, so the retained value this app is handed on subscribing is
 the seed. Two ends sharing one address are two writes to one topic and the last
 stands, which is what one output driving two heads does.
+
+## Occupancy
+
+**Levels in, edges out.** A detector reports presence at one block end, and
+presence is a level that can be asked for at any time; the bus carries the
+changes because it is an event bus
+([#243](https://github.com/rails49/control/issues/243)). So this app holds the
+level at each block end and publishes `block_occupied` or `block_vacated` only
+where a level moves. A repeated level re-asserts what is already held and is a
+no-op, which is the whole of what at-least-once delivery needs here: no
+counter, no dedup.
+
+**A block reads occupied while either of its ends does.** Both of a block's
+detectors stay inside the interface
+([SYSTEM.md](../SYSTEM.md#layout-interface)), so what the pair answers together
+is one occupancy, and a change in that fold is the block's own event. It is
+published whether or not a move explains it: a hand putting a locomotive down
+is how every session starts, and what to make of a reading nothing accounts for
+is the dispatcher's judgement — it holds the run and names the block for a
+person to walk
+([ADR-0048](../adr/0048-an-unexplained-reading-holds-the-run.md)) — not this
+app's.
+
+**The block behind is named by the move.** A train entering block Y trips Y's
+first detector with its head and its second once it is fully in. The first is
+`block_occupied(Y)`; the second is `block_vacated(X)`, and X is the block this
+app's own accepted `move` left. That is the one event no detector could
+produce: occupancy is anonymous, and nothing below the interface knows what is
+behind a train. So the physical order is **occupied then vacated**, which is
+the order the dispatcher already expects (ADR-0047).
+
+Which end of the entered block the train comes in at is the end across the
+transit, read off the layout from the `move` that was carried out. The block's
+*far* end is a different thing — its second sensor, the one a train trips once
+it is fully in — and the two are opposite ends of the one block
+([#279](https://github.com/rails49/control/issues/279)).
+
+**The debounce.** A camera-based detector runs at 2–8 Hz with no debounce of
+its own and is biased towards reporting occupied, so a new level is held for a
+**settling time** before it is acted on, and a level that flips back inside
+that window is never seen upstream. The settling time is **configuration**: a
+constructor argument, 300 ms by default, because what it is worth is a fact
+about the detectors a railroad has and not something this app can know
+(ADR-0030). It is on no topic, and nothing above the interface is told there is
+a debounce at all.
+
+**`unknown` is no information about that end.** No edge comes of it, it does
+not discard the level the end last actually had, and it does not cancel a level
+that is settling. The `reason` beside it is logged once per transition into
+`unknown`, for a person: the detector knows why it cannot say — no model, not
+calibrated, drift — and nothing in the system branches on it. If the end a
+crossing train is expected to arrive at is `unknown` when it should have fired,
+nothing new happens here: the arrival is never confirmed, which is already
+ADR-0040's second leg — a timer stops the train and wedges the block, with
+removal as the recourse
+([#237](https://github.com/rails49/control/issues/237)).
 
 ## Power
 
@@ -179,7 +242,5 @@ the supply going away below it moves `state/power` and never `wanted/track`.
 - **A train's mode and a person's throttle**, which reach the locomotive
   through that same write
   ([#297](https://github.com/rails49/control/issues/297)).
-- **The sensor fold** — `device/sensor` into `block_occupied` and
-  `block_vacated`, and any debounce.
 - **Any hardware protocol.** This app speaks the device vocabulary and nothing
   else; what a translator does with an address is its own business.
