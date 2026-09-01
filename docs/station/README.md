@@ -26,8 +26,9 @@ There is no bind address. The server binds every interface, because the
 container publishes the port and JMRI reaches it as `station:2560`; what
 limits its reach is the LAN, which is the trust boundary
 ([ADR-0042](../adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)).
-For the same reason there is no authentication and no limit on clients beyond
-the OS's.
+For the same reason there is no authentication and no limit on the number of
+clients beyond the OS's — though there is a limit on how far behind one may
+fall, which is a different question.
 
 The device is opened raw at 115200 8N1 — no echo, no line editing, no flow
 control — so what a client sends is what the station receives.
@@ -40,6 +41,19 @@ stream cannot say who asked: a reply to a throttle and a broadcast to
 everyone look alike on it. Each client hears the whole conversation and
 ignores what is not its business, which is what a shared bus has always
 asked of the things on it.
+
+**A client that has stopped reading is cut off.** Nothing waits for a client
+to take what was fanned to it, so one that never does — a sleeping laptop, a
+throttle whose Wi-Fi dropped, a hung DecoderPro — would have bytes buffered
+for it for as long as the railroad runs, until the process is killed for
+memory and *every* client loses the command station because one of them
+walked out of range. Once more than a megabyte is outstanding to a client,
+about a minute and a half of everything the device has to say, its connection
+is closed and the log says it went too far behind rather than closing itself.
+It may reconnect and pick the live conversation up. Not a bounded buffer that
+discards instead: this direction is unframed, so dropping from the middle
+hands the client half a message it reads as garbage, and not silence either —
+if hardware or a peer breaks, the software says so (ADR-0050).
 
 **From a client to the device: whole messages only.** A client's bytes are
 buffered until a complete `<…>` message and then written in one write, so two
@@ -65,7 +79,8 @@ retrying or holds a descriptor open, and a session that ends at once is
 waited out rather than reopened straight away. Each outage says once that
 what clients send is being dropped, and the next outage says it again.
 
-It logs connects, disconnects, the device opening and closing, and the first
+It logs connects, disconnects — with the ones it made itself distinguishable
+from the ones a client made — the device opening and closing, and the first
 message dropped in each outage, to stderr. Nothing else: a mirror that logged
 the traffic would log the whole railroad.
 

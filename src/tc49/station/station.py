@@ -20,8 +20,9 @@ without limit until the process dies of it and every other client loses the
 command station too. Once more than `MAX_OUTSTANDING_BYTES` is outstanding to
 one, its connection is closed and the log says why. Not a bounded buffer that
 discards: this direction is unframed, so dropping from the middle hands the
-client half a message it reads as garbage. It may reconnect and pick the live
-conversation up.
+client half a message it reads as garbage, and not silence either: a peer that
+has gone is reported rather than absorbed (ADR-0050). It may reconnect and
+pick the live conversation up.
 
 **While the device is away a client's messages are dropped**, not queued, and
 the client stays connected. A command is honored now or ignored: a queue that
