@@ -17,7 +17,11 @@ take one apart, ``end_on`` reads one off a transit and ``end_crossed`` does
 the same for a transit that came off the bus with ``far_end`` answering the
 other side of it, ``connected_end`` says which end of a block a connection
 holds, and ``departure_end`` composes that over ``opposite_end`` into the end
-a train leaves a block by.
+a train leaves a block by. The ``<block>.<A-to-B|B-to-A>`` **facing** form is
+parsed beside it and nowhere else: ``FACINGS`` is the vocabulary,
+``facing_ends`` takes one apart into the two ends it runs between,
+``facing_towards`` writes one from the end a train would depart through, and
+``connected_facing`` is ``connected_end`` asked of one.
 """
 
 from collections.abc import Container
@@ -293,21 +297,69 @@ def connected_end(layout: Layout, candidate: str) -> str:
     return candidate if candidate in layout.end_connection else opposite_end(candidate)
 
 
-def departure_end(layout: Layout, entered: str) -> str:
-    """The end a train that came into a block through `entered` leaves it by:
-    the other end of that block, or a terminal block's one connected end.
+def departure_end(layout: Layout, lie: str) -> str:
+    """The end a train lying `lie` in its block leaves it by: the other end
+    of that block, or a terminal block's one connected end.
+
+    `lie` is the way the train lies said either way — the end it came in
+    through, `'<block>.A'`, or the **facing** it holds, `'<block>.A-to-B'`.
+    The two are one trajectory: a train faces away from the end it entered
+    through, so a train that came in at A and a train facing A-to-B both
+    leave by B. Which spelling a caller has is which side of ADR-0019 it is
+    on — the dispatcher holds ends and never learns facing exists, the
+    scheduler holds facing — and the rule is one rule either way.
 
     The composed rule — `connected_end` applied to the far side of the end
-    the train entered through — and the whole of what a strict pass-through
+    the train came in through — and the whole of what a strict pass-through
     means for one block (ADR-0001, CONTEXT.md **facing**). Everything that
     settles where a train goes out asks it: the scheduler of a move it saw
-    granted and of a train turned around at rest, the dispatcher of the route
-    it has just committed to. It takes the end and not a route, since `lib`
-    has no reason to know what a `Route` is and two of those callers do not
-    have one to pass — reading the entered end off a route stays with the
+    granted and of the facing it composes a drag from, the dispatcher of the
+    route it has just committed to. It takes the end and not a route, since
+    `lib` has no reason to know what a `Route` is and two of those callers do
+    not have one to pass — reading the entered end off a route stays with the
     dispatcher (#155).
     """
+    entered = lie if end_letter(lie) in ("A", "B") else facing_ends(lie)[0]
     return connected_end(layout, opposite_end(entered))
+
+
+FACINGS = ("A-to-B", "B-to-A")
+"""The two ways a train lies in its block, each written as the run it would
+make across it: a train facing 'A-to-B' would depart nose-first through B.
+
+The whole vocabulary of a **facing** value, which is written `<block>.A-to-B`
+on `tc49/schedule/state/facing` and bare in a scenario's placement, the block
+being the `at` beside it. Stated as the run and not as the end reached because
+the end alone cannot be read without the convention in front of you (#241)."""
+
+
+def facing_ends(facing: str) -> tuple[str, str]:
+    """The two ends a facing runs between, tail first: a train facing
+    '<block>.A-to-B' stands with its tail at '<block>.A' and its nose — the
+    end it would depart through where a connection holds one — at
+    '<block>.B'."""
+    tail, _, nose = end_letter(facing).partition("-to-")
+    return f"{block_of(facing)}.{tail}", f"{block_of(facing)}.{nose}"
+
+
+def facing_towards(end: str) -> str:
+    """The facing of a train that would depart through `end`.
+
+    The inverse of `facing_ends`'s nose, and how every site that settles a
+    facing writes one down: what the layout answers is an end, and what the
+    scheduler holds is a facing (ADR-0019)."""
+    return f"{block_of(end)}.{'A-to-B' if end_letter(end) == 'B' else 'B-to-A'}"
+
+
+def connected_facing(layout: Layout, candidate: str) -> str:
+    """`candidate` where a connection holds the end it points at, and the same
+    facing turned around otherwise: `connected_end` asked of a facing.
+
+    A terminal block is the one block where a placement, or a facing carried
+    into a new block, can point a train at the wall, and its one connected end
+    is the answer whatever the candidate says (#145).
+    """
+    return facing_towards(connected_end(layout, facing_ends(candidate)[1]))
 
 
 def end_on(layout: Layout, block: str, transit: str) -> str:
