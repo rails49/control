@@ -1,29 +1,55 @@
-# gotthard — the trains this railroad owns (CONTEXT.md, **Roster**).
+# gotthard — the cars this railroad owns and the trains made up from them
+# (CONTEXT.md, **Roster**).
 #
-# A train is a name and a length. Being on the roster is what makes a train
-# **known**; where it stands, if anywhere, is the run's and not this file's
-# (ADR-0039). A scenario over this railroad places trains from here and states
-# no length of its own, so one train has one length however many scenarios
-# name it.
+# The stock is synthetic: nobody owns one of these, so every train is a single
+# car of the `bench-<length>` model of its length (`catalogue/`) rather than a
+# product. A train's length is the sum of its cars and is never authored
+# (ADR-0045); each sum is the length this file stated before the rewrite, train
+# for train, so no benchmark result moves (#223).
+#
+# Being on the roster is what makes a train **known**; where it stands, if
+# anywhere, is the run's and not this file's (ADR-0039). A scenario over this
+# railroad places trains from here and states no length of its own, so one
+# train has one length however many scenarios name it.
 
 roster: gotthard
 
+cars:
+  fixed_car: { model: bench-450 }
+  flexible_car: { model: bench-450 }
+  long_car: { model: bench-1000 }
+  med_car: { model: bench-800 }
+  mover_car: { model: bench-300 }
+  north_car: { model: bench-450 }
+  resident_car: { model: bench-450 }
+  short_car: { model: bench-300 }
+  south_car: { model: bench-450 }
+  stock_car: { model: bench-450 }
+  stranded_car: { model: bench-450 }
+  t1_car: { model: bench-450 }
+  t2_car: { model: bench-450 }
+  t3_car: { model: bench-450 }
+  t4_car: { model: bench-450 }
+  t5_car: { model: bench-450 }
+  t6_car: { model: bench-450 }
+  too_long_car: { model: bench-1500 }
+
 trains:
-  fixed: { length: 450 }
-  flexible: { length: 450 }
-  long: { length: 1000 }
-  med: { length: 800 }
-  mover: { length: 300 }
-  north: { length: 450 }
-  resident: { length: 450 }
-  short: { length: 300 }
-  south: { length: 450 }
-  stock: { length: 450 }
-  stranded: { length: 450 }
-  t1: { length: 450 }
-  t2: { length: 450 }
-  t3: { length: 450 }
-  t4: { length: 450 }
-  t5: { length: 450 }
-  t6: { length: 450 }
-  too_long: { length: 1500 }
+  fixed: { cars: [{ car: fixed_car }] }
+  flexible: { cars: [{ car: flexible_car }] }
+  long: { cars: [{ car: long_car }] }
+  med: { cars: [{ car: med_car }] }
+  mover: { cars: [{ car: mover_car }] }
+  north: { cars: [{ car: north_car }] }
+  resident: { cars: [{ car: resident_car }] }
+  short: { cars: [{ car: short_car }] }
+  south: { cars: [{ car: south_car }] }
+  stock: { cars: [{ car: stock_car }] }
+  stranded: { cars: [{ car: stranded_car }] }
+  t1: { cars: [{ car: t1_car }] }
+  t2: { cars: [{ car: t2_car }] }
+  t3: { cars: [{ car: t3_car }] }
+  t4: { cars: [{ car: t4_car }] }
+  t5: { cars: [{ car: t5_car }] }
+  t6: { cars: [{ car: t6_car }] }
+  too_long: { cars: [{ car: too_long_car }] }
