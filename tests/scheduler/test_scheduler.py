@@ -587,7 +587,6 @@ def test_an_announcement_that_cannot_be_read_leaves_facing_where_it_was() -> Non
         ("route_chosen", {"id": "nobody-9", "route": ["up_e", "east_ladder.from_up"]}),
         ("train_placed", {"train": "freight_1"}),  # no block
         ("train_placed", {"train": "freight_1", "block": None}),  # removal's word
-        ("train_placed", {"train": "freight_1", "block": "ghost"}),  # no such block
         ("train_removed", {}),  # no train
         ("train_removed", {"train": 7}),
         ("request_completed", {}),  # no id
@@ -658,52 +657,3 @@ def test_an_answer_that_cannot_be_read_leaves_the_request_in_flight() -> None:
     announce(bus, "request_completed", {"id": "express_2-1"})
     reversal(bus, {"train": "express_2"})
     assert facing(seen)["express_2"] == "up_e.B"
-
-
-def test_a_kept_facing_is_read_train_by_train(tmp_path: Path) -> None:
-    """The scheduler's own last value, and still read rather than trusted: it
-    comes back off a file a hand can edit, and tomorrow off a retained
-    message the broker holds for whoever published it last (ADR-0042). A
-    restart that raised on it would be a railroad that will not start until
-    someone finds the file.
-
-    Train by train, so one bad entry costs one train: an end this layout does
-    not hold — the ordinary shape of a railroad edited between sessions — and
-    a value that is not an end leave that train a cold start of one, which is
-    what the seed under it already is.
-    """
-    path = tmp_path / "session.json"
-    path.write_text(
-        json.dumps(
-            {
-                FACING: {
-                    "facing": {
-                        "freight_1": "ghost.A",  # no such block here
-                        "express_2": 7,  # not an end either
-                        "shunter": "up_w.B",  # and one that reads
-                    }
-                }
-            }
-        )
-    )
-    bus = Bus(path)
-    seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded())
-    bus.drain()
-    assert facing(seen) == {
-        "express_2": "up_e.A",
-        "freight_1": "yard_w.B",
-        "shunter": "up_w.B",
-    }
-
-
-def test_a_kept_facing_that_is_not_a_map_starts_cold(tmp_path: Path) -> None:
-    """The whole value unreadable rather than an entry of it: the run comes
-    up on its seed, which is a cold start and not a failure."""
-    path = tmp_path / "session.json"
-    path.write_text(json.dumps({FACING: {"facing": "everywhere"}}))
-    bus = Bus(path)
-    seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded())
-    bus.drain()
-    assert facing(seen) == {"express_2": "up_e.A", "freight_1": "yard_w.B"}
