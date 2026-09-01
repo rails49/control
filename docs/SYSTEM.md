@@ -1153,13 +1153,17 @@ layout that detects occupancy, which is the binding that decides
 
 #### Device vocabulary
 
-What `layout` writes to the hardware under it: one retained state topic per
-device, naming what that device should do. `layout` is the single writer of
-every row (rule 1), and whatever recognises an address acts on it while
-everything else ignores it — no ownership table exists anywhere, and an
+What passes between `layout` and the hardware under it, in two halves: one
+retained state topic per device naming what that device should do, and one
+naming what it is observed to do. Every row has a single writer (rule 1) —
+`layout` for a desired row, and for an observed one the one thing that answers
+for that address — and whatever recognises an address acts on it while
+everything else ignores it, so no ownership table exists anywhere and an
 address nothing answers to does no harm, as a packet nobody picks up does
 ([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 The rows are `tc49.lib.inventory.DEVICE_TOPICS`.
+
+**What `layout` asks of the hardware.**
 
 | Topic | Payload | Values |
 | --- | --- | --- |
@@ -1175,9 +1179,7 @@ lets a trace line read on its own. The trace's `event` for one of these is that
 key past `tc49/layout/state/` — `wanted/traction`, `wanted/point` — two levels
 where every other row's name is one, because the observed half of the
 vocabulary answers for the same devices and `point` alone would not say which
-half a line records. These are the **desired** rows; observed state is written
-by whatever the hardware reports it through, and a commanded position is never
-echoed back as a measured one (ADR-0043).
+half a line records.
 
 **The two address rules differ, and the difference is physical.** A traction or
 function address is **bare** — a decoder answers to the number it was
@@ -1191,18 +1193,74 @@ others, and a translator subscribes its own system.
 
 **`track` carries no address.** Power districts are a hardware-level fact and
 do not reach the bus: there is one railroad-wide desired power, and a
-translator maps it onto however many districts its hardware has. The observed,
-railroad-wide answer is `tc49/layout/state/power` above, and is unchanged.
+translator maps it onto however many districts its hardware has. Above the
+layout interface the railroad-wide answer stays `tc49/layout/state/power`,
+unchanged; `device/track` below it is what one translator reads off its own
+hardware, and how the two meet is `layout`'s, as the fold from sensors into
+`block_occupied` and `block_vacated` is.
 
 **Speed is a fraction, never a decoder step.** The sign is direction along the
 track and the magnitude is the fraction of that locomotive's maximum; `0.0` is
 stop. Steps, speed tables and every wire protocol stay inside a translator
 (ADR-0043).
 
-Every row is state rather than command because that is what makes the extra hop
-safe under at-least-once delivery: a replayed message carries the value that is
-already current, and a translator coming up finds the retained value waiting
-(ADR-0043).
+**What the hardware reports back.** The observed half, written by whatever
+watches or drives the thing addressed — a detector for a sensor, a translator
+for its own system — and never by `layout`, which reads these rows rather than
+writing them.
+
+| Topic | Payload | Values |
+| --- | --- | --- |
+| `tc49/layout/state/device/sensor/<block>.<end>` | `addr`, `occupancy`, `reason` | `occupancy` `occupied`, `clear` or `unknown`; `reason` *optional*, free text, only with `unknown` |
+| `tc49/layout/state/device/point/<system>/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
+| `tc49/layout/state/device/track` | `power` | `power` `on`, `stopped` or `off` |
+| `tc49/layout/state/device/link/<system>` | `system`, `link`, `detail` | `link` `up` or `down`; `detail` *optional*, free text |
+
+The address rules are the desired half's, and `link` is the one row whose
+address comes back under a name of its own: it is addressed by the system
+whose connection it reports, and the payload repeats that as `system` rather
+than as `addr`, there being no device at the far end of it.
+
+**A sensor is addressed by the block end it watches**, `<block>.<end>`, one
+topic per sensor, and never by a camera's own identifier
+([#194](https://github.com/rails49/control/issues/194)). The drawing carries
+the mapping and the detector is configured with the names it must publish, so
+nothing above the layout interface learns detector geometry (ADR-0043). Never
+a whole-railroad map either: a map would make one camera the single writer of
+every sensor on the railroad, and a second camera could then not join without
+overwriting the first one's view, which is the reason
+[ADR-0035](adr/0035-a-topic-has-one-writing-role.md) gives for one writing
+role per state topic.
+
+**A detector publishes a level change and nothing else** — no heartbeat, no
+periodic restatement, no map on a timer. Retention is what a late subscriber
+gets, so there is **no state-inquiry request**, the same answer the topics
+above give and for the same reason: a feature nothing needs is overhead.
+`unknown` is a value and not an absence. The camera knows *why* it cannot say
+— no model, not calibrated, drift — and `reason` carries that for a person to
+read, while a consumer treats `unknown` as no information about that end.
+
+**`link` is where a broken link becomes observable.** A translator publishes
+its own link to the hardware as observed state like any other, so a UI can say
+the command station is unreachable instead of the railroad merely looking
+idle, and goes on saying so while the failure lasts
+([ADR-0050](adr/0050-broken-hardware-is-reported-never-worked-around.md)).
+That is where verifying the link belongs: at runtime, with a person present
+who can act on it, and not in a test suite that would need a powered layout to
+pass. A translator publishes `device/point` only where its
+hardware actually reports a position, a commanded one never being echoed back
+as a measured one (ADR-0043); on this railroad turnouts have no feedback
+([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)), so the
+translator driving them writes none, a faked reply being worse than silence.
+
+Nothing publishes or subscribes to the observed rows today: they are declared,
+as the rows above them are. Folding two sensors into `block_occupied` and
+`block_vacated`, and any debounce, are `layout`'s own work.
+
+Every row of both halves is state rather than command because that is what
+makes the extra hop safe under at-least-once delivery: a replayed message
+carries the value that is already current, and a translator coming up finds
+the retained value waiting (ADR-0043).
 
 ### Asset store
 

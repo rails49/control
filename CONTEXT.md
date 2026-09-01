@@ -543,14 +543,18 @@ across sessions), sequence number or counter (nothing is minted, and no
 publisher owns it), version
 
 **Device vocabulary**:
-The retained state topics under `tc49/layout/state/wanted/` naming what one
-device should do — a locomotive's speed and functions, a point's position, a
-signal's aspect, the track's power. `layout` writes them and a **translator**,
-one app per hardware system, acts on every address it recognises; the rest of
-the system never names a device, `align` and `move` naming a transit
+The retained state topics naming one device each, in two halves. What the
+device **should do**, under `tc49/layout/state/wanted/` — a locomotive's speed
+and functions, a point's position, a signal's aspect, the track's power —
+written by `layout`, with a **translator**, one app per hardware system,
+acting on every address it recognises. What it is **observed to do**, under
+`tc49/layout/state/device/` — a sensor's occupancy, a point's position where
+the hardware reports one, the track's power, and a translator's **link** —
+written by whatever watches or drives the thing addressed, of which there is
+exactly one per address, and read by `layout`. The rest of the system never
+names a device, `align` and `move` naming a transit
 ([ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
-The desired half is `tc49.lib.inventory.DEVICE_TOPICS`; the observed half,
-written back by whatever the hardware reports through, is the other.
+Both halves are `tc49.lib.inventory.DEVICE_TOPICS`.
 _Avoid_: device layer, hardware topics, driver (which names an app)
 
 **Address** (on a device topic):
@@ -560,9 +564,11 @@ address is bare, and a **point** or signal address names its system first,
 `<system>/<addr>` — fixed wiring can be split across systems and traction
 cannot (ADR-0043, refined by
 [ADR-0045](docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
-Not a leaf: the row is the topic above the address, which is what
-`split_device` takes apart. `wanted/track` carries none, there being one
-railroad-wide desired power.
+A **sensor** takes a third shape of its own, the block end it watches. Not a
+leaf: the row is the topic above the address, which is what `split_device`
+takes apart. The two `track` rows carry none, there being one railroad-wide
+power desired and one observed; a **link** carries one and repeats it as
+`system` rather than as `addr`, naming no device.
 _Avoid_: id, suffix, path
 
 **Traction**:
@@ -577,6 +583,37 @@ what gives it the sign
 ([ADR-0025](docs/adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 _Avoid_: throttle (a person's control, which is its own entry), motive power,
 traction power (which is the track supply)
+
+**Detector**:
+What watches a **block end** and publishes what it sees there, on one retained
+state topic per **sensor**: `occupied`, `clear` or `unknown`. Addressed by the
+block end, `<block>.<end>`, and never by the detector's own identifier — the
+drawing carries the mapping and the detector is configured with the names it
+must publish, so nothing above the layout interface learns detector geometry
+(ADR-0043, [#194](https://github.com/rails49/control/issues/194)). It
+publishes a **level change and nothing else**: no heartbeat, no restatement on
+a timer, and
+nothing asks it for its state, retention being what a late subscriber gets.
+`unknown` is a value and not an absence — the detector knows *why* it cannot
+say, and the free-text `reason` carries that for a person to read, while a
+consumer treats it as no information about that end. Two of them watch a
+block, and folding the pair into `block_occupied` and `block_vacated` is
+`layout`'s.
+_Avoid_: camera (one kind of detector), block detector; and not the **sensor**
+itself, which is the block end watched and is what the topic is addressed by
+
+**Link**:
+Whether a translator can reach the hardware it drives: `up` or `down`,
+observed and published like any other device state, addressed by the `system`
+whose link it is and carrying a free-text `detail`. It is what lets a view say
+the command station is unreachable rather than leaving the railroad merely
+looking idle, and it is where verifying that the hardware is really reachable
+belongs: at runtime, with a person present who can act on it, never in a gate
+that would need a powered layout to pass
+([ADR-0050](docs/adr/0050-broken-hardware-is-reported-never-worked-around.md),
+ADR-0043).
+_Avoid_: connection (the track between two blocks, which is its own entry),
+health, heartbeat, status
 
 **Enum**:
 A field whose values are a closed set the contract names, listed beside the
