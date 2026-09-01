@@ -54,7 +54,7 @@ layout: crossover-yard
 units: mm
 
 blocks:
-  up_w: { length: 3200 }
+  up_w: { length: 3200, signals: { B: "<system>/41" } }   # only the signalled ends
 
 connections:
   crossover:
@@ -99,12 +99,31 @@ connections:
   transit that needs any, the address of every point along its way and the
   position that way wants it in
   ([ADR-0031](../adr/0031-the-layout-carries-the-points-a-transit-needs.md)).
-  That is what the dispatcher publishes on `align`, and it is the whole of the
-  hardware the layout knows about — a point has an address and a position here,
-  never a shape, a position on the canvas, or a switching time.
+  That is what the dispatcher publishes on `align`, and with the signals below
+  it is the whole of the hardware the layout knows about — a point has an
+  address and a position here, never a shape, a position on the canvas, or a
+  switching time.
   Connection *length* is likewise absent — a connection can be metres of track,
   as the Gotthard return loop is, but a train transits it and can never stop in
   it.
+- **A block end carries the address of the signal standing at it**, under
+  `signals` on the block and keyed by the end, `A` or `B`. It is the drawing's
+  ([DRAWING.md](DRAWING.md#hardware-ids)), a signal being fixed wiring whose
+  address is typed on the drawing the way a turnout motor's is
+  ([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), and
+  derivation carries it here so the layout answers which signal stands at an
+  end without reopening the drawing. A block may signal one end, both, or
+  neither: an end nothing ever leaves carries none, a signal that could only
+  show `stop` being furniture ([CONTEXT.md](../../CONTEXT.md#layout),
+  **Signal**), so an unsignalled end is absent rather than empty. A key that is
+  no end of that block is refused at load, naming the block. The value names
+  its system as its first level, `<system>/<addr>`, the point rule of
+  [ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md);
+  two ends may share one, and then two signals show one aspect together, as
+  two points on one address move together. `Layout` reads it as `signal_at`,
+  keyed by the `<block>.<end>` form every other end here is written in.
+  Nothing reads it yet: what shows an aspect at an end is `layout`'s, and its
+  own issue.
 - **`points` names transits, and only some of them.** Every key under it is a
   transit of the same connection, checked at load. A transit whose way crosses
   no point is absent rather than empty, as is the whole `points` key where a
@@ -324,7 +343,10 @@ read from those descriptions.
 Gotthard is drawn from the track itself, in the editor, and that drawing is the
 record — there is no second netlist it is checked against. `Gotthard.pdf`
 (WinTrack) is the source for block lengths, which are measured rather than
-assumed. Its turnouts carry the decoder addresses the hardware
+assumed. No block end carries a signal address yet: the field is there and the
+addresses are typed onto the drawing from the railroad, which is the one place
+they are known ([ADR-0030](../adr/0030-the-physical-railroad-is-the-normative-binding.md)).
+Its turnouts carry the decoder addresses the hardware
 answers to, and which of them are *identical* is the part that matters: an
 address shared between two symbols means one decoder throws both, and the
 derivation composes the concurrency from that.
