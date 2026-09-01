@@ -6,9 +6,10 @@ fault, never a ``KeyError`` mid-run. The conflict matrix is expanded from
 ``concurrent`` by inversion (ADR-0006): every pair of transits at a
 connection conflicts unless declared, and transits are self-exclusive.
 Terminal blocks are derived, never declared. A connection also carries the
-``points`` each of its transits needs thrown (ADR-0031), an appendix to the
-transits and the whole of the hardware the layout knows about. Routing stays
-outside — Layout is a data structure, not a policy.
+``points`` each of its transits needs thrown (ADR-0031), and a block end the
+address of the **signal** standing there where one does (``signal_at``,
+ADR-0022): between them the whole of the hardware the layout knows about.
+Routing stays outside — Layout is a data structure, not a policy.
 
 The ``check_*`` helpers are shared with the scenario validation in
 ``store.py``. The ``<block>.<A|B>`` end form is parsed here and nowhere else:
@@ -25,7 +26,7 @@ parsed beside it and nowhere else: ``FACINGS`` is the vocabulary,
 """
 
 from collections.abc import Container
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, cast
 
 
@@ -57,6 +58,10 @@ class Layout:
     connections: dict[str, Connection]
     terminal_blocks: frozenset[str]
     end_connection: dict[str, str]  # block end -> the one connection holding it
+    # Block end -> the address of the signal standing at it, for the ends that
+    # carry one. Written in the same '<block>.<A|B>' form as every other end
+    # here, so a caller holding an end asks with what it already has.
+    signal_at: dict[str, str] = field(default_factory=dict[str, str])
 
     @classmethod
     def from_document(cls, doc: Any) -> "Layout":
@@ -67,14 +72,15 @@ class Layout:
         check_name(name, "layout")
 
         blocks: dict[str, int] = {}
+        signal_at: dict[str, str] = {}
         for block, spec in as_mapping(
             doc["blocks"], f"layout '{name}': blocks"
         ).items():
             check_name(block, f"layout '{name}': block")
-            check_keys(spec, f"block '{block}'", {"length"})
-            blocks[block] = check_length(
-                spec["length"], f"layout '{name}': block '{block}'"
-            )
+            check_keys(spec, f"block '{block}'", {"length"}, {"signals"})
+            where = f"layout '{name}': block '{block}'"
+            blocks[block] = check_length(spec["length"], where)
+            signal_at.update(check_signals(spec.get("signals"), block, where))
 
         connections: dict[str, Connection] = {}
         end_owner: dict[str, str] = {}  # block end -> owning connection
@@ -129,7 +135,7 @@ class Layout:
             for block in blocks
             if (f"{block}.A" in end_owner) != (f"{block}.B" in end_owner)
         )
-        return cls(name, blocks, connections, terminals, end_owner)
+        return cls(name, blocks, connections, terminals, end_owner, signal_at)
 
     def transits_at(self, end: str) -> list[tuple[str, str]]:
         """The transits crossing `end`, as (qualified transit id, end across)."""
@@ -264,6 +270,32 @@ def check_points(
             )
         points[transit] = tuple(entries)
     return points
+
+
+def check_signals(spec: Any, block: str, where: str) -> dict[str, str]:
+    """Validate a block's `signals` declaration and return it keyed by end.
+
+    A signal stands at one end of one block and the drawing carries the
+    address it answers to (ADR-0022), so the document says it where the block
+    is said, keyed by the end letter, and the layout keys it by the
+    `<block>.<A|B>` end the rest of the system names an end by. An end
+    carrying no signal is absent rather than empty: an end nothing ever leaves
+    has none, a signal that could only show `stop` being furniture (CONTEXT.md,
+    **Signal**). A key that is no end of a block is refused, naming the block.
+
+    Two ends may share an address, as two points may (ADR-0031): two signals
+    on one address show one aspect together, which is a wiring fact and not a
+    fault.
+    """
+    signals: dict[str, str] = {}
+    for end, addr in as_mapping(spec or {}, f"{where}: signals").items():
+        if end not in ("A", "B"):
+            raise ValueError(
+                f"{where}: signals names '{end}', which is no end of a block"
+                f" — a block has the ends ['A', 'B']"
+            )
+        signals[f"{block}.{end}"] = str(addr)
+    return signals
 
 
 def check_end(end: Any, blocks: dict[str, int], where: str) -> str:

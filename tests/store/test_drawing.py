@@ -702,6 +702,90 @@ def test_explain_refuses_what_derivation_refuses() -> None:
         explain(doc)
 
 
+# --- a block end carries the signal standing at it -------------------------
+
+
+def signalled(**signals: str) -> dict[str, Any]:
+    """`spanned`, with the signals the test puts on `west`."""
+    doc = spanned()
+    doc["symbols"]["west"] = {**block(), "signals": signals}
+    return doc
+
+
+def test_a_drawing_that_signals_nothing_derives_blocks_of_length_alone() -> None:
+    """The whole of the compatibility claim: an unsignalled drawing derives
+    the document it derived before a block end could carry a signal."""
+    assert derive(spanned())["blocks"] == {
+        "east": {"length": 1000},
+        "west": {"length": 1000},
+    }
+
+
+@pytest.mark.parametrize("name", RAILROADS)
+def test_a_committed_drawing_signals_no_end_and_says_nothing_about_it(
+    name: str,
+) -> None:
+    assert all(
+        list(spec) == ["length"]
+        for spec in derive(read(f"{name}.drawing.yaml"))["blocks"].values()
+    )
+
+
+def test_a_block_signalling_one_end_derives_the_one_signal() -> None:
+    assert derive(signalled(B="dccex/41"))["blocks"]["west"] == {
+        "length": 1000,
+        "signals": {"B": "dccex/41"},
+    }
+
+
+def test_a_block_signalling_both_ends_derives_both_in_end_order() -> None:
+    derived = derive(signalled(B="dccex/41", A="dccex/40"))["blocks"]["west"]
+    assert derived == {"length": 1000, "signals": {"A": "dccex/40", "B": "dccex/41"}}
+    # Canonical order, so the file's order cannot move a byte of the layout.
+    assert list(derived["signals"]) == ["A", "B"]
+
+
+def test_the_derived_signals_reach_the_layout_the_apps_read() -> None:
+    layout = Layout.from_document(derive(signalled(A="dccex/40")))
+    assert layout.signal_at == {"west.A": "dccex/40"}
+
+
+def test_a_signal_at_an_end_no_block_has_is_refused_naming_the_block() -> None:
+    with pytest.raises(ValueError, match="symbol 'west': signals names 'C'"):
+        Drawing.from_document(signalled(C="dccex/42"))
+
+
+def test_a_signal_keyed_by_the_lowercase_end_letter_is_refused() -> None:
+    """A block's ends are `A` and `B` everywhere — in the wires, in a facing,
+    in every end on the bus — so a second spelling of one is a misspelling."""
+    with pytest.raises(ValueError, match="signals names 'a'"):
+        Drawing.from_document(signalled(a="dccex/40"))
+
+
+def test_two_ends_sharing_a_signal_address_load_and_derive() -> None:
+    """Two signals on one address show one aspect together, the way two points
+    on one address move together. Nothing asks addresses to be unique."""
+    doc = signalled(A="dccex/40", B="dccex/40")
+    assert derive(doc)["blocks"]["west"]["signals"] == {
+        "A": "dccex/40",
+        "B": "dccex/40",
+    }
+
+
+def test_a_signal_address_is_taken_as_written_and_never_checked() -> None:
+    """What a physical signal answers to is knowledge the drawing cannot hold,
+    so an address is a plain string here as a point's is (ADR-0022)."""
+    drawing = Drawing.from_document(signalled(A="jmri/LS3"))
+    assert drawing.symbols["west"].signals == {"A": "jmri/LS3"}
+
+
+def test_signalling_an_end_moves_nothing_else_in_the_layout() -> None:
+    signals = derive(signalled(A="dccex/40", B="dccex/41"))
+    plain = derive(spanned())
+    assert signals["connections"] == plain["connections"]
+    assert signals["blocks"]["east"] == plain["blocks"]["east"]
+
+
 # --- review: everything the editor draws that is not in the document ------
 
 
