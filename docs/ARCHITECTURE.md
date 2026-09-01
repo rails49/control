@@ -96,8 +96,10 @@ src/tc49/
                 termination
   layout/       interface.py  LayoutInterface — the physical layout
                               interface: align before move, the near-end
-                              check, nothing while the rails are dead, and
-                              the device vocabulary out (docs/layout/README.md)
+                              check, nothing while the rails are dead, the
+                              device vocabulary out, and a block's two
+                              debounced detectors folded into the occupancy
+                              events (docs/layout/README.md)
   station/      station.py  Station — the command station's serial device
                             mirrored on a TCP port: every byte fanned out to
                             every client, a client's bytes written whole

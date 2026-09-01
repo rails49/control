@@ -1036,9 +1036,9 @@ that drives realistically later grows behind the same topic.
 sensor events, `state/power` and the desired half of the device vocabulary
 below.
 
-That is the **role's** footprint, and its two bindings meet different parts of
-it. The core app `layout` is all of it but the sensor events, which wait on the
-fold from `device/sensor`
+That is the **role's** footprint, and its two bindings meet all of it. The
+core app `layout` folds a block's two detectors into the sensor events and
+debounces the levels on the way
 ([layout/README.md](layout/README.md)); the milestone-1 simulator answers the
 two commands and the two placement facts, publishes the sensors from delays of
 its own, and states a railroad that is always live
@@ -1329,11 +1329,15 @@ as a measured one (ADR-0043); on this railroad turnouts have no feedback
 translator driving them writes none, a faked reply being worse than silence.
 
 Two of the observed rows are published today, both by a translator:
-`device/track` and `device/link`, which are also the two `layout` reads and
-the two `state/power` is folded from. `device/sensor` and `device/point` are
-declared and written by nobody. Folding two sensors into `block_occupied` and
-`block_vacated`, and any debounce, are `layout`'s own work and are still to
-come.
+`device/track` and `device/link`, which are two of the three `layout` reads
+and the two `state/power` is folded from. The third is `device/sensor`, whose
+publisher is a detector and lives outside this repository; `device/point` is
+declared and written by nobody. Folding a block's two sensors into
+`block_occupied` and `block_vacated` is `layout`'s own work, and so is the
+**settling time** a new level is held for before it is acted on — a number
+private to that app, on no topic, so nothing above the layout interface is
+told there is a debounce at all
+([layout/README.md](layout/README.md)).
 
 Every row of both halves is state rather than command because that is what
 makes the extra hop safe under at-least-once delivery: a replayed message
