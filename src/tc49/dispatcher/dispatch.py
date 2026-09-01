@@ -939,10 +939,9 @@ class Dispatcher:
         and a no-op, so delivery needs no counter and no dedup. A reading
         that *changes* the level either explains a granted move — recorded
         arrival for `block_occupied`, a finished move for `block_vacated` —
-        or explains nothing: while held that is the dispute check's business
-        (#153, the detectors asserting on power-up), and while running it is
-        the standing assumption violated (SYSTEM.md, layout interface) and
-        raises rather than guessing.
+        or explains nothing, which holds the run (ADR-0048). Either way the
+        level is recorded first: what the dispute check compares is every
+        reading that arrived, explained or not (#153).
         """
         if self._state.reported.get(block) == occupied:
             return
@@ -964,9 +963,30 @@ class Dispatcher:
             return None
         return train, active, active.outstanding
 
-    def _unexplained(self, reading: str) -> None:
-        if self._state.run == RUNNING:
-            raise RuntimeError(f"no granted move explains the reading: {reading}")
+    def _unexplained(self) -> None:
+        """A reading no granted move accounts for: **the run holds**
+        (ADR-0048).
+
+        A hand putting a locomotive on a detected block, a train pushed while
+        the supply was off, a cut of cars a broken coupling left standing, a
+        detector asserting on dirt — they differ for the person recovering and
+        not here. All of them say the lock table has stopped describing the
+        steel, and the dispatcher's whole safety argument runs over that table
+        (SAFETY.md): a block reading occupied with nothing claiming it is one
+        `safe()` believes free, and granting it is a collision the check would
+        call safe.
+
+        So the run holds, by the path track power takes (ADR-0041) — nothing
+        new commits, every signalled end shows `stop`, and the move already
+        outstanding still runs to its sensors. It does not raise: the frame is
+        well formed and a handler that raised would take the app off the bus
+        for an ordinary act of a person's hand (SYSTEM.md, rule 4). It is not
+        dropped either, and nothing is placed: occupancy is anonymous, so
+        there is no train to place, and the reading is on the trace and in the
+        dispute set the hold turns on, which is what points a person at it
+        (#153). They walk the railroad, place what they find, and press GO.
+        """
+        self._move_run(HELD)
 
     def _arrived(self, block: str) -> None:
         """`block_occupied` records where the train arrived. The move is not
@@ -975,7 +995,7 @@ class Dispatcher:
         (ADR-0047)."""
         found = self._explained(block)
         if found is None or found[2].into != block:
-            self._unexplained(f"'{block}' occupied")
+            self._unexplained()
             return
         train, _active, _move = found
         self._state.block_of[train] = block
@@ -988,7 +1008,7 @@ class Dispatcher:
         state = self._state
         found = self._explained(block)
         if found is None or found[2].from_block != block:
-            self._unexplained(f"'{block}' vacated")
+            self._unexplained()
             return
         train, active, move = found
         del state.locks[block]
