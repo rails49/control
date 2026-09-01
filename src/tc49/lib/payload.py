@@ -43,6 +43,17 @@ the command that moves the train (#261). Two apps reading one payload is what
 this module is for, and it is the same reading: the driver holds no layout
 either, so what it adds to `grant` is splitting the qualified transit its
 command states bare, and that is the driver's own.
+
+That command is read here too, at the other end of it (#262): the layout
+interface acts on `tc49/layout/move`, the topic names the interface because
+the interface responds to it and says nothing about who published this frame,
+and the process that publishes it today is the driver — another container
+under MQTT, whose bug must not stop the binding running the railroad. It is
+the first payload here read by whatever drives the track rather than by an app
+on the bus's other side, so the milestone-1 simulator and a hardware binding
+read the one reading (ADR-0030). `align`, the other command, has no reader:
+the simulated points are always aligned, so that binding reads nothing off it
+and nothing can fail.
 """
 
 from dataclasses import dataclass
@@ -285,3 +296,34 @@ def placement(payload: object) -> Placement | None:
     if not isinstance(train, str) or not (block is None or isinstance(block, str)):
         return None
     return Placement(train, block)
+
+
+@dataclass(frozen=True)
+class Move:
+    """The four names a `move` command states: which train, over which
+    connection's which transit, into which block."""
+
+    train: str
+    connection: str
+    transit: str
+    into: str
+
+
+def move(payload: object) -> Move | None:
+    """The move the payload commands, or None where it commands none.
+
+    The transit is bare and the connection stands beside it, which is the
+    shape the command has and the grant has not: the driver splits the
+    qualified transit, and a binding that has to ask the layout puts the two
+    halves back together (`lib.layout.far_end`). Whether they name anything on
+    this railroad is that layout question and not this one — a name is all
+    there is to read in a payload.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    named = [fields.get(key) for key in ("train", "connection", "transit", "into")]
+    if not all(isinstance(name, str) for name in named):
+        return None
+    train, connection, transit, into = cast(list[str], named)
+    return Move(train, connection, transit, into)
