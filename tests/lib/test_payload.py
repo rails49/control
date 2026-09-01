@@ -1,7 +1,9 @@
 """Reading a payload from outside, in the one place both apps read one (#127)."""
 
 from tc49.lib.inventory import DRAINING, HELD, OFF, ON, RUNNING, STOPPED
+from tc49.lib.layout import Point
 from tc49.lib.payload import (
+    Alignment,
     Chosen,
     Command,
     Gesture,
@@ -9,18 +11,22 @@ from tc49.lib.payload import (
     Ordering,
     Picture,
     Placement,
+    alignment,
     chosen,
     command,
+    commanded_power,
     gesture,
     grant,
     granted_aspect,
     kept_allocation,
     kept_facing,
+    link_up,
     named_train,
     occupancy,
     placement,
     power,
     run_state,
+    shown_aspects,
     stamp,
 )
 
@@ -222,6 +228,32 @@ def test_a_power_payload_that_cannot_be_read_reads_as_off() -> None:
         assert power(payload) == OFF, payload
 
 
+def test_a_power_gesture_reads_as_the_value_it_asks_for() -> None:
+    """The same closed set in the command direction (ADR-0051): a page asks
+    for one of the three and `layout` writes the word it was given."""
+    assert commanded_power({"power": "on"}) == ON
+    assert commanded_power({"power": "stopped"}) == STOPPED
+    assert commanded_power({"power": "off"}) == OFF
+
+
+def test_a_power_gesture_that_cannot_be_read_is_dropped() -> None:
+    """The other direction from the reading of the same axis, and the reason
+    is which way a failure falls: an unreadable *reading* must hold the run,
+    so it answers `off`, while an unreadable *command* answering `off` would
+    cut the supply on a malformed frame — `layout` writing `off` of its own
+    accord, which it never does (#287)."""
+    refused: list[object] = [
+        "on",  # not an object at all
+        ["on"],  # nor a list of its fields
+        {},  # no power
+        {"power": None},
+        {"power": 1},  # not a string
+        {"power": "ON"},  # a value outside the closed set
+    ]
+    for payload in refused:
+        assert commanded_power(payload) is None, payload
+
+
 def test_an_occupancy_frame_reads_as_the_block_it_names() -> None:
     """A block is the whole payload: which of the two readings it is, is the
     leaf it arrived on and not a field (SYSTEM.md, event inventory)."""
@@ -312,6 +344,122 @@ def test_a_payload_commanding_no_move_reads_as_none() -> None:
     ]
     for payload in refused:
         assert command(payload) is None, payload
+
+
+def test_an_alignment_reads_as_the_transit_it_names_and_the_points_it_carries() -> None:
+    """The command that sets the route: a connection, a bare transit and the
+    address-and-position pairs the transit's way needs (ADR-0031). The pairs
+    are what was read off the layout, so they read back as what the layout
+    holds."""
+    assert alignment(
+        {
+            "connection": "crossover",
+            "transit": "up_to_dn",
+            "points": [
+                {"addr": "dccex/12", "position": "thrown"},
+                {"addr": "dccex/13", "position": "closed"},
+            ],
+        }
+    ) == Alignment(
+        "crossover",
+        "up_to_dn",
+        (Point("dccex/12", "thrown"), Point("dccex/13", "closed")),
+    )
+
+
+def test_an_alignment_needing_nothing_thrown_carries_an_empty_list() -> None:
+    """`points` is always stated, `[]` where the way crosses no point: the
+    document is quiet and the wire explicit, so an absent list is a frame that
+    lost a field rather than a way with nothing to throw."""
+    assert alignment({"connection": "j", "transit": "ab", "points": []}) == Alignment(
+        "j", "ab", ()
+    )
+
+
+def test_a_pair_that_cannot_be_read_fails_the_whole_alignment() -> None:
+    """Unlike a retained map, which is read an entry at a time: an alignment
+    is one route, and throwing the points that read while dropping the ones
+    that did not would set a way half over and let a `move` onto it."""
+    half = {
+        "connection": "crossover",
+        "transit": "up_to_dn",
+        "points": [{"addr": "dccex/12", "position": "thrown"}, {"addr": "dccex/13"}],
+    }
+    assert alignment(half) is None
+
+
+def test_a_payload_setting_no_route_reads_as_none() -> None:
+    refused: list[object] = [
+        "crossover.up_to_dn",  # not an object at all
+        ["crossover", "up_to_dn"],  # nor a list of its fields
+        {"transit": "up_to_dn", "points": []},  # no connection
+        {"connection": "crossover", "points": []},  # no transit
+        {"connection": "crossover", "transit": "up_to_dn"},  # no points
+        {"connection": "crossover", "transit": "up_to_dn", "points": {}},
+        {"connection": "crossover", "transit": 7, "points": []},
+        {"connection": "crossover", "transit": "up_to_dn", "points": ["dccex/12"]},
+        {
+            "connection": "crossover",
+            "transit": "up_to_dn",
+            "points": [{"addr": 12, "position": "thrown"}],
+        },
+        {
+            "connection": "crossover",
+            "transit": "up_to_dn",
+            "points": [{"addr": "dccex/12", "position": None}],
+        },
+    ]
+    for payload in refused:
+        assert alignment(payload) is None, payload
+
+
+def test_an_aspects_value_reads_as_the_ends_it_shows() -> None:
+    """Every signalled end and what stands at it, the whole picture in one
+    value: what a late subscriber is owed on connect."""
+    assert shown_aspects(
+        {"at": 0.0, "aspects": {"up_w.B": "clear", "dn_w.B": "stop"}}
+    ) == {"up_w.B": "clear", "dn_w.B": "stop"}
+
+
+def test_an_aspect_entry_that_cannot_be_read_loses_that_end_and_no_other() -> None:
+    """Read an entry at a time, as a retained facing is: the value is one
+    session's whole picture of the signals, so an unreadable entry costs that
+    end its aspect and leaves the rest standing."""
+    assert shown_aspects({"aspects": {"up_w.B": "clear", "dn_w.B": 3}}) == {
+        "up_w.B": "clear"
+    }
+
+
+def test_a_value_showing_no_aspects_at_all_reads_as_none() -> None:
+    refused: list[object] = [
+        "clear",  # not an object at all
+        {},  # no aspects
+        {"aspects": None},
+        {"aspects": ["up_w.B"]},  # not a map
+    ]
+    for payload in refused:
+        assert shown_aspects(payload) is None, payload
+
+
+def test_a_link_reads_as_up_only_when_it_says_so() -> None:
+    """One question, so a boolean: the railroad has power only while every
+    link ever seen is up (#287)."""
+    assert link_up({"system": "dccex", "link": "up"})
+    assert not link_up({"system": "dccex", "link": "down"})
+
+
+def test_a_link_that_cannot_be_read_is_not_up() -> None:
+    """`power`'s direction on the row beside it (#181): a link a consumer
+    cannot read is not one it may call good."""
+    unreadable: list[object] = [
+        "up",  # not an object at all
+        {},  # no link
+        {"link": None},
+        {"link": "UP"},  # a word from outside the pair
+        {"system": "dccex"},
+    ]
+    for payload in unreadable:
+        assert not link_up(payload), payload
 
 
 def test_a_retained_facing_reads_as_the_map_it_states() -> None:
