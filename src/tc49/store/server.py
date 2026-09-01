@@ -39,7 +39,6 @@ The panel later adds a WebSocket bridge from `tc49/#` alongside this
 """
 
 import json
-from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, cast
@@ -83,10 +82,16 @@ def _route(store: AssetStore, method: str, path: str, body: Any) -> Response:
     railroad = route.removeprefix("/rosters/")
     if method == "GET" and railroad != route and "/" not in railroad:
         roster = store.roster(railroad)
+        # The train's length and nothing else: a train also carries the cars
+        # it is made of and what it is made of is the roster screen's, not
+        # the panel's (ui/PANEL.md). Written out rather than `asdict`, which
+        # would put every field of the document on this face the day one is
+        # added — and would drop `length`, which a train derives.
         return 200, {
             "roster": roster.railroad,
             "trains": {
-                name: asdict(train) for name, train in sorted(roster.trains.items())
+                name: {"length": train.length}
+                for name, train in sorted(roster.trains.items())
             },
         }
 

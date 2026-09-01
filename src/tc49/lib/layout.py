@@ -170,14 +170,28 @@ def as_mapping(value: Any, what: str) -> dict[str, Any]:
     return cast(dict[str, Any], value)
 
 
+def check_required(doc: Any, what: str, required: set[str]) -> dict[str, Any]:
+    """The keys a document must carry, saying nothing about the ones it
+    carries as well.
+
+    That is what a stock document needs: an unknown key there is a field
+    someone added for a manufacturer or a shelf number, and an older reader
+    ignores it rather than refusing the file (#285). The drawing and the
+    scenario stay strict, and say so by calling `check_keys`.
+    """
+    mapping = as_mapping(doc, what)
+    if missing := required - set(mapping):
+        raise ValueError(f"{what}: missing key(s) {sorted(missing)}")
+    return mapping
+
+
 def check_keys(
     doc: Any, what: str, required: set[str], optional: set[str] | None = None
 ) -> None:
     as_mapping(doc, what)
     if unknown := set(doc) - required - (optional or set()):
         raise ValueError(f"{what}: unknown key(s) {sorted(unknown)}")
-    if missing := required - set(doc):
-        raise ValueError(f"{what}: missing key(s) {sorted(missing)}")
+    check_required(doc, what, required)
 
 
 def check_name(name: Any, what: str) -> None:
