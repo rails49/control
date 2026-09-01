@@ -1,5 +1,11 @@
 # The physical railroad is the normative binding
 
+**Extended by
+[ADR-0050](0050-broken-hardware-is-reported-never-worked-around.md):** this
+ADR decides what the software is *for*, and the same ranking decides what it
+may *hide* — broken hardware is reported, never worked around. Nothing here
+changes.
+
 The layout interface has two bindings that coexist indefinitely, a physical
 railroad and a simulator, and they are **ranked**. The physical railroad is
 normative: where the two could differ, it decides, even at cost to the
