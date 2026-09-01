@@ -15,6 +15,10 @@ from tc49.lib.payload import (
     chosen,
     command,
     commanded_power,
+    desired_aspect,
+    desired_function,
+    desired_position,
+    desired_speed,
     gesture,
     grant,
     granted_aspect,
@@ -460,6 +464,59 @@ def test_a_link_that_cannot_be_read_is_not_up() -> None:
     ]
     for payload in unreadable:
         assert not link_up(payload), payload
+
+
+def test_a_desired_speed_reads_as_the_fraction_it_states() -> None:
+    """A fraction of that locomotive's maximum, signed for direction along
+    the track, and an integer is a fraction like any other (#289)."""
+    assert desired_speed({"addr": "3", "speed": 0.5}) == 0.5
+    assert desired_speed({"addr": "3", "speed": -1.0}) == -1.0
+    assert desired_speed({"addr": "3", "speed": 0}) == 0.0
+
+
+def test_a_desired_speed_past_the_range_is_still_read() -> None:
+    """The contract states −1.0 … 1.0 and this reader is about shape: what a
+    fraction past a locomotive's maximum is worth is the translator's, there
+    being nothing above a maximum to ask for."""
+    assert desired_speed({"addr": "3", "speed": 4.0}) == 4.0
+
+
+def test_a_boolean_is_not_a_speed() -> None:
+    """Refused ahead of the numeric read, as a stamp is: JSON `true` is an
+    `int` here and would otherwise be full speed forward."""
+    assert desired_speed({"addr": "3", "speed": True}) is None
+    assert desired_speed({"addr": "3", "speed": False}) is None
+
+
+def test_a_desired_value_that_cannot_be_read_reads_as_none() -> None:
+    """A translator answers nothing — it reports observations — so a frame it
+    cannot read is dropped, and one that raised would be taken down by
+    whatever published it (rule 4)."""
+    unreadable: list[object] = [
+        "0.5",  # not an object at all
+        {},  # no field
+        {"speed": None},
+        {"speed": "fast"},
+    ]
+    for payload in unreadable:
+        assert desired_speed(payload) is None, payload
+
+
+def test_the_three_named_desired_values_read_as_the_names_they_carry() -> None:
+    """A position, an aspect and a function's value are read as names and
+    nothing more: which names mean anything is the contract's for a position,
+    a head's wiring for an aspect, and the model's for a function."""
+    assert desired_position({"addr": "dccex/5", "position": "thrown"}) == "thrown"
+    assert desired_aspect({"addr": "dccex/40", "aspect": "caution"}) == "caution"
+    assert desired_function({"addr": "3", "function": "2", "value": "on"}) == "on"
+
+
+def test_a_named_desired_value_that_is_no_name_reads_as_none() -> None:
+    unreadable: list[object] = ["thrown", {}, {"position": None}, {"position": 5}]
+    for payload in unreadable:
+        assert desired_position(payload) is None, payload
+    assert desired_aspect({"addr": "dccex/40"}) is None
+    assert desired_function({"addr": "3", "value": 1}) is None
 
 
 def test_a_retained_facing_reads_as_the_map_it_states() -> None:

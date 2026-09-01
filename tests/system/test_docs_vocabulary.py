@@ -30,13 +30,20 @@ ALLOWED_FILES = frozenset(
     {
         "DEPLOY.md",  # the physical deployment is hardware
         "store/DRAWING.md",  # the drawing carries hardware addresses (ADR-0022)
-        # The repository's own map, which lists every package on disk — and a
-        # translator's package is named for the system it speaks to
-        # (ADR-0043). What the rule is against is a *contract* page knowing
-        # about hardware; a directory listing knows nothing (#289).
-        "ARCHITECTURE.md",
     }
 )
+
+PACKAGES = frozenset({"dccex", "jmri"})
+"""The package names a translator's app and docs folder carry: a translator
+is named for the system it speaks to (ADR-0043), so a page that inventories
+what is on disk cannot list one without spelling it."""
+
+NAMES_PACKAGES = frozenset({"ARCHITECTURE.md"})
+"""Where a **package name** is not a leak, in that exact spelling and no
+other. The repository's own map lists every package, every docs folder and
+every test package, and a directory listing knows nothing about a protocol.
+`DCC-EX`, `DCC` and `JMRI` are still leaks on these pages, which is the
+difference between naming a directory and writing about hardware (#289)."""
 
 
 def test_hardware_protocols_stay_in_hardware_docs() -> None:
@@ -45,10 +52,23 @@ def test_hardware_protocols_stay_in_hardware_docs() -> None:
         rel = page.relative_to(DOCS)
         if rel.parts[0] in ALLOWED_DIRS or str(rel) in ALLOWED_FILES:
             continue
+        packages = str(rel) in NAMES_PACKAGES
         for number, line in enumerate(page.read_text().splitlines(), 1):
-            found = PROTOCOLS.search(line)
-            if found:
+            for found in PROTOCOLS.finditer(line):
+                if packages and found.group(0) in PACKAGES:
+                    continue
                 leaks.append(f"docs/{rel}:{number}: {found.group(0)}")
+                break
     assert not leaks, "hardware protocol names outside hardware docs:\n" + "\n".join(
         leaks
     )
+
+
+def test_a_page_that_may_name_a_package_may_not_write_about_hardware() -> None:
+    """The narrow allowance is narrow: the exact directory name passes and
+    every other spelling of the same hardware does not, so the map can list
+    what is on disk without becoming a page about a command station."""
+    passes = "  dccex/       test_commands  test_replies  test_translator"
+    leaks = "the dccex translator speaks DCC-EX over 2560"
+    assert all(found.group(0) in PACKAGES for found in PROTOCOLS.finditer(passes))
+    assert not all(found.group(0) in PACKAGES for found in PROTOCOLS.finditer(leaks))

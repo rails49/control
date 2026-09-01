@@ -104,11 +104,10 @@ src/tc49/
                 framing.py  frame() — bytes in, whole `<…>` messages out
                 __main__.py `python -m tc49.station --device … --port …`,
                             the command line deploy/station.Dockerfile runs
-  dccex/        translator.py  DccEx — the translator between the device
-                               vocabulary and the command station: the
-                               desired state out over one connection to
-                               `station`, the supply and the link back
-                               (docs/dccex/README.md)
+  dccex/        translator.py  the translator between the device vocabulary
+                               and the command station: the desired state out
+                               over one connection to `station`, the supply
+                               and the link back (docs/dccex/README.md)
                 commands.py    the mapping — one desired value in, the exact
                                bytes out, pure
                 replies.py     the framing, and the two facts this app reads
