@@ -2,10 +2,10 @@ scenario: test1
 layout: gotthard
 
 trains:
-  short: { at: C1, facing: A }
-  med: { at: C2, facing: B }
-  long: { at: A3, facing: A }
-  too_long: { at: A2, facing: A }
+  short: { at: C1, facing: B-to-A }
+  med: { at: C2, facing: A-to-B }
+  long: { at: A3, facing: B-to-A }
+  too_long: { at: A2, facing: B-to-A }
 
 requests:
   - { train: short, from: C1.A, to: [A1, A2, A3] }

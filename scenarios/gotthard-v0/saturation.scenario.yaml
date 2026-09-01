@@ -38,11 +38,11 @@ scenario: saturation
 layout: gotthard-v0
 
 trains:
-  t1: { at: claro_1, facing: B }
-  t2: { at: claro_2, facing: A }
-  t3: { at: claro_3, facing: B }
-  t4: { at: airolo_1, facing: A }
-  t5: { at: airolo_2, facing: B }
+  t1: { at: claro_1, facing: A-to-B }
+  t2: { at: claro_2, facing: B-to-A }
+  t3: { at: claro_3, facing: A-to-B }
+  t4: { at: airolo_1, facing: B-to-A }
+  t5: { at: airolo_2, facing: A-to-B }
 
 # airolo_3 is the one free track at the start, so t1 is the only train that can
 # launch; every other request is waiting on the slot t1 is about to vacate.

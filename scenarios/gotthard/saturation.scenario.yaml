@@ -59,12 +59,12 @@ scenario: saturation
 layout: gotthard
 
 trains:
-  t1: { at: C1, facing: A }
-  t2: { at: A1, facing: A }
-  t3: { at: C2, facing: A }
-  t4: { at: A2, facing: B }
-  t5: { at: C3a, facing: B }
-  t6: { at: C3b, facing: B }
+  t1: { at: C1, facing: B-to-A }
+  t2: { at: A1, facing: B-to-A }
+  t3: { at: C2, facing: B-to-A }
+  t4: { at: A2, facing: A-to-B }
+  t5: { at: C3a, facing: A-to-B }
+  t6: { at: C3b, facing: A-to-B }
 
 requests:
   - { train: t1, from: C1.A, to: [A3] }

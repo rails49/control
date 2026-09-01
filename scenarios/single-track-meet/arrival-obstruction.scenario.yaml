@@ -26,9 +26,9 @@ scenario: arrival-obstruction
 layout: single-track-meet
 
 trains:
-  fixed: { at: west_1, facing: B }
-  flexible: { at: west_2, facing: B }
-  squatter: { at: east_1, facing: A } # idle: no request names it
+  fixed: { at: west_1, facing: A-to-B }
+  flexible: { at: west_2, facing: A-to-B }
+  squatter: { at: east_1, facing: B-to-A } # idle: no request names it
 
 requests:
   - { train: fixed, from: west_1.B, to: [east_1.A] }

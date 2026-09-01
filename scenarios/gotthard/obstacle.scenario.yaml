@@ -23,8 +23,8 @@ scenario: obstacle
 layout: gotthard
 
 trains:
-  stranded: { at: C3b, facing: A }
-  stock: { at: CE1, facing: A } # idle: no request names it
+  stranded: { at: C3b, facing: B-to-A }
+  stock: { at: CE1, facing: B-to-A } # idle: no request names it
 
 requests:
   - { train: stranded, from: C3b.A, to: [A1, A2, A3] }

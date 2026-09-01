@@ -25,9 +25,9 @@ scenario: flexibility
 layout: gotthard-v0
 
 trains:
-  fixed: { at: airolo_1, facing: A }
-  flexible: { at: airolo_2, facing: A }
-  resident: { at: claro_2, facing: A } # idle: no request names it
+  fixed: { at: airolo_1, facing: B-to-A }
+  flexible: { at: airolo_2, facing: B-to-A }
+  resident: { at: claro_2, facing: B-to-A } # idle: no request names it
 
 requests:
   - { train: fixed, from: airolo_1.A, to: [claro_2.B] }

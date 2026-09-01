@@ -18,8 +18,8 @@ scenario: meet
 layout: gotthard-v0
 
 trains:
-  south: { at: claro_2, facing: B }
-  north: { at: airolo_1, facing: A }
+  south: { at: claro_2, facing: A-to-B }
+  north: { at: airolo_1, facing: B-to-A }
 
 requests:
   - { train: south, from: claro_2.B, to: [airolo_2] }
