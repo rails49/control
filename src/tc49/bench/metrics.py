@@ -15,8 +15,9 @@ throughput is moves per simulated minute.
 
 A run's `stalled` status and its diagnosis are derived here too, never
 stored (BENCHMARKS.md, termination): a stalled request is one
-`request_admitted` but never `request_completed`, and the last
-`grant_refused` for its id names the obstacles. Stalled runs report no
+`request_admitted` and then never answered at all — neither
+`request_completed`, nor `request_rejected`, nor `request_cancelled` — and the
+last `grant_refused` for its id names the obstacles. Stalled runs report no
 makespan at all, so they cannot leak into a makespan aggregate.
 """
 
@@ -45,6 +46,7 @@ class Metrics:
     seconds: float  # the trace's last stamp; the run spans 0..seconds
     completed: tuple[str, ...]
     rejected: tuple[str, ...]  # work the run never even attempted to do
+    cancelled: tuple[str, ...]  # work a person ended before it arrived
     makespan: float | None  # None when the run stalled — never aggregated
     mean_latency: float | None
     max_latency: float | None
@@ -65,10 +67,18 @@ class Metrics:
         its workload would otherwise outscore one that did all of it. A
         rejection is an authoring or reachability fault rather than a
         dispatch outcome, hence its own status rather than a stall.
+
+        A **cancelled** request is work somebody ended on purpose (ADR-0049),
+        so it is neither a fault of the run nor a run that drained: it ranks
+        between the two, and it is emphatically not `stalled` — a cancelled
+        request has been answered, and calling it stalled would put a
+        deliberate act in the diagnosis of a wedged railroad.
         """
         if self.stalled:
             return "stalled"
-        return "rejected" if self.rejected else "ok"
+        if self.rejected:
+            return "rejected"
+        return "cancelled" if self.cancelled else "ok"
 
     @property
     def mean_utilization(self) -> float:
@@ -99,7 +109,10 @@ def metrics(trace: str) -> Metrics:
     admitted = _stamps(lines, "request_admitted")
     completed = _stamps(lines, "request_completed")
     rejected = _stamps(lines, "request_rejected")
+    cancelled = _stamps(lines, "request_cancelled")
 
+    # Keyed off `request_completed` alone: a cancelled request has no arrival
+    # to measure to, so it contributes no latency rather than a short one.
     latencies: dict[str, float] = {}
     for rid, done in completed.items():
         if rid not in released:
@@ -109,11 +122,18 @@ def metrics(trace: str) -> Metrics:
             )
         latencies[rid] = done - released[rid]
 
-    stalls = _stalls(lines, set(admitted) - set(completed) - set(rejected))
+    # Every way a request can be answered comes off the admitted set: what is
+    # left is the requests nothing ever said anything more about, which is
+    # what a stall is (BENCHMARKS.md). Without the cancellations, every run
+    # carrying one would report `stalled`.
+    stalls = _stalls(
+        lines, set(admitted) - set(completed) - set(rejected) - set(cancelled)
+    )
     return Metrics(
         seconds=seconds,
         completed=tuple(completed),
         rejected=tuple(rejected),
+        cancelled=tuple(cancelled),
         makespan=(
             None
             if stalls or not completed or not admitted

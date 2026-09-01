@@ -247,8 +247,10 @@ If requests remain pending when the trace ends, [SAFETY.md](../dispatcher/SAFETY
 exactly one possible cause: a permanent obstacle — an idle train parked across
 every candidate route. The run's `stalled` status and its diagnosis are
 **derived from the trace**, not stored: a stalled request is one
-`request_admitted` but never `request_completed`, and the last
-`grant_refused` for its id names the obstacles — which train (`holder`),
+`request_admitted` and then never answered at all — neither
+`request_completed`, nor `request_rejected`, nor `request_cancelled`
+([ADR-0049](../adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md))
+— and the last `grant_refused` for its id names the obstacles — which train (`holder`),
 which block (`resource`), how many candidates it blocked (the list's length)
 ([SYSTEM.md](../SYSTEM.md#event-inventory)). Stalled runs are excluded from
 makespan aggregates.

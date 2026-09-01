@@ -253,6 +253,7 @@ def row(workload: Workload, k: int, locking: str, trace: str) -> dict[str, Any]:
         "seconds": m.seconds,
         "completed": len(m.completed),
         "rejected": len(m.rejected),
+        "cancelled": len(m.cancelled),
         "mean_latency": m.mean_latency,
         "max_latency": m.max_latency,
         "mean_utilization": m.mean_utilization,

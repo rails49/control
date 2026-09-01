@@ -14,7 +14,10 @@ import pytest
 
 from tc49.bench.metrics import Stall, metrics, parse
 from tc49.dispatcher import Incremental
-from tests.harness import events, load, run
+from tests.harness import events, live, load, press, run, ticks
+
+REVOKED = {"train": "freight_1", "dest": ["yard_e.A"]}
+"""The drag a person cancels: freight_1 out of the west yard."""
 
 
 def trace(*lines: dict[str, Any]) -> str:
@@ -55,6 +58,10 @@ def refused(
         "reason": reason,
         "obstacles": [{"resource": r, "holder": h} for r, h in pairs],
     }
+
+
+def cancelled(rid: str, at: float, reason: str) -> dict[str, Any]:
+    return {"time": at, "event": "request_cancelled", "id": rid, "reason": reason}
 
 
 def test_makespan_is_first_admission_to_last_completion() -> None:
@@ -165,6 +172,70 @@ def test_a_rejected_request_is_not_a_stall() -> None:
     assert m.makespan is None  # nothing completed, so there is no span
 
 
+def test_a_cancelled_request_is_not_a_stall() -> None:
+    """A stalled request is one nothing ever said anything more about
+    (BENCHMARKS.md). A cancellation is an answer, so without this every run
+    carrying one would report `stalled` and its diagnosis would blame a
+    railroad that was never wedged."""
+    m = metrics(
+        trace(
+            submitted("a-1", 0),
+            admitted("a-1", 0),
+            refused("a-1", 1, "held", ("dn_w", "b")),
+            cancelled("a-1", 2, "revoked"),
+        )
+    )
+    assert m.stalls == ()
+    assert m.cancelled == ("a-1",)
+    assert m.status == "cancelled"
+
+
+def test_a_cancelled_request_contributes_no_latency() -> None:
+    """Latency is completion minus submission, and a cancelled request never
+    arrived: it is left out rather than measured to the moment it ended, and
+    a run of nothing else reports no latency at all rather than raising."""
+    m = metrics(
+        trace(
+            submitted("a-1", 0),
+            admitted("a-1", 0),
+            cancelled("a-1", 4, "displaced"),
+            submitted("b-1", 0),
+            admitted("b-1", 0),
+            completed("b-1", 6),
+        )
+    )
+    assert m.mean_latency == 6
+    assert m.max_latency == 6
+
+    alone = metrics(
+        trace(submitted("a-1", 0), admitted("a-1", 0), cancelled("a-1", 4, "revoked"))
+    )
+    assert alone.mean_latency is None
+    assert alone.status == "cancelled"
+
+
+def test_the_status_ranks_a_cancellation_between_a_rejection_and_a_clean_run() -> None:
+    """A rejection is a fault of the workload and a cancellation is somebody's
+    decision, so a run with both reports the worse of the two."""
+    both = metrics(
+        trace(
+            submitted("a-1", 0),
+            admitted("a-1", 0),
+            cancelled("a-1", 1, "removed"),
+            submitted("b-1", 0),
+            admitted("b-1", 0),
+            {
+                "time": 1.0,
+                "event": "request_rejected",
+                "id": "b-1",
+                "reason": "no_entry",
+            },
+        )
+    )
+    assert both.status == "rejected"
+    assert both.cancelled == ("a-1",)
+
+
 def test_a_rejected_request_is_visible_in_the_status() -> None:
     # A rejection is work the run never attempted, and dropping it makes the
     # makespan SHORTER — so a run that quietly rejected half its workload
@@ -243,6 +314,23 @@ def test_the_trace_is_load_bearing(event: str) -> None:
     except ValueError:
         return  # a metric that cannot be derived at all is the loudest break
     assert degraded != metrics(full), f"suppressing '{event}' changed no metric"
+
+
+def test_metrics_over_a_run_that_cancelled_read_it_as_a_cancellation() -> None:
+    """The same fact end to end rather than off a hand-written trace: a
+    person cancels a drag, the run drains with the request answered, and the
+    report says `cancelled` rather than blaming a stall on a railroad that
+    was never wedged."""
+    assembly = live("crossover-yard/meet")
+    press(assembly, "tc49/schedule/request_wanted", REVOKED)
+    press(assembly, "tc49/dispatch/cancel_wanted", {"train": "freight_1"})
+    ticks(assembly, 6)
+
+    m = metrics(assembly.trace)
+    assert m.cancelled == ("freight_1-1",)
+    assert m.stalls == ()
+    assert m.status == "cancelled"
+    assert m.completed == ()
 
 
 def test_metrics_over_a_real_run_agree_with_the_trace() -> None:
