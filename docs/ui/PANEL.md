@@ -510,6 +510,18 @@ Rejoining is not recovery: nothing was lost, and the dispatcher was
 holding the truth the whole time
 ([CONTEXT.md](../../CONTEXT.md#interruptions)).
 
+**The page keeps the later of two state values.** Every state payload carries
+a stamp, `at`, and the model applies the one with the later stamp whichever
+order the two arrive in — equal replaces, an earlier one is ignored, and a
+value carrying no stamp is taken and starts the ordering again (SYSTEM.md,
+the bus; [#240](https://github.com/rails49/control/issues/240)). A page is a
+consumer of state topics like any other, and a pair the wire handed over
+backwards would leave a person looking at aspects the railroad has moved on
+from, or at rails the page says are dead over live track. Events pass
+straight through: a repeated sensor reading re-asserts a level. The stamps go
+when the model starts over, a rejoined page meeting a session whose clock
+starts where that session did.
+
 **A session may outlive its process**, `tc49 live --state <path>`. The bus
 keeps its retained values there and each app adopts its own coming up, so a
 restart opens on the placement and facing the last session left rather than

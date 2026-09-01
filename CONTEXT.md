@@ -525,6 +525,23 @@ happened and is never replayed; a state topic is last-value-wins, delivered
 to late subscribers, and marked in the path (`…/state/<name>`).
 _Avoid_: retained message (the MQTT mechanism, not the model concept)
 
+**Stamp**:
+The `at` every state payload carries and no event payload does: the run
+clock's reading when the value was published, in seconds since the session
+started. It is what keeps the later of two values of one state topic when the
+wire hands them over backwards — later wins, equal replaces, earlier is
+ignored, and an unstamped value is taken and clears the held stamp
+([#240](https://github.com/rails49/control/issues/240)). Written by the
+binding that publishes and never by an app, so no app component reads a clock
+([ADR-0009](docs/adr/0009-layout-interface-owns-time.md)). It orders within
+one session and says nothing across a restart: the clock starts at zero every
+run, so the bus re-stamps what it loads from the durable file and the restored
+picture is the oldest thing known
+([ADR-0030](docs/adr/0030-the-physical-railroad-is-the-normative-binding.md)).
+_Avoid_: timestamp or clock time (it is neither wall time nor comparable
+across sessions), sequence number or counter (nothing is minted, and no
+publisher owns it), version
+
 **Device vocabulary**:
 The retained state topics under `tc49/layout/state/wanted/` naming what one
 device should do — a locomotive's speed and functions, a point's position, a

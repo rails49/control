@@ -112,10 +112,13 @@ version could easily do more
 
 The bus promises:
 
-- **Per-topic FIFO** — events that one writer sends on one topic are
-  delivered in the order it sent them. Nothing more is promised: no order
+- **Order from one publisher** — events that one writer sends on one topic
+  are delivered in the order it sent them. Nothing more is promised: no order
   between two writers, and none between two topics. Each topic has a single
-  writer, below.
+  writer, below. MQTT promises no more either, and rather less than it looks:
+  a broker keeps a topic ordered per publisher and per QoS while it is
+  configured to, and not across that publisher's reconnect or a
+  retransmission with more than one message in flight.
 - **Fan-out** — every subscriber whose subscription matches the topic gets the
   event, independently of the others.
 - **At-least-once delivery** — the bus may deliver the same event twice, so a
@@ -139,6 +142,30 @@ MQTT arrives:
 
 A component that needs an answer to a question does not use the bus. The asset
 store answers questions, and exists for that reason.
+
+**A state topic does not depend on that order.** A state topic keeps the last
+message published on it, so a pair the wire hands over backwards would leave
+the *older* value standing for good — the track reading dead while it is
+live, or a signal showing aspects the railroad has moved on from. Every state
+payload therefore carries a **stamp**, `at`, the run clock's reading when the
+value was published, and every consumer of one keeps the later stamp and
+ignores the earlier, whoever published it: equal replaces, and an unstamped
+value is accepted and clears the held stamp so that ordering restarts from
+the next stamped one. Nothing is raised either way.
+
+The **binding stamps, not the app**: the thing that publishes reads the clock,
+so no app component reads one (ADR-0009), and an `at` a caller supplied is
+replaced by the one publishing it. No event payload carries a stamp and none
+needs one — a detector reports a level, so a repeat re-asserts what a consumer
+holds, and a request is keyed by a unique id, so duplicates drop.
+
+`at` orders messages **within one session and says nothing across a restart**.
+The clock is seconds since the session started and resets to zero every run,
+so a stamp carried out of the last session would beat every genuine report the
+new one makes for as long as the old run was long. The durable file stores
+`at` beside the value; the bus re-stamps what it loads with this session's
+clock, which makes the restored picture the oldest thing known and lets the
+first real report supersede it (ADR-0030).
 
 **Four rules govern the topics listed in the next section.**
 
@@ -191,7 +218,9 @@ because a consumer ignores fields it does not recognize. Removing, renaming
 or repurposing a field or a topic, or making an optional field required,
 breaks consumers and needs the stronger argument. A field can leave and come
 back the same way: `at` was dropped from the request and returns, if it does,
-as one communication issue once its requirements are understood. An added
+as one communication issue once its requirements are understood — a different
+field from the stamp every state payload carries, which says when a value was
+published rather than when a request wants its train to run. An added
 field still changes the trace, so recorded fixtures regenerate — a cost each
 addition pays, not breakage.
 
@@ -210,7 +239,10 @@ finished: MQTT would never deliver it any sooner.
 **The last value of a state topic survives a restart.** Given a file, the bus
 loads it at startup and rewrites it whenever any `tc49/*/state/*` value
 changes. It writes a temporary file in the same directory and renames it over
-the target, so an interrupted write leaves the previous file intact.
+the target, so an interrupted write leaves the previous file intact. What it
+loads is re-stamped with the new session's clock, per the stamp above: the
+file keeps the `at` it was written with, and the read is what puts the
+restored value on this session's timeline.
 
 This belongs to the bus rather than to any app, because it is what an MQTT
 broker does with retained messages. An app that restarts finds its own last
@@ -386,7 +418,10 @@ rather than stored.
 ### Payload schemas
 
 Every payload is a JSON object. The listings give each topic's fields in the
-trace's canonical key order, which `tc49.lib.inventory` fixes. Every field is
+trace's canonical key order, which `tc49.lib.inventory` fixes. Every **state**
+topic's payload leads with `at`, the stamp the bus above describes, and no
+event payload carries one; it is stated once here rather than repeated on
+every state row below. Every field is
 **required unless marked *optional***; an enum's values are the field's whole
 vocabulary, and which way an unreadable one falls is declared with it
 (CONTEXT.md). Names are strings throughout: a **train** as the roster names
@@ -524,10 +559,14 @@ submissions owns that timing itself, inside the `simulator` app
 (ADR-0047). Milestone 1 needs none of it: a timetable goes in whole at the
 start of a run, and the queue does the staggering.
 
-**No payload carries a timestamp.** Time on the record is observation: the
-trace tap stamps each line with `time`, seconds since the session started —
-simulated in batch, wall live — and no event, request or grant carries one,
-so no app can read one or come to depend on it.
+**No event payload carries a timestamp.** Time on the record is observation:
+the trace tap stamps each line with `time`, seconds since the session started
+— simulated in batch, wall live — and no event, request or grant carries one,
+so no app can read one or come to depend on it. A **state** payload carries
+`at`, and does not breach that rule: it is stamped by the binding that
+publishes rather than by an app, it says the order two values of one topic
+were published in and nothing about the hour of the day, and it is read by
+that comparison alone.
 
 **The fast clock has no carrier.** It is the railroad's operating time: the
 wall clock with a start time and a multiplier, both railroad configuration, so
@@ -1224,8 +1263,10 @@ subscribes to exactly what the trace has already shown to be enough.
 Each line is flat: `{"time": …, "event": …, …payload}`. `event` is the
 topic's leaf, which the inventory keeps unique. `time` is stamped by the tap
 from the run clock as it records: float seconds since the session started,
-simulated in batch and wall live (ADR-0047). It is observation only — no
-payload carries a timestamp. The keys are always in the same order — `time`,
+simulated in batch and wall live (ADR-0047). It is the tap's own observation,
+and not the `at` a state payload carries: the two are read off one clock and
+a line shows both, `time` saying when the event was delivered and `at` when
+the value was published. The keys are always in the same order — `time`,
 `event`, then the event's fields in inventory order — which is what lets two
 runs be compared byte for byte
 ([ARCHITECTURE.md](ARCHITECTURE.md#tests)).
