@@ -220,17 +220,17 @@ def test_a_displaced_train_never_departs_on_the_cancelled_route(
     assert last(held, "allocation")["trains"]["freight_1"] == "up_w"
 
 
-def test_a_placement_into_another_trains_block_still_ends_the_request(
+def test_a_placement_the_railroad_cannot_accept_still_ends_the_request(
     held: Assembly,
 ) -> None:
-    """The gesture read in halves, and the one place they come apart: the
-    person said this train is not running that request any more, which is
-    honoured, and then said where it is, which the railroad cannot accept
-    with another train standing there.
+    """The gesture read in halves, and where they come apart: the person said
+    this train is not running that request any more, which is honoured, and
+    then said where it is, which the railroad refuses.
 
-    Judged after the cancellation because a claim may be the cancellation's
-    own to release, and this one is not. What it leaves behind is exactly
-    what a `cancel_wanted` would have.
+    Cancel first, then place, so the placement is judged after — a claim may
+    be the cancellation's own to release, and a block another train stands in
+    is not. It holds the same way for a block the railroad does not have.
+    What either leaves behind is exactly what a `cancel_wanted` would have.
     """
     press(held, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
 
@@ -240,23 +240,7 @@ def test_a_placement_into_another_trains_block_still_ends_the_request(
     assert placements(held) == []
     assert last(held, "allocation")["trains"]["freight_1"] == "yard_w"
     assert last(held, "allocation")["locks"]["dn_e"] == "leviathan"
-
-
-def test_a_placement_into_a_block_the_railroad_lacks_leaves_the_request_alone(
-    held: Assembly,
-) -> None:
-    """A block that does not exist, and a block the train does not fit in,
-    are facts about the gesture rather than about what the train holds, so
-    they are judged before the cancellation: a mistyped block drops the whole
-    gesture and the request goes on running (ADR-0049)."""
-    press(held, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
-
-    place(held, "freight_1", "siding_9")
-    place(held, "leviathan", "yard_e")  # known block, train too long
-
-    assert cancellations(held) == []
-    assert placements(held) == []
-    assert last(held, "allocation")["requests"][0]["id"] == "freight_1-1"
+    assert last(held, "allocation")["requests"] == []
 
 
 def test_a_placement_into_a_block_the_trains_own_route_holds_succeeds() -> None:

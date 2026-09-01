@@ -322,6 +322,9 @@ cancels the same request — `displaced` where `removed` was.
 
 The gesture that ends a request **without** moving the train,
 `tc49/dispatch/cancel_wanted`, is the panel's to place and is not drawn yet.
+Neither is `tc49/dispatch/request_cancelled` read yet: a request the panel is
+following and somebody ends stays in its list until the train is dragged
+again, which is the reading to add with the gesture.
 
 **Right-clicking** the block a train stands in opens a menu with one item,
 **Turn around**, which publishes `tc49/schedule/reversal_wanted` (`{train}`). The

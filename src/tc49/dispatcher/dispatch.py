@@ -840,20 +840,14 @@ class Dispatcher:
         nowhere, and no queued request outlives the placement to depart from
         the wrong block.
 
-        A block the railroad does not have, or one the train does not fit in,
-        is judged **before** the cancellation. Those two are facts about the
-        gesture rather than about what the train holds, so a mistyped block
-        drops the whole gesture and leaves the request running, where a block
-        that is merely claimed is judged after — the claim may be the
-        cancellation's to release.
-
-        Where it turns out to be somebody else's claim the request stays
-        cancelled and the train stays where it was. That is the gesture read
-        in halves rather than a placement half-done: the person said this
-        train is not running that request any more, which is honoured, and
-        then said where it is, which the railroad cannot accept because
-        another train is there. What it leaves behind is exactly what a
-        `cancel_wanted` would have.
+        The placement itself is judged where it always was, after the
+        cancellation and by `_stand`: a block has to exist, fit the train and
+        be free of every claim, and one of those claims may be the
+        cancellation's own to release. So a gesture the railroad cannot
+        accept still ends the request and leaves the train where it was —
+        the person said this train is not running that request any more,
+        which is honoured, and then said where it is, which is refused. What
+        it leaves behind is exactly what a `cancel_wanted` would have.
 
         Where the train stands *now* is no precondition at all: one adoption
         placed nowhere (`restored`) is exactly the train a person has to say
@@ -865,8 +859,6 @@ class Dispatcher:
             return
         if wanted.train not in state.roster:
             return
-        if wanted.block is not None and not self._fits(wanted.train, wanted.block):
-            return
         self._cancel(
             wanted.train,
             Cancellation.REMOVED if wanted.block is None else Cancellation.DISPLACED,
@@ -876,21 +868,11 @@ class Dispatcher:
         else:
             self._stand(wanted.train, wanted.block)
 
-    def _fits(self, train: str, block: str) -> bool:
-        """Whether the railroad has that block and the train is short enough
-        for it: the whole of what a placement can be judged on before the
-        request under it is cancelled."""
-        state = self._state
-        if block not in state.layout.blocks:
-            return False
-        return state.roster[train] <= state.layout.blocks[block]
-
     def _stand(self, train: str, block: str) -> None:
         """A train put on the layout, or moved by hand from where it was.
 
-        The block has to be **free of every claim**, its existence and the fit
-        having been settled before the cancellation that got this far
-        (`_place`). Having accepted, the dispatcher moves the train's standing
+        The block has to exist, be free of every claim, and fit the train.
+        Having accepted, the dispatcher moves the train's standing
         lock and announces `train_placed`. That event is the ledger line for a
         placement: a `lock_released` and a `lock_granted` would say a route
         gave a block up and took another, which is not what happened — a hand
@@ -898,7 +880,11 @@ class Dispatcher:
         tell the two apart.
         """
         state = self._state
+        if block not in state.layout.blocks:
+            return
         if not state.free(block):
+            return
+        if state.roster[train] > state.layout.blocks[block]:
             return
         # A train that is off the layout holds no standing lock and has none
         # to give up: this gesture is what puts it back on (ADR-0039, #164).
