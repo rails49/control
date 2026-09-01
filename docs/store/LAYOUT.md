@@ -85,7 +85,8 @@ connections:
   where the two ways share no symbol, which is composition, not authoring.
 - **Lengths** are load-bearing only for the admission fit check — does the train
   fit the blocks it may arrive in. Transit length is not modelled at all: every
-  transit costs one tick ([DISPATCH.md](../dispatcher/DISPATCH.md#time-model)).
+  transit costs the same fixed delays, whatever it is and whatever crosses it
+  ([DISPATCH.md](../dispatcher/DISPATCH.md#time-model)).
 - **There are still no turnouts in the layout, but there are their addresses.**
   A connection is abstract; the turnouts it is realized by live in the drawing
   and are dropped by derivation, so turnout switching time is not merely

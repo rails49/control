@@ -1,5 +1,15 @@
 # A topic has one writing role, not one writer
 
+*(Amended under
+[ADR-0047](0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md):
+"the dispatcher buffers sensor events to the grant boundary" below is gone —
+a reading applies where it lands. The conclusion is unchanged and the ground
+under it is now firmer: every grant is `safe()`-checked before it commits, so
+arrival order picks among options that were all safe. Sensors were never the
+case this rule is about in any event — the layout interface is one instance,
+and the concurrent-instance role is the panel, whose gestures are independent
+of one another.)*
+
 Rule 1 of [SYSTEM.md](../SYSTEM.md#the-bus) said *exactly one component
 publishes on any topic*. Read literally that forbids two browser tabs, which
 are two components of one role, and it is the rule

@@ -7,6 +7,17 @@ and `running`. A person moves it with `tc49/ui/run_wanted`, and while it is
 `held` the dispatcher commits nothing: no route is chosen, no move granted,
 no lock taken.
 
+**Amended under
+[ADR-0047](0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md):**
+"Releasing only clears the flag" below no longer holds. The boundary is gone,
+so there is no beat for a release to wait for: releasing runs a sweep, and the
+first wheel turns with the press. The argument that section makes against it —
+that granting from the gesture handler adds a second entry point into granting
+— is answered rather than overridden: a sweep is *the* entry point, run
+wherever the lock table or the waiting set changes, and a release is one of
+those changes. The decision this ADR records, that `held` commits nothing, is
+untouched.
+
 **Amended for
 [#242](https://github.com/rails49/control/issues/242):** a field whose values
 are a closed set is an **enum**; this ADR calls it a *word*, the term
