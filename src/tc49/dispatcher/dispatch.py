@@ -45,6 +45,7 @@ from tc49.lib.inventory import HELD, ON, RUNNING
 from tc49.lib.layout import Layout, block_of, departure_end, end_on
 from tc49.lib.payload import (
     gesture,
+    kept_allocation,
     named_train,
     occupancy,
     placement,
@@ -382,9 +383,18 @@ class Adopted:
     crossing: dict[str, str]  # train -> the transit it was crossing
 
 
-def restored(picture: Payload, roster: Roster, cold: dict[str, str]) -> Adopted:
+def restored(picture: object, roster: Roster, cold: dict[str, str]) -> Adopted:
     """Placement and crossing hints off the last picture the bus kept across
     a restart, or the run's own `cold` placement where there is none (#123).
+
+    The picture is **read**, in `lib.payload` where every payload is read: a
+    value waiting on a broker that outlived the app is a payload like any
+    other, and rule 4 does not exempt the moment one is read at construction
+    (#278). A value that states no picture leaves this exactly where an
+    absent one does — every train on its cold placement, the lock table
+    rebuilt one block per train, the queue empty — because refusing to start
+    recovers nothing and tells a person less than starting cold does. It is
+    the same case and not a new one.
 
     Adoption is **selective**: `trains` and `crossing` are taken, `locks` and
     `requests` left behind. The lock table is rebuilt one block per train as a
@@ -406,7 +416,8 @@ def restored(picture: Payload, roster: Roster, cold: dict[str, str]) -> Adopted:
     transit its own placement was consistent with, and says nothing about the
     block the document put the train in.
     """
-    named: Payload = picture.get("trains", {})
+    stated = kept_allocation(picture)
+    named = stated.trains if stated is not None else {}
     pictured = {train: at for train, at in named.items() if train in roster.trains}
     settled: dict[str, str] = {}
 
@@ -429,13 +440,10 @@ def restored(picture: Payload, roster: Roster, cold: dict[str, str]) -> Adopted:
     order = list(cold) + [train for train in pictured if train not in cold]
     standing = {train: settled[train] for train in order if train in settled}
     kept = {train for train, at in pictured.items() if standing.get(train) == at}
+    hinted = stated.crossing if stated is not None else {}
     return Adopted(
         standing,
-        {
-            train: transit
-            for train, transit in picture.get("crossing", {}).items()
-            if train in kept
-        },
+        {train: transit for train, transit in hinted.items() if train in kept},
     )
 
 
@@ -491,7 +499,8 @@ class Dispatcher:
         # be against a broker that outlived the app (#123). Read here rather
         # than through `subscribe`, because placement has to be settled before
         # the standing locks below are published, and a subscription delivers
-        # at the drain.
+        # at the drain. Being read rather than subscripted is `restored`'s,
+        # and what is left here is whether there is a value at all (#278).
         picture = bus.last_values.get(ALLOCATION, {})
         adopted = restored(picture, roster, placement)
         self._state = State(
@@ -513,7 +522,12 @@ class Dispatcher:
             # and neither is how much of the picture was taken: a train the
             # document overruled, or that adoption placed nowhere at all
             # (`restored`), is one more thing to come and look at rather than
-            # a reason to start running.
+            # a reason to start running. A value nothing could be taken from
+            # at all is the far end of that scale and not an exception to it
+            # (#278): a session left something on this topic and its record
+            # is damaged, which is more to come and look at rather than less.
+            # So the hold turns on a value **being there** and never on what
+            # could be read out of it.
             #
             # A cold session with an **empty layout** comes up held too, and
             # for a plainer reason: the only thing there is to do on one is
