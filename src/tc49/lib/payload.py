@@ -42,7 +42,9 @@ those names name anything is the layout's (`lib.layout.end_crossed`).
 the command that moves the train (#261). Two apps reading one payload is what
 this module is for, and it is the same reading: the driver holds no layout
 either, so what it adds to `grant` is splitting the qualified transit its
-command states bare, and that is the driver's own.
+command states bare, and that is the driver's own. The aspect is read here
+beside it and not on `grant`, because the two readers want different fields of
+the one frame (#283): `granted_aspect` says why.
 
 That command is read here too, at the other end of it (#262): the layout
 interface acts on `tc49/layout/move`, the topic names the interface because
@@ -134,9 +136,9 @@ class Grant:
     """The move a grant authorises: which train, over which transit, into
     which block.
 
-    The three fields a consumer of `tc49/dispatch/move_granted` acts on. The
-    id correlates and the aspect is the driver's to come
-    (ADR-0025), and neither is read until something reads it.
+    The three fields every consumer of `tc49/dispatch/move_granted` acts on.
+    The id correlates and the aspect is the driver's, and each is read beside
+    this one by whoever wants it — `readable_id` and `granted_aspect`.
     """
 
     train: str
@@ -159,6 +161,27 @@ def grant(payload: object) -> Grant | None:
     if not all(isinstance(field, str) for field in (train, transit, into)):
         return None
     return Grant(cast(str, train), cast(str, transit), cast(str, into))
+
+
+def granted_aspect(payload: object) -> str | None:
+    """The aspect a grant shows, or None where it shows none.
+
+    Beside `grant` rather than a field on it, as `readable_id` is: the
+    scheduler reads the same frame for which way the train ends up facing and
+    has no use for the aspect, so an aspect on `Grant` would cost it a facing
+    it could have kept over a field it never looks at. The driver, which turns
+    the aspect into the speed its command carries, reads both and drops the
+    frame where either fails (ADR-0025).
+
+    Whether the name is an aspect this build knows what to do with is the
+    reader's question and not this one. `stop` reads perfectly well here and
+    is no permission to move; the mapping from aspect to speed is the driver's
+    alone, and a name is the whole of what there is to read in a payload.
+    """
+    if not isinstance(payload, dict):
+        return None
+    aspect = cast(dict[str, object], payload).get("aspect")
+    return aspect if isinstance(aspect, str) else None
 
 
 @dataclass(frozen=True)
@@ -315,7 +338,14 @@ def placement(payload: object) -> Placement | None:
 @dataclass(frozen=True)
 class Move:
     """The four names a `move` command states: which train, over which
-    connection's which transit, into which block."""
+    connection's which transit, into which block.
+
+    Not the speed the command also carries (#283): the milestone-1 binding
+    takes a fixed delay per transit, so it has nothing to do with a fraction
+    of a locomotive's maximum, and a reader demanding one would drop commands
+    that binding can carry out perfectly well. A binding that drives a real
+    locomotive reads it where it turns it into whatever its hardware wants.
+    """
 
     train: str
     connection: str

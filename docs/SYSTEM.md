@@ -313,7 +313,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/layout/block_vacated` | event | layout | a detector saw a block empty |
 | `tc49/layout/state/power` | state | layout | whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
 | `tc49/layout/align` | command | any | set the route: throw these points |
-| `tc49/layout/move` | command | any | take the train across |
+| `tc49/layout/move` | command | any | take the train across, this fast |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -406,7 +406,12 @@ its two names, as each topic states.
   connection; `points`: list of `{addr, position}`, `position` enum `closed`
   or `thrown`; `[]` where nothing needs throwing.
 - `tc49/layout/move` — `train`; `connection`; `transit`: bare name, the
-  grant's qualified transit split; `into`: the block entered.
+  grant's qualified transit split; `into`: the block entered; `speed`: a
+  magnitude, `0.0` … `1.0`, the fraction of that locomotive's maximum to run
+  this move at. Not a decoder step and not a scale speed, and unsigned —
+  which way the train goes along the track is the layout interface's, which
+  holds the geometry and the way round the locomotive stands
+  ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 
 #### `schedule`
 

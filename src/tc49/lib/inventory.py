@@ -39,7 +39,7 @@ TOPICS: dict[str, Topic] = {
     "tc49/layout/block_vacated": Topic(("block",)),
     "tc49/layout/state/power": Topic(("power",)),
     "tc49/layout/align": Topic(("connection", "transit", "points")),
-    "tc49/layout/move": Topic(("train", "connection", "transit", "into")),
+    "tc49/layout/move": Topic(("train", "connection", "transit", "into", "speed")),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
     "tc49/schedule/state/exhausted": Topic(("exhausted",)),
