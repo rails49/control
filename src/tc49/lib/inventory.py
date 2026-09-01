@@ -243,6 +243,25 @@ grants nothing, so it races with nothing the dispatcher is deciding
 (ADR-0051)."""
 
 
+OCCUPIED = "occupied"
+CLEAR = "clear"
+UNKNOWN = "unknown"
+"""The three values of ``occupancy`` on
+``tc49/layout/state/device/sensor/<block>.<end>``: what one detector sees at
+the block end it watches.
+
+A **level** and not an edge — presence is a thing that can be asked for at any
+time — so the pair a block's two detectors report is what `layout` folds into
+`tc49/layout/block_occupied` and `tc49/layout/block_vacated`, the anonymous
+events everything above the layout interface reads (#288).
+
+`unknown` is a value and not an absence: the detector knows *why* it cannot
+say — no model, not calibrated, drift — and the free-text ``reason`` beside it
+carries that for a person, while a consumer treats `unknown` as **no
+information** about that end and keeps whatever level it last had
+(CONTEXT.md, **detector**)."""
+
+
 def is_state_topic(topic: str) -> bool:
     """Whether a topic is a state topic, read off the path: state is marked
     structurally by a ``state`` level under the component, so the split is a

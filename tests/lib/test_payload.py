@@ -19,6 +19,7 @@ from tc49.lib.payload import (
     desired_function,
     desired_position,
     desired_speed,
+    detected,
     gesture,
     grant,
     granted_aspect,
@@ -29,6 +30,7 @@ from tc49.lib.payload import (
     occupancy,
     placement,
     power,
+    reported_reason,
     run_state,
     shown_aspects,
     stamp,
@@ -281,6 +283,41 @@ def test_a_payload_naming_no_block_reads_as_none() -> None:
     ]
     for payload in refused:
         assert occupancy(payload) is None, payload
+
+
+def test_a_sensor_row_reads_as_the_level_the_detector_states() -> None:
+    """Presence is a level and the row states one of three words for it. What
+    a block's two of them become is `layout`'s fold (#288)."""
+    for level in ("occupied", "clear", "unknown"):
+        assert detected({"addr": "up_w.B", "occupancy": level}) == level
+
+
+def test_a_sensor_row_that_cannot_be_read_is_no_information_about_that_end() -> None:
+    """The third reader that answers a value rather than None, falling the way
+    its own axis does: `unknown` is what the contract calls no information, and
+    a frame that cannot be read carries none (#181, #288)."""
+    refused: list[object] = [
+        None,  # no payload at all
+        "occupied",  # not an object either
+        ["occupied"],  # nor a list of its fields
+        {},  # no occupancy
+        {"addr": "up_w.B"},  # addressed and silent
+        {"addr": "up_w.B", "occupancy": None},
+        {"addr": "up_w.B", "occupancy": "OCCUPIED"},  # not the contract's word
+        {"addr": "up_w.B", "occupancy": True},
+    ]
+    for payload in refused:
+        assert detected(payload) == "unknown", payload
+
+
+def test_a_reason_is_read_where_one_is_given_and_never_demanded() -> None:
+    """Free text for a person, optional, and only ever beside `unknown`:
+    nothing branches on it, so a reason that is not a string is no reason."""
+    assert reported_reason({"occupancy": "unknown", "reason": "not calibrated"}) == (
+        "not calibrated"
+    )
+    for payload in (None, "why", {}, {"occupancy": "unknown"}, {"reason": 7}):
+        assert reported_reason(payload) is None, payload
 
 
 def test_a_placement_reads_as_the_train_and_the_block_it_names() -> None:
