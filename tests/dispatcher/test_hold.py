@@ -116,11 +116,11 @@ def test_release_grants_on_the_press_itself() -> None:
 def test_a_value_that_is_no_run_state_leaves_the_run_alone(
     timetabled: Assembly,
 ) -> None:
-    """A gesture has no id to address an answer to, so a third value is
-    dropped in silence and to the trace (ADR-0034). The frame is read to the
-    bottom — anyone may publish on the topic, and nothing here subscripts
-    what it has not read (SYSTEM.md, rule 4)."""
-    press(timetabled, RUN_WANTED, {"run": "draining"})
+    """A gesture has no id to address an answer to, so a value outside the
+    three is dropped in silence and to the trace (ADR-0034). The frame is
+    read to the bottom — anyone may publish on the topic, and nothing here
+    subscripts what it has not read (SYSTEM.md, rule 4)."""
+    press(timetabled, RUN_WANTED, {"run": "drained"})
     press(timetabled, RUN_WANTED, {"held": True})
     press(timetabled, RUN_WANTED, cast(Payload, "hold everything"))
     ticks(timetabled, 2)
