@@ -45,6 +45,12 @@ HOST = "0.0.0.0"
 BAUD = termios.B115200
 READ_SIZE = 4096
 
+# Every way the device can be away. `termios.error` is not an `OSError`, and
+# it is what a line-discipline call raises: unplugging the node between the
+# open and that call reports ENODEV as one, and a path that is no tty raises
+# it every time. Both are the device not being there, not the end of the app.
+DEVICE_AWAY = (OSError, termios.error)
+
 FIRST_BACKOFF_S = 0.5
 MAX_BACKOFF_S = 8.0
 
@@ -178,7 +184,7 @@ class Station:
         while True:
             try:
                 fd = open_device(self._device)
-            except OSError:
+            except DEVICE_AWAY:
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, self._max_backoff_s)
                 continue
@@ -189,6 +195,8 @@ class Station:
                 await self._mirror(fd)
             finally:
                 self._fd = None
+                # The outage that starts here is news again, however many
+                # have been reported before it.
                 self._dropped = False
                 os.close(fd)
                 self._log(f"serial closed {self._device}")
@@ -230,7 +238,7 @@ def open_device(path: str) -> int:
     fd = os.open(path, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
     try:
         configure(fd)
-    except OSError:
+    except DEVICE_AWAY:
         os.close(fd)
         raise
     return fd

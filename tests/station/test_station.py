@@ -32,8 +32,13 @@ class Pty:
         self.master, self._slave = os.openpty()
         self.path = os.ttyname(self._slave)
         os.set_blocking(self.master, False)
+        self._open = True
 
     def close(self) -> None:
+        """Pull the cable. Idempotent, so a test may do it before the fixture."""
+        if not self._open:
+            return
+        self._open = False
         os.close(self.master)
         os.close(self._slave)
 
@@ -43,11 +48,19 @@ class Log:
 
     def __init__(self) -> None:
         self.lines: list[str] = []
+        self.times: list[float] = []
         self._appended = asyncio.Event()
 
     def __call__(self, line: str) -> None:
         self.lines.append(line)
+        self.times.append(time.monotonic())
         self._appended.set()
+
+    def said(self, prefix: str) -> list[float]:
+        """When each line starting with `prefix` was said, in order."""
+        return [
+            at for at, line in zip(self.times, self.lines) if line.startswith(prefix)
+        ]
 
     async def wait_for(self, prefix: str, timeout: float = TIMEOUT_S) -> str:
         deadline = time.monotonic() + timeout
@@ -59,6 +72,23 @@ class Log:
             left = deadline - time.monotonic()
             if left <= 0:
                 raise AssertionError(f"no log line {prefix!r} in {self.lines}")
+            await asyncio.wait_for(self._appended.wait(), left)
+
+    async def wait_for_count(
+        self, prefix: str, count: int, timeout: float = TIMEOUT_S
+    ) -> None:
+        """Wait until `prefix` has been said `count` times."""
+        deadline = time.monotonic() + timeout
+        while len(self.said(prefix)) < count:
+            self._appended.clear()
+            if len(self.said(prefix)) >= count:
+                return
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise AssertionError(
+                    f"{prefix!r} said {len(self.said(prefix))} times, not {count},"
+                    f" in {self.lines}"
+                )
             await asyncio.wait_for(self._appended.wait(), left)
 
 
@@ -216,6 +246,75 @@ def test_what_a_client_sends_while_the_device_is_away_is_dropped(
             # And the client is still connected, so what it sends now arrives.
             await send(writer, b"<a 12 1>")
             assert await arriving(pty.master, len(b"<a 12 1>")) == b"<a 12 1>"
+        finally:
+            await app.close()
+
+    asyncio.run(scenario())
+
+
+def open_fds() -> int:
+    """How many descriptors this process holds."""
+    return len(os.listdir("/dev/fd"))
+
+
+def test_a_device_that_will_not_configure_keeps_the_watcher_retrying(
+    pty: Pty, tmp_path: Path
+) -> None:
+    """A path that opens but is no tty is an outage like any other, not the end.
+
+    Setting the line discipline on it raises `termios.error`, which is not an
+    `OSError`. The watcher survives it, holds no descriptor from the attempt,
+    and is still there to take the device when it appears.
+    """
+
+    async def scenario() -> None:
+        log = Log()
+        not_a_tty = tmp_path / "dccex"
+        not_a_tty.write_bytes(b"")
+        app = station(str(not_a_tty), log)
+        await app.start()
+        try:
+            _, writer = await connect(app)
+            await send(writer, b"<t 3 50 1>")
+            await log.wait_for("device away")
+
+            held = open_fds()
+            await asyncio.sleep(SETTLE_S)
+            assert open_fds() == held
+
+            not_a_tty.unlink()
+            not_a_tty.symlink_to(pty.path)
+            await log.wait_for("serial open")
+        finally:
+            await app.close()
+
+    asyncio.run(scenario())
+
+
+def test_the_dropped_notice_is_said_again_in_a_later_outage(
+    pty: Pty, tmp_path: Path
+) -> None:
+    """Each outage says it once: the second one is news as much as the first."""
+
+    async def scenario() -> None:
+        log = Log()
+        cable = tmp_path / "dccex"
+        app = station(str(cable), log)
+        await app.start()
+        try:
+            _, writer = await connect(app)
+            await send(writer, b"<t 3 50 1>")
+            await log.wait_for_count("device away", 1)
+
+            cable.symlink_to(pty.path)
+            await log.wait_for("serial open")
+            cable.unlink()
+            pty.close()
+            await log.wait_for("serial closed")
+
+            await send(writer, b"<a 12 1>")
+
+            await log.wait_for_count("device away", 2)
         finally:
             await app.close()
 
