@@ -97,10 +97,17 @@ so "a train faces away from the end it entered through" is not computable from
 the event alone; it needs to know which ends the transit joins. The scheduler
 therefore reads the layout and subscribes `tc49/dispatch/#`, which is
 [ADR-0028](0028-the-scheduler-knows-where-trains-stand.md)'s growth spent early
-— for facing rather than for a generator. It also follows `route_chosen`: a
-request whose `depart` contradicts facing is legal, ADR-0019 having made facing
-a scheduler discipline rather than a system invariant, so a committed route's
-departure end becomes the train's facing.
+— for facing rather than for a generator. A request whose `depart` contradicts
+facing is legal, ADR-0019 having made facing a scheduler discipline rather than
+a system invariant; the grant is still where the scheduler reads it, since such
+a request is a train **propelled**, and the move that lands it is what says so.
+
+*(Amended for [#295](https://github.com/rails49/control/issues/295): the
+scheduler also followed `route_chosen`, taking a committed route's departure
+end as the train's facing. That wrote the plan rather than the train, and said
+a train departing against facing had turned around while nothing touched it.
+It no longer reads that leaf, and `move_granted` is the whole of what moves an
+arrow.)*
 
 Adding an `entry` field to `move_granted` instead was rejected: it puts a field
 on the dispatcher's busiest event for one consumer's benefit, against the
