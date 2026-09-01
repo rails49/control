@@ -995,7 +995,8 @@ that one and nothing on it can fail to be read.
 On the physical railroad the layout interface is the core app `layout`, and
 hardware sits under it by address, as thin translators speaking a device-level
 vocabulary on the bus
-([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
+([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)),
+which is *Device vocabulary* below.
 The control loop that carries out a `move` — throttle up, watch the detector,
 stop — stays private hardware configuration.
 
@@ -1054,6 +1055,59 @@ The simulator publishes no sensors for a placement, so nothing behind the
 milestone-1 binding produces such a reading. The rule is written for the
 layout that detects occupancy, which is the binding that decides
 ([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)).
+
+#### Device vocabulary
+
+What `layout` writes to the hardware under it: one retained state topic per
+device, naming what that device should do. `layout` is the single writer of
+every row (rule 1), and whatever recognises an address acts on it while
+everything else ignores it — no ownership table exists anywhere, and an
+address nothing answers to does no harm, as a packet nobody picks up does
+([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
+The rows are `tc49.lib.inventory.DEVICE_TOPICS`.
+
+| Topic | Payload | Values |
+| --- | --- | --- |
+| `tc49/layout/state/wanted/traction/<addr>` | `addr`, `speed` | `speed` a number in −1.0 … 1.0 |
+| `tc49/layout/state/wanted/function/<addr>/<number>` | `addr`, `function`, `value` | `function` the function number as a string; `value` whatever the model's catalogue entry allows |
+| `tc49/layout/state/wanted/point/<system>/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
+| `tc49/layout/state/wanted/signal/<system>/<addr>` | `addr`, `aspect` | `aspect` `stop`, `caution` or `clear` |
+| `tc49/layout/state/wanted/track` | `power` | `power` `on`, `stopped` or `off` |
+
+The address is **trailing levels rather than a leaf**, so a row is named by the
+topic above it and the payload repeats the address as `addr`, which is what
+lets a trace line read on its own. The trace's `event` for one of these is that
+key past `tc49/layout/state/` — `wanted/traction`, `wanted/point` — two levels
+where every other row's name is one, because the observed half of the
+vocabulary answers for the same devices and `point` alone would not say which
+half a line records. These are the **desired** rows; observed state is written
+by whatever the hardware reports it through, and a commanded position is never
+echoed back as a measured one (ADR-0043).
+
+**The two address rules differ, and the difference is physical.** A traction or
+function address is **bare** — a decoder answers to the number it was
+programmed with whoever sends the packet, and traction cannot be split across
+systems
+([ADR-0045](adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+A point or signal address names **its system as its first level**, because
+fixed wiring can be split across systems and two systems name the same turnout
+differently (ADR-0043). So those two topics carry one level more than the
+others, and a translator subscribes its own system.
+
+**`track` carries no address.** Power districts are a hardware-level fact and
+do not reach the bus: there is one railroad-wide desired power, and a
+translator maps it onto however many districts its hardware has. The observed,
+railroad-wide answer is `tc49/layout/state/power` above, and is unchanged.
+
+**Speed is a fraction, never a decoder step.** The sign is direction along the
+track and the magnitude is the fraction of that locomotive's maximum; `0.0` is
+stop. Steps, speed tables and every wire protocol stay inside a translator
+(ADR-0043).
+
+Every row is state rather than command because that is what makes the extra hop
+safe under at-least-once delivery: a replayed message carries the value that is
+already current, and a translator coming up finds the retained value waiting
+(ADR-0043).
 
 ### Asset store
 
