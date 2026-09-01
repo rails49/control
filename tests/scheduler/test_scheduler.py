@@ -612,6 +612,34 @@ def test_an_announcement_that_cannot_be_read_leaves_facing_where_it_was() -> Non
     assert facing(seen)["freight_1"] == "dn_w.B"
 
 
+def test_a_leaf_the_scheduler_does_not_act_on_is_ignored() -> None:
+    """Rule 3 hands the scheduler the whole of `dispatch`, so its own
+    submissions come back past it beside every announcement it does not
+    follow. Ignoring one is rule 4 doing its ordinary work — including a leaf
+    that did not exist when this scheduler was built, which is what leaves the
+    inventory open (SYSTEM.md)."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    bus.drain()
+    published, settled = len(seen), facing(seen)
+
+    announce(
+        bus,
+        "request_submitted",  # the scheduler's own, on its own filter
+        {
+            "id": "freight_1-1",
+            "train": "freight_1",
+            "depart": "yard_w.B",
+            "dest": ["yard_e.A"],
+        },
+    )
+    announce(bus, "lock_granted", {"train": "freight_1", "resources": ["dn_w"]})
+    announce(bus, "throttle_moved", {"train": "freight_1", "speed": 40})  # not yet
+    assert len(seen) == published
+    assert facing(seen) == settled
+
+
 def test_an_answer_that_cannot_be_read_leaves_the_request_in_flight() -> None:
     """The two answers are what free a train to be turned around at rest: an
     id the scheduler cannot read frees nothing, so the reversal stays dropped
