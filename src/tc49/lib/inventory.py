@@ -191,11 +191,23 @@ def split_device(topic: str) -> tuple[str, str] | None:
 
 HELD = "held"
 RUNNING = "running"
-"""The two values of ``tc49/dispatch/state/run``. An enum and not a boolean:
-the ordinary-shutdown drain adds ``draining`` as a third value here rather
-than inventing a state of its own (#123). Not to be read as the ``held``
-``grant_refused`` reason, which says a resource is locked by another train
-and is a different thing on a different topic (CONTEXT.md)."""
+DRAINING = "draining"
+"""The three values of ``tc49/dispatch/state/run``, and of the ``run_wanted``
+gesture that moves it. An enum and not a boolean, which is what let the
+ordinary-shutdown **drain** take a third value here rather than invent a
+state of its own (#123, #294).
+
+They differ by what the dispatcher will commit. `running` admits, launches
+and grants; `draining` admits and grants a train already moving but launches
+nothing, so the work under way runs out and nothing takes its place; `held`
+admits and commits nothing at all. `draining` is therefore a value the
+dispatcher writes as well as reads: it ends itself at `held` the first moment
+no train is active and none is crossing, and that transition is the drain's
+completion (ADR-0037).
+
+Not to be read as the ``held`` ``grant_refused`` reason, which says a
+resource is locked by another train and is a different thing on a different
+topic (CONTEXT.md)."""
 
 
 AUTOMATIC = "automatic"
