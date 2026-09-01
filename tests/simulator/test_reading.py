@@ -102,6 +102,44 @@ def test_a_command_naming_a_transit_this_railroad_has_not_moves_nothing() -> Non
     assert seen == []
 
 
+def test_a_command_whose_transit_does_not_reach_the_block_it_names_moves_nothing() -> (
+    None
+):
+    """The layout holds `east_ladder.from_up`, which joins `up_e.B` to
+    `yard_e.A` and touches `dn_w` nowhere: there is no track from anywhere
+    over that transit into `dn_w`, so the command describes something this
+    railroad does not do and is dropped (#276).
+
+    express_2 stands in `up_e`, at one end of the transit named — the case
+    that used to pass the position check, because the near end came back the
+    transit's first end and the train happened to be standing there. Nothing
+    rolls, no occupancy is published, nothing raises, and the honest command
+    after it still crosses.
+    """
+    bus, sim = build()
+    seen = sensors(bus)
+
+    send(
+        bus,
+        MOVE,
+        {
+            "train": "express_2",
+            "connection": "east_ladder",
+            "transit": "from_up",
+            "into": "dn_w",
+        },
+    )
+    tick(sim)
+    assert seen == []
+
+    send(bus, MOVE, HONEST)
+    tick(sim)
+    assert seen == [
+        ("tc49/layout/block_occupied", {"block": "dn_w"}),
+        ("tc49/layout/block_vacated", {"block": "yard_w"}),
+    ]
+
+
 def test_a_command_carrying_a_field_the_binding_does_not_know_still_moves() -> None:
     """Unknown fields are ignored, which is what lets the inventory grow one
     without every binding being rebuilt (SYSTEM.md)."""
