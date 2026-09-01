@@ -358,7 +358,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
 | `tc49/schedule/state/facing` | state | scheduler | the run each train would make across its block |
 | `tc49/dispatch/request_submitted` | event | any | a request, composed and released |
-| `tc49/dispatch/run_wanted` | event | any (browser) | hold the run or release it |
+| `tc49/dispatch/run_wanted` | event | any (browser) | hold the run, release it, or drain it |
 | `tc49/dispatch/placement_wanted` | event | any (browser) | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
 | `tc49/dispatch/cancel_wanted` | event | any (browser) | end a train's request without arriving ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)) |
 | `tc49/dispatch/request_admitted` | event | dispatcher | admission accepted it, with what survived pruning |
@@ -372,7 +372,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/dispatch/lock_released` | event | dispatcher | resources released |
 | `tc49/dispatch/train_placed` | event | dispatcher | a placement accepted, the standing lock moved with it |
 | `tc49/dispatch/train_removed` | event | dispatcher | a train taken off the layout |
-| `tc49/dispatch/state/run` | state | dispatcher | held or running ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)) |
+| `tc49/dispatch/state/run` | state | dispatcher | held, running or draining ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
 | `tc49/dispatch/state/disputed` | state | dispatcher | where the detectors contradict the placement ([#153](https://github.com/rails49/control/issues/153)) |
@@ -497,9 +497,8 @@ payload is read defensively, and one that fails the read is dropped.
   ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)); `train`;
   `depart`: the block end the train departs through; `dest`: list of arrival
   block ends, at least one.
-- `tc49/dispatch/run_wanted` — browser-writable — `run`: enum `held` or
-  `running`; any other value is dropped. The ordinary-shutdown drain adds
-  `draining` ([#123](https://github.com/rails49/control/issues/123)).
+- `tc49/dispatch/run_wanted` — browser-writable — `run`: enum `held`,
+  `running` or `draining`; any other value is dropped.
 - `tc49/dispatch/placement_wanted` — browser-writable — `train`; `block`:
   block name, or `null` for off the layout. The key's presence is
   load-bearing: a payload without `block` fails the read, while an explicit
@@ -537,9 +536,10 @@ payload is read defensively, and one that fails the read is dropped.
   `resources`: list of blocks and transits.
 - `tc49/dispatch/train_placed` — `train`; `block`.
 - `tc49/dispatch/train_removed` — `train`.
-- `tc49/dispatch/state/run` — `run`: enum `held` or `running`; a reader drops
-  an unreadable value (CONTEXT.md). `draining` arrives with the drain
-  ([#123](https://github.com/rails49/control/issues/123)).
+- `tc49/dispatch/state/run` — `run`: enum `held`, `running` or `draining`; a
+  reader drops an unreadable value (CONTEXT.md). The dispatcher writes
+  `draining` when it is asked for and writes `held` itself when the drain
+  completes ([#294](https://github.com/rails49/control/issues/294)).
 - `tc49/dispatch/state/aspects` — `aspects`: map of signalled block end to
   aspect. An end nothing ever leaves does not appear.
 - `tc49/dispatch/state/disputed` — `trains`: sorted list of trains standing
@@ -778,23 +778,45 @@ its picture of the run, written out from the lock table whenever it changes,
 so a client that joins an idle railroad has something to draw
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
 
-**The run is held or running**, on `state/run`. The dispatcher publishes it
-from its constructor, so a client that joins is served a value rather than
-left to read one out of an absence. A session starting fresh publishes
-`running`. One that came up on a restored picture publishes `held`, because
-that picture says where the last session believed the railroad was rather than
-where it stands now.
+**The run is held, running or draining**, on `state/run`. The dispatcher
+publishes it from its constructor, so a client that joins is served a value
+rather than left to read one out of an absence. A session starting fresh
+publishes `running`. One that came up on a restored picture publishes `held`,
+because that picture says where the last session believed the railroad was
+rather than where it stands now.
 
-A person moves it with `tc49/dispatch/run_wanted`. While it is `held` the dispatcher
-**commits nothing**: a sensor still applies where it lands, and the sweep's
-grant pass is what stops, so no route is chosen, no move granted and no lock
-taken, while admission goes on accepting and queuing. A move already granted
-still completes and releases its locks. A hold stops new commitments and does
-not stop a train that is already moving, and nothing on the bus retracts a
-`move` already sent. Every signalled end shows `stop` for as long as the hold
+A person moves it with `tc49/dispatch/run_wanted`. The three values differ by
+what the dispatcher will commit, and all three **admit**:
+
+| value | admits | launches | grants to a train already moving |
+| --- | --- | --- | --- |
+| `running` | yes | yes | yes |
+| `draining` | yes | no | yes |
+| `held` | yes | no | no |
+
+While it is `held` the dispatcher **commits nothing**: a sensor still applies
+where it lands, and the sweep's grant pass is what stops, so no route is
+chosen, no move granted and no lock taken, while admission goes on accepting
+and queuing. A move already granted still completes and releases its locks. A
+hold stops new commitments and does not stop a train that is already moving,
+and nothing on the bus retracts a `move` already sent. Every signalled end shows `stop` for as long as the hold
 lasts. Releasing runs a sweep, so the press itself grants
 ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md),
 ADR-0047).
+
+**`draining` is the ordinary shutdown**, and the gate it closes is on
+launching rather than on admission: the trains already moving go on being
+granted until each finishes its request, and nothing is launched behind them.
+The dispatcher writes `held` **itself** at the first moment no train is active
+and none is crossing, and that transition is the drain's completion — what the
+panel watches for before it cuts track power
+([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
+A drain over a railroad with nothing under way therefore reaches `held` in the
+press that asked for it. `held` published while a drain is in progress
+**abandons** it, at once and without waiting for a train to finish, and
+`running` resumes launching; a drain that a train holds open forever is
+escaped that way, by holding and then removing the train, which drops its
+request ([#294](https://github.com/rails49/control/issues/294)).
 
 **The layout can hold it too.** A `tc49/layout/state/power` value that is
 anything but `on` sets `run` to `held`, along the path a person's gesture
@@ -805,7 +827,9 @@ takes: nothing further is committed, and no signalled end goes on showing
 Power returning to `on` releases nothing: a person releases the hold. A
 `run_wanted` of `running` is **dropped** while power is anything else, because
 releasing onto track with no power in it would strand the next train the way
-the first was stranded. A hold is honoured whatever the power is doing
+the first was stranded, and a `run_wanted` of `draining` is dropped with it —
+a drain grants the trains already under way, so over dead rails it asks for
+what a release asks for. A hold is honoured whatever the power is doing
 ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 
 **It alone reads `tc49/dispatch/placement_wanted`**, a person saying where a train

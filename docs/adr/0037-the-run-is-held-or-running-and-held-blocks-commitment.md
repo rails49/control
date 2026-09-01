@@ -33,6 +33,13 @@ are a closed set is an **enum**; this ADR calls it a *word*, the term
 `CONTEXT.md` used until #242. Nothing below has been rewritten, so read *word*
 as *enum* throughout.
 
+**Amended under
+[#294](https://github.com/rails49/control/issues/294):** "Two values today"
+is three. The drain the enum was kept open for has landed as `draining`, and
+the section *The drain is the third value* below carries what each of the
+three does. The name of this decision stands: the run is still held or
+running when it is not draining, and `held` still blocks commitment.
+
 The bar it was built for is @iot49's: *"after power up, no trains should move
 without operator intervention."* Nothing enforced it, and there was no gesture
 with which a person could correct a placement either — the write surface was
@@ -43,6 +50,67 @@ A **word and not a boolean**, because the ordinary-shutdown drain will add
 ([#123](https://github.com/rails49/control/issues/123)). Not a
 recovery-only flag: it is the run's general condition, and every view reads
 it.
+
+## The drain is the third value
+
+`draining` is the ordinary way to turn a railroad off
+([#294](https://github.com/rails49/control/issues/294)). An abrupt cut leaves
+no point position trustworthy and can strand a train mid-transit; the drain is
+what a person presses instead, and it gates **launching** rather than
+admission:
+
+| value | admits | launches | grants to a train already moving |
+| --- | --- | --- | --- |
+| `running` | yes | yes | yes |
+| `draining` | yes | no | yes |
+| `held` | yes | no | no |
+
+This corrects #123's *"stop admitting"*: admission is cheap and reversible —
+it takes no lock and moves no wheel — where launching is the commitment. The
+queue therefore accumulates through a drain exactly as it does through a hold,
+accruing no refusals, and a drain turned back releases into the order it
+accumulated (ADR-0012).
+
+**The dispatcher writes `held` itself** at the first moment no train is active
+and none is crossing, and that transition is the drain's completion. It is
+what the panel watches for before it publishes `power_wanted: off`
+([ADR-0051](0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)),
+so it has to be a value on the topic and not something a client infers from an
+empty picture: after a completed drain nothing is crossing, nothing is
+committed and every grant re-aligns, which is what makes the point positions
+the cut loses cost nothing. A drain over a railroad with nothing under way
+completes in the press that asked for it, a wait that could never end being
+worse than no wait at all.
+
+**Manual trains count by the same rule.** Every train moves only on a route
+the dispatcher allocated with signals set to allow it, and *manual* names only
+who turns the throttle, so the drain needs no notion of mode and none leaks in
+([#207](https://github.com/rails49/control/issues/207)).
+
+**A held run puts every signal to stop; a draining one does not.** The answer
+to "may the train in this block leave via this end" is yes for the train the
+drain is still granting, and a lineside signal at stop over a train that has
+just been told to go is the same lie the hold refuses to tell, the other way
+about.
+
+`held` published while a drain is in progress **abandons** it, immediately and
+without waiting for a train to finish: the hold asks for less than the drain
+does, and a person who wants the railroad still now does not wait out a route.
+`stopped` power is always honoured and is not a drain — it holds the run by
+the path power always takes (ADR-0041) — and a `run_wanted` of `draining` is
+dropped while the power is anything but `on`, for the reason a release is: a
+drain grants the trains already under way, so over dead rails it asks for what
+a release asks for.
+
+A drain that a **wedged** train holds open forever — one whose outstanding
+move no sensor will ever answer — is escaped by holding the run and taking
+that train off the layout, which drops the request it was running
+([ADR-0049](0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md),
+[#237](https://github.com/rails49/control/issues/237)). The placement's
+preconditions are untouched by the drain: a placement is judged against a
+railroad that is standing still, and a draining one is not. A `cancel_wanted`
+needs no held run and ends a drain wherever the request it retires was not
+mid-move.
 
 ## A brake, not an emergency stop
 

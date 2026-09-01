@@ -660,9 +660,11 @@ so — the case an abrupt cut would have hidden. **ON is the way out of a wait**
 it abandons the outstanding cut as well as writing its own frame, a supply
 going away out of a press the person has moved on from being the surprise this
 button exists to avoid. A session that goes away takes the wait with it. The
-`draining` value itself, and the dispatcher's launch gate, are
-[#294](https://github.com/rails49/control/issues/294); OFF is inert until the
-dispatcher understands the word.
+`draining` value itself, and the dispatcher's launch gate, are the
+dispatcher's half of the same decision
+([#294](https://github.com/rails49/control/issues/294)): it launches nothing
+more, lets what is crossing finish, and writes the `held` this button is
+waiting for.
 
 **GO is greyed while the power is not `on`.** The dispatcher drops such a
 release, so a live button would be one that does nothing. It carries no
