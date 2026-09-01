@@ -1,5 +1,7 @@
 """The inventory's own rules: what marks a state topic, and the device rows
-the layout writes under an address (SYSTEM.md, rules 1 and 2; ADR-0043)."""
+addressed under the layout interface — what `layout` wants of the hardware and
+what a detector or a translator reports back (SYSTEM.md, rules 1 and 2;
+ADR-0043)."""
 
 import pytest
 
@@ -17,6 +19,10 @@ from tc49.lib.inventory import (
 
 POINT = "tc49/layout/state/wanted/point"
 TRACK = "tc49/layout/state/wanted/track"
+SENSOR = "tc49/layout/state/device/sensor"
+OBSERVED_POINT = "tc49/layout/state/device/point"
+OBSERVED_TRACK = "tc49/layout/state/device/track"
+LINK = "tc49/layout/state/device/link"
 MODE_WANTED = "tc49/layout/mode_wanted"
 THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 MODE = "tc49/layout/state/mode"
@@ -55,12 +61,14 @@ def test_a_bare_address_is_one_level_and_still_round_trips() -> None:
     assert split_device(device_topic(traction, "460")) == (traction, "460")
 
 
-def test_the_track_row_carries_no_address() -> None:
-    """One railroad-wide desired power: the districts are hardware and do not
-    reach the bus (#217). So the row is the whole topic, and splits to an
-    empty address rather than to nothing — it is a device row."""
-    assert device_topic(TRACK) == TRACK
-    assert split_device(TRACK) == (TRACK, "")
+def test_the_track_rows_carry_no_address() -> None:
+    """One railroad-wide power desired and one observed: the districts are
+    hardware and do not reach the bus (#217). So the row is the whole topic,
+    and splits to an empty address rather than to nothing — it is a device
+    row."""
+    for track in (TRACK, OBSERVED_TRACK):
+        assert device_topic(track) == track
+        assert split_device(track) == (track, "")
 
 
 def test_an_addressed_row_naming_no_device_is_not_a_device_topic() -> None:
@@ -74,12 +82,17 @@ def test_a_topic_outside_the_vocabulary_does_not_split() -> None:
     assert split_device("tc49/dispatch/state/aspects") is None
 
 
-def test_every_device_row_is_the_layouts_and_repeats_its_address() -> None:
+def test_every_device_row_repeats_the_address_it_names() -> None:
+    """A row says which payload field its address comes back in, and that
+    field leads the payload past the stamp, which is the binding's rather
+    than the publisher's (#240). Two rows name none, and those are the two
+    that carry none."""
     for key, row in DEVICE_TOPICS.items():
         assert key.startswith(DEVICE_PREFIX)
-        # Past the stamp, which leads every state row and is the binding's
-        # rather than the layout's (#240).
-        assert row.fields[1:2] == ("addr",) or key == TRACK
+        if row.address:
+            assert row.fields[1:2] == (row.address,), key
+        else:
+            assert key in (TRACK, OBSERVED_TRACK)
 
 
 def test_the_two_manual_driving_gestures_are_a_pages_to_write() -> None:
@@ -102,6 +115,47 @@ def test_no_state_row_is_browser_writable() -> None:
     assert not [
         topic for topic, row in TOPICS.items() if row.browser and is_state_topic(topic)
     ]
+
+
+def test_the_observed_rows_state_their_fields_in_order() -> None:
+    """What a detector and a translator write back (#282): the observed half
+    of the device vocabulary, each row's fields in the order the contract
+    gives them, past the stamp every state row leads with."""
+    assert DEVICE_TOPICS[SENSOR].fields == (AT, "addr", "occupancy", "reason")
+    assert DEVICE_TOPICS[OBSERVED_POINT].fields == (AT, "addr", "position")
+    assert DEVICE_TOPICS[OBSERVED_TRACK].fields == (AT, "power")
+    assert DEVICE_TOPICS[LINK].fields == (AT, "system", "link", "detail")
+
+
+def test_a_sensor_is_addressed_by_the_block_end_it_watches() -> None:
+    """`<block>.<end>` and never a camera's own identifier (#194), one topic
+    per sensor and never a whole-railroad map: a map would make one camera the
+    writer of every sensor on the railroad, and a second camera could then not
+    join (ADR-0035)."""
+    assert device_topic(SENSOR, "A1.b") == "tc49/layout/state/device/sensor/A1.b"
+    assert split_device("tc49/layout/state/device/sensor/A1.b") == (SENSOR, "A1.b")
+
+
+def test_a_link_is_addressed_by_the_system_whose_link_it_reports() -> None:
+    """One translator per hardware system, each publishing its own link to
+    the hardware as observed state like any other, so a UI can say the command
+    station is unreachable rather than the railroad merely looking idle
+    (ADR-0050). The address comes back as `system` rather than `addr`: it
+    names a translator's system, not a device the translator drives."""
+    assert split_device(device_topic(LINK, "dccex")) == (LINK, "dccex")
+    assert DEVICE_TOPICS[LINK].address == "system"
+
+
+def test_the_two_halves_of_the_vocabulary_are_named_apart() -> None:
+    """The same turnout answers on both, and a trace line records the row
+    rather than the leaf, so `wanted/point` and `device/point` are two names
+    for two things and neither hides the other (ADR-0043)."""
+    assert DEVICE_TOPICS[POINT].fields == DEVICE_TOPICS[OBSERVED_POINT].fields
+    assert POINT != OBSERVED_POINT
+    assert split_device(device_topic(OBSERVED_POINT, "dccex", "5")) == (
+        OBSERVED_POINT,
+        "dccex/5",
+    )
 
 
 def test_no_device_row_is_browser_writable() -> None:
