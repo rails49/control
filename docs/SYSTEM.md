@@ -161,7 +161,12 @@ store answers questions, and exists for that reason.
    topic reports something that happened, and is never replayed. A state topic
    holds a current value, of which only the last one published survives. Every
    topic is declared as one or the other, and a state topic says so in its name
-   (`.../state/<name>`).
+   (`tc49/<component>/state/<name>[/<address>…]`). The mark is where it is
+   rather than where the name ends, because a name may go on past it: a device
+   row carries its address as trailing levels
+   ([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)),
+   and `tc49/layout/state/wanted/point/<system>/<addr>` is a state topic like
+   any other.
 3. **Prefix-filter consumption.** Each consumer subscribes with a small fixed
    set of prefix filters under `tc49/`, written with `+` and `#`, rather than
    naming individual topics.
