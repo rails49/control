@@ -7,6 +7,7 @@ import pytest
 
 from tc49.lib.bus import Bus, Handler, Payload
 from tc49.lib.clock import Clock
+from tc49.lib.payload import Ordering
 
 
 def test_publish_queues_without_delivering() -> None:
@@ -99,7 +100,7 @@ def test_state_topic_delivers_last_value_to_late_subscriber() -> None:
     )
     bus.drain()
 
-    assert seen == [("tc49/schedule/state/exhausted", {"exhausted": True})]
+    assert seen == [("tc49/schedule/state/exhausted", {"at": 0.0, "exhausted": True})]
 
 
 def test_last_value_goes_only_to_the_new_subscriber() -> None:
@@ -202,7 +203,10 @@ def test_a_retained_value_outlives_the_bus_that_held_it(tmp_path: Path) -> None:
     restored.drain()
 
     assert seen == [
-        ("tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.A-to-B"}})
+        (
+            "tc49/schedule/state/facing",
+            {"at": 0.0, "facing": {"freight_1": "yard_w.A-to-B"}},
+        )
     ]
 
 
@@ -216,7 +220,7 @@ def test_an_event_topic_is_not_persisted(tmp_path: Path) -> None:
     bus.drain()
 
     assert json.loads(path.read_text()) == {
-        "tc49/schedule/state/exhausted": {"exhausted": True}
+        "tc49/schedule/state/exhausted": {"at": 0.0, "exhausted": True}
     }
 
 
@@ -234,8 +238,11 @@ def test_every_change_rewrites_the_whole_file(tmp_path: Path) -> None:
     )
 
     assert json.loads(path.read_text()) == {
-        "tc49/schedule/state/facing": {"facing": {"freight_1": "yard_w.A-to-B"}},
-        "tc49/schedule/state/exhausted": {"exhausted": False},
+        "tc49/schedule/state/facing": {
+            "at": 0.0,
+            "facing": {"freight_1": "yard_w.A-to-B"},
+        },
+        "tc49/schedule/state/exhausted": {"at": 0.0, "exhausted": False},
     }
 
 
@@ -255,7 +262,7 @@ def test_a_cut_mid_write_leaves_the_previous_copy_to_load(tmp_path: Path) -> Non
     restored = Bus(Clock(), path)
     restored.subscribe("tc49/#", lambda topic, payload: seen.append(payload))
     restored.drain()
-    assert seen == [{"exhausted": True}]
+    assert seen == [{"at": 0.0, "exhausted": True}]
 
 
 def test_a_path_with_no_file_yet_starts_empty(tmp_path: Path) -> None:
@@ -298,5 +305,139 @@ def test_the_directory_the_session_named_is_made(tmp_path: Path) -> None:
     bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
 
     assert json.loads((tmp_path / "runs" / "today" / "session.json").read_text()) == {
-        "tc49/schedule/state/exhausted": {"exhausted": True}
+        "tc49/schedule/state/exhausted": {"at": 0.0, "exhausted": True}
     }
+
+
+# --- the stamp the binding puts on a state value (#240) ----------------------
+
+EXHAUSTED = "tc49/schedule/state/exhausted"
+OCCUPIED = "tc49/layout/block_occupied"
+
+
+def test_a_state_value_is_stamped_from_the_run_clock() -> None:
+    """The binding stamps, not the app: `at` is the clock's reading at the
+    moment this bus published, so no app component reads a clock of its own
+    (ADR-0009)."""
+    clock = Clock()
+    bus = Bus(clock)
+    seen: list[Payload] = []
+    bus.subscribe("tc49/#", lambda topic, payload: seen.append(payload))
+
+    bus.publish(EXHAUSTED, {"exhausted": False})
+    clock.advance(30.0)
+    bus.publish(EXHAUSTED, {"exhausted": True})
+    bus.drain()
+
+    assert seen == [
+        {"at": 0.0, "exhausted": False},
+        {"at": 30.0, "exhausted": True},
+    ]
+
+
+def test_the_stamp_leads_the_value_the_late_subscriber_is_served() -> None:
+    """Retained with its stamp on it, which is what a consumer joining later
+    compares the next value against."""
+    clock = Clock()
+    bus = Bus(clock)
+    clock.advance(12.0)
+    bus.publish(EXHAUSTED, {"exhausted": True})
+    bus.drain()
+
+    assert bus.last_values[EXHAUSTED] == {"at": 12.0, "exhausted": True}
+    assert list(bus.last_values[EXHAUSTED]) == ["at", "exhausted"]
+
+
+def test_no_event_payload_is_stamped() -> None:
+    """The stamp is a state topic's, and the ordering rule it serves is too:
+    an event topic is never replayed, and a sensor level repeats."""
+    clock = Clock()
+    bus = Bus(clock)
+    clock.advance(5.0)
+    seen: list[Payload] = []
+    bus.subscribe("tc49/#", lambda topic, payload: seen.append(payload))
+
+    bus.publish(OCCUPIED, {"block": "yard_w"})
+    bus.drain()
+
+    assert seen == [{"block": "yard_w"}]
+
+
+def test_a_stamp_the_caller_supplied_is_replaced() -> None:
+    """One place stamps, and it is the one publishing. A caller cannot state
+    when this bus published its value, however plausible the number."""
+    clock = Clock()
+    bus = Bus(clock)
+    clock.advance(7.0)
+    bus.publish(EXHAUSTED, {"at": 900.0, "exhausted": True})
+
+    assert bus.last_values[EXHAUSTED] == {"at": 7.0, "exhausted": True}
+
+
+def test_the_file_keeps_the_stamp_beside_the_value(tmp_path: Path) -> None:
+    """The durable file round-trips `at`: it is a field of the value, and the
+    whole value is what is written."""
+    path = tmp_path / "session.json"
+    clock = Clock()
+    bus = Bus(clock, path)
+    clock.advance(41.0)
+    bus.publish(EXHAUSTED, {"exhausted": True})
+
+    assert json.loads(path.read_text()) == {EXHAUSTED: {"at": 41.0, "exhausted": True}}
+
+
+def test_a_restored_value_is_re_stamped_with_this_sessions_clock(
+    tmp_path: Path,
+) -> None:
+    """The stamp is seconds since the session started, so one carried out of
+    the last run sits on another timeline — and, being the larger number for
+    as long as that run was long, would beat every genuine report this one
+    makes. The restored value is the oldest thing known instead, and the
+    first report of the new session supersedes it (ADR-0030).
+
+    The file still holds the stamp it was written with; it is the read that
+    re-stamps.
+    """
+    path = tmp_path / "session.json"
+    first = Clock()
+    bus = Bus(first, path)
+    first.advance(600.0)
+    bus.publish(EXHAUSTED, {"exhausted": True})
+
+    second = Clock()
+    restored = Bus(second, path)
+    assert restored.last_values[EXHAUSTED] == {"at": 0.0, "exhausted": True}
+    assert json.loads(path.read_text())[EXHAUSTED]["at"] == 600.0
+
+
+def test_the_first_value_of_the_new_session_beats_the_restored_one(
+    tmp_path: Path,
+) -> None:
+    """What the re-stamping is for, seen through the comparison a consumer
+    makes: the picture a restart comes up holding is a starting assumption,
+    and the first thing the layout says now outranks it."""
+    path = tmp_path / "session.json"
+    first = Clock()
+    was = Bus(first, path)
+    first.advance(600.0)
+    was.publish(EXHAUSTED, {"exhausted": True})
+
+    clock = Clock()
+    bus = Bus(clock, path)
+    ordering = Ordering()
+    assert ordering.accepts(EXHAUSTED, bus.last_values[EXHAUSTED])
+    clock.advance(2.0)
+    bus.publish(EXHAUSTED, {"exhausted": False})
+    assert ordering.accepts(EXHAUSTED, bus.last_values[EXHAUSTED])
+
+
+def test_a_retained_value_that_is_not_an_object_is_left_as_it_came(
+    tmp_path: Path,
+) -> None:
+    """Nothing in it can be a field, so there is nowhere to put a stamp — and
+    a file can be hand-edited (rule 4). It is served as it was written and
+    reads as unstamped, which is a case the comparison already has."""
+    path = tmp_path / "session.json"
+    path.write_text(json.dumps({EXHAUSTED: "nonsense"}))
+
+    assert Bus(Clock(), path).last_values[EXHAUSTED] == "nonsense"

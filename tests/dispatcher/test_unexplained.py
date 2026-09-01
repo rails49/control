@@ -19,6 +19,7 @@ import pytest
 
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.lib.bus import Payload
+from tc49.lib.inventory import AT
 from tc49.lib.scenario import TrainSpec
 from tests.harness import RUN_WANTED, events, load, press, run, runs
 
@@ -52,8 +53,12 @@ def reading(assembly: Assembly, topic: str, block: str) -> None:
 
 def disputed(assembly: Assembly) -> Payload:
     """The last value of the topic, which is what the panel points a person
-    at (ADR-0032)."""
-    return assembly.bus.last_values[DISPUTED]
+    at (ADR-0032), without the stamp the binding put on it (#240)."""
+    return {
+        key: value
+        for key, value in assembly.bus.last_values[DISPUTED].items()
+        if key != AT
+    }
 
 
 def test_a_block_no_grant_accounts_for_holds_the_run(standing: Assembly) -> None:

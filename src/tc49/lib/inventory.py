@@ -22,6 +22,9 @@ Where a field's *values* are a closed set the contract names, they live here
 too, beside the field they belong to: ``run``, ``power`` and ``mode`` are
 those fields. What an **enum** is, and which way an unreadable one falls, is
 CONTEXT.md.
+
+``AT`` is the one field no app supplies: every state row leads with it and
+the binding that publishes stamps it (#240).
 """
 
 from typing import NamedTuple
@@ -35,19 +38,38 @@ class Topic(NamedTuple):
     browser: bool = False
 
 
+AT = "at"
+"""The **stamp** every state payload carries and no event payload does: the
+run clock's reading when the value was published, in seconds since the
+session started (`tc49.lib.clock`).
+
+It leads the field order of every state row, so a trace line shows it in a
+fixed place. What it is for is ordering: MQTT promises order only from one
+publisher, on one topic, and only while nothing reconnects or retransmits
+(ADR-0008), so a state topic reordered on the wire would keep the older
+value for good. A consumer keeps the later stamp and ignores the earlier
+one, whoever published it — `tc49.lib.payload.Ordering` (#240).
+
+Stamped by the binding that publishes and never by an app, so no app
+component reads a clock (ADR-0009). It orders messages **within one
+session** and says nothing across a restart: the clock resets to zero every
+run, which is why a value loaded from the durable file is re-stamped as it
+is read (SYSTEM.md, ADR-0030)."""
+
+
 TOPICS: dict[str, Topic] = {
     "tc49/layout/block_occupied": Topic(("block",)),
     "tc49/layout/block_vacated": Topic(("block",)),
-    "tc49/layout/state/power": Topic(("power",)),
+    "tc49/layout/state/power": Topic((AT, "power")),
     "tc49/layout/align": Topic(("connection", "transit", "points")),
     "tc49/layout/move": Topic(("train", "connection", "transit", "into", "speed")),
     "tc49/layout/mode_wanted": Topic(("train", "mode"), browser=True),
     "tc49/layout/throttle_wanted": Topic(("train", "speed"), browser=True),
-    "tc49/layout/state/mode": Topic(("modes",)),
+    "tc49/layout/state/mode": Topic((AT, "modes")),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
-    "tc49/schedule/state/exhausted": Topic(("exhausted",)),
-    "tc49/schedule/state/facing": Topic(("facing",)),
+    "tc49/schedule/state/exhausted": Topic((AT, "exhausted")),
+    "tc49/schedule/state/facing": Topic((AT, "facing")),
     "tc49/dispatch/request_submitted": Topic(("id", "train", "depart", "dest")),
     "tc49/dispatch/run_wanted": Topic(("run",), browser=True),
     "tc49/dispatch/placement_wanted": Topic(("train", "block"), browser=True),
@@ -63,11 +85,11 @@ TOPICS: dict[str, Topic] = {
     "tc49/dispatch/lock_released": Topic(("train", "resources")),
     "tc49/dispatch/train_placed": Topic(("train", "block")),
     "tc49/dispatch/train_removed": Topic(("train",)),
-    "tc49/dispatch/state/run": Topic(("run",)),
-    "tc49/dispatch/state/aspects": Topic(("aspects",)),
-    "tc49/dispatch/state/disputed": Topic(("trains", "blocks")),
+    "tc49/dispatch/state/run": Topic((AT, "run")),
+    "tc49/dispatch/state/aspects": Topic((AT, "aspects")),
+    "tc49/dispatch/state/disputed": Topic((AT, "trains", "blocks")),
     "tc49/dispatch/state/allocation": Topic(
-        ("trains", "crossing", "locks", "requests")
+        (AT, "trains", "crossing", "locks", "requests")
     ),
 }
 
@@ -81,11 +103,11 @@ alone would not say which of the two a line records."""
 
 
 DEVICE_TOPICS: dict[str, Topic] = {
-    "tc49/layout/state/wanted/traction": Topic(("addr", "speed")),
-    "tc49/layout/state/wanted/function": Topic(("addr", "function", "value")),
-    "tc49/layout/state/wanted/point": Topic(("addr", "position")),
-    "tc49/layout/state/wanted/signal": Topic(("addr", "aspect")),
-    "tc49/layout/state/wanted/track": Topic(("power",)),
+    "tc49/layout/state/wanted/traction": Topic((AT, "addr", "speed")),
+    "tc49/layout/state/wanted/function": Topic((AT, "addr", "function", "value")),
+    "tc49/layout/state/wanted/point": Topic((AT, "addr", "position")),
+    "tc49/layout/state/wanted/signal": Topic((AT, "addr", "aspect")),
+    "tc49/layout/state/wanted/track": Topic((AT, "power")),
 }
 """The device vocabulary `layout` writes: what the hardware should do, one
 retained state topic per device, `layout` the single writer (rule 1) and a

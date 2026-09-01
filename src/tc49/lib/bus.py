@@ -9,6 +9,14 @@ State topics — marked structurally by a ``state`` path segment before the
 leaf — are last-value-wins: the last value is delivered to a late
 subscriber. Event topics are never replayed.
 
+Publishing on one **stamps** it: the binding reads the run clock and writes
+it to the payload's ``at``, so a consumer can tell two values of one topic
+apart when the wire hands them over out of order (#240). The binding stamps
+rather than the app, which is what keeps a clock out of every app component
+(ADR-0009), and it stamps here rather than a level up because this is the
+thing that publishes. An ``at`` a caller already put on a state payload is
+replaced: one place stamps, and it is the one publishing.
+
 Given a file, the binding makes those retained values **durable** (#123): it
 loads them at startup and rewrites the whole file on every retained change,
 so a process that comes back up finds them waiting on their topics exactly
@@ -22,11 +30,11 @@ untouched by construction rather than by a branch.
 from collections import deque
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from tc49.lib import durable
 from tc49.lib.clock import Clock
-from tc49.lib.inventory import is_state_topic
+from tc49.lib.inventory import AT, is_state_topic
 
 Payload = dict[str, Any]
 Handler = Callable[[str, Payload], None]
@@ -54,7 +62,19 @@ class Bus:
         # is the bus's to keep, whatever wrote the file.
         kept = durable.read(state) if state is not None else {}
         self._last_values: dict[str, Payload] = {
-            topic: value for topic, value in kept.items() if is_state_topic(topic)
+            # Re-stamped with this session's clock, which is reading zero
+            # here. The stamp is seconds since the session started, so one
+            # carried verbatim out of the last run sits on another timeline
+            # and — being the larger number, for as long as that run was
+            # long — would beat every genuine report this one makes. The
+            # restored picture is instead the oldest thing known, and the
+            # first real report supersedes it: what the railroad is saying
+            # now outranks what it was left believing (ADR-0030, #240). The
+            # file still carries the stamp it was written with; it is the
+            # read that re-stamps.
+            topic: self._stamped(value)
+            for topic, value in kept.items()
+            if is_state_topic(topic)
         }
 
     @property
@@ -77,9 +97,27 @@ class Bus:
 
     def publish(self, topic: str, payload: Payload) -> None:
         if is_state_topic(topic):
+            payload = self._stamped(payload)
             self._last_values[topic] = payload
             self._persist()
         self._queue.append((topic, payload, None))
+
+    def _stamped(self, payload: Payload) -> Payload:
+        """The value with this instant's stamp on it, leading its fields as
+        the inventory has it. Whatever ``at`` the payload arrived with is
+        gone: the stamp says when this bus published the value, and a caller
+        cannot state that on its behalf.
+
+        A payload that is not an object has no fields to put a stamp among,
+        so it is left exactly as it came — anything at all can arrive on a
+        topic and a retained file can be hand-edited (rule 4), and the value
+        reads as unstamped, which is a case `payload.Ordering` already has.
+        """
+        given = cast(object, payload)
+        if not isinstance(given, dict):
+            return payload
+        fields = cast(Payload, given)
+        return {AT: self._clock.now, **{k: v for k, v in fields.items() if k != AT}}
 
     def _persist(self) -> None:
         """The whole picture on every retained change, which a railroad can

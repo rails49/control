@@ -6,6 +6,7 @@ from tc49.lib.payload import (
     Gesture,
     Grant,
     Move,
+    Ordering,
     Picture,
     Placement,
     chosen,
@@ -20,6 +21,7 @@ from tc49.lib.payload import (
     placement,
     power,
     run_state,
+    stamp,
 )
 
 
@@ -418,3 +420,105 @@ def test_a_train_a_picture_names_unreadably_loses_itself_and_no_other() -> None:
         {"express_2": "up_w", "local_3": "claro_2"},
         {"local_3": "crossover.up_straight"},
     )
+
+
+# --- the stamp, and the order two values of one topic are kept in (#240) -----
+
+POWER = "tc49/layout/state/power"
+OCCUPIED = "tc49/layout/block_occupied"
+
+
+def test_a_state_payload_states_the_instant_it_was_published_at() -> None:
+    """Seconds since the session started, the run clock's own reading. An
+    integer reads as one: JSON has one number type and a stamp at a whole
+    second is a whole number on the wire."""
+    assert stamp({"at": 12.5, "power": ON}) == 12.5
+    assert stamp({"at": 3, "power": ON}) == 3.0
+
+
+def test_a_payload_stating_no_readable_stamp_reads_as_unstamped() -> None:
+    """None and never an exception, as every other reader here: the value
+    arrives from another process and a reader that subscripted it would be
+    taken down by whatever wrote it (rule 4)."""
+    refused: list[object] = [
+        "on",  # not an object at all
+        {"power": ON},  # no stamp
+        {"at": None, "power": ON},
+        {"at": "12.5", "power": ON},  # a number said in words
+        {"at": [12.5], "power": ON},
+        {"at": True, "power": ON},  # a boolean is not a stamp
+    ]
+    for payload in refused:
+        assert stamp(payload) is None, payload
+
+
+def test_a_boolean_stamp_is_unreadable_rather_than_one_second() -> None:
+    """The one shape refused ahead of the numeric read. JSON `true` is an
+    `int` in Python, so it would otherwise be taken for `1.0` — a real
+    instant in a session's first second, and one that would go on refusing
+    everything published before it."""
+    ordering = Ordering()
+    assert ordering.accepts(POWER, {"at": 4.0, "power": ON})
+    assert ordering.accepts(POWER, {"at": True, "power": OFF})
+    # Unreadable, so unstamped: the value is taken and the held stamp goes
+    # with it, rather than `1.0` sitting there refusing the next report.
+    assert ordering.accepts(POWER, {"at": 2.0, "power": ON})
+
+
+def test_the_later_of_two_values_is_the_one_kept() -> None:
+    """Whichever order they arrive in, which is the whole point: MQTT
+    promises no more than order from one publisher on one topic, and not
+    across a reconnect or a retransmission (ADR-0008)."""
+    ordering = Ordering()
+    assert ordering.accepts(POWER, {"at": 9.0, "power": OFF})
+    assert not ordering.accepts(POWER, {"at": 4.0, "power": ON})
+
+
+def test_an_equal_stamp_replaces() -> None:
+    """Two values of one instant are the publisher's own order, which the bus
+    has already kept: the second is the later statement and is taken."""
+    ordering = Ordering()
+    assert ordering.accepts(POWER, {"at": 4.0, "power": ON})
+    assert ordering.accepts(POWER, {"at": 4.0, "power": OFF})
+
+
+def test_an_earlier_stamp_is_ignored_and_nothing_is_raised() -> None:
+    """The case the guard exists for is not a fault to report: a value the
+    wire handed over late is refused quietly, and the topic goes on."""
+    ordering = Ordering()
+    assert ordering.accepts(POWER, {"at": 9.0, "power": OFF})
+    for _ in range(3):
+        assert not ordering.accepts(POWER, {"at": 1.0, "power": ON})
+    assert ordering.accepts(POWER, {"at": 9.5, "power": ON})
+
+
+def test_an_unstamped_value_is_accepted_and_clears_the_held_stamp() -> None:
+    """The publisher owns the value, so one carrying no stamp — an older
+    build, or a hand-edited file — is taken. Ordering then restarts from the
+    next stamped value: keeping the old stamp would leave it refusing values
+    whose own stamp is gone."""
+    ordering = Ordering()
+    assert ordering.accepts(POWER, {"at": 9.0, "power": OFF})
+    assert ordering.accepts(POWER, {"power": ON})
+    assert ordering.accepts(POWER, {"at": 1.0, "power": OFF})
+
+
+def test_each_state_topic_is_ordered_against_itself_alone() -> None:
+    """The bus promises no ordering between one topic and another, so there
+    is a stamp held per topic and never one for the consumer."""
+    ordering = Ordering()
+    assert ordering.accepts(POWER, {"at": 9.0, "power": OFF})
+    assert ordering.accepts("tc49/dispatch/state/run", {"at": 1.0, "run": HELD})
+
+
+def test_an_event_topic_is_not_ordered_at_all() -> None:
+    """Gated on the topic being a state topic and never on what a payload
+    happens to carry (SYSTEM.md, rule 2). An event topic reports something
+    that happened and is never replayed, so there is no held value for a late
+    one to lose to — and a repeated sensor reading must go on arriving."""
+    ordering = Ordering()
+    for _ in range(3):
+        assert ordering.accepts(OCCUPIED, {"block": "up_w"})
+    # Even one carrying something that would read as a stamp.
+    assert ordering.accepts(OCCUPIED, {"at": 9.0, "block": "up_w"})
+    assert ordering.accepts(OCCUPIED, {"at": 1.0, "block": "up_w"})

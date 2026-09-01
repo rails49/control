@@ -29,11 +29,13 @@ def test_the_value_is_stated_before_anything_is_asked() -> None:
     clock = Clock()
     bus = Bus(clock)
     Simulator(bus, layout, clock)
-    assert bus.last_values[POWER] == {"power": "on"}
+    # With the stamp the bus put on it as it published: a state payload
+    # carries the run clock's reading, zero at the constructor (#240).
+    assert bus.last_values[POWER] == {"at": 0.0, "power": "on"}
 
     seen = heard(bus)
     bus.drain()
-    assert seen[0] == {"power": "on"}
+    assert seen[0] == {"at": 0.0, "power": "on"}
 
 
 def test_a_whole_run_says_it_once_and_never_changes_it() -> None:
@@ -44,4 +46,4 @@ def test_a_whole_run_says_it_once_and_never_changes_it() -> None:
     assembly.simulator.run()
 
     said = events(assembly.trace, "power")
-    assert said == [{"time": 0.0, "event": "power", "power": "on"}]
+    assert said == [{"time": 0.0, "event": "power", "at": 0.0, "power": "on"}]

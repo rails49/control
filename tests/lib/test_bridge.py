@@ -212,13 +212,16 @@ def test_a_client_connecting_late_is_served_each_state_topics_last_value(
     bus.drain()
     with connect(f"ws://127.0.0.1:{bridge.port}") as late:
         settled(bridge, 1)
+        # Each with the stamp the bus put on it as it published (#240): the
+        # relay hands a late client the value whole, and the stamp is part of
+        # it — a page reads it exactly as any other consumer does.
         assert receive(late) == {
             "topic": "tc49/dispatch/state/aspects",
-            "payload": {"aspects": {"a.B": "stop"}},
+            "payload": {"at": 0.0, "aspects": {"a.B": "stop"}},
         }
         assert receive(late) == {
             "topic": "tc49/dispatch/state/allocation",
-            "payload": {"trains": {"t1": "a"}},
+            "payload": {"at": 0.0, "trains": {"t1": "a"}},
         }
 
 

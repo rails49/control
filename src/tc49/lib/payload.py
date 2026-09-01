@@ -70,12 +70,19 @@ the same rule (#278). A retained value being a payload is not a property of
 the topic it sits on: the two are read side by side here so that neither app
 has its own way of reading its own last value, and the entry-at-a-time rule
 they share is `_named`.
+
+The **stamp** a state payload carries is read here for the first reason of
+all (#240): it is a field like any other, arriving from another process,
+and a reader that subscripted it would be taken down by whatever wrote it.
+`Ordering` is the comparison a consumer makes with it, and it lives here
+because this is where payloads are read — the stamping lives where the
+binding publishes, in `lib.bus`.
 """
 
 from dataclasses import dataclass
 from typing import cast
 
-from tc49.lib.inventory import HELD, OFF, ON, RUNNING, STOPPED
+from tc49.lib.inventory import AT, HELD, OFF, ON, RUNNING, STOPPED, is_state_topic
 
 
 @dataclass(frozen=True)
@@ -454,3 +461,71 @@ def _named(stated: dict[object, object]) -> dict[str, str]:
         for subject, value in stated.items()
         if isinstance(subject, str) and isinstance(value, str)
     }
+
+
+def stamp(payload: object) -> float | None:
+    """The instant a state payload states it was published at, or None where
+    it states none — seconds since the session started, the run clock's own
+    reading (`lib.clock`).
+
+    A **boolean is not a stamp**, and is the one shape refused ahead of the
+    numeric read: JSON `true` is an `int` in Python and would otherwise be
+    taken for `1.0`, which is a real instant in a session's first second. An
+    unreadable stamp is no stamp, and `Ordering` says what a value carrying
+    none is worth.
+    """
+    if not isinstance(payload, dict):
+        return None
+    at = cast(dict[str, object], payload).get(AT)
+    if isinstance(at, bool) or not isinstance(at, (int, float)):
+        return None
+    return float(at)
+
+
+class Ordering:
+    """The stamps a consumer holds, one per state topic: what it takes to
+    keep the later of two values of one topic whichever order they arrive in
+    (#240).
+
+    MQTT promises order from one publisher on one topic, and not across that
+    publisher's reconnect or a retransmission with more than one message in
+    flight (ADR-0008). A state topic keeps the last message published on it,
+    so a pair delivered backwards would leave the *older* value standing, and
+    the durable file would write it to disk. The stamp is what tells the two
+    apart, and it does not care who published: whoever wrote the later one
+    wrote the value that is kept.
+
+    State topics only. An event topic reports something that happened and is
+    never replayed, so there is no held value for a late one to lose to, and
+    the guard is off the gate a topic's own name gives (SYSTEM.md, rule 2)
+    rather than off whether a payload happens to carry a number.
+    """
+
+    def __init__(self) -> None:
+        self._held: dict[str, float] = {}
+
+    def accepts(self, topic: str, payload: object) -> bool:
+        """Whether this value is the one to keep, and never raises.
+
+        Later wins and equal replaces — two values of one instant are the
+        publisher's own order, which the bus has already kept. An earlier
+        stamp is ignored, and quietly: it is the case this exists for, not a
+        fault to report.
+
+        An **unstamped** value is accepted and clears the held stamp, so
+        ordering restarts from the next stamped value. Keeping the old stamp
+        would leave it refusing values whose own stamp is gone — a payload
+        from a build that does not stamp, or one hand-edited on the way — and
+        the publisher owns the value.
+        """
+        if not is_state_topic(topic):
+            return True
+        at = stamp(payload)
+        if at is None:
+            self._held.pop(topic, None)
+            return True
+        held = self._held.get(topic)
+        if held is not None and at < held:
+            return False
+        self._held[topic] = at
+        return True
