@@ -18,6 +18,15 @@ wherever the lock table or the waiting set changes, and a release is one of
 those changes. The decision this ADR records, that `held` commits nothing, is
 untouched.
 
+**Amended under
+[ADR-0049](0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md):**
+`placement_wanted`'s third precondition, that the train have no request in
+flight, is gone. The gesture cancels the request and then places the train, so
+"nothing cancels a request" below — and the sharp edge it gives that fact,
+that a train under a committed route cannot be repositioned until you release
+and let it finish — no longer holds. The other two preconditions, the held run
+and the known train, stand, as does everything else this ADR decides.
+
 **Amended for
 [#242](https://github.com/rails49/control/issues/242):** a field whose values
 are a closed set is an **enum**; this ADR calls it a *word*, the term

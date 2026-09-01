@@ -14,6 +14,15 @@ stronger: the layout acts on a `move` only if that train is standing at the
 transit's near end. The other two legs — the transit bound and the power
 relay — stand as written.
 
+**Amended under
+[ADR-0049](0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md):**
+"safe but wedged is the deliberate outcome" stays true of a train whose
+detector never fires — the dispatcher sees no sensor event, and the block
+stays locked — and stops being the only outcome. The recourse below is hold
+plus a placement; a placement now cancels the train's request and releases
+what it held, so the wedge ends where the person is standing rather than at
+the next restart. Legs 2 and 3 are untouched.
+
 **Amended for
 [#236](https://github.com/rails49/control/issues/236):** the driver's command
 was `cross` when this was written and is now `move`, on `tc49/drive/move`. The
