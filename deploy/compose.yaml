@@ -110,6 +110,15 @@ services:
   # points it at the station persists.
   jmri:
     image: jsa1987/jmri-docker:stable
+    # A fresh /tmp on every start. The image's websockify dials
+    # `localhost:5901` while its `vncserver` takes the first display that has
+    # no socket in /tmp/.X11-unix, and `docker restart` keeps the writable
+    # layer — so each restart leaks a socket, burns a display, and moves the
+    # VNC server one port away from the one noVNC connects to. The entrypoint
+    # is upstream's and stays untouched (ADR-0043); this makes the leak
+    # impossible instead.
+    tmpfs:
+      - /tmp
     profiles: [layout]
     restart: unless-stopped
     ports:
