@@ -49,16 +49,16 @@ def candidates(
     def extend(
         exit_end: str, blocks: tuple[str, ...], transits: tuple[str, ...]
     ) -> None:
-        for transit, far_end in layout.transits_at(exit_end):
-            far_block = block_of(far_end)
-            if transit in transits or far_block in blocks:
+        for transit, end_across in layout.transits_at(exit_end):
+            block_across = block_of(end_across)
+            if transit in transits or block_across in blocks:
                 continue  # simple path
-            if layout.blocks[far_block] < train_length:
+            if layout.blocks[block_across] < train_length:
                 continue  # the train must fit every block of the route
-            path = (blocks + (far_block,), transits + (transit,))
-            if far_end in arrivals:
+            path = (blocks + (block_across,), transits + (transit,))
+            if end_across in arrivals:
                 routes.append(Route(*path))
-            extend(opposite_end(far_end), *path)
+            extend(opposite_end(end_across), *path)
 
     extend(depart_end, (origin,), ())
     routes.sort(

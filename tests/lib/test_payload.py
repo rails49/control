@@ -3,19 +3,19 @@
 from tc49.lib.inventory import HELD, OFF, ON, RUNNING, STOPPED
 from tc49.lib.payload import (
     Chosen,
+    Command,
     Gesture,
     Grant,
-    Move,
     Ordering,
     Picture,
     Placement,
     chosen,
+    command,
     gesture,
     grant,
     granted_aspect,
     kept_allocation,
     kept_facing,
-    move,
     named_train,
     occupancy,
     placement,
@@ -279,14 +279,14 @@ def test_a_command_reads_as_the_train_the_transit_and_the_block_entered() -> Non
     """The command's own shape, which is the grant's with the transit split:
     the connection stands beside a bare transit, and whether the two name
     anything on this railroad is the layout's question and not this one."""
-    assert move(
+    assert command(
         {
             "train": "freight_1",
             "connection": "west_ladder",
             "transit": "to_dn",
             "into": "dn_w",
         }
-    ) == Move("freight_1", "west_ladder", "to_dn", "dn_w")
+    ) == Command("freight_1", "west_ladder", "to_dn", "dn_w")
 
 
 def test_a_payload_commanding_no_move_reads_as_none() -> None:
@@ -307,7 +307,7 @@ def test_a_payload_commanding_no_move_reads_as_none() -> None:
         {"train": "f", "connection": "west_ladder", "transit": "to_dn", "into": None},
     ]
     for payload in refused:
-        assert move(payload) is None, payload
+        assert command(payload) is None, payload
 
 
 def test_a_retained_facing_reads_as_the_map_it_states() -> None:
