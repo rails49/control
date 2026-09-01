@@ -26,6 +26,8 @@ LINK = "tc49/layout/state/device/link"
 MODE_WANTED = "tc49/layout/mode_wanted"
 THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 MODE = "tc49/layout/state/mode"
+POWER_WANTED = "tc49/layout/power_wanted"
+POWER = "tc49/layout/state/power"
 
 
 @pytest.mark.parametrize("topic", sorted(TOPICS))
@@ -106,6 +108,18 @@ def test_the_two_manual_driving_gestures_are_a_pages_to_write() -> None:
     assert TOPICS[MODE_WANTED].fields == ("train", "mode")
     assert TOPICS[THROTTLE_WANTED].fields == ("train", "speed")
     assert TOPICS[MODE].fields == (AT, "modes")
+
+
+def test_the_panel_commands_power_on_a_row_of_its_own() -> None:
+    """The command direction of the one axis (#293, ADR-0051): an event row
+    a page may write, carrying the one field `power` and the same closed set
+    the observation carries. It is `layout`'s because `layout` answers it —
+    a topic names the responder and never the sender — and the observation
+    stays `layout`'s alone, so no page can say a railroad has power."""
+    assert POWER_WANTED in INBOUND
+    assert TOPICS[POWER_WANTED].fields == ("power",)
+    assert TOPICS[POWER].fields == (AT, "power")
+    assert POWER not in INBOUND
 
 
 def test_no_state_row_is_browser_writable() -> None:
