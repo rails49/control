@@ -14,8 +14,8 @@
 # known where the request arrives and it is rejected `unreachable` there (#135)
 # rather than later at the first launch attempt.
 #
-# It is placed facing B, the one end it could leave by, because a placement
-# facing a wall is refused at load (#145). The request states its own
+# It is placed facing A-to-B, out through the one end it could leave by,
+# because a placement facing a wall is refused at load (#145). The request states its own
 # departure end and keeps the freedom to name the wall: facing is a scheduler
 # discipline, not a system invariant (ADR-0019).
 #

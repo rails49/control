@@ -12,7 +12,8 @@ scenario: meet
 layout: crossover-yard
 
 # A scenario places the railroad's trains: a starting block and a facing — the
-# end the train would depart through nose-first (CONTEXT.md). The train itself
+# run the train would make across it, `A-to-B` departing nose-first through
+# that block's B end (CONTEXT.md). The train itself
 # is the roster's and so is its length (ADR-0039). Facing is scheduler state
 # the dispatcher never reads (ADR-0019): file scenarios like this one state the
 # departure end per request, and a request is free to contradict the facing.
