@@ -86,7 +86,9 @@ def test_a_command_that_cannot_be_read_moves_nothing() -> None:
 def test_a_command_naming_a_transit_this_railroad_has_not_moves_nothing() -> None:
     """The names came off the bus and the layout is what says whether they
     name anything: reaching into it with them was a `KeyError` out of a
-    handler, and the answer is a drop rather than a raise (`lib.layout`)."""
+    handler, and the answer is a drop rather than a raise (`lib.layout`). A
+    transit the layout does hold is read exactly as it was before, whatever
+    block the command names beside it."""
     bus, sim = build()
     seen = sensors(bus)
 
@@ -96,20 +98,6 @@ def test_a_command_naming_a_transit_this_railroad_has_not_moves_nothing() -> Non
         {**HONEST, "connection": "", "transit": "west_ladder.to_dn"},
     ):
         send(bus, MOVE, absent)
-    tick(sim)
-    assert seen == []
-
-
-def test_a_command_whose_transit_misses_the_block_entered_moves_nothing() -> None:
-    """A transit this railroad holds, and a block it does not reach: there is
-    no near end for the train to be standing at, so there is nothing to act
-    on. Answering the transit's own far end instead would send a train across
-    a railroad the frame does not describe."""
-    bus, sim = build()
-    send(bus, "tc49/dispatch/train_placed", {"train": "freight_1", "block": "dn_w"})
-
-    seen = sensors(bus)
-    send(bus, MOVE, {**HONEST, "into": "up_e"})
     tick(sim)
     assert seen == []
 

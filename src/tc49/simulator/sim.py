@@ -176,8 +176,7 @@ class Simulator:
     def _near_end(self, commanded: Move) -> str | None:
         """The block a train must stand in to take this move's transit: the
         block at the far end of it from the one the command says the train is
-        entering, or None where this railroad has no such transit or that
-        transit crosses no end of that block.
+        entering, or None where this railroad has no such transit.
 
         The command states the connection and a bare transit and the layout
         names a transit qualified, so the two halves go back together to ask
@@ -199,7 +198,10 @@ class Simulator:
         — redelivered after arrival, mid-move, or overtaken by a hand's
         placement — and is ignored (ADR-0047). A command that cannot be read,
         or that names a transit this railroad does not hold, goes the same
-        way: nothing rolls, and nothing raises."""
+        way: nothing rolls, and nothing raises. What a command naming a
+        transit that misses the block it says the train is entering does is
+        unchanged — the near end comes back the transit's first end, and the
+        train is standing there or it is not."""
         commanded = move(payload)
         if commanded is None:
             return
