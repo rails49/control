@@ -1,23 +1,43 @@
-# gotthard-v0 — the trains this railroad owns (CONTEXT.md, **Roster**).
+# gotthard-v0 — the cars this railroad owns and the trains made up from them
+# (CONTEXT.md, **Roster**).
 #
-# A train is a name and a length. Being on the roster is what makes a train
-# **known**; where it stands, if anywhere, is the run's and not this file's
-# (ADR-0039). A scenario over this railroad places trains from here and states
-# no length of its own, so one train has one length however many scenarios
-# name it.
+# The stock is synthetic: nobody owns one of these, so every train is a single
+# car of the `bench-<length>` model of its length (`catalogue/`) rather than a
+# product. A train's length is the sum of its cars and is never authored
+# (ADR-0045); each sum is the length this file stated before the rewrite, train
+# for train, so no benchmark result moves (#223).
+#
+# Being on the roster is what makes a train **known**; where it stands, if
+# anywhere, is the run's and not this file's (ADR-0039). A scenario over this
+# railroad places trains from here and states no length of its own, so one
+# train has one length however many scenarios name it.
 
 roster: gotthard-v0
 
+cars:
+  fixed_car: { model: bench-900 }
+  flexible_car: { model: bench-900 }
+  north_car: { model: bench-900 }
+  resident_car: { model: bench-900 }
+  south_car: { model: bench-900 }
+  stock_car: { model: bench-900 }
+  stranded_car: { model: bench-900 }
+  t1_car: { model: bench-900 }
+  t2_car: { model: bench-900 }
+  t3_car: { model: bench-900 }
+  t4_car: { model: bench-900 }
+  t5_car: { model: bench-900 }
+
 trains:
-  fixed: { length: 900 }
-  flexible: { length: 900 }
-  north: { length: 900 }
-  resident: { length: 900 }
-  south: { length: 900 }
-  stock: { length: 900 }
-  stranded: { length: 900 }
-  t1: { length: 900 }
-  t2: { length: 900 }
-  t3: { length: 900 }
-  t4: { length: 900 }
-  t5: { length: 900 }
+  fixed: { cars: [{ car: fixed_car }] }
+  flexible: { cars: [{ car: flexible_car }] }
+  north: { cars: [{ car: north_car }] }
+  resident: { cars: [{ car: resident_car }] }
+  south: { cars: [{ car: south_car }] }
+  stock: { cars: [{ car: stock_car }] }
+  stranded: { cars: [{ car: stranded_car }] }
+  t1: { cars: [{ car: t1_car }] }
+  t2: { cars: [{ car: t2_car }] }
+  t3: { cars: [{ car: t3_car }] }
+  t4: { cars: [{ car: t4_car }] }
+  t5: { cars: [{ car: t5_car }] }
