@@ -286,10 +286,13 @@ class Scheduler:
 
         The end is not on the bus — the grant names the transit and the block
         entered — so it is read off the layout, and read there through
-        `end_crossed`: a transit no connection here holds, or one that
-        crosses neither end of the block named, leaves nothing to face away
-        from and the frame is dropped. The layout the scheduler holds is what
-        makes that a real question rather than a guess.
+        `end_crossed`. Dropping a transit no connection here holds, or one
+        that crosses neither end of the block named, is not this reader's own
+        strictness but the rule every reader of a transit and a block that
+        arrived together keeps (SYSTEM.md): the frame describes a run there is
+        no track for, so the layout interface moves no train under it either.
+        Here it leaves nothing to face away from. The layout the scheduler
+        holds is what makes that a real question rather than a guess.
         """
         move = grant(payload)
         if move is None:

@@ -961,12 +961,18 @@ published it, leaving the railroad running with nothing watching it. A frame
 that cannot be read is **dropped**: the interface reports observations and
 answers nothing, so a refusal would have nowhere to go
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)),
-and the frame is on the trace by virtue of having been published. A command
-naming a transit this railroad does not hold is dropped the same way: it
-names no near end for the train to be standing at, and the layout is the one
-thing that can say so. `align` is read by whatever acts on it, and the
-milestone-1 simulator throws no points, so it reads nothing off that one and
-nothing on it can fail to be read.
+and the frame is on the trace by virtue of having been published. A command the
+layout contradicts is dropped the same way: one naming a transit this
+railroad does not hold, **or** one whose transit reaches neither end of the
+block the command says the train is entering. Either way there is no track
+from anywhere over that transit into that block, so the command names no near
+end for the train to be standing at, and the layout is the one thing that can
+say so. This is one rule about reading a transit and a block that arrived
+together, and it holds wherever the pair is read: the scheduler keeps it on
+`move_granted` too, where a transit crossing neither end of the block entered
+leaves no end to face the train away from. `align` is read by whatever acts on
+it, and the milestone-1 simulator throws no points, so it reads nothing off
+that one and nothing on it can fail to be read.
 
 On the physical railroad the layout interface is the core app `layout`, and
 hardware sits under it by address, as thin translators speaking a device-level
