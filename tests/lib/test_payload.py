@@ -10,6 +10,7 @@ from tc49.lib.payload import (
     chosen,
     gesture,
     grant,
+    kept_facing,
     move,
     named_train,
     occupancy,
@@ -268,3 +269,41 @@ def test_a_payload_commanding_no_move_reads_as_none() -> None:
     ]
     for payload in refused:
         assert move(payload) is None, payload
+
+
+def test_a_retained_facing_reads_as_the_map_it_states() -> None:
+    """The scheduler's own last value, handed back at construction by a bus
+    binding that outlived it: train to the run it would make across its
+    block (#277)."""
+    assert kept_facing(
+        {"facing": {"freight_1": "yard_w.A-to-B", "express_2": "up_e.B-to-A"}}
+    ) == {"freight_1": "yard_w.A-to-B", "express_2": "up_e.B-to-A"}
+
+
+def test_a_retained_value_stating_no_map_reads_as_none() -> None:
+    """Rule 4 exempts no payload for having once been the reader's own: what
+    is waiting on a broker can be hand-edited or written by another build, and
+    every one of these carrying a value at all was an `AttributeError` out of
+    the scheduler's constructor while it subscripted rather than read (#277)."""
+    refused: list[object] = [
+        None,  # nothing retained under the key
+        "yard_w.A-to-B",  # not an object at all
+        ["yard_w.A-to-B"],  # nor a list of its entries
+        {},  # no facing
+        {"facing": None},
+        {"facing": "yard_w.A-to-B"},  # a value where a map belongs
+        {"facing": ["freight_1"]},  # the trains without their facings
+    ]
+    for payload in refused:
+        assert kept_facing(payload) is None, payload
+
+
+def test_an_entry_that_cannot_be_read_loses_that_train_and_no_other() -> None:
+    """A map is read one train at a time: the whole of a session's facing is
+    in this one value, and dropping all of it for one bad entry would lose
+    every train a good entry names. Whether a string spells a facing this
+    build knows is the layout's question and not asked here — `dn_e.A` is a
+    string and reads as one."""
+    assert kept_facing(
+        {"facing": {"freight_1": 7, "express_2": "up_e.B-to-A", "shunter": None}}
+    ) == {"express_2": "up_e.B-to-A"}

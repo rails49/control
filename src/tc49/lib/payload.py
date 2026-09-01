@@ -54,6 +54,14 @@ on the bus's other side, so the milestone-1 simulator and a hardware binding
 read the one reading (ADR-0030). `align`, the other command, has no reader:
 the simulated points are always aligned, so that binding reads nothing off it
 and nothing can fail.
+
+The scheduler's **retained facing** is read here for a third reason (#277):
+it is the first payload here whose reader is also its writer. A retained value
+is handed back at construction by a broker that outlived the app, it can be
+hand-edited there or have been written by an older build, and rule 4 exempts
+no payload for having once been the reader's own. What subscripting one gives
+is not a dropped frame but an app that does not start at all, so the scheduler
+reads it and starts cold where it cannot.
 """
 
 from dataclasses import dataclass
@@ -327,3 +335,26 @@ def move(payload: object) -> Move | None:
         return None
     train, connection, transit, into = cast(list[str], named)
     return Move(train, connection, transit, into)
+
+
+def kept_facing(payload: object) -> dict[str, str] | None:
+    """The facing a retained `tc49/schedule/state/facing` value states, train
+    to the run it would make across its block, or None where it states none.
+
+    The map is read one train at a time: a session's whole facing is in this
+    one value, so an entry that cannot be read loses that train and no other,
+    where a `None` here says there was no map to take an entry from. Whether
+    a value that *is* a string spells a facing this build knows is
+    `lib.layout`'s question — the `<block>.<A-to-B|B-to-A>` form is parsed
+    there and nowhere else — and the scheduler asks it of what this answers.
+    """
+    if not isinstance(payload, dict):
+        return None
+    held = cast(dict[str, object], payload).get("facing")
+    if not isinstance(held, dict):
+        return None
+    return {
+        train: value
+        for train, value in cast(dict[object, object], held).items()
+        if isinstance(train, str) and isinstance(value, str)
+    }
