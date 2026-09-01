@@ -5,14 +5,18 @@ from typing import Any
 import pytest
 
 from tc49.lib.layout import (
+    FACINGS,
     Layout,
     Point,
     block_of,
     connected_end,
+    connected_facing,
     departure_end,
     end_crossed,
     end_letter,
     end_on,
+    facing_ends,
+    facing_towards,
     far_end,
     opposite_end,
 )
@@ -245,3 +249,44 @@ def test_a_departure_end_in_a_terminal_block_is_its_one_connected_end(
     assert isinstance(layout, Layout)
     assert departure_end(layout, "yard_w.B") == "yard_w.B"
     assert departure_end(layout, "yard_e.A") == "yard_e.A"
+
+
+def test_a_facing_runs_between_the_two_ends_of_its_block() -> None:
+    """The value read apart: a train facing 'A-to-B' stands with its tail at
+    A and its nose at B, which is the end it would depart through (#241)."""
+    assert facing_ends("dn_w.A-to-B") == ("dn_w.A", "dn_w.B")
+    assert facing_ends("dn_w.B-to-A") == ("dn_w.B", "dn_w.A")
+    assert FACINGS == ("A-to-B", "B-to-A")
+
+
+def test_a_facing_is_written_from_the_end_a_train_would_depart_through() -> None:
+    """The other direction of the same reading, which is the one every site
+    that settles a facing takes: the layout answers an end."""
+    assert facing_towards("dn_w.B") == "dn_w.A-to-B"
+    assert facing_towards("dn_w.A") == "dn_w.B-to-A"
+
+
+def test_a_departure_end_reads_a_facing_as_the_end_it_names(
+    store: AssetStore,
+) -> None:
+    """A train that came in at A and a train facing A-to-B lie the same way,
+    so the rule is one rule and answers the same end for either spelling
+    (#241)."""
+    layout = store.get("crossover-yard")
+    assert isinstance(layout, Layout)
+    assert departure_end(layout, "dn_w.A-to-B") == departure_end(layout, "dn_w.A")
+    assert departure_end(layout, "dn_w.B-to-A") == departure_end(layout, "dn_w.B")
+    assert departure_end(layout, "dn_w.A-to-B") == "dn_w.B"
+
+
+def test_a_facing_in_a_terminal_block_is_turned_off_the_wall(
+    store: AssetStore,
+) -> None:
+    """`connected_end` asked of a facing: a stub has one end a train can
+    depart through, so a candidate pointing at the buffer is turned around
+    rather than kept (#145)."""
+    layout = store.get("crossover-yard")
+    assert isinstance(layout, Layout)
+    assert connected_facing(layout, "yard_w.B-to-A") == "yard_w.A-to-B"
+    assert connected_facing(layout, "yard_e.A-to-B") == "yard_e.B-to-A"
+    assert connected_facing(layout, "dn_w.A-to-B") == "dn_w.A-to-B"
