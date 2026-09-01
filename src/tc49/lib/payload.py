@@ -64,6 +64,16 @@ must be droppable. The milestone-1 simulator reads none of these: its points
 are always aligned and its track is always live, which is why `align` had no
 reader at all until there was an app that throws something.
 
+The **desired half of the device vocabulary** is read here from the other
+side of the same seam (#289): `layout` writes those rows and a translator
+acts on the ones it recognises, so the reading belongs where the writing's
+does. A translator answers nothing either — it reports observations — and
+there will be more than one of them, each reading the identical rows for the
+hardware it drives, which is this module's first reason and its second at
+once. `commanded_power` is the reader for `wanted/track`, the same word on
+the same axis as the gesture that moved it, so the desired power is not read
+twice.
+
 The scheduler's **retained facing** is read here for a third reason (#277):
 it is the first payload here whose reader is also its writer. A retained value
 is handed back at construction by a broker that outlived the app, it can be
@@ -512,6 +522,72 @@ def link_up(payload: object) -> bool:
     if not isinstance(payload, dict):
         return False
     return cast(dict[str, object], payload).get("link") == "up"
+
+
+def desired_speed(payload: object) -> float | None:
+    """The speed a `wanted/traction` value asks a locomotive for, or None
+    where it asks for none — a fraction of that locomotive's maximum, signed
+    for direction along the track (CONTEXT.md, **Traction**).
+
+    The first of the **desired** half of the device vocabulary read here, and
+    read for the reason a command is: a translator answers nothing, so a
+    frame it cannot read is dropped and a translator that raised on one would
+    be taken down by whatever published it (#289). `layout` is the single
+    writer of every one of these rows and rule 4 exempts no payload for that
+    — a retained value can be hand-edited or left by an older build, which is
+    why the scheduler reads its own facing back.
+
+    A **boolean is not a speed**, refused ahead of the numeric read the way a
+    stamp refuses one: JSON `true` is an `int` in Python and would otherwise
+    be taken for full speed forward. What a fraction past the range is worth
+    is the translator's and not read here: the contract states −1.0 … 1.0 and
+    there is nothing above a locomotive's maximum to ask for.
+    """
+    if not isinstance(payload, dict):
+        return None
+    speed = cast(dict[str, object], payload).get("speed")
+    if isinstance(speed, bool) or not isinstance(speed, (int, float)):
+        return None
+    return float(speed)
+
+
+def desired_position(payload: object) -> str | None:
+    """The position a `wanted/point` value asks a point for, or None where it
+    asks for none. Whether the name is one the hardware has a packet for is
+    the translator's, as an aspect's is."""
+    return _stated(payload, "position")
+
+
+def desired_aspect(payload: object) -> str | None:
+    """The aspect a `wanted/signal` value asks a signal for, or None where it
+    asks for none. An **aspect is not an enum** (CONTEXT.md): the name is read
+    as a name here and what a head makes of it is the translator's, which is
+    the same reading `shown_aspects` makes one end at a time."""
+    return _stated(payload, "aspect")
+
+
+def desired_function(payload: object) -> str | None:
+    """The state a `wanted/function` value asks a function for, or None where
+    it asks for none.
+
+    The field is `value` rather than a name of its own, and what it may be is
+    the model's: a function's values are fully configurable, `off` and `on`
+    where a model states none (LAYOUT.md). So it is read as a string and
+    nothing more, and which strings a decoder can actually be told is the
+    translator's answer.
+    """
+    return _stated(payload, "value")
+
+
+def _stated(payload: object, field: str) -> str | None:
+    """One named string field of a device row, or None where the payload
+    states no such thing. The three desired rows that carry a name rather
+    than a number share it: each fails the same way, and the difference
+    between them is which name they carry and who decides what it means."""
+    if not isinstance(payload, dict):
+        return None
+    stated = cast(dict[str, object], payload).get(field)
+    return stated if isinstance(stated, str) else None
 
 
 def kept_facing(payload: object) -> dict[str, str] | None:
