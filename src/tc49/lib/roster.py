@@ -155,6 +155,28 @@ class Train:
         return hauled.pop() if len(hauled) == 1 else MIXED
 
     @property
+    def functions(self) -> tuple[Function, ...]:
+        """What a person driving this train can switch: the functions its cars
+        declare, **by name**, first car first and each name once.
+
+        In the train's frame like everything else a throttle works in
+        (CONTEXT.md, **Throttle**): a set with a locomotive at each end has one
+        headlight to press, not two, and which car — which address, which
+        orientation — a press reaches is `layout`'s, the same composition it
+        does for a speed. So the name is the whole of the key, and the first
+        car declaring one settles what its values are.
+
+        No number: which DCC function a name sits on is what a model records
+        for the translator to use, and it is a decoder detail no view shows
+        (ADR-0045).
+        """
+        by_name: dict[str, Function] = {}
+        for coupled in self.cars:
+            for function in coupled.car.functions.values():
+                by_name.setdefault(function.name, function)
+        return tuple(by_name.values())
+
+    @property
     def priority_key(self) -> tuple[int, int]:
         """Where the train sorts against another: lowest number highest, and
         **a train with no priority after every train that has one**

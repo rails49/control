@@ -76,8 +76,37 @@ def test_a_roster_is_served_for_the_railroad_that_owns_it(store: AssetStore) -> 
     status, body = handle(store, "GET", "/rosters/gotthard-v0", None)
     assert status == 200
     assert body["roster"] == "gotthard-v0"
-    assert body["trains"]["south"] == {"length": 900}
+    assert body["trains"]["south"] == {"length": 900, "functions": []}
     assert body["trains"] == dict(sorted(body["trains"].items()))
+
+
+def test_a_trains_functions_are_served_with_it(tmp_path: Path) -> None:
+    """What a person driving the train can switch, by the names the catalogue
+    gives them and by no number: the throttle view's whole source for its
+    buttons (ui/THROTTLE.md). The library railroads' bench cars declare none,
+    so this railroad owns a model that does."""
+    catalogued(tmp_path)
+    (tmp_path / "catalogue" / "re460.yaml").write_text(
+        "model: re460\nkind: locomotive\nlength: 220\n"
+        "functions:\n"
+        "  '0': {name: headlights}\n"
+        "  '5': {name: vacuum, values: ['off', low, high]}\n"
+    )
+    (tmp_path / "layouts").mkdir()
+    (tmp_path / "layouts" / "shed.roster.yaml").write_text(
+        "roster: shed\n"
+        "cars:\n  re460_1: {model: re460}\n"
+        "trains:\n  light_1: {cars: [{car: re460_1}]}\n"
+    )
+    status, body = handle(AssetStore(tmp_path), "GET", "/rosters/shed", None)
+    assert status == 200
+    assert body["trains"]["light_1"] == {
+        "length": 220,
+        "functions": [
+            {"name": "headlights", "values": ["off", "on"]},
+            {"name": "vacuum", "values": ["off", "low", "high"]},
+        ],
+    }
 
 
 def test_a_railroad_with_no_roster_owns_nothing_yet(store: AssetStore) -> None:

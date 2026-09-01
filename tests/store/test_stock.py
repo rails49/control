@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 import yaml
 
-from tc49.lib.roster import Model
+from tc49.lib.roster import Model, Train
 from tc49.store import AssetStore
 from tc49.store.stock import validate_model, validate_roster
 from tests.harness import ROOT
@@ -191,6 +191,35 @@ def test_a_trains_kind_ignores_the_locomotives() -> None:
     assert stock.trains["ic_721"].kind == "passenger"
     assert stock.trains["mixed_9"].kind == "mixed"
     assert stock.trains["light_1"].kind == "light engine"
+
+
+def test_a_trains_functions_are_its_cars_by_name_and_each_name_once() -> None:
+    """What a person driving the train can switch, in the train's frame: a set
+    with a locomotive at each end has one headlight to press, and which car it
+    reaches is `layout`'s (ui/THROTTLE.md)."""
+    stock = roster(
+        {
+            "re460_1": {"model": "sbb-re460"},
+            "re460_2": {"model": "sbb-re460"},
+            "ic_1": {"model": "sbb-ic2000"},
+        },
+        {
+            "top_and_tail": {
+                "cars": [
+                    {"car": "re460_1"},
+                    {"car": "ic_1"},
+                    {"car": "re460_2", "orientation": "reverse"},
+                ]
+            },
+            "ic_721": {"cars": [{"car": "ic_1"}]},
+        },
+    )
+    functions = stock.trains["top_and_tail"].functions
+    assert [function.name for function in functions] == ["headlights", "vacuum"]
+    assert functions[1].values == ("off", "low", "high")
+    # A train whose cars declare none has none, and so has one made of no cars.
+    assert stock.trains["ic_721"].functions == ()
+    assert Train(stated_length=400).functions == ()
 
 
 def test_a_train_with_no_priority_sorts_after_every_train_that_has_one() -> None:
