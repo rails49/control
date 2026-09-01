@@ -252,6 +252,19 @@ def test_what_a_client_sends_while_the_device_is_away_is_dropped(
     asyncio.run(scenario())
 
 
+class Flapping(Station):
+    """A station whose device session ends the moment the device is open.
+
+    A real one is a command station that answers the open and then says
+    nothing — the end of file the mirror reads as the device going away
+    again. The watcher's pacing is what is under test, not the mirror.
+    """
+
+    async def _mirror(self, fd: int) -> bool:
+        await asyncio.sleep(0)
+        return False
+
+
 def open_fds() -> int:
     """How many descriptors this process holds."""
     return len(os.listdir("/dev/fd"))
@@ -285,6 +298,24 @@ def test_a_device_that_will_not_configure_keeps_the_watcher_retrying(
             not_a_tty.unlink()
             not_a_tty.symlink_to(pty.path)
             await log.wait_for("serial open")
+        finally:
+            await app.close()
+
+    asyncio.run(scenario())
+
+
+def test_a_session_that_ends_at_once_waits_before_reopening(pty: Pty) -> None:
+    """A device that is open and gone again is not reopened in a hot loop."""
+
+    async def scenario() -> None:
+        log = Log()
+        backoff = 0.1
+        app = Flapping(pty.path, 0, log=log, first_backoff_s=backoff, max_backoff_s=0.2)
+        await app.start()
+        try:
+            await log.wait_for_count("serial open", 2)
+
+            assert log.said("serial open")[1] - log.said("serial closed")[0] >= backoff
         finally:
             await app.close()
 
