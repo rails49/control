@@ -786,8 +786,8 @@ re-asserts the level the dispatcher already holds is an at-least-once repeat
 and a no-op. A change either explains a granted move — `block_occupied`
 records where the train arrived, `block_vacated` releases the origin block
 and the transit, ends the move and completes the request — or explains
-nothing, which while held is the dispute check's business and while running
-is the standing assumption violated. The grant pass is a **sweep** over the
+nothing, which **holds the run** (ADR-0048) and is the dispute check's
+subject either way. The grant pass is a **sweep** over the
 whole waiting set, run where the lock table or the waiting set changes: a
 request admitted, a vacate, the run released. Every grant is `safe()`-checked
 before it commits, so arrival order picks among safe options and never
@@ -918,25 +918,29 @@ a binding does with it is its own business. The simulator stands in for a
 train that would simply be where a hand left it, so it is told where the hand
 put it. It is not a command, and nothing moves on it.
 
-It comes with an **assumption** about the sensor stream that milestone 1 makes
-and does not yet enforce: every sensor event explains a move the dispatcher
-granted. The dispatcher recovers train identity from its lock table, so a
-`block_occupied` that no grant accounts for — a hand putting a locomotive on a
-detected block, or a train pushed while the power was off — is not something
-it can read: while held it is the dispute check's business, and while
-running it raises rather than guessing.
+A reading no granted move accounts for **holds the run**
+([ADR-0048](adr/0048-an-unexplained-reading-holds-the-run.md)). The dispatcher
+recovers train identity from its lock table, so a `block_occupied` with
+nothing claiming the block, or a `block_vacated` of a block it believes a
+train stands in — a hand putting a locomotive down, a train pushed while the
+power was off, a detector asserting on dirt — says the table has stopped
+describing the steel, and the dispatcher stops committing over it, by the path
+track power takes
+([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
+It guesses nothing: occupancy is anonymous, so there is no train to place. It
+does not raise either, a payload never being a reason to leave the bus
+(rule 4).
 
-The simulator publishes no sensors for a placement, which is what makes the
-gesture safe today. On a layout that detects occupancy the dispatcher will
-have to be told what an unexpected sensor means, and that is still open. Track
-power
-([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md))
-answers what to do with the observation and not what to do with the assertion,
-so a `block_occupied` that no grant accounts for still raises on a running
-railroad. The **dispute check** is not that answer either: it records every
-reading as it arrives, explained or not, and compares them, and comparing
-commits nothing. What a running dispatcher should do with a reading no grant
-accounts for is the part still open.
+The **dispute check** is what the hold turns on, and it is this comparison
+exactly: the block reading occupied with nothing claiming it, or the train
+whose block reads clear, is named on `state/disputed` for a person to walk.
+They place what they find and press GO; a block reading clear again releases
+nothing, exactly as power returning releases nothing.
+
+The simulator publishes no sensors for a placement, so nothing behind the
+milestone-1 binding produces such a reading. The rule is written for the
+layout that detects occupancy, which is the binding that decides
+([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)).
 
 ### Asset store
 
