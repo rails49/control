@@ -26,6 +26,7 @@ import pytest
 from tc49.bench.runner import DEFAULT_K, Assembly, assemble, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.inventory import HELD, ON
 from tests.harness import RUN_WANTED, leaves, load, press, run_wanted, runs, ticks
 
@@ -47,7 +48,7 @@ def told(payload: object) -> Dispatcher:
     what is under test here.
     """
     layout, _roster, scenario = load("crossover-yard/meet")
-    bus = Bus()
+    bus = Bus(Clock())
     dispatcher = Dispatcher(
         bus, layout, _roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )

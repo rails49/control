@@ -19,6 +19,7 @@ from websockets.sync.client import ClientConnection, connect
 
 from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.inventory import INBOUND, is_state_topic
 
 WANTED = "tc49/schedule/request_wanted"
@@ -34,7 +35,7 @@ TIMEOUT = 5.0  # generous: a loaded CI box, not a slow relay
 
 @pytest.fixture
 def bus() -> Bus:
-    return Bus()
+    return Bus(Clock())
 
 
 @pytest.fixture

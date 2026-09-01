@@ -34,6 +34,7 @@ from tc49.bench.replay import Replay
 from tc49.bench.runner import assemble_live, railroad
 from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Bus
+from tc49.lib.clock import Clock
 from tc49.lib.durable import sibling
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
@@ -84,7 +85,7 @@ class Session:
         # A bridge wants a bus, and an idle session has no assembly to give
         # it: this one is relayed until the first `rebind` replaces it, and
         # nothing ever publishes to it.
-        self.bridge = Bridge(Bus(), port, wants=self.wants, host=host)
+        self.bridge = Bridge(Bus(Clock()), port, wants=self.wants, host=host)
 
     def wants(self, name: str) -> str | None:
         """Run this railroad next: a refusal in words, or `None` to accept.

@@ -26,8 +26,9 @@ def test_the_value_is_stated_before_anything_is_asked() -> None:
     arrives afterwards is served it too — which is the case that matters,
     every consumer of the layout being built before the layout is."""
     layout, _roster, _scenario = load("crossover-yard/meet")
-    bus = Bus()
-    Simulator(bus, layout, Clock())
+    clock = Clock()
+    bus = Bus(clock)
+    Simulator(bus, layout, clock)
     assert bus.last_values[POWER] == {"power": "on"}
 
     seen = heard(bus)

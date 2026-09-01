@@ -26,6 +26,7 @@ from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.dispatcher.dispatch import ALLOCATION
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
 from tests.harness import RUN_WANTED, load
@@ -75,7 +76,7 @@ def restored(
                 },
             },
         )
-    bus = Bus(path)
+    bus = Bus(Clock(), path)
     dispatcher = Dispatcher(
         bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )
@@ -170,7 +171,7 @@ def test_the_opening_statement_carries_the_set(tmp_path: Path) -> None:
     path = tmp_path / "session.json"
     path.write_text(json.dumps({ALLOCATION: MOVED, DISPUTED: stale}))
     layout, roster, scenario = load("crossover-yard/meet")
-    bus = Bus(path)
+    bus = Bus(Clock(), path)
     Dispatcher(
         bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )

@@ -27,6 +27,7 @@ from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.dispatcher.dispatch import ALLOCATION, ASPECTS
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
 from tests.harness import load
@@ -88,7 +89,7 @@ def restarted(
                 },
             },
         )
-    bus = Bus(path)
+    bus = Bus(Clock(), path)
     dispatcher = Dispatcher(
         bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )
