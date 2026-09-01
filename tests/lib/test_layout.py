@@ -192,9 +192,13 @@ def test_a_transit_crosses_a_far_end_from_the_block_it_is_asked_about() -> None:
     of the transit from there is the end it must be standing at (ADR-0047).
 
     A transit the layout does not hold answers None, where reaching into the
-    layout with a name off the bus raises. A block the transit does not touch
-    answers its first end, as `end_on` does: the frame is one the layout
-    contradicts either way, and what to do with it is the caller's."""
+    layout with a name off the bus raises. A transit the layout does hold
+    that touches neither end of the block asked about answers None too
+    (#276): it crosses no track from anywhere to there, so there is no near
+    end for a train to be standing at and nothing to run.
+
+    Read across a transit that does reach the block, both directions still
+    answer the end on the other side."""
     layout, _roster, _ = load("crossover-yard/meet")
 
     assert far_end(layout, "dn_w", "west_ladder.to_dn") == "yard_w.B"
@@ -202,7 +206,8 @@ def test_a_transit_crosses_a_far_end_from_the_block_it_is_asked_about() -> None:
     assert far_end(layout, "dn_w", "ghost.to_dn") is None
     assert far_end(layout, "dn_w", "west_ladder.ghost") is None
     assert far_end(layout, "dn_w", "to_dn") is None  # unqualified
-    assert far_end(layout, "up_e", "west_ladder.to_dn") == "dn_w.A"
+    assert far_end(layout, "up_e", "west_ladder.to_dn") is None
+    assert far_end(layout, "ghost", "west_ladder.to_dn") is None
 
 
 def test_a_block_with_both_ends_connected_answers_the_candidate(

@@ -407,20 +407,22 @@ def end_crossed(layout: Layout, block: str, transit: str) -> str | None:
 
 def far_end(layout: Layout, block: str, transit: str) -> str | None:
     """The end `transit` crosses on its other side from `block`, or None where
-    the layout holds no such transit.
+    the layout holds no such transit or that transit crosses neither end of
+    that block.
 
     `end_on` read from the other side and asked of names that came off the
     bus, which is what a binding handed a `move` asks: the command names the
     block the train is to end up in, and the block at the far end of the
     transit from there is the one it must be standing in now (ADR-0047).
 
-    It fails the one way `end_crossed` fails first — a transit under no
-    connection here, or one no connection declares, is a `KeyError` for a
-    caller reaching into the layout and a payload is never a reason to raise
-    (rule 4). Where the transit is held but crosses neither end of `block` it
-    answers the transit's first end, exactly as `end_on` does: which end that
-    leaves the caller with is a question about a frame the layout already
-    contradicts, and settling it is a caller's rule and not a lookup's.
+    It fails the two ways `end_crossed` fails, and answers None for both. A
+    transit under no connection here, or one no connection declares, is a
+    `KeyError` for a caller reaching into the layout and a payload is never a
+    reason to raise (rule 4). A transit the layout does hold that crosses
+    neither end of `block` reaches no block a train could be standing in to
+    take it: answering its first end anyway would hand back a near end for a
+    run there is no track for, and a command describing something the layout
+    does not do has nothing to execute (#276).
     """
     connection, _, name = transit.partition(".")
     held = layout.connections.get(connection)
@@ -428,4 +430,6 @@ def far_end(layout: Layout, block: str, transit: str) -> str | None:
     if ends is None:
         return None
     first, second = ends
-    return second if block_of(first) == block else first
+    if block_of(first) == block:
+        return second
+    return first if block_of(second) == block else None
