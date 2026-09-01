@@ -41,6 +41,10 @@ Each app's implementation details live beside it:
 - [Station](docs/station) — the [command station mirror](docs/station/README.md):
   one process owns the USB device and serves it on TCP 2560, so the `dccex`
   translator, JMRI and hand-held throttles share one station.
+- [DCC-EX](docs/dccex) — the [translator](docs/dccex/README.md) between the
+  device vocabulary and the command station: the mapping a row at a time, the
+  latched stop and the zeros that precede its release, and the only page here
+  that writes the station's own syntax down.
 - [UI](docs/ui) — one app with two views of the loaded railroad, the [layout
   editor](docs/ui/EDITOR.md) and the [run view](docs/ui/PANEL.md), living in
   [ui/](ui).
