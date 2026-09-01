@@ -32,6 +32,23 @@ def test_line_is_flat_with_canonical_key_order() -> None:
     )
 
 
+def test_a_state_line_shows_the_payloads_stamp_ahead_of_its_fields() -> None:
+    """`time` is the tap's observation and `at` is the payload's own (#240):
+    the two agree here because the value was published on the same clock the
+    tap reads, and the stamp leads the fields because the inventory puts it
+    first."""
+    clock = Clock()
+    bus = Bus(clock)
+    out = io.StringIO()
+    TraceTap(bus, out, clock)
+
+    clock.advance(30.0)
+    bus.publish("tc49/dispatch/state/run", {"run": "held"})
+    bus.drain()
+
+    assert out.getvalue() == '{"time":30.0,"event":"run","at":30.0,"run":"held"}\n'
+
+
 def test_the_time_stamp_reads_the_run_clock_as_it_records() -> None:
     clock = Clock()
     bus = Bus(clock)

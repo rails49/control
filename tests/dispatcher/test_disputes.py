@@ -27,6 +27,7 @@ from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.dispatcher.dispatch import ALLOCATION
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
+from tc49.lib.inventory import AT
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
 from tests.harness import RUN_WANTED, load
@@ -98,8 +99,12 @@ def reports(
 
 def disputed(bus: Bus) -> Payload:
     """The last value of the topic, which is what a client joining later is
-    served — the panel that points a person at the railroad (ADR-0032)."""
-    return bus.last_values[DISPUTED]
+    served — the panel that points a person at the railroad (ADR-0032).
+
+    Without the stamp the binding put on it (#240): what is asserted here is
+    which trains and blocks the set names, and when the value was published
+    is the ordering rule's business and `tests/lib/test_bus.py`'s."""
+    return {key: value for key, value in bus.last_values[DISPUTED].items() if key != AT}
 
 
 def press(bus: Bus, topic: str, payload: Payload) -> None:

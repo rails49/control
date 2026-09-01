@@ -80,7 +80,9 @@ def test_exhausted_set_when_the_last_request_is_out() -> None:
     Scheduler(bus, yard(), seeded(), TIMETABLE)
 
     bus.drain()
-    assert [p for _, p in seen] == [{"exhausted": True}]
+    # Stamped by the binding that published it, the run clock reading zero
+    # here: every state payload carries `at` and no event payload does (#240).
+    assert [p for _, p in seen] == [{"at": 0.0, "exhausted": True}]
     bus.drain()
     assert len(seen) == 1  # set once, not republished
 
@@ -91,7 +93,7 @@ def test_an_empty_timetable_is_exhausted_at_once() -> None:
     Scheduler(bus, yard(), seeded())
 
     bus.drain()
-    assert [p for _, p in seen] == [{"exhausted": True}]
+    assert [p for _, p in seen] == [{"at": 0.0, "exhausted": True}]
 
 
 def test_a_run_given_no_timetable_submits_nothing() -> None:

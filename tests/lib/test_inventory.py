@@ -4,6 +4,7 @@ the layout writes under an address (SYSTEM.md, rules 1 and 2; ADR-0043)."""
 import pytest
 
 from tc49.lib.inventory import (
+    AT,
     DEVICE_PREFIX,
     DEVICE_TOPICS,
     INBOUND,
@@ -76,7 +77,9 @@ def test_a_topic_outside_the_vocabulary_does_not_split() -> None:
 def test_every_device_row_is_the_layouts_and_repeats_its_address() -> None:
     for key, row in DEVICE_TOPICS.items():
         assert key.startswith(DEVICE_PREFIX)
-        assert row.fields[0] == "addr" or key == TRACK
+        # Past the stamp, which leads every state row and is the binding's
+        # rather than the layout's (#240).
+        assert row.fields[1:2] == ("addr",) or key == TRACK
 
 
 def test_the_two_manual_driving_gestures_are_a_pages_to_write() -> None:
@@ -89,7 +92,7 @@ def test_the_two_manual_driving_gestures_are_a_pages_to_write() -> None:
     assert MODE not in INBOUND
     assert TOPICS[MODE_WANTED].fields == ("train", "mode")
     assert TOPICS[THROTTLE_WANTED].fields == ("train", "speed")
-    assert TOPICS[MODE].fields == ("modes",)
+    assert TOPICS[MODE].fields == (AT, "modes")
 
 
 def test_no_state_row_is_browser_writable() -> None:
@@ -116,3 +119,16 @@ def test_names_are_unique_across_both_mappings() -> None:
         key.removeprefix(DEVICE_PREFIX) for key in DEVICE_TOPICS
     ]
     assert len(names) == len(set(names))
+
+
+def test_every_state_row_leads_with_the_stamp_and_no_event_row_carries_one() -> None:
+    """The rule the ordering guard rests on (#240): a state payload states
+    when it was published and an event payload states nothing of the kind, so
+    a consumer can gate on the topic's own name rather than on whether a
+    payload happens to carry a number. It **leads** the field order so the
+    trace shows it in a fixed place."""
+    for topic, row in {**TOPICS, **DEVICE_TOPICS}.items():
+        if is_state_topic(topic):
+            assert row.fields[0] == AT, topic
+        else:
+            assert AT not in row.fields, topic
