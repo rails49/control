@@ -231,6 +231,16 @@ class Scheduler:
         connection holds (#145). The second needs no correction — a route's
         departure end is a transit's end and so always connected.
 
+        A request ends by arrival, by rejection, or by **cancellation**
+        (ADR-0049), and the third leaves as little behind as the other two:
+        the request and its destination are dropped and nothing is
+        re-submitted. A destination that is still wanted is asked for again
+        with `request_wanted` — the gesture that ended it was a person's, and
+        re-asking on their behalf would compose work they just ended. Facing
+        needs no case of its own either: `removed` is followed by
+        `train_removed`, which already pops it, and `displaced` by
+        `train_placed`, which already recomputes it.
+
         `request_submitted` is on this filter too, the scheduler's own
         included, because the topic names the dispatcher that responds to it.
         It is ignored here like every other leaf the scheduler does not act
@@ -264,7 +274,7 @@ class Scheduler:
             removed = named_train(payload)
             if removed is not None:
                 self._facing.pop(removed, None)
-        elif leaf in ("request_completed", "request_rejected"):
+        elif leaf in ("request_completed", "request_rejected", "request_cancelled"):
             answered = readable_id(payload)
             if answered is not None:
                 self._train_of.pop(answered, None)
