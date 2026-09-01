@@ -847,6 +847,14 @@ class Dispatcher:
         that is merely claimed is judged after — the claim may be the
         cancellation's to release.
 
+        Where it turns out to be somebody else's claim the request stays
+        cancelled and the train stays where it was. That is the gesture read
+        in halves rather than a placement half-done: the person said this
+        train is not running that request any more, which is honoured, and
+        then said where it is, which the railroad cannot accept because
+        another train is there. What it leaves behind is exactly what a
+        `cancel_wanted` would have.
+
         Where the train stands *now* is no precondition at all: one adoption
         placed nowhere (`restored`) is exactly the train a person has to say
         something about.
