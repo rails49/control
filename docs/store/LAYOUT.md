@@ -5,12 +5,16 @@ transits, and which transits are `concurrent`. It is **derived**, never
 authored — the drawing is the source of truth
 ([DRAWING.md](DRAWING.md), [ADR-0015](../adr/0015-drawing-is-the-source-of-truth.md)),
 and `get` derives the layout from it and runs the validator, so components read
-it unchecked. A **roster** file names the trains the railroad owns, and with the drawing it
-is the whole of what a run is built from
-([#171](https://github.com/rails49/control/issues/171)). A **scenario** file
-names a layout and adds where its trains stand and a fixed request list: it is
-the **harness's** document, read off disk by `tc49 bench` and `tc49 live
---scenario` and served on no route. The split is what lets one railroad carry
+it unchecked. A **roster** file names the **cars** the railroad owns and the
+trains made up from them, and with the drawing it is the whole of what a run is
+built from ([#171](https://github.com/rails49/control/issues/171)). Each car
+names a **model** in the installation's **catalogue**, which sits outside
+`layouts/`: a model is what a product *is*, and a product does not become a
+different product on another layout, so every railroad reads the same ones
+([ADR-0045](../adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+A **scenario** file names a layout and adds where its trains stand and a fixed
+request list: it is the **harness's** document, read off disk by `tc49 bench`
+and `tc49 live --scenario` and served on no route. The split is what lets one railroad carry
 many benchmark runs, and it makes the benchmark CLI's argument a single
 scenario path.
 
@@ -19,8 +23,9 @@ describe are in [GOALS.md](../GOALS.md) and
 [DISPATCH.md](../dispatcher/DISPATCH.md).
 
 ```
+catalogue/<model>.yaml                          # what a product is
 layouts/<layout>.drawing.yaml                   # the railroad, drawn
-layouts/<layout>.roster.yaml                    # the trains it owns
+layouts/<layout>.roster.yaml                    # the cars it owns, and its trains
 scenarios/<layout>/<scenario>.scenario.yaml     # e.g. gotthard/meet
 ```
 
@@ -108,27 +113,97 @@ connections:
   drawing is where an unaddressed point is reported, and the layout carries
   only what can be thrown.
 
+## Catalogue schema
+
+```yaml
+model: sbb-re460
+kind: locomotive          # locomotive | passenger | freight | special
+length: 220               # mm, the same units as a block
+functions:                # function number -> what it does on this product
+  "0": { name: headlights }
+  "2": { name: horn, values: ["off", "on"] }
+  "5": { name: vacuum, values: ["off", "low", "high"] }
+```
+
+- **One file per model, and the catalogue is the installation's**, not the
+  railroad's: two railroads owning the same item read one entry, and a model
+  is a resource the store serves, diffable the way a drawing is and edited
+  rarely ([CONTEXT.md](../../CONTEXT.md#stock), **Catalogue**). The file names
+  itself, and that name is what every car refers to it by, so a `model:` that
+  disagrees with the path is refused.
+- **`functions` is fully configurable**, name and values both. What model
+  trains implement varies enormously and cars have functions too — a
+  track-cleaning car's vacuum, coach lighting. `values` is optional and
+  defaults to `["off", "on"]`; the **first entry** is what the function is in
+  when nothing has been commanded, which is why it is a list and not a set.
+  Nothing commands one: a model records what a function *means* (ADR-0045).
+- **The function number and its values are written as strings.** The number
+  because YAML integer keys and JSON object keys do not agree; the values
+  because YAML reads a bare `off` as a boolean, and a `values: [off, on]`
+  would load as `[False, True]`. Both are refused with that message rather
+  than silently renamed.
+- **An installation with no `catalogue/` knows no models**, which is a
+  railroad whose stock is still written the old way and not a fault.
+
 ## Roster schema
 
 ```yaml
-roster: crossover-yard
+roster: gotthard
+
+cars:
+  re460_1: { model: sbb-re460, addr: "460" }
+  re460_2: { model: sbb-re460, addr: "461" }
+  ic_1:    { model: sbb-ic2000 }
+  ic_2:    { model: sbb-ic2000, length: 285 }   # an override
 
 trains:
-  freight_1: { length: 1100 }
+  ic_721:
+    priority: 2
+    cars:
+      - { car: re460_1 }
+      - { car: ic_1, orientation: reverse }
+      - { car: ic_2 }
 ```
 
 - **A roster belongs to the railroad**, not to a run: it sits beside the
   drawing as `layouts/<id>.roster.yaml` and every scenario over that railroad
   places trains from it. That is what makes a train's length one fact rather
   than one per scenario ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)).
-- **A train is a name and a length.** The dispatcher only ever asks whether a
-  train fits a block, so total length is the whole of what milestone 1 reads;
-  [GOALS.md](../GOALS.md)'s composed loco-and-car model, with types, addresses
-  and priority, arrives when something consumes it.
+- **A car always names a model**, and zero overrides is the ordinary case. Any
+  model field may be overridden on a car; **the merged result is what is
+  validated**, so a car is complete however it was written. A car naming no
+  model, or one the catalogue has not, is refused.
+- **`addr` is bare** — no system prefix, unlike a point's — and absent where a
+  car has no decoder. Two cars on one railroad sharing one are refused: both
+  answer the same packet and no run can tell them apart. Written as a string,
+  so `460` and `"460"` cannot be one address spelled two ways.
+- **`cars:` under a train is ordered, head first.** `orientation` is `forward`
+  or `reverse` and defaults to `forward`; `reverse` says the car's nose points
+  toward the tail, so a top-and-tail set is a reversed locomotive at the end.
+  The word rather than a boolean: `forward`/`reverse` is self-documenting
+  where `true`/`false` is cryptic.
+- **`priority` is optional and absent means lowest.** Lowest number highest
+  among the numbers that are present, and no default number is written into a
+  document.
+- **A train's length and kind are derived, never authored.** Length is the sum
+  of its cars; kind comes from the kinds of the cars it hauls, ignoring
+  locomotives ([CONTEXT.md](../../CONTEXT.md#stock), **Kind**). A train that
+  names cars and states a length as well is refused — two ways to know one
+  length is the field that rots. The five committed rosters still state a
+  length and name no cars, which is the one shape that authors one and is
+  [#223](https://github.com/rails49/control/issues/223)'s to rewrite.
+- **Unknown keys are ignored, not refused**, at every level of both stock
+  documents. A field for the manufacturer, or the shelf a locomotive lives on,
+  may be added and an older reader keeps working. This is deliberately the
+  opposite of the drawing and the scenario, which stay strict: stock is a
+  person's own catalogue of physical things and grows fields that no version
+  of this software will ever read. What is *required* is still required, so a
+  misspelt `trains:` is a refusal and not a silently empty railroad.
 - **Being on the roster is being *known*, which is not being *placed*.** A run
   built from a railroad has every train off the layout until a person puts one
   on it, and a railroad with no roster file owns nothing yet — a drawing made
-  this morning, which is not a missing railroad.
+  this morning, which is not a missing railroad. Neither document carries live
+  state.
 
 ## Scenario schema
 
