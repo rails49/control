@@ -82,7 +82,16 @@ binding publishes, in `lib.bus`.
 from dataclasses import dataclass
 from typing import cast
 
-from tc49.lib.inventory import AT, HELD, OFF, ON, RUNNING, STOPPED, is_state_topic
+from tc49.lib.inventory import (
+    AT,
+    DRAINING,
+    HELD,
+    OFF,
+    ON,
+    RUNNING,
+    STOPPED,
+    is_state_topic,
+)
 
 
 @dataclass(frozen=True)
@@ -227,18 +236,17 @@ def chosen(payload: object) -> Chosen | None:
 
 
 def run_state(payload: object) -> str | None:
-    """The run state a hold-or-release gesture asks for, or None where it
-    asks for none.
+    """The run state a gesture asks for, or None where it asks for none.
 
-    The two values are the topic's whole vocabulary, so a payload naming a
-    third is dropped rather than set: a gesture carries no id and there is
-    nothing to address an answer to (ADR-0034). The drain's `draining` will
-    be a third value here before it is a third answer (#123).
+    The three values are the topic's whole vocabulary — hold, release, and
+    the **drain** that asks for neither and ends at the first of them (#294)
+    — so a payload naming a fourth is dropped rather than set: a gesture
+    carries no id and there is nothing to address an answer to (ADR-0034).
     """
     if not isinstance(payload, dict):
         return None
     wanted = cast(dict[str, object], payload).get("run")
-    if not isinstance(wanted, str) or wanted not in (HELD, RUNNING):
+    if not isinstance(wanted, str) or wanted not in (HELD, RUNNING, DRAINING):
         return None
     return wanted
 

@@ -1,6 +1,6 @@
 """Reading a payload from outside, in the one place both apps read one (#127)."""
 
-from tc49.lib.inventory import HELD, OFF, ON, RUNNING, STOPPED
+from tc49.lib.inventory import DRAINING, HELD, OFF, ON, RUNNING, STOPPED
 from tc49.lib.payload import (
     Chosen,
     Command,
@@ -167,22 +167,26 @@ def test_a_payload_naming_no_chosen_route_reads_as_none() -> None:
 
 
 def test_a_run_gesture_reads_as_the_state_it_asks_for() -> None:
-    """The whole payload is which of the two the operator pressed for: a
-    hold takes the brake off granting, a release puts it back (#152)."""
+    """The whole payload is which of the three the operator pressed for: a
+    hold takes the brake off granting, a release puts it back (#152), and the
+    drain asks for neither — launch nothing more and settle at `held` when
+    what is moving has finished (#294)."""
     assert run_state({"run": "held"}) == HELD
     assert run_state({"run": "running"}) == RUNNING
+    assert run_state({"run": "draining"}) == DRAINING
 
 
 def test_a_payload_naming_no_run_state_reads_as_none() -> None:
-    """A third value is not a third state. The topic carries an enum rather
-    than a boolean so the drain can add `draining` later, and until it does
-    anything else is dropped — a gesture has no id to answer to (ADR-0034)."""
+    """A fourth value is not a fourth state. The topic carries an enum rather
+    than a boolean, which is what let the drain add a third word to it, and
+    anything outside the three is dropped — a gesture has no id to answer to
+    (ADR-0034)."""
     refused: list[object] = [
         "held",  # not an object at all
         ["held"],  # nor a list of its fields
         {},  # no run
         {"run": None},
-        {"run": "draining"},  # the third value, not this issue's (#123)
+        {"run": "drained"},  # the drain's own word misspelt is not the drain
         {"run": True},  # the boolean the topic deliberately is not
     ]
     for payload in refused:
