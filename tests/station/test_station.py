@@ -13,13 +13,14 @@ client's message is expected to arrive.
 
 import asyncio
 import os
+import socket
 import time
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
-from tc49.station.station import Station
+from tc49.station.station import READ_SIZE, Station
 
 SETTLE_S = 0.2
 TIMEOUT_S = 5.0
@@ -99,13 +100,44 @@ def pty() -> Iterator[Pty]:
     device.close()
 
 
+BEHIND_BYTES = 4096
+
+
 def station(device: str, log: Log) -> Station:
-    """A station on an OS-chosen port, with outages measured in milliseconds."""
-    return Station(device, 0, log=log, first_backoff_s=0.005, max_backoff_s=0.02)
+    """A station on an OS-chosen port, with outages measured in milliseconds.
+
+    A client falls behind in kilobytes rather than the megabyte of the real
+    bound, so a test can put one behind by not reading for a moment.
+    """
+    return Station(
+        device,
+        0,
+        log=log,
+        first_backoff_s=0.005,
+        max_backoff_s=0.02,
+        max_outstanding_bytes=BEHIND_BYTES,
+    )
 
 
 async def connect(app: Station) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     return await asyncio.open_connection("127.0.0.1", app.port)
+
+
+async def connect_deaf(
+    app: Station,
+) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    """A client that will never be read from, and cannot take much unread.
+
+    Its receive buffer is set small before it connects, so the kernels either
+    side hold kilobytes rather than the megabytes they will size themselves
+    up to on loopback. What the app sees is the same client either way — one
+    that stops taking bytes — reached in a fraction of the traffic.
+    """
+    sock = socket.socket()
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)
+    sock.setblocking(False)
+    await asyncio.get_running_loop().sock_connect(sock, ("127.0.0.1", app.port))
+    return await asyncio.open_connection(sock=sock)
 
 
 async def send(writer: asyncio.StreamWriter, data: bytes) -> None:
@@ -137,6 +169,136 @@ async def nothing_arriving(fd: int) -> bytes:
 def open_fds() -> int:
     """How many descriptors this process holds."""
     return len(os.listdir("/dev/fd"))
+
+
+class Talking:
+    """The device saying more than a client can take, and a record of it.
+
+    Every chunk names the offset it starts at, so what a client heard can be
+    compared with what was said and a gap in the middle cannot pass for the
+    whole stream.
+    """
+
+    def __init__(self, fd: int) -> None:
+        self._fd = fd
+        self.said = bytearray()
+
+    async def run(self) -> None:
+        while True:
+            chunk = f"<p{len(self.said)}>".encode().ljust(64, b".")
+            rest = memoryview(chunk)
+            while rest:
+                try:
+                    written = os.write(self._fd, rest)
+                except BlockingIOError:
+                    await asyncio.sleep(0.001)
+                    continue
+                self.said += rest[:written]
+                rest = rest[written:]
+            await asyncio.sleep(0)
+
+
+class Listening:
+    """A client that keeps reading, and everything it has heard."""
+
+    def __init__(self, reader: asyncio.StreamReader) -> None:
+        self._reader = reader
+        self.heard = bytearray()
+
+    async def run(self) -> None:
+        while True:
+            arrived = await self._reader.read(READ_SIZE)
+            if not arrived:
+                return
+            self.heard += arrived
+
+    async def hears(self, count: int, timeout: float = TIMEOUT_S) -> None:
+        deadline = time.monotonic() + timeout
+        while len(self.heard) < count:
+            if time.monotonic() > deadline:
+                raise AssertionError(f"heard {len(self.heard)} bytes, not {count}")
+            await asyncio.sleep(0.005)
+
+
+async def released(held: int, timeout: float = TIMEOUT_S) -> int:
+    """Wait for this process to be back down to `held` descriptors."""
+    deadline = time.monotonic() + timeout
+    while open_fds() > held and time.monotonic() < deadline:
+        await asyncio.sleep(0.005)
+    return open_fds()
+
+
+def test_a_client_that_stops_reading_is_cut_off_and_its_bytes_released(
+    pty: Pty,
+) -> None:
+    """The buffer for a client that takes nothing is not the railroad's to hold.
+
+    Its descriptor going with it is what says the bytes went too: closing a
+    connection waits for what is outstanding to be written, which for a
+    client that never reads is forever, so a descriptor that is back is a
+    buffer that was let go rather than one still waiting to drain.
+    """
+
+    async def scenario() -> None:
+        log = Log()
+        app = station(pty.path, log)
+        await app.start()
+        try:
+            _, deaf = await connect_deaf(app)
+            await log.wait_for("serial open")
+            await asyncio.sleep(SETTLE_S)
+            held = open_fds()
+            device = asyncio.create_task(Talking(pty.master).run())
+            try:
+                line = await log.wait_for("client disconnected")
+            finally:
+                device.cancel()
+
+            assert "too far behind" in line
+            # The client's own socket is still open and still unread, so what
+            # came back is the station's side of it.
+            assert await released(held - 1) == held - 1
+            deaf.close()
+        finally:
+            await app.close()
+
+    asyncio.run(scenario())
+
+
+def test_a_client_that_reads_hears_the_whole_stream_across_a_deaf_one(
+    pty: Pty,
+) -> None:
+    """One client walking out of range costs the others nothing."""
+
+    async def scenario() -> None:
+        log = Log()
+        app = station(pty.path, log)
+        await app.start()
+        try:
+            reader, keeping_up = await connect(app)
+            _, deaf = await connect_deaf(app)
+            await log.wait_for("serial open")
+            listening = Listening(reader)
+            heard = asyncio.create_task(listening.run())
+            talking = Talking(pty.master)
+            device = asyncio.create_task(talking.run())
+            try:
+                assert "too far behind" in await log.wait_for("client disconnected")
+            finally:
+                device.cancel()
+            await listening.hears(len(talking.said))
+
+            assert bytes(listening.heard) == bytes(talking.said)
+            # And the client that kept up was never the one cut off.
+            assert len(log.said("client disconnected")) == 1
+
+            heard.cancel()
+            keeping_up.close()
+            deaf.close()
+        finally:
+            await app.close()
+
+    asyncio.run(scenario())
 
 
 def test_two_clients_interleaved_produce_two_whole_messages(pty: Pty) -> None:
