@@ -58,6 +58,13 @@ nothing. A command is honored now or ignored: a queue that flushes on
 reconnect is a train that moves minutes after someone asked for it, which is
 why the broker keeps nothing across a restart either.
 
+Every way the device can fail to be there is the same outage: a path that is
+not there, a path that will not take the line discipline because it is no
+tty, a device that is gone again the moment it is open. None of them ends the
+retrying or holds a descriptor open, and a session that ends at once is
+waited out rather than reopened straight away. Each outage says once that
+what clients send is being dropped, and the next outage says it again.
+
 It logs connects, disconnects, the device opening and closing, and the first
 message dropped in each outage, to stderr. Nothing else: a mirror that logged
 the traffic would log the whole railroad.
