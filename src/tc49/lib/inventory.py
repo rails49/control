@@ -4,6 +4,12 @@ Mirrors the inventory table of SYSTEM.md. The trace's canonical key order
 depends on this module; leaf names are globally unique across all topics
 (tested), because the trace's ``event`` field is the leaf alone.
 
+Two mappings, because a topic is named two ways. ``TOPICS`` is the transit-level
+contract, one whole topic per row. ``DEVICE_TOPICS`` is the device vocabulary
+under the layout interface (ADR-0043), where the row is fixed and the address
+is trailing levels a railroad's wiring decides, so the row is keyed by what is
+knowable. The namespace is one: a name is unique across both.
+
 A topic names the component that **declares** it: the events that component
 emits, and the requests it responds to. Nothing in a name says who sent a
 request, and no responder may read or infer it (SYSTEM.md, rule 4).
@@ -60,6 +66,65 @@ TOPICS: dict[str, Topic] = {
         ("trains", "crossing", "locks", "requests")
     ),
 }
+
+
+DEVICE_PREFIX = "tc49/layout/state/"
+"""What every device row's key starts with, and what a trace ``event`` strips
+to name one: ``wanted/traction``, ``wanted/point``. A device row is named by
+two levels where an ordinary row is named by one, because the desired half of
+the vocabulary and the observed half address the same hardware — ``point``
+alone would not say which of the two a line records."""
+
+
+DEVICE_TOPICS: dict[str, Topic] = {
+    "tc49/layout/state/wanted/traction": Topic(("addr", "speed")),
+    "tc49/layout/state/wanted/function": Topic(("addr", "function", "value")),
+    "tc49/layout/state/wanted/point": Topic(("addr", "position")),
+    "tc49/layout/state/wanted/signal": Topic(("addr", "aspect")),
+    "tc49/layout/state/wanted/track": Topic(("power",)),
+}
+"""The device vocabulary `layout` writes: what the hardware should do, one
+retained state topic per device, `layout` the single writer (rule 1) and a
+translator acting on whatever address it recognises (ADR-0043).
+
+Keyed by the **fixed part** of the topic, the address being trailing levels
+rather than a leaf, and repeated in the payload as ``addr`` so a trace line
+reads on its own. `wanted/track` is the one row that carries no address: a
+power district is a hardware-level fact that does not reach the bus, so there
+is one railroad-wide desired power and a translator maps it onto however many
+districts it drives (#217).
+
+Separate from ``TOPICS`` rather than in it because ``TOPICS`` maps a whole
+topic to its field order, and a device row's whole topic is not knowable until
+a railroad is wired. What the two mappings share is the namespace: a name is
+unique across both (tested).
+
+SYSTEM.md, *Layout interface*, carries the values each field takes and the two
+address rules — a traction or function address is bare and a point or signal
+address names its system first."""
+
+
+def device_topic(prefix: str, *address: str) -> str:
+    """The topic a device sits on: a ``DEVICE_TOPICS`` key and the levels of
+    its address. `wanted/track` takes none and is its own topic."""
+    return "/".join((prefix, *address))
+
+
+def split_device(topic: str) -> tuple[str, str] | None:
+    """The inverse: a device topic's fixed part and the address under it, or
+    ``None`` where the topic is no device row at all.
+
+    A row is addressed exactly where its payload repeats the address, so
+    `wanted/track` splits to an empty address and every other row wants at
+    least one level. A bare addressed key names no device, and is no more a
+    device topic than a name nobody declared."""
+    for prefix, row in DEVICE_TOPICS.items():
+        addressed = "addr" in row.fields
+        if topic == prefix:
+            return None if addressed else (prefix, "")
+        if addressed and topic.startswith(prefix + "/"):
+            return prefix, topic[len(prefix) + 1 :]
+    return None
 
 
 HELD = "held"
