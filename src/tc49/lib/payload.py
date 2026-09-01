@@ -53,9 +53,16 @@ and the process that publishes it today is the driver — another container
 under MQTT, whose bug must not stop the binding running the railroad. It is
 the first payload here read by whatever drives the track rather than by an app
 on the bus's other side, so the milestone-1 simulator and a hardware binding
-read the one reading (ADR-0030). `align`, the other command, has no reader:
-the simulated points are always aligned, so that binding reads nothing off it
-and nothing can fail.
+read the one reading (ADR-0030).
+
+`align`, the other command, is read here beside it, and with it everything
+else the core app `layout` is handed (#287): the power a page commands, the
+aspects the dispatcher shows, and the two device rows the railroad's power is
+folded from. They arrive from four different publishers and `layout` answers
+none of them — it reports observations — so every one of them is a frame that
+must be droppable. The milestone-1 simulator reads none of these: its points
+are always aligned and its track is always live, which is why `align` had no
+reader at all until there was an app that throws something.
 
 The scheduler's **retained facing** is read here for a third reason (#277):
 it is the first payload here whose reader is also its writer. A retained value
@@ -92,6 +99,7 @@ from tc49.lib.inventory import (
     STOPPED,
     is_state_topic,
 )
+from tc49.lib.layout import Point
 
 
 @dataclass(frozen=True)
@@ -276,6 +284,26 @@ def power(payload: object) -> str:
     return stated
 
 
+def commanded_power(payload: object) -> str | None:
+    """The power a gesture asks the railroad for, or None where it asks for
+    none.
+
+    `power`'s opposite number on the command direction of the one axis
+    (ADR-0051), and it fails the other way round. A *reading* that cannot be
+    read must still hold the run, so `power` has no `None`; a **command**
+    that cannot be read is dropped like every other gesture, because cutting
+    the supply on a malformed frame would be `layout` writing `off` of its
+    own accord, which it never does (#287). A gesture carries no id, so there
+    is nothing to address a refusal to either (ADR-0034).
+    """
+    if not isinstance(payload, dict):
+        return None
+    wanted = cast(dict[str, object], payload).get("power")
+    if not isinstance(wanted, str) or wanted not in (ON, STOPPED, OFF):
+        return None
+    return wanted
+
+
 def occupancy(payload: object) -> str | None:
     """The block an occupancy reading names, or None where it names none.
 
@@ -386,6 +414,104 @@ def command(payload: object) -> Command | None:
         return None
     train, connection, transit, into = cast(list[str], named)
     return Command(train, connection, transit, into)
+
+
+@dataclass(frozen=True)
+class Alignment:
+    """The route an `align` sets: the connection and the transit it names,
+    and the points that transit's way needs thrown (ADR-0031).
+
+    The transit is bare and the connection stands beside it, the shape
+    `Command` has, because the two commands name a transit the same way.
+    The points are `lib.layout.Point`, the pair the layout document already
+    carries — an address and the position a way wants the point wearing in —
+    since what rides on `align` is exactly what was read off the layout.
+    """
+
+    connection: str
+    transit: str
+    points: tuple[Point, ...]
+
+
+def alignment(payload: object) -> Alignment | None:
+    """The alignment the payload commands, or None where it commands none.
+
+    The other command, read at the same door as `command` and for the same
+    reason (#287): the layout interface acts on it, the topic names the
+    interface rather than whoever published this frame, and a binding that
+    raised on one would be taken down by that publisher. Until `layout` the
+    topic had no reader at all — the milestone-1 simulator's points are
+    always aligned, so it reads nothing off one.
+
+    A pair that cannot be read fails the **whole** frame, where a retained
+    map is read an entry at a time (`_named`). An alignment is one route:
+    throwing the points that read and dropping the ones that did not would
+    set a way half over, and a `move` would then be let onto it.
+
+    Whether the connection and the transit name anything on this railroad is
+    the layout's question, and whether a position is one a point can be in is
+    the hardware's — a name is the whole of what there is to read in a
+    payload. `points` is always present, `[]` where the way needs nothing
+    thrown: the document is quiet and the wire explicit, so an absent list is
+    a frame that lost a field rather than a way with no points on it.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    connection, transit, stated = (
+        fields.get(key) for key in ("connection", "transit", "points")
+    )
+    if not isinstance(connection, str) or not isinstance(transit, str):
+        return None
+    if not isinstance(stated, list):
+        return None
+    points: list[Point] = []
+    for entry in cast(list[object], stated):
+        if not isinstance(entry, dict):
+            return None
+        pair = cast(dict[str, object], entry)
+        addr, position = pair.get("addr"), pair.get("position")
+        if not isinstance(addr, str) or not isinstance(position, str):
+            return None
+        points.append(Point(addr, position))
+    return Alignment(connection, transit, tuple(points))
+
+
+def shown_aspects(payload: object) -> dict[str, str] | None:
+    """The aspects a `tc49/dispatch/state/aspects` value shows, block end to
+    the aspect standing at it, or None where it shows none.
+
+    Read an entry at a time, as `kept_facing` is and for the same reason: the
+    value is the whole picture of the railroad's signals, so an entry that
+    cannot be read costs that end its aspect and no other. An **aspect is not
+    an enum** (CONTEXT.md), so the name is read as a name — what a signal
+    makes of it is a translator's, as what a speed is worth is the driver's.
+
+    Whether an end named here is one this railroad has, and whether a signal
+    stands at it, is the layout's question (`Layout.signal_at`).
+    """
+    if not isinstance(payload, dict):
+        return None
+    shown = cast(dict[str, object], payload).get("aspects")
+    if not isinstance(shown, dict):
+        return None
+    return _named(cast(dict[object, object], shown))
+
+
+def link_up(payload: object) -> bool:
+    """Whether a translator states that it can reach the hardware it drives.
+
+    A boolean rather than a value, because the fold it feeds asks one
+    question: the railroad has power only while every link that has ever been
+    seen is up (#287). So anything that is not the word `up` — `down`, a word
+    from outside the pair, a payload that is no object at all — reads as not
+    up, which is `power`'s direction on the row beside it and for `power`'s
+    reason (#181): a link a consumer cannot read is not a link it may call
+    good.
+    """
+    if not isinstance(payload, dict):
+        return False
+    return cast(dict[str, object], payload).get("link") == "up"
 
 
 def kept_facing(payload: object) -> dict[str, str] | None:
