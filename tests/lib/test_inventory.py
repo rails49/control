@@ -1,9 +1,20 @@
 """The inventory's own rules: what marks a state topic, and the device rows
-the layout writes under an address (SYSTEM.md, rules 2 and 3; ADR-0043)."""
+the layout writes under an address (SYSTEM.md, rules 1 and 2; ADR-0043)."""
 
 import pytest
 
-from tc49.lib.inventory import TOPICS, is_state_topic
+from tc49.lib.inventory import (
+    DEVICE_PREFIX,
+    DEVICE_TOPICS,
+    TOPICS,
+    device_topic,
+    is_state_topic,
+    leaf,
+    split_device,
+)
+
+POINT = "tc49/layout/state/wanted/point"
+TRACK = "tc49/layout/state/wanted/track"
 
 
 @pytest.mark.parametrize("topic", sorted(TOPICS))
@@ -24,3 +35,58 @@ def test_an_addressed_device_topic_is_a_state_topic() -> None:
 def test_a_command_is_not_a_state_topic() -> None:
     assert not is_state_topic("tc49/layout/move")
     assert not is_state_topic("tc49/layout/state")
+
+
+def test_a_device_address_round_trips() -> None:
+    """What a translator does with a topic it hears: name the row, then read
+    the address off it and see whether it answers to that one (ADR-0043)."""
+    assert split_device(device_topic(POINT, "dccex", "5")) == (POINT, "dccex/5")
+
+
+def test_a_bare_address_is_one_level_and_still_round_trips() -> None:
+    """Traction takes no system prefix — a decoder answers to the number it
+    was programmed with whoever sends the packet (ADR-0045)."""
+    traction = "tc49/layout/state/wanted/traction"
+    assert split_device(device_topic(traction, "460")) == (traction, "460")
+
+
+def test_the_track_row_carries_no_address() -> None:
+    """One railroad-wide desired power: the districts are hardware and do not
+    reach the bus (#217). So the row is the whole topic, and splits to an
+    empty address rather than to nothing — it is a device row."""
+    assert device_topic(TRACK) == TRACK
+    assert split_device(TRACK) == (TRACK, "")
+
+
+def test_an_addressed_row_naming_no_device_is_not_a_device_topic() -> None:
+    assert split_device(POINT) is None
+
+
+def test_a_topic_outside_the_vocabulary_does_not_split() -> None:
+    """Both of these start where a device row starts or under a component that
+    writes one, and neither is one."""
+    assert split_device("tc49/layout/state/power") is None
+    assert split_device("tc49/dispatch/state/aspects") is None
+
+
+def test_every_device_row_is_the_layouts_and_repeats_its_address() -> None:
+    for key, row in DEVICE_TOPICS.items():
+        assert key.startswith(DEVICE_PREFIX)
+        assert row.fields[0] == "addr" or key == TRACK
+
+
+def test_no_device_row_is_browser_writable() -> None:
+    """Every one of them is a state topic, and concurrent writers may not
+    write one (ADR-0035)."""
+    assert all(is_state_topic(key) for key in DEVICE_TOPICS)
+    assert not any(row.browser for row in DEVICE_TOPICS.values())
+
+
+def test_names_are_unique_across_both_mappings() -> None:
+    """The trace records one name per row in its `event` field, so two rows
+    sharing one could not be told apart there — and the device rows are named
+    by their key past `tc49/layout/state/`."""
+    names = [leaf(topic) for topic in TOPICS] + [
+        key.removeprefix(DEVICE_PREFIX) for key in DEVICE_TOPICS
+    ]
+    assert len(names) == len(set(names))
