@@ -571,8 +571,9 @@ portal-label questions that rare layout editing does not justify.
 
 ### Properties
 
-The right-click dialog edits, per kind: a block's name and length, a portal's
-label, and a turnout's or a slip's address.
+The right-click dialog edits, per kind: a block's name, its length and the
+address of the signal at each of its ends, a portal's label, and a turnout's or
+a slip's address.
 
 **A name is typed only where a person has to say it out loud**
 ([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)). That is a
@@ -588,6 +589,14 @@ A kind left with nothing to set opens no dialog: an empty modal is worse than
 none, so a pin, a terminal and a fixed crossing are offered only the transforms.
 New names are minted short — `b1`, `sw1`, `n1`, `e1`, `p1` — a key being read in
 the wire list far more than anywhere else.
+
+A block is asked for one address per end, `Signal at A` and `Signal at B`: a
+signal is fixed wiring standing at one end, so what it answers to is typed here
+the way a turnout's address is
+([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md),
+[DRAWING.md](../store/DRAWING.md#hardware-ids)). An end left empty is an end no
+signal stands at, and the field is written out of the document rather than
+saved holding nothing, the way a cleared turnout address is.
 
 A block's key is its only name: the one drawn in the block, read in the
 netlist, and prefixed to every transit id in a trace. That is why it is minted

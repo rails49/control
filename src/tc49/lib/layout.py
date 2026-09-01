@@ -34,9 +34,10 @@ from typing import Any, cast
 class Point:
     """An address and the position a way wants the point wearing it in.
 
-    The whole of the hardware the layout knows about (ADR-0031): never a
-    shape, a place on the canvas, or a switching time. Two points may share
-    an address and then move together, so a way can name one address twice.
+    With the signal address at a block end (``signal_at``), the whole of the
+    hardware the layout knows about (ADR-0031): never a shape, a place on the
+    canvas, or a switching time. Two points may share an address and then move
+    together, so a way can name one address twice.
     """
 
     addr: str

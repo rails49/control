@@ -76,7 +76,7 @@ transits.
 
 | Symbol | Kind | Pins | Transits | Concurrent | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length |
+| Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length; a signal address per signalled end |
 | Terminal | `terminal` | 1 (`P`) | none | n/a | marks a deliberate track end |
 | Turnout | `turnout` | 3 (`toe`, `straight`, `diverging`) | `straight`, `diverging` | none | |
 | Crossing | `crossing` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | a grade crossing: one train at a time |
@@ -95,11 +95,16 @@ side to the other over the other track, `a1`-`b2` for the single slip and both
 double slip being two turnouts joined toe to toe. The 90 degree crossings use
 the same four pin names and the two through routes, and offer no slips.
 
-A block carries a signal and a sensor at each end, always. Neither is placed
-and neither is optional, so neither is a field: they are part of what a block
-symbol is, and the block artwork draws them.
+A block carries a signal and a sensor at each end, always. Neither is placed,
+so neither is drawn by the drawing: they are part of what a block symbol is,
+and the block artwork draws them.
 (A signal at an end that leads only to a terminal governs a departure no train
 can make, and is worth hiding once the rest is settled.)
+
+What *is* a field is the address of the signal installed at an end, under
+`signals` ([Hardware ids](#hardware-ids)): a signal is fixed wiring like a
+turnout motor, so its address is typed on the drawing, and an end with no
+address on it is an end no signal stands at.
 
 Everything about these symbols is fixed, so a drawing writes only `kind` and
 the names it wants (below). In particular none of them declares anything
@@ -183,7 +188,8 @@ symbols:
 ```
 
 - **Symbols are a mapping from name to `kind` and its properties.** A block
-  takes a `length`; a portal a `label`; a turnout
+  takes a `length` and optional `signals` keyed by its ends; a portal a
+  `label`; a turnout
   or a slip an optional `addr` ([Hardware ids](#hardware-ids)); a terminal and a
   free-standing pin (`kind: pin`) nothing.
   A symbol of fixed geometry takes only the names below. The generic connection
@@ -250,8 +256,36 @@ auto-layout.
 
 ## Hardware ids
 
-The drawing holds one hardware identity, as an optional symbol property:
-`addr` on a turnout or a slip. Derivation keeps the addresses, as the `points`
+The drawing holds the identities of the fixed wiring, as optional symbol
+properties: `addr` on a turnout or a slip, and `signals` on a block, keyed by
+the end each signal stands at.
+
+```yaml
+b_airolo: { kind: block, at: [12, 4], length: 900, signals: { A: 'dccex/40', B: 'dccex/41' } }
+```
+
+A **signal** is installed at one end of one block, so the drawing is where its
+address is typed, the way a turnout motor's is
+([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md),
+[#203](https://github.com/rails49/control/issues/203)) — it is not named in
+software the way a camera watching a block end is. The key is the end, `A` or
+`B`, the ends a block has everywhere else; a key that is no end of that block
+is refused at load, naming the block. A block may signal one end, both, or
+neither, and an unsignalled end is absent rather than empty: an end nothing
+ever leaves carries no signal, one that could only show `stop` being furniture
+([CONTEXT.md](../../CONTEXT.md#layout), **Signal**). The value carries its
+system as its first level, `<system>/<addr>`, the point rule of
+[ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md):
+fixed wiring can be split across systems where traction cannot.
+
+Derivation carries the signals into the layout document beside the block's
+length, so the layout answers which signal stands at a block end without
+reopening the drawing ([LAYOUT.md](LAYOUT.md#the-derived-layout)). Two ends may
+share an address, as two points may: two signals on one address show one aspect
+together. What is done with an aspect — publishing one, and what the
+signal makes of it — reaches no contract here (#203).
+
+Derivation keeps the point addresses too, as the `points`
 each transit needs
 ([ADR-0031](../adr/0031-the-layout-carries-the-points-a-transit-needs.md)) —
 still no turnouts in the layout, but their addresses
@@ -262,7 +296,8 @@ wearing no address is left out rather than stopping derivation: the drawing is
 where an unaddressed point is reported. A drawing with no hardware ids is
 valid; the simulator needs none.
 
-A sensor has no id here. It is addressed by the block end it watches,
+A sensor, unlike the signal beside it, has no id here. It is addressed by the
+block end it watches,
 `<block>.<end>`, which are the drawing's own names rather than anything the
 drawing records
 ([ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
