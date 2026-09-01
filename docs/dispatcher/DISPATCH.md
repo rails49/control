@@ -8,6 +8,10 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
 
 ## Semantics
 
+- **Three endings** — a request ends by arrival, by rejection before
+  admission, or by cancellation: a person ending it outright, or a person
+  saying where the train actually is and the placement retiring it under them
+  ([ADR-0049](../adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
 - **Admission** — a request is rejected if no arrival end survives: none
   is a block the train fits, none is an end any route can enter through, or
   none is reachable from the origin — settled where the request arrives, or,
@@ -240,6 +244,15 @@ launch waits only when *every* candidate is refused, not merely the first.
 A request completes as its final transit finishes: the trailing transit and
 origin block release, and the train parks holding only its standing lock.
 Latency is completion time − arrival time.
+
+A request **cancelled** ends the same way and short of the arrival: everything
+its train holds is released except the block it stands in, and the train parks
+holding only its standing lock wherever along the route it had got to
+([ADR-0049](../adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
+A cancellation that lands while a move is outstanding is deferred to the
+sensors that end that move — nothing on the bus retracts a `move` already
+sent — and nothing further is granted in the meantime. It contributes no
+latency: there is no arrival to measure to.
 
 ## Time model
 

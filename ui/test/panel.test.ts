@@ -811,6 +811,22 @@ describe("a request in flight", () => {
     expect(model.inFlight("t1")).toBe(false);
   });
 
+  /** A request can also end without the train arriving: a person cancels it,
+   *  or a placement retires it under them (ADR-0049). The row goes with it —
+   *  and unlike a rejection there is no marker left, nothing about a
+   *  deliberate ending being a thing to come and look at. */
+  it("ends on a cancellation, which leaves no marker", () => {
+    const model = panel();
+    placed(model);
+    feed(model, submitted, {
+      event: "request_cancelled",
+      id: "t1-1",
+      reason: "revoked",
+    });
+    expect(model.inFlight("t1")).toBe(false);
+    expect(model.markers().map((marker) => marker.role)).not.toContain("rejected");
+  });
+
   /** A rejected request's marker stays on screen until the train is dragged
    *  again, and that is precisely when you want to turn around. */
   it("ends on a rejection, whose marker is still shown", () => {
