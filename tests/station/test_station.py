@@ -134,6 +134,11 @@ async def nothing_arriving(fd: int) -> bytes:
         return b""
 
 
+def open_fds() -> int:
+    """How many descriptors this process holds."""
+    return len(os.listdir("/dev/fd"))
+
+
 def test_two_clients_interleaved_produce_two_whole_messages(pty: Pty) -> None:
     async def scenario() -> None:
         log = Log()
@@ -263,11 +268,6 @@ class Flapping(Station):
     async def _mirror(self, fd: int) -> bool:
         await asyncio.sleep(0)
         return False
-
-
-def open_fds() -> int:
-    """How many descriptors this process holds."""
-    return len(os.listdir("/dev/fd"))
 
 
 def test_a_device_that_will_not_configure_keeps_the_watcher_retrying(
