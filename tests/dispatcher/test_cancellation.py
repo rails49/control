@@ -247,7 +247,51 @@ def test_a_cancellation_needs_no_held_run() -> None:
 
 def test_a_gesture_for_a_train_with_nothing_in_flight_says_nothing() -> None:
     """Dropped, not answered: there is no id to address an answer to
-    (ADR-0034), and an idle train has nothing to end."""
+    (ADR-0034), and an idle train has nothing to end.
+
+    **Nothing** is read literally, which is what express_2's standing refusal
+    is here for. A gesture that ends nothing frees nothing, so it sweeps
+    nothing: a sweep would publish one more `grant_refused` for express_2 and
+    age the queue with it, and a person cancelling an idle train would have
+    reordered the railroad's waiting list by doing so. The gesture's own
+    trace line is the whole of its record.
+    """
+    assembly = whole_route()
+    # express_2 wants the block freight_1 is idle in, so it is refused and
+    # stays refused: an idle train's block is permanently unavailable.
+    drag(assembly, "express_2", "yard_w.B")
+    refusals = len(leaves(assembly, "grant_refused"))
+    assert refusals == 1
+    before = assembly.trace
+
+    cancel(assembly, "freight_1")
+
+    assert [line["event"] for line in events(assembly.trace[len(before) :])] == [
+        "cancel_wanted"
+    ]
+    assert len(leaves(assembly, "grant_refused")) == refusals
+
+
+def test_a_deferred_cancellation_sweeps_nothing_either() -> None:
+    """The same rule at the other end of it. A cancellation caught mid-move
+    releases nothing yet — it marks the request and waits for the sensors —
+    so there is nothing for a sweep to hand anybody, and the sweep runs where
+    the retirement does instead."""
+    assembly = whole_route()
+    drag(assembly, "freight_1", "yard_e.A")
+    drag(assembly, "express_2", "yard_w.B")
+    refusals = len(leaves(assembly, "grant_refused"))
+    before = assembly.trace
+
+    cancel(assembly, "freight_1")
+
+    assert [line["event"] for line in events(assembly.trace[len(before) :])] == [
+        "cancel_wanted"
+    ]
+    assert len(leaves(assembly, "grant_refused")) == refusals
+
+
+def test_a_gesture_for_a_train_that_never_had_a_request_says_nothing() -> None:
     assembly = whole_route()
 
     cancel(assembly, "freight_1")

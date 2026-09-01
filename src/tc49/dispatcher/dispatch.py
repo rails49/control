@@ -981,14 +981,18 @@ class Dispatcher:
         train = named_train(payload)
         if train is None or train not in self._state.roster:
             return
-        self._cancel(train, Cancellation.REVOKED, defer=True)
-        # The lock table moved, so the waiting set is reconsidered here: what
-        # a cancelled route was holding is exactly what somebody else has
-        # been refused for (ADR-0047).
-        self._sweep()
+        if self._cancel(train, Cancellation.REVOKED, defer=True):
+            # Something was actually given up, so the waiting set is
+            # reconsidered here: what a cancelled route was holding is
+            # exactly what somebody else has been refused for (ADR-0047). A
+            # gesture that freed nothing sweeps nothing — a sweep publishes a
+            # `grant_refused` for every waiting request and ages the queue
+            # with it, and neither belongs to a gesture that did nothing.
+            self._sweep()
 
-    def _cancel(self, train: str, reason: Cancellation, defer: bool = False) -> None:
+    def _cancel(self, train: str, reason: Cancellation, defer: bool = False) -> bool:
         """Every request the train has, retired without the train arriving.
+        Answers whether the lock table or the waiting set moved.
 
         The active one first and its queue behind it, so a reader of the
         trace sees the request that was running end before the ones that were
@@ -1011,18 +1015,27 @@ class Dispatcher:
         in `_cleared`, when the sensors say the move it was already making is
         over. A placement does not defer: the person is saying where the train
         actually *is*, which answers the move the sensors never will.
+
+        The answer is what a caller sweeps on: a deferred cancellation frees
+        nothing and dequeues nothing, so there is nothing for a sweep to hand
+        anybody, and a train with nothing in flight moves nothing at all.
         """
         state = self._state
+        moved = False
         active = state.active.get(train)
         if active is not None:
             if defer and active.outstanding is not None:
                 active.request.cancelled = True
             else:
                 self._retire(train, active, reason)
+                moved = True
         for req in [req for req in self._pending if req.train == train]:
             self._pending.remove(req)
             self._publish("request_cancelled", {"id": req.id, "reason": reason})
-        self._settled()
+            moved = True
+        if moved:
+            self._settled()
+        return moved
 
     def _retire(self, train: str, active: Active, reason: Cancellation) -> None:
         """The active request ended: what it holds released, the train
