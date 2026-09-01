@@ -305,6 +305,38 @@ The bare end letter the value once was is retired
 ([#241](https://github.com/rails49/control/issues/241)): it is refused at
 load and refused in a state file, never read as a run.
 
+**Automatic / manual**:
+Who turns a train's throttle. Every train is one or the other and
+**automatic** at rest: taking a train in a **throttle** makes it manual and
+releasing it puts it back
+([#207](https://github.com/rails49/control/issues/207)). Held by `layout`,
+which is what a throttle's gestures reach, and published on
+`tc49/layout/state/mode`, where a train the map does not name is automatic. It
+names who drives and nothing more — a manual train is dispatched like any
+other, holding its block, still granted moves and moving only on a route the
+dispatcher allocated, with a person trusted to read the signal it is given.
+Neither the dispatcher nor the driver ever reads it.
+_Avoid_: hand control, taken over; and *mode* said of the **system**, which
+is **held** or **running** and a different thing on a different topic. An
+operator running a signal at stop is rogue operation this word does not cover
+and the system does not model.
+
+**Throttle**:
+The control a person drives a train with: a view of this repository's UI whose
+commands ride the bus as two gestures — `tc49/layout/mode_wanted`, which takes
+a train and gives it back, and `tc49/layout/throttle_wanted`, which is the
+throttle being turned. Gestures because there are any number of throttles —
+two tabs are two of them — where the device row one ends at has `layout` as
+its single writer
+([ADR-0035](docs/adr/0035-a-topic-has-one-writing-role.md),
+[#263](https://github.com/rails49/control/issues/263)). Its speed is signed
+for which way the train runs along its own length, nose-first positive, and
+its magnitude is the fraction of maximum, `0.0` being stop; which locomotive
+that reaches is `layout`'s, which reads the roster.
+_Avoid_: cab, controller, regulator. Not **traction**, which is what a
+decoder does with a speed, and not the **driver**, which is an app and reads
+an aspect.
+
 ### Dispatch
 
 **Request**:
@@ -526,13 +558,14 @@ translator. The `move` command states the **magnitude alone**, the driver
 having no way to know which way round a locomotive stands, and `layout` is
 what gives it the sign
 ([ADR-0025](docs/adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
-_Avoid_: throttle (a person's control, and a gesture later), motive power,
+_Avoid_: throttle (a person's control, which is its own entry), motive power,
 traction power (which is the track supply)
 
 **Enum**:
 A field whose values are a closed set the contract names, listed beside the
-field in `tc49.lib.inventory`. Two fields are enums: `run`, `held` or
-`running`, and `power`, `on`, `stopped` or `off`. The closed set goes wherever
+field in `tc49.lib.inventory`. Three fields are enums: `run`, `held` or
+`running`; `power`, `on`, `stopped` or `off`; and `mode`, `automatic` or
+`manual`. The closed set goes wherever
 the field goes — `run` is an enum on the run's own state topic and on the
 gesture that asks to move it — so a fresh value is a change to the contract
 and not a payload a reader tolerates.
@@ -540,7 +573,9 @@ Which way an unreadable value falls is not the field's but the reader's,
 decided by what a drop would cost: an unreadable `power` is read as `off` and
 holds the run, where dropping it would leave the run committing over track
 whose state could not be read; an unreadable `run` is dropped and nothing is
-set ([#175](https://github.com/rails49/control/issues/175)).
+set ([#175](https://github.com/rails49/control/issues/175)); an unreadable
+`mode` is dropped too, neither value being safe to invent for a train whose
+driver nobody could read.
 _Avoid_: word (the term this entry used until
 [#242](https://github.com/rails49/control/issues/242)), status. Not a
 **flag**, which is what [SYSTEM.md](docs/SYSTEM.md) calls a state topic
