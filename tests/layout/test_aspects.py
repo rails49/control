@@ -9,7 +9,14 @@ driving by eye, and neither of them wants an address.
 from tc49.layout import LayoutInterface
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
-from tests.layout.railroad import ASPECTS, WANTED_SIGNAL, build, heard, railroad
+from tests.layout.railroad import (
+    ASPECTS,
+    WANTED_SIGNAL,
+    Unstamped,
+    build,
+    heard,
+    railroad,
+)
 
 
 def signals(bus: Bus) -> list[tuple[str, Payload]]:
@@ -91,19 +98,6 @@ def test_every_end_is_written_again_on_every_picture() -> None:
     show(bus, {"up_w.B": "stop"})
 
     assert len(written) == 2
-
-
-class Unstamped(Bus):
-    """A bus that stamps nothing, so a value carries the stamp it was handed.
-
-    What a binding on the other side of a broker can put on a topic, and what
-    it takes to stage the reordering MQTT permits: the milestone-1 bus stamps
-    from a clock that only goes forwards, so a pair cannot arrive backwards
-    on it (ADR-0008, #240).
-    """
-
-    def _stamped(self, payload: Payload) -> Payload:
-        return payload
 
 
 def test_a_picture_older_than_the_one_held_is_ignored() -> None:
