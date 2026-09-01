@@ -905,13 +905,18 @@ publishes `align`
 ([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)), so a grant is
 all the driver needs in order to act.
 
-The grant carries the aspect and the driver ignores it. Turning an aspect into
-a speed would need `move` to carry a speed and transits to take time, both of
-which milestone 1 leaves out
-([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md),
-[MILESTONE-1.md](MILESTONE-1.md)). The grant payload already carries every
-field `move` needs, which is why the driver holds no state and reads no
-assets.
+The grant carries the aspect, and turning it into the speed the command
+states is the whole of the driver's judgement: `clear` is full speed, `caution`
+a fraction of it, and the mapping is two numbers injected at construction
+rather than a document or a schema
+([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+`stop` is not in it — a grant showing it is no permission to move — so a grant
+whose aspect the driver cannot price is dropped like any other it cannot act
+on, there being no speed to fall back on that the dispatcher authorised. What
+the driver publishes is a magnitude and never a direction, which is what keeps
+it a pure function of the aspect: the grant payload and those two numbers are
+between them every field `move` needs, so the driver holds no state and reads
+no assets.
 
 The grant is **read** and never trusted, exactly as a gesture is (rule 4): the
 leaf names the dispatcher because the dispatcher emits it, and a name is not a
@@ -953,7 +958,10 @@ address-and-position pairs, so an adapter throws what it is told and holds no
 table of its own. Those pairs come from the layout, derived from the addresses
 in the drawing
 ([ADR-0031](adr/0031-the-layout-carries-the-points-a-transit-needs.md)),
-rather than being kept by an adapter.
+rather than being kept by an adapter. A `move` carries a `speed` as well, and
+the interface is what gives that magnitude a sign: which way a train runs
+along the track is the transit's near end composed with the way round the
+locomotive stands, and both are facts this side of the boundary.
 
 One **obligation** comes with them: the layout interface must not act on a
 `move` before the `align` that names the same transit. The two commands have
@@ -1123,23 +1131,28 @@ components need answers to queries, and the bus has no request and reply.
 ### Beyond milestone 1
 
 The contracts above are what milestone 1 builds, and they are not final.
-[GOALS.md](GOALS.md) describes the whole system. Three decisions still to come
+[GOALS.md](GOALS.md) describes the whole system. Two decisions still to come
 will extend these contracts, and they are listed here so that no footprint
-above is read as the last word. A fourth has already landed: the scheduler
+above is read as the last word. Two others have already landed: the scheduler
 reads the layout and subscribes to `tc49/dispatch/#`, spent early on holding
 facing rather than on a generator
-([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
+([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)), and
+`move` carries a **speed**, which the driver derives from the aspect it was
+already handed, while the layout interface keeps the throttle up, watch the
+detector, stop loop where the braking curve and the detector geometry live
+([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md),
+[#283](https://github.com/rails49/control/issues/283)).
 
 | Growth | Why | Where |
 | --- | --- | --- |
-| `move` carries a **speed** | the driver decides how fast; the layout interface keeps throttle-up-watch-the-detector-stop, where the braking curve and detector geometry live | same |
 | The scheduler **invents traffic** | continual generated traffic has to name an idle train and a reachable destination, which is what it now reads the layout for; the dispatcher stays the single feasibility authority | [ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md) |
 | Transits **vary in length** on real steel | the simulator's fixed delays are its own stand-in for travel time, not the model's unit of time | [ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md) |
 
-None of the three adds a component, a writer or a query. Each lands on a
-topic that already exists, or on a state topic under a component that already
-writes there, so the single-writer rule, the split between event and state
-topics, and the prefix-filter rule all stand unchanged.
+Neither adds a component, a writer or a query, and neither did the speed:
+each lands on a topic that already exists, or on a state topic under a
+component that already writes there, so the single-writer rule, the split
+between event and state topics, and the prefix-filter rule all stand
+unchanged.
 
 One earlier change did not manage this, and is worth naming because the same
 claim was once made of it. Taking a person's gesture off a page added the `ui`

@@ -522,7 +522,10 @@ Moving a train: what a locomotive's decoder does with a **speed**, against the
 reaches. The distinction is what the two address shapes turn on. A speed is
 signed for direction along the track and its magnitude is the fraction of that
 locomotive's maximum, `0.0` being stop; a decoder step never leaves a
-translator.
+translator. The `move` command states the **magnitude alone**, the driver
+having no way to know which way round a locomotive stands, and `layout` is
+what gives it the sign
+([ADR-0025](docs/adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 _Avoid_: throttle (a person's control, and a gesture later), motive power,
 traction power (which is the track supply)
 

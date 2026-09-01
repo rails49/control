@@ -32,6 +32,13 @@ the physical order (ADR-0047). Both delays are configurable, private to
 this app, and never on any topic (ADR-0030). No RNG: transit times are
 fixed, so a run is reproducible by construction.
 
+The **speed** the command carries is ignored here for that same reason
+(#283): a delay this app chose is not a distance divided by a speed, so
+running the transit at 0.4 would take exactly as long as running it at 1.0
+and pretending otherwise would put a travel-time model in the one place
+ADR-0030 says the physical railroad decides. A binding that drives steel is
+where the field means something.
+
 One event queue, ordered by (time, sequence), advances the run clock
 (`tc49.lib.clock`), with the wait injected: batch (``run``) jumps the clock
 to the next scheduled event and stops when the queue is empty — nothing is
