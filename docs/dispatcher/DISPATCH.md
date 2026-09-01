@@ -280,14 +280,26 @@ The layout holds it too: `tc49/layout/state/power` arriving as anything but
 it is back
 ([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 
+**A reading no grant explains holds it too**
+([ADR-0048](../adr/0048-an-unexplained-reading-holds-the-run.md)). The
+dispatcher recovers train identity from its lock table, so a `block_occupied`
+with nothing claiming the block, or a `block_vacated` of a block it believes a
+train stands in, says the table has stopped describing the steel — a hand
+putting a locomotive down, a train pushed while the supply was off, a detector
+asserting on dirt. The run holds by the path power takes, and nothing is
+guessed: occupancy is anonymous, so there is no train to place. It does not
+raise, a payload never being a reason to leave the bus (SYSTEM.md, rule 4).
+
 **A held run also asks the detectors.** The sensor readings the layout has
 reported are compared against the placement, and the two contradictions — a
 train standing in a block that reads clear, a block reading occupied with
 nothing claiming it — go out on `tc49/dispatch/state/disputed` for a person to
 walk. Comparing commits nothing, and a reading that explains no granted move
-is the check's whole subject while the run is held. Blocks nothing has
-reported on take no part, so a layout binding that publishes no occupancy
-disputes nothing
+is the check's whole subject: it is also what held the run, so the reading
+that stopped the railroad is the entry the person is sent to. They place what
+they find and press GO — a block reading clear again releases nothing, exactly
+as power returning releases nothing. Blocks nothing has reported on take no
+part, so a layout binding that publishes no occupancy disputes nothing
 ([#153](https://github.com/rails49/control/issues/153)).
 
 **Lock footprint.** A train moving from `X` through `T` into `Y` holds

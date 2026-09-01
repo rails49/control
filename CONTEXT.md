@@ -366,9 +366,12 @@ granted, no lock taken — until a person releases it. The run's own state,
 ([ADR-0037](docs/adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 A brake and not an emergency stop: a move already granted runs to its sensor,
 and what keeps a railroad still after a power cut is track power, one layer
-down. The layout holds it too: `tc49/layout/state/power` arriving as anything
-but `on` sets `run` to `held`, and a release is refused until it is back
-([ADR-0041](docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
+down. The layout holds it too, in two ways: `tc49/layout/state/power` arriving
+as anything but `on` sets `run` to `held`, and a release is refused until it is
+back
+([ADR-0041](docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)),
+and an **unexplained reading** sets it the same way
+([ADR-0048](docs/adr/0048-an-unexplained-reading-holds-the-run.md)).
 Admission is untouched — requests queue up while held. A run **comes up
 held unless its own document stood its trains on the rails**: a restored
 session comes up held, so does the empty layout every operator's run starts
@@ -388,6 +391,20 @@ placement ([#153](https://github.com/rails49/control/issues/153)). A block
 the layout has said nothing about is neither: silence is not a clear reading.
 _Avoid_: mismatch, discrepancy, error. Not a **transit conflict**, which is
 two transits that may not be in use at once.
+
+**Unexplained reading**:
+A detector reading no granted move accounts for: a `block_occupied` with
+nothing claiming the block, or a `block_vacated` of a block the dispatcher
+believes a train stands in. Occupancy is anonymous, so the dispatcher reads
+identity off its lock table, and a reading the table cannot explain says the
+table has stopped describing the steel — a hand putting a locomotive down, a
+train pushed while the supply was off, a detector asserting on dirt. It
+**holds the run**, by the path track power takes, and what it contradicts is
+named in the **disputed** set for a person to walk
+([ADR-0048](docs/adr/0048-an-unexplained-reading-holds-the-run.md)). It never
+raises, and nothing is placed on the strength of it.
+_Avoid_: unexpected sensor, stray reading, phantom occupancy, false positive
+(which names one cause of a reading, not the reading)
 
 **Active / idle train**:
 A train is **active** while it has a committed route — launched, not yet
