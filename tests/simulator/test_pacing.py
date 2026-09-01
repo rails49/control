@@ -42,8 +42,8 @@ def build() -> tuple[Bus, Clock, Simulator, StringIO]:
     run's whole record — the power it states from its constructor included —
     is on the stream."""
     layout, _roster, scenario = load("crossover-yard/meet")
-    bus = Bus()
     clock = Clock()
+    bus = Bus(clock)
     out = StringIO()
     TraceTap(bus, out, clock)
     simulator = Simulator(

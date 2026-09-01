@@ -63,7 +63,7 @@ def move(bus: Bus, train: str, transit: str, into: str) -> None:
 def test_nothing_is_written_without_a_path(tmp_path: Path) -> None:
     """A benchmark run keeps no file, exactly as its bus opens none."""
     layout, _roster, scenario = load("crossover-yard/meet")
-    bus = Bus()
+    bus = Bus(Clock())
     sim = simulator(bus, layout, placement(scenario.trains))
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
     tick(sim)
@@ -76,7 +76,7 @@ def test_a_moved_train_is_written_where_it_now_stands(tmp_path: Path) -> None:
     is where every train is and not a log of how it got there."""
     layout, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
-    bus = Bus()
+    bus = Bus(Clock())
     sim = simulator(bus, layout, placement(scenario.trains), path)
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
     tick(sim)
@@ -91,12 +91,12 @@ def test_a_restarted_simulator_starts_from_the_file(tmp_path: Path) -> None:
     layout, _roster, scenario = load("crossover-yard/meet")
     stood = placement(scenario.trains)
     path = tmp_path / "placement.json"
-    first = Bus()
+    first = Bus(Clock())
     moved = simulator(first, layout, stood, path)
     move(first, "freight_1", "west_ladder.to_dn", "dn_w")
     tick(moved)
 
-    second = Bus()
+    second = Bus(Clock())
     restarted = simulator(second, layout, stood, path)
     seen = sensors(second)
     move(second, "freight_1", "crossover.dn_straight", "dn_e")
@@ -114,7 +114,7 @@ def test_a_hand_that_lifts_a_train_moves_the_steel_under_it(tmp_path: Path) -> N
     sensors would describe a railroad nobody is on."""
     layout, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
-    bus = Bus()
+    bus = Bus(Clock())
     sim = simulator(bus, layout, placement(scenario.trains), path)
     bus.publish("tc49/dispatch/train_placed", {"train": "freight_1", "block": "up_w"})
     bus.drain()
@@ -136,7 +136,7 @@ def test_a_hand_that_lifts_a_train_off_the_layout_takes_the_steel_with_it(
     when a train crosses, and this train crosses nothing now."""
     layout, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
-    bus = Bus()
+    bus = Bus(Clock())
     simulator(bus, layout, placement(scenario.trains), path)
     seen = sensors(bus)
 
@@ -154,7 +154,7 @@ def test_the_file_names_the_steel_no_document_placed(tmp_path: Path) -> None:
     layout, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
     path.write_text(json.dumps({"shunter": "up_w"}))
-    bus = Bus()
+    bus = Bus(Clock())
     sim = simulator(bus, layout, placement(scenario.trains), path)
 
     seen = sensors(bus)

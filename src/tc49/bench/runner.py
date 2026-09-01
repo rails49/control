@@ -122,9 +122,9 @@ def assemble(
     make_strategy: StrategyFactory = FullRoute,
     k: int = DEFAULT_K,
 ) -> Assembly:
-    bus = Bus()
-    out = io.StringIO()
     clock = Clock()
+    bus = Bus(clock)
+    out = io.StringIO()
     TraceTap(bus, out, clock)
     stood = placement(scenario.trains)
     Scheduler(bus, layout, facing(layout, scenario.trains), scenario.requests)
@@ -173,9 +173,9 @@ def assemble_live(
     """
     document = trains or {}
     stood = placement(document)
-    bus = Bus(state)
-    out = io.StringIO()
     clock = Clock()
+    bus = Bus(clock, state)
+    out = io.StringIO()
     TraceTap(bus, out, clock)
     Scheduler(bus, layout, facing(layout, document))
     dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))

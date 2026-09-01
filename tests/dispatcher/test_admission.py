@@ -21,6 +21,7 @@ from tc49.bench.runner import DEFAULT_K, Assembly, assemble_live, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib import durable
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.scenario import Scenario, TrainSpec
 from tests.harness import events, load, stock
 
@@ -130,7 +131,7 @@ def test_a_payload_that_is_not_an_object_at_all_is_dropped() -> None:
     honest publisher cannot produce it, and the one that can is a client, on
     the topic the tap records verbatim."""
     layout, roster, scenario = load("crossover-yard/meet")
-    bus = Bus()
+    bus = Bus(Clock())
     seen: list[Payload] = []
     bus.subscribe("tc49/dispatch/request_rejected", lambda _, p: seen.append(p))
     Dispatcher(

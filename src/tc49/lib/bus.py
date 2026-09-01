@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from tc49.lib import durable
+from tc49.lib.clock import Clock
 from tc49.lib.inventory import is_state_topic
 
 Payload = dict[str, Any]
@@ -34,10 +35,16 @@ _Subscription = tuple[str, Handler]
 
 
 class Bus:
-    def __init__(self, state: Path | None = None) -> None:
-        """`state`: where the retained values live between sessions, or None
+    def __init__(self, clock: Clock, state: Path | None = None) -> None:
+        """`clock`: the run clock, which the binding reads as it publishes.
+        Required rather than defaulted, because a bus given none would stamp
+        every state value alike and the ordering the stamp is for would
+        quietly stop working wherever one was constructed (#240).
+
+        `state`: where the retained values live between sessions, or None
         to keep them in memory alone. A path naming no file yet is the first
         session of all, and starts empty."""
+        self._clock = clock
         self._subscriptions: list[_Subscription] = []
         self._queue: deque[tuple[str, Payload, _Subscription | None]] = deque()
         self._state = state
