@@ -313,7 +313,9 @@ of a set of **arrival ends**. Rejected if no arrival end survives — none fits
 the train, or none is reachable — or if it states a departure block the train is
 not standing in; otherwise accepted and queued. A rejection is an answer on the
 bus, never an exception, since the submitter may be a browser
-([ADR-0021](docs/adr/0021-a-bad-request-is-answered-not-raised.md)).
+([ADR-0021](docs/adr/0021-a-bad-request-is-answered-not-raised.md)). It ends
+three ways and no others: by **arrival**, by that rejection, or by
+**cancellation**.
 _Avoid_: order, job, working. The sweep keeps `workings` — the axis, the
 `sweep-<n>t-<n>w` row key and the stored results
 ([BENCHMARKS.md](docs/bench/BENCHMARKS.md)) — because that is a frozen data
@@ -388,6 +390,22 @@ scenario file.
 _Avoid_: paused, stopped, frozen. Not the `held` **grant_refused** reason,
 which says a resource is locked by another train: a different thing, on a
 different topic, about one request rather than the run.
+
+**Cancellation**:
+A request ended without the train arriving, because a person said so: they
+cancelled it outright, or they said where the train actually is and the
+placement retired it under them
+([ADR-0049](docs/adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
+The gesture names a **train** and no request, and ends everything that train
+has, pending and active. What the request held is released except the block
+the train stands in, which is its **standing lock**; a cancellation caught
+mid-transit waits for the sensors that end the move, nothing on the bus
+retracting a `move` already sent. The reason is `revoked`, `removed` or
+`displaced`, and it says which gesture ended the request rather than why the
+railroad could not finish it.
+_Avoid_: abort, kill, delete, revoke as the general word (it is one of the
+three reasons). Not a **rejection**, which refuses a request before it is
+queued and is an answer to whoever submitted it.
 
 **Disputed**:
 Where the placement and the detectors contradict each other, named while the
