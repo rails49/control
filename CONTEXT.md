@@ -493,6 +493,39 @@ happened and is never replayed; a state topic is last-value-wins, delivered
 to late subscribers, and marked in the path (`…/state/<name>`).
 _Avoid_: retained message (the MQTT mechanism, not the model concept)
 
+**Device vocabulary**:
+The retained state topics under `tc49/layout/state/wanted/` naming what one
+device should do — a locomotive's speed and functions, a point's position, a
+signal's aspect, the track's power. `layout` writes them and a **translator**,
+one app per hardware system, acts on every address it recognises; the rest of
+the system never names a device, `align` and `move` naming a transit
+([ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
+The desired half is `tc49.lib.inventory.DEVICE_TOPICS`; the observed half,
+written back by whatever the hardware reports through, is the other.
+_Avoid_: device layer, hardware topics, driver (which names an app)
+
+**Address** (on a device topic):
+The trailing levels of a device topic, repeated in the payload as `addr`. Two
+shapes, and which one a row takes is physical: a **traction** or function
+address is bare, and a **point** or signal address names its system first,
+`<system>/<addr>` — fixed wiring can be split across systems and traction
+cannot (ADR-0043, refined by
+[ADR-0045](docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+Not a leaf: the row is the topic above the address, which is what
+`split_device` takes apart. `wanted/track` carries none, there being one
+railroad-wide desired power.
+_Avoid_: id, suffix, path
+
+**Traction**:
+Moving a train: what a locomotive's decoder does with a **speed**, against the
+**fixed wiring** — points and signals — that is the other thing an address
+reaches. The distinction is what the two address shapes turn on. A speed is
+signed for direction along the track and its magnitude is the fraction of that
+locomotive's maximum, `0.0` being stop; a decoder step never leaves a
+translator.
+_Avoid_: throttle (a person's control, and a gesture later), motive power,
+traction power (which is the track supply)
+
 **Enum**:
 A field whose values are a closed set the contract names, listed beside the
 field in `tc49.lib.inventory`. Two fields are enums: `run`, `held` or
