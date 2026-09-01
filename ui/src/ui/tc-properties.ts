@@ -19,7 +19,11 @@
  * A block's key is the name it is known by everywhere: on the canvas, in the
  * netlist, and as the prefix of every transit id in a trace. Renaming one is a
  * real change and every wire that names its pins is rewritten with it, which
- * is why they are minted short.
+ * is why they are minted short. A block is asked for one thing more: the
+ * address of the signal standing at each of its ends, where one stands there.
+ * That is fixed wiring like a turnout motor, typed where the person who knows
+ * the address is (ADR-0022), and an end left empty carries no signal rather
+ * than one with an empty address.
  *
  * **Transit names are not edited here.** A drawing can still write one on a
  * symbol's leg and derivation honours it, but the dialog does not offer it: a
@@ -43,6 +47,7 @@ import {
   type AnyKind,
   type SymbolSpec,
 } from "../model/drawing.js";
+import { PINS } from "../symbols.generated.js";
 import { propertiesStyles } from "./tc-properties.styles.js";
 
 /** What the dialog hands back: a new name where it changed, and the spec. */
@@ -154,6 +159,29 @@ export class TcProperties extends LitElement {
           };
         }}
       ></sl-input>
+      ${PINS.block.map((end) => this.signal(end))}
+    `;
+  }
+
+  /** The address of the signal at one end of a block. One field per end, in
+   *  end order, so which end is being addressed is read rather than worked
+   *  out; empty is an end no signal stands at. */
+  private signal(end: string) {
+    return html`
+      <sl-input
+        label="Signal at ${end}"
+        help-text="What the signal at this end answers to, its system first. Empty where no signal stands there."
+        value=${this.draft.signals?.[end] ?? ""}
+        @sl-input=${(event: Event) => {
+          this.draft = {
+            ...this.draft,
+            signals: {
+              ...this.draft.signals,
+              [end]: (event.target as HTMLInputElement).value,
+            },
+          };
+        }}
+      ></sl-input>
     `;
   }
 
@@ -197,13 +225,21 @@ export function editable(kind: AnyKind): boolean {
 
 /** Drop what the drawing schema would refuse: an empty label is not a name,
  *  and an empty mapping is a key the file does not need. A cleared address is
- *  no address rather than an empty one — a drawing with none is valid. */
+ *  no address rather than an empty one — a drawing with none is valid, and an
+ *  end whose signal field was left empty carries no signal. */
 function tidy(spec: SymbolSpec): SymbolSpec {
   const tidied: SymbolSpec = { ...spec };
   if (!tidied.label) delete tidied.label;
   if (!tidied.addr) delete tidied.addr;
   if (tidied.names && Object.keys(tidied.names).length === 0) {
     delete tidied.names;
+  }
+  if (tidied.signals) {
+    const signals = Object.fromEntries(
+      Object.entries(tidied.signals).filter(([, addr]) => addr !== ""),
+    );
+    if (Object.keys(signals).length === 0) delete tidied.signals;
+    else tidied.signals = signals;
   }
   return tidied;
 }
