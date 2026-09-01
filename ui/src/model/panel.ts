@@ -30,6 +30,11 @@ import type { Gesture, Power, Run, Submission, TraceEvent } from "./trace.js";
 /** A block end, written `<block>.<end>` as the bus writes it. */
 export type EndRef = string;
 
+/** A train's facing, written `<block>.A-to-B` or `<block>.B-to-A` as the
+ *  scheduler publishes it: the run the train would make across its block,
+ *  which says which way it points without a convention to look up (#241). */
+export type FacingRef = string;
+
 /**
  * How strong a claim the dispatcher has on a resource a route runs over:
  * `locked` where it holds the lock and the train may move, `committed` where
@@ -238,6 +243,12 @@ export function endOf(end: EndRef): string {
   return end.slice(end.lastIndexOf(".") + 1);
 }
 
+/** The end of its block a facing points at: the `B` of `<block>.A-to-B`, and
+ *  the end the direction arrow reads from. */
+export function noseOf(facing: FacingRef): string {
+  return endOf(facing).split("-to-")[1];
+}
+
 export class Panel {
   /** resource → holding train: blocks and transits alike, the lock ledger. */
   private locks = new Map<string, string>();
@@ -253,8 +264,8 @@ export class Panel {
    *  block the sensors last confirmed it in, and this is the whole of what
    *  says it has left (#154). */
   private crossing = new Map<string, string>();
-  /** train → the block it faces out of and the end it faces, as the
-   *  scheduler last said. Read, never derived: facing is scheduler state
+  /** train → the block it faces out of and the end its facing runs to, as
+   *  the scheduler last said. Read, never derived: facing is scheduler state
    *  (ADR-0019), and the topic carries it whole. */
   private heading = new Map<string, { block: string; toward: string }>();
   /** The trains and the blocks the detectors dispute, as the dispatcher last
@@ -474,16 +485,19 @@ export class Panel {
         return;
       }
       case "facing": {
-        // The scheduler's whole answer, last-value-wins: which end of which
-        // block each train would depart through nose-first. The panel renders
-        // it as the direction arrow and derives none of it — a train that has
-        // never moved has an arrow for the same reason a moved one does
+        // The scheduler's whole answer, last-value-wins: the run each train
+        // would make across the block it stands in, whose far end is the one
+        // it would depart through nose-first. The panel renders that as the
+        // direction arrow and derives none of it — a train that has never
+        // moved has an arrow for the same reason a moved one does
         // (ADR-0036).
-        const { facing } = event as unknown as { facing: Record<string, EndRef> };
+        const { facing } = event as unknown as {
+          facing: Record<string, FacingRef>;
+        };
         this.heading = new Map(
-          Object.entries(facing).map(([train, end]) => [
+          Object.entries(facing).map(([train, run]) => [
             train,
-            { block: blockOf(end), toward: endOf(end) },
+            { block: blockOf(run), toward: noseOf(run) },
           ]),
         );
         return;

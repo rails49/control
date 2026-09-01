@@ -27,6 +27,7 @@ from typing import Any, cast
 import yaml
 
 from tc49.lib.layout import (
+    FACINGS,
     Layout,
     as_mapping,
     block_of,
@@ -34,6 +35,7 @@ from tc49.lib.layout import (
     check_keys,
     check_length,
     check_name,
+    facing_ends,
 )
 from tc49.lib.roster import Roster, Train
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
@@ -181,18 +183,23 @@ class AssetStore:
                     f"{where}: train '{train}' starts at unknown block '{at}'"
                 )
             facing = spec["facing"]
-            if facing not in ("A", "B"):
+            # The end letter this once was is refused rather than read: one
+            # vocabulary, and a document written for an older build says
+            # something the new one would take the other way round (#241).
+            if facing not in FACINGS:
                 raise ValueError(
-                    f"{where}: train '{train}' facing must be 'A' or 'B',"
+                    f"{where}: train '{train}' facing must be"
+                    f" {' or '.join(repr(one) for one in FACINGS)},"
                     f" got {facing!r}"
                 )
             # A placement is what every later request is composed from, so an
             # end no connection holds is a train that can never leave (#145).
             # A *request* may still state one — facing is a discipline, not an
             # invariant (ADR-0019), and file scenarios keep that freedom.
-            if f"{at}.{facing}" not in layout.end_connection:
+            nose = facing_ends(f"{at}.{facing}")[1]
+            if nose not in layout.end_connection:
                 raise ValueError(
-                    f"{where}: train '{train}' faces end '{at}.{facing}',"
+                    f"{where}: train '{train}' faces end '{nose}',"
                     f" which no connection holds"
                 )
             trains[train] = TrainSpec(at, facing)

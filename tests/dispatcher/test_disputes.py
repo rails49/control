@@ -69,7 +69,10 @@ def restored(
             scenario,
             trains={
                 **scenario.trains,
-                **{train: TrainSpec(at=at, facing="A") for train, at in added.items()},
+                **{
+                    train: TrainSpec(at=at, facing="B-to-A")
+                    for train, at in added.items()
+                },
             },
         )
     bus = Bus(path)

@@ -286,16 +286,24 @@ _Avoid_: closet, positioned. *Not on the layout* is the same state said a
 second way, and the state has one phrase.
 
 **Facing**:
-The end of its block through which a parked train would depart nose-first.
+The run a parked train would make across its block, written **`A-to-B`** or
+**`B-to-A`** — a train facing `A-to-B` would depart nose-first through B.
+Said as the run and not as the end reached, so the value can be read without
+the convention in front of you; the end is one question away
+(`lib.layout.departure_end`) and the two spellings are one fact.
 Declared with initial placement and thereafter determined by three rules:
 routes are strict pass-throughs, so a train faces away from the end it
-entered through; on a **terminal block** there is no such end, and facing is
-its one connected end whatever a placement or a route would say; and
-deliberate reversal at rest is the one change routes do not account for. Held
-by the scheduler and published on its own state topic, which every view reads
-to draw a train's direction. Not dispatcher state — a request's departure end
-carries everything the dispatcher needs, and may contradict facing.
-_Avoid_: direction (ambiguous with travel direction), heading, orientation
+entered through; on a **terminal block** there is no end to face away
+towards, and facing is the run that departs by its one connected end whatever
+a placement or a route would say; and deliberate reversal at rest is the one
+change routes do not account for. Held by the scheduler and published on its
+own state topic as `<block>.A-to-B`, which every view reads to draw a train's
+direction. Not dispatcher state — a request's departure end carries
+everything the dispatcher needs, and may contradict facing.
+_Avoid_: direction (ambiguous with travel direction), heading, orientation.
+The bare end letter the value once was is retired
+([#241](https://github.com/rails49/control/issues/241)): it is refused at
+load and refused in a state file, never read as a run.
 
 ### Dispatch
 

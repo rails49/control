@@ -186,9 +186,9 @@ def test_a_request_for_a_train_off_the_layout_is_answered(tmp_path: Path) -> Non
         name="unplaced",
         layout="crossover-yard",
         trains={
-            "freight_1": TrainSpec("yard_w", "B"),
-            "railcar_3": TrainSpec("dn_w", "A"),
-            "leviathan": TrainSpec("dn_e", "A"),
+            "freight_1": TrainSpec("yard_w", "A-to-B"),
+            "railcar_3": TrainSpec("dn_w", "B-to-A"),
+            "leviathan": TrainSpec("dn_e", "B-to-A"),
         },
         requests=(),
     )

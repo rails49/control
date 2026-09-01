@@ -19,12 +19,14 @@ and carried forward from the bus: a train faces away from the end it entered
 through, and a committed route's departure end is the end it will leave by.
 That is what the layout read is for — `move_granted` names a transit and the
 block entered, not the end entered through — and why the scheduler subscribes
-`tc49/dispatch/#` (ADR-0028's growth, spent on facing). Into a terminal block
-there is no end to face away towards, so arrival goes through `departure_end`
-and seeding through the `connected_end` under it, which corrects a candidate
-that names a wall (#145). The last-value topic it publishes is what every
-view reads to draw a direction arrow, a train that has never moved having no
-other source for one. Where the bus binding has kept that topic across a
+`tc49/dispatch/#` (ADR-0028's growth, spent on facing). What it holds per
+train is `lib`'s facing: the run the train would make across its block,
+`<block>.A-to-B` or `<block>.B-to-A`, out of which a drag's departure end is
+read (#241). Into a terminal block there is no end to face away towards, so
+arrival goes through `departure_end` and seeding through `connected_facing`,
+which turns a candidate off a wall (#145). The last-value topic it publishes
+is what every view reads to draw a direction arrow, a train that has never
+moved having no other source for one. Where the bus binding has kept that topic across a
 restart the scheduler adopts what it finds there instead of the placement,
 which is what a broker that outlived it would have delivered (#123).
 Deliberate reversal at rest is the one change routes do not account for, and
@@ -37,11 +39,15 @@ from typing import cast
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import (
+    FACINGS,
     Layout,
     connected_end,
+    connected_facing,
     departure_end,
     end_crossed,
     end_letter,
+    facing_ends,
+    facing_towards,
 )
 from tc49.lib.payload import (
     chosen,
@@ -65,26 +71,26 @@ class Scheduler:
         timetable: Sequence[RequestSpec] = (),
     ) -> None:
         """`facing` is where a run built from a document says its trains point,
-        train to the end it would leave by, and `timetable` is that document's
-        request list. Both are the harness's: a run an operator drives is given
-        neither, and its facing arrives with the placements a person makes
-        (ADR-0036 — which sources a run has is configuration, not a rule).
+        train to the run it would make across its block, and `timetable` is
+        that document's request list. Both are the harness's: a run an
+        operator drives is given neither, and its facing arrives with the
+        placements a person makes (ADR-0036 — which sources a run has is
+        configuration, not a rule).
         """
         self._bus = bus
         self._layout = layout
         # Facing as the last session left it, where the bus binding kept it
         # across the process: the scheduler's own state topic, found waiting
         # exactly as it would be against a broker that outlived the app
-        # (#123). It comes first, and for every train it names — including one
-        # no document places, which a person put on the rails by hand
-        # (ADR-0039); dropping that one would leave its drags uncomposable
-        # for want of a departure end. The seed above it is a cold start's,
-        # and a train the retained value does not name — one added since — is
+        # (#123). It comes first, and for every train `_kept` can read it for
+        # — including one no document places, which a person put on the rails
+        # by hand (ADR-0039); dropping that one would leave its drags
+        # uncomposable for want of a departure end. The seed above it is a
+        # cold start's, and a train the retained value does not name — one
+        # added since, or one it names in a spelling this build refuses — is
         # a cold start of one.
-        restored = bus.last_values.get(FACING, {}).get("facing", {})
-        self._facing: dict[str, str] = dict(sorted((facing or {}).items())) | dict(
-            sorted(cast(dict[str, str], restored).items())
-        )
+        restored = _kept(bus.last_values.get(FACING))
+        self._facing: dict[str, str] = dict(sorted((facing or {}).items())) | restored
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
         self._counters: Counter[str] = Counter()  # one undivided minter
         self._published: Payload = {}  # the facing last sent, so only changes go
@@ -138,16 +144,19 @@ class Scheduler:
 
         A gesture names a train and where to put it; the two fields it omits
         are the two the scheduler owns — the id it mints and the departure
-        end it holds as facing (ADR-0036). It judges nothing else: a train
-        that is not idle is composed and submitted like any other, and
-        answered `wrong_origin` or queued.
+        end it reads off the facing it holds (ADR-0036). A facing is the run
+        the train would make across its block and the departure end is the
+        end that run comes out at, which is `lib`'s question (#241). It
+        judges nothing else: a train that is not idle is composed and
+        submitted like any other, and answered `wrong_origin` or queued.
         """
         wanted = gesture(payload)
         if wanted is None:
             return
-        depart = self._facing.get(wanted.train)
-        if depart is None:  # a train this session does not hold
+        facing = self._facing.get(wanted.train)
+        if facing is None:  # a train this session does not hold
             return
+        depart = departure_end(self._layout, facing)
         self._counters[wanted.train] += 1
         self._submit(
             {
@@ -174,14 +183,14 @@ class Scheduler:
         A **rejected** request leaves the train idle — `_train_of` has dropped
         it — and that is precisely when you want to turn around.
 
-        The flip goes through `lib`'s `departure_end`, asked of the facing
-        itself: a train turned around departs as though it had entered
-        through the end it was facing. So a terminal block is a no-op rather
-        than a train pointed at the wall (#145): there is one end it can
-        leave by either way, and facing never names an end that leads
-        nowhere. Without it the gesture reaches the state `validate_scenario`
-        refuses at load, and the next drag departs by the wall and is
-        rejected `unreachable` for the rest of the session.
+        A train turned around leaves by the end it had been standing with
+        its tail at, and the flip goes through `lib`'s `connected_end` on the
+        way: on a terminal block that end is the wall, so the gesture is a
+        no-op rather than a train pointed at it (#145) — there is one end a
+        stub can be left by either way, and facing never names an end that
+        leads nowhere. Without that the gesture reaches the state
+        `validate_scenario` refuses at load, and the next drag departs by the
+        wall and is rejected `unreachable` for the rest of the session.
         """
         train = named_train(payload)
         if train is None:
@@ -191,7 +200,8 @@ class Scheduler:
             return
         if train in self._train_of.values():  # a request in flight
             return
-        self._facing[train] = departure_end(self._layout, facing)
+        tail, _ = facing_ends(facing)
+        self._facing[train] = facing_towards(connected_end(self._layout, tail))
         self._publish_facing()
 
     # -- facing ------------------------------------------------------------
@@ -265,7 +275,7 @@ class Scheduler:
         entered = end_crossed(self._layout, move.into, move.transit)
         if entered is None:  # not a transit into that block on this railroad
             return
-        self._facing[move.train] = departure_end(self._layout, entered)
+        self._facing[move.train] = facing_towards(departure_end(self._layout, entered))
 
     def _launched(self, payload: Payload) -> None:
         """Facing after a route was committed: the end it will leave by.
@@ -288,7 +298,7 @@ class Scheduler:
         departure = end_crossed(self._layout, launch.route[0], launch.route[1])
         if departure is None:  # not a transit off that block on this railroad
             return
-        self._facing[train] = departure
+        self._facing[train] = facing_towards(departure)
 
     def _placed(self, train: str, block: str) -> None:
         """Facing after a person has said where a train actually stands.
@@ -296,25 +306,46 @@ class Scheduler:
         The scheduler follows `train_placed` and never `placement_wanted`:
         whether the block was free is knowledge only the dispatcher has, and
         two apps reading one gesture would have to agree on every
-        precondition (ADR-0037). The end letter is carried into the new
-        block, which is arbitrary — the layout is topological and there is
-        nothing better to derive from — and `reversal_wanted` is the
-        correction where it lands the wrong way round (ADR-0019).
+        precondition (ADR-0037). The facing is carried into the new block,
+        which is arbitrary — the layout is topological and there is nothing
+        better to derive from — and `reversal_wanted` is the correction where
+        it lands the wrong way round (ADR-0019).
 
-        A train that was **off the layout** has no letter to carry, so it
-        gets `A` and the same correction: it is one more arbitrary choice of
+        A train that was **off the layout** has none to carry, so it gets
+        `B-to-A` and the same correction: it is one more arbitrary choice of
         the kind the carry already is, and the dispatcher accepting the
         placement is what says the train is known (ADR-0039).
         """
         facing = self._facing.get(train)
-        letter = "A" if facing is None else end_letter(facing)
-        self._facing[train] = connected_end(self._layout, f"{block}.{letter}")
+        run = "B-to-A" if facing is None else end_letter(facing)
+        self._facing[train] = connected_facing(self._layout, f"{block}.{run}")
 
     def _publish_facing(self) -> None:
         facing = {"facing": dict(sorted(self._facing.items()))}
         if facing != self._published:
             self._published = facing
             self._bus.publish(FACING, facing)
+
+
+def _kept(retained: Payload | None) -> dict[str, str]:
+    """The facing a previous session left on the state topic, **read** rather
+    than adopted whole (#123).
+
+    A retained value is a payload like any other and this one may have been
+    written by an older build, so a value outside the vocabulary is dropped
+    and the train falls back to what its placement gives — the seed under it
+    where a document places it, and no facing at all until a person places it
+    where none does (#241). Guessing which way round an `A` meant is the one
+    thing that must not happen: it would be the reading turned around.
+    """
+    values = retained.get("facing") if isinstance(retained, dict) else None
+    if not isinstance(values, dict):
+        return {}
+    held: dict[str, str] = {}
+    for train, facing in sorted(cast(dict[str, object], values).items()):
+        if isinstance(facing, str) and end_letter(facing) in FACINGS:
+            held[train] = facing
+    return held
 
 
 def _expand(arrivals: tuple[str, ...]) -> list[str]:

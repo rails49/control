@@ -137,7 +137,7 @@ scenario: meet
 layout: crossover-yard
 
 trains:
-  freight_1: { at: yard_w, facing: B }
+  freight_1: { at: yard_w, facing: A-to-B }
 
 requests:
   - { train: freight_1, from: yard_w.B, to: [dn_e, up_e] }
@@ -169,10 +169,14 @@ requests:
   and `to: [yard_w.B]` is one. The list is **unordered**: the entries are
   equally acceptable and route selection decides between them, so writing a
   preferred track first has no effect.
-- **`facing` is declared, then derived.** It is the end of `at` the train
-  would depart through nose-first ([CONTEXT.md](../../CONTEXT.md#stock)) —
-  `A` or `B`, required at placement, and refused at load where no connection
-  holds the end it names — a train facing a wall could never leave. Routes are
+- **`facing` is declared, then derived.** It is the run the train would make
+  across `at` ([CONTEXT.md](../../CONTEXT.md#stock)) — `A-to-B` or `B-to-A`,
+  required at placement, `A-to-B` meaning it would depart nose-first through
+  that block's `B` end. Refused at load where no connection holds the end it
+  would depart through — a train facing a wall could never leave — and
+  refused there too where it is written as the bare end letter this key
+  carried before [#241](https://github.com/rails49/control/issues/241), which
+  is not read as anything now. Routes are
   strict pass-throughs
   ([ADR-0001](../adr/0001-no-reversal-within-a-route.md)), so after placement
   facing follows from the routes run and only a scheduler tracks it: the

@@ -69,12 +69,13 @@ function panel(): Panel {
   return new Panel(LAYOUT, EXPLAIN, WIRES);
 }
 
-/** The scheduler's facing topic, which is where every arrow comes from. */
-function facing(...ends: string[]): Partial<TraceEvent> {
+/** The scheduler's facing topic, which is where every arrow comes from: one
+ *  run across a block per train, `t1` first (#241). */
+function facing(...runs: string[]): Partial<TraceEvent> {
   return {
     event: "facing",
     facing: Object.fromEntries(
-      ends.map((end, at) => [`t${at + 1}`, end] as const),
+      runs.map((run, at) => [`t${at + 1}`, run] as const),
     ),
   };
 }
@@ -604,12 +605,12 @@ describe("the run's picture", () => {
     // live frame (ADR-0032), and neither writes the other's half: the
     // picture stands the trains, the scheduler's topic turns them.
     const model = panel();
-    feed(model, facing("b.B"), PICTURE);
+    feed(model, facing("b.A-to-B"), PICTURE);
     expect(model.blocks().get("a")).toMatchObject({ state: "free" });
     expect(model.blocks().get("b")).toMatchObject({ train: "t1", toward: "B" });
 
     const other = panel();
-    feed(other, PICTURE, facing("b.B"));
+    feed(other, PICTURE, facing("b.A-to-B"));
     expect(other.blocks().get("b")).toMatchObject({ train: "t1", toward: "B" });
   });
 
@@ -678,7 +679,7 @@ describe("facing", () => {
   it("turns each train where the topic says, on the block it names", () => {
     const model = panel();
     placed(model);
-    feed(model, facing("a.B"));
+    feed(model, facing("a.A-to-B"));
     expect(model.blocks().get("a")).toMatchObject({
       state: "occupied",
       train: "t1",
@@ -691,8 +692,8 @@ describe("facing", () => {
     feed(
       model,
       { event: "allocation", trains: { t1: "a", t2: "c" }, locks: {}, requests: [] },
-      facing("a.B", "c.B"),
-      { event: "facing", facing: { t1: "a.A" } },
+      facing("a.A-to-B", "c.A-to-B"),
+      { event: "facing", facing: { t1: "a.B-to-A" } },
     );
     expect(model.blocks().get("a")).toMatchObject({ train: "t1", toward: "A" });
     expect(model.blocks().get("c")?.toward).toBeUndefined();
@@ -705,7 +706,7 @@ describe("facing", () => {
     // arrow on this one.
     const model = panel();
     placed(model);
-    feed(model, facing("b.B"));
+    feed(model, facing("b.A-to-B"));
     expect(model.blocks().get("a")).toMatchObject({ state: "occupied", train: "t1" });
     expect(model.blocks().get("a")?.toward).toBeUndefined();
     feed(
@@ -720,7 +721,7 @@ describe("facing", () => {
   it("forgets it on reset, as it forgets everything else", () => {
     const model = panel();
     placed(model);
-    feed(model, facing("a.B"));
+    feed(model, facing("a.A-to-B"));
     model.reset();
     feed(model, { event: "lock_granted", train: "t1", resources: ["a"] });
     expect(model.blocks().get("a")?.toward).toBeUndefined();
@@ -978,7 +979,7 @@ describe("a crossing train", () => {
     // lock is still held there — but the train is not standing in it, so the
     // block wears the lock's colour and neither the name nor the arrow.
     const model = panel();
-    feed(model, facing("a.B"), CROSSING);
+    feed(model, facing("a.A-to-B"), CROSSING);
     expect(model.blocks().get("a")).toEqual({ state: "locked", train: "t1" });
     expect(model.blocks().get("b")).toMatchObject({ state: "locked" });
   });

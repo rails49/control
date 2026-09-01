@@ -164,7 +164,10 @@ def test_there_is_no_timetable_and_facing_is_still_published(
     assert events(assembly.trace, "request_submitted") == []
     assert events(assembly.trace, "route_chosen") == []
     [placed] = events(assembly.trace, "facing")
-    assert placed["facing"] == {"express_2": "up_e.A", "freight_1": "yard_w.B"}
+    assert placed["facing"] == {
+        "express_2": "up_e.B-to-A",
+        "freight_1": "yard_w.A-to-B",
+    }
 
 
 def test_the_session_survives_every_gesture_it_cannot_compose(
@@ -319,7 +322,10 @@ def test_a_reversal_turns_the_arrow_and_asks_the_dispatcher_for_nothing(
         time.sleep(0.01)
 
     turned = events(assembly.trace, "facing")[-1]
-    assert turned["facing"] == {"express_2": "up_e.B", "freight_1": "yard_w.B"}
+    assert turned["facing"] == {
+        "express_2": "up_e.A-to-B",
+        "freight_1": "yard_w.A-to-B",
+    }
     assert events(assembly.trace, "request_submitted") == []
     assert len([one for one in events(assembly.trace) if "id" in one]) == dispatched
 
@@ -407,7 +413,7 @@ def test_a_client_names_the_railroad_and_the_session_builds_it(
             "train": "freight_1",
             "block": "yard_w",
         }
-        assert payload_of(client, "facing")["facing"] == {"freight_1": "yard_w.B"}
+        assert payload_of(client, "facing")["facing"] == {"freight_1": "yard_w.A-to-B"}
 
 
 def test_the_same_path_rejoins_the_run_already_going(session: Session) -> None:

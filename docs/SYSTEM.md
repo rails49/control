@@ -311,7 +311,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
-| `tc49/schedule/state/facing` | state | scheduler | the end each train would depart through |
+| `tc49/schedule/state/facing` | state | scheduler | the run each train would make across its block |
 | `tc49/dispatch/request_submitted` | event | any | a request, composed and released |
 | `tc49/dispatch/run_wanted` | event | any (browser) | hold the run or release it |
 | `tc49/dispatch/placement_wanted` | event | any (browser) | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
@@ -411,8 +411,12 @@ is dropped.
 - `tc49/schedule/reversal_wanted` — browser-writable — `train`.
 - `tc49/schedule/state/exhausted` — `exhausted`: boolean, `true` once the
   last timetable request has gone out.
-- `tc49/schedule/state/facing` — `facing`: map of train to the block end it
-  would depart through.
+- `tc49/schedule/state/facing` — `facing`: map of train to the run it would
+  make across its block, `<block>.A-to-B` or `<block>.B-to-A`; a train facing
+  `<block>.A-to-B` would depart through that block's B end (CONTEXT.md,
+  **Facing**). The bare end letter this value once carried is refused rather
+  than read, a state file written by an older build losing that train's
+  facing rather than turning it round.
 
 #### `dispatch`
 
@@ -603,7 +607,8 @@ receives no gestures. The id is never derived from a clock.
 
 It **holds facing**, which is scheduler state
 ([ADR-0019](adr/0019-facing-is-scheduler-state.md)). A train's facing starts
-at the placement the dispatcher accepts for it. The scheduler then carries it
+at the placement the dispatcher accepts for it, and a **drag's departure end
+is read off it** rather than being it. The scheduler then carries it
 forward from the end each `move_granted` was entered by, and from the
 departure end of a committed route, and publishes it on a state topic that
 every view reads to draw the train's direction arrow
@@ -627,8 +632,8 @@ Like the dispatcher, it never raises on a bus payload.
 
 When the last timetable request has gone out it sets `exhausted`, which is
 how milestone 1 knows the run is over. Where a **`state/facing` value survived
-a restart** it adopts that value, and a train the value does not name has no
-facing until it is placed.
+a restart** it adopts that value, and a train the value does not name — or
+names in a spelling this build refuses — has no facing until it is placed.
 
 ### Dispatcher
 

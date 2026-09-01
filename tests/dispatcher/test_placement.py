@@ -5,7 +5,7 @@ eyes: this train is *here*. One gesture, one authority — the dispatcher alone
 reads it, because "is that block free" is knowledge only it has, and having
 accepted it announces `tc49/dispatch/train_placed` for everyone else to
 follow. The scheduler follows that event and carries the train's facing
-letter into the new block; it never reads the gesture.
+into the new block; it never reads the gesture.
 
 Only while held, and only a block the train can actually be in. Anything else
 is dropped, in silence and to the trace: a gesture carries no id and there is
@@ -40,8 +40,8 @@ def two_trains() -> dict[str, TrainSpec]:
     refuse too.
     """
     return {
-        "freight_1": TrainSpec("yard_w", "B"),
-        "leviathan": TrainSpec("dn_e", "A"),
+        "freight_1": TrainSpec("yard_w", "A-to-B"),
+        "leviathan": TrainSpec("dn_e", "B-to-A"),
     }
 
 
@@ -98,25 +98,25 @@ def test_a_placement_moves_the_lock_and_redraws_the_picture(held: Assembly) -> N
 
 def test_the_scheduler_carries_facing_into_the_new_block(held: Assembly) -> None:
     """Facing is not part of placing: the gesture names a train and a block,
-    the end letter comes over unchanged, and `reversal_wanted` is the
+    the run across it comes over unchanged, and `reversal_wanted` is the
     correction where that lands the train the wrong way round (ADR-0019).
-    The letter is arbitrary because the layout is topological and there is
+    Which run is arbitrary because the layout is topological and there is
     nothing better to derive from."""
-    assert facing(held, "freight_1") == "yard_w.B"
+    assert facing(held, "freight_1") == "yard_w.A-to-B"
 
     place(held, "freight_1", "up_w")
 
-    assert facing(held, "freight_1") == "up_w.B"
+    assert facing(held, "freight_1") == "up_w.A-to-B"
 
 
 def test_facing_never_names_the_wall_of_a_terminal_block(held: Assembly) -> None:
     """`yard_e.B` is the buffer stop and is in no connection. Every facing
-    site goes through `connected_end`, so the letter carried over is corrected
+    site goes through `connected_facing`, so the run carried over is turned
     to the one end the train can leave by (#145) rather than pointing it at
     the wall."""
     place(held, "freight_1", "yard_e")
 
-    assert facing(held, "freight_1") == "yard_e.A"
+    assert facing(held, "freight_1") == "yard_e.B-to-A"
 
 
 def test_a_placement_is_dropped_while_the_run_is_running() -> None:
@@ -305,9 +305,9 @@ def test_a_train_adoption_placed_nowhere_can_be_put_on_the_layout(
     )
     layout, _roster, _ = load("crossover-yard/meet")
     stood = {
-        "freight_1": TrainSpec("yard_w", "B"),
-        "railcar_3": TrainSpec("dn_w", "A"),
-        "leviathan": TrainSpec("dn_e", "A"),
+        "freight_1": TrainSpec("yard_w", "A-to-B"),
+        "railcar_3": TrainSpec("dn_w", "B-to-A"),
+        "leviathan": TrainSpec("dn_e", "B-to-A"),
     }
     assembly = assemble_live(layout, STOCK, stood, state=state)
     assembly.bus.drain()  # the opening statement, which no boundary has yet
@@ -346,8 +346,8 @@ def test_a_placement_into_a_committed_block_is_dropped() -> None:
     # `shunter` is short enough for either yard block, so the fit rule cannot
     # do this test's work for it.
     stood = {
-        "freight_1": TrainSpec("yard_w", "B"),
-        "shunter": TrainSpec("dn_e", "A"),
+        "freight_1": TrainSpec("yard_w", "A-to-B"),
+        "shunter": TrainSpec("dn_e", "B-to-A"),
     }
     assembly = assemble_live(layout, STOCK, stood, Incremental)
     press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
@@ -403,7 +403,7 @@ def test_a_removal_takes_the_train_out_of_the_picture_and_frees_what_it_held(
 def test_a_train_off_the_layout_has_no_facing(held: Assembly) -> None:
     """Facing is the end of *its block* a parked train would depart through,
     so with no block there is none to hold (ADR-0019, ADR-0039)."""
-    assert facing(held, "freight_1") == "yard_w.B"
+    assert facing(held, "freight_1") == "yard_w.A-to-B"
 
     remove(held, "freight_1")
 
@@ -420,7 +420,7 @@ def test_a_train_put_back_on_the_layout_gains_a_facing_again(
     place(held, "freight_1", "up_w")
 
     assert last(held, "allocation")["trains"]["freight_1"] == "up_w"
-    assert facing(held, "freight_1") == "up_w.A"
+    assert facing(held, "freight_1") == "up_w.B-to-A"
 
 
 def test_a_removal_releases_everything_the_train_held(tmp_path: Path) -> None:
@@ -560,7 +560,7 @@ def test_a_run_may_come_up_with_an_empty_layout_and_comes_up_held() -> None:
     place(assembly, "freight_1", "yard_w")  # no press of HOLD first
 
     assert last(assembly, "allocation")["trains"] == {"freight_1": "yard_w"}
-    assert facing(assembly, "freight_1") == "yard_w.B"
+    assert facing(assembly, "freight_1") == "yard_w.A-to-B"
 
 
 def test_a_run_whose_document_stands_its_trains_comes_up_running() -> None:

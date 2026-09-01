@@ -28,8 +28,8 @@ PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 DISPUTED = "tc49/dispatch/state/disputed"
 
 STOOD = {
-    "freight_1": TrainSpec("yard_w", "B"),
-    "express_2": TrainSpec("up_e", "A"),
+    "freight_1": TrainSpec("yard_w", "A-to-B"),
+    "express_2": TrainSpec("up_e", "B-to-A"),
 }
 """Two trains standing where a document put them, and nothing to do: `up_w`
 and `dn_w` are free, and `shunter` is on the roster and off the layout — the
