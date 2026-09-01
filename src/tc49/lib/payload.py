@@ -55,6 +55,11 @@ the first payload here read by whatever drives the track rather than by an app
 on the bus's other side, so the milestone-1 simulator and a hardware binding
 read the one reading (ADR-0030).
 
+The **sensor** row is read here for that same reason (#288): `layout` folds a
+block's two detectors into `block_occupied` and `block_vacated`, so the level
+a detector states and the reason it gives for saying nothing are read on the
+way in, where the occupancy events those become are read on the way out.
+
 `align`, the other command, is read here beside it, and with it everything
 else the core app `layout` is handed (#287): the power a page commands, the
 aspects the dispatcher shows, and the two device rows the railroad's power is
@@ -101,12 +106,15 @@ from typing import cast
 
 from tc49.lib.inventory import (
     AT,
+    CLEAR,
     DRAINING,
     HELD,
+    OCCUPIED,
     OFF,
     ON,
     RUNNING,
     STOPPED,
+    UNKNOWN,
     is_state_topic,
 )
 from tc49.lib.layout import Point
@@ -333,6 +341,49 @@ def occupancy(payload: object) -> str | None:
         return None
     block = cast(dict[str, object], payload).get("block")
     return block if isinstance(block, str) else None
+
+
+def detected(payload: object) -> str:
+    """What one detector says it sees at the block end its row is addressed
+    by: `occupied`, `clear` or `unknown`, and `unknown` for a row that cannot
+    be read.
+
+    The third reader here that answers a value rather than `None`, and it
+    falls the way its own axis does. `power` falls to `off` and `link_up` to
+    not-up because a supply or a link that cannot be read is not one a train
+    may move on (#181). An occupancy row has a word of its own for exactly
+    this — `unknown` is **no information** about that end, a value and not an
+    absence (SYSTEM.md, *what the hardware reports back*) — and a frame that
+    cannot be read carries no information about that end either. So the read
+    that fails says the thing the contract already has a word for, and what a
+    consumer does with `unknown` is the one behaviour rather than two: it
+    neither calls the end clear nor invents an edge, and the level it last
+    held stands (#288).
+
+    The `reason` beside it is free text for a person and is not read: a
+    consumer branches on the level alone, and the frame carrying the reason is
+    on the trace by virtue of having been published (ADR-0034).
+    """
+    if not isinstance(payload, dict):
+        return UNKNOWN
+    seen = cast(dict[str, object], payload).get("occupancy")
+    if not isinstance(seen, str) or seen not in (OCCUPIED, CLEAR, UNKNOWN):
+        return UNKNOWN
+    return seen
+
+
+def reported_reason(payload: object) -> str | None:
+    """Why a detector cannot say what it sees, or None where it gives no
+    reason — free text, optional, and only ever beside `unknown`.
+
+    Read so that `layout` can put it in front of a person, which is the whole
+    of what it is for: nothing branches on it, and a reason that is not a
+    string is no reason.
+    """
+    if not isinstance(payload, dict):
+        return None
+    why = cast(dict[str, object], payload).get("reason")
+    return why if isinstance(why, str) else None
 
 
 @dataclass(frozen=True)
