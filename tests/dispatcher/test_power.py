@@ -19,6 +19,7 @@ the steel does not move while the supply is off, so the moves already sent
 are never executed and no sensor ever answers them.
 """
 
+from collections import deque
 from typing import cast
 
 import pytest
@@ -27,10 +28,61 @@ from tc49.bench.runner import DEFAULT_K, Assembly, assemble, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.inventory import HELD, ON
+from tc49.lib.inventory import HELD, OFF, ON, RUNNING
 from tests.harness import RUN_WANTED, leaves, load, press, run_wanted, runs, ticks
 
 POWER = "tc49/layout/state/power"
+
+
+class Reordering(Bus):
+    """A bus that hands one topic's values to its subscribers backwards.
+
+    The milestone-1 binding delivers in one total order, so the reordering
+    MQTT permits has to be staged deliberately (#240): a publisher's
+    reconnect, or a QoS-1 retransmission with more than one message in
+    flight, can put a pair on the wire in one order and take it off in the
+    other (ADR-0008). What is queued for the named topic is delivered newest
+    first, each value carrying the stamp it was published with.
+    """
+
+    def __init__(self, clock: Clock, topic: str) -> None:
+        super().__init__(clock)
+        self._backwards = topic
+
+    def drain(self) -> None:
+        queued = list(self._queue)
+        swapped = iter(
+            reversed([entry for entry in queued if entry[0] == self._backwards])
+        )
+        self._queue = deque(
+            next(swapped) if entry[0] == self._backwards else entry for entry in queued
+        )
+        super().drain()
+
+
+class Unstamped(Bus):
+    """A bus that stamps nothing, and so publishes a state value exactly as
+    it was handed one.
+
+    What a binding on the other side of a broker can put on a topic: an older
+    build that does not stamp, or a value hand-edited into the retained file.
+    A payload proves nothing about its sender and is read rather than trusted
+    (SYSTEM.md, rule 4).
+    """
+
+    def _stamped(self, payload: Payload) -> Payload:
+        return payload
+
+
+def dispatcher_on(bus: Bus) -> Dispatcher:
+    """The dispatcher of the usual railroad, on the bus it is given, with its
+    trains stood where the scenario document stands them."""
+    layout, roster, scenario = load("crossover-yard/meet")
+    dispatcher = Dispatcher(
+        bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
+    )
+    bus.drain()
+    return dispatcher
 
 
 def power(state: str) -> tuple[str, Payload]:
@@ -197,3 +249,66 @@ def test_the_run_is_never_running_while_the_rails_are_dead(
     press(timetabled, RUN_WANTED, {"run": "held"})
     assert timetabled.dispatcher.state.run == "held"
     assert runs(timetabled) == ["running", "held"]
+
+
+# --- the stamp keeps a reordered pair straight (#240) ------------------------
+
+
+def test_a_reordered_pair_leaves_the_later_value_in_place() -> None:
+    """The failure this rule exists for: the supply goes off, then on, and
+    the two arrive backwards. Nothing in the delivery says which is which —
+    the stamp does, and the older one is ignored.
+
+    Held the other way round it would be the worse of the two directions: the
+    dispatcher would go on believing the track is dead while it is live, and
+    a page would show a person the same.
+    """
+    clock = Clock()
+    bus = Reordering(clock, POWER)
+    dispatcher = dispatcher_on(bus)
+
+    clock.advance(10.0)
+    bus.publish(POWER, {"power": OFF})
+    clock.advance(20.0)
+    bus.publish(POWER, {"power": ON})
+    bus.drain()  # `on` first, then the `off` published before it
+
+    assert dispatcher.state.power == ON
+    assert dispatcher.state.run == RUNNING
+
+
+def test_the_same_pair_in_order_is_the_run_held() -> None:
+    """The contrast, on an ordinary bus: the pair delivered as it was
+    published leaves the supply where the later value put it. What the guard
+    refuses is an older value and nothing else.
+    """
+    clock = Clock()
+    bus = Bus(clock)
+    dispatcher = dispatcher_on(bus)
+
+    clock.advance(10.0)
+    bus.publish(POWER, {"power": ON})
+    clock.advance(20.0)
+    bus.publish(POWER, {"power": OFF})
+    bus.drain()
+
+    assert dispatcher.state.power == OFF
+    assert dispatcher.state.run == HELD
+
+
+def test_an_unstamped_value_is_taken_and_ordering_starts_again() -> None:
+    """The publisher owns the value: one carrying no stamp — an older build
+    of the binding, or a value hand-edited into a retained file — is acted
+    on, and the stamp held against the topic goes with it. Refusing it would
+    leave the run committing over track nobody had heard from.
+    """
+    bus = Unstamped(Clock())
+    dispatcher = dispatcher_on(bus)
+
+    bus.publish(POWER, {"at": 30.0, "power": ON})
+    bus.drain()
+    bus.publish(POWER, {"power": OFF})
+    bus.drain()
+
+    assert dispatcher.state.power == OFF
+    assert dispatcher.state.run == HELD

@@ -44,6 +44,7 @@ from tc49.lib.cancellation import Reason as Cancellation
 from tc49.lib.inventory import HELD, ON, RUNNING
 from tc49.lib.layout import Layout, block_of, departure_end, end_on
 from tc49.lib.payload import (
+    Ordering,
     gesture,
     kept_allocation,
     named_train,
@@ -555,6 +556,12 @@ class Dispatcher:
         self._aspects: dict[str, str] = {}  # last published, so only changes go
         self._allocation: Payload = {}  # likewise: the picture, when it moves
         self._disputed: Payload = {}  # and what the detectors dispute
+        # The stamps held against the state topics this app consumes, which
+        # is `state/power` and nothing else (#240). Two power values
+        # delivered backwards would otherwise leave the dispatcher believing
+        # the track is dead while it is live, or the other way about, with
+        # nothing to notice.
+        self._ordering = Ordering()
         # The opening statement is the whole of what the dispatcher holds, in
         # the order a grant phase says it. Aspects are in it because a restart
         # has a previous value on that topic too: the last session's
@@ -1092,6 +1099,13 @@ class Dispatcher:
         """
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "power":
+            if not self._ordering.accepts(topic, payload):
+                # An older value of the supply than the one already held, so
+                # the wire handed the pair over backwards: it is ignored, and
+                # quietly — the trace has it, as it has every frame. The
+                # sensor leaves below take no such guard, being event topics
+                # where a repeat re-asserts a level (ADR-0047).
+                return
             self._on_power(payload)
         elif leaf in ("block_occupied", "block_vacated"):
             block = occupancy(payload)
