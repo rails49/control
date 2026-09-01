@@ -51,6 +51,14 @@ export interface SymbolSpec {
   flip?: boolean;
   /** Blocks. */
   length?: number;
+  /**
+   * A block's signals, keyed by the end each stands at (`A` or `B`) and
+   * holding the address that signal answers to. An end carrying none is
+   * absent: a signal is fixed wiring, and whether one is installed at an end
+   * is a fact about the railroad
+   * ([ADR-0022](../../../docs/adr/0022-a-symbol-carries-its-hardware-address.md)).
+   */
+  signals?: Record<string, string>;
   /** A portal's pairing label: two portals wearing one label join. */
   label?: string;
   /** What the hardware behind a motorised symbol answers to. */

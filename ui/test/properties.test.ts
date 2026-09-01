@@ -116,11 +116,78 @@ describe("a fixed crossing", () => {
 });
 
 /** A sensor is addressed by the block end it watches, so there is no id to
- *  type for one (ADR-0043) and a block is left with its name and its length. */
+ *  type for one (ADR-0043). A signal is not: it is fixed wiring standing at
+ *  one end, and the address it answers to is typed here the way a turnout's
+ *  is (ADR-0022, #286). */
 describe("a block", () => {
-  it("is asked for its name and its length", async () => {
+  it("is asked for its name, its length and a signal at each end", async () => {
     const dialog = await opened("b1", { kind: "block", length: 1000 });
-    expect(fields(dialog)).toEqual(["Name", "Length"]);
+    expect(fields(dialog)).toEqual(["Name", "Length", "Signal at A", "Signal at B"]);
+  });
+
+  it("keeps the signal addresses it already carries", async () => {
+    const dialog = await opened("b1", {
+      kind: "block",
+      length: 1000,
+      signals: { A: "dccex/40", B: "dccex/41" },
+    });
+    expect(field(dialog, "Signal at A").value).toBe("dccex/40");
+    expect(field(dialog, "Signal at B").value).toBe("dccex/41");
+  });
+
+  it("shows nothing at an end no signal stands at", async () => {
+    const dialog = await opened("b1", {
+      kind: "block",
+      length: 1000,
+      signals: { B: "dccex/41" },
+    });
+    expect(field(dialog, "Signal at A").value).toBe("");
+  });
+
+  it("takes a typed signal address back into the drawing", async () => {
+    const dialog = await opened("b1", { kind: "block", length: 1000 });
+    await typed(dialog, "Signal at B", "dccex/41");
+    expect((await applied(dialog)).spec).toEqual({
+      kind: "block",
+      length: 1000,
+      signals: { B: "dccex/41" },
+    });
+  });
+
+  /** The round trip: a drawing carrying signals is opened, applied untouched,
+   *  and hands back exactly what it was given. */
+  it("round-trips the signals it was opened on", async () => {
+    const spec: SymbolSpec = {
+      kind: "block",
+      length: 1000,
+      at: [2, 4],
+      signals: { A: "dccex/40", B: "dccex/41" },
+    };
+    const dialog = await opened("b1", spec);
+    expect((await applied(dialog)).spec).toEqual(spec);
+  });
+
+  /** An empty field is no signal rather than an empty address, the way a
+   *  cleared turnout address is no address: an end carries one or it does
+   *  not, and the schema takes a block with neither. */
+  it("writes no signal at all where the field was cleared", async () => {
+    const dialog = await opened("b1", {
+      kind: "block",
+      length: 1000,
+      signals: { A: "dccex/40" },
+    });
+    await typed(dialog, "Signal at A", "");
+    expect((await applied(dialog)).spec).not.toHaveProperty("signals");
+  });
+
+  it("keeps the other end's signal when one is cleared", async () => {
+    const dialog = await opened("b1", {
+      kind: "block",
+      length: 1000,
+      signals: { A: "dccex/40", B: "dccex/41" },
+    });
+    await typed(dialog, "Signal at A", "");
+    expect((await applied(dialog)).spec.signals).toEqual({ B: "dccex/41" });
   });
 });
 
