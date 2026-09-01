@@ -17,7 +17,10 @@ being echoed back as a measured one (ADR-0022, ADR-0050).
 
 The two words that are not a table row are here too, `RELEASE` and the two a
 poll is made of, because they are bytes on the same wire and belong beside
-the rest of the protocol.
+the rest of the protocol. So is `startup`, which is the one function that
+maps nothing: it hands over what a person wrote, because a file of raw
+station commands exists precisely so that this app needs no vocabulary for
+what is in it.
 """
 
 from tc49.lib.inventory import OFF, ON, STOPPED
@@ -180,3 +183,28 @@ def _number(addr: str, most: int, *, least: int) -> int | None:
         return None
     number = int(addr)
     return number if least <= number <= most else None
+
+
+COMMENT = "#"
+"""What a line of a startup file is a note on rather than a command. A person
+writes the trip currents their four power districts really take, and the line
+above each saying which district it is has to be a line the station never
+sees."""
+
+
+def startup(text: str) -> list[bytes]:
+    """A startup file's text as the messages it sends, in the order written.
+
+    **Not parsed beyond blank and comment.** Every other line is a string the
+    station is handed exactly as typed, because the whole point of the file
+    is that a person writes whatever their station understands — a per-district
+    trip current, an auto-reverser, a polarity — without this app growing a
+    vocabulary for it. Nothing here knows what a district is, and nothing
+    above the layout interface learns that this railroad has four of them
+    (#217).
+
+    Surrounding whitespace goes: it is how a file is laid out and not part of
+    any message, and a line that is nothing else is skipped.
+    """
+    lines = (line.strip() for line in text.splitlines())
+    return [line.encode() for line in lines if line and not line.startswith(COMMENT)]

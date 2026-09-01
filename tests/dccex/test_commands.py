@@ -96,3 +96,29 @@ def test_a_stop_is_the_lock_and_not_the_one_shot() -> None:
 def test_a_poll_asks_for_the_status_and_for_the_lock() -> None:
     assert commands.STATUS == b"<s>"
     assert commands.LOCK_QUERY == b"<!Q>"
+
+
+def test_a_startup_file_is_handed_over_line_by_line() -> None:
+    """The file is not parsed beyond blank and comment: a line is a string
+    the station is handed, so that a person can write anything their station
+    understands without this app growing a vocabulary for it."""
+    assert commands.startup(
+        "<= A LIMIT 3000>\n<= B LIMIT 3000>\n<= C LIMIT 1500>\n"
+    ) == [b"<= A LIMIT 3000>", b"<= B LIMIT 3000>", b"<= C LIMIT 1500>"]
+
+
+def test_comments_and_blank_lines_are_not_sent() -> None:
+    """The line naming which district a value is for has to be one the
+    station never sees."""
+    assert commands.startup(
+        "# trip currents for the four districts\n"
+        "\n"
+        "  <= A LIMIT 3000>  \n"
+        "   # D is the yard\n"
+        "<= D LIMIT 1500>\n"
+    ) == [b"<= A LIMIT 3000>", b"<= D LIMIT 1500>"]
+
+
+def test_a_file_with_nothing_in_it_sends_nothing() -> None:
+    assert commands.startup("") == []
+    assert commands.startup("\n\n# only a note\n") == []
