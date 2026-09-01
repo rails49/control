@@ -1,4 +1,12 @@
-"""The driver seam: a grant restated as the command, and a grant read (#261)."""
+"""The driver seam: a grant restated as the command, and a grant read (#261).
+
+The driver is a stateless translator that knows nothing of the layout, so its
+whole contract is that mapping and the mapping is asserted directly rather
+than through an assembly, where a wrong translation lands far from its cause
+([#39](https://github.com/rails49/control/issues/39)). A bus and the driver
+on it: one grant in, one command out, the aspect carried past unread and no
+other topic touched.
+"""
 
 from typing import cast
 
@@ -108,3 +116,57 @@ def test_the_driver_holds_nothing_across_a_dropped_grant() -> None:
         ("freight_1", "to_dn"),
         ("express_2", "from_up"),
     ]
+
+
+def test_the_aspect_rides_along_and_is_read_by_nobody_here() -> None:
+    """The grant carries the aspect and the driver ignores it (SYSTEM.md,
+    driver footprint): turning one into a speed would need `move` to carry a
+    speed, which milestone 1 leaves out (ADR-0025,
+    [#283](https://github.com/rails49/control/issues/283)).
+
+    So the two a granted move can carry — `caution` where one block is locked
+    ahead and `clear` where two are — command exactly the same thing, a value
+    outside that vocabulary is not a failed read but a field this component
+    does not look at, and none of them reaches the command: `move`'s fields
+    are the four the inventory names, and the aspect is not among them.
+    """
+    bus = Bus()
+    seen = collect(bus, MOVE)
+    Driver(bus)
+
+    for aspect in ("clear", "caution", "flashing_yellow", 7, None):
+        grant(bus, {**HONEST, "aspect": aspect})
+    grant(bus, {key: value for key, value in HONEST.items() if key != "aspect"})
+
+    assert (
+        seen
+        == [
+            {
+                "train": "freight_1",
+                "connection": "west_ladder",
+                "transit": "to_dn",
+                "into": "dn_w",
+            }
+        ]
+        * 6
+    )
+
+
+def test_the_driver_publishes_the_command_and_nothing_else() -> None:
+    """Read off everything the run put on the bus rather than off the source:
+    the driver is the only thing subscribed here, so every frame that is not
+    a grant pressed in is one it published, and the whole of what it adds is
+    one `move` per grant it could read. It sets no route — that is the
+    dispatcher's `align` (ADR-0022) — answers nothing, and states nothing
+    about itself."""
+    bus = Bus()
+    heard: list[str] = []
+    bus.subscribe("tc49/#", lambda topic, payload: heard.append(topic))
+    Driver(bus)
+
+    grant(bus, HONEST)
+    grant(bus, {**HONEST, "aspect": "caution"})
+    grant(bus, "not a grant at all")
+    grant(bus, {**HONEST, "transit": "to_dn"})  # unqualified: no connection
+
+    assert [topic for topic in heard if topic != GRANTED] == [MOVE, MOVE]
