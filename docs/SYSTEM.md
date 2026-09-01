@@ -74,7 +74,7 @@ flowchart TB
   railroad's roster. It is not on the bus, because it answers queries and the
   bus does not.
 - **UI** — the panel, and a throttle later. It watches the bus and writes
-  **gestures** on the seven browser-writable topics of the inventory below. A
+  **gestures** on the eight browser-writable topics of the inventory below. A
   gesture is not a request: it names a train and where to put it, and the
   scheduler composes the request
   ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
@@ -258,11 +258,11 @@ connects to a WebSocket relay ([ui/PANEL.md](ui/PANEL.md#implementation)).
 Every `tc49/#` event is sent to every client as one JSON frame,
 `{"topic": …, "payload": …}`.
 
-A client may publish only on the seven browser-writable topics —
+A client may publish only on the eight browser-writable topics —
 `tc49/schedule/request_wanted`, `tc49/schedule/reversal_wanted`,
 `tc49/dispatch/run_wanted`, `tc49/dispatch/placement_wanted`,
-`tc49/dispatch/cancel_wanted`, `tc49/layout/mode_wanted` and
-`tc49/layout/throttle_wanted` — and each
+`tc49/dispatch/cancel_wanted`, `tc49/layout/mode_wanted`,
+`tc49/layout/throttle_wanted` and `tc49/layout/power_wanted` — and each
 frame it sends is published as the event its topic names. That list is not
 written down twice: it is every row of the inventory below that carries the
 browser mark, which is also what a broker will grant a page once the relay is
@@ -330,9 +330,11 @@ written down a second time, so marking a row widens the browser's write
 surface the day the mark lands, and the mark is the same permission a
 broker's ACL will carry once the relay is gone
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
-Today the mark sits on exactly the seven gesture rows. The throttle a person
-drives with ([#207](https://github.com/rails49/control/issues/207)) is the
-last two of them, under `layout`, which is the component that responds to
+Today the mark sits on exactly the eight gesture rows. The throttle a person
+drives with ([#207](https://github.com/rails49/control/issues/207)) and the
+track power a person commands
+([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md))
+are three of them, under `layout`, which is the component that responds to
 them. Whether a row carries the mark is an ACL decision, made when the row
 lands.
 
@@ -344,6 +346,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | --- | --- | --- | --- |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
 | `tc49/layout/block_vacated` | event | layout | a detector saw a block empty |
+| `tc49/layout/power_wanted` | event | any (browser) | give the track power, stop every locomotive, or remove the supply ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)) |
 | `tc49/layout/state/power` | state | layout | whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
 | `tc49/layout/align` | command | any | set the route: throw these points |
 | `tc49/layout/move` | command | any | take the train across, this fast |
@@ -438,6 +441,11 @@ its two names, as each topic states.
   no counter; the physical order is occupied then vacated, the head into the
   next block before the tail clears the last
   ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
+- `tc49/layout/power_wanted` — browser-writable — `power`: enum `on`,
+  `stopped` or `off`, the same closed set the observation below carries; any
+  other value is dropped. `layout` is what answers it, and it answers by
+  writing `tc49/layout/state/wanted/track` — never by a page reaching a
+  translator directly (ADR-0051).
 - `tc49/layout/state/power` — `power`: enum `on`, `stopped` or `off`. An
   unreadable payload reads as `off`: dropping it would mean *not* holding the
   run, over track whose state could not be read.
@@ -467,8 +475,8 @@ its two names, as each topic states.
 
 #### `schedule`
 
-The seven browser-writable rows — the two here, the three under `dispatch`
-and the two under `layout` above — are where rule 4 bites hardest: each
+The eight browser-writable rows — the two here, the three under `dispatch`
+and the three under `layout` above — are where rule 4 bites hardest: each
 payload is read defensively, and one that fails the read is dropped.
 
 - `tc49/schedule/request_wanted` — browser-writable — `train`; `dest`: list,
@@ -1117,10 +1125,23 @@ value rather than left to read one out of an absence
 matters to the person recovering and not to the dispatcher, which holds the
 run on either
 ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
-There is no command to change power. Today a person switches it on by hand,
-and an emergency stop is a hardwired contact rather than a message. The
-milestone-1 **simulator** publishes `on` and never changes it, simulated track
-being always live (ADR-0030).
+The milestone-1 **simulator** publishes `on` and never changes it, simulated
+track being always live (ADR-0030).
+
+**Power is also commanded**, on `power_wanted`, which carries the same three
+values in the other direction
+([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
+A power command is **applied on arrival**: there is no beat to quantise it
+against, and it changes no lock and grants nothing, so it races with nothing
+the dispatcher is deciding. `layout` answers it by writing the desired power
+of the device vocabulary below, and whatever supplies power acts on that; it
+cannot verify that the power really went away and does not try. **The railroad
+comes up with power off** — `layout` starts having written `off`, so nothing
+moves and no turnout throws until a person turns it on — and thereafter
+`layout` writes the value it was told to write and never `off` of its own
+accord. The row is declared and not yet acted on: the panel publishes it and
+nothing subscribes, so the *Subscribes* line above is still what a binding does
+today.
 
 `train_placed` is the one thing besides a `move` that moves a train, and what
 a binding does with it is its own business. The simulator stands in for a

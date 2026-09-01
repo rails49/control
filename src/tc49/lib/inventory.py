@@ -64,6 +64,7 @@ is read (SYSTEM.md, ADR-0030)."""
 TOPICS: dict[str, Topic] = {
     "tc49/layout/block_occupied": Topic(("block",)),
     "tc49/layout/block_vacated": Topic(("block",)),
+    "tc49/layout/power_wanted": Topic(("power",), browser=True),
     "tc49/layout/state/power": Topic((AT, "power")),
     "tc49/layout/align": Topic(("connection", "transit", "points")),
     "tc49/layout/move": Topic(("train", "connection", "transit", "into", "speed")),
@@ -220,7 +221,14 @@ locomotive told to stand with the track still live — and `off` is the supply
 removed. They differ for the person recovering, who clears one and switches
 the other back on, and not for the dispatcher, which branches on "not `on`"
 (ADR-0041). `stopped` and not `stop`, which is an aspect: a different thing
-on a different topic."""
+on a different topic.
+
+The same three on ``tc49/layout/power_wanted``, which is the command
+direction of the one axis: the closed set goes wherever the field goes, as
+``run`` does on its own gesture. A power command is applied on arrival —
+there is no beat to quantise it against (#243) — and it changes no lock and
+grants nothing, so it races with nothing the dispatcher is deciding
+(ADR-0051)."""
 
 
 def is_state_topic(topic: str) -> bool:
@@ -242,7 +250,7 @@ INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
 ACL will grant it once the bridge is gone (ADR-0034). Named here rather than
 in the bridge because the fact outlives the relay, and read off the rows'
 marks rather than off a prefix — a topic now names the component that
-responds to it, so the seven gestures sit under `schedule`, `dispatch` and
+responds to it, so the eight gestures sit under `schedule`, `dispatch` and
 `layout` beside everything else those three answer, and only the mark says a
 page may send them.
 
