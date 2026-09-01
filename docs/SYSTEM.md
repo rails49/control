@@ -1364,9 +1364,15 @@ events the trace records are the events the components exchange, so a UI later
 subscribes to exactly what the trace has already shown to be enough.
 
 Each line is flat: `{"time": …, "event": …, …payload}`. `event` is the
-topic's leaf, which the inventory keeps unique. `time` is stamped by the tap
-from the run clock as it records: float seconds since the session started,
-simulated in batch and wall live (ADR-0047). It is the tap's own observation,
+topic's leaf, which the inventory keeps unique — except on a **device row**,
+where it is the key past `tc49/layout/state/`, `wanted/point` or
+`device/point`: the address is trailing levels rather than a leaf, so a leaf
+there would be an accessory number and would lose the row it belongs to
+([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
+The two namings share one namespace, so a name still names one row. `time` is
+stamped by the tap from the run clock as it records: float seconds since the
+session started, simulated in batch and wall live (ADR-0047). It is the tap's
+own observation,
 and not the `at` a state payload carries: the two are read off one clock and
 a line shows both, `time` saying when the event was delivered and `at` when
 the value was published. The keys are always in the same order — `time`,

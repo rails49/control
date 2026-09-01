@@ -49,6 +49,51 @@ def test_a_state_line_shows_the_payloads_stamp_ahead_of_its_fields() -> None:
     assert out.getvalue() == '{"time":30.0,"event":"run","at":30.0,"run":"held"}\n'
 
 
+def test_a_device_line_is_named_by_its_row_and_not_by_its_address() -> None:
+    """The address is trailing levels a railroad's wiring decides, so the
+    leaf of a device topic is an accessory number and names nothing
+    (ADR-0043). The line carries the key past `tc49/layout/state/` instead,
+    which says both the device and which half of the vocabulary it is —
+    `wanted/point` here, `device/point` for what the hardware reports back.
+    The address is in the payload beside it, which is what lets the line read
+    on its own."""
+    clock = Clock()
+    bus = Bus(clock)
+    out = io.StringIO()
+    TraceTap(bus, out, clock)
+
+    bus.publish(
+        "tc49/layout/state/wanted/point/dccex/5",
+        {"addr": "dccex/5", "position": "thrown"},
+    )
+    bus.drain()
+
+    assert out.getvalue() == (
+        '{"time":0.0,"event":"wanted/point","at":0.0,'
+        '"addr":"dccex/5","position":"thrown"}\n'
+    )
+
+
+def test_the_unaddressed_device_rows_are_named_the_same_way() -> None:
+    """`track` carries no address — one railroad-wide power desired and one
+    observed — so the whole topic is the row, and the line names it in the
+    same two levels as every other device row rather than by its leaf, which
+    the two halves would share."""
+    clock = Clock()
+    bus = Bus(clock)
+    out = io.StringIO()
+    TraceTap(bus, out, clock)
+
+    bus.publish("tc49/layout/state/wanted/track", {"power": "off"})
+    bus.publish("tc49/layout/state/device/track", {"power": "on"})
+    bus.drain()
+
+    assert out.getvalue().splitlines() == [
+        '{"time":0.0,"event":"wanted/track","at":0.0,"power":"off"}',
+        '{"time":0.0,"event":"device/track","at":0.0,"power":"on"}',
+    ]
+
+
 def test_the_time_stamp_reads_the_run_clock_as_it_records() -> None:
     clock = Clock()
     bus = Bus(clock)
