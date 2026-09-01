@@ -1014,7 +1014,12 @@ class Dispatcher:
         marked instead — no further move is granted for it — and it retires
         in `_cleared`, when the sensors say the move it was already making is
         over. A placement does not defer: the person is saying where the train
-        actually *is*, which answers the move the sensors never will.
+        actually *is*, and the placement is what answers the move — a move
+        whose sensors may never come is the case they are standing in front
+        of. So the request retires at the gesture, and a sensor that does
+        arrive for it afterwards explains nothing and holds the run
+        (ADR-0048), which is the right answer to a detector firing under a
+        train somebody has just moved by hand.
 
         The answer is what a caller sweeps on: a deferred cancellation frees
         nothing and dequeues nothing, so there is nothing for a sweep to hand

@@ -733,6 +733,13 @@ so `request_cancelled` precedes `train_placed` or `train_removed` and both of
 those always describe a train with no request. The reason says which direction
 the gesture pointed — `displaced` into a block, `removed` off the layout.
 
+A placement **does not defer** where a move is outstanding, as a
+`cancel_wanted` does: the person is answering the move the sensors may never
+answer, so the request retires at the gesture. A sensor that arrives for it
+afterwards explains nothing and holds the run
+([ADR-0048](adr/0048-an-unexplained-reading-holds-the-run.md)), which is what
+a detector firing under a train somebody has moved by hand should do.
+
 Naming a **block** puts the train there. The block has to exist, fit the
 train, and be free of every claim: no lock on it, and not on a committed
 route, which under `Incremental` are not the same set. Where the train stands
