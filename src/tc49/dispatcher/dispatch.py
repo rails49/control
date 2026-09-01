@@ -24,8 +24,9 @@ second scheduler submitting alongside the first needs no change here
 (SYSTEM.md, rule 4).
 
 The whole of what arrives is read that way (#260). Two filters: the requests
-this app answers — `request_submitted`, `run_wanted` and `placement_wanted`,
-from the ui, the scheduler, or a second scheduler introduced later — and what
+this app answers — `request_submitted`, `run_wanted`, `placement_wanted` and
+`cancel_wanted`, from the ui, the scheduler, or a second scheduler introduced
+later — and what
 the layout interface observes, on a filter that also carries the `align` and
 `move` commands, which name the layout and are passed by unread. Every leaf
 goes through a reader in `lib.payload` and nothing subscripts a frame it has
@@ -39,10 +40,12 @@ from dataclasses import dataclass, field
 from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.cancellation import Reason as Cancellation
 from tc49.lib.inventory import HELD, ON, RUNNING
 from tc49.lib.layout import Layout, block_of, departure_end, end_on
 from tc49.lib.payload import (
     gesture,
+    named_train,
     occupancy,
     placement,
     power,
@@ -68,6 +71,10 @@ class Request:
     seq: int  # admission order; the pending queue's tie-break key
     phase: int  # sweeps run when admitted; the arrival-order key
     refusals: int = 0  # launch refusals so far; the aging key (#34)
+    # Whether the request has been cancelled while a move of its own was
+    # outstanding: nothing further is granted for it, and it retires as
+    # `request_cancelled` when that move's sensors finish (ADR-0049).
+    cancelled: bool = False
 
 
 def resolve_departure(depart: str, origin: str) -> str:
@@ -176,8 +183,8 @@ class State:
         the lock table alone would call those blocks free.
 
         Placing a train into one strands the request that owns it: the route
-        is fixed (ADR-0002), the placed train is idle and its standing lock
-        is therefore a permanent obstacle (SAFETY.md), and nothing cancels a
+        is fixed (ADR-0002), the placed train is idle and its standing lock is
+        therefore a permanent obstacle (SAFETY.md), and nothing cancels a
         request — so the committed train is refused `unsafe` at every
         sweep for the rest of the session.
         """
@@ -738,9 +745,9 @@ class Dispatcher:
     # -- what is addressed to the dispatcher --------------------------------
 
     def _on_dispatch(self, topic: str, payload: Payload) -> None:
-        """The three topics the dispatcher responds to, on one filter.
+        """The four topics the dispatcher responds to, on one filter.
 
-        A request, and the two gestures a person makes on a page: all three
+        A request, and the three gestures a person makes on a page: all four
         name the dispatcher because the dispatcher is what answers them, and
         none of them says who sent it. The scheduler submits requests today
         and a second one could submit them tomorrow with nothing here to
@@ -759,6 +766,8 @@ class Dispatcher:
             self._set_run(payload)
         elif leaf == "placement_wanted":
             self._place(payload)
+        elif leaf == "cancel_wanted":
+            self._revoke(payload)
 
     def _set_run(self, payload: Payload) -> None:
         """Hold the run, or release it.
@@ -894,19 +903,121 @@ class Dispatcher:
         state = self._state
         if train not in state.block_of and train not in state.crossing:
             return
-        released = sorted(
-            resource for resource, holder in state.locks.items() if holder == train
-        )
-        for resource in released:
-            del state.locks[resource]
+        self._release(train)
         state.block_of.pop(train, None)
         # A crossing train stands in no block, and off the layout it is not on
         # a transit either: the hint goes with the placement it belonged to.
         state.crossing.pop(train, None)
-        if released:
-            self._publish("lock_released", {"train": train, "resources": released})
         self._publish("train_removed", {"train": train})
         self._settled()
+
+    def _release(self, train: str, keep: str | None = None) -> list[str]:
+        """Everything the train holds, given up as one `lock_released` — all
+        of it, or all of it but `keep`.
+
+        **One release path**, because there is only one fact to state: the
+        resources are free and nothing took them. A train at rest holds its
+        standing block, a restored crossing train holds the transit it was on
+        and the block behind it as well (#154), and a train under `FullRoute`
+        holds every block of a route it will now never run — so the sweep is
+        by **holder** rather than of a named set, and a caller that knew the
+        set would be re-deriving the lock table.
+
+        `keep` is the block a train goes on standing in. A cancellation
+        releases everything the request took and leaves the train where it
+        is, which is a train at rest and its standing lock (ADR-0049); a
+        removal keeps nothing, the train being off the rails.
+        """
+        state = self._state
+        released = sorted(
+            resource
+            for resource, holder in state.locks.items()
+            if holder == train and resource != keep
+        )
+        for resource in released:
+            del state.locks[resource]
+        if released:
+            self._publish("lock_released", {"train": train, "resources": released})
+        return released
+
+    def _revoke(self, payload: Payload) -> None:
+        """A person ending a train's request without it arriving (ADR-0049).
+
+        The gesture names a **train** and no request: a page shows a train
+        and the work under it, and the id is the dispatcher's own. So it ends
+        whatever that train has — the active request and every one still
+        queued behind it — and a train with nothing in flight is dropped in
+        silence and to the trace, as an unknown train is: the gesture carries
+        no id, and there is nothing to address an answer to (ADR-0034).
+
+        It does **not** require a held run. Cancelling is how a person ends
+        work the railroad cannot finish — a train that broke down, a route
+        chosen against a railroad that has since changed under it — and
+        making them hold the whole run first would stop every other train to
+        let one go. The hold is a brake on new commitment; this retires one
+        request, and what it frees the next sweep hands to somebody else.
+        """
+        train = named_train(payload)
+        if train is None or train not in self._state.roster:
+            return
+        self._cancel(train, Cancellation.REVOKED, defer=True)
+        # The lock table moved, so the waiting set is reconsidered here: what
+        # a cancelled route was holding is exactly what somebody else has
+        # been refused for (ADR-0047).
+        self._sweep()
+
+    def _cancel(self, train: str, reason: Cancellation, defer: bool = False) -> None:
+        """Every request the train has, retired without the train arriving.
+
+        The active one first and its queue behind it, so a reader of the
+        trace sees the request that was running end before the ones that were
+        waiting on it. Each gets its own `request_cancelled`: an id is what
+        ties a request's events together, and a single event naming a train
+        would leave a reader to work out which ids it had just been told
+        about.
+
+        A queued request has taken nothing and needs no release. The active
+        one is holding a route — every transit and every block beyond the
+        origin under `FullRoute` — and gives up **all of it but the block the
+        train stands in**: that block is the train's standing lock, which
+        every parked train holds (CONTEXT.md), and releasing it would leave a
+        locomotive in a block the dispatcher believes free.
+
+        `defer` is for the one case where the release cannot happen yet: a
+        move is outstanding, the train is between two blocks, and nothing on
+        the bus retracts a `move` already sent (ADR-0037). The request is
+        marked instead — no further move is granted for it — and it retires
+        in `_cleared`, when the sensors say the move it was already making is
+        over. A placement does not defer: the person is saying where the train
+        actually *is*, which answers the move the sensors never will.
+        """
+        state = self._state
+        active = state.active.get(train)
+        if active is not None:
+            if defer and active.outstanding is not None:
+                active.request.cancelled = True
+            else:
+                self._retire(train, active, reason)
+        for req in [req for req in self._pending if req.train == train]:
+            self._pending.remove(req)
+            self._publish("request_cancelled", {"id": req.id, "reason": reason})
+        self._settled()
+
+    def _retire(self, train: str, active: Active, reason: Cancellation) -> None:
+        """The active request ended: what it holds released, the train
+        dropped out of everything that says it is running one, and the one
+        event that says so.
+
+        `_seen_ids` is not pruned. A cancelled id stays used for the session,
+        because an id is unique and not meaningful (ADR-0033) and a resubmit
+        of it is the duplicate it looks like.
+        """
+        state = self._state
+        self._release(train, keep=state.block_of.get(train))
+        del state.active[train]
+        state.crossing.pop(train, None)
+        state.departure.pop(train, None)
+        self._publish("request_cancelled", {"id": active.request.id, "reason": reason})
 
     def _settled(self) -> None:
         """What a placement changes besides the lock table: the picture a
@@ -1013,23 +1124,36 @@ class Dispatcher:
     def _cleared(self, block: str) -> None:
         """`block_vacated` releases the origin block and the transit, ends
         the move and completes the request — and what it released is why a
-        sweep runs here (ADR-0047)."""
+        sweep runs here (ADR-0047).
+
+        **A cancelled request retires here instead**, wherever along its route
+        it had got to: the person's gesture landed while this move was
+        outstanding, so it was marked rather than acted on, and the move it
+        could not retract has now run to its sensors (ADR-0049). What it gives
+        up is the whole remaining hold and not just this move's block and
+        transit — the rest of the route is track it will never run — and what
+        it publishes is `request_cancelled` in place of `request_completed`,
+        because the train did not arrive.
+        """
         state = self._state
         found = self._explained(block)
         if found is None or found[2].from_block != block:
             self._unexplained()
             return
         train, active, move = found
-        del state.locks[block]
-        del state.locks[move.transit]
-        self._publish(
-            "lock_released", {"train": train, "resources": [block, move.transit]}
-        )
         active.outstanding = None
         del state.crossing[train]
-        if active.cur_index == len(active.route.blocks) - 1:
-            del state.active[train]
-            self._publish("request_completed", {"id": active.request.id})
+        if active.request.cancelled:
+            self._retire(train, active, Cancellation.REVOKED)
+        else:
+            del state.locks[block]
+            del state.locks[move.transit]
+            self._publish(
+                "lock_released", {"train": train, "resources": [block, move.transit]}
+            )
+            if active.cur_index == len(active.route.blocks) - 1:
+                del state.active[train]
+                self._publish("request_completed", {"id": active.request.id})
         self._sweep()
 
     def _on_power(self, payload: Payload) -> None:
@@ -1091,7 +1215,9 @@ class Dispatcher:
             state.active, key=lambda t: (state.active[t].request.phase, t)
         ):
             active = state.active[train]
-            if active.outstanding is not None:
+            if active.outstanding is not None or active.request.cancelled:
+                # A cancelled request is waiting for the move it was already
+                # making to end, and takes no other (ADR-0049).
                 continue
             self._apply_move(active, self._strategy.grant(train, state))
         # A train's chained requests run in order: once one of them is left

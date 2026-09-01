@@ -673,10 +673,10 @@ else to stand. The other falls back to its own starting block. Where that is
 taken too, it comes up placed nowhere at all and is shown as a train with no
 block ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 
-*Subscribes* `tc49/layout/#` and `tc49/dispatch/#` — the request and the two
+*Subscribes* `tc49/layout/#` and `tc49/dispatch/#` — the request and the three
 gestures it responds to sit under its own name, its own announcements come
 back past it ignored, and the two commands on the layout filter pass by
-unread. *Publishes* the ten `tc49/dispatch/*` events, plus `state/run`,
+unread. *Publishes* the eleven `tc49/dispatch/*` events, plus `state/run`,
 `state/aspects`, `state/disputed` and `state/allocation`. The last of those is
 its picture of the run, written out from the lock table whenever it changes,
 so a client that joins an idle railroad has something to draw
@@ -744,6 +744,26 @@ release the hold and let the train run. The key is read for **presence**: an
 explicit `null` says nowhere, and a frame that has lost the field is refused
 rather than read as a `null`.
 
+**It alone reads `tc49/dispatch/cancel_wanted`**, a person ending a train's
+work without it arriving
+([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
+The gesture names a train and no request — an id is the dispatcher's own — so
+it ends whatever that train has, the active request and everything queued
+behind it, and a train with nothing in flight is dropped like any other
+gesture there is no id to answer. It needs **no held run**: cancelling ends
+one train's work, and holding the whole railroad to do it would stop every
+other train to let one go.
+
+What a cancelled request held is released, **all of it but the block the train
+stands in** — under `FullRoute` that is the whole route, every transit and
+every block beyond the origin — as one `lock_released`, and the sweep that
+follows hands it to whoever was waiting on it. The one thing a cancellation
+cannot do at once is take a move back: where one is outstanding the request is
+marked, granted nothing further, and retires as `request_cancelled` when
+`block_vacated` says the move it was already making is over. A cancelled id
+stays used for the session; no id ever resumes
+([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)).
+
 **While held it publishes what the detectors dispute**, on `state/disputed`:
 the trains its own placement stands in a block the layout reports clear, and
 the blocks the layout reports occupied with nothing claiming them. At power-up
@@ -792,7 +812,8 @@ The dispatcher's semantics are [DISPATCH.md](dispatcher/DISPATCH.md) and
 At this boundary it is **entirely asynchronous**. Requests arrive as events,
 and everything that happens to a request is announced as an event:
 `request_admitted`, `request_rejected` (at admission, or at the first attempt
-to launch), `request_completed`. The request id is what ties the events
+to launch), `request_completed`, `request_cancelled`. The request id is what
+ties the events
 together and what identifies a duplicate, which is dropped. A request stating
 a departure block its train is not standing in gets one of those answers,
 `wrong_origin`, rather than raising, because the submitter may be a browser
