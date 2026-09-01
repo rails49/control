@@ -37,6 +37,12 @@ claiming to be one of those may not take the scheduler down. They are the
 first payloads read here that no gesture writes, which is why they are read
 by shape alone — `grant` and `chosen` say that names were named, and whether
 those names name anything is the layout's (`lib.layout.end_crossed`).
+
+`move_granted` has a second reader in the driver, which turns each grant into
+the command that moves the train (#261). Two apps reading one payload is what
+this module is for, and it is the same reading: the driver holds no layout
+either, so what it adds to `grant` is splitting the qualified transit its
+command states bare, and that is the driver's own.
 """
 
 from dataclasses import dataclass
