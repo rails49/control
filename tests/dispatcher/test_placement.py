@@ -220,6 +220,28 @@ def test_a_displaced_train_never_departs_on_the_cancelled_route(
     assert last(held, "allocation")["trains"]["freight_1"] == "up_w"
 
 
+def test_a_placement_into_another_trains_block_still_ends_the_request(
+    held: Assembly,
+) -> None:
+    """The gesture read in halves, and the one place they come apart: the
+    person said this train is not running that request any more, which is
+    honoured, and then said where it is, which the railroad cannot accept
+    with another train standing there.
+
+    Judged after the cancellation because a claim may be the cancellation's
+    own to release, and this one is not. What it leaves behind is exactly
+    what a `cancel_wanted` would have.
+    """
+    press(held, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+
+    place(held, "freight_1", "dn_e")  # leviathan is standing there
+
+    assert last(held, "request_cancelled")["reason"] == "displaced"
+    assert placements(held) == []
+    assert last(held, "allocation")["trains"]["freight_1"] == "yard_w"
+    assert last(held, "allocation")["locks"]["dn_e"] == "leviathan"
+
+
 def test_a_placement_into_a_block_the_railroad_lacks_leaves_the_request_alone(
     held: Assembly,
 ) -> None:
