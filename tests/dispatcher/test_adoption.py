@@ -45,7 +45,7 @@ MOVED: dict[str, Any] = {
 
 def restarted(
     tmp_path: Path,
-    picture: dict[str, Any] | None,
+    picture: object | None,
     aspects: dict[str, str] | None = None,
     run: str | None = None,
     added: dict[str, str] | None = None,
@@ -55,7 +55,9 @@ def restarted(
     with everything published on it collected as it goes.
 
     No picture at all is the first session of all naming a path: a file that
-    exists with nothing of the dispatcher's in it, which is a cold start.
+    exists with nothing of the dispatcher's in it, which is a cold start. Any
+    other value goes on the topic as it stands, well formed or not: what a
+    broker hands back is not the app's to have vetted (#278).
 
     `added` is stock the scenario has gained since that picture was taken,
     train to starting block: a train no picture can name, which is where a
@@ -395,3 +397,79 @@ def test_a_picture_the_document_overruled_holds_the_run_all_the_same(
 
     assert dispatcher.state.block_of == {"freight_1": "yard_w", "express_2": "up_e"}
     assert dispatcher.state.run == "held"
+
+
+def test_a_retained_value_that_states_no_picture_is_a_cold_start(
+    tmp_path: Path,
+) -> None:
+    """A retained value is a payload like any other and rule 4 exempts no
+    payload for having once been the dispatcher's own: what is waiting on a
+    broker that outlived the app can be hand-edited or written by an older
+    build (#278). Every one of these raised an `AttributeError` out of the
+    constructor while the picture was subscripted — not a dropped frame but
+    an app that does not start at all, and at the moment this value exists
+    for.
+
+    So the dispatcher starts as a cold start does: every train where the
+    document says, the lock table one block per train, the queue empty.
+    Refusing to start recovers nothing and tells a person less.
+    """
+    unreadable: list[object] = [
+        "nonsense",  # not an object at all
+        ["up_w"],  # nor a list of anything
+        {},  # nothing said about anything
+        {**MOVED, "trains": "up_w"},  # a value where the map belongs
+        {**MOVED, "trains": ["express_2"]},  # the trains without their blocks
+        {**MOVED, "crossing": "crossover.dn_straight"},
+        {**MOVED, "crossing": ["freight_1"]},
+    ]
+    for picture in unreadable:
+        _, dispatcher, _ = restarted(tmp_path, picture)
+
+        assert dispatcher.state.block_of == {
+            "express_2": "up_e",
+            "freight_1": "yard_w",
+        }, picture
+        assert dispatcher.state.crossing == {}, picture
+        assert dispatcher.pending == (), picture
+        coherent(dispatcher)
+
+
+def test_a_value_that_states_no_picture_holds_the_run_all_the_same(
+    tmp_path: Path,
+) -> None:
+    """The hold turns on a value being there and not on what could be taken
+    from it.
+
+    A picture the document overruled holds the run, and one nothing at all
+    could be read out of is the far end of that same scale: a session left
+    something on this topic and its record is damaged, which is more for a
+    person to come and look at rather than less. Coming up running because
+    the record was too damaged to read would be the failure the hold exists
+    to prevent, arrived at backwards.
+    """
+    _, dispatcher, said = restarted(tmp_path, "nonsense")
+
+    assert dispatcher.state.run == "held"
+    assert {line["run"] for line in said if line["event"] == RUN} == {"held"}
+
+
+def test_a_train_the_picture_names_unreadably_loses_only_itself(
+    tmp_path: Path,
+) -> None:
+    """Each map is read one train at a time, as the retained facing is: the
+    whole of a session's placement is in this one value, and dropping all of
+    it for one entry would cold-start every train the good entries name
+    (#278). `freight_1` falls back to the document, `express_2` comes back up
+    where the last session left it, and the same rule empties the crossing
+    hint of the train whose own hint could not be read."""
+    damaged = {
+        **MOVED,
+        "trains": {"express_2": "up_w", "freight_1": 7},
+        "crossing": {"express_2": "crossover.up_straight", "freight_1": None},
+    }
+    _, dispatcher, _ = restarted(tmp_path, damaged)
+
+    assert dispatcher.state.block_of == {"express_2": "up_w", "freight_1": "yard_w"}
+    assert dispatcher.state.crossing == {"express_2": "crossover.up_straight"}
+    coherent(dispatcher)

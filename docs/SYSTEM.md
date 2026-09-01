@@ -679,6 +679,15 @@ locks are published. Lengths still come from the roster, and `locks` and
 `requests` are not adopted at all, so the lock table is rebuilt with one block
 per train and the queue comes back empty.
 
+That value is **read** like any other payload: rule 4 does not exempt the
+moment a retained one is read, and a value that states no picture at all
+leaves the dispatcher starting as a cold start does — every train on its
+document placement — rather than refusing to start. It is read a train at a
+time, so a picture naming one train unreadably loses that train and keeps the
+rest, exactly as a picture the document overrules does. A value that is there
+and cannot be read still **holds** the run: what decides that is a value
+being on the topic, never how much of it could be taken.
+
 Placement is decided **one train at a time**. A train the picture does not
 name starts where the document says. Where that is a block the picture already
 stands another train in, the contested block goes to the train with nowhere
