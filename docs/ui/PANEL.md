@@ -326,6 +326,12 @@ Neither is `tc49/dispatch/request_cancelled` read yet: a request the panel is
 following and somebody ends stays in its list until the train is dragged
 again, which is the reading to add with the gesture.
 
+Undrawn as well are the two gestures a **throttle** rides on,
+`tc49/layout/mode_wanted` and `tc49/layout/throttle_wanted`. Taking a train in
+a throttle and turning it are a person's actions on a UI like any other,
+`INBOUND` is this app's write surface, and the view that draws them is its own
+work ([#207](https://github.com/rails49/control/issues/207)).
+
 **Right-clicking** the block a train stands in opens a menu with one item,
 **Turn around**, which publishes `tc49/schedule/reversal_wanted` (`{train}`). The
 scheduler flips that train's **facing** to the other run across the block —
@@ -347,7 +353,7 @@ before you commit, which suits a gesture whose entire effect is one arrow
 rotating, and no motion the drag uses can reach it: a plain click on a train's
 own block is already the drag's cancel. Not "Reverse", which is the throttle's
 word; this moves nothing. The menu is where the human driver's throttle will
-hang later, as a third browser-writable topic.
+hang later, on the two rows now declared for it.
 
 Over bare paper, over an empty block, or with no session joined no menu opens,
 and neither does the browser's own, which the drawing suppresses throughout.
