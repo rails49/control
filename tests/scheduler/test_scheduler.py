@@ -20,6 +20,14 @@ def yard() -> Layout:
     return layout
 
 
+def gotthard() -> Layout:
+    """The railroad on the bench, which the yard is not: it is the one drawn
+    here with a reversing loop, and facing out and back through one is a
+    question only it can be asked."""
+    layout, _roster, _ = load("gotthard/meet")
+    return layout
+
+
 TWO_TRAINS = {
     "freight_1": TrainSpec("yard_w", "A-to-B"),
     "express_2": TrainSpec("up_e", "B-to-A"),
@@ -300,24 +308,125 @@ def test_a_granted_move_into_a_terminal_block_faces_its_connected_end() -> None:
     assert seen[-1][1]["facing"]["express_2"] == "yard_w.A-to-B"
 
 
-def test_a_committed_route_faces_the_train_at_its_departure_end() -> None:
-    """A request may depart against facing — ADR-0019 makes facing a
-    scheduler discipline, not a system invariant — so the route the
-    dispatcher commits to has the last word before the train moves."""
+def chose(bus: Bus, request: str, route: list[str]) -> None:
+    bus.publish(
+        "tc49/dispatch/route_chosen", {"id": request, "route": route, "k_tried": 1}
+    )
+    bus.drain()
+
+
+def granted(bus: Bus, train: str, transit: str, into: str) -> None:
+    bus.publish(
+        "tc49/dispatch/move_granted",
+        {
+            "id": f"{train}-1",
+            "train": train,
+            "transit": transit,
+            "into": into,
+            "aspect": "clear",
+        },
+    )
+    bus.drain()
+
+
+def test_a_route_out_of_the_end_the_train_faces_moves_the_arrow_on_arrival() -> None:
+    """Committing to a route is a plan; facing is a fact about the stock, and
+    it moves when the train does (ADR-0019, #295). `express_2` stands in
+    `up_e` facing B-to-A and its request departs by A, the end it faces: the
+    arrow stays where it is until the move lands, and the move is what turns
+    it away from the end entered."""
     bus = Bus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()  # express_2-1 goes out, so the scheduler knows whose route it is
-    bus.publish(
-        "tc49/dispatch/route_chosen",
-        {
-            "id": "express_2-1",
-            "route": ["up_e", "east_ladder.from_up", "yard_e"],
-            "k_tried": 1,
-        },
-    )
+    published = len(seen)
+
+    chose(bus, "express_2-1", ["up_e", "crossover.up_straight", "up_w"])
+    assert len(seen) == published
+    assert seen[-1][1]["facing"]["express_2"] == "up_e.B-to-A"
+
+    granted(bus, "express_2", "crossover.up_straight", "up_w")
+    assert seen[-1][1]["facing"]["express_2"] == "up_w.B-to-A"
+
+
+def test_a_route_out_of_the_other_end_moves_no_arrow() -> None:
+    """The bug this closes before it can bite (#295). A request may depart
+    against facing — ADR-0019 makes facing a scheduler discipline, not a
+    system invariant — and `up_e.B` is the end `express_2`'s tail stands at.
+    Recording that departure would say the train turned around while nothing
+    touched it, which is a train driven backwards down the track once
+    `layout` reads the same value."""
+    bus = Bus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
-    assert seen[-1][1]["facing"]["express_2"] == "up_e.A-to-B"
+    published = len(seen)
+
+    chose(bus, "express_2-1", ["up_e", "east_ladder.from_up", "yard_e"])
+    assert len(seen) == published
+    assert seen[-1][1]["facing"]["express_2"] == "up_e.B-to-A"
+
+
+def test_a_propelled_train_faces_the_end_it_entered_through() -> None:
+    """A train pushed out of the end its nose points away from enters the
+    next block tail-first, so its nose points *at* the end it came in by.
+
+    `shunter` stands in `up_w` facing B-to-A — nose at `up_w.A` — and is
+    propelled out of `up_w.B` over the crossover into `up_e`, entering
+    through `up_e.A`. Faced away from that end it would read `up_e.A-to-B`,
+    a train that turned around in a strict pass-through (ADR-0001)."""
+    bus = Bus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded({"shunter": TrainSpec("up_w", "B-to-A")}))
+
+    granted(bus, "shunter", "crossover.up_straight", "up_e")
+    assert seen[-1][1]["facing"]["shunter"] == "up_e.B-to-A"
+
+
+def test_a_propelled_train_keeps_its_nose_direction_across_two_blocks() -> None:
+    """Routes are strict pass-throughs, so the answer is the same for every
+    move of one route and nothing has to be remembered between them: each
+    arrival is read against the facing the one before it left (#295).
+
+    `shunter` is pushed west to east the whole way — `up_w`, `up_e`, then the
+    yard — and its nose points at the `A` end of each block it stands in."""
+    bus = Bus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded({"shunter": TrainSpec("up_w", "B-to-A")}))
+
+    granted(bus, "shunter", "crossover.up_straight", "up_e")
+    assert seen[-1][1]["facing"]["shunter"] == "up_e.B-to-A"
+    granted(bus, "shunter", "east_ladder.from_up", "yard_e")
+    assert seen[-1][1]["facing"]["shunter"] == "yard_e.B-to-A"
+
+
+def test_a_propelled_train_into_a_terminal_block_faces_its_connected_end() -> None:
+    """A stub has one end a train can leave by and both roads lead to it:
+    `shunter` is propelled out of `dn_w.A` into `yard_w` through `yard_w.B`,
+    and `yard_w.A` is a wall. Facing the end entered and facing away from it
+    are the same answer here, which is what #145 settled — facing never names
+    an end that leads nowhere."""
+    bus = Bus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded({"shunter": TrainSpec("dn_w", "A-to-B")}))
+
+    granted(bus, "shunter", "west_ladder.to_dn", "yard_w")
+    assert seen[-1][1]["facing"]["shunter"] == "yard_w.A-to-B"
+
+
+def test_a_route_out_and_back_through_a_reversing_loop_turns_the_train() -> None:
+    """Airolo's `CW.A` joins both `A1.A` and `A1.B` — a reversing loop's
+    signature — so a train that runs out of `CW` and back into it comes home
+    the other way round. Nose-first both moves, and the pass-through rule
+    alone gives the reversal: nothing about #295 touches it."""
+    bus = Bus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, gotthard(), seed(gotthard(), {"shunter": TrainSpec("CW", "B-to-A")}))
+
+    granted(bus, "shunter", "j1.A1_A__CW_A", "A1")
+    assert seen[-1][1]["facing"]["shunter"] == "A1.A-to-B"
+    granted(bus, "shunter", "j1.A1_B__CW_A", "CW")
+    assert seen[-1][1]["facing"]["shunter"] == "CW.A-to-B"
 
 
 def test_facing_is_published_only_when_it_moves() -> None:
@@ -492,8 +601,10 @@ def test_a_reversal_composes_no_request_and_tells_the_dispatcher_nothing() -> No
 
 def test_a_reversal_is_dropped_while_the_train_has_a_request_in_flight() -> None:
     """Flipping the arrow under a queued request produces a lie: the request
-    still departs the old end, and `route_chosen` flips the arrow back when it
-    launches. So the rule is any request from submit to completion.
+    still departs the end the facing named when it was composed, so the train
+    the arrow now points one way would leave the other. So the rule is any
+    request from submit to completion — and dropping the gesture is the whole
+    of the protection now that nothing takes it back (#295).
 
     Asked of `express_2` in the through block `up_e`, where the flip has an
     end to move to: in a terminal block the gesture is a no-op anyway and the
@@ -739,12 +850,6 @@ def test_an_announcement_that_cannot_be_read_leaves_facing_where_it_was() -> Non
             "move_granted",
             {"train": "f", "transit": "west_ladder.to_dn", "into": "up_e"},
         ),
-        ("route_chosen", ["up_e", "east_ladder.from_up"]),  # nor a list of fields
-        ("route_chosen", {"route": ["up_e", "east_ladder.from_up"]}),  # no id
-        ("route_chosen", {"id": "express_2-1", "route": "up_e"}),  # not a sequence
-        ("route_chosen", {"id": "express_2-1", "route": ["up_e", 7]}),  # not all names
-        ("route_chosen", {"id": "express_2-1", "route": ["up_e", "ghost.from_up"]}),
-        ("route_chosen", {"id": "nobody-9", "route": ["up_e", "east_ladder.from_up"]}),
         ("train_placed", {"train": "freight_1"}),  # no block
         ("train_placed", {"train": "freight_1", "block": None}),  # removal's word
         ("train_removed", {}),  # no train
@@ -791,6 +896,15 @@ def test_a_leaf_the_scheduler_does_not_act_on_is_ignored() -> None:
             "train": "freight_1",
             "depart": "yard_w.B",
             "dest": ["yard_e.A"],
+        },
+    )
+    announce(  # a plan, and facing is a fact about the stock (#295)
+        bus,
+        "route_chosen",
+        {
+            "id": "express_2-1",
+            "route": ["up_e", "east_ladder.from_up", "yard_e"],
+            "k_tried": 1,
         },
     )
     announce(bus, "lock_granted", {"train": "freight_1", "resources": ["dn_w"]})
