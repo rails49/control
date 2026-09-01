@@ -29,10 +29,10 @@ trains:
 # has no genuine choice of arrival track to show; Gotthard is where that lives.
 #
 # `from` needs only the end. It carries the block where the author knows it,
-# and is then checked — at load time for a train's first working, at admission
-# for later ones. freight_1's return working can still state `yard_e.A`,
-# because its outward request left one surviving arrival end and so fixed where
-# it parks; a working that named several could not. It departs by the end it
+# and is then checked at load, against the block the file leaves the train in.
+# freight_1's return working can still state `yard_e.A`, because its outward
+# request names ends in one block and so fixed where it parks; a working whose
+# predecessor named several could not, and writes a bare end letter. It departs by the end it
 # arrived through, which is reversal at rest between requests (ADR-0001) and is
 # the only way out of a terminal block.
 #

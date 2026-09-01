@@ -200,6 +200,13 @@ class AssetStore:
         requests: list[RequestSpec] = []
         if not isinstance(doc["requests"], list):
             raise TypeError(f"{where}: requests must be a list")
+        # train -> the block the file leaves it in ahead of its next working,
+        # or None where the file does not fix one. The placement to begin
+        # with; after a working, its arrival block where every arrival end
+        # names one, and otherwise a dispatcher choice among them.
+        standing: dict[str, str | None] = {
+            train: spec.at for train, spec in trains.items()
+        }
         for i, spec in enumerate(cast(list[Any], doc["requests"])):
             here = f"{where}: request {i + 1}"
             check_keys(spec, here, {"train", "from", "to"})
@@ -211,6 +218,7 @@ class AssetStore:
             if train not in trains:
                 raise ValueError(f"{here}: unknown train '{train}'")
             _check_departure_end(depart, layout, here)
+            _check_departure_block(depart, standing[train], here)
             if not isinstance(to, list) or not to:
                 raise ValueError(
                     f"{here}: 'to' must be a non-empty list of arrival ends"
@@ -225,6 +233,8 @@ class AssetStore:
                 if "." in entry:
                     check_end(entry, layout.blocks, here)
                 arrivals.append(entry)
+            blocks = {block_of(entry) for entry in arrivals}
+            standing[train] = blocks.pop() if len(blocks) == 1 else None
             requests.append(RequestSpec(train, depart, tuple(arrivals)))
 
         return Scenario(name, layout_id, trains, tuple(requests))
@@ -232,7 +242,35 @@ class AssetStore:
 
 def _check_departure_end(depart: str, layout: Layout, where: str) -> None:
     """Validate a 'from' entry: a full end, or a bare end letter for a
-    chained request whose block is unknown at authoring time. Whether the
-    train actually stands there is the dispatcher's admission check."""
+    chained request whose block is unknown at authoring time."""
     if depart not in ("A", "B"):
         check_end(depart, layout.blocks, where)
+
+
+def _check_departure_block(depart: str, standing: str | None, where: str) -> None:
+    """A stated departure block must be the block the file leaves the train
+    in, and a working the file fixes no block for must state none.
+
+    This is where an authoring slip is caught, because nothing downstream
+    catches it: at run time a stated block is not a routing input but a hint,
+    and the dispatcher corrects it from the route it chose itself (#135,
+    DISPATCH.md) — a panel composes one against a train it has drawn mid-move,
+    and correcting it is the working the operator asked for. A file is written
+    ahead of the run, where the same disagreement is a mistake and a silently
+    different experiment (LAYOUT.md). Only the block is judged: which end the
+    train leaves by is scheduler discipline, not a fact the layout holds
+    (ADR-0019).
+    """
+    if "." not in depart:  # a bare end letter states no block to disagree
+        return
+    block = block_of(depart)
+    if standing is None:
+        raise ValueError(
+            f"{where}: departs '{block}', but where the train stands is a"
+            " dispatcher choice among the previous working's arrival ends —"
+            " write a bare end letter"
+        )
+    if block != standing:
+        raise ValueError(
+            f"{where}: departs '{block}', but the train stands in '{standing}'"
+        )
