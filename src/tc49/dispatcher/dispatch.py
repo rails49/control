@@ -22,6 +22,15 @@ it cannot (ADR-0034). Who sent one is not asked and is nowhere to be read:
 `tc49/dispatch/request_submitted` names the dispatcher that answers it, and a
 second scheduler submitting alongside the first needs no change here
 (SYSTEM.md, rule 4).
+
+The whole of what arrives is read that way (#260). Two filters: the requests
+this app answers — `request_submitted`, `run_wanted` and `placement_wanted`,
+from the ui, the scheduler, or a second scheduler introduced later — and what
+the layout interface observes, on a filter that also carries the `align` and
+`move` commands, which name the layout and are passed by unread. Every leaf
+goes through a reader in `lib.payload` and nothing subscripts a frame it has
+not read. The one thing left that could take the app off the bus was a sensor
+reading no granted move accounts for; it holds the run instead (ADR-0048).
 """
 
 from collections.abc import Sequence

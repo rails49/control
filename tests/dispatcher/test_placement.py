@@ -13,7 +13,7 @@ nothing to address an answer to (ADR-0034).
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -165,6 +165,38 @@ def test_a_placement_of_a_train_with_a_request_in_flight_is_dropped(
     place(held, "freight_1", "up_w")
 
     assert placements(held) == []
+    assert last(held, "allocation")["trains"]["freight_1"] == "yard_w"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"train": "freight_1"},
+        {"train": 7, "block": "up_w"},
+        {"train": "freight_1", "block": 42},
+        "freight_1 in up_w",
+    ],
+    ids=[
+        "no fields",
+        "no block key",
+        "train not a name",
+        "block not a name",
+        "not an object",
+    ],
+)
+def test_a_gesture_that_cannot_be_read_at_all_is_dropped(
+    held: Assembly, payload: object
+) -> None:
+    """Anyone may publish on the topic and nothing authenticates them, so the
+    gesture is read and never subscripted: what cannot be read moves no train
+    and takes no app down (SYSTEM.md, rule 4). The missing `block` key is a
+    frame that lost a field, not a train taken off the layout — the key's
+    presence is load-bearing, and a `null` a page wrote is the removal."""
+    press(held, PLACEMENT_WANTED, cast(Any, payload))
+
+    assert placements(held) == []
+    assert removals(held) == []
     assert last(held, "allocation")["trains"]["freight_1"] == "yard_w"
 
 
