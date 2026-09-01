@@ -11,7 +11,9 @@
  * stays in the row below" — was already broken by the navigation link that
  * stood at this end, and it has no answer for track power, which is a fact
  * about the whole railroad rather than about a document. Power reads here as
- * the observation it is (ADR-0041); commanding it is nobody's button yet.
+ * the observation it is (ADR-0041), and ON, STOP and OFF stand beside the
+ * reading because they are about the same whole railroad
+ * ([ADR-0051](../../../docs/adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
  *
  * Two things the author is answerable for read here anyway
  * ([ADR-0024](../../../docs/adr/0024-the-drawing-shows-its-own-faults.md)).
@@ -39,6 +41,16 @@ const POWERED: Record<Power, string> = {
   stopped: "emergency stop",
   off: "power off",
 };
+
+/** The three presses, in the order a hand reaches for them: the one that
+ *  starts a railroad, the one that stops it now, and the one that puts it
+ *  away. Each names where the supply should stand rather than asking for a
+ *  change, so none of them is greyed by the value it would write. */
+const SUPPLY: readonly { power: Power; word: string; says: string }[] = [
+  { power: "on", word: "ON", says: "give the track power" },
+  { power: "stopped", word: "STOP", says: "stop every locomotive where it stands" },
+  { power: "off", word: "OFF", says: "drain the run, then remove the supply" },
+];
 
 @customElement("tc-header")
 export class TcHeader extends LitElement {
@@ -98,6 +110,12 @@ export class TcHeader extends LitElement {
    *  supply is switched back on, which are different actions by a person. */
   @property() power: Power | null = null;
 
+  /** Whether the run view's OFF is waiting on the drain: it has asked the
+   *  run to drain and removes the supply when the run reaches `held`
+   *  (ADR-0051). A drain that never lands leaves the railroad powered, so the
+   *  button says it is still waiting rather than pretending it is done. */
+  @property({ type: Boolean }) draining = false;
+
   /** Whether the picker's list is down. */
   @state() private picking = false;
 
@@ -131,7 +149,7 @@ export class TcHeader extends LitElement {
           </span>`
         : nothing}
       <span class="spacer"></span>
-      ${this.health()} ${this.toggle()}
+      ${this.health()} ${this.supply()} ${this.toggle()}
     `;
   }
 
@@ -176,6 +194,56 @@ export class TcHeader extends LitElement {
         ${this.sessionS === null
           ? nothing
           : html`<span class="session">session ${clocked(this.sessionS)}</span>`}
+      </div>
+    `;
+  }
+
+  /**
+   * ON, STOP and OFF: what the whole railroad's supply should be doing
+   * (ADR-0051). They stand beside the reading rather than on the bar below,
+   * which is the current view's document's — track power is no document's.
+   *
+   * **One press each and no confirmation.** An emergency stop that asks "are
+   * you sure?" is not one, `stopped` is cheap to recover from with the points
+   * still where you left them, and returning to `on` releases nothing on its
+   * own, so an explicit GO still follows (ADR-0041). None is greyed by the
+   * value it would write: each names where the supply should stand, so a
+   * press that agrees with where it stands is not a race.
+   *
+   * **OFF is the drain trigger.** The press asks the run to drain and the
+   * supply goes only once the run has settled; while that is outstanding the
+   * button says so, because a drain that never lands leaves the railroad
+   * powered and the person has to be able to see that. ON is the way out of
+   * a wait, which is why the word on it does not change.
+   *
+   * With no session joined there is no railroad to command, and a bridge that
+   * is not answering would swallow the press, so the three are drawn only on
+   * a joined session and are dead while it is not connected.
+   */
+  private supply() {
+    if (!this.joined) return nothing;
+    return html`
+      <div class="supply">
+        ${SUPPLY.map(({ power, word, says }) => {
+          const waiting = power === "off" && this.draining;
+          return html`
+            <button
+              class=${`press ${power}${waiting ? " waiting" : ""}`}
+              title=${waiting ? "waiting for the run to drain" : says}
+              ?disabled=${!this.linked || waiting}
+              @click=${() =>
+                this.dispatchEvent(
+                  new CustomEvent<Power>("power-wanted", {
+                    detail: power,
+                    bubbles: true,
+                    composed: true,
+                  }),
+                )}
+            >
+              ${waiting ? "DRAINING…" : word}
+            </button>
+          `;
+        })}
       </div>
     `;
   }

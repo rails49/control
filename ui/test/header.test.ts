@@ -265,6 +265,97 @@ describe("whether the drawing derives", () => {
   });
 });
 
+/**
+ * ON, STOP and OFF (ADR-0051). They stand beside the reading they act on,
+ * because track power is the whole railroad's and no document's, and each
+ * names where the supply should stand rather than asking for a change.
+ */
+describe("commanding the supply", () => {
+  /** The three presses, in the order the band draws them. */
+  function presses(header: TcHeader): HTMLButtonElement[] {
+    return [...header.renderRoot.querySelectorAll<HTMLButtonElement>("button.press")];
+  }
+
+  /** What was asked of the supply while `act` ran. */
+  function asking(header: TcHeader, act: () => void): string[] {
+    const heard: string[] = [];
+    header.addEventListener("power-wanted", (event) => {
+      heard.push((event as CustomEvent<string>).detail);
+    });
+    act();
+    return heard;
+  }
+
+  /** A band on a joined session with the bridge answering. */
+  const LIVE = { joined: true, linked: true };
+
+  it("offers ON, STOP and OFF on a joined session", async () => {
+    const header = await band(LIVE);
+    expect(presses(header).map((one) => one.textContent!.trim())).toEqual([
+      "ON",
+      "STOP",
+      "OFF",
+    ]);
+  });
+
+  /** No session is no railroad to command, and a drawing has no rails. */
+  it("offers nothing off a joined session", async () => {
+    expect(presses(await band()).length).toBe(0);
+  });
+
+  /** A bridge that is not answering would swallow the press, so the button
+   *  is dead rather than pretending it landed. Dead and not hidden: the row
+   *  must not move under the hand. */
+  it("is dead while the bridge is not answering", async () => {
+    const header = await band({ joined: true, linked: false });
+    expect(presses(header).map((one) => one.disabled)).toEqual([true, true, true]);
+  });
+
+  /** One click and no dialog. An emergency stop that asks "are you sure?" is
+   *  not one, and `stopped` is cheap to recover from. */
+  it("asks for an emergency stop on one click, with nothing in the way", async () => {
+    const header = await band(LIVE);
+    const heard = asking(header, () => presses(header)[1]!.click());
+    expect(heard).toEqual(["stopped"]);
+    expect(header.renderRoot.querySelector("sl-dialog")).toBeNull();
+  });
+
+  it("asks for power and for the supply to go", async () => {
+    const header = await band(LIVE);
+    expect(asking(header, () => presses(header)[0]!.click())).toEqual(["on"]);
+    expect(asking(header, () => presses(header)[2]!.click())).toEqual(["off"]);
+  });
+
+  /** None is greyed by the value it would write: each names where the supply
+   *  should stand, so a press that agrees with where it stands is not a
+   *  race. */
+  it("offers every press whatever the supply is doing", async () => {
+    for (const power of ["on", "stopped", "off"] as const) {
+      const header = await band({ ...LIVE, power });
+      expect(presses(header).map((one) => one.disabled)).toEqual([false, false, false]);
+    }
+  });
+
+  /** The drain is outstanding, so the button says what it is waiting for.
+   *  A drain that never lands leaves the railroad powered, and a button
+   *  still reading OFF would say the opposite. */
+  it("says the drain is outstanding rather than that the supply has gone", async () => {
+    const header = await band({ ...LIVE, draining: true });
+    const off = presses(header)[2]!;
+    expect(off.textContent!.trim()).toBe("DRAINING…");
+    expect(off.disabled).toBe(true);
+    expect(off.title).toBe("waiting for the run to drain");
+  });
+
+  /** ON is the way out of a wait, so it keeps its word and stays live. */
+  it("leaves ON and STOP alive while the drain is outstanding", async () => {
+    const header = await band({ ...LIVE, draining: true });
+    const [on, stop] = presses(header);
+    expect([on!.disabled, stop!.disabled]).toEqual([false, false]);
+    expect(on!.textContent!.trim()).toBe("ON");
+  });
+});
+
 /** Views are a list with one current entry, and two of them render as one
  *  icon-button wearing the other's name — which is what a toggle is. A third
  *  makes it a selector, and that is the redesign the list avoids (ADR-0038). */

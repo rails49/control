@@ -607,7 +607,8 @@ The chrome is two rows the editor also wears (#84,
 railroad the app has loaded and the picker that loads another, the unsaved
 dot, the health area — the store not answering, the bridge, whether the rails
 have power, how far the run has got, whether the trains standing here have
-frozen the drawing — and the view toggle. The **bar** is this
+frozen the drawing — the three track-power presses beside that reading, and
+the view toggle. The **bar** is this
 view's document's: a `View` menu carrying zoom and fit, those three pinned as
 icon buttons at its right end, and **HOLD/GO**.
 
@@ -629,6 +630,39 @@ the other back on, which are different actions
 ([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 With no session joined it says nothing, a drawing having no rails to have
 power.
+
+**ON, STOP and OFF command the supply**, on `tc49/layout/power_wanted`
+([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
+They stand in the band beside the reading they act on, because track power is
+the whole railroad's and no document's, and they are drawn only on a joined
+session — a drawing has no rails to power — and are dead while the bridge is
+not answering, a press it would swallow being a press that did nothing. None
+is greyed by the value it would write: like `run_wanted`, the gesture names
+where the supply should stand rather than asking for a change, so a press that
+agrees with where it stands is not a race. The topic is `layout`'s because
+`layout` is what answers it, and `layout` answers by writing the desired power
+of the device vocabulary — a page never reaches a translator.
+
+**STOP is one click with no confirmation**, for the reason HOLD is: an
+emergency stop that asks "are you sure?" is not one, and `stopped` is cheap to
+recover from with the points still where you left them. **ON** writes nothing
+on `run_wanted`: returning to `on` releases nothing on its own (ADR-0041), so
+an explicit GO still follows.
+
+**OFF is the drain trigger, never an immediate cut.** The press publishes
+`tc49/dispatch/run_wanted: draining`, watches `tc49/dispatch/state/run` reach
+`held`, and publishes `power_wanted: off` only then; both are topics this view
+already writes, so `layout` never subscribes to the dispatcher. A run that
+already reads `held` has nothing left to drain, so the supply goes at once.
+While the wait is outstanding the button reads *DRAINING…* and is dead, and a
+run that never settles leaves the railroad powered and the button still saying
+so — the case an abrupt cut would have hidden. **ON is the way out of a wait**:
+it abandons the outstanding cut as well as writing its own frame, a supply
+going away out of a press the person has moved on from being the surprise this
+button exists to avoid. A session that goes away takes the wait with it. The
+`draining` value itself, and the dispatcher's launch gate, are
+[#294](https://github.com/rails49/control/issues/294); OFF is inert until the
+dispatcher understands the word.
 
 **GO is greyed while the power is not `on`.** The dispatcher drops such a
 release, so a live button would be one that does nothing. It carries no
