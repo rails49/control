@@ -34,16 +34,14 @@ ALLOWED_FILES = frozenset(
 )
 
 PACKAGES = frozenset({"dccex", "jmri"})
-"""The package names a translator's app and docs folder carry: a translator
-is named for the system it speaks to (ADR-0043), so a page that inventories
-what is on disk cannot list one without spelling it."""
-
-NAMES_PACKAGES = frozenset({"ARCHITECTURE.md"})
-"""Where a **package name** is not a leak, in that exact spelling and no
-other. The repository's own map lists every package, every docs folder and
-every test package, and a directory listing knows nothing about a protocol.
-`DCC-EX`, `DCC` and `JMRI` are still leaks on these pages, which is the
-difference between naming a directory and writing about hardware (#289)."""
+"""Package names, and never a leak wherever they appear. A translator is
+named for the system it speaks to (ADR-0043), so a page cannot say which app
+does the work without spelling the directory. `DCC-EX`, `DCC` and `JMRI` —
+the product and protocol names the rule exists to keep out — still leak
+everywhere they leak today. The difference is naming a directory versus
+writing about hardware, and it does not depend on which page you are on:
+listing the pages that may name a package was a per-file allowlist that
+every new mention had to be added to, for no gain."""
 
 
 def test_hardware_protocols_stay_in_hardware_docs() -> None:
@@ -52,10 +50,9 @@ def test_hardware_protocols_stay_in_hardware_docs() -> None:
         rel = page.relative_to(DOCS)
         if rel.parts[0] in ALLOWED_DIRS or str(rel) in ALLOWED_FILES:
             continue
-        packages = str(rel) in NAMES_PACKAGES
         for number, line in enumerate(page.read_text().splitlines(), 1):
             for found in PROTOCOLS.finditer(line):
-                if packages and found.group(0) in PACKAGES:
+                if found.group(0) in PACKAGES:
                     continue
                 leaks.append(f"docs/{rel}:{number}: {found.group(0)}")
                 break
@@ -64,11 +61,12 @@ def test_hardware_protocols_stay_in_hardware_docs() -> None:
     )
 
 
-def test_a_page_that_may_name_a_package_may_not_write_about_hardware() -> None:
-    """The narrow allowance is narrow: the exact directory name passes and
-    every other spelling of the same hardware does not, so the map can list
-    what is on disk without becoming a page about a command station."""
-    passes = "  dccex/       test_commands  test_replies  test_translator"
-    leaks = "the dccex translator speaks DCC-EX over 2560"
-    assert all(found.group(0) in PACKAGES for found in PROTOCOLS.finditer(passes))
-    assert not all(found.group(0) in PACKAGES for found in PROTOCOLS.finditer(leaks))
+def test_a_package_name_passes_and_the_product_name_does_not() -> None:
+    """The allowance is on the spelling, not the page. `dccex` is a directory
+    and passes anywhere; `DCC-EX` is a command station and leaks anywhere."""
+    matched = [
+        m.group(0)
+        for m in PROTOCOLS.finditer("the dccex translator speaks DCC-EX over 2560")
+    ]
+    assert matched == ["dccex", "DCC-EX"]
+    assert [m for m in matched if m not in PACKAGES] == ["DCC-EX"]
