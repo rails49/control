@@ -541,3 +541,141 @@ def test_a_train_taken_off_the_layout_loses_its_facing() -> None:
     bus.publish("tc49/dispatch/train_removed", {"train": "freight_1"})
     bus.drain()
     assert "freight_1" not in facing(seen)
+
+
+# -- what the dispatcher announces, read and never trusted (#259) -----------
+
+
+def announce(bus: Bus, leaf: str, payload: object) -> None:
+    bus.publish(f"tc49/dispatch/{leaf}", cast(Payload, payload))
+    bus.drain()
+
+
+def test_an_announcement_that_cannot_be_read_leaves_facing_where_it_was() -> None:
+    """A leaf under `dispatch` names the component that emits it and not the
+    process that published this frame: the bus authenticates nobody, so an
+    announcement is read exactly as a gesture is (SYSTEM.md, rule 4). None of
+    these raises out of the handler, none moves an arrow, and the honest
+    grant after them still lands.
+
+    Two of the shapes are the layout's rather than the payload's — a transit
+    no connection here holds, and one that crosses neither end of the block
+    named — and are dropped for the same reason: there is no end to face away
+    from.
+    """
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    bus.drain()
+    published, settled = len(seen), facing(seen)
+
+    unreadable: list[tuple[str, object]] = [
+        ("move_granted", "freight_1 into dn_w"),  # not an object at all
+        ("move_granted", {"train": "freight_1", "into": "dn_w"}),  # no transit
+        ("move_granted", {"train": "freight_1", "transit": "west_ladder.to_dn"}),
+        ("move_granted", {"train": 7, "transit": "west_ladder.to_dn", "into": "dn_w"}),
+        ("move_granted", {"train": "f", "transit": "ghost.to_dn", "into": "dn_w"}),
+        (
+            "move_granted",
+            {"train": "f", "transit": "west_ladder.to_dn", "into": "up_e"},
+        ),
+        ("route_chosen", ["up_e", "east_ladder.from_up"]),  # nor a list of fields
+        ("route_chosen", {"route": ["up_e", "east_ladder.from_up"]}),  # no id
+        ("route_chosen", {"id": "express_2-1", "route": "up_e"}),  # not a sequence
+        ("route_chosen", {"id": "express_2-1", "route": ["up_e", 7]}),  # not all names
+        ("route_chosen", {"id": "express_2-1", "route": ["up_e", "ghost.from_up"]}),
+        ("route_chosen", {"id": "nobody-9", "route": ["up_e", "east_ladder.from_up"]}),
+        ("train_placed", {"train": "freight_1"}),  # no block
+        ("train_placed", {"train": "freight_1", "block": None}),  # removal's word
+        ("train_placed", {"train": "freight_1", "block": "ghost"}),  # no such block
+        ("train_removed", {}),  # no train
+        ("train_removed", {"train": 7}),
+        ("request_completed", {}),  # no id
+        ("request_rejected", {"id": 7, "reason": "malformed"}),
+    ]
+    for leaf, payload in unreadable:
+        announce(bus, leaf, payload)
+    assert len(seen) == published
+    assert facing(seen) == settled
+
+    announce(
+        bus,
+        "move_granted",
+        {
+            "id": "freight_1-1",
+            "train": "freight_1",
+            "transit": "west_ladder.to_dn",
+            "into": "dn_w",
+            "aspect": "clear",
+        },
+    )
+    assert facing(seen)["freight_1"] == "dn_w.B"
+
+
+def test_an_answer_that_cannot_be_read_leaves_the_request_in_flight() -> None:
+    """The two answers are what free a train to be turned around at rest: an
+    id the scheduler cannot read frees nothing, so the reversal stays dropped
+    and the request stays the scheduler's to remember (#124)."""
+    bus = Bus()
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    bus.drain()
+    settled = facing(seen)
+
+    announce(bus, "request_completed", {})  # no id at all
+    announce(bus, "request_rejected", {"id": 7, "reason": "malformed"})
+    reversal(bus, {"train": "express_2"})
+    assert facing(seen) == settled
+
+    announce(bus, "request_completed", {"id": "express_2-1"})
+    reversal(bus, {"train": "express_2"})
+    assert facing(seen)["express_2"] == "up_e.B"
+
+
+def test_a_kept_facing_is_read_train_by_train(tmp_path: Path) -> None:
+    """The scheduler's own last value, and still read rather than trusted: it
+    comes back off a file a hand can edit, and tomorrow off a retained
+    message the broker holds for whoever published it last (ADR-0042). A
+    restart that raised on it would be a railroad that will not start until
+    someone finds the file.
+
+    Train by train, so one bad entry costs one train: an end this layout does
+    not hold — the ordinary shape of a railroad edited between sessions — and
+    a value that is not an end leave that train a cold start of one, which is
+    what the seed under it already is.
+    """
+    path = tmp_path / "session.json"
+    path.write_text(
+        json.dumps(
+            {
+                FACING: {
+                    "facing": {
+                        "freight_1": "ghost.A",  # no such block here
+                        "express_2": 7,  # not an end either
+                        "shunter": "up_w.B",  # and one that reads
+                    }
+                }
+            }
+        )
+    )
+    bus = Bus(path)
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+    bus.drain()
+    assert facing(seen) == {
+        "express_2": "up_e.A",
+        "freight_1": "yard_w.B",
+        "shunter": "up_w.B",
+    }
+
+
+def test_a_kept_facing_that_is_not_a_map_starts_cold(tmp_path: Path) -> None:
+    """The whole value unreadable rather than an entry of it: the run comes
+    up on its seed, which is a cold start and not a failure."""
+    path = tmp_path / "session.json"
+    path.write_text(json.dumps({FACING: {"facing": "everywhere"}}))
+    bus = Bus(path)
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+    bus.drain()
+    assert facing(seen) == {"express_2": "up_e.A", "freight_1": "yard_w.B"}
