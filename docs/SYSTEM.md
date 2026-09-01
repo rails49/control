@@ -74,7 +74,7 @@ flowchart TB
   railroad's roster. It is not on the bus, because it answers queries and the
   bus does not.
 - **UI** — the panel, and a throttle later. It watches the bus and writes
-  **gestures** on the five browser-writable topics of the inventory below. A
+  **gestures** on the seven browser-writable topics of the inventory below. A
   gesture is not a request: it names a train and where to put it, and the
   scheduler composes the request
   ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
@@ -226,10 +226,11 @@ connects to a WebSocket relay ([ui/PANEL.md](ui/PANEL.md#implementation)).
 Every `tc49/#` event is sent to every client as one JSON frame,
 `{"topic": …, "payload": …}`.
 
-A client may publish only on the five browser-writable topics —
+A client may publish only on the seven browser-writable topics —
 `tc49/schedule/request_wanted`, `tc49/schedule/reversal_wanted`,
-`tc49/dispatch/run_wanted`, `tc49/dispatch/placement_wanted` and
-`tc49/dispatch/cancel_wanted` — and each
+`tc49/dispatch/run_wanted`, `tc49/dispatch/placement_wanted`,
+`tc49/dispatch/cancel_wanted`, `tc49/layout/mode_wanted` and
+`tc49/layout/throttle_wanted` — and each
 frame it sends is published as the event its topic names. That list is not
 written down twice: it is every row of the inventory below that carries the
 browser mark, which is also what a broker will grant a page once the relay is
@@ -297,11 +298,11 @@ written down a second time, so marking a row widens the browser's write
 surface the day the mark lands, and the mark is the same permission a
 broker's ACL will carry once the relay is gone
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
-Today the mark sits on exactly the five gesture rows. The throttle a person
-drives with ([#124](https://github.com/rails49/control/issues/124),
-[#148](https://github.com/rails49/control/issues/148)) arrives as one more
-marked row under the component that responds to it. Whether a row carries
-the mark is an ACL decision, made when the row lands.
+Today the mark sits on exactly the seven gesture rows. The throttle a person
+drives with ([#207](https://github.com/rails49/control/issues/207)) is the
+last two of them, under `layout`, which is the component that responds to
+them. Whether a row carries the mark is an ACL decision, made when the row
+lands.
 
 **Writer** is the component the name already states for everything a
 component emits. On a request row it is `any`: one responder, any number of
@@ -314,6 +315,9 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/layout/state/power` | state | layout | whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
 | `tc49/layout/align` | command | any | set the route: throw these points |
 | `tc49/layout/move` | command | any | take the train across, this fast |
+| `tc49/layout/mode_wanted` | event | any (browser) | a train is driven automatically, or by a person |
+| `tc49/layout/throttle_wanted` | event | any (browser) | how fast a person is driving a train |
+| `tc49/layout/state/mode` | state | layout | who drives each train |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -412,12 +416,25 @@ its two names, as each topic states.
   which way the train goes along the track is the layout interface's, which
   holds the geometry and the way round the locomotive stands
   ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+- `tc49/layout/mode_wanted` — browser-writable — `train`: the train to hand
+  over or take back, or `null` for **every** train; `mode`: enum `automatic`
+  or `manual`; any other value is dropped, and so is the whole gesture, the
+  train's mode staying where it was.
+- `tc49/layout/throttle_wanted` — browser-writable — `train`; `speed`: a
+  number in −1.0 … 1.0, the fraction of that train's maximum, `0.0` being
+  stop, signed for which way the train runs along its own length — positive
+  nose-first. Which locomotive the speed reaches, and which way round it
+  stands, is `layout`'s, which reads the roster.
+- `tc49/layout/state/mode` — `modes`: map of train to enum `automatic` or
+  `manual`. `automatic` is the resting value, so a train the map does not
+  name is `automatic` and an unreadable entry leaves that train without a
+  mode rather than being read as one.
 
 #### `schedule`
 
-The five browser-writable rows here and under `dispatch` are where rule 4
-bites hardest: each payload is read defensively, and one that fails the read
-is dropped.
+The seven browser-writable rows — the two here, the three under `dispatch`
+and the two under `layout` above — are where rule 4 bites hardest: each
+payload is read defensively, and one that fails the read is dropped.
 
 - `tc49/schedule/request_wanted` — browser-writable — `train`; `dest`: list,
   each entry a block or a block end, a bare block meaning either end.
@@ -1004,6 +1021,32 @@ together, and it holds wherever the pair is read: the scheduler keeps it on
 leaves no end to face the train away from. `align` is read by whatever acts on
 it, and the milestone-1 simulator throws no points, so it reads nothing off
 that one and nothing on it can fail to be read.
+
+**Manual driving.** A train is **automatic** or **manual**: taking it in a
+throttle makes it manual and releasing it puts it back
+([#207](https://github.com/rails49/control/issues/207)). Both gestures are
+this component's — `mode_wanted` hands a train over or takes it back,
+`train: null` handing over every train at once, and `throttle_wanted` is the
+throttle being turned — because the device row a throttle ends at has one
+writer and that writer is `layout` (rule 1), while a throttle is any number
+of writers, two tabs being two of them. The layout interface applies a
+`throttle_wanted` only while that train is manual and drops it otherwise, and
+on the transition back to automatic it writes the speed the train's current
+grant implies, which is `0.0` where there is none. It publishes `state/mode`,
+which is where a view reads who is driving what.
+
+Two things this does **not** change. The **driver** still turns a
+`move_granted` for a manual train into a `move`, so the points still throw and
+the transit is still armed; it never reads the mode and stays a pure function
+of the aspect. The **dispatcher** never learns of it either: a manual train
+still holds its block and may still be granted, a person is trusted to read
+the signal, and both kinds of train move only on a route the dispatcher
+allocated. *Manual* names who turns the throttle and nothing else; an operator
+running a signal at stop is rogue operation the system does not model.
+
+The three rows are **declared and not yet acted on**: nothing publishes or
+subscribes to any of them, so the *Subscribes* and *Publishes* lines above are
+what a binding does today, and a throttle to drive from is the UI's own work.
 
 On the physical railroad the layout interface is the core app `layout`, and
 hardware sits under it by address, as thin translators speaking a device-level
