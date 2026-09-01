@@ -8,7 +8,8 @@ the store rather than to an app of its own — a `ui` package could not import
     GET  /drawings/<name>       one drawing, as the document it is
     PUT  /drawings/<name>       save it, keeping what the file says
     POST /review                what a drawing means, derived and explained
-    GET  /rosters/<name>        one railroad's roster: its trains and lengths
+    GET  /rosters/<name>        one railroad's roster: its trains, each with
+                                its length and the functions its cars declare
 
 `review` is the one that carries the editor's whole view of topology: red
 pins, the portal labels that pair with nothing, junction membership, the
@@ -16,10 +17,13 @@ derived layout, and why each pair of transits does or does not run together.
 The front end reimplements none of it, so a second union-find cannot disagree
 with the first inside the tool whose job is to be believed.
 
-The roster route is the panel's: a run is built from a railroad, and its stock
-is the railroad's roster (ui/PANEL.md, ADR-0039), the bridge relaying the bus
-rather than describing the run. It is a read of the store like any other, so
-it answers with the *validated* document.
+The roster route is the run views': a run is built from a railroad, and its
+stock is the railroad's roster (ui/PANEL.md, ADR-0039), the bridge relaying the
+bus rather than describing the run. The panel reads a train's length off it and
+the throttle reads what a person driving that train can switch
+(ui/THROTTLE.md), both of them derived from the cars the train is made of. It
+is a read of the store like any other, so it answers with the *validated*
+document.
 
 A **scenario is not served at all**. It is the harness's file format, read off
 disk by `tc49 bench` and by `tc49 live --scenario`, and never
@@ -82,15 +86,23 @@ def _route(store: AssetStore, method: str, path: str, body: Any) -> Response:
     railroad = route.removeprefix("/rosters/")
     if method == "GET" and railroad != route and "/" not in railroad:
         roster = store.roster(railroad)
-        # The train's length and nothing else: a train also carries the cars
-        # it is made of and what it is made of is the roster screen's, not
-        # the panel's (ui/PANEL.md). Written out rather than `asdict`, which
-        # would put every field of the document on this face the day one is
-        # added — and would drop `length`, which a train derives.
+        # The train's length and what a person driving it can switch, and
+        # nothing else: the cars it is made of, their addresses and which
+        # function number each name sits on are the roster screen's and the
+        # translator's, not a view's (ui/THROTTLE.md, ADR-0045). Written out
+        # rather than `asdict`, which would put every field of the document on
+        # this face the day one is added — and would drop both of these, which
+        # a train derives.
         return 200, {
             "roster": roster.railroad,
             "trains": {
-                name: {"length": train.length}
+                name: {
+                    "length": train.length,
+                    "functions": [
+                        {"name": function.name, "values": list(function.values)}
+                        for function in train.functions
+                    ],
+                }
                 for name, train in sorted(roster.trains.items())
             },
         }
