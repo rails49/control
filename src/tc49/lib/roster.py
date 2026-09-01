@@ -113,8 +113,10 @@ class Train:
     fact and the roster's whole job is that it stays one. `stated_length` is
     the one exception and it is the migration's: a roster written before
     [#223](https://github.com/rails49/control/issues/223) states a train's
-    length and names no cars, and those five files still load until that
-    issue rewrites them. A train may say one or the other and never both.
+    length and names no cars, and one still loads. No committed roster is
+    written that way any more, #223 having rewritten the five into cars; the
+    exception is what a person's own older file gets. A train may say one or
+    the other and never both.
     """
 
     cars: tuple[Coupled, ...] = ()
@@ -141,7 +143,7 @@ class Train:
         **Kind**).
 
         A train that names no cars has no kind to derive, which is what a
-        roster written before #223 says about every one of its trains.
+        roster written the pre-#223 way says about every one of its trains.
         """
         if not self.cars:
             return None

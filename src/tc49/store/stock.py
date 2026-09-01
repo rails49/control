@@ -120,9 +120,10 @@ def _train(doc: Any, cars: Mapping[str, Car], where: str) -> Train:
     """A train: an ordered list of the railroad's cars, head first.
 
     Its length and its kind are derived from those cars and are never
-    authored. A train stating `length` and naming no cars is the shape every
-    roster still has before #223 rewrites them; stating both would be two
-    ways to know one length, which is the field that rots, so it is refused.
+    authored. A train stating `length` and naming no cars is the shape the
+    committed rosters had before #223 rewrote them into cars, and it still
+    loads for the sake of an older file; stating both would be two ways to
+    know one length, which is the field that rots, so it is refused.
     """
     spec = as_mapping(doc, where)
     if "cars" in spec and "length" in spec:

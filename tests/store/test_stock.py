@@ -227,9 +227,9 @@ def test_a_train_is_made_of_cars_the_railroad_owns() -> None:
 
 
 def test_a_train_states_a_length_only_where_it_names_no_cars() -> None:
-    """The five committed rosters still state one and name no cars, which is
-    #223's to rewrite. Saying both would be two ways to know one length, and
-    that is the field that rots."""
+    """The shape the committed rosters had before #223 rewrote them, kept so
+    an older file on disk still loads. Saying both would be two ways to know
+    one length, and that is the field that rots."""
     assert (
         roster({}, {"freight_1": {"length": 1100}}).trains["freight_1"].length == 1100
     )
@@ -241,8 +241,8 @@ def test_a_train_states_a_length_only_where_it_names_no_cars() -> None:
 
 
 def test_the_committed_catalogue_is_what_the_library_railroads_need() -> None:
-    """Every length the five rosters use, so #223 can write a car per
-    synthetic train without inventing a product."""
+    """Every length the five rosters use, which is what lets each synthetic
+    train be one car and no product be invented (#223)."""
     catalogue = AssetStore(ROOT).catalogue()
     lengths = {model.length for model in catalogue.values()}
     owned = {
@@ -252,6 +252,23 @@ def test_the_committed_catalogue_is_what_the_library_railroads_need() -> None:
     }
     assert owned <= lengths
     assert all(model.kind == "freight" for model in catalogue.values())
+
+
+def test_every_library_train_is_one_bench_car_of_its_length() -> None:
+    """The migration (#223): each of the five committed rosters is a handful
+    of models by length with one car per train pointing at one.
+
+    Nothing under `layouts/` authors a length any more — a train's is the sum
+    of its cars — and the sum is the length that train had before, which is
+    why no benchmark result moved.
+    """
+    store = AssetStore(ROOT)
+    for railroad in sorted(store.list()):
+        for name, train in store.roster(railroad).trains.items():
+            where = f"roster '{railroad}': train '{name}'"
+            assert train.stated_length is None, where
+            assert len(train.cars) == 1, where
+            assert train.cars[0].car.model == f"bench-{train.length}", where
 
 
 def test_an_installation_with_no_catalogue_knows_no_models(tmp_path: Path) -> None:
