@@ -109,12 +109,6 @@ with a request in flight, and nothing cancels a request. This decision makes
 that edge reachable in an ordinary session rather than only after a restore.
 Named rather than solved.
 
-*Solved since, under
-[ADR-0049](0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md):* a
-placement cancels the request in flight and releases what it held, so the
-stranded train is placed where the person can see it is. Nothing else in this
-decision changes.
-
 **A stranded train's points may have moved under it.** After an `off` the
 accessory decoders lost their supply too, so no point position can be trusted;
 what the dispatcher last commanded is not what the steel is doing. Every grant

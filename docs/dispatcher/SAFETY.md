@@ -191,16 +191,6 @@ Discharging that proviso is the scheduler's job, not the dispatcher's.
 Each of these falls out of the definitions rather than being special-cased,
 and each is worth a test.
 
-- **A cancellation cannot make a safe state unsafe.** It drops a train's
-  remaining route and releases everything it held except the block it stands
-  in, so the train becomes idle exactly where `cur(t)` already was
-  ([ADR-0049](../adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
-  Every other train's claims are unchanged and strictly fewer resources are
-  held, so any witness ordering that existed still does. What it changes is
-  liveness, in the direction the proviso above wants: cancelling the train
-  that was blocking a pending request is a second way to discharge it, beside
-  giving that train a request of its own.
-
 - **Optimism about idle trains is unsound.** If `safe()` treated an idle
   train's block as free on the grounds that it will move eventually, it could
   advance a train into a position where the two later wedge each other — the
