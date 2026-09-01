@@ -49,11 +49,12 @@ def test_the_opening_value_seeds_every_signal_with_stop() -> None:
     """No rule of its own is needed: a held run puts every signal to stop and
     the dispatcher's value names every signalled end, so the retained value
     this app is handed on subscribing is the seed (ADR-0032)."""
-    bus = Bus(Clock())
+    clock = Clock()
+    bus = Bus(clock)
     bus.publish(ASPECTS, {"aspects": {"up_w.B": "stop", "up_e.A": "stop"}})
     bus.drain()
 
-    LayoutInterface(bus, railroad())
+    LayoutInterface(bus, railroad(), clock)
     bus.drain()
 
     assert bus.last_values[WANTED_SIGNAL + "/dccex/40"] == {
@@ -109,8 +110,9 @@ def test_a_picture_older_than_the_one_held_is_ignored() -> None:
     """Delivered backwards, the older value would leave a signal showing an
     aspect the railroad has moved on from — and `state/aspects` keeps its last
     message, so it would stand for good (#240)."""
-    bus = Unstamped(Clock())
-    LayoutInterface(bus, railroad())
+    clock = Clock()
+    bus = Unstamped(clock)
+    LayoutInterface(bus, railroad(), clock)
     bus.drain()
     bus.publish(ASPECTS, {"at": 20.0, "aspects": {"up_w.B": "clear"}})
     bus.drain()

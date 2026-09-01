@@ -14,7 +14,8 @@ signal standing at a block end is `signal_at`, which is why the aspect the
 dispatcher publishes for a person to read needs no address on it (#203).
 
 **Everything the bus hands it is read and never trusted** (SYSTEM.md, rule 4).
-Six topics from four publishers, none of which this app answers — it reports
+Six topics from five publishers — the detectors joining them with the fold
+(#288) — none of which this app answers — it reports
 observations — so a frame that cannot be read is **dropped**, silently and to
 the trace, and a command the layout contradicts goes the same way. Raising on
 one would take the app running the railroad down at the whim of whoever
@@ -54,30 +55,72 @@ is the system designer's job to put a device there that does (#232).
 throws until a person turns it on, normally from the panel. It never writes
 `off` of its own accord thereafter: it writes the word it was told to write.
 
+**Levels in, edges out.** A detector reports presence at one block end, and
+presence is a level that can be asked for at any time; the bus carries the
+changes because it is an event bus (#243). So this app holds the level per
+block end and publishes `block_occupied` or `block_vacated` only where a
+**debounced** level moves. A repeated level is a no-op that re-asserts what is
+already held, which is what at-least-once delivery needs and the whole of it:
+no counter and no dedup. `unknown` is no information about an end — the level
+held stands, no edge comes of it, and the `reason` is logged once for a person
+(#288).
+
+**Two ends into one block.** Both detectors of a block stay inside the
+interface. A block reads occupied while either of its ends does, and that fold
+is what a level change publishes. The second event a move produces is the one
+no detector can name: a train entering block Y trips Y's first detector with
+its head and its second once it is fully in, so the second is where
+`block_vacated(X)` goes out — this app carried out the move, so it knows which
+block X is. Occupied then vacated, the only order the steel can produce
+(ADR-0047). A level no move explains still publishes its own block's
+occupancy: what to make of a reading nothing accounts for is the dispatcher's
+judgement and not this app's (ADR-0048).
+
+**Time.** The settling time is the one thing here that waits, and the layout
+interface is where a clock is allowed to be read (ADR-0009) — the simulator
+advances one and this app reads one, which is the same rule from the two
+bindings. `settle()` is what applies a level that has stood long enough,
+called by whoever owns the loop, so nothing here sleeps and a test drives the
+clock directly.
+
 What is **not** here yet: the traction write that turns a wheel, which
-composes a speed's sign out of facing and each car's orientation (#296); the
-mode and the throttle that reach a locomotive through it (#297); and the fold
-from `device/sensor` into `block_occupied` and `block_vacated`. An accepted
-`move` records the train as crossing and stops there. The simulator is
-untouched and remains the milestone-1 binding of the same interface
-(ADR-0030).
+composes a speed's sign out of facing and each car's orientation (#296), and
+the mode and the throttle that reach a locomotive through it (#297). An
+accepted `move` records the train as crossing and waits for the detectors. The
+simulator is untouched and remains the milestone-1 binding of the same
+interface (ADR-0030).
 """
 
+import logging
+from dataclasses import dataclass
+
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.inventory import OFF, ON, device_topic, split_device
-from tc49.lib.layout import Layout, block_of, end_across
+from tc49.lib.clock import Clock
+from tc49.lib.inventory import (
+    OCCUPIED,
+    OFF,
+    ON,
+    UNKNOWN,
+    device_topic,
+    split_device,
+)
+from tc49.lib.layout import Layout, block_of, end_across, end_crossed, opposite_end
 from tc49.lib.payload import (
     Command,
     Ordering,
     alignment,
     command,
     commanded_power,
+    detected,
     link_up,
     named_train,
     placement,
     power,
+    reported_reason,
     shown_aspects,
 )
+
+_log = logging.getLogger(__name__)
 
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
@@ -87,29 +130,100 @@ REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
 DEVICE = "tc49/layout/state/device/#"
 
+BLOCK_OCCUPIED = "tc49/layout/block_occupied"
+BLOCK_VACATED = "tc49/layout/block_vacated"
 POWER = "tc49/layout/state/power"
 WANTED_POINT = "tc49/layout/state/wanted/point"
 WANTED_SIGNAL = "tc49/layout/state/wanted/signal"
 WANTED_TRACK = "tc49/layout/state/wanted/track"
+DEVICE_SENSOR = "tc49/layout/state/device/sensor"
 DEVICE_TRACK = "tc49/layout/state/device/track"
 DEVICE_LINK = "tc49/layout/state/device/link"
 
+SETTLING_S = 0.3
+"""How long a new level has to stand before it is acted on, in seconds of the
+run clock, and the default of the constructor argument that carries it.
+
+A camera-based detector runs at 2-8 Hz with no debounce of its own and is
+biased towards reporting occupied (the `research/occupancy` notes), so a level
+that flips back inside this window is never seen upstream. The number is this
+app's own and is on no topic: what it is worth is a property of the detectors
+a railroad has, which is why it is injected and not a constant anyone reads
+(ADR-0030)."""
+
+
+@dataclass(frozen=True)
+class _Crossing:
+    """A move this app carried out, and what the entered block's detectors
+    will report about it.
+
+    `origin` is the block the train is leaving, which is the whole reason this
+    is held: occupancy is anonymous and no detector can name the block behind
+    a train, so the only thing that knows X is what accepted the move.
+
+    `far` is the entered block's **second** sensor — the end a train trips
+    once it is fully in — and not the end across the transit, which is the end
+    it comes in *at*. The two are opposite ends of the one block and the axes
+    have been confused before (#279).
+    """
+
+    origin: str
+    far: str
+
+
+@dataclass(frozen=True)
+class _Settling:
+    """A level that has been seen and not yet acted on: what it says, and the
+    reading of the run clock at which it will have stood long enough."""
+
+    level: str
+    at: float
+
 
 class LayoutInterface:
-    def __init__(self, bus: Bus, layout: Layout) -> None:
+    def __init__(
+        self,
+        bus: Bus,
+        layout: Layout,
+        clock: Clock,
+        settling_s: float = SETTLING_S,
+    ) -> None:
         """`layout`: the railroad this app answers for — the transits a `move`
         may name, and the signal standing at each block end. The whole of what
         it reads: the points ride on `align`, and the roster arrives with the
         traction write, which is where a car's address and the way it is
         parked are read (#296).
+
+        `clock`: the run clock, read and never advanced here — the one thing
+        the settling time is measured against. Required rather than defaulted
+        for `lib.bus`'s reason: an app given none would debounce against a
+        clock that never moves, and the window the argument is for would
+        quietly stop working.
+
+        `settling_s`: how long a new level stands before it is acted on,
+        `SETTLING_S` by default. Injected because what it is worth is a fact
+        about the detectors a railroad has (ADR-0030), and so that a test can
+        drive it rather than sleep through it.
         """
         self._bus = bus
         self._layout = layout
+        self._clock = clock
+        self._settling_s = settling_s
         # Where each train stands, which is the whole of the near-end check.
         self._position: dict[str, str] = {}
         # The transits an `align` has named, and the moves waiting on one.
         self._aligned: set[str] = set()
         self._held: dict[str, Command] = {}
+        # The occupancy fold: the settled level at each block end, the level
+        # each end has most recently said (which is what makes the log of an
+        # `unknown` once per transition into it), the levels waiting out the
+        # settling time, what was last published about each block, and the
+        # moves whose second reading is still to come.
+        self._level: dict[str, str] = {}
+        self._said: dict[str, str] = {}
+        self._settling: dict[str, _Settling] = {}
+        self._occupied: dict[str, bool] = {}
+        self._crossing: dict[str, _Crossing] = {}
         # The two halves of the power fold, and what was last said about it.
         self._track = OFF
         self._links: dict[str, bool] = {}
@@ -144,6 +258,38 @@ class LayoutInterface:
         occupancy is the detectors' and placement is the dispatcher's — and
         it is what the near-end check is made of."""
         return dict(self._position)
+
+    # -- the settling time --------------------------------------------------
+
+    def settle(self) -> None:
+        """Act on every level that has now stood for the settling time, oldest
+        deadline first.
+
+        The one thing here that waits, and the only place this app reads the
+        clock (ADR-0009). It is called by whoever owns the loop — this app has
+        no command line yet (README), so today that is the suite, driving the
+        clock rather than sleeping on it. Levels are applied in the order they
+        came due so that two ends settling in one call publish in the order the
+        steel produced them.
+
+        Nothing schedules the call: a detector publishes a level change and
+        nothing else, so a level that goes occupied and stays occupied has no
+        second frame to be noticed on, and an app that only settled when the
+        next reading arrived would sit on a quiet railroad holding an arrival
+        nobody was told about.
+        """
+        due = [
+            (settling.at, end, settling.level)
+            for end, settling in self._settling.items()
+            if settling.at <= self._clock.now
+        ]
+        # By deadline, and by arrival among equals: the sort is stable and the
+        # comprehension runs in the order the readings landed, so two levels
+        # coming due together keep the order the detectors reported them in.
+        due.sort(key=lambda settled: settled[0])
+        for _at, end, level in due:
+            del self._settling[end]
+            self._settled(end, level)
 
     # -- the two commands ---------------------------------------------------
 
@@ -209,10 +355,20 @@ class LayoutInterface:
         arrived are the detectors'. Recording it at the moment of acting is
         what makes the redelivery a no-op — the train has left the near end
         as surely as it has on the steel.
+
+        The crossing is what the fold needs and nothing above the interface
+        could supply: no detector names the block a train is leaving, so the
+        move that was carried out is the only thing that knows it (#288).
         """
         transit = f"{commanded.connection}.{commanded.transit}"
+        # The two ends the transit joins, read off names that came off the
+        # bus: the near end the train must be standing at, and the end of the
+        # entered block it comes in through — the end across the transit from
+        # where it stands, which asked of the block being entered is
+        # `end_crossed`. Both fail the same two ways and neither is an error.
         near = end_across(self._layout, commanded.into, transit)
-        if near is None:
+        entered = end_crossed(self._layout, commanded.into, transit)
+        if near is None or entered is None:
             return
         if self._power != ON:
             return
@@ -222,6 +378,9 @@ class LayoutInterface:
             self._held[transit] = commanded
             return
         self._position[commanded.train] = commanded.into
+        self._crossing[commanded.into] = _Crossing(
+            origin=block_of(near), far=opposite_end(entered)
+        )
 
     # -- where the trains stand ---------------------------------------------
 
@@ -303,21 +462,30 @@ class LayoutInterface:
         self._bus.publish(WANTED_TRACK, {"power": wanted})
 
     def _on_device(self, topic: str, payload: Payload) -> None:
-        """What the hardware reports about itself. Two of the four rows are
-        read: the supply, and each translator's link to the system it drives.
+        """What the hardware reports about itself. Three of the four rows are
+        read: the supply, each translator's link to the system it drives, and
+        each detector's level at the block end it watches.
 
-        A `device/sensor` is the detectors' half of the occupancy fold and a
-        `device/point` is a position where hardware reports one; neither is
-        acted on yet, and both pass by unread rather than being taken for
-        something else. The row and the address come from the **topic**, which
-        is where a device topic states them; the payload repeats the address
-        so a trace line reads on its own, and a repetition is not a second
-        authority.
+        A `device/point` is a position where hardware reports one and is not
+        acted on: it passes by unread rather than being taken for something
+        else. The row and the address come from the **topic**, which is where
+        a device topic states them; the payload repeats the address so a trace
+        line reads on its own, and a repetition is not a second authority.
+
+        Every row is stamp-guarded for one reason (#240): two values of one
+        topic delivered backwards would leave the older standing, which on a
+        sensor row is a block end reading clear after the reading that said a
+        train is on it.
         """
         split = split_device(topic)
         if split is None:
             return
         row, address = split
+        if row == DEVICE_SENSOR:
+            if not self._ordering.accepts(topic, payload):
+                return
+            self._on_reading(address, payload)
+            return
         if row == DEVICE_TRACK:
             if not self._ordering.accepts(topic, payload):
                 return
@@ -329,6 +497,83 @@ class LayoutInterface:
         else:
             return
         self._publish_power()
+
+    # -- the occupancy fold -------------------------------------------------
+
+    def _on_reading(self, end: str, payload: Payload) -> None:
+        """One detector's level at one block end, held rather than acted on.
+
+        Presence is a level, so what arrives here is what the end reads *now*
+        and never an edge. A reading that re-asserts the level already held is
+        an at-least-once repeat and a no-op, which is the whole of what
+        delivery needs — no counter and no dedup (#243). A reading that
+        differs starts the settling time, and one that goes back inside that
+        window cancels it: the flip is never seen upstream, which is what a
+        detector running at 2-8 Hz with no debounce of its own needs from the
+        consumer.
+
+        `unknown` is **no information** about that end. It is not a level to
+        settle, it does not cancel a level that is settling, and it does not
+        discard the level held: the end goes on reading whatever it last
+        actually said. The `reason` is logged once per transition into
+        `unknown`, for a person — the detector knows why it cannot say, and
+        nothing in the system branches on it (SYSTEM.md, *what the hardware
+        reports back*).
+
+        The address is the block end the detector watches, taken from the
+        topic, and whether it names an end of this railroad is not asked: a
+        reading for an end no block here has folds into a block nothing above
+        will claim, and the dispatcher already holds the run on a reading it
+        cannot explain (ADR-0048).
+        """
+        level = detected(payload)
+        said, self._said[end] = self._said.get(end), level
+        if level == UNKNOWN:
+            if said != UNKNOWN:
+                _log.info(
+                    "detector at %s says unknown: %s",
+                    end,
+                    reported_reason(payload) or "no reason given",
+                )
+            return
+        if level == self._level.get(end):
+            self._settling.pop(end, None)
+            return
+        settling = self._settling.get(end)
+        if settling is not None and settling.level == level:
+            return
+        self._settling[end] = _Settling(level, self._clock.now + self._settling_s)
+
+    def _settled(self, end: str, level: str) -> None:
+        """A level that has stood for the settling time, turned into whatever
+        events it is worth.
+
+        Two things come of it. A **block** reads occupied while either of its
+        ends does, and a change in that fold is the block's own occupancy
+        event — the block a hand put a locomotive on, as much as the block a
+        train was granted, since a level no move explains is still a level and
+        judging it is the dispatcher's (ADR-0048).
+
+        And where the block is one a train is crossing into, its **second**
+        sensor going occupied says the train is fully in, so the block behind
+        is clear. That is the one event no detector could produce: occupancy
+        is anonymous and the block behind is named by the move this app
+        carried out. The entered block's own event has already gone out on its
+        first sensor, so the order is occupied then vacated — the only order
+        the steel can produce (ADR-0047).
+        """
+        self._level[end] = level
+        block = block_of(end)
+        occupied = OCCUPIED in (level, self._level.get(opposite_end(end)))
+        if self._occupied.get(block) != occupied:
+            self._occupied[block] = occupied
+            self._bus.publish(
+                BLOCK_OCCUPIED if occupied else BLOCK_VACATED, {"block": block}
+            )
+        crossing = self._crossing.get(block)
+        if crossing is not None and level == OCCUPIED and end == crossing.far:
+            del self._crossing[block]
+            self._bus.publish(BLOCK_VACATED, {"block": crossing.origin})
 
     def _folded(self) -> str:
         """Whether a train may move at all, folded from what the hardware

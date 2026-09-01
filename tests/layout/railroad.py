@@ -11,6 +11,7 @@ shared between them the way a real crossover shares one.
 from typing import Any
 
 from tc49.layout import LayoutInterface
+from tc49.layout.interface import SETTLING_S
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout
@@ -22,7 +23,10 @@ PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
 
+BLOCK_OCCUPIED = "tc49/layout/block_occupied"
+BLOCK_VACATED = "tc49/layout/block_vacated"
 POWER = "tc49/layout/state/power"
+DEVICE_SENSOR = "tc49/layout/state/device/sensor"
 WANTED_POINT = "tc49/layout/state/wanted/point"
 WANTED_SIGNAL = "tc49/layout/state/wanted/signal"
 WANTED_TRACK = "tc49/layout/state/wanted/track"
@@ -66,12 +70,23 @@ def railroad() -> Layout:
     return Layout.from_document(document())
 
 
-def build() -> tuple[Bus, LayoutInterface]:
-    """A fresh app on a fresh bus, its startup cascade delivered: the railroad
-    is up, dark, and has heard nothing from the hardware."""
-    bus = Bus(Clock())
-    app = LayoutInterface(bus, railroad())
+def wired(settling_s: float = SETTLING_S) -> tuple[Bus, LayoutInterface, Clock]:
+    """A fresh app on a fresh bus with the clock the two of them share, its
+    startup cascade delivered: the railroad is up, dark, and has heard nothing
+    from the hardware.
+
+    The clock comes back because the settling time is measured against it and
+    the suite drives it directly — nothing here sleeps (#288)."""
+    clock = Clock()
+    bus = Bus(clock)
+    app = LayoutInterface(bus, railroad(), clock, settling_s)
     bus.drain()
+    return bus, app, clock
+
+
+def build() -> tuple[Bus, LayoutInterface]:
+    """The same, for a suite with no business with time."""
+    bus, app, _clock = wired()
     return bus, app
 
 
@@ -80,6 +95,19 @@ def heard(bus: Bus, topic_filter: str) -> list[tuple[str, Payload]]:
     plus whatever retained value a state filter is owed on subscribing."""
     seen: list[tuple[str, Payload]] = []
     bus.subscribe(topic_filter, lambda topic, payload: seen.append((topic, payload)))
+    return seen
+
+
+def occupancy(bus: Bus) -> list[tuple[str, Payload]]:
+    """Every occupancy event from here on, in order. Two subscriptions rather
+    than one filter: the two leaves sit beside the commands under
+    `tc49/layout/`, and an event topic is never replayed, so what this
+    collects is what the fold published after it was asked."""
+    seen: list[tuple[str, Payload]] = []
+    for leaf in (BLOCK_OCCUPIED, BLOCK_VACATED):
+        bus.subscribe(
+            leaf, lambda published, payload: seen.append((published, payload))
+        )
     return seen
 
 
@@ -122,4 +150,30 @@ def move(bus: Bus, train: str, connection: str, transit: str, into: str) -> None
             "speed": 1.0,
         },
     )
+    bus.drain()
+
+
+def reads(bus: Bus, end: str, level: str, reason: str | None = None) -> None:
+    """One detector saying what it sees at the block end it watches. A
+    `reason` is free text a person reads and rides only with `unknown`."""
+    payload: Payload = {"addr": end, "occupancy": level}
+    if reason is not None:
+        payload["reason"] = reason
+    bus.publish(f"{DEVICE_SENSOR}/{end}", payload)
+    bus.drain()
+
+
+def elapse(clock: Clock, seconds: float) -> None:
+    """Time passing, driven rather than slept: the run clock takes an instant
+    and a settling time is a span, so the addition is said once here."""
+    clock.advance(clock.now + seconds)
+
+
+def settle(
+    bus: Bus, app: LayoutInterface, clock: Clock, after: float = SETTLING_S
+) -> None:
+    """The settling time passing and the loop's owner acting on it, which is
+    the whole of what drives the debounce."""
+    elapse(clock, after)
+    app.settle()
     bus.drain()
