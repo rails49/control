@@ -85,10 +85,16 @@ on a different topic."""
 
 def is_state_topic(topic: str) -> bool:
     """Whether a topic is a state topic, read off the path: state is marked
-    structurally by a ``state`` segment before the leaf, so the split is a
-    property of the name and not a list to keep (SYSTEM.md, rule 2)."""
+    structurally by a ``state`` level under the component, so the split is a
+    property of the name and not a list to keep (SYSTEM.md, rule 2).
+
+    The mark is the **third** level and not the second from last, because a
+    topic's name may go on past its own: an addressed device row is
+    ``tc49/layout/state/wanted/point/dccex/5``, and reading backwards from
+    the leaf would call that an event topic and drop its retained value
+    (ADR-0043)."""
     levels = topic.split("/")
-    return len(levels) >= 2 and levels[-2] == "state"
+    return len(levels) > 3 and levels[2] == "state"
 
 
 INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
