@@ -66,9 +66,10 @@ exercises it:
   is the end-state scheduler's own work
   ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 - **Driving** is the stateless translator of [SYSTEM.md](SYSTEM.md#driver),
-  with the simulator carrying each train across a transit on fixed delays. A train has no
-  speed here and reads no signal: the grant it is handed is the whole of what
-  it is told.
+  with the simulator carrying each train across a transit on fixed delays. It
+  reads the signal — the aspect on the grant it is handed becomes the speed on
+  the command ([#283](https://github.com/rails49/control/issues/283)) — and a
+  train still has no speed in simulated time, the delays being deaf to it.
 
 **A run begins from a railroad**: its drawing, the trains its roster says it
 owns, and a person who puts them on the layout
@@ -97,8 +98,8 @@ unless its row says otherwise:
 | A physical layout behind the layout interface | a later effort ([GOALS.md](GOALS.md)); the transit-level command vocabulary of [SYSTEM.md](SYSTEM.md#layout-interface) is the hook |
 | MQTT transport, out-of-process deployment | the bus contract is already MQTT-safe ([ADR-0008](adr/0008-bus-contract-is-the-mqtt-safe-intersection.md)); the in-process bus is the milestone binding |
 | A real scheduler with continual arrivals | requests are a fixed batch or a person's gestures here; the end-state scheduler *generates* traffic, which is what its layout knowledge is ultimately for ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md)) |
-| A driver that obeys the aspect | the dispatcher publishes `stop`/`caution`/`clear`, on the grant and on a last-value topic, and the driver ignores it: acting on it needs a speed on `move` and transits that take time ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)) |
-| Trains that have a speed | a transit costs the simulator's fixed delays, a stand-in of its own rather than the model's unit of time ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
+| A driver that obeys the aspect | the dispatcher published `stop`/`caution`/`clear`, on the grant and on a last-value topic, and the driver ignored it. **Since crossed**: `move` carries a speed and the driver derives it from the aspect, `clear` full and `caution` a fraction of it ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md), [#283](https://github.com/rails49/control/issues/283)). What the fraction *costs* is the row below |
+| Trains that have a speed | a transit costs the simulator's fixed delays, a stand-in of its own rather than the model's unit of time ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)). The speed the command carries says how hard to pull, not how long the transit takes, so `caution` costs what `clear` costs here |
 | Braking distance | an open subject even in the end state, with a working answer and no decision ([GOALS.md](GOALS.md#driving)) |
 | A request due at a *time* | a scenario's requests go in whole at the start; the fast clock a timetable is written against is end-state work ([GOALS.md](GOALS.md#scheduling)) |
 | Human driving | the simulator drives |
