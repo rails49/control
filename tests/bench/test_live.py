@@ -515,3 +515,28 @@ def test_a_railroads_file_is_named_beside_the_session_path() -> None:
     )
     assert state_for(kept, "crossover-yard") != state_for(kept, "reversing-loops-v0")
     assert state_for(kept, "reversing-loops-v0").parent == kept.parent
+
+
+def test_a_session_over_a_store_that_is_not_there_yet_comes_up(
+    tmp_path: Path,
+) -> None:
+    """An empty store is what a fresh installation has, and nothing seeds one
+    (#320). The session comes up on its port all the same and refuses every
+    railroad in words — the panel is told there is no `reversing-loops` here,
+    rather than the process failing before anything is served."""
+    live = Session(tmp_path / "never-made", PERIOD_S)
+    thread = threading.Thread(target=live.run, args=(io.StringIO(),), daemon=True)
+    thread.start()
+    try:
+        assert live.wants("reversing-loops") == "no railroad 'reversing-loops'"
+        assert (
+            live.plays("reversing-loops/meet") == "no scenario 'reversing-loops/meet'"
+        )
+        with joining(live, "reversing-loops") as mistaken:
+            assert json.loads(mistaken.recv(timeout=TIMEOUT)) == {
+                "error": "no railroad 'reversing-loops'"
+            }
+    finally:
+        live.stop()
+        thread.join(TIMEOUT)
+        live.bridge.close()
