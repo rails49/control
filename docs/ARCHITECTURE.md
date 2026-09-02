@@ -201,6 +201,7 @@ named for its package in `src/tc49/`.
 docs/
   GOALS.md         assets and the operations on them
   MILESTONE-1.md   scope: what is built first, what is not
+  MILESTONE-2.md   scope: the physical layout, and what running decides
   SYSTEM.md        the apps and the contracts between them
   ARCHITECTURE.md  this page: repo organization and tests
   adr/             every decision, one numbered sequence

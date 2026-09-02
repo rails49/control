@@ -13,6 +13,8 @@ This repo (eventually) implements the features described in the docs:
   driving.
 - [Milestone 1](docs/MILESTONE-1.md) — reached: what the first slice built, and
   what is deliberately still out of scope.
+- [Milestone 2](docs/MILESTONE-2.md) — not reached: trains on a physical
+  layout, what is built for it, and what only a running railroad decides.
 - [System](docs/SYSTEM.md) — the apps and the contracts between them: the
   event bus and its inventory, time, and the asset store.
 - [Architecture](docs/ARCHITECTURE.md) — how the repository is organized and
