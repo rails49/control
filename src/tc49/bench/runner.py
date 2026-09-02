@@ -15,11 +15,14 @@ way and none of it knows which it got.
 import asyncio
 import contextlib
 import io
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TextIO
 
+from tc49.bench.detector import HandFed
 from tc49.dccex import DccEx
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental, LockingStrategy
 from tc49.driver import Driver
@@ -132,6 +135,11 @@ class Assembly:
     # command station (ADR-0043).
     interface: LayoutInterface | None = None
     dccex: DccEx | None = None
+    # The hand-fed detector, where a physical run was given an input to read:
+    # nothing publishes a level on steel yet, so a person types them (#315).
+    # Only ever beside the pair above — a simulated run has its own sensors
+    # and must not grow a second source of them.
+    detector: HandFed | None = None
 
     @property
     def trace(self) -> str:
@@ -197,6 +205,12 @@ class Assembly:
         """
         dccex, interface = self.dccex, self.interface
         assert dccex is not None and interface is not None, "this run drives nothing"
+        if self.detector is not None:
+            # Reading starts with the run and not with the assembly: a line
+            # typed at a session that is not running yet would sit in a queue
+            # nothing drains, and every construction but a session's reads
+            # nothing at all.
+            self.detector.opens()
         link = asyncio.create_task(dccex.run())
         try:
             await self._pace(interface, period_s, stop)
@@ -210,14 +224,19 @@ class Assembly:
         self, interface: LayoutInterface, period_s: float, stop: Callable[[], bool]
     ) -> None:
         """A turn of the physical loop: the three jobs the simulator's does
-        besides popping events it scheduled itself.
+        besides popping events it scheduled itself, and the readings a person
+        typed since the last one.
 
         Advance the run clock to wall time — steel keeps its own time and
-        nothing else here moves the clock. Settle: `LayoutInterface.settle()`
-        acts on a level that has stood long enough and **nothing schedules
-        it**, so a session that never called it would never notice an
-        arrival. Drain, which is what carries a gesture from a client's
-        handler thread into the run.
+        nothing else here moves the clock. Publish whatever was typed, which
+        is where a detector's levels come from until a camera publishes them
+        (#315): a line typed between two turns is seen on this one, delivered
+        by this turn's drain and settled on a later one, exactly as a level
+        that arrived off a wire between turns would be. Settle:
+        `LayoutInterface.settle()` acts on a level that has stood long enough
+        and **nothing schedules it**, so a session that never called it would
+        never notice an arrival. Drain, which is what carries a gesture from a
+        client's handler thread into the run.
 
         `period_s` is what bounds the resolution: 0.1 s against 300 ms of
         settling has a settled level acted on between 0.3 s and 0.4 s after
@@ -228,6 +247,8 @@ class Assembly:
         while not stop():
             await asyncio.sleep(period_s)
             self.clock.advance(time.monotonic() - started)
+            if self.detector is not None:
+                self.detector.typed()
             interface.settle()
             self.bus.drain()
 
@@ -268,6 +289,8 @@ def assemble_live(
     state: Path | None = None,
     station: tuple[str, int] | None = None,
     startup: Path | None = None,
+    readings: TextIO | None = None,
+    reports: TextIO | None = None,
 ) -> Assembly:
     """The live-session wiring (#71): **a railroad and its roster**, and no
     timetable. That is the whole of what `tc49 live` builds a run from (#171)
@@ -307,6 +330,14 @@ def assemble_live(
     powering the rails — the per-district trip currents (docs/dccex/README.md)
     — and is the station's to carry, so it means nothing without one.
 
+    `readings` is where a person types a detector's levels and `reports` is
+    where a line that is not one is said (#315). Nothing publishes
+    `device/sensor` on steel yet, so a physical run given an input reads it and
+    one given none is blind — which is every construction but a session's, the
+    suite included. It is the station's to carry too: a simulated run has its
+    own sensors, and a second source of them would be two things saying what
+    one block end reads.
+
     One function and not two, branching only at the last step: a sibling would
     duplicate the scheduler, dispatcher and driver wiring above, or need a
     third helper to hold this docstring. `bench` is the one place in the tree
@@ -324,6 +355,7 @@ def assemble_live(
     simulator: Simulator | None = None
     interface: LayoutInterface | None = None
     dccex: DccEx | None = None
+    detector: HandFed | None = None
     if station is None:
         # The steel's own memory, which the physical branch has no use for:
         # there the trains really are still standing where they were left.
@@ -335,6 +367,8 @@ def assemble_live(
         # thing a fresh link is handed.
         interface = LayoutInterface(bus, layout, roster, clock)
         dccex = DccEx(bus, station[0], station[1], startup=startup)
+        if readings is not None:
+            detector = HandFed(bus, layout, readings, reports or sys.stdout)
     return Assembly(
         bus,
         dispatcher,
@@ -346,6 +380,7 @@ def assemble_live(
         clock,
         interface,
         dccex,
+        detector,
     )
 
 

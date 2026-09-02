@@ -26,6 +26,11 @@ topic, and carrying one across a railroad change would re-apply one
 railroad's speeds and points to another's; rebuilding it per switch would
 tear down a TCP session against steel that did not change.
 
+A session driving one is also the only session that reads its own input: a
+physical run has no detector publishing yet, so the readings that complete a
+`move` are typed at it (`bench/detector.py`, #315). A simulated run has its
+own sensors and is handed no input to read.
+
 This is milestone-1 wiring and stays small. There is no session registry and
 no run manager; what persists is the bus's own retained state, where the
 session was given a file to keep it in (#123). When the bus becomes a real
@@ -72,6 +77,7 @@ class Session:
         host: str = "127.0.0.1",
         station: tuple[str, int] | None = None,
         startup: Path | None = None,
+        readings: TextIO | None = None,
     ) -> None:
         self._store = AssetStore(root)
         self._period_s = period_s
@@ -80,6 +86,12 @@ class Session:
         # a physical run needs the address anyway (#314).
         self._station = station
         self._startup = startup
+        # Where a person types the detector's levels a physical run has no
+        # other source of, or None for a session nobody is typing at (#315).
+        # Carried here rather than reached for in `run`, because what a
+        # session reads is the caller's to say: the command line hands over
+        # its own input and the suite hands over lines of its own.
+        self._readings = readings
         # The railroad a station has pinned this session to, once one is
         # running. Set on the first railroad accepted rather than at
         # construction, because the railroad arrives as an argument the
@@ -197,6 +209,8 @@ class Session:
                 state=kept,
                 station=self._station,
                 startup=self._startup,
+                readings=self._readings,
+                reports=out,
             )
             self.bridge.rebind(assembly.bus, name)
             # After the rebind, so a client that named this railroad is

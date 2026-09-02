@@ -12,7 +12,9 @@ is the harness's own test run: it comes up on the railroad the scenario names
 and replays the document as gestures (`bench/replay.py`). `--station` puts the
 **physical binding** where the simulator would be — the layout interface and
 the `dccex` translator, driving a real command station (#314) — and pins the
-session to the railroad named, a station being one physical railroad.
+session to the railroad named, a station being one physical railroad. That
+session reads its own input, where a person types the detector's levels no
+camera publishes yet (`bench/detector.py`, #315).
 `sweep` takes no arguments: the grid of BENCHMARKS.md is the research design,
 not a knob, and that page is its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
@@ -28,6 +30,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TextIO
 
+from tc49.bench.detector import LEVELS, SHAPE
 from tc49.bench.metrics import Metrics, Stall, metrics
 from tc49.bench.runner import DEFAULT_K, STRATEGIES, find_root, load, run_scenario
 from tc49.bench.session import Session
@@ -256,7 +259,8 @@ def command_line() -> argparse.ArgumentParser:
         f" {STATION_EXAMPLE}: the layout interface and the dccex translator"
         " come up where the simulator would, and no simulator is built."
         " Requires the railroad, a station being one physical railroad, and"
-        " is not for use with --scenario",
+        " is not for use with --scenario. Such a session reads its own input,"
+        f" a typed '{SHAPE}' standing in for the detector nothing has yet",
     )
     live_parser.add_argument(
         "--startup",
@@ -320,17 +324,16 @@ def command_line() -> argparse.ArgumentParser:
 
 def station_note(where: tuple[str, int], name: str, roster: Roster) -> str:
     """What a physical run says about itself that a simulated one does not:
-    which station it drives and that it stays on this railroad, that it cannot
-    see, and how much of the stock it can move.
+    which station it drives and that it stays on this railroad, how much of
+    the stock it can move, and who its detectors are.
 
-    **The session is blind, and says so.** Nothing publishes
-    `tc49/layout/state/device/sensor` in a physical run yet — detection is its
-    own issue — so a granted move writes a traction row, the locomotive rolls,
-    and no arrival is ever reported. It is said here rather than refused: a
-    live run comes up **held**, and held admits and commits nothing, so
-    lifting it is already a deliberate gesture. A second lock that existed
-    only until detection landed would be a mechanism somebody has to remember
-    to delete.
+    **The session sees only what is typed, and says so.** No camera publishes
+    `tc49/layout/state/device/sensor` yet, so the levels that complete a move
+    are a person's, typed a line at a time on this session's own input
+    (`bench/detector.py`, #315). It is said here rather than refused: a live
+    run comes up **held**, and held admits and commits nothing, so lifting it
+    is already a deliberate gesture. A second lock that existed only until a
+    camera published would be a mechanism somebody has to remember to delete.
     """
     driveable, unaddressed = addressed(roster)
     trains = driveable + unaddressed
@@ -339,8 +342,9 @@ def station_note(where: tuple[str, int], name: str, roster: Roster) -> str:
         " railroad, so this session switches to no other\n"
         f"  {driveable} of {trains} trains carry an address; a move for one of"
         f" the other {unaddressed} writes nothing\n"
-        "this session drives and never sees: nothing reports an arrival yet,"
-        " so a granted move rolls and is never seen to finish\n"
+        "this session sees what you type: no camera publishes yet, so type"
+        f" '{SHAPE}' — {', '.join(LEVELS[:-1])} or {LEVELS[-1]} — and a move"
+        " finishes on the pair a crossing trips\n"
     )
 
 
@@ -408,6 +412,11 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
                 " is under\n"
             )
             return 2
+        # A physical session reads this process's own input, which is where a
+        # person types the readings nothing else on a real railroad publishes
+        # yet (#315). A simulated one is handed none: the simulator has its
+        # own sensors, and a `tc49 live` in a pipeline reads nothing it was
+        # not asked to.
         session = Session(
             ROOT,
             args.period,
@@ -416,6 +425,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
             args.host,
             args.station,
             args.startup,
+            sys.stdin if args.station is not None else None,
         )
         # What the session comes up on, and the refusal if it cannot: a
         # scenario names its own railroad and replays onto it, a railroad
