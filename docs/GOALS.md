@@ -75,8 +75,9 @@ way an evening starts rather than a fault.
 
 Railroad operations divide into three distinct functions, each of them an app
 ([ADR-0013](adr/0013-apps-are-deployment-units.md)). What follows is the whole
-of them; [MILESTONE-1.md](MILESTONE-1.md) says which parts are being built
-first.
+of them; [MILESTONE-1.md](MILESTONE-1.md) says which parts were built first
+and [MILESTONE-2.md](MILESTONE-2.md) which are being built on a physical
+layout.
 
 ### Scheduling
 
