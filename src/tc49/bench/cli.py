@@ -518,6 +518,18 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
                 " is under\n"
             )
             return 2
+        # The trip currents are what a command station is sent on powering
+        # the rails, so they are the station's to carry and a simulated
+        # session has nothing to send them to (#315). The other three
+        # combinations are refused, and this one alone used to be taken and
+        # the file dropped without a word (#334). Before the session for the
+        # same reason as the three above (#179).
+        if args.startup is not None and args.station is None:
+            out.write(
+                "--startup is the trip currents a command station is sent"
+                " when the rails are powered; name the --station it goes to\n"
+            )
+            return 2
         # The installation's store and never the checkout's: a session runs
         # the railroads somebody drew, and the fixtures are the benchmark's
         # (#320). `--store bench` is what runs a session on one of those, and

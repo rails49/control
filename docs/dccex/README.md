@@ -240,7 +240,10 @@ What constructs it today is `tc49 live <railroad> --station <host>:<port>`,
 which brings a session up on the physical binding — this app and `layout`
 where the simulator would be — and hands `--startup` straight through as that
 argument ([bench/runner.py](../../src/tc49/bench/runner.py),
-[#314](https://github.com/rails49/control/issues/314)).
+[#314](https://github.com/rails49/control/issues/314)). There is nowhere else
+for the file to go, so `--startup` without `--station` is refused in a sentence
+rather than accepted and dropped
+([#334](https://github.com/rails49/control/issues/334)).
 
 `run()` is the connection: it connects, applies the retained desired state,
 reads what the station says until the link goes, and reconnects with backoff.

@@ -204,9 +204,10 @@ REFUSED_LIVE = [
     (["--scenario", "crossover-yard/meet", "--state", "run.json"], "name one"),
     (["--scenario", "crossover-yard/meet", "--station", "dccex-usb:2560"], "name one"),
     (["--station", "dccex-usb:2560"], "name the railroad it is under"),
+    (["reversing-loops", "--startup", "trip.txt"], "name the --station it goes to"),
     (["nonesuch"], "no railroad 'nonesuch'"),
 ]
-"""Every `tc49 live` the CLI refuses, and a word of the refusal. Three are
+"""Every `tc49 live` the CLI refuses, and a word of the refusal. Four are
 decided off the arguments alone, the last only by asking the store for the
 railroad — which takes a session, and a session is already serving.
 
@@ -216,7 +217,10 @@ machine has in `~/tc49` (#320).
 
 A station is one physical railroad: it may not be pinned by the first client
 to connect, so it requires the positional railroad, and it replays no document
-onto steel that is standing where the last session left it (#314)."""
+onto steel that is standing where the last session left it (#314). The trip
+currents are the station's to carry, so `--startup` without one is refused
+rather than taken and dropped (#334) — named over a railroad the fixtures
+hold, so what is refused is the pairing and not a typo."""
 
 
 @pytest.mark.parametrize("argv, wording", REFUSED_LIVE)
@@ -236,6 +240,29 @@ def test_a_refused_live_session_leaves_no_socket_bound(
     assert wording in out.getvalue()
     with socket.socket() as after:
         after.bind(("127.0.0.1", port))  # nothing is listening on it
+
+
+def test_the_trip_currents_are_carried_past_the_refusals_by_a_station() -> None:
+    """The fourth refusal is about the pairing and nothing else (#334): with a
+    station named, `--startup` is carried on to the session, which then fails
+    over the railroad like any other run. `--station` without `--startup` is
+    untouched too — it is refused above only for want of a railroad."""
+    out = io.StringIO()
+    argv = [
+        "live",
+        "--port",
+        str(free_port()),
+        "--store",
+        str(ASSETS),
+        "nonesuch",
+        "--station",
+        "dccex-usb:2560",
+        "--startup",
+        "trip.txt",
+    ]
+    assert main(argv, out) == 2
+    assert "no railroad 'nonesuch'" in out.getvalue()
+    assert "--startup" not in out.getvalue()
 
 
 def test_a_live_session_reads_the_installations_store_by_default() -> None:
