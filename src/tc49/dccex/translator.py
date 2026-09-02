@@ -67,6 +67,14 @@ this the one remaining way a train moves without being asked.
 asks for the status on a cadence of its own, and `device/track` telling the
 truth does not depend on a person noticing.
 
+**A clean exit stands the railroad down**, `shutdown()`: zero to every
+locomotive this app has commanded, then the track off. The process ending is
+not by itself an instruction to the railroad — the station goes on running
+whatever it was last told — and a session that exits over a rolling
+locomotive leaves it rolling, which is not recoverable the way switching the
+power back on is. Whoever constructs this app calls it before letting the
+loop go (`bench/runner.py`).
+
 **No `device/point` is ever published.** This railroad's turnouts have no
 feedback and the station's answer to a throw is one it faked (ADR-0022), so
 the row stays empty: a faked observation is worse than silence (ADR-0050).
@@ -378,6 +386,29 @@ class DccEx:
                 backoff = self._first_backoff_s
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, self._max_backoff_s)
+
+    async def shutdown(self) -> None:
+        """Stand the railroad down: zero to every locomotive this app has
+        commanded, then the track off.
+
+        The zeros come first and are the same zeros a release sends, for the
+        same reason: the station keeps a speed per locomotive and resumes it,
+        so a slot left holding one is a train that rolls again the moment
+        somebody powers the rails. Cutting the supply over a held speed only
+        postpones the motion.
+
+        Sent on whatever link is open and nothing at all where none is — a
+        railroad this app cannot reach is one it was not driving — and
+        awaited out, because the next thing to happen is the process ending
+        and a buffer nobody flushed is a command nobody sent.
+        """
+        for addr in self._commanded:
+            self._send(commands.traction(addr, 0.0))
+        self._send(commands.track(OFF))
+        writer = self._writer
+        if writer is not None:
+            with contextlib.suppress(OSError):
+                await writer.drain()
 
     async def _session(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter

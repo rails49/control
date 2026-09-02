@@ -692,3 +692,44 @@ async def _poll_asks_for_the_status_and_the_lock() -> None:
         station = await port.opened()
         assert await station.heard(2) == [b"<s>", b"<!Q>"]
         assert await station.heard(2) == [b"<s>", b"<!Q>"]
+
+
+# -- standing the railroad down -------------------------------------------
+
+
+def test_a_clean_exit_zeroes_every_locomotive_and_switches_the_track_off() -> None:
+    asyncio.run(_clean_exit_zeroes_every_locomotive_and_switches_the_track_off())
+
+
+async def _clean_exit_zeroes_every_locomotive_and_switches_the_track_off() -> None:
+    """The process ending is not by itself an instruction to the railroad, so
+    the exit is one: zero to every locomotive commanded, in the order they
+    were, and only then the power (#314). Cutting the supply first would
+    leave the speeds in the station's slots for the next power-on to
+    resume."""
+    bus, _ = bus_and_tap()
+    port = Port()
+    async with running(bus, port) as app:
+        station = await port.opened()
+        wanted(bus, TRACK, "", {"power": "on"})
+        wanted(bus, TRACTION, "10", {"addr": "10", "speed": 0.5})
+        wanted(bus, TRACTION, "11", {"addr": "11", "speed": -1.0})
+        bus.drain()
+        assert await station.heard(3) == [b"<1>", b"<t 10 63 1>", b"<t 11 126 0>"]
+
+        await app.shutdown()
+        assert await station.heard(3) == [b"<t 10 0 1>", b"<t 11 0 1>", b"<0>"]
+
+
+def test_standing_down_a_railroad_that_was_never_reached_sends_nothing() -> None:
+    asyncio.run(_standing_down_a_railroad_that_was_never_reached_sends_nothing())
+
+
+async def _standing_down_a_railroad_that_was_never_reached_sends_nothing() -> None:
+    """A station the link never opened to is one this app was not driving.
+    `_send` drops rather than queues, so the exit is silent rather than a
+    backlog waiting for a connection that is not coming."""
+    bus, _ = bus_and_tap()
+    app = DccEx(bus, connect=Port().connect)
+    bus.drain()
+    await app.shutdown()  # no link, no writer, and nothing raised
