@@ -1223,7 +1223,12 @@ cannot verify that the power really went away and does not try. **The railroad
 comes up with power off** — `layout` starts having written `off`, so nothing
 moves and no turnout throws until a person turns it on — and thereafter
 `layout` writes the value it was told to write and never `off` of its own
-accord. **`state/power` is folded from what the hardware reports**, never from
+accord. **It also comes up at rest**: `layout` starts having written `0.0`
+over every retained `wanted/traction` row, so a speed a previous session left
+on a durable bus is not replayed to a station and no locomotive rolls on the
+power-on
+([ADR-0054](adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
+`wanted/point` replays instead — a point has no resting value to write. **`state/power` is folded from what the hardware reports**, never from
 having commanded it: the supply's own word wherever every link ever seen reads
 up, and `off` otherwise, which is where an unreadable frame on either row falls
 ([layout/README.md](layout/README.md#power)). The simulator answers none of
