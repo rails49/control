@@ -1,5 +1,5 @@
-# gotthard-v0 — the cars this railroad owns and the trains made up from them
-# (CONTEXT.md, **Roster**).
+# reversing-loops-v0 — the cars this railroad owns and the trains made up from
+# them (CONTEXT.md, **Roster**).
 #
 # The stock is synthetic: nobody owns one of these, so every train is a single
 # car of the `bench-<length>` model of its length (`catalogue/`) rather than a
@@ -12,7 +12,7 @@
 # railroad places trains from here and states no length of its own, so one
 # train has one length however many scenarios name it.
 
-roster: gotthard-v0
+roster: reversing-loops-v0
 
 cars:
   fixed_car: { model: bench-900 }

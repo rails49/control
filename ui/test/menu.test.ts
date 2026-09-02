@@ -16,7 +16,7 @@ import type { MenuItem } from "../src/ui/tc-menu.js";
 import { editorMenu, type MenuAt } from "../src/ui/tc-editor.js";
 import type { Joint, Junction } from "../src/model/store.js";
 
-const JUNCTION: Junction = { name: "airolo", names: ["airolo"], symbols: ["sw1"] };
+const JUNCTION: Junction = { name: "station_a", names: ["station_a"], symbols: ["sw1"] };
 const JOINT: Joint = { ends: ["b1.A", "b2.B"], wires: [["b1.A", "b2.B"]], name: null, names: [] };
 
 function at(parts: Partial<MenuAt> = {}): MenuAt {

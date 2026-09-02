@@ -3,7 +3,7 @@
 `RAILROADS` is every railroad in `layouts/`, so a test that must hold for all
 of them says so by parametrising over it rather than by listing names again. It
 is read off the directory rather than typed, since a list typed once is a list
-that stops being every railroad: `gotthard`, the one that is being built,
+that stops being every railroad: `reversing-loops`, the one that is being built,
 was missing from it for as long as it had been drawn.
 """
 

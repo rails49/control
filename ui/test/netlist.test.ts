@@ -23,23 +23,23 @@ import type { TcApp } from "../src/ui/tc-app.js";
 import { editing, inside, mounted, serving, settled } from "./support/shell.js";
 
 const DRAWING: Drawing = {
-  drawing: "gotthard",
+  drawing: "reversing-loops",
   symbols: { sw1: { kind: "turnout", at: [0, 0] } },
   wires: [],
 };
 
 beforeEach(() => {
   document.body.replaceChildren();
-  serving({ drawings: ["gotthard"], read: () => DRAWING });
+  serving({ drawings: ["reversing-loops"], read: () => DRAWING });
 });
 
-/** The shell with `gotthard` open, which is what the netlist item needs to be
+/** The shell with `reversing-loops` open, which is what the netlist item needs to be
  *  alive at all. */
 async function open(): Promise<TcApp> {
   const shell = await mounted();
   shell.renderRoot
     .querySelector("tc-header")!
-    .dispatchEvent(new CustomEvent("railroad-wanted", { detail: "gotthard" }));
+    .dispatchEvent(new CustomEvent("railroad-wanted", { detail: "reversing-loops" }));
   await settled(shell);
   return shell;
 }
@@ -102,7 +102,7 @@ describe("the column the netlist sits in", () => {
 
     shell.renderRoot
       .querySelector("tc-header")!
-      .dispatchEvent(new CustomEvent("railroad-wanted", { detail: "gotthard" }));
+      .dispatchEvent(new CustomEvent("railroad-wanted", { detail: "reversing-loops" }));
     await settled(shell);
 
     expect(showing(shell)).toBe(false);

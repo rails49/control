@@ -5,7 +5,7 @@
  * railroad is the easy half; the hard half is knowing that the picture means
  * what you think it means, because what the dispatcher runs is the netlist,
  * and the interesting part of that netlist is which movements may run at the
- * same time. Airolo's WX310 composes 19 transits and 33 concurrent pairs out
+ * same time. The WX310 at station-A composes 19 transits and 33 concurrent pairs
  * of four turnouts and a crossing, and nobody can confirm 33 pairs by reading
  * them.
  *

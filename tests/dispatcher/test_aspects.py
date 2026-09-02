@@ -144,7 +144,7 @@ def test_the_grant_and_the_state_topic_tell_the_same_story() -> None:
     grants = {
         str(line["aspect"])
         for line in events(
-            run(*load("gotthard-v0/saturation"), Incremental), "move_granted"
+            run(*load("reversing-loops-v0/saturation"), Incremental), "move_granted"
         )
     }
     assert grants == {"caution", "clear"}, "the runs must show both"
@@ -154,7 +154,7 @@ def test_the_state_topic_carries_the_whole_picture_and_only_on_a_change() -> Non
     """One topic rather than one per end, so a late subscriber gets every end
     at once. Republishing an unchanged map would say nothing, so it does not
     happen: consecutive values always differ."""
-    layout, _roster, scenario = load("gotthard-v0/saturation")
+    layout, _roster, scenario = load("reversing-loops-v0/saturation")
     trace = run(layout, _roster, scenario, Incremental)
     published = [line["aspects"] for line in events(trace, "aspects")]
 

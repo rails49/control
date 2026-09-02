@@ -7,7 +7,7 @@ stops being a scheduler and becomes a view that emits **gestures** on
 `tc49/ui/request_wanted`:
 
 ```
-tc49/ui/request_wanted   {"train": "ic5", "dest": ["claro_3.A", "claro_3.B"]}
+tc49/ui/request_wanted   {"train": "ic5", "dest": ["station_c_3.A", "station_c_3.B"]}
 ```
 
 That is a `request_submitted` minus the two fields the scheduler owns — no

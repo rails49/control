@@ -14,8 +14,8 @@ research finding rather than a contract.
 
 | Layout | Role |
 | --- | --- |
-| `gotthard` | headline benchmark — 15 blocks, two stations, three line sections between them |
-| `gotthard-v0` | superseded, frozen; the netlist the ADRs measured, kept reproducible (#161) |
+| `reversing-loops` | headline benchmark — 15 blocks, two stations, three line sections between them |
+| `reversing-loops-v0` | superseded, frozen; the netlist the ADRs measured, kept reproducible (#161) |
 | `crossover-yard` | fast smoke benchmark — 6 blocks |
 | `facing-pair`, `single-track-meet` | property tests only |
 
@@ -23,9 +23,12 @@ research finding rather than a contract.
 strategies serialise on it, so a makespan comparison there is a null result by
 construction. Its job is deadlock hunting, not throughput.
 
-Gotthard replaces the invented large layout this suite was originally going to
-need. Using the owner's real railroad is what makes the numbers mean something,
-and its three line sections are what give the `k` sweep anything to measure.
+`reversing-loops` replaces the invented large layout this suite was originally
+going to need. It was drawn from a railroad that exists rather than composed to
+be hard, which is what makes the numbers mean something, and its three line
+sections are what give the `k` sweep anything to measure. It is a frozen
+snapshot and tracks that railroad no longer (#319): a fixture that followed a
+changing layout would leave every number below a moving target.
 
 ## Workloads
 
@@ -47,7 +50,7 @@ arrival ends, so the generator emits `from: A` or `from: B` and only a train's
 first working states a block ([LAYOUT.md](../store/LAYOUT.md#scenario-schema)).
 
 **The departure end is picked uniformly**, not "the end facing the chosen
-route". A request departing Claro *west* has one line available and one
+route". A request departing station-C *west* has one line available and one
 departing *east* has two, so a workload that always departs the same way
 systematically under-uses the railroad — always east and the yellow line is
 never touched; always west and `k` is inert.
@@ -59,13 +62,13 @@ a third of its requests would be siding moves and most of the rest short hops,
 diluting the one signal the sweep exists to find. A `--profile uniform`
 robustness check remains available later at the cost of a second sweep.
 
-Note what this does *not* mean. Gotthard's sidings are trailing dead ends
-([LAYOUT.md](../store/LAYOUT.md#the-encoded-railroads)), so a train parked in one blocks
-nothing but a request destined to it — and no generated request is. Siding
-stock is inert scenery for the sweep. The permanent obstacles that actually
-bite are **idle trains on station tracks**: a working train before it launches,
-or one that has finished its last working and now sits where somebody else is
-headed.
+Note what this does *not* mean. `reversing-loops`'s sidings are trailing dead
+ends ([LAYOUT.md](../store/LAYOUT.md#the-encoded-railroads)), so a train parked
+in one blocks nothing but a request destined to it — and no generated request
+is. Siding stock is inert scenery for the sweep. The permanent obstacles that
+actually bite are **idle trains on station tracks**: a working train before it
+launches, or one that has finished its last working and now sits where somebody
+else is headed.
 
 **Sweep axes**: trains 2–5, 3 workings each, seeds 0–9, `|dest| ∈ {1, 2, 6}`,
 `k ∈ {1, 2, 4, 6}`, locking ∈ {`FullRoute`, `Incremental`}.
@@ -76,30 +79,29 @@ because the claim that arrival-end sets buy throughput is a claim, and this
 suite measures rather than assumes:
 
 The axis is really three *intents* — one end, one track, one station — and the
-counts are what Gotthard's three-track stations make of them. A layout with
-four-track stations sweeps `{1, 2, 8}` for the same three intents:
+counts are what `reversing-loops`'s three-track stations make of them. A layout
+with four-track stations sweeps `{1, 2, 8}` for the same three intents:
 
 | `\|dest\|` | What the request says | Written |
 | --- | --- | --- |
 | 1 | one track, one way round | `to: [C2.A]` |
 | 2 | one track, either way round — **the old semantics** | `to: [C2.A, C2.B]` |
-| 6 | any track at the other station, either way round | `to:` the six line-facing Claro ends |
+| 6 | any track at the other station, either way round | `to:` the six line-facing station-C ends |
 
 `|dest| = 2` is the continuity point: it is exactly the request this model had
 before arrival ends existed, so it is the column every other column is read
 against.
 
-Working trains start on station tracks, of which Gotthard has seven — `sw16`
-stands in Claro track 3 and splits it, so Claro has four and Airolo three.
-**The axis stops at 6 for that reason**: at seven, every station track holds an
-idle train, every arrival block is therefore a permanent obstacle at every
-`|dest|`, `safe()` refuses every launch, and the run quiesces `stalled` at
-once on every seed. That point measures the stall detector, not
+Working trains start on station tracks, of which `reversing-loops` has seven —
+`sw16` stands in station-C track 3 and splits it, so station-C has four and
+station-A three. **The axis stops at 6 for that reason**: at seven, every
+station track holds an idle train, every arrival block is therefore a permanent
+obstacle at every `|dest|`, `safe()` refuses every launch, and the run quiesces
+`stalled` at once on every seed. That point measures the stall detector, not
 throughput, so it is excluded rather than swept. At six a free station track
-always exists, and it
-helps because the generator redraws until every train's first request can
-eventually reach one (step 4 below); a free track no pending request can name
-would be unreachable to the workload
+always exists, and it helps because the generator redraws until every train's
+first request can eventually reach one (step 4 below); a free track no pending
+request can name would be unreachable to the workload
 ([ADR-0011](../adr/0011-the-sweep-generator-redraws-unsatisfiable-draws.md)).
 
 ### The generator
@@ -111,7 +113,7 @@ Everything below is drawn from a single seeded RNG, in this order, so a
    train each, drawn from `t1`..`t6` on the railroad's own roster. Train
    length is a constant 450 mm there so the fit check is deterministic: it has
    to fit every station track, and `C3a` at 500 mm is the tightest. The railroad is smaller than the drawing it replaced, whose
-   Airolo tracks were a flat 1200 mm against a measured 980 to 1350.
+   station-A tracks were a flat 1200 mm against a measured 980 to 1350.
 2. **Workings** — for each train in id order, chain `workings` requests. The
    first departs from its placement and states that block; each later one
    states only its end. The departure end is uniform over `A`/`B`, except where
@@ -138,25 +140,24 @@ rejects. Redraws consume the same seeded RNG after the main draw, so the
 determinism property holds and a draw that needs no redraw is byte-identical
 to one made without the rule.
 
-**Routability needs no redraw on Gotthard.** Reachability depends on the
-origin block, which for a chained working is not known when the file is
+**Routability needs no redraw on `reversing-loops`.** Reachability depends on
+the origin block, which for a chained working is not known when the file is
 written, so the generator cannot check it — it is settled at the first launch
-attempt ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)). What makes this safe here is a
-property of the railroad, verified against the encoding: all 72 combinations
-of a line-facing departure end and a line-facing arrival end at the other
-station are reachable, so no draw can be unroutable at any `|dest|`. It is
-"line-facing" that carries this. `C3a.A` faces only `C3b` and `C3b.B` only
-`C3a` and the sidings, so neither is a station-to-station end at all, and a
-*departure* by one of them is the single case that makes a route run through a
-third station track. That case is also invisible to step 4, which reasons about
-arrival blocks alone: two trains in the halves of track 3, each departing into
-the other, are a head-on swap the fixed point below cannot see (#161). Keeping
-departures line-facing is what keeps step 4 sound as well as the routes
-short. A layout without
-that property extends step 4's redraw to unroutable requests too, since the
-workings-per-train count is a sweep axis and must hold. Occupancy is the case
-reachability cannot cover — it is per-origin and silent about an arrival block
-held by another idle train — and is why step 4 exists.
+attempt ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)). What makes this
+safe here is a property of the railroad, verified against the encoding: all 72
+combinations of a line-facing departure end and a line-facing arrival end at
+the other station are reachable, so no draw can be unroutable at any `|dest|`.
+It is "line-facing" that carries this. `C3a.A` faces only `C3b` and `C3b.B`
+only `C3a` and the sidings, so neither is a station-to-station end at all, and
+a *departure* by one of them is the single case that makes a route run through
+a third station track. That case is also invisible to step 4, which reasons
+about arrival blocks alone: two trains in the halves of track 3, each departing
+into the other, are a head-on swap the fixed point below cannot see (#161).
+Keeping departures line-facing is what keeps step 4 sound as well as the routes
+short. A layout without that property extends step 4's redraw to unroutable
+requests too, since the workings-per-train count is a sweep axis and must hold.
+Occupancy is the case reachability cannot cover — it is per-origin and silent
+about an arrival block held by another idle train — and is why step 4 exists.
 
 ## The `k` axis
 
@@ -166,19 +167,20 @@ one route; `k > 1` is route-around, and with arrival-end sets it is also
 finish-somewhere-else. That contrast is the headline measurement.
 
 **`k` and `|dest|` are not independent axes.** Enumerated on the finished
-encoding, Gotthard yields **exactly one minimal route per arrival end** — every
-station-to-station route is two transits, station to line to station, so the
-candidate count a launch has to work with is `|dest|` itself. That still holds
-with track 3 split, and holds *because* departures are line-facing: it is the
-one rule that keeps a route from running through a third station track.
+encoding, `reversing-loops` yields **exactly one minimal route per arrival
+end** — every station-to-station route is two transits, station to line to
+station, so the candidate count a launch has to work with is `|dest|` itself.
+That still holds with track 3 split, and holds *because* departures are
+line-facing: it is the one rule that keeps a route from running through a third
+station track.
 
 | `\|dest\|` | Direction | Minimal routes | Distinct lines | `k` |
 | --- | --- | --- | --- | --- |
 | 1 | either | 1 | 1 | inert |
-| 2 | Claro → Airolo | 2 | 1 | arrival end only |
-| 2 | Airolo → Claro | 2 | 2 | `k = 2` chooses a line |
-| 6 | Claro → Airolo | 6 | 1 | arrival track only |
-| 6 | Airolo → Claro | 6 | 3 | `k` chooses among all three lines |
+| 2 | station-C → station-A | 2 | 1 | arrival end only |
+| 2 | station-A → station-C | 2 | 2 | `k = 2` chooses a line |
+| 6 | station-C → station-A | 6 | 1 | arrival track only |
+| 6 | station-A → station-C | 6 | 3 | `k` chooses among all three lines |
 
 Three things to read off it:
 
@@ -190,27 +192,27 @@ Three things to read off it:
   why [ADR-0007](../adr/0007-requests-name-a-set-of-arrival-ends.md) does not
   constrain it without also allowing a set.
 - **The old asymmetry is gone at `|dest| ≥ 2`.** `k` used to bite on half the
-  workload — Claro departures had one line and nothing to choose. They still
+  workload — station-C departures had one line and nothing to choose. They still
   have one line, but now several arrival tracks on it, so `k` chooses *where
   the train finishes* rather than *how it gets there*. Both directions are
   live; only what `k` buys differs, and the sweep should still report the two
   directions separately because those are different mechanisms.
 
-The line asymmetry itself is structural and unchanged. At Claro each track's
+The line asymmetry itself is structural and unchanged. At station-C each track's
 east end is served by exactly one blue line (blue 1 reaches tracks 2 and 3;
 blue 2 reaches track 1) and its west end by the yellow, so the departure end
-and arrival end together fix the line. Departing Airolo, all three lines meet
-at the single `j1` connection, reaching both ends of every Airolo track, and
-every one of them reaches every Claro track,
+and arrival end together fix the line. Departing station-A, all three lines meet
+at the single `j1` connection, reaching both ends of every station-A track, and
+every one of them reaches every station-C track,
 so at `|dest| = 6` a train has all three to choose between.
 
 **The lexicographic bias at `k < |dest|`, and its fix.** Every candidate ties
 at two transits, so before congestion-aware costing (#33) the lexicographic
-tie-break alone ordered them and every train tried `C1`, then `C2`,
-first. The predicted cost was real and worse than predicted: authoring
-`gotthard-v0/saturation` (#31) at `|dest| = 6` and running it at the default
-`k = 2` did not merely cost throughput. The run **stalled outright**, under
-both locking strategies, because both tracks every train tried first were
+tie-break alone ordered them and every train tried `C1`, then `C2`, first. The
+predicted cost was real and worse than predicted: authoring
+`reversing-loops-v0/saturation` (#31) at `|dest| = 6` and running it at the
+default `k = 2` did not merely cost throughput. The run **stalled outright**,
+under both locking strategies, because both tracks every train tried first were
 occupied and the rotation never started.
 
 Costing removes the bias: tied candidates are ordered by how many of their
@@ -265,10 +267,10 @@ a live-lock bug, never as the normal stop condition.
 
 | Scenario | What it shows |
 | --- | --- |
-| `gotthard/meet` | two trains, opposite directions — `FullRoute` serialises, `Incremental` should split them across two lines |
-| `gotthard/saturation` | 6 trains × 3 workings, batch — the headline makespan gap; six is the ceiling, per the axis note above. Its rotation runs through all seven station tracks, so one hop per lap is the track-3 shunt: Claro has four tracks and Airolo three, and a cycle only alternates stations if the counts are equal |
-| `gotthard/obstacle` | an idle train parked on the one line a pending request can use — stock left on `CE1` while a request departs `C3b.A`, track 3's only east end, which blue 1 alone serves. The departure end fixes the line by itself, so the request stalls however many arrival ends it names. Expected status `stalled`, with the obstacle named |
-| `gotthard/flexibility` | the same working twice, once as `to: [C2.A]` and once as `to:` the six line-facing Claro ends — the `\|dest\|` contrast as a story rather than a sweep row |
+| `reversing-loops/meet` | two trains, opposite directions — `FullRoute` serialises, `Incremental` should split them across two lines |
+| `reversing-loops/saturation` | 6 trains × 3 workings, batch — the headline makespan gap; six is the ceiling, per the axis note above. Its rotation runs through all seven station tracks, so one hop per lap is the track-3 shunt: station-C has four tracks and station-A three, and a cycle only alternates stations if the counts are equal |
+| `reversing-loops/obstacle` | an idle train parked on the one line a pending request can use — stock left on `CE1` while a request departs `C3b.A`, track 3's only east end, which blue 1 alone serves. The departure end fixes the line by itself, so the request stalls however many arrival ends it names. Expected status `stalled`, with the obstacle named |
+| `reversing-loops/flexibility` | the same working twice, once as `to: [C2.A]` and once as `to:` the six line-facing station-C ends — the `\|dest\|` contrast as a story rather than a sweep row |
 | `crossover-yard/meet` | small and fast; one `concurrent` pair, composed from a scissors crossover |
 
 ## Output
@@ -285,7 +287,7 @@ a live-lock bug, never as the normal stop condition.
   writes one JSONL row per run — every axis plus every metric — to a
   gitignored `out/`. No aggregation is baked in.
 
-**How a number becomes golden.** The gotthard scenarios above and the two
+**How a number becomes golden.** The reversing-loops scenarios above and the two
 property-test layouts of [ARCHITECTURE.md](../ARCHITECTURE.md#tests) are
 implementation work, authored from these descriptions. Golden numbers are
 recorded from the first run made *after* the four Hypothesis properties and

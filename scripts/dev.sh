@@ -7,14 +7,14 @@
 #   bridge  ws://127.0.0.1:8766     `tc49 live`, the session the run view joins
 #
 #   scripts/dev.sh                     all three; load a railroad in the band
-#   scripts/dev.sh gotthard            and the session comes up on that one
-#   scripts/dev.sh gotthard --period 1
+#   scripts/dev.sh reversing-loops     and the session comes up on that one
+#   scripts/dev.sh reversing-loops --period 1
 #                                      anything further is the session's
 #   scripts/dev.sh stop                every one of them down again
 #
 # `start` is the word for what it does without one, and may be said —
-# `scripts/dev.sh start gotthard`. No railroad is named `start` or `stop`, so
-# a first word that is one of those is never a railroad.
+# `scripts/dev.sh start reversing-loops`. No railroad is named `start` or
+# `stop`, so a first word that is one of those is never a railroad.
 #
 # The band names the railroad, so the bridge always comes up: a railroad here
 # is the one the session starts on and not the one it is fixed to, and the

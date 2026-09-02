@@ -1,8 +1,9 @@
 """Writing a YAML document back without disturbing what is already there.
 
-Comments are most of what a hand-written drawing says — 107 of Gotthard's 237
-lines, including which block lengths are assumed and why Claro east is still
-opaque — and the first editor save writes a placement onto every symbol line.
+Comments are most of what a hand-written drawing says — 90 of
+`reversing-loops`'s 235 lines, including the junction-by-junction account of
+the railroad and which decoder addresses are ganged — and the first editor save
+writes a placement onto every symbol line.
 A fresh dump would delete the lot, so ``save`` merges the incoming document
 into the file key by key instead (ADR-0018, DRAWING.md).
 

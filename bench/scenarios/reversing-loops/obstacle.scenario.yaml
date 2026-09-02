@@ -1,4 +1,5 @@
-# gotthard/obstacle — a permanent obstacle, named (docs/BENCHMARKS.md, #31).
+# reversing-loops/obstacle — a permanent obstacle, named (docs/BENCHMARKS.md,
+# #31).
 #
 # Stock left standing on `CE1` (blue 1) and a request departing `C3b.A`.
 # Track 3's east end is `C3b.A`, and blue 1 is the only line it reaches, so the
@@ -6,7 +7,7 @@
 # `CE1`, whatever the request names as its destination.
 #
 # The request therefore stalls however many arrival ends it names. `stranded`
-# names all three Airolo tracks — the widest set the layout offers — and it
+# names all three station-A tracks — the widest set the layout offers — and it
 # changes nothing.
 #
 # Expected status `stalled`, with the obstacle named: `CE1`, held by `stock`.
@@ -14,13 +15,13 @@
 # nothing in the dispatcher will move `stock`, so its block is permanently
 # unavailable — turned from a paragraph into a visible, tested output.
 #
-# Ported from `gotthard-v0/obstacle` in #161. `claro_3.B` is `C3b.A` on the
-# drawn railroad, and the choice of half is forced: `C3a` has no east end at
-# all, and from `C3a.B` the yellow is available, which would dissolve the
-# premise.
+# Ported from `reversing-loops-v0/obstacle` in #161. `station_c_3.B` is `C3b.A`
+# on the drawn railroad, and the choice of half is forced: `C3a` has no east
+# end at all, and from `C3a.B` the yellow is available, which would dissolve
+# the premise.
 
 scenario: obstacle
-layout: gotthard
+layout: reversing-loops
 
 trains:
   stranded: { at: C3b, facing: B-to-A }

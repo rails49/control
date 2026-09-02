@@ -104,44 +104,44 @@ def test_single_track_meet_derives_a_throat_and_a_switch_at_each_end() -> None:
     assert all(not c.concurrent for c in layout.connections.values())
 
 
-def test_gotthard_v0_derives_one_junction_at_airolo_and_three_at_claro() -> None:
-    layout = committed("gotthard-v0")
+def test_v0_derives_one_junction_at_station_a_and_three_at_station_c() -> None:
+    layout = committed("reversing-loops-v0")
     assert len(layout.blocks) == 14
-    # Claro's east end is two throats, not one: blue 1's lead and blue 2's
+    # station-C's east end is two throats, not one: blue 1's lead and blue 2's
     # share no track, which is what drawing it from turnouts showed (#58).
     assert sorted(layout.connections) == [
-        "airolo",
-        "claro_east_b1",
-        "claro_east_b2",
-        "claro_west",
+        "station_a",
+        "station_c_east_b1",
+        "station_c_east_b2",
+        "station_c_west",
     ]
     assert sum(len(c.transits) for c in layout.connections.values()) == 29
     assert layout.terminal_blocks == frozenset(
-        {"airolo_4", "claro_4", "claro_5", "claro_6", "claro_7"}
+        {"station_a_4", "station_c_4", "station_c_5", "station_c_6", "station_c_7"}
     )
     # A reversing loop's signature: out through one end of a block and back in
     # through the same one (LAYOUT.md).
     at_yellow = layout.transits_at("line_yellow.A")
-    assert ("airolo.airolo_2_A__line_yellow_A", "airolo_2.A") in at_yellow
-    assert ("airolo.airolo_2_B__line_yellow_A", "airolo_2.B") in at_yellow
+    assert ("station_a.line_yellow_A__station_a_2_A", "station_a_2.A") in at_yellow
+    assert ("station_a.line_yellow_A__station_a_2_B", "station_a_2.B") in at_yellow
 
 
-def test_airolo_composes_the_concurrency_the_wx310_allows() -> None:
+def test_station_a_composes_the_concurrency_the_wx310_allows() -> None:
     """#46, from the owner's account on #35. Set straight the WX310 passes two
     trains, one per leg: blue 2 to the A ends while the yellow or blue 1 works
     the B ends. Set crossed it passes one. Nothing in the drawing declares
     that — it is composed from four turnouts and a crossing."""
-    airolo = committed("gotthard-v0").connections["airolo"]
+    station_a = committed("reversing-loops-v0").connections["station_a"]
     # Say it in block ends, the thing the geometry is about, so the assertion
     # holds whatever the transits end up called.
-    ends = {name: frozenset(pair) for name, pair in airolo.transits.items()}
-    composed = {frozenset((ends[one], ends[two])) for one, two in airolo.concurrent}
+    ends = {name: frozenset(pair) for name, pair in station_a.transits.items()}
+    composed = {frozenset((ends[one], ends[two])) for one, two in station_a.concurrent}
 
     straight = {
         frozenset(
             (
-                frozenset((f"airolo_{track}.A", "line_blue_2.B")),
-                frozenset((f"airolo_{other}.B", line)),
+                frozenset((f"station_a_{track}.A", "line_blue_2.B")),
+                frozenset((f"station_a_{other}.B", line)),
             )
         )
         for track in (1, 2, 3)
@@ -155,7 +155,7 @@ def test_airolo_composes_the_concurrency_the_wx310_allows() -> None:
     assert composed - siding == straight
 
 
-def test_claro_east_is_two_throats_serving_one_line_each() -> None:
+def test_station_c_east_is_two_throats_serving_one_line_each() -> None:
     """#58, settling #35. The netlist's track tiles run blue 1 into sw50 and
     blue 2 into sw49, and the two leads share no track, so the station's east
     end is two connections rather than the one the hand-written layout
@@ -163,16 +163,19 @@ def test_claro_east_is_two_throats_serving_one_line_each() -> None:
 
     Said in block ends, which is what the tiles settle; the names are the
     layout's and are asserted separately."""
-    layout = committed("gotthard-v0")
-    b1, b2 = layout.connections["claro_east_b1"], layout.connections["claro_east_b2"]
+    layout = committed("reversing-loops-v0")
+    b1, b2 = (
+        layout.connections["station_c_east_b1"],
+        layout.connections["station_c_east_b2"],
+    )
     assert {name: frozenset(pair) for name, pair in b1.transits.items()} == {
-        "blue_1_2": frozenset(("line_blue_1.A", "claro_2.B")),
-        "blue_1_3": frozenset(("line_blue_1.A", "claro_3.B")),
+        "blue_1_2": frozenset(("line_blue_1.A", "station_c_2.B")),
+        "blue_1_3": frozenset(("line_blue_1.A", "station_c_3.B")),
     }
     assert {name: frozenset(pair) for name, pair in b2.transits.items()} == {
-        "blue_2_1": frozenset(("line_blue_2.A", "claro_1.B")),
-        "siding_5": frozenset(("line_blue_2.A", "claro_5.A")),
-        "siding_4": frozenset(("line_blue_2.A", "claro_4.A")),
+        "blue_2_1": frozenset(("line_blue_2.A", "station_c_1.B")),
+        "siding_5": frozenset(("line_blue_2.A", "station_c_5.A")),
+        "siding_4": frozenset(("line_blue_2.A", "station_c_4.A")),
     }
     # Each throat is one turnout's toe, or two in a row, so nothing within
     # either runs together. Across them nothing conflicts at all, which is the
@@ -181,20 +184,20 @@ def test_claro_east_is_two_throats_serving_one_line_each() -> None:
     assert b2.concurrent == frozenset()
 
 
-def test_claro_west_keeps_its_names_and_gains_the_pairs_its_ladder_allows() -> None:
+def test_station_c_west_keeps_its_names_and_gains_the_pairs_its_ladder_allows() -> None:
     """Every transit there is identified by one symbol transit, so the names
     the hand-written layout picked survive being drawn. What is new is the
     concurrency: shunting track 3's sidings shares no switch with the yellow
     reaching track 1 or track 2."""
-    claro_west = committed("gotthard-v0").connections["claro_west"]
-    assert sorted(claro_west.transits) == [
+    station_c_west = committed("reversing-loops-v0").connections["station_c_west"]
+    assert sorted(station_c_west.transits) == [
         "siding_6",
         "siding_7",
         "yellow_1",
         "yellow_2",
         "yellow_3",
     ]
-    assert claro_west.concurrent == frozenset(
+    assert station_c_west.concurrent == frozenset(
         frozenset((siding, yellow))
         for siding in ("siding_6", "siding_7")
         for yellow in ("yellow_1", "yellow_2")
@@ -237,7 +240,7 @@ def test_a_bend_belongs_to_the_connection_it_joins() -> None:
 
 
 def test_a_junction_of_four_symbols_in_a_chain_stays_one_connection() -> None:
-    """Airolo's throats are long chains of turnouts, and the union-find that
+    """station-A's throats are long chains of turnouts, and the union-find that
     groups them has to hold a chain of any length together: a four-turnout
     ladder is the shortest one deep enough to catch a path-compression slip."""
     symbols: dict[str, Any] = {"trunk": block(), "trunk_stop": {"kind": "terminal"}}
@@ -684,11 +687,13 @@ def test_the_scissors_crossover_says_which_frog_excludes_a_pair() -> None:
     assert ("dn_straight", "up_straight") not in excluded
 
 
-def test_airolo_says_the_wx310_is_what_a_crossed_pair_shares() -> None:
-    airolo = committed_drawing("gotthard-v0").explain()["connections"]["airolo"]
+def test_station_a_says_the_wx310_is_what_a_crossed_pair_shares() -> None:
+    station_a = committed_drawing("reversing-loops-v0").explain()["connections"][
+        "station_a"
+    ]
     shared = {
         symbol
-        for pair in airolo["exclusive"]
+        for pair in station_a["exclusive"]
         for symbol in pair["shared"]
         if "line_blue_2" in str(pair["transits"])
     }
@@ -881,7 +886,7 @@ def test_points_on_one_address_agreeing_are_no_fault() -> None:
 
 @pytest.mark.parametrize("name", RAILROADS)
 def test_a_committed_drawing_can_be_thrown(name: str) -> None:
-    """gotthard is the one that gangs points: `5` moves sw1 and sw2, `1`
+    """reversing-loops is the one that gangs points: `5` moves sw1 and sw2, `1`
     moves sw6 through sw9, which is what the hardware needs and why that throat
     has fewer usable ways than its geometry suggests."""
     assert committed_drawing(name).review()["motor_faults"] == []
@@ -920,14 +925,14 @@ def test_a_terminal_is_not_a_junction() -> None:
     """Every non-block symbol is a component of its own, but a terminal
     declares no transit and derives no connection, so tinting it as a region
     would say something untrue."""
-    junctions = committed_drawing("gotthard-v0").review()["junctions"]
+    junctions = committed_drawing("reversing-loops-v0").review()["junctions"]
     tinted = {symbol for junction in junctions for symbol in junction["symbols"]}
     assert not [symbol for symbol in tinted if symbol.endswith("_stop")]
     assert sorted(j["name"] for j in junctions) == [
-        "airolo",
-        "claro_east_b1",
-        "claro_east_b2",
-        "claro_west",
+        "station_a",
+        "station_c_east_b1",
+        "station_c_east_b2",
+        "station_c_west",
     ]
 
 
@@ -1236,11 +1241,11 @@ def test_a_junction_the_drawing_has_not_named_reports_no_name() -> None:
 
     # Named twice instead of not at all: the same null name, and the names
     # someone typed, which is what stops the editor minting over them.
-    doc["symbols"]["one"]["connection"] = "airolo"
-    doc["symbols"]["two"]["connection"] = "claro"
+    doc["symbols"]["one"]["connection"] = "station_a"
+    doc["symbols"]["two"]["connection"] = "station_c"
     review = Drawing.from_document(doc).review()
     assert review["junctions"] == [
-        {"name": None, "names": ["airolo", "claro"], "symbols": ["one", "two"]}
+        {"name": None, "names": ["station_a", "station_c"], "symbols": ["one", "two"]}
     ]
 
 
@@ -1342,7 +1347,7 @@ def test_the_derived_layout_survives_a_drawing_file_reorder(name: str) -> None:
     """Symbol and wire order is drawing-file bookkeeping, and a symbol carries
     no position at all, so neither can move a byte of the derived layout. Every
     railroad, since order-sensitivity shows up first in the biggest component:
-    Gotthard's Airolo is a chain a dozen symbols long."""
+    `reversing-loops`'s station-A is a chain a dozen symbols long."""
     doc = read(f"{name}.drawing.yaml")
     shuffled = {
         **doc,
@@ -1655,24 +1660,24 @@ def test_one_address_wanted_in_both_positions_is_emitted_verbatim() -> None:
     }
 
 
-def test_gotthards_ganged_points_come_out_one_entry_each() -> None:
+def test_reversing_loops_ganged_points_come_out_one_entry_each() -> None:
     """The railroad that gangs points, worked through by hand from its wires.
 
     `A1.A` reaches `A4.B` over `sw2` alone, lying straight, and `sw2` shares
-    address `dccex/5` with `sw1`, so one entry is the whole of it. `A2.A`
-    reaches `CE1.B` over five points: `sw1` straight (`dccex/5`), `sw3`
-    diverging (`dccex/6`), then `sw8` and `sw7` both straight — which are two
-    of the four on `dccex/1`, wanting the same position, so they collapse to
-    one — and `sw10` diverging (`dccex/2`). Sorted by address, four entries
+    address `dccex/101` with `sw1`, so one entry is the whole of it. `A2.A`
+    reaches `CE1.B` over five points: `sw1` straight (`dccex/101`), `sw3`
+    diverging (`dccex/102`), then `sw8` and `sw7` both straight — which are two
+    of the four on `dccex/105`, wanting the same position, so they collapse to
+    one — and `sw10` diverging (`dccex/106`). Sorted by address, four entries
     for five points, and sorting is by the whole address, system and all.
     """
-    points = committed("gotthard").connections["j1"].points
-    assert points["A1_A__A4_B"] == (Point("dccex/5", "closed"),)
+    points = committed("reversing-loops").connections["j1"].points
+    assert points["A1_A__A4_B"] == (Point("dccex/101", "closed"),)
     assert points["A2_A__CE1_B"] == (
-        Point("dccex/1", "closed"),
-        Point("dccex/2", "thrown"),
-        Point("dccex/5", "closed"),
-        Point("dccex/6", "thrown"),
+        Point("dccex/101", "closed"),
+        Point("dccex/102", "thrown"),
+        Point("dccex/105", "closed"),
+        Point("dccex/106", "thrown"),
     )
 
 

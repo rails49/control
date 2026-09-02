@@ -2,7 +2,7 @@
 
 The panel draws a point in the position `align` commanded it into, the road
 that position does not offer faint (#98). Nothing in the repo drove that until
-`gotthard/positions`: it is the only drawing whose points carry addresses,
+`reversing-loops/positions`: it is the only drawing whose points carry addresses,
 and a run over a drawing with none commands nothing and fades nothing.
 
 So the scenario is checked the way the panel reads it — through the trace,
@@ -32,7 +32,7 @@ from tc49.store import AssetStore
 from tc49.store.drawing import POSITIONS
 from tests.harness import ASSETS, events, load, run
 
-SCENARIO = "gotthard/positions"
+SCENARIO = "reversing-loops/positions"
 UI_SUITE = "ui/test/points.test.ts"  # the suite that copies part of this one
 
 
@@ -82,7 +82,7 @@ def test_the_run_leaves_points_lying_where_the_panel_can_draw_them() -> None:
 def test_it_shows_both_positions_at_once() -> None:
     # A road set against is only legible beside one that is not, so the picture
     # worth watching has points lying each way when the run ends: sw1 and sw2
-    # closed, the four sharing `dccex/1` thrown along with sw3, sw14 and sw15.
+    # closed, the four sharing `dccex/105` thrown along with sw3, sw14 and sw15.
     assert set(commanded(trace()).values()) == {"closed", "thrown"}
 
 
@@ -112,12 +112,14 @@ class Miniature:
 
 
 MINIATURE = Miniature(
-    aligned={"j1": [{"dccex/1": "thrown", "dccex/5": "closed", "dccex/6": "thrown"}]},
+    aligned={
+        "j1": [{"dccex/105": "thrown", "dccex/101": "closed", "dccex/102": "thrown"}]
+    },
     points={
-        "sw1": ("turnout", "dccex/5"),
-        "sw2": ("turnout", "dccex/5"),
-        "sw3": ("turnout", "dccex/6"),
-        "sw4": ("turnout", "dccex/7"),
+        "sw1": ("turnout", "dccex/101"),
+        "sw2": ("turnout", "dccex/101"),
+        "sw3": ("turnout", "dccex/102"),
+        "sw4": ("turnout", "dccex/103"),
     },
     uncommanded=["sw4"],
 )

@@ -89,11 +89,11 @@ function made(names: string[] = []) {
 
 describe("the drawings there are to open", () => {
   it("takes what the store lists", async () => {
-    const { filing } = made(["gotthard", "otira"]);
+    const { filing } = made(["reversing-loops", "otira"]);
 
     await filing.load();
 
-    expect(filing.drawings).toEqual(["gotthard", "otira"]);
+    expect(filing.drawings).toEqual(["reversing-loops", "otira"]);
     expect(filing.trouble).toBeNull();
   });
 
@@ -109,7 +109,7 @@ describe("the drawings there are to open", () => {
   });
 
   it("tells the shell to redraw", async () => {
-    const { filing, told } = made(["gotthard"]);
+    const { filing, told } = made(["reversing-loops"]);
 
     await filing.load();
 
@@ -119,20 +119,20 @@ describe("the drawings there are to open", () => {
 
 describe("opening a drawing", () => {
   it("reads it into the editor and names it as open", async () => {
-    const { filing, editor } = made(["gotthard"]);
+    const { filing, editor } = made(["reversing-loops"]);
 
-    const arrived = await filing.open("gotthard", editor);
+    const arrived = await filing.open("reversing-loops", editor);
 
     expect(arrived).toBe(true);
-    expect(filing.opened).toBe("gotthard");
+    expect(filing.opened).toBe("reversing-loops");
     expect(Object.keys(editor.drawing.symbols).sort()).toEqual(["b1", "sw1"]);
   });
 
   it("holds what the store said the drawing means", async () => {
-    const { filing, store, editor } = made(["gotthard"]);
+    const { filing, store, editor } = made(["reversing-loops"]);
     store.answer = () => Promise.resolve(REFUSED);
 
-    await filing.open("gotthard", editor);
+    await filing.open("reversing-loops", editor);
 
     expect(filing.reviewed).toEqual(REFUSED);
   });
@@ -140,9 +140,9 @@ describe("opening a drawing", () => {
   /** Every symbol in the file is already placed, so there is nothing to
    *  stage and nothing to save. */
   it("opens a placed railroad with nothing to save", async () => {
-    const { filing, editor } = made(["gotthard"]);
+    const { filing, editor } = made(["reversing-loops"]);
 
-    await filing.open("gotthard", editor);
+    await filing.open("reversing-loops", editor);
 
     expect(filing.saved).toBe(true);
   });
@@ -150,20 +150,20 @@ describe("opening a drawing", () => {
   /** Staging is an edit, so a railroad written without placement opens with
    *  something to save rather than something already saved. */
   it("opens an unplaced railroad with edits to save", async () => {
-    const { filing, store, editor } = made(["gotthard"]);
-    store.stored.gotthard = {
-      drawing: "gotthard",
+    const { filing, store, editor } = made(["reversing-loops"]);
+    store.stored["reversing-loops"] = {
+      drawing: "reversing-loops",
       symbols: { sw1: { kind: "turnout" }, b1: { kind: "block" } },
       wires: [],
     };
 
-    await filing.open("gotthard", editor);
+    await filing.open("reversing-loops", editor);
 
     expect(filing.saved).toBe(false);
   });
 
   it("says so where the store will not give it, and opens nothing", async () => {
-    const { filing, editor } = made(["gotthard"]);
+    const { filing, editor } = made(["reversing-loops"]);
 
     const arrived = await filing.open("otira", editor);
 
@@ -175,7 +175,7 @@ describe("opening a drawing", () => {
 
 describe("starting a drawing", () => {
   it("empties the canvas under the name, with edits to save", async () => {
-    const { filing, editor } = made(["gotthard"]);
+    const { filing, editor } = made(["reversing-loops"]);
     await filing.load();
 
     const arrived = await filing.create("arth-goldau", editor);
@@ -188,7 +188,7 @@ describe("starting a drawing", () => {
 
   /** The prompt is the shell's, and `null` is the operator closing it. */
   it("starts nothing where nothing was said", async () => {
-    const { filing, editor } = made(["gotthard"]);
+    const { filing, editor } = made(["reversing-loops"]);
     await filing.load();
 
     const arrived = await filing.create(null, editor);
@@ -199,7 +199,7 @@ describe("starting a drawing", () => {
   });
 
   it("refuses a name no file can wear", async () => {
-    const { filing, editor } = made(["gotthard"]);
+    const { filing, editor } = made(["reversing-loops"]);
     await filing.load();
 
     const arrived = await filing.create("a/b", editor);
@@ -212,19 +212,19 @@ describe("starting a drawing", () => {
   /** A taken name is refused rather than overwritten: overwriting
    *  deliberately is open-and-save. */
   it("refuses a name a railroad already has", async () => {
-    const { filing, editor } = made(["gotthard"]);
+    const { filing, editor } = made(["reversing-loops"]);
     await filing.load();
 
-    await filing.create("gotthard", editor);
+    await filing.create("reversing-loops", editor);
 
-    expect(filing.trouble).toBe("'gotthard' is already a railroad");
+    expect(filing.trouble).toBe("'reversing-loops' is already a railroad");
   });
 });
 
 describe("saving", () => {
   it("gives the store the drawing as it stands", async () => {
-    const { filing, store, editor } = made(["gotthard"]);
-    await filing.open("gotthard", editor);
+    const { filing, store, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
     editor.place("block", [20, 20]);
     await filing.edited(editor);
 
@@ -257,8 +257,8 @@ describe("saving", () => {
   });
 
   it("says so where the save did not land", async () => {
-    const { filing, store, editor } = made(["gotthard"]);
-    await filing.open("gotthard", editor);
+    const { filing, store, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
     await filing.edited(editor);
     store.broken = new Error("disk full");
 
@@ -271,9 +271,9 @@ describe("saving", () => {
 
 describe("saving under another name", () => {
   it("writes the open drawing, unsaved edits and all, under the new one", async () => {
-    const { filing, store, editor } = made(["gotthard"]);
+    const { filing, store, editor } = made(["reversing-loops"]);
     await filing.load();
-    await filing.open("gotthard", editor);
+    await filing.open("reversing-loops", editor);
     editor.place("block", [20, 20]);
     await filing.edited(editor);
 
@@ -282,21 +282,21 @@ describe("saving under another name", () => {
     expect(filing.opened).toBe("otira");
     expect(filing.saved).toBe(true);
     expect(store.written[0]!.drawing).toBe("otira");
-    expect(Object.keys(store.stored.gotthard!.symbols).sort()).toEqual([
+    expect(Object.keys(store.stored["reversing-loops"]!.symbols).sort()).toEqual([
       "b1",
       "sw1",
     ]);
   });
 
   it("refuses a name no file can wear, and writes nothing", async () => {
-    const { filing, store, editor } = made(["gotthard"]);
+    const { filing, store, editor } = made(["reversing-loops"]);
     await filing.load();
-    await filing.open("gotthard", editor);
+    await filing.open("reversing-loops", editor);
 
-    await filing.saveAs("gotthard/2", editor);
+    await filing.saveAs("reversing-loops/2", editor);
 
-    expect(filing.trouble).toBe("'gotthard/2' cannot name a file");
-    expect(filing.opened).toBe("gotthard");
+    expect(filing.trouble).toBe("'reversing-loops/2' cannot name a file");
+    expect(filing.opened).toBe("reversing-loops");
     expect(store.written).toEqual([]);
   });
 
@@ -311,8 +311,8 @@ describe("saving under another name", () => {
 
 describe("an edit", () => {
   it("leaves the drawing with something to save, and re-asks the store", async () => {
-    const { filing, store, editor } = made(["gotthard"]);
-    await filing.open("gotthard", editor);
+    const { filing, store, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
     store.answer = () => Promise.resolve(REFUSED);
 
     await filing.edited(editor);
@@ -324,7 +324,7 @@ describe("an edit", () => {
   /** A refusal does not outlive what caused it: the next accepted edit
    *  reviews, and a review that answers clears the band. */
   it("clears a refusal the band was carrying", async () => {
-    const { filing, editor } = made(["gotthard"]);
+    const { filing, editor } = made(["reversing-loops"]);
     await filing.load();
     await filing.create("a/b", editor);
     expect(filing.trouble).not.toBeNull();
@@ -341,8 +341,8 @@ describe("an edit", () => {
    *  this file would merely race and mostly still pass, so this is the one
    *  that says what they are waiting on. */
   it("answers with a review that lands only where the store has", async () => {
-    const { filing, store, editor } = made(["gotthard"]);
-    await filing.open("gotthard", editor);
+    const { filing, store, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
     let answer!: (review: Review) => void;
     store.answer = () => new Promise<Review>((held) => (answer = held));
 
@@ -363,7 +363,7 @@ describe("an edit", () => {
  */
 describe("whether there are edits to lose", () => {
   it("has nothing to lose on a canvas just started", async () => {
-    const { filing, editor } = made(["gotthard"]);
+    const { filing, editor } = made(["reversing-loops"]);
     await filing.load();
 
     await filing.create("arth-goldau", editor);
@@ -373,7 +373,7 @@ describe("whether there are edits to lose", () => {
 
   /** The dot is telling the truth about the file, which does not exist. */
   it("still says that canvas is unsaved", async () => {
-    const { filing, editor } = made(["gotthard"]);
+    const { filing, editor } = made(["reversing-loops"]);
     await filing.load();
 
     await filing.create("arth-goldau", editor);
@@ -382,7 +382,7 @@ describe("whether there are edits to lose", () => {
   });
 
   it("has edits to lose once anything is drawn on it", async () => {
-    const { filing, editor } = made(["gotthard"]);
+    const { filing, editor } = made(["reversing-loops"]);
     await filing.load();
     await filing.create("arth-goldau", editor);
 
@@ -393,16 +393,16 @@ describe("whether there are edits to lose", () => {
   });
 
   it("has nothing to lose on a drawing as the store gave it", async () => {
-    const { filing, editor } = made(["gotthard"]);
+    const { filing, editor } = made(["reversing-loops"]);
 
-    await filing.open("gotthard", editor);
+    await filing.open("reversing-loops", editor);
 
     expect(filing.edits).toBe(false);
   });
 
   it("has edits to lose on one edited since it was read", async () => {
-    const { filing, editor } = made(["gotthard"]);
-    await filing.open("gotthard", editor);
+    const { filing, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
 
     editor.place("block", [20, 20]);
     await filing.edited(editor);
@@ -413,14 +413,14 @@ describe("whether there are edits to lose", () => {
   /** Staging is an edit, so a railroad that arrives without placement has
    *  changes to save and something to lose with them (#105). */
   it("counts the staging an unplaced railroad needed", async () => {
-    const { filing, store, editor } = made(["gotthard"]);
-    store.stored.gotthard = {
-      drawing: "gotthard",
+    const { filing, store, editor } = made(["reversing-loops"]);
+    store.stored["reversing-loops"] = {
+      drawing: "reversing-loops",
       symbols: { sw1: { kind: "turnout" }, b1: { kind: "block" } },
       wires: [],
     };
 
-    await filing.open("gotthard", editor);
+    await filing.open("reversing-loops", editor);
 
     expect(filing.edits).toBe(true);
   });
@@ -446,8 +446,8 @@ describe("whether there are edits to lose", () => {
   });
 
   it("has nothing to lose again once the drawing is saved", async () => {
-    const { filing, editor } = made(["gotthard"]);
-    await filing.open("gotthard", editor);
+    const { filing, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
     editor.place("block", [20, 20]);
     await filing.edited(editor);
 
@@ -470,8 +470,8 @@ describe("whether the drawing derives", () => {
   });
 
   it("marks a drawing derivation refused", async () => {
-    const { filing, store, editor } = made(["gotthard"]);
-    await filing.open("gotthard", editor);
+    const { filing, store, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
 
     store.answer = () => Promise.resolve(REFUSED);
     await filing.edited(editor);
@@ -480,8 +480,8 @@ describe("whether the drawing derives", () => {
   });
 
   it("clears as soon as an edit derives again", async () => {
-    const { filing, store, editor } = made(["gotthard"]);
-    await filing.open("gotthard", editor);
+    const { filing, store, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
     store.answer = () => Promise.resolve(REFUSED);
     await filing.edited(editor);
 
@@ -495,8 +495,8 @@ describe("whether the drawing derives", () => {
    *  address: a valid layout nobody can drive yet. Both are marked on the
    *  canvas in a quieter weight (#92, #96) and leave the band clean. */
   it("stays clean over faults the store still derives through", async () => {
-    const { filing, editor } = made(["gotthard"]);
-    await filing.open("gotthard", editor);
+    const { filing, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
 
     editor.place("turnout", [0, 0]);
     await filing.edited(editor);
@@ -507,8 +507,8 @@ describe("whether the drawing derives", () => {
   /** One is the author's to fix and the other is not, so the store going quiet
    *  neither raises the mark nor takes it down. */
   it("stands where the store stops answering", async () => {
-    const { filing, store, editor } = made(["gotthard"]);
-    await filing.open("gotthard", editor);
+    const { filing, store, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
     store.answer = () => Promise.resolve(REFUSED);
     await filing.edited(editor);
 
@@ -530,9 +530,9 @@ describe("opening a drawing that names its junctions", () => {
    *  junction. `wearing` is what the file was written with. */
   function typed(wearing: string) {
     const { filing, store, editor, told } = made();
-    store.drawings = ["gotthard"];
-    store.stored.gotthard = {
-      drawing: "gotthard",
+    store.drawings = ["reversing-loops"];
+    store.stored["reversing-loops"] = {
+      drawing: "reversing-loops",
       symbols: {
         sw1: { kind: "turnout", at: [0, 0], connection: wearing },
         sw2: { kind: "turnout", at: [4, 0], connection: wearing },
@@ -548,9 +548,9 @@ describe("opening a drawing that names its junctions", () => {
   }
 
   it("replaces the name a person typed with a minted one", async () => {
-    const { filing, editor } = typed("airolo");
+    const { filing, editor } = typed("station_a");
 
-    await filing.open("gotthard", editor);
+    await filing.open("reversing-loops", editor);
 
     expect(editor.drawing.symbols.sw1!.connection).toBe("j1");
     expect(editor.drawing.symbols.sw2!.connection).toBe("j1");
@@ -559,9 +559,9 @@ describe("opening a drawing that names its junctions", () => {
   /** It has edits to save, because the names it now holds are not the ones the
    *  file was written with. */
   it("says the drawing has edits the store has not been given", async () => {
-    const { filing, editor } = typed("airolo");
+    const { filing, editor } = typed("station_a");
 
-    await filing.open("gotthard", editor);
+    await filing.open("reversing-loops", editor);
 
     expect(filing.saved).toBe(false);
   });
@@ -571,7 +571,7 @@ describe("opening a drawing that names its junctions", () => {
   it("writes nothing where every name is already minted", async () => {
     const { filing, editor } = typed("j1");
 
-    await filing.open("gotthard", editor);
+    await filing.open("reversing-loops", editor);
 
     expect(filing.saved).toBe(true);
   });

@@ -247,12 +247,12 @@ def command_line() -> argparse.ArgumentParser:
     coming_up.add_argument(
         "railroad",
         nargs="?",
-        help="the railroad to come up on, e.g. gotthard; with none the session"
+        help="the railroad to come up on, e.g. reversing-loops; with none the session"
         " waits to be told, and either way the panel may switch it",
     )
     coming_up.add_argument(
         "--scenario",
-        help="run a scenario as a test run, e.g. gotthard/meet: the session"
+        help="run a scenario as a test run, e.g. reversing-loops/meet: the session"
         " comes up on the railroad it names and replays it as gestures —"
         " a placement per train, then its requests in order."
         " Not with --state, which comes up on the last session's placement",

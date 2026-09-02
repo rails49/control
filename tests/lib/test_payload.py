@@ -751,16 +751,16 @@ def test_a_train_a_picture_names_unreadably_loses_itself_and_no_other() -> None:
     """Each map is read one train at a time, as a retained facing is: the
     whole of a session's placement is in this one value, and dropping all of
     it for one bad entry would cold-start every train a good entry names.
-    Whether `claro_2` is a block on this railroad is not asked here — it is a
+    Whether `station_c_2` is a block on this railroad is not asked here — it is a
     string and reads as one, and the dispatcher answers that of its own
     roster and layout."""
     assert kept_allocation(
         {
-            "trains": {"express_2": "up_w", "freight_1": 7, "local_3": "claro_2"},
+            "trains": {"express_2": "up_w", "freight_1": 7, "local_3": "station_c_2"},
             "crossing": {"express_2": None, "local_3": "crossover.up_straight"},
         }
     ) == Picture(
-        {"express_2": "up_w", "local_3": "claro_2"},
+        {"express_2": "up_w", "local_3": "station_c_2"},
         {"local_3": "crossover.up_straight"},
     )
 

@@ -69,7 +69,7 @@ def meet_document() -> dict[str, Any]:
 
 
 def test_list_layouts_and_scenarios(store: AssetStore) -> None:
-    assert {"crossover-yard", "gotthard-v0", "facing-pair"} <= set(store.list())
+    assert {"crossover-yard", "reversing-loops-v0", "facing-pair"} <= set(store.list())
     assert "crossover-yard/meet" in store.list("crossover-yard")
     assert all(s.startswith("crossover-yard/") for s in store.list("crossover-yard"))
 
@@ -110,8 +110,9 @@ def test_placing_every_symbol_keeps_the_prose(
     drawings: AssetStore, tmp_path: Path, name: str
 ) -> None:
     """The first editor save writes `at:` onto every symbol line, which is
-    where a hand-written drawing does its explaining: 107 of Gotthard's 237
-    lines are comments. A fresh dump would delete every one."""
+    where a hand-written drawing does its explaining: 90 of
+    `reversing-loops`'s 235 lines are comments. A fresh dump would delete every
+    one."""
     before = prose(written(tmp_path, name))
     assert before  # else this would pass by saying nothing
 
@@ -137,29 +138,29 @@ def test_a_placement_lands_above_the_next_symbol_s_comment(
     """Where a paragraph introduces the *next* symbol, the new key has to go
     above it. ruamel holds that paragraph against the last key of the symbol
     before, so an unguarded append writes the placement underneath it: sw39's
-    `at:` below the eight lines introducing Claro west, which parses and reads
+    `at:` below the eight lines introducing station-C west, which parses and reads
     as nonsense."""
-    doc = drawings.drawing("gotthard-v0")
+    doc = drawings.drawing("reversing-loops-v0")
     doc["symbols"]["sw39"]["at"] = [4, 7]
     drawings.put(doc)
 
-    lines = written(tmp_path, "gotthard-v0").splitlines()
+    lines = written(tmp_path, "reversing-loops-v0").splitlines()
     assert lines.index("    at: [4, 7]") < lines.index(
-        "  # Claro west, drawn from real symbols (#46): the yellow line fans out to all"
+        "  # station-C west, drawn from real symbols (#46): the yellow line fans out to all"
     )
-    assert drawings.drawing("gotthard-v0")["symbols"]["sw39"]["at"] == [4, 7]
+    assert drawings.drawing("reversing-loops-v0")["symbols"]["sw39"]["at"] == [4, 7]
 
 
 def test_deleting_a_symbol_takes_the_comment_above_it(
     drawings: AssetStore, tmp_path: Path
 ) -> None:
     """A comment describes the thing under it, so it goes when that goes."""
-    doc = drawings.drawing("gotthard-v0")
+    doc = drawings.drawing("reversing-loops-v0")
     del doc["symbols"]["return_loop"]
     doc["wires"] = [w for w in doc["wires"] if "return_loop" not in str(w)]
     drawings.put(doc)
 
-    text = written(tmp_path, "gotthard-v0")
+    text = written(tmp_path, "reversing-loops-v0")
     assert "return_loop" not in text
     assert "# The return loop off the east end" not in text
     assert "# The east ladder." in text  # the next symbol's keeps its own

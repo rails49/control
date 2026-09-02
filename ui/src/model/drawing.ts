@@ -36,7 +36,7 @@ export type Wire =
  * The kinds the editor draws, plus the generic connection symbol.
  *
  * That one is legacy and not on the palette: it has no fixed pin set, so there
- * is nothing to place, and its last user is Gotthard's Claro east, which is to
+ * is nothing to place, and its last user is `reversing-loops`'s station-C east, which is to
  * be redrawn from real symbols (#35). Until then a drawing that has one still
  * has to open, so it is drawn as a box with the pins it declares and no
  * turnout detail, which is exactly what it says about itself.

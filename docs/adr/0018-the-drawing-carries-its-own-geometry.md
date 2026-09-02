@@ -39,10 +39,10 @@ wires rather than losing them, and no rearrangement can change a derived
 layout.
 
 What this costs is the file. Placement lands on every symbol line, so the first
-editor save of a hand-written drawing rewrites all of them. Gotthard is 237
-lines of which 107 are reasoning comments, and `yaml.safe_dump` would delete
-every one. The store's `put` therefore merges into the existing document with
-`ruamel.yaml` rather than dumping a fresh one, and a comment attached to a
+editor save of a hand-written drawing rewrites all of them. `reversing-loops`
+is 237 lines of which 107 are reasoning comments, and `yaml.safe_dump` would
+delete every one. The store's `put` therefore merges into the existing document
+with `ruamel.yaml` rather than dumping a fresh one, and a comment attached to a
 symbol survives that symbol being placed. Comments inside `wires:` do not
 survive, the list being replaced wholesale, so reasoning about wiring belongs
 in the header.

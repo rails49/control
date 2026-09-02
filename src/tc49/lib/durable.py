@@ -17,7 +17,7 @@ Document = dict[str, Any]
 
 def sibling(path: Path, tag: str) -> Path:
     """A second document beside the one that was named, tagged:
-    `runs/today.json` and `gotthard` give `runs/today.gotthard.json`. A
+    `runs/today.json` and `reversing-loops` give `runs/today.reversing-loops.json`. A
     session is given one path and more than one document hangs off it: one
     state file per railroad, and the simulator's placement beside each."""
     return path.with_name(f"{path.stem}.{tag}{path.suffix}")

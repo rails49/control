@@ -1,4 +1,4 @@
-# gotthard — the cars this railroad owns and the trains made up from them
+# reversing-loops — the cars this railroad owns and the trains made up from them
 # (CONTEXT.md, **Roster**).
 #
 # Most of the stock is synthetic: nobody owns one of these, so every benchmark
@@ -19,7 +19,7 @@
 # railroad places trains from here and states no length of its own, so one
 # train has one length however many scenarios name it.
 
-roster: gotthard
+roster: reversing-loops
 
 cars:
   # Real, and the only two here that are. `addr` is bare — no system prefix,

@@ -1,10 +1,10 @@
 # A lock held ahead is a block the check must see
 
-*(Amended for #161: every `gotthard/…` figure on this page means
-`gotthard-v0/…`, measured on a netlist that models Claro track 3 as one block
-and bundles the west throat. It is frozen under that name so the table below
-reproduces. The two-block route argument in particular is a fact about that
-railroad's geometry, not a general one.)*
+*(Amended for #161: every `reversing-loops/…` figure on this page means
+`reversing-loops-v0/…`, measured on a netlist that models station-C track 3 as
+one block and bundles the west throat. It is frozen under that name so the
+table below reproduces. The two-block route argument in particular is a fact
+about that railroad's geometry, not a general one.)*
 
 Depth two ([ADR-0026](0026-two-blocks-ahead-is-full-speed.md)) is built here.
 Building it takes two decisions: how the second increment is asked for, and
@@ -87,11 +87,11 @@ Measured on the named scenarios when depth two landed:
 
 | | depth 1 | depth 2 | `FullRoute` |
 | --- | --- | --- | --- |
-| `gotthard/saturation` makespan | 16 | 20 | 24 |
-| `gotthard/saturation` mean latency | 9.27 | 12.73 | 13.93 |
-| `gotthard/meet` makespan | 3 | 5 | 5 |
+| `reversing-loops/saturation` makespan | 16 | 20 | 24 |
+| `reversing-loops/saturation` mean latency | 9.27 | 12.73 | 13.93 |
+| `reversing-loops/meet` makespan | 3 | 5 | 5 |
 
-`gotthard/meet` stops splitting. Its routes are two blocks long, so an
+`reversing-loops/meet` stops splitting. Its routes are two blocks long, so an
 increment plus the one asked for ahead of it is the whole route, and
 `Incremental` becomes `FullRoute` there. The two part company again as soon as
 a route is longer than the lookahead.

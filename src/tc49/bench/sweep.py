@@ -26,16 +26,16 @@ from tc49.lib.layout import Layout, block_of
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tc49.store import AssetStore
 
-LAYOUT = "gotthard"
+LAYOUT = "reversing-loops"
 
 # The blocks a train can be placed on. Sidings are deliberately absent: every
 # generated request stays a long run that faces the line choice, and a
 # uniform-over-all-blocks generator would dilute the one signal the sweep
-# exists to find (BENCHMARKS.md, workloads). Claro has four because `sw16`
+# exists to find (BENCHMARKS.md, workloads). station-C has four because `sw16`
 # stands in track 3 and splits it (#161).
 STATIONS: dict[str, tuple[str, ...]] = {
-    "claro": ("C1", "C2", "C3a", "C3b"),
-    "airolo": ("A1", "A2", "A3"),
+    "station_c": ("C1", "C2", "C3a", "C3b"),
+    "station_a": ("A1", "A2", "A3"),
 }
 STATION_TRACKS = tuple(track for tracks in STATIONS.values() for track in tracks)
 
@@ -52,10 +52,10 @@ STATION_OF = {
 # `C3a` and the sidings, so neither is a station-to-station arrival end. What
 # is left is three logical tracks of two ends at each station — track 3's two
 # ends living on different blocks — which is what keeps `|dest|` one number
-# for both stations rather than 8 into Claro and 6 into Airolo (#161).
+# for both stations rather than 8 into station-C and 6 into station-A (#161).
 ARRIVALS: dict[str, tuple[tuple[str, ...], ...]] = {
-    "claro": (("C1.A", "C1.B"), ("C2.A", "C2.B"), ("C3a.B", "C3b.A")),
-    "airolo": (("A1.A", "A1.B"), ("A2.A", "A2.B"), ("A3.A", "A3.B")),
+    "station_c": (("C1.A", "C1.B"), ("C2.A", "C2.B"), ("C3a.B", "C3b.A")),
+    "station_a": (("A1.A", "A1.B"), ("A2.A", "A2.B"), ("A3.A", "A3.B")),
 }
 
 
@@ -64,7 +64,7 @@ ARRIVALS: dict[str, tuple[tuple[str, ...], ...]] = {
 # other station track has two.
 #
 # A station-to-station working departs by one of these. Leaving `C3a` by its
-# `A` end to reach Airolo means running the length of `C3b` to get out, which
+# `A` end to reach station-A means running the length of `C3b` to get out, which
 # is a shunt rather than a line working, and it is the only thing that makes a
 # station-to-station route longer than station-line-station. The redraw rule
 # below reasons about arrival blocks only, so a route through a third station
@@ -102,7 +102,7 @@ def station_of(track: str) -> str:
 
 
 def other_station(track: str) -> str:
-    return "airolo" if station_of(track) == "claro" else "claro"
+    return "station_a" if station_of(track) == "station_c" else "station_c"
 
 
 @dataclass(frozen=True)
@@ -201,7 +201,7 @@ def _stuck_trains(
 
 
 def _arrivals(rng: random.Random, station: str, dest: int) -> tuple[str, ...]:
-    """The three intents of the `|dest|` axis, as Gotthard's three-track
+    """The three intents of the `|dest|` axis, as `reversing-loops`'s three-track
     stations make them: one station, one track, one end.
 
     Ends rather than block names, since track 3's two line-facing ends are on
@@ -226,7 +226,7 @@ def _name(workload: Workload) -> str:
 def cells() -> Iterator[tuple[Workload, int, str]]:
     """The fixed grid: one (workload, k, locking) triple per run.
 
-    `k` is capped at `|dest|`. Gotthard yields exactly one minimal route per
+    `k` is capped at `|dest|`. `reversing-loops` yields exactly one minimal route per
     arrival end, so the candidate set is exhausted at `|dest|` and the next
     tier is a six-transit detour — cells beyond are dead by construction.
     """

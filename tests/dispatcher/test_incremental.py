@@ -132,28 +132,28 @@ def test_shared_destination_refusal_names_the_committed_train() -> None:
     # SAFETY.md boundary condition: two active trains committed to the same
     # block can never both appear in a witness ordering, so the second
     # launch is refused unsafe — naming the block and the train already
-    # committed to it, though nothing there is locked yet. On gotthard-v0 the
-    # two trains approach airolo_1 over different connections (blue 2 and
+    # committed to it, though nothing there is locked yet. On reversing-loops-v0 the
+    # two trains approach station_a_1 over different connections (blue 2 and
     # the yellow), so nothing else refuses first.
-    layout = AssetStore(ASSETS).get("gotthard-v0")
+    layout = AssetStore(ASSETS).get("reversing-loops-v0")
     assert isinstance(layout, Layout)
     scenario = Scenario(
         "collide",
-        "gotthard-v0",
+        "reversing-loops-v0",
         {
-            "t_blue": TrainSpec("claro_1", "A-to-B"),
-            "t_yellow": TrainSpec("claro_3", "B-to-A"),
+            "t_blue": TrainSpec("station_c_1", "A-to-B"),
+            "t_yellow": TrainSpec("station_c_3", "B-to-A"),
         },
         (
-            RequestSpec("t_blue", "claro_1.B", ("airolo_1.A",)),
-            RequestSpec("t_yellow", "claro_3.A", ("airolo_1.A",)),
+            RequestSpec("t_blue", "station_c_1.B", ("station_a_1.A",)),
+            RequestSpec("t_yellow", "station_c_3.A", ("station_a_1.A",)),
         ),
     )
     trace = run(layout, stock(t_blue=900, t_yellow=900), scenario, Incremental)
     assert events(trace, "request_completed", rid="t_blue-1")
     refused = events(trace, "grant_refused", rid="t_yellow-1")
     assert refused[0]["reason"] == "unsafe"
-    assert refused[0]["obstacles"][0] == {"resource": "airolo_1", "holder": "t_blue"}
+    assert refused[0]["obstacles"][0] == {"resource": "station_a_1", "holder": "t_blue"}
 
 
 def test_route_blindness_is_fixed_by_congestion_aware_costing() -> None:
@@ -241,7 +241,7 @@ def test_a_grant_reaches_one_increment_past_what_it_needs() -> None:
     """Depth two: the grant locks the increment it needs and then the one
     after it, so the train stands with two blocks locked ahead rather than
     one — which is the difference between `caution` and `clear`."""
-    layout, _roster, _ = load("gotthard-v0/saturation")
+    layout, _roster, _ = load("reversing-loops-v0/saturation")
     route = a_route(layout, "t")
     state = a_state(layout, route, {route.blocks[0]: "t"})
 
@@ -257,7 +257,7 @@ def test_an_unavailable_second_increment_refuses_nothing() -> None:
     another train the move is granted exactly as before, reporting nothing
     ahead — and reporting nothing ahead is what `caution` means, not an
     error the train has to wait on."""
-    layout, _roster, _ = load("gotthard-v0/saturation")
+    layout, _roster, _ = load("reversing-loops-v0/saturation")
     route = a_route(layout, "t")
     state = a_state(layout, route, {route.blocks[0]: "t", route.blocks[2]: "other"})
 
@@ -271,7 +271,7 @@ def test_an_unavailable_second_increment_refuses_nothing() -> None:
 def test_a_route_with_nothing_two_blocks_ahead_reaches_for_nothing() -> None:
     """The last grant of a route has no second increment to ask for, and
     that is not a failure either."""
-    layout, _roster, _ = load("gotthard-v0/saturation")
+    layout, _roster, _ = load("reversing-loops-v0/saturation")
     route = a_route(layout, "t")
     short = Route(route.blocks[:2], route.transits[:1])
     state = a_state(layout, short, {short.blocks[0]: "t"})
