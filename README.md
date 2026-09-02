@@ -45,6 +45,7 @@ Each app's implementation details live beside it:
   device vocabulary and the command station: the mapping a row at a time, the
   latched stop and the zeros that precede its release, and the only page here
   that writes the station's own syntax down.
-- [UI](docs/ui) — one app with two views of the loaded railroad, the [layout
-  editor](docs/ui/EDITOR.md) and the [run view](docs/ui/PANEL.md), living in
+- [UI](docs/ui) — one app with three views of the loaded railroad, the [layout
+  editor](docs/ui/EDITOR.md), the [run view](docs/ui/PANEL.md) and the
+  [throttle](docs/ui/THROTTLE.md) a person drives a train from, living in
   [ui/](ui).

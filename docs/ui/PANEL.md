@@ -326,11 +326,15 @@ Neither is `tc49/dispatch/request_cancelled` read yet: a request the panel is
 following and somebody ends stays in its list until the train is dragged
 again, which is the reading to add with the gesture.
 
-Undrawn as well are the two gestures a **throttle** rides on,
-`tc49/layout/mode_wanted` and `tc49/layout/throttle_wanted`. Taking a train in
-a throttle and turning it are a person's actions on a UI like any other,
-`INBOUND` is this app's write surface, and the view that draws them is its own
-work ([#207](https://github.com/rails49/control/issues/207)).
+The two gestures a **throttle** rides on,
+`tc49/layout/mode_wanted` and `tc49/layout/throttle_wanted`, are drawn — in a
+view of their own, [THROTTLE.md](THROTTLE.md)
+([#207](https://github.com/rails49/control/issues/207),
+[#291](https://github.com/rails49/control/issues/291)). Taking a train in a
+throttle and turning it are a person's actions on a UI like any other, and
+`INBOUND` is this app's write surface. The socket they go out on is this
+view's: there is one session per page and this is what joins it, so the
+throttle asks and the run view writes.
 
 **Right-clicking** the block a train stands in opens a menu with one item,
 **Turn around**, which publishes `tc49/schedule/reversal_wanted` (`{train}`). The
@@ -352,8 +356,9 @@ around and stay put", which is the whole case. A menu also says what it does
 before you commit, which suits a gesture whose entire effect is one arrow
 rotating, and no motion the drag uses can reach it: a plain click on a train's
 own block is already the drag's cancel. Not "Reverse", which is the throttle's
-word; this moves nothing. The menu is where the human driver's throttle will
-hang later, on the two rows now declared for it.
+word; this moves nothing. The same gesture is offered in the throttle view,
+where the lever it must be at rest for is ([THROTTLE.md](THROTTLE.md)); the
+human driver's controls hang there rather than on this menu.
 
 Over bare paper, over an empty block, or with no session joined no menu opens,
 and neither does the browser's own, which the drawing suppresses throughout.
