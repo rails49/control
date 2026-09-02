@@ -454,15 +454,23 @@ railroad is not the first client to connect's to pin. Ctrl-C sends zero to
 every locomotive commanded and switches the track off before the process ends
 ([#314](https://github.com/rails49/control/issues/314)).
 
-**That run drives and never sees.** Nothing publishes a detector's level on a
-physical railroad yet — detection is its own issue — so a granted move writes
-a traction row, the locomotive rolls, and no arrival is ever reported: the
-picture stops where the dispatcher's does. It comes up **held** like every
-other run, which is the whole of the safety mechanism, and the session's
-banner says the blindness in words rather than a second lock existing until
-detection lands. The banner also counts how many of the railroad's trains
-carry an address and how many do not, because a move for a train whose cars
-carry none writes no traction row at all.
+**That run sees only what somebody types.** No camera publishes a detector's
+level on a physical railroad yet, so for the first train a person supplies the
+readings: a line typed at the session — `<block>.<end> <level>`, the levels
+being `occupied`, `clear` and `unknown` — is published as the row a detector
+would write, and `layout` folds a typed pair into `block_occupied` and
+`block_vacated` exactly as it folds a camera's
+([#315](https://github.com/rails49/control/issues/315)). The panel is told
+nothing about who typed it: what it is served is the sensor row, retained like
+any other, and the arrival that follows. **It is not a panel gesture** — the
+bridge enforces the topics a page may publish and a device row is not among
+them (ADR-0034) — and a page grows no control for one: a detector stands in
+for hardware, not for a person's hand. Until a camera publishes, an arrival
+nobody types never comes, so a granted move rolls on; the run comes up
+**held** like every other, which is the whole of the safety mechanism, and the
+session's banner says where its readings come from. The banner also counts how
+many of the railroad's trains carry an address and how many do not, because a
+move for a train whose cars carry none writes no traction row at all.
 
 **A session that went is not a reason to reload the page.** There is no choice
 left for a person to make — the loaded railroad *is* the session, and the
