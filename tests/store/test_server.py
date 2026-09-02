@@ -342,6 +342,7 @@ class FakeGit:
     def __init__(self) -> None:
         self.calls: list[tuple[str, ...]] = []
         self.porcelain = " M layouts/reversing-loops.drawing.yaml\n"
+        self.pushes = Said(True, "")
 
     def __call__(self, root: Path, *args: str) -> Said:
         self.calls.append(args)
@@ -354,6 +355,8 @@ class FakeGit:
         if args[0] == "commit":
             self.porcelain = ""
             return Said(True, "[main 0000000] " + args[2])
+        if args[0] == "push":
+            return self.pushes
         if args[0] == "log":
             return Said(True, "a1b2c3d\tbackup: reversing-loops\t2026-09-02 19:04")
         return Said(True, "")
@@ -481,3 +484,58 @@ def test_a_save_arms_the_idle_timer(
     assert [call[2] for call in driving.calls if call[0] == "commit"] == [
         "backup: reversing-loops"
     ]
+
+
+def test_a_save_lands_over_a_remote_that_cannot_be_reached(
+    store: AssetStore, driving: FakeGit, clock: list[float], tmp_path: Path
+) -> None:
+    """A lost network never reaches the person drawing: the drawing is written,
+    the commit is made, and what could not be pushed is on the log and nowhere
+    else (ADR-0053). No dialog, because there is nothing they can answer about
+    the wifi."""
+    said: list[str] = []
+    # Its own, rather than the fixture's: the push timer is up from the start,
+    # so the tick that commits is the one that finds the remote gone.
+    driven = Backup(
+        tmp_path,
+        run=driving,
+        log=said.append,
+        now=lambda: clock[0],
+        idle_s=20.0,
+        push_s=0.0,
+    )
+    driven.switch(True)
+    driving.pushes = Said(False, "fatal: could not read from remote repository")
+
+    status, _ = handle(
+        store, driven, "PUT", "/drawings/facing-pair", store.drawing("facing-pair")
+    )
+    assert status == 200
+    assert (tmp_path / "layouts" / "facing-pair.drawing.yaml").exists()
+
+    clock[0] += 20.0
+    driven.due()
+    assert [call[2] for call in driving.calls if call[0] == "commit"] == [
+        "backup: reversing-loops"
+    ]
+    assert any("could not read from remote" in line for line in said)
+
+
+def test_a_store_that_is_no_repository_serves_and_saves_as_it_always_did(
+    store: AssetStore, tmp_path: Path
+) -> None:
+    """The ordinary state of a fresh installation. Backup says what it needs
+    and nothing else changes — nothing here runs `git init`."""
+    backup = Backup(tmp_path / "not-a-repo", log=lambda _: None)
+    assert handle(store, backup, "GET", "/drawings", None)[0] == 200
+    assert (
+        handle(
+            store, backup, "PUT", "/drawings/facing-pair", store.drawing("facing-pair")
+        )[0]
+        == 200
+    )
+
+    status, body = handle(store, backup, "GET", "/backup", None)
+    assert status == 200
+    assert body["repository"] is False
+    assert "git init" in body["needs"][0]
