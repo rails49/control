@@ -15,6 +15,7 @@ not this suite's.
 
 import io
 import json
+import signal
 import socket
 import threading
 import time
@@ -178,6 +179,48 @@ def test_the_run_ending_switches_the_track_off() -> None:
         assert station.waits_for(TRACK_OFF)
         heard = station.heard()
         assert heard.rindex(TRACK_OFF) > heard.rindex(TRACK_ON)
+
+
+def test_an_interrupt_stands_the_railroad_down_before_the_run_leaves() -> None:
+    """Ctrl-C is the ordinary way a session ends, and it takes a path of its
+    own: `asyncio.Runner` cancels the task it is waiting on rather than
+    raising in place, the `finally` gets to `await` after the cancellation has
+    already been delivered, and the zeros are drained out before the link is
+    let go. Any one of those could stop being true silently, so the interrupt
+    is sent here for real — `raise_signal` is a SIGINT to this process, and
+    the handler that answers it is the one a terminal's Ctrl-C reaches.
+
+    The interrupt arrives once the station has heard a locomotive commanded,
+    so what is asserted after it is a zero over a speed that was really
+    running, and the `off` after that zero. A run that never leaves ends at
+    the waiting limit instead and fails there: `KeyboardInterrupt` is what
+    `tc49 live` catches, and its absence is the stand-down not happening.
+    """
+    layout, roster = a_railroad()
+    with Station() as station:
+        driven = assemble_live(layout, roster, station=(HOST, station.port))
+        driven.bus.publish(POWER_WANTED, {"power": "on"})
+        # The row the layout app writes on a move, published here directly:
+        # this suite is about the loop and the exit, not about how a speed
+        # comes to be commanded.
+        driven.bus.publish(f"{WANTED_TRACTION}/10", {"addr": "10", "speed": 0.5})
+        sent = False
+
+        def interrupts() -> bool:
+            nonlocal sent
+            if not sent and station.waits_for(HALF_SPEED_10, 0.0):
+                sent = True
+                signal.raise_signal(signal.SIGINT)
+            return False  # the interrupt ends the run, never the stop
+
+        with pytest.raises(KeyboardInterrupt):
+            driven.run(PERIOD_S, stop=until(interrupts))
+
+        assert station.waits_for(HALTED_10), "the interrupt sent no zeros"
+        assert station.waits_for(TRACK_OFF), "the interrupt left the track on"
+        heard = station.heard()
+        assert heard.rindex(HALTED_10) > heard.index(HALF_SPEED_10)
+        assert heard.rindex(TRACK_OFF) > heard.rindex(HALTED_10)
 
 
 # -- the address, and what the banner makes of the railroad ------------------
