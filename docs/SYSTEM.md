@@ -1352,7 +1352,11 @@ translator driving them writes none, a faked reply being worse than silence.
 Two of the observed rows are published today, both by a translator:
 `device/track` and `device/link`, which are two of the three `layout` reads
 and the two `state/power` is folded from. The third is `device/sensor`, whose
-publisher is a detector and lives outside this repository; `device/point` is
+publisher is a detector and lives outside this repository — until one does, a
+person supplies the readings a physical run has no other source of, typing
+them at the session a line at a time on the writing role a detector holds
+([#315](https://github.com/rails49/control/issues/315),
+[bench/detector.py](../src/tc49/bench/detector.py)); `device/point` is
 declared and written by nobody. Folding a block's two sensors into
 `block_occupied` and `block_vacated` is `layout`'s own work, and so is the
 **settling time** a new level is held for before it is acted on — a number

@@ -80,6 +80,15 @@ made it would sit on a quiet railroad holding an arrival nobody was told
 about. The suite drives the clock rather than sleeping on it and calls
 `settle()` itself.
 
+**Whose levels those are, on a physical railroad, is a person's.** No camera
+publishes `device/sensor` yet, so the same session reads its own input and
+publishes what somebody types there as the row a detector would write
+([#315](https://github.com/rails49/control/issues/315)). This app is told
+nothing about it: a typed level settles, folds and completes a crossing
+exactly as a camera's does, which is the whole of what standing in for
+hardware means — and it is the reason the fold is tested against typed levels
+as readily as against a detector's.
+
 It gets a command line, and `deploy/` gets a container for it, the day the
 broker arrives and each app is its own process
 ([ADR-0013](../adr/0013-apps-are-deployment-units.md)). A session named no

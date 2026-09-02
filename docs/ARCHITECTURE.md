@@ -124,6 +124,9 @@ src/tc49/
                             the bridge, swapped by whoever joins
                 replay.py   Replay — a scenario played onto a live run as
                             the gestures a person would make (#171)
+                detector.py HandFed — a person's typed readings published as
+                            the detector rows nothing publishes yet, on a
+                            physical run alone (#315)
                 cli.py      `tc49 bench <scenario>`; `tc49 sweep` takes no
                             arguments — the grid of BENCHMARKS.md is the
                             fixed research design; `tc49 layout show`;
