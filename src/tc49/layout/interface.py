@@ -1051,6 +1051,11 @@ class LayoutInterface:
         )
         if self._occupied.get(block) != occupied:
             self._occupied[block] = occupied
+            if occupied:
+                # A block this app has just said is occupied is a block whose
+                # ends both count again: whatever departure spent them, a new
+                # train standing here ends its account (#331).
+                self._spent -= {end, opposite_end(end)}
             self._bus.publish(
                 BLOCK_OCCUPIED if occupied else BLOCK_VACATED, {"block": block}
             )
@@ -1089,10 +1094,19 @@ class LayoutInterface:
 
         So one writer per fact. `self._occupied` is the record of what this
         app has said about each block, and this rule reads it before it writes
-        it: nothing goes out for a block already released. The occupied levels
-        the block behind still holds are the train that left, and they are
-        **spent** here — accounted for by this release — so the fold does not
-        read them as a train still standing there and publish it back again.
+        it: nothing goes out for a block already released. The ends this
+        release **spends** are the ends of this block reading occupied at the
+        moment it runs — the train that left — so the fold does not read them
+        as a train still standing there and publish it back again.
+
+        They count again as soon as the departure they belong to is over: when
+        that end settles a level of its own, and when this block is published
+        occupied again, which un-spends both of its ends because a new train
+        standing here ends the old departure's account (#331). Otherwise an
+        end that was spent and never changes again — a stranded car, a
+        detector stuck occupied — would be out of the fold for good, and a
+        level no move explains is still a level (ADR-0048).
+
         The record is set to clear rather than dropped, and the levels go on
         standing as the detectors reported them: a block that reads occupied
         again is an ordinary change in the fold, wherever it comes from.
