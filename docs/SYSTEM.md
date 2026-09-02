@@ -606,6 +606,10 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     PUT  /drawings/<name>       create or replace it
     POST /review                what a drawing means: the derived layout, explained
     GET  /rosters/<name>        one railroad's roster
+    GET  /backup                what backup can do here, and what it needs
+    PUT  /backup                turn automated backup on or off
+    POST /backup/commit         back the store up now, and attempt a push
+    POST /backup/restore        put the store back as a backup held it
 
 Every route is a store operation, which is why the server lives in the store
 rather than in an app of its own
@@ -614,6 +618,18 @@ route that is not CRUD: it takes an unsaved document and answers what it
 derives to, so the editor holds no second copy of the derivation
 ([ui/EDITOR.md](ui/EDITOR.md)). `delete` and the roster's `put` are not on
 the HTTP face yet, and a scenario never is (below).
+
+- **Backup is git, driven and not owned**
+  ([ADR-0053](adr/0053-backup-drives-git-and-does-not-own-it.md),
+  [store/BACKUP.md](store/BACKUP.md)). The four routes above commit, push and
+  restore the store they are served from; the app never runs `git init`, never
+  makes a branch or a remote and never resolves a conflict, so a store that is
+  not a repository is a normal state that says what it needs. Every refusal —
+  git's, and the one over a dirty tree — comes back inside a 200 with `ok`
+  false and git's own words in `said`, because each of them is a state of
+  somebody's machine that the UI has to read out rather than a bad request.
+  The switch is a document of the installation, `backup.yaml` in the store, so
+  automated backup stays on across the restart that follows turning it on.
 
 - **Three document types** — `drawing`, `roster` and `scenario` — each
   fetched and stored whole. Symbols, wires, trains and requests live inside a
