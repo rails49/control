@@ -13,40 +13,26 @@ movement and not an error.
 """
 
 from tc49.layout import LayoutInterface
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import Bus
 from tc49.lib.clock import Clock
 from tests.layout.railroad import (
     DEVICE_SENSOR,
     FACING,
-    WANTED_TRACTION,
     Unstamped,
     align,
     build,
+    commanded,
     energised,
     faces,
-    heard,
     move,
     railroad,
     reads,
     settle,
+    speeds,
     stand,
     stock,
     wired,
 )
-
-
-def commanded(bus: Bus) -> list[tuple[str, Payload]]:
-    """Every traction write from here on, in order."""
-    return heard(bus, WANTED_TRACTION + "/#")
-
-
-def speeds(written: list[tuple[str, Payload]]) -> list[tuple[str, float]]:
-    """Those writes as address and speed, which is what these suites assert:
-    the stamp and the repeated address are the row's shape rather than this
-    write's news, and the address on the topic is the one in the payload."""
-    return [
-        (str(payload["addr"]), float(payload["speed"])) for _topic, payload in written
-    ]
 
 
 def ready(train: str, facing: str) -> tuple[Bus, LayoutInterface]:

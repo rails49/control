@@ -145,6 +145,20 @@ def heard(bus: Bus, topic_filter: str) -> list[tuple[str, Payload]]:
     return seen
 
 
+def commanded(bus: Bus) -> list[tuple[str, Payload]]:
+    """Every traction write from here on, in order."""
+    return heard(bus, WANTED_TRACTION + "/#")
+
+
+def speeds(written: list[tuple[str, Payload]]) -> list[tuple[str, float]]:
+    """Those writes as address and speed, which is what these suites assert:
+    the stamp and the repeated address are the row's shape rather than this
+    write's news, and the address on the topic is the one in the payload."""
+    return [
+        (str(payload["addr"]), float(payload["speed"])) for _topic, payload in written
+    ]
+
+
 def occupancy(bus: Bus) -> list[tuple[str, Payload]]:
     """Every occupancy event from here on, in order. Two subscriptions rather
     than one filter: the two leaves sit beside the commands under
