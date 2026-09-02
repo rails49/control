@@ -225,16 +225,17 @@ def test_the_banner_stops_promising_a_switch_a_pinned_session_refuses() -> None:
     assert "may not switch" in picking(True)
 
 
-def test_the_note_names_the_station_the_railroad_and_what_cannot_be_seen() -> None:
+def test_the_note_names_the_station_the_railroad_and_who_the_detectors_are() -> None:
     """The three things a physical run says about itself that a simulated one
-    does not, the blindness among them: nothing reports an arrival yet, so a
-    granted move rolls and is never seen to finish (#314)."""
+    does not, among them where its readings come from: no camera publishes
+    yet, so a person types them a line at a time and the banner says the shape
+    of one (#314, #315)."""
     name = railroads()[0]
     _layout, roster = a_railroad()
     note = station_note(("dccex-usb", 2560), name, roster)
     assert "dccex-usb:2560" in note and name in note
     assert "switches to no other" in note
-    assert "never seen to finish" in note
+    assert "<block>.<end> <level>" in note and "occupied, clear or unknown" in note
     assert f"of {len(roster.trains)} trains carry an address" in note
 
 
