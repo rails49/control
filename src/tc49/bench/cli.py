@@ -83,9 +83,14 @@ def station(text: str) -> tuple[str, int]:
 
     One argument and not two, because an address is one thing a person copies
     off a running `dccex-usb`. The port is split off the right, so an IPv6
-    host written in brackets keeps its colons.
+    host written in brackets keeps its colons — and the brackets come off
+    again, because they belong to the written address and not to the name a
+    connection is opened on: `getaddrinfo` resolves `::1` and refuses
+    `[::1]` (#335).
     """
     host, _, port = text.rpartition(":")
+    if host.startswith("[") and host.endswith("]"):
+        host = host[1:-1]
     if not host or not port.isdigit():
         raise argparse.ArgumentTypeError(
             f"'{text}' is not a station address — write it <host>:<port>,"

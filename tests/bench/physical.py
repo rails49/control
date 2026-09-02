@@ -26,6 +26,11 @@ from tests.harness import ASSETS, railroads
 
 HOST = "127.0.0.1"
 
+IPV6_HOST = "::1"
+"""The loopback an address written `[::1]:<port>` names, once the brackets
+are off: what `--station` hands a connection, and what a listener here binds
+so that the bracketed form is opened and not merely parsed (#335)."""
+
 TIMEOUT_S = 5.0
 
 PERIOD_S = 0.01
@@ -39,11 +44,15 @@ class Station:
     One connection, answered with a status line so that the app has heard the
     station *speak* — `device/link` goes `up` on an answer and not on an open
     socket — and everything it is sent kept for the test to read.
+
+    `host` is which loopback it listens on: IPv4 unless the address carries
+    colons, in which case it is the IPv6 one a bracketed `--station` names.
     """
 
-    def __init__(self) -> None:
-        self._listener = socket.socket()
-        self._listener.bind((HOST, 0))
+    def __init__(self, host: str = HOST) -> None:
+        family = socket.AF_INET6 if ":" in host else socket.AF_INET
+        self._listener = socket.socket(family)
+        self._listener.bind((host, 0))
         self._listener.listen(1)
         self.port = int(self._listener.getsockname()[1])
         self._heard = bytearray()
@@ -92,6 +101,21 @@ class Station:
         traceback: TracebackType | None,
     ) -> None:
         self._listener.close()
+
+
+def has_ipv6_loopback() -> bool:
+    """Whether this machine will let a listener bind `::1`.
+
+    A container built without IPv6 has none, and nothing in the gate may need
+    hardware or a network — so the address a session is opened on is asserted
+    either way and only the connection over it waits on this.
+    """
+    try:
+        with socket.socket(socket.AF_INET6) as probe:
+            probe.bind((IPV6_HOST, 0))
+    except OSError:
+        return False
+    return True
 
 
 def closed_port() -> int:

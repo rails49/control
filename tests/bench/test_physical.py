@@ -15,6 +15,7 @@ not this suite's.
 
 import io
 import json
+import socket
 import threading
 import time
 from collections.abc import Callable
@@ -31,11 +32,13 @@ from tc49.bench.session import Session
 from tc49.lib.roster import Car, Coupled, Roster, Train
 from tests.bench.physical import (
     HOST,
+    IPV6_HOST,
     PERIOD_S,
     TIMEOUT_S,
     Station,
     a_railroad,
     closed_port,
+    has_ipv6_loopback,
     until,
     waits_until,
 )
@@ -183,9 +186,31 @@ def test_the_run_ending_switches_the_track_off() -> None:
 def test_a_station_is_one_address_a_person_copies() -> None:
     """`<host>:<port>`, one argument, because that is one thing to copy off a
     running `dccex-usb`. The port splits off the right, so a bracketed IPv6
-    host keeps its own colons."""
+    host keeps its own colons — and what comes back is the host without its
+    brackets, which is the name a connection is opened on: the brackets are
+    the written address's, and `getaddrinfo` refuses them (#335)."""
     assert station_address("dccex-usb:2560") == ("dccex-usb", 2560)
-    assert station_address("[::1]:2560") == ("[::1]", 2560)
+    assert station_address(f"[{IPV6_HOST}]:2560") == (IPV6_HOST, 2560)
+    host, port = station_address(f"[{IPV6_HOST}]:2560")
+    assert socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+
+
+@pytest.mark.skipif(
+    not has_ipv6_loopback(), reason="this machine has no IPv6 loopback to listen on"
+)
+def test_a_bracketed_address_opens_the_station_listening_on_it() -> None:
+    """What the brackets are for: an address written the one unambiguous way
+    an IPv6 host takes a port reaches a station on that host, rather than
+    parsing and then failing to resolve (#335). Where a machine has no IPv6
+    loopback to bind there is nothing to reach, and what the address parses
+    to is asserted above either way."""
+    layout, roster = a_railroad()
+    with Station(IPV6_HOST) as station:
+        host, port = station_address(f"[{IPV6_HOST}]:{station.port}")
+        driven = assemble_live(layout, roster, station=(host, port))
+        word, _ = link_while_running(driven, lambda said: said[0] == "up")
+        assert word == "up"
+        assert station.waits_for(TRACK_OFF)
 
 
 @pytest.mark.parametrize("text", ["dccex-usb", "2560", ":2560", "host:port", ""])
