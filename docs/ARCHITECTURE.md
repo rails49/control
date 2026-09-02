@@ -78,6 +78,9 @@ src/tc49/
                             (ui/EDITOR.md)
                 symbols.py  render() — the symbol library as the TypeScript
                             the editor draws against
+                root.py     store_root() — where an installation's own
+                            documents are: `~/tc49/`, or `--store`/
+                            `TC49_STORE` (store/LAYOUT.md, #320)
   scheduler/    Scheduler — composes gestures into requests and submits a
                 timetable whole at the start of a run, mechanical arrival-end
                 expansion, deterministic ids, exhausted state topic
@@ -151,7 +154,10 @@ ui/                         the layout editor: TypeScript, pnpm, Lit
                             netlist, properties, menu
               test/         the Vitest tests
 
-bench/                      the harness's inputs, the store rooted here
+bench/                      the harness's inputs, the store `tc49 bench`,
+                            `tc49 sweep` and `tc49 layout show` root
+                            themselves at. A session and the server read an
+                            installation's own store instead (#320)
   layouts/                  <layout>.drawing.yaml — the drawn railroads,
                             the only committed topology; the store derives
                             each layout from its drawing
