@@ -6,8 +6,14 @@
  * It holds the loaded railroad — its name, the document, and what the store
  * says the document means — and hands it to whichever view is current. The
  * views hold what is theirs: the editor its selection and its dialogs, the run
- * view its session and what the bus has shown it. Which railroad they are
+ * view its session and what the bus has shown it, the throttle the train a
+ * person picked and where they have put the lever. Which railroad they are
  * about is not one of those things, which is why it is here.
+ *
+ * **One session, and it is the run view's.** The throttle is a view of this
+ * app with nothing of its own to join, so what it draws comes down from the
+ * view that holds the socket and its gestures go back the same way the band's
+ * power presses do (ui/THROTTLE.md).
  *
  * It also holds everything the two rows need. The band is the system's, so the
  * picker that loads a railroad and the toggle that switches view report here;
@@ -39,6 +45,7 @@ import {
 import { emptyDrawing } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { Filing } from "../model/filing.js";
+import type { Cab } from "../model/throttle.js";
 import type { Power, Run } from "../model/trace.js";
 import { hashOf, viewOf, VIEWS, type ViewId } from "../model/views.js";
 import { appStyles } from "./tc-app.styles.js";
@@ -46,9 +53,11 @@ import "./tc-editor.js";
 import "./tc-header.js";
 import "./tc-menubar.js";
 import "./tc-panel.js";
+import "./tc-throttle.js";
 import type { TcEditor } from "./tc-editor.js";
 import type { TcMenubar } from "./tc-menubar.js";
 import type { RunStatus, TcPanel } from "./tc-panel.js";
+import type { ModeWanted, ThrottleWanted } from "./tc-throttle.js";
 import { editable } from "./tc-properties.js";
 
 /** One press of the zoom-out button, and the reciprocal for zoom in. A quarter
@@ -106,6 +115,12 @@ export class TcApp extends LitElement {
    *  and what a session refused. The band reads it, and the run view is the
    *  only thing that knows any of it. */
   @state() private status: RunStatus = QUIET;
+
+  /** The trains there are to drive, one cab each, as the view holding the
+   *  session works them out (`model/throttle.ts`). The throttle is a view of
+   *  this app like the others and has no session: what it draws comes down
+   *  here and its gestures go back the way the band's do (ui/THROTTLE.md). */
+  @state() private cabs: readonly Cab[] = [];
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -166,7 +181,23 @@ export class TcApp extends LitElement {
         @run-status=${(event: CustomEvent<RunStatus>) => {
           this.status = event.detail;
         }}
+        @cabs=${(event: CustomEvent<Cab[]>) => {
+          this.cabs = event.detail;
+        }}
       ></tc-panel>
+
+      <tc-throttle
+        class=${this.view === "throttle" ? "" : "off"}
+        .cabs=${this.cabs}
+        .power=${this.status.power}
+        .linked=${this.status.linked}
+        @mode-wanted=${(event: CustomEvent<ModeWanted>) =>
+          this.running?.pressMode(event.detail.train, event.detail.mode)}
+        @throttle-wanted=${(event: CustomEvent<ThrottleWanted>) =>
+          this.running?.pressThrottle(event.detail.train, event.detail.speed)}
+        @reversal-wanted=${(event: CustomEvent<string>) =>
+          this.running?.pressReversal(event.detail)}
+      ></tc-throttle>
 
       <tc-editor
         class=${this.view === "edit" ? "" : "off"}
@@ -209,11 +240,21 @@ export class TcApp extends LitElement {
     return this.renderRoot.querySelector<TcPanel>("tc-panel");
   }
 
-  /** The drawing surface the current view is showing. Both views draw on one
-   *  canvas (#168), so zoom and fit are the same three commands whichever is
-   *  current — they only have to reach the one on screen. */
+  /** The drawing surface the current view is showing, `null` where the current
+   *  view draws no railroad. The editor and the run view share one canvas
+   *  (#168), so zoom and fit are the same three commands across the two —
+   *  they only have to reach the one on screen — and the throttle has no
+   *  viewport to move, so `+` over it moves nothing rather than zooming a
+   *  picture nobody can see. */
   private get surface(): TcEditor | TcPanel | null {
-    return this.view === "edit" ? this.edit : this.running;
+    switch (this.view) {
+      case "edit":
+        return this.edit;
+      case "run":
+        return this.running;
+      default:
+        return null;
+    }
   }
 
   /** HOLD or GO, pressed on the bar. The socket is the run view's, so the

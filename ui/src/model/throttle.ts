@@ -40,6 +40,13 @@ export interface Cab {
   aspect: Aspect | null;
   /** The blocks on the road in front of it, nearest first. */
   ahead: readonly Ahead[];
+  /** Whether it has a request in flight, which is what greys turning it
+   *  round: the request departs the end the facing named when it was
+   *  composed, so a flip under it would leave the train pointing one way and
+   *  leaving the other ([#295](https://github.com/rails49/control/issues/295)).
+   *  The same pre-judgement the run view's menu makes, from the same
+   *  reading. */
+  inFlight: boolean;
   /** What a person driving it can switch, by the names the catalogue gives
    *  them (ADR-0045). Empty where its cars declare none, which is most of the
    *  stock a railroad owns. */
@@ -56,6 +63,8 @@ export interface Driving {
   noses: ReadonlyMap<string, EndRef>;
   aspects: ReadonlyMap<EndRef, Aspect>;
   ahead: ReadonlyMap<string, readonly Ahead[]>;
+  /** The trains with a request in flight, as the run's picture has it. */
+  inFlight: ReadonlySet<string>;
   stock: Record<string, TrainDoc>;
 }
 
@@ -73,7 +82,7 @@ export interface Driving {
  * the thing the operator can see — the same rule the roster pane keeps.
  */
 export function cabs(driving: Driving): Cab[] {
-  const { placed, modes, noses, aspects, ahead, stock } = driving;
+  const { placed, modes, noses, aspects, ahead, inFlight, stock } = driving;
   return [...placed]
     .sort((one, other) => one.train.localeCompare(other.train))
     .map(({ train, block }) => {
@@ -85,6 +94,7 @@ export function cabs(driving: Driving): Cab[] {
         nose,
         aspect: (nose === null ? undefined : aspects.get(nose)) ?? null,
         ahead: ahead.get(train) ?? [],
+        inFlight: inFlight.has(train),
         functions: stock[train]?.functions ?? [],
       };
     });

@@ -49,6 +49,7 @@ import { menubarStyles } from "../src/ui/tc-menubar.styles.js";
 import { paletteStyles } from "../src/ui/tc-palette.styles.js";
 import { panelStyles } from "../src/ui/tc-panel.styles.js";
 import { rosterStyles } from "../src/ui/tc-roster.styles.js";
+import { throttleStyles } from "../src/ui/tc-throttle.styles.js";
 
 /**
  * The component stylesheets, hand-listed: the imports above, named, so that a
@@ -65,6 +66,7 @@ const sheets: Record<string, CSSResult> = {
   paletteStyles,
   panelStyles,
   rosterStyles,
+  throttleStyles,
 };
 
 /**
@@ -97,6 +99,7 @@ describe("the palette", () => {
     expect(appStyles.cssText).toContain(palette.cssText);
     expect(editorStyles.cssText).not.toContain(palette.cssText);
     expect(panelStyles.cssText).not.toContain(palette.cssText);
+    expect(throttleStyles.cssText).not.toContain(palette.cssText);
   });
 
   /** An exported file has no host above the svg to inherit from (#86). */
@@ -107,13 +110,14 @@ describe("the palette", () => {
 
 /**
  * The shell has one left-pane slot and each view fills it: the palette in
- * edit, the roster in run (#169). One width, declared where the page is, or
- * the two panes drift apart across a toggle and the slot stops being one.
+ * edit, the roster in run, the trains to drive in the throttle (#169, #291).
+ * One width, declared where the page is, or the panes drift apart across a
+ * switch and the slot stops being one.
  */
 describe("the left-pane slot", () => {
-  it("is declared on the page and read by both views", () => {
+  it("is declared on the page and read by every view that fills it", () => {
     expect(appStyles.cssText).toContain("--pane:");
-    for (const sheet of [editorStyles, panelStyles]) {
+    for (const sheet of [editorStyles, panelStyles, throttleStyles]) {
       expect(sheet.cssText).toContain("var(--pane)");
       expect(sheet.cssText).not.toContain("--pane:");
     }

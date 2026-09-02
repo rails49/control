@@ -55,12 +55,16 @@ function standing(model: Panel): void {
 
 /** What the model answers, put together the way the run view does. */
 function drive(model: Panel, stock = {}) {
+  const placed = model.placed();
   return cabs({
-    placed: model.placed(),
+    placed,
     modes: model.modes(),
     noses: model.noses(),
     aspects: model.aspects(),
     ahead: model.ahead(),
+    inFlight: new Set(
+      placed.filter(({ train }) => model.inFlight(train)).map(({ train }) => train),
+    ),
     stock,
   });
 }
@@ -179,6 +183,27 @@ describe("the road in front", () => {
       { event: "lock_granted", train: "t1", resources: ["j.over", "b"] },
     );
     expect(drive(model)[0]!.ahead).toEqual([{ block: "b", claim: "locked" }]);
+  });
+});
+
+describe("a request in flight", () => {
+  /** The same pre-judgement the run view's menu makes, and for the reason it
+   *  makes it: the request departs the end the facing named when it was
+   *  composed (#295). */
+  it("is marked on the train, from submission until it is answered", () => {
+    const model = panel();
+    standing(model);
+    expect(drive(model)[0]).toMatchObject({ inFlight: false });
+    feed(model, {
+      event: "request_submitted",
+      id: "r1",
+      train: "t1",
+      depart: "a.B",
+      dest: ["b.A"],
+    });
+    expect(drive(model)[0]).toMatchObject({ inFlight: true });
+    feed(model, { event: "request_completed", id: "r1" });
+    expect(drive(model)[0]).toMatchObject({ inFlight: false });
   });
 });
 
