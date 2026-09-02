@@ -66,6 +66,24 @@ again. **A lost network never blocks a save and never raises a dialog** — the
 person drawing has nothing to answer about the wifi, and a modal there would
 be a question about something they did not ask for.
 
+That rule is about *time*, and it takes three things to hold. **No lock is
+held across a push**, because the lock the timers share is taken by the thread
+serving a save. **No thread serving a request ever pushes**: the store answers
+one request at a time, so a push on that thread stops every route, and `Back
+up now` therefore answers with the commit and leaves the copy to the next
+tick. And **a push is given a deadline**, because a remote that refuses
+answers at once while a remote that is merely unreachable does not answer at
+all, and a session being stopped has to be able to stop. Killing a push loses
+nothing: the commit is the backup and the next timer tries again.
+
+**What a lost network does say, eventually.** Silence per failure is right and
+silence for a month is the failure backup exists to prevent, so the store
+reports how far behind the copy is — how many backups the remote has not been
+given and how old the oldest is, asked of git rather than remembered so a
+restart does not forget it — and the editor marks its `Backup…` item once that
+passes a day. The same mark says when a store has never been backed up at all,
+which is what automated backup being off by default leaves a person with.
+
 ## Restore is refused over a dirty tree
 
 Documents that have not been backed up are exactly the ones git cannot give

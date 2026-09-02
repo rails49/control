@@ -791,6 +791,21 @@ A store nobody has made a repository is the ordinary state of a fresh
 installation, so what backup needs reads as the command that would supply it
 rather than as a fault, and everything else in the editor is unaffected.
 
+**The item marks itself when nobody is looking.** The app asks the store where
+backup stands once, when it comes up, and `Backup…` carries a `!` in two
+cases: the railroad has never been backed up, and the copy on the other
+machine is more than a day behind. Both are the same failure — believing a
+railroad is safe when it is not — and both reach only a person who does not
+open this dialog, which is why the mark exists at all. It warns and never
+disables. Nothing else in the editor marks itself, so the mark means one
+thing.
+
+The dialog says the same thing at length: how many backups the other machine
+has not been given and how old the oldest is. `Back up now` answers with the
+commit, which is the backup and is made at once; the copy off the machine is
+the store's own timer's, so it may not have happened yet when the dialog
+redraws.
+
 **Restoring takes two presses**: the backup to come back to is chosen in the
 list, and the footer's *Restore* is what does it. Over documents that have not
 been backed up it is refused in words naming them, which arrives the way a

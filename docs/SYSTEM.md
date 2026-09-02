@@ -630,6 +630,11 @@ the HTTP face yet, and a scenario never is (below).
   somebody's machine that the UI has to read out rather than a bad request.
   The switch is a document of the installation, `backup.yaml` in the store, so
   automated backup stays on across the restart that follows turning it on.
+  `GET /backup` also answers how far behind the copy off the machine is, in
+  `copy`: how many backups the remote has not been given, how long the oldest
+  has been waiting and whether that is longer than a day. No route ever waits
+  on the network — a push runs on the store's own timer, never on the thread
+  serving a request — so an unreachable remote costs a save nothing.
 
 - **Three document types** — `drawing`, `roster` and `scenario` — each
   fetched and stored whole. Symbols, wires, trains and requests live inside a
