@@ -205,20 +205,42 @@ a turnout the station keeps of its own, a sensor it polls, a fast clock — and
 is passed over unread. Parsing what the mapping does not need is work with
 nobody to read it.
 
+## Standing the railroad down
+
+`shutdown()` sends **zero to every locomotive this app has commanded**, in the
+order they were commanded, and only then the track off. Whoever constructed
+the app calls it before letting the loop go.
+
+The process ending is not by itself an instruction to the railroad. The
+station goes on running whatever it was last told, so a session that exits
+over a rolling locomotive leaves it rolling, and that is not recoverable the
+way switching the power back on is. The zeros come first for the same reason a
+release's do: the station keeps a speed per locomotive and resumes it, so
+cutting the supply over a held speed only postpones the motion.
+
+A link that was never open sends nothing at all. A railroad this app could not
+reach is one it was not driving, and `_send` drops rather than queues.
+
 ## The command line
 
-There is none yet, and that is the milestone and not the app: the bus is a
+It has none of its own, and that is the milestone and not the app: the bus is a
 Python object inside one process ([SYSTEM.md](../SYSTEM.md#the-bus)), so no
 app that speaks a bus topic has a command line — `layout`, `scheduler`,
 `dispatcher` and `driver` have none either. `dccex-usb` does, and it is the
 one app that speaks no bus topic at all.
 
 The app is constructed on the bus like the rest of them, with where the
-station is served, and `--startup` is the `startup` argument until then:
+station is served:
 
 ```python
 DccEx(bus, "dccex-usb", 2560, startup=Path("/etc/tc49/dccex-startup.txt"))
 ```
+
+What constructs it today is `tc49 live <railroad> --station <host>:<port>`,
+which brings a session up on the physical binding — this app and `layout`
+where the simulator would be — and hands `--startup` straight through as that
+argument ([bench/runner.py](../../src/tc49/bench/runner.py),
+[#314](https://github.com/rails49/control/issues/314)).
 
 `run()` is the connection: it connects, applies the retained desired state,
 reads what the station says until the link goes, and reconnects with backoff.
@@ -226,6 +248,16 @@ Nothing else waits on it — a desired value arriving while the link is down is
 remembered and applied on the next connect, the way the retained value is at
 startup. **No dependency is added**: the whole of it is `asyncio` streams, and
 the image builds with `uv sync --frozen`.
+
+**asyncio owns that session's process, and only where a station is named.**
+`_send` writes to an `asyncio.StreamWriter` from inside a bus subscriber, so
+whichever thread drains the bus is the thread that writes to the station: with
+the loop owning the process every subscriber already runs on the loop thread
+and that write is where it belongs. Putting this app on a daemon thread under
+a synchronous owner would mean marshalling with `call_soon_threadsafe` — a
+cross-thread write where none exists today. A session on the simulator keeps
+the synchronous loop it has always had; the two share a signature and nothing
+else.
 
 It gets a command line, and `deploy/` gets a container for it, the day the
 broker arrives and each app is its own process

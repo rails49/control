@@ -441,6 +441,29 @@ picture nobody is maintaining. Naming a railroad that does not exist gets an
 must not take a live session down. A run outlives its clients, so closing the
 browser leaves the railroad running and Ctrl-C ends the session.
 
+**A session driving a command station stays on one railroad.** `tc49 live
+<railroad> --station <host>:<port>` brings the run up on the **physical
+binding** — the layout interface and the `dccex` translator where the
+simulator would be ([layout](../layout/README.md),
+[dccex](../dccex/README.md)) — and the railroad is then the station's, a
+station being one physical railroad. The panel joins it the way it joins any
+other and is served the same picture; naming *another* railroad gets the
+`{"error": …}` frame and a close, with the run untouched, which is the shape a
+typo already gets. It is required on the command line for the same reason: the
+railroad is not the first client to connect's to pin. Ctrl-C sends zero to
+every locomotive commanded and switches the track off before the process ends
+([#314](https://github.com/rails49/control/issues/314)).
+
+**That run drives and never sees.** Nothing publishes a detector's level on a
+physical railroad yet — detection is its own issue — so a granted move writes
+a traction row, the locomotive rolls, and no arrival is ever reported: the
+picture stops where the dispatcher's does. It comes up **held** like every
+other run, which is the whole of the safety mechanism, and the session's
+banner says the blindness in words rather than a second lock existing until
+detection lands. The banner also counts how many of the railroad's trains
+carry an address and how many do not, because a move for a train whose cars
+carry none writes no traction row at all.
+
 **A session that went is not a reason to reload the page.** There is no choice
 left for a person to make — the loaded railroad *is* the session, and the
 band's picker says nothing about a name it is already showing — so the page
@@ -501,9 +524,10 @@ A session paces itself on a wall clock: the simulator's transit delays are
 the railroad's tempo, and `tc49 live --period` only sets how often the loop
 polls for commands arriving over the bridge
 ([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
-The knob is the session's and applies to every railroad it runs, so it is
-not the panel's to turn: a joined panel names the railroad and nothing
-else.
+On the physical binding the tempo is the trains, and the period also bounds
+how soon a settled detector level is acted on. The knob is the session's and
+applies to every railroad it runs, so it is not the panel's to turn: a joined
+panel names the railroad and nothing else.
 
 **A panel may join a session already running.** On connect, the path naming
 the railroad that is running, the bridge sends each state topic's last value

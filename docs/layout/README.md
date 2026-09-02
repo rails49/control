@@ -47,7 +47,7 @@ a speed cannot be composed without it and there is nowhere else it lives
 
 ## The command line
 
-There is none yet, and that is the milestone and not the app: the bus is a
+It has none of its own, and that is the milestone and not the app: the bus is a
 Python object inside one process ([SYSTEM.md](../SYSTEM.md#the-bus)), so no
 core app has a command line — `scheduler`, `dispatcher` and `driver` have none
 either. `dccex-usb` does, and it is the one app that speaks no bus topic at
@@ -64,16 +64,30 @@ LayoutInterface(bus, layout, roster, clock, 0.05)    # detectors that need less
 ```
 
 The clock is required rather than defaulted for the bus's reason: an app given
-none would debounce against a clock that never moves. Whoever owns the loop
-calls `settle()`, which is what acts on a level that has stood long enough —
-there is no loop yet, so today the suite is the only caller.
+none would debounce against a clock that never moves.
+
+**Whoever owns the loop calls `settle()`**, which is what acts on a level that
+has stood long enough. Today that is `tc49 live <railroad> --station
+<host>:<port>`, which brings a session up on this app and the `dccex`
+translator where the simulator would be
+([#314](https://github.com/rails49/control/issues/314)); its loop advances the
+clock to wall time, calls `settle()` and drains the bus, once per `--period`.
+The period bounds the resolution and nothing else: 0.1 s against 300 ms of
+settling has a settled level acted on between 0.3 s and 0.4 s after it stood,
+which is the right order for a detector. Nothing schedules the call — a
+detector publishes a level *change* and nothing else, so a session that never
+made it would sit on a quiet railroad holding an arrival nobody was told
+about. The suite drives the clock rather than sleeping on it and calls
+`settle()` itself.
 
 It gets a command line, and `deploy/` gets a container for it, the day the
 broker arrives and each app is its own process
-([ADR-0013](../adr/0013-apps-are-deployment-units.md)). The bench harness
-assembles the `simulator` instead
+([ADR-0013](../adr/0013-apps-are-deployment-units.md)). A session named no
+station assembles the `simulator` instead
 ([ARCHITECTURE.md](../ARCHITECTURE.md#package-layout)): a run has one binding
-of the interface, and the benchmarks measure a railroad nobody has to power on.
+of the interface and neither knows the other exists
+([ADR-0030](../adr/0030-the-physical-railroad-is-the-normative-binding.md)),
+and the benchmarks measure a railroad nobody has to power on.
 
 ## The three command rules
 
