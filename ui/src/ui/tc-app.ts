@@ -42,6 +42,7 @@ import {
   type CommandId,
   type Standing,
 } from "../model/commands.js";
+import { Backing } from "../model/backup.js";
 import { emptyDrawing } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { Filing } from "../model/filing.js";
@@ -49,11 +50,13 @@ import type { Cab } from "../model/throttle.js";
 import type { Power, Run } from "../model/trace.js";
 import { hashOf, viewOf, VIEWS, type ViewId } from "../model/views.js";
 import { appStyles } from "./tc-app.styles.js";
+import "./tc-backup.js";
 import "./tc-editor.js";
 import "./tc-header.js";
 import "./tc-menubar.js";
 import "./tc-panel.js";
 import "./tc-throttle.js";
+import type { TcBackup } from "./tc-backup.js";
 import type { TcEditor } from "./tc-editor.js";
 import type { TcMenubar } from "./tc-menubar.js";
 import type { RunStatus, TcPanel } from "./tc-panel.js";
@@ -92,6 +95,12 @@ export class TcApp extends LitElement {
    *  has moved and the app redraws. */
   private filing = new Filing(() => this.redraw());
 
+  /** What backup says about the store the app is served from, and the presses
+   *  that drive it (`model/backup.ts`, ADR-0053). The store is the whole
+   *  app's rather than a view's, which is why this is held here beside the
+   *  filing and not inside the editing view. */
+  private backing = new Backing(() => this.redraw());
+
   /** The view that is current. The app opens in the run view: it is a control
    *  surface, and the editor is the setup tool you go to deliberately. */
   @state() private view: ViewId = VIEWS[0]!.id;
@@ -110,6 +119,11 @@ export class TcApp extends LitElement {
    *  choice and not the absence of one. `discarding` itself is `null` while
    *  nothing is waiting, which is the ordinary state. */
   @state() private discarding: { wanted: string | null } | null = null;
+
+  /** Whether the backup dialog is up. Nothing is asked of the store until it
+   *  is: a person who never opens it has no interest in git, and asking on
+   *  load would put a `git` process behind every reload of the page. */
+  @state() private backingUp = false;
 
   /** What the run view says about itself: the bridge, how far the run has got,
    *  and what a session refused. The band reads it, and the run view is the
@@ -208,6 +222,13 @@ export class TcApp extends LitElement {
         @edit=${this.edited}
         @picked=${() => this.redraw()}
       ></tc-editor>
+
+      <tc-backup
+        .backing=${this.backingUp ? this.backing : null}
+        @backup-closed=${() => {
+          this.backingUp = false;
+        }}
+      ></tc-backup>
 
       ${this.discarding === null
         ? nothing
@@ -356,6 +377,10 @@ export class TcApp extends LitElement {
       case "netlist":
         this.netlist = !this.netlist;
         return;
+      case "backup":
+        this.backingUp = true;
+        void this.backing.load();
+        return;
       // A command with no arm above narrows to something other than `never`
       // here and fails to typecheck, so adding one to `CommandId` cannot leave
       // a live menu item that does nothing. The same guarantee `GLYPHS` gives
@@ -491,6 +516,9 @@ export class TcApp extends LitElement {
     this.requestUpdate();
     this.edit?.redraw();
     this.running?.requestUpdate();
+    // The dialog holds the same `Backing` across a press, so Lit sees no
+    // changed property and would draw what git said before it said it.
+    this.renderRoot.querySelector<TcBackup>("tc-backup")?.requestUpdate();
   }
 
   // --- the keyboard ---------------------------------------------------------
@@ -521,6 +549,10 @@ export class TcApp extends LitElement {
       }
       return;
     }
+    // The backup dialog is up, so the keyboard is the dialog's the same way:
+    // `r` behind a modal must not rotate the selection under it. Shoelace
+    // closes on Escape itself, and `backup-closed` comes back from that.
+    if (this.backingUp) return;
     const meta = event.metaKey || event.ctrlKey;
     // A menu on the bar is down, so the keyboard is the menu's: `r` would
     // typeahead in the menu and rotate the selection behind it at once, and

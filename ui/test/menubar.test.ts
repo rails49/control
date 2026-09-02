@@ -105,6 +105,8 @@ describe("what each menu carries", () => {
       "Save As… ⇧⌘S",
       "──",
       "Export SVG…",
+      "──",
+      "Backup…",
     ]);
   });
 

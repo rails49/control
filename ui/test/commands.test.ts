@@ -30,7 +30,7 @@ function on(id: CommandId, parts: Partial<Standing> = {}): boolean {
 describe("the menus", () => {
   it("carries the editor's items in the order the bar draws them", () => {
     expect(MENUS.edit.map((menu) => [menu.name, menu.items])).toEqual([
-      ["File", ["new", "save", "save-as", null, "export-svg"]],
+      ["File", ["new", "save", "save-as", null, "export-svg", null, "backup"]],
       [
         "Edit",
         ["undo", "redo", null, "rotate", "flip", "delete", null, "properties"],
@@ -85,6 +85,7 @@ describe("the key beside the label", () => {
       "zoom-out": "−",
       fit: "0",
       netlist: "N",
+      backup: undefined,
     });
   });
 });
