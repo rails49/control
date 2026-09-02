@@ -302,18 +302,30 @@ block end it watches,
 drawing records
 ([ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 
-`addr` is a plain string and nothing checks it for shape. A DCC accessory
-number is a string that happens to be digits, and what a physical point answers
-to is knowledge the drawing cannot hold. The one check the editor makes is that
-a motorised symbol has *some* address, since a drawing without them derives but
-cannot be driven ([EDITOR.md](../ui/EDITOR.md#validation)).
+**A point's address names its system as its first level**, `<system>/<addr>`
+— `dccex/5`, never `5` — the rule its signal wears above and
+[ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)'s:
+fixed wiring can be split across systems where traction cannot. A translator
+subscribes its own system and recognises nothing else, so a bare address is one
+no translator hears — `align` would name the point every time and nothing would
+throw. **Derivation refuses one**, naming the address, where the pin rules are
+checked and for their reason: an address half-typed is saved and reopened, and
+it is the derived layout that has to be drivable. An absent address is not a
+bare one and stays fine.
+
+Beyond that `addr` is a plain string and nothing checks it for shape. What a
+point answers to under its system is knowledge the drawing cannot hold, and
+which systems are running is knowledge nothing here has either: an address
+nobody answers to does no harm (ADR-0043). The one check the editor makes is
+that a motorised symbol has *some* address, since a drawing without them
+derives but cannot be driven ([EDITOR.md](../ui/EDITOR.md#validation)).
 
 **Points may share an address, and then they move together.** One accessory
 output throws a crossover's two ends as a unit, so a throat can have fewer
 usable ways than its geometry suggests — `gotthard` gangs `sw1` with `sw2`
-and `sw6` through `sw9`. Sharing is meaningful rather than a mistake, so
-nothing asks addresses to be unique. Two things do follow from it, and the
-review reports both as `motor_faults`:
+and `sw6` through `sw9`, all of them on `dccex`. Sharing is meaningful rather
+than a mistake, so nothing asks addresses to be unique. Two things do follow
+from it, and the review reports both as `motor_faults`:
 
 - A way needing two points on one address set differently cannot be thrown.
 - Two ways declared `concurrent` promise that two trains may hold the

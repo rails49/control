@@ -67,7 +67,7 @@ connections:
       - [up_straight, dn_straight]
     points:                          # only where the drawing gives addresses
       up_to_dn:
-        - { addr: "12", position: thrown }
+        - { addr: "<system>/12", position: thrown }
 ```
 
 - **Block ends** are written `<block>.A` / `<block>.B`. A block has exactly two
@@ -99,6 +99,11 @@ connections:
   transit that needs any, the address of every point along its way and the
   position that way wants it in
   ([ADR-0031](../adr/0031-the-layout-carries-the-points-a-transit-needs.md)).
+  A point address names its system as its first level, `<system>/<addr>`, as a
+  signal's does below: fixed wiring can be split across systems where traction
+  cannot, so a drawing carrying a bare one does not derive
+  ([DRAWING.md](DRAWING.md#hardware-ids),
+  [ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
   That is what the dispatcher publishes on `align`, and with the signals below
   it is the whole of the hardware the layout knows about — a point has an
   address and a position here, never a shape, a position on the canvas, or a
