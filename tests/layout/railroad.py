@@ -15,6 +15,7 @@ from tc49.layout.interface import SETTLING_S
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout
+from tc49.lib.roster import FORWARD, REVERSE, Car, Coupled, Roster, Train
 
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
@@ -22,11 +23,13 @@ POWER_WANTED = "tc49/layout/power_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
+FACING = "tc49/schedule/state/facing"
 
 BLOCK_OCCUPIED = "tc49/layout/block_occupied"
 BLOCK_VACATED = "tc49/layout/block_vacated"
 POWER = "tc49/layout/state/power"
 DEVICE_SENSOR = "tc49/layout/state/device/sensor"
+WANTED_TRACTION = "tc49/layout/state/wanted/traction"
 WANTED_POINT = "tc49/layout/state/wanted/point"
 WANTED_SIGNAL = "tc49/layout/state/wanted/signal"
 WANTED_TRACK = "tc49/layout/state/wanted/track"
@@ -70,6 +73,36 @@ def railroad() -> Layout:
     return Layout.from_document(document())
 
 
+def loco(addr: str | None) -> Car:
+    """One locomotive of the bench's stock, addressed or not. A car with no
+    `addr` has no decoder and can be told nothing, which is a real car and the
+    only kind the library rosters hold (ADR-0045)."""
+    return Car("bench-600", "locomotive", 600, addr=addr)
+
+
+def stock() -> Roster:
+    """The trains this railroad owns, drawn here as the railroad is: no
+    committed roster addresses a car, the addresses being a fact of the
+    physical stock rather than of a document anyone shares (ADR-0030).
+
+    `freight_1` is the suite's ordinary train and carries **no** address —
+    what most of these suites drive is a train nothing can be sent to, which
+    is the case the traction write leaves alone. The three below it are what
+    the traction suite drives: one addressed locomotive, a top-and-tail set
+    with a `reverse` locomotive at the tail, and a set whose van has no
+    decoder.
+    """
+    return Roster(
+        "bench",
+        {
+            "freight_1": Train((Coupled(loco(None)),)),
+            "single": Train((Coupled(loco("3")),)),
+            "topped": Train((Coupled(loco("3")), Coupled(loco("4"), REVERSE))),
+            "van": Train((Coupled(loco("3")), Coupled(loco(None), FORWARD))),
+        },
+    )
+
+
 class Unstamped(Bus):
     """A bus that stamps nothing, so a value carries the stamp it was handed.
 
@@ -93,7 +126,7 @@ def wired(settling_s: float = SETTLING_S) -> tuple[Bus, LayoutInterface, Clock]:
     the suite drives it directly — nothing here sleeps (#288)."""
     clock = Clock()
     bus = Bus(clock)
-    app = LayoutInterface(bus, railroad(), clock, settling_s)
+    app = LayoutInterface(bus, railroad(), stock(), clock, settling_s)
     bus.drain()
     return bus, app, clock
 
@@ -138,6 +171,14 @@ def stand(bus: Bus, train: str, block: str) -> None:
     bus.drain()
 
 
+def faces(bus: Bus, **facing: str) -> None:
+    """The scheduler saying which way each train points, as it holds it: the
+    run each would make across its block (ADR-0019). The whole map, since that
+    is what the state topic carries."""
+    bus.publish(FACING, {"facing": dict(facing)})
+    bus.drain()
+
+
 def align(bus: Bus, connection: str, transit: str) -> None:
     """The command the dispatcher sends before each grant, carrying the points
     the way needs — read off the layout, as the dispatcher reads them."""
@@ -152,18 +193,27 @@ def align(bus: Bus, connection: str, transit: str) -> None:
     bus.drain()
 
 
-def move(bus: Bus, train: str, connection: str, transit: str, into: str) -> None:
-    """The command the driver sends: a train across a transit into a block."""
-    bus.publish(
-        MOVE,
-        {
-            "train": train,
-            "connection": connection,
-            "transit": transit,
-            "into": into,
-            "speed": 1.0,
-        },
-    )
+def move(
+    bus: Bus,
+    train: str,
+    connection: str,
+    transit: str,
+    into: str,
+    speed: float | None = 1.0,
+) -> None:
+    """The command the driver sends: a train across a transit into a block,
+    and how fast — a magnitude, the sign being the interface's to compose. A
+    `speed` of None is the frame that states none, which the reader allows and
+    this app has nothing to send for."""
+    payload: Payload = {
+        "train": train,
+        "connection": connection,
+        "transit": transit,
+        "into": into,
+    }
+    if speed is not None:
+        payload["speed"] = speed
+    bus.publish(MOVE, payload)
     bus.drain()
 
 
