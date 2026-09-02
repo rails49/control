@@ -324,12 +324,14 @@ class LayoutInterface:
         # The occupancy fold: the settled level at each block end, the level
         # each end has most recently said (which is what makes the log of an
         # `unknown` once per transition into it), the levels waiting out the
-        # settling time, what was last published about each block, and the
-        # moves whose second reading is still to come.
+        # settling time, what was last published about each block, the ends
+        # whose occupied level a departure has already spent, and the moves
+        # whose second reading is still to come.
         self._level: dict[str, str] = {}
         self._said: dict[str, str] = {}
         self._settling: dict[str, _Settling] = {}
         self._occupied: dict[str, bool] = {}
+        self._spent: set[str] = set()
         self._crossing: dict[str, _Crossing] = {}
         # The two halves of the power fold, and what was last said about it.
         self._track = OFF
@@ -995,7 +997,9 @@ class LayoutInterface:
         its ends does, and a change in that fold is the block's own occupancy
         event — the block a hand put a locomotive on, as much as the block a
         train was granted, since a level no move explains is still a level and
-        judging it is the dispatcher's (ADR-0048).
+        judging it is the dispatcher's (ADR-0048). Bar an end a departure has
+        already spent: that level is the train that left, and `_release` has
+        said so once already (#311).
 
         Where the block is one a train is crossing into, the first of its ends
         to read occupied is the **arrival**, and every car that move commanded
@@ -1009,8 +1013,14 @@ class LayoutInterface:
         the only order the steel can produce (ADR-0047).
         """
         self._level[end] = level
+        # This end has just said something of its own, so whatever a departure
+        # spent of it is spent no longer.
+        self._spent.discard(end)
         block = block_of(end)
-        occupied = OCCUPIED in (level, self._level.get(opposite_end(end)))
+        occupied = any(
+            self._level.get(watched) == OCCUPIED and watched not in self._spent
+            for watched in (end, opposite_end(end))
+        )
         if self._occupied.get(block) != occupied:
             self._occupied[block] = occupied
             self._bus.publish(
@@ -1036,7 +1046,36 @@ class LayoutInterface:
             self._crossing[block] = crossing
         if end == crossing.far:
             del self._crossing[block]
-            self._bus.publish(BLOCK_VACATED, {"block": crossing.origin})
+            self._release(crossing.origin)
+
+    def _release(self, block: str) -> None:
+        """The block a train has just left, said once however the two routes
+        to it fall (#311).
+
+        The same departure reaches this app twice: as the move it carried out,
+        which is what names the block behind, and as that block's own
+        detectors going clear a moment later. Both are the tail leaving, and
+        the two orders are a race — the train is out of the block behind at
+        the instant it is fully into the block ahead — so neither can be the
+        one that always arrives first.
+
+        So one writer per fact. `self._occupied` is the record of what this
+        app has said about each block, and this rule reads it before it writes
+        it: nothing goes out for a block already released. The occupied levels
+        the block behind still holds are the train that left, and they are
+        **spent** here — accounted for by this release — so the fold does not
+        read them as a train still standing there and publish it back again.
+        The record is set to clear rather than dropped, and the levels go on
+        standing as the detectors reported them: a block that reads occupied
+        again is an ordinary change in the fold, wherever it comes from.
+        """
+        for end in (f"{block}.A", f"{block}.B"):
+            if self._level.get(end) == OCCUPIED:
+                self._spent.add(end)
+        if self._occupied.get(block) is False:
+            return
+        self._occupied[block] = False
+        self._bus.publish(BLOCK_VACATED, {"block": block})
 
     def _folded(self) -> str:
         """Whether a train may move at all, folded from what the hardware

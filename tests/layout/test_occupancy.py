@@ -183,6 +183,92 @@ def test_the_second_sensor_reports_the_block_behind_only_once() -> None:
     ]
 
 
+def test_the_tail_leaving_the_block_behind_publishes_no_second_vacate() -> None:
+    """One departure is one release. The crossing named the block behind and
+    said it was clear; the detectors on that block say the same thing a moment
+    later, as the tail actually leaves, and that is the same fact arriving by
+    the other route. The crossing owns what it published — it records the
+    origin clear — so the fold sees no change and stays silent (#311)."""
+    bus, app, clock = wired()
+    energised(bus)
+    stand(bus, "freight_1", "up_w")
+    reads(bus, "up_w.A", "occupied")
+    reads(bus, "up_w.B", "occupied")
+    settle(bus, app, clock)
+    seen = occupancy(bus)
+
+    align(bus, "crossover", "to_dn")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+    reads(bus, "dn_e.A", "occupied")  # the head
+    settle(bus, app, clock)
+    reads(bus, "dn_e.B", "occupied")  # fully in, so the block behind is clear
+    settle(bus, app, clock)
+    reads(bus, "up_w.B", "clear")  # and now the steel behind says so too
+    settle(bus, app, clock)
+    reads(bus, "up_w.A", "clear")
+    settle(bus, app, clock)
+
+    assert seen == [
+        (BLOCK_OCCUPIED, {"block": "dn_e"}),
+        (BLOCK_VACATED, {"block": "up_w"}),
+    ]
+
+
+def test_the_block_behind_clearing_first_is_still_one_release() -> None:
+    """The other order, which is as much the railroad's as the first: the tail
+    is out of the block behind at the instant it is fully into the block
+    ahead, so which of the two readings settles first is a race. The block
+    behind is released by whichever arrives, and the other says nothing —
+    otherwise the same departure is announced twice (#311)."""
+    bus, app, clock = wired()
+    energised(bus)
+    stand(bus, "freight_1", "up_w")
+    reads(bus, "up_w.A", "occupied")
+    reads(bus, "up_w.B", "occupied")
+    settle(bus, app, clock)
+    seen = occupancy(bus)
+
+    align(bus, "crossover", "to_dn")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+    reads(bus, "up_w.A", "clear")  # the block behind goes clear first
+    reads(bus, "up_w.B", "clear")
+    settle(bus, app, clock)
+    reads(bus, "dn_e.B", "occupied")  # and only then is the train fully in
+    settle(bus, app, clock)
+
+    assert seen == [
+        (BLOCK_OCCUPIED, {"block": "dn_e"}),
+        (BLOCK_VACATED, {"block": "up_w"}),
+    ]
+
+
+def test_a_block_a_crossing_released_reads_occupied_again_as_any_other() -> None:
+    """The crossing records the origin clear rather than forgetting it, so the
+    next train into that block is an ordinary change in the fold: a block this
+    app has said is clear going occupied is `block_occupied`, whether what
+    cleared it was a detector or the crossing."""
+    bus, app, clock = wired()
+    energised(bus)
+    stand(bus, "freight_1", "up_w")
+    reads(bus, "up_w.B", "occupied")
+    settle(bus, app, clock)
+    align(bus, "crossover", "to_dn")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
+    settle(bus, app, clock)
+    reads(bus, "up_w.B", "clear")
+    settle(bus, app, clock)
+    seen = occupancy(bus)
+
+    reads(bus, "up_w.A", "occupied")
+    settle(bus, app, clock)
+
+    assert seen == [(BLOCK_OCCUPIED, {"block": "up_w"})]
+
+
 def test_a_block_reads_occupied_while_either_of_its_ends_does() -> None:
     """Both detectors of a block stay inside the interface, and what they
     answer together is one occupancy: the block is clear when neither end
