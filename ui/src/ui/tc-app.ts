@@ -120,9 +120,10 @@ export class TcApp extends LitElement {
    *  nothing is waiting, which is the ordinary state. */
   @state() private discarding: { wanted: string | null } | null = null;
 
-  /** Whether the backup dialog is up. Nothing is asked of the store until it
-   *  is: a person who never opens it has no interest in git, and asking on
-   *  load would put a `git` process behind every reload of the page. */
+  /** Whether the backup dialog is up. The store is asked once when the app
+   *  comes up and again whenever the dialog is opened: what a railroad that is
+   *  not being backed up needs is to reach the person who never opens this
+   *  (#321), and that costs one `GET /backup` a page load. */
   @state() private backingUp = false;
 
   /** What the run view says about itself: the bridge, how far the run has got,
@@ -142,6 +143,10 @@ export class TcApp extends LitElement {
     window.addEventListener("hashchange", this.hashed);
     this.view = viewOf(location.hash);
     void this.filing.load();
+    // Asked for the File menu's mark rather than for the dialog: a copy that
+    // has been failing for a day, and a railroad that has never been backed up
+    // at all, are both things a person finds out by not being told.
+    void this.backing.load();
   }
 
   override disconnectedCallback(): void {
@@ -312,6 +317,7 @@ export class TcApp extends LitElement {
       undo: this.editor.canUndo,
       redo: this.editor.canRedo,
       placed: this.status.placed,
+      backup: this.backing.standing,
     };
   }
 

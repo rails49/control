@@ -26,6 +26,7 @@ const LIVE: Standing = {
   editable: true,
   undo: true,
   redo: true,
+  backup: "quiet",
   placed: 0,
 };
 

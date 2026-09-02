@@ -218,8 +218,34 @@ export interface BackupDoc {
    *  store gives them. */
   outstanding: string[];
   backups: Backup[];
+  /** How the copy on the other machine stands (#321). */
+  copy: Copy;
   ok?: boolean;
   said?: string;
+}
+
+/**
+ * The copy off this machine: what the remote has not been given, and how the
+ * last attempt to give it went.
+ *
+ * The commit is the backup and this is the copy of it, so a failure here never
+ * interrupts anybody at the moment it happens. What it does instead is
+ * accumulate: `stale` is the store saying it has been carrying a backup nobody
+ * else has for longer than a day.
+ */
+export interface Copy {
+  /** Backups made here that the remote has not been given. */
+  waiting: number;
+  /** Seconds since the oldest of them was made, `null` where none is waiting
+   *  or there is no remote to measure against. */
+  since: number | null;
+  /** Whether that is longer than the store is willing to stay quiet about. */
+  stale: boolean;
+  /** How the last attempt went, `null` where there has not been one this
+   *  session. */
+  ok: boolean | null;
+  /** What git said about it, in git's words. */
+  said: string;
 }
 
 export async function readBackup(): Promise<BackupDoc> {

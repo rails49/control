@@ -19,6 +19,7 @@
  * reach rules that have nothing to do with HTTP (EDITOR.md#tests).
  */
 
+import type { BackupStanding } from "./commands.js";
 import {
   backUpNow,
   readBackup,
@@ -50,11 +51,34 @@ export class Backing {
     private readonly store: BackupStore = live,
   ) {}
 
-  /** Where backup stands, `null` until it has been asked. Nothing asks on
-   *  load: a person who never opens the dialog has no interest in git, and a
-   *  page that asked anyway would put a `git` process behind every reload. */
+  /** Where backup stands, `null` until it has been asked.
+   *
+   *  The app asks once when it comes up. It did not, on the reasoning that a
+   *  person who never opens the dialog has no interest in git — which is
+   *  exactly backwards for the two things `standing` reports (#321): somebody
+   *  who never opens the dialog is who a railroad that is not being backed up
+   *  has to reach. One `GET /backup` a page load is the cost. */
   get stands(): BackupDoc | null {
     return this.answer;
+  }
+
+  /**
+   * What backup has to say from outside its own dialog, which the `Backup…`
+   * item on the File menu marks itself with.
+   *
+   * `quiet` until it has been asked, and `quiet` for everything that is only
+   * worth reading once the dialog is open. A store that is not a repository at
+   * all reads as `never` like any other store with no backups: what a person
+   * has to know is the same either way, and the dialog is where the difference
+   * is spelled out.
+   */
+  get standing(): BackupStanding {
+    if (this.answer === null) return "quiet";
+    if (this.answer.copy.stale) return "behind";
+    if (!this.answer.automatic && this.answer.backups.length === 0) {
+      return "never";
+    }
+    return "quiet";
   }
 
   /** What git said about the last thing it was asked to do, `null` where it

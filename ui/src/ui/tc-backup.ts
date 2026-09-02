@@ -27,7 +27,18 @@ import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 
 import type { Backing } from "../model/backup.js";
+import type { Copy } from "../model/store.js";
 import { backupStyles } from "./tc-backup.styles.js";
+
+/** How long something has been waiting, in the coarsest words that are still
+ *  true. Nothing here turns on an hour, and "2 days" is what a person checks
+ *  a backup against. */
+function days(since: number): string {
+  const hours = Math.floor(since / 3600);
+  if (hours < 1) return "less than an hour";
+  if (hours < 48) return hours === 1 ? "an hour" : `${hours} hours`;
+  return `${Math.floor(hours / 24)} days`;
+}
 
 @customElement("tc-backup")
 export class TcBackup extends LitElement {
@@ -53,7 +64,7 @@ export class TcBackup extends LitElement {
           : html`
               <p class="root">${stands.root}</p>
               ${this.needs(stands.needs)} ${this.waiting(stands.outstanding)}
-              ${this.said()}
+              ${this.copy(stands.copy)} ${this.said()}
               <div class="presses">
                 <sl-button
                   variant="primary"
@@ -109,6 +120,27 @@ export class TcBackup extends LitElement {
       : html`<p class="waiting">
           waiting to be backed up: ${outstanding.join(", ")}
         </p>`;
+  }
+
+  /**
+   * How the copy on the other machine stands.
+   *
+   * The one thing in this dialog that is not about a press somebody just made.
+   * `Back up now` answers with the commit, which is the backup and is made at
+   * once; the copy off this machine is the next tick's and may not have
+   * happened yet, so what it did last time is the honest thing to draw
+   * (#321).
+   */
+  private copy(copy: Copy) {
+    if (copy.waiting === 0) {
+      return html`<p class="hint">the other machine has every backup</p>`;
+    }
+    const backups = copy.waiting === 1 ? "1 backup" : `${copy.waiting} backups`;
+    const behind =
+      copy.since === null ? "" : `, the oldest ${days(copy.since)} old`;
+    return html`<p class=${copy.stale ? "wrong" : "waiting"}>
+      not on the other machine yet: ${backups}${behind}
+    </p>`;
   }
 
   /** What git last said, whether it worked or not. A refusal is marked as one

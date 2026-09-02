@@ -39,6 +39,7 @@ export const UNBACKED: BackupDoc = {
   needs: ["/home/somebody/tc49 is not a git repository — `git init` there"],
   outstanding: [],
   backups: [],
+  copy: { waiting: 0, since: null, stale: false, ok: null, said: "" },
 };
 
 /** A drawing the store is happy with: nothing to report. */
