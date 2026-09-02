@@ -619,6 +619,16 @@ derives to, so the editor holds no second copy of the derivation
 ([ui/EDITOR.md](ui/EDITOR.md)). `delete` and the roster's `put` are not on
 the HTTP face yet, and a scenario never is (below).
 
+**Every route is refused to a page on another origin.** A request carrying an
+`Origin` header that is not the server's own `Host` is answered 403, and no
+`Access-Control-*` header is sent on any reply. The app reaches these routes
+on its own origin — through vite's proxy in development, through the proxy
+that serves the page on a layout server — so nothing it does is a cross-origin
+request. A request with no `Origin` is a native client and goes through: the
+LAN is still the trust boundary and a browser is not on it
+([ADR-0055](adr/0055-a-browser-is-not-on-the-lan-and-the-store-refuses-it.md),
+[ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)).
+
 - **Backup is git, driven and not owned**
   ([ADR-0053](adr/0053-backup-drives-git-and-does-not-own-it.md),
   [store/BACKUP.md](store/BACKUP.md)). The four routes above commit, push and
