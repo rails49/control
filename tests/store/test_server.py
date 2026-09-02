@@ -257,3 +257,38 @@ def test_the_routes_are_reachable_over_http(tmp_path: Path) -> None:
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_a_store_that_is_not_there_yet_comes_up_and_answers(tmp_path: Path) -> None:
+    """A fresh installation has drawn no railroad and nothing seeds one, so
+    the server is rooted at a directory that does not exist yet and serves an
+    empty list rather than refusing to come up (#320). The first `PUT` is what
+    makes the directory."""
+    root = tmp_path / "never-made"
+    server = make_server(root, port=0)
+    url = f"http://127.0.0.1:{server.server_port}"
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urlopen(f"{url}/drawings") as listed:
+            assert json.load(listed) == {"drawings": []}
+
+        with pytest.raises(HTTPError) as missing:
+            urlopen(f"{url}/drawings/reversing-loops")
+        assert missing.value.code == 404
+
+        doc = AssetStore(ASSETS).drawing("facing-pair")
+        saved = Request(
+            f"{url}/drawings/facing-pair",
+            data=json.dumps(doc).encode(),
+            headers={"Content-Type": "application/json"},
+            method="PUT",
+        )
+        with urlopen(saved) as stored:
+            assert stored.status == 200
+        with urlopen(f"{url}/drawings") as listed:
+            assert json.load(listed) == {"drawings": ["facing-pair"]}
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

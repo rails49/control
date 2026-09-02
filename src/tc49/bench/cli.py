@@ -21,6 +21,16 @@ not a knob, and that page is its single source of truth.
 review that a committed layout file used to give in a diff (ADR-0015).
 `generate` rewrites every TypeScript file the UI is handed rather than
 keeps by hand: the symbol library, and the set of rejection reasons.
+
+**Two roots, and which command reads which.** `bench` and `sweep` run on the
+committed fixtures and find them by searching for the checkout they are in
+(`find_root`, `find_assets`), so what a person has in their own store cannot
+move a number in BENCHMARKS.md. `live` and `serve` open the **installation's**
+store instead — `~/tc49/` unless `--store` or `TC49_STORE` says otherwise
+(`tc49.store.root`, #320) — and never look for a checkout at all, which is
+what lets them run from an installed wheel. `layout show` is the topology
+review of a committed drawing and stays with the fixtures; `generate` writes
+into a checkout, which is what it is for.
 """
 
 import argparse
@@ -45,16 +55,8 @@ from tc49.bench.sweep import sweep
 from tc49.lib import rejection
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
-from tc49.store import AssetStore, symbols
+from tc49.store import DEFAULT_STORE, STORE_ENV, AssetStore, store_root, symbols
 from tc49.store.server import make_server
-
-ROOT = find_root()
-"""The checkout, which is what `generate` writes into."""
-
-ASSETS = find_assets()
-"""The store root: `bench/`, where the drawings, the rosters, the catalogue and
-the scenarios are. Not the checkout — the fixtures are the harness's inputs and
-live under it (#319)."""
 
 LIVE_PERIOD_S = 0.1
 """Seconds a live session waits between polls for commands arriving over the
@@ -115,10 +117,15 @@ all and one flag says which checkout (ADR-0014)."""
 
 
 def bench(
-    scenario_id: str, k: int = DEFAULT_K, root: Path = ASSETS
+    scenario_id: str, k: int = DEFAULT_K, root: Path | None = None
 ) -> dict[str, tuple[str, Metrics]]:
-    """One scenario under every strategy: (trace, metrics) per strategy."""
-    layout, roster, scenario = load(AssetStore(root), scenario_id)
+    """One scenario under every strategy: (trace, metrics) per strategy.
+
+    Over the fixtures the checkout carries, found rather than configured: a
+    benchmark reads the documents BENCHMARKS.md records its numbers against,
+    and what a person keeps in their own store is none of its business
+    (#320)."""
+    layout, roster, scenario = load(AssetStore(root or find_assets()), scenario_id)
     results: dict[str, tuple[str, Metrics]] = {}
     for name, strategy in STRATEGIES.items():
         trace = run_scenario(layout, roster, scenario, strategy, k)
@@ -215,6 +222,28 @@ def reachable(host: str) -> str:
     return LOOPBACK if host in ("0.0.0.0", "::") else host
 
 
+def store_flag(parser: argparse.ArgumentParser) -> None:
+    """`--store`, on each of the two commands that open the installation's
+    store.
+
+    One function rather than two copies of the help, because the two are the
+    same question — which store this is — and a person reading `tc49 live
+    --help` beside `tc49 serve --help` must not find two answers. The
+    environment is named in it: a session and the server that outlives it are
+    usually started separately (scripts/dev.sh), and pointing both at one
+    store is what `TC49_STORE` is for.
+    """
+    parser.add_argument(
+        "--store",
+        type=Path,
+        metavar="PATH",
+        help=f"the installation's store to read and serve (default"
+        f" {DEFAULT_STORE}, or ${STORE_ENV} where it is set; this flag wins)."
+        " The benchmark fixtures are not in it — name bench/ to run a live"
+        " session on one of them",
+    )
+
+
 def command_line() -> argparse.ArgumentParser:
     """Every command and flag `tc49` takes. Apart from `main` so that a
     default can be read without running the command that carries it."""
@@ -302,6 +331,7 @@ def command_line() -> argparse.ArgumentParser:
     live_parser.add_argument(
         "--store-port", type=int, default=8765, help="the store's HTTP port"
     )
+    store_flag(live_parser)
     live_parser.add_argument(
         "--no-store",
         action="store_true",
@@ -315,6 +345,7 @@ def command_line() -> argparse.ArgumentParser:
     serve_parser.add_argument(
         "--host", default=LOOPBACK, help=f"the address it binds (default {LOOPBACK})"
     )
+    store_flag(serve_parser)
 
     generate_parser = commands.add_parser(
         "generate", help="write the UI's generated TypeScript from its Python source"
@@ -322,8 +353,7 @@ def command_line() -> argparse.ArgumentParser:
     generate_parser.add_argument(
         "--out",
         type=Path,
-        default=ROOT,
-        help="the checkout to write into (default this one)",
+        help="the checkout to write into (default the one this runs in)",
     )
 
     layout_parser = commands.add_parser("layout", help="inspect a drawn railroad")
@@ -358,6 +388,21 @@ def station_note(where: tuple[str, int], name: str, roster: Roster) -> str:
         "this session sees what you type: no camera publishes yet, so type"
         f" '{SHAPE}' — {', '.join(LEVELS[:-1])} or {LEVELS[-1]} — and a move"
         " finishes on the pair a crossing trips\n"
+    )
+
+
+def holding(store: AssetStore) -> str:
+    """What the store a command opened has in it, for the banner beside the
+    root it was opened at.
+
+    **An empty store is an ordinary state and is said, not refused** (#320). A
+    fresh installation has drawn no railroad and nothing seeds one, so a
+    person whose panel offers nothing to load needs to read which directory
+    was looked in and that it was empty — otherwise an empty store and a
+    mistyped `--store` are the same silence.
+    """
+    return ", ".join(store.list()) or (
+        "no railroad yet — a fresh store is empty and nothing seeds one"
     )
 
 
@@ -425,13 +470,18 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
                 " is under\n"
             )
             return 2
+        # The installation's store and never the checkout's: a session runs
+        # the railroads somebody drew, and the fixtures are the benchmark's
+        # (#320). `--store bench` is what runs a session on one of those, and
+        # is the developer flow scripts/dev.sh takes.
+        root = store_root(args.store)
         # A physical session reads this process's own input, which is where a
         # person types the readings nothing else on a real railroad publishes
         # yet (#315). A simulated one is handed none: the simulator has its
         # own sensors, and a `tc49 live` in a pipeline reads nothing it was
         # not asked to.
         session = Session(
-            ASSETS,
+            root,
             args.period,
             args.port,
             args.state,
@@ -463,15 +513,13 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         if args.station is not None:
             named = args.railroad
             assert isinstance(named, str)  # named, by the refusal above
-            physical = station_note(
-                args.station, named, AssetStore(ASSETS).roster(named)
-            )
+            physical = station_note(args.station, named, AssetStore(root).roster(named))
         # A session carries a store so that one command is all a browser
         # needs. Where one is already serving — scripts/dev.sh, whose store
         # outlives any session — a second would only fail to bind the port.
         store_line = ""
         if not args.no_store:
-            store_server = make_server(ASSETS, args.store_port, args.host)
+            store_server = make_server(root, args.store_port, args.host)
             threading.Thread(
                 target=store_server.serve_forever, name="store", daemon=True
             ).start()
@@ -480,6 +528,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
             f"live: polling commands every {args.period}s\n"
             f"  bridge  ws://{reachable(args.host)}:{session.bridge.port}/<railroad>\n"
             f"{store_line}"
+            f"  rooted  {root}: {holding(AssetStore(root))}\n"
             f"{physical}"
             f"{picking(args.station is not None)}; there is no timetable;"
             f" Ctrl-C ends the session, and {restart_note(args.state)}\n"
@@ -502,25 +551,33 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         return 0
 
     if args.command == "serve":
-        server = make_server(ASSETS, args.port, args.host)
+        root = store_root(args.store)
+        server = make_server(root, args.port, args.host)
         out.write(
-            f"serving {ASSETS} on http://{reachable(args.host)}:{server.server_port}\n"
+            f"serving {root} on http://{reachable(args.host)}:{server.server_port}\n"
+            f"  {holding(AssetStore(root))}\n"
         )
         out.flush()
         server.serve_forever()
         return 0
 
     if args.command == "generate":
-        root: Path = args.out
+        # The checkout this is running in unless another is named: the
+        # generated sources are a checkout's and not a store's, so this is the
+        # one command that still goes looking for one (ADR-0014).
+        checkout: Path = args.out or find_root()
         for generated, render in GENERATORS.items():
-            path = root / generated
+            path = checkout / generated
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(render())
             out.write(f"wrote {path}\n")
         return 0
 
     if args.command == "layout":
-        layout = AssetStore(ASSETS).get(args.layout)
+        # The fixtures: this is the topology review a committed layout file
+        # used to give in a diff (ADR-0015), and what it reviews is what the
+        # checkout carries.
+        layout = AssetStore(find_assets()).get(args.layout)
         assert isinstance(layout, Layout)
         out.write(format_layout(layout))
         return 0
