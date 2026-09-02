@@ -43,7 +43,7 @@ def test_a_whole_run_says_it_once_and_never_changes_it() -> None:
     start and appears nowhere after."""
     layout, _roster, scenario = load("crossover-yard/meet")
     assembly = build(layout, _roster, scenario)
-    assembly.simulator.run()
+    assembly.simulation.run()
 
     said = events(assembly.trace, "power")
     assert said == [{"time": 0.0, "event": "power", "at": 0.0, "power": "on"}]

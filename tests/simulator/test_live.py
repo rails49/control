@@ -15,7 +15,7 @@ def run_live_for(turns: int, period_s: float) -> tuple[str, list[float]]:
     layout, _roster, scenario = load("crossover-yard/meet")
     assembly = build(layout, _roster, scenario)
     slept: list[float] = []
-    assembly.simulator.run_live(
+    assembly.simulation.run_live(
         period_s,
         sleep=slept.append,
         stop=lambda: len(slept) >= turns,
@@ -45,7 +45,7 @@ def test_a_live_session_survives_quiescence() -> None:
     until told to stop."""
     layout, _roster, scenario = load("crossover-yard/meet")
     batch = build(layout, _roster, scenario)
-    batch.simulator.run()
+    batch.simulation.run()
 
     trace, slept = run_live_for(60, period_s=1000.0)
     completed = {line["id"] for line in events(trace, "request_completed")}
@@ -60,7 +60,7 @@ def test_the_railroad_runs_in_live_mode_as_it_does_in_batch() -> None:
     is the whole difference, so the traces agree byte for byte."""
     layout, _roster, scenario = load("crossover-yard/meet")
     batch = build(layout, _roster, scenario)
-    batch.simulator.run()
+    batch.simulation.run()
 
     trace, _ = run_live_for(60, period_s=1000.0)
     assert trace == batch.trace
