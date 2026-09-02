@@ -10,9 +10,11 @@ These are the harness's inputs and nobody's railroad. They sit under `bench/`
 rather than beside `src/` for that reason: a `layouts/` at the top level reads
 as the place an installation puts its own drawings, and the top level is the
 system's rather than the harness's
-([#319](https://github.com/rails49/control/issues/319)). Where an
-installation's own documents live is
-[#318](https://github.com/rails49/control/issues/318) and is not settled here.
+([#319](https://github.com/rails49/control/issues/319)). An installation's own
+documents live somewhere else entirely — `~/tc49` unless it says otherwise,
+which is the other of the two roots that never meet
+([docs/store/LAYOUT.md](../docs/store/LAYOUT.md),
+[#320](https://github.com/rails49/control/issues/320)).
 
 A fixture is frozen once it is committed. Every number in
 [BENCHMARKS.md](../docs/bench/BENCHMARKS.md) is a number over one of these

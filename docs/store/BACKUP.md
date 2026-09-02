@@ -26,8 +26,9 @@ git init
 git remote add origin git@github.com:you/my-railroad.git   # optional
 ```
 
-Then turn automated backup on — `Backup ▸ Automatic backup` in the UI, which
-writes `backup.yaml` in the store. It is a document of the installation like
+Then turn automated backup on — `File ▸ Backup…` in the UI, and *Turn
+automatic backup on* in the dialog it opens, which writes `backup.yaml` in the
+store. It is a document of the installation like
 the catalogue is, so it is backed up with the rest and a restored store comes
 back with backup still on.
 
@@ -59,10 +60,27 @@ cannot be reached is logged and the next timer tries again. **A lost network
 never blocks a save and never raises a dialog** — the person drawing has
 nothing to answer about the wifi.
 
+That is a claim about how long a save takes, and three rules keep it true. The
+lock the timers share is **not held across a push**, because the thread
+serving a save takes the same lock. **Nothing serving a request pushes**: the
+store answers one request at a time, so a push there would stop every route,
+and `Back up now` answers with the commit and leaves the copy to the next
+tick. And a push is **given up on after `PUSH_TIMEOUT_S`**, because a remote
+that refuses answers at once while one that is unreachable does not answer at
+all, and quitting has to be able to finish.
+
+**A copy that keeps failing does get said out loud, after a day.** Each
+failure on its own is a network coming and going and is only logged. What the
+store reports instead is how far behind the copy is — how many backups the
+remote has not been given and how old the oldest is, which is asked of git
+(`git log @{u}..HEAD`) rather than remembered, so a restart does not forget
+it. Past `STALE_S` the editor marks `File ▸ Backup…`. Without that, a remote
+that moved is invisible until the disk it was protecting against fails.
+
 ## Restoring
 
-`Backup ▸ Restore…` lists the backups there are and puts the store back as the
-one you pick held it. It is usually not the last one you want: the editing
+*Restore*, in the footer of the `File ▸ Backup…` dialog, lists the backups
+there are and puts the store back as the one you pick held it. It is usually not the last one you want: the editing
 session you are trying to get out of was itself backed up.
 
 **A restore over documents that have not been backed up is refused**, in words
