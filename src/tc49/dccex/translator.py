@@ -34,6 +34,17 @@ topics, and applying it is the whole of coming up. The track row goes first,
 so nothing is commanded onto dead rails and a release's zeros land before the
 speeds rather than over them.
 
+**Powering on sends the startup file, if there is one.** `startup` names a
+file of raw station commands, one per line, sent in order straight after the
+track-on command; it is where a person writes the trip current each of this
+railroad's power districts really takes, in the station's own language, and
+the only place those values appear. A power district is a hardware fact that
+reaches no bus topic (#217), and the file is not parsed beyond blank and
+comment, so this app has no vocabulary for what is in it. Failing to read it
+is logged and powers on anyway: a railroad coming up at the firmware's low
+default trips early, which is safe and visible, where refusing to power on
+over a missing file is neither (ADR-0050).
+
 Three rules are not a row of the mapping table, and each is a way a train
 could otherwise move on its own:
 
@@ -72,7 +83,9 @@ what is here is the connection and the state that a connection is made of.
 
 import asyncio
 import contextlib
+import logging
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import NamedTuple
 
 from tc49.dccex import commands, replies
@@ -85,6 +98,8 @@ from tc49.lib.payload import (
     desired_position,
     desired_speed,
 )
+
+_log = logging.getLogger(__name__)
 
 SYSTEM = "dccex"
 """The first level of a point or signal address this app answers to, and the
@@ -154,6 +169,7 @@ class DccEx:
         port: int = PORT,
         *,
         connect: Connect | None = None,
+        startup: Path | None = None,
         poll_s: float = POLL_S,
         first_backoff_s: float = FIRST_BACKOFF_S,
         max_backoff_s: float = MAX_BACKOFF_S,
@@ -163,6 +179,7 @@ class DccEx:
         self._connect: Connect = connect or (
             lambda: asyncio.open_connection(host, port)
         )
+        self._startup = startup
         self._poll_s = poll_s
         self._first_backoff_s = first_backoff_s
         self._max_backoff_s = max_backoff_s
@@ -186,6 +203,9 @@ class DccEx:
         # release a lock without sending the zeros first, and an extra set of
         # zeros costs nothing (ADR-0050).
         self._latched = False
+        # Whether this app has switched this station's track on, which is
+        # what makes the startup file a transition rather than a level.
+        self._powered_on = False
         # What was last said on each of the two rows this app writes.
         self._track = ""
         self._link: tuple[bool, str] | None = None
@@ -261,7 +281,8 @@ class DccEx:
         self._send(message)
 
     def _act_track(self, payload: Payload) -> None:
-        """The power, and the release that has to come before it.
+        """The power, the release that has to come before it, and the startup
+        file that follows it.
 
         `on` while a stop may be latched is the dangerous transition and the
         only one with a rule: the station resumes every locomotive at the
@@ -271,6 +292,14 @@ class DccEx:
         can disagree for one round trip and releasing without the zeros is
         the failure that matters. An unnecessary set of zeros stops trains
         that were already standing.
+
+        The startup file goes **after** the track-on command and on every
+        transition into `on` rather than at every `on`: a second `on` over
+        rails that are already live asks the station for nothing new, and any
+        other word — `off` or the lock — arms the next one. A link that goes
+        takes the memory with it too, because the station on the far end of
+        the next one may have restarted, and one that has forgotten its trip
+        currents runs at the firmware's default until somebody notices.
         """
         power = commanded_power(payload)
         if power is None:
@@ -281,8 +310,36 @@ class DccEx:
             self._send(commands.RELEASE)
             self._latched = False
         self._send(commands.track(power))
+        if power == ON and not self._powered_on:
+            self._send_startup()
+        self._powered_on = power == ON
         if power == STOPPED:
             self._latched = True
+
+    def _send_startup(self) -> None:
+        """The startup file, read now and sent line by line.
+
+        Read at the transition and not once at startup, so that editing the
+        file and powering the railroad off and on is the whole of changing a
+        trip current — there is no process to restart, and the values a
+        person is adjusting are ones they adjust with the railroad in front
+        of them.
+
+        A file that is missing or cannot be read is logged and nothing else:
+        the power-on goes ahead, because a railroad at the firmware's low
+        default trips early, which is safe and visible, and one that refuses
+        to come up over a configuration file is worse (ADR-0050).
+        """
+        path = self._startup
+        if path is None:
+            return
+        try:
+            text = path.read_text()
+        except (OSError, UnicodeDecodeError) as unreadable:
+            _log.warning("startup file %s not sent: %s", path, unreadable)
+            return
+        for message in commands.startup(text):
+            self._send(message)
 
     def _applied(self) -> list[Wanted]:
         """The desired picture in the order a fresh connection is handed it:
@@ -398,14 +455,20 @@ class DccEx:
         self._publish_track()
 
     def _forget(self) -> None:
-        """Let go of everything the station told us, the link having gone.
+        """Let go of everything the station told us, and of having powered
+        it on, the link having gone.
+
         What cannot be read is not what was last read: a district that
         tripped while we were away, or a stop somebody cleared by hand, would
-        otherwise stand as an observation nobody made."""
+        otherwise stand as an observation nobody made. The power-on is the
+        same kind of staleness pointing the other way — the station on the
+        next link may be one that has just come up — so the next `on` sends
+        the startup file again rather than assume the last one took."""
         self._answered = False
         self._tracks.clear()
         self._every = None
         self._paused = False
+        self._powered_on = False
 
     def _send(self, message: bytes) -> None:
         """One whole message to the station, or nothing at all because the

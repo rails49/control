@@ -14,8 +14,10 @@ message arriving there is the app having acted.
 
 import asyncio
 import contextlib
+import logging
 import socket
 from collections.abc import AsyncGenerator
+from pathlib import Path
 
 import pytest
 
@@ -117,13 +119,18 @@ class Tap:
 
 @contextlib.asynccontextmanager
 async def running(
-    bus: Bus, port: Port, poll_s: float = NEVER_S, backoff_s: float = 0.005
+    bus: Bus,
+    port: Port,
+    poll_s: float = NEVER_S,
+    backoff_s: float = 0.005,
+    startup: Path | None = None,
 ) -> AsyncGenerator[DccEx]:
     """The app, constructed on the bus and keeping its link, until the test
     is done with it."""
     app = DccEx(
         bus,
         connect=port.connect,
+        startup=startup,
         poll_s=poll_s,
         first_backoff_s=backoff_s,
         max_backoff_s=backoff_s * 4,
@@ -346,6 +353,165 @@ async def _stop_this_app_commanded_is_released_before_the_station_answers() -> N
             b"<!R>",
             b"<1>",
         ]
+
+
+# -- the startup file ----------------------------------------------------
+
+FILE = """\
+# /etc/tc49/dccex-startup.txt — trip currents for the four districts
+
+<= A LIMIT 3000>
+<= B LIMIT 3000>
+<= C LIMIT 1500>
+"""
+
+SENT = [b"<= A LIMIT 3000>", b"<= B LIMIT 3000>", b"<= C LIMIT 1500>"]
+
+
+def written(tmp_path: Path) -> Path:
+    path = tmp_path / "dccex-startup.txt"
+    path.write_text(FILE)
+    return path
+
+
+def test_powering_on_sends_the_track_on_and_then_the_file(tmp_path: Path) -> None:
+    asyncio.run(_powering_on_sends_the_track_on_and_then_the_file(written(tmp_path)))
+
+
+async def _powering_on_sends_the_track_on_and_then_the_file(startup: Path) -> None:
+    """The order is the whole of it: the districts take their trip currents
+    once there is power to trip. The comment and the blank line are a
+    person's layout of the file and are not commands, so the station never
+    sees them."""
+    bus, _ = bus_and_tap()
+    port = Port()
+    async with running(bus, port, startup=startup):
+        station = await port.opened()
+        wanted(bus, TRACK, "", {"power": "on"})
+        bus.drain()
+        assert await station.heard(4) == [b"<1>"] + SENT
+        await station.heard_nothing_more()
+
+
+def test_a_second_on_with_no_off_between_sends_the_file_once(tmp_path: Path) -> None:
+    asyncio.run(_second_on_with_no_off_between_sends_the_file_once(written(tmp_path)))
+
+
+async def _second_on_with_no_off_between_sends_the_file_once(startup: Path) -> None:
+    """It is a transition and not a level: an `on` over rails that are
+    already live asks the station for nothing new, and an `off` and back is
+    what makes it a fresh power-on again."""
+    bus, _ = bus_and_tap()
+    port = Port()
+    async with running(bus, port, startup=startup):
+        station = await port.opened()
+        wanted(bus, TRACK, "", {"power": "on"})
+        bus.drain()
+        assert await station.heard(4) == [b"<1>"] + SENT
+
+        wanted(bus, TRACK, "", {"power": "on"})
+        bus.drain()
+        assert await station.heard(1) == [b"<1>"]
+        await station.heard_nothing_more()
+
+        wanted(bus, TRACK, "", {"power": "off"})
+        wanted(bus, TRACK, "", {"power": "on"})
+        bus.drain()
+        assert await station.heard(5) == [b"<0>", b"<1>"] + SENT
+
+
+def test_clearing_a_stop_powers_on_and_sends_the_file(tmp_path: Path) -> None:
+    asyncio.run(_clearing_a_stop_powers_on_and_sends_the_file(written(tmp_path)))
+
+
+async def _clearing_a_stop_powers_on_and_sends_the_file(startup: Path) -> None:
+    """`stopped` is not `on`, so the `on` that clears it is a transition into
+    `on` like any other and the file follows the track-on command — behind
+    the zeros and the release, which come first whatever else the transition
+    carries. The rails stayed live under the lock and the station has the
+    values already; sending them twice sets them to what they were."""
+    bus, _ = bus_and_tap()
+    port = Port()
+    async with running(bus, port, startup=startup):
+        station = await port.opened()
+        wanted(bus, TRACTION, "3", {"addr": "3", "speed": 0.5})
+        wanted(bus, TRACK, "", {"power": "on"})
+        bus.drain()
+        assert await station.heard(5) == [b"<t 3 63 1>", b"<1>"] + SENT
+
+        wanted(bus, TRACK, "", {"power": "stopped"})
+        wanted(bus, TRACK, "", {"power": "on"})
+        bus.drain()
+        cleared = [b"<!P>", b"<t 3 0 1>", b"<!R>", b"<1>"]
+        assert await station.heard(7) == cleared + SENT
+
+
+def test_a_new_link_powers_on_from_the_beginning(tmp_path: Path) -> None:
+    asyncio.run(_new_link_powers_on_from_the_beginning(written(tmp_path)))
+
+
+async def _new_link_powers_on_from_the_beginning(startup: Path) -> None:
+    """The station on the far end of the next link may be one that has just
+    restarted, and one that has forgotten its trip currents runs at the
+    firmware's default until somebody notices. So the memory goes with the
+    link and the retained `on` sends the file again."""
+    bus, _ = bus_and_tap()
+    port = Port()
+    async with running(bus, port, startup=startup):
+        wanted(bus, TRACK, "", {"power": "on"})
+        bus.drain()
+        first = await port.opened()
+        assert await first.heard(4) == [b"<1>"] + SENT
+
+        first.hangs_up()
+        second = await port.opened(2)
+        assert await second.heard(4) == [b"<1>"] + SENT
+
+
+def test_with_no_startup_file_the_byte_stream_is_what_it_was() -> None:
+    asyncio.run(_with_no_startup_file_the_byte_stream_is_what_it_was())
+
+
+async def _with_no_startup_file_the_byte_stream_is_what_it_was() -> None:
+    """The flag is optional and its absence is not a behaviour: what goes out
+    is the track-on command and nothing after it."""
+    bus, _ = bus_and_tap()
+    port = Port()
+    async with running(bus, port):
+        station = await port.opened()
+        wanted(bus, TRACK, "", {"power": "on"})
+        bus.drain()
+        assert await station.heard(1) == [b"<1>"]
+        await station.heard_nothing_more()
+
+
+def test_a_file_that_cannot_be_read_is_logged_and_the_railroad_powers_on(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    asyncio.run(
+        _file_that_cannot_be_read_is_logged_and_the_railroad_powers_on(
+            tmp_path / "not-there.txt", caplog
+        )
+    )
+
+
+async def _file_that_cannot_be_read_is_logged_and_the_railroad_powers_on(
+    missing: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A railroad coming up at the firmware's low default trips early, which
+    is safe and visible; one that refuses to come up over a configuration
+    file is neither (ADR-0050). The person who has to fix it reads the
+    log."""
+    bus, _ = bus_and_tap()
+    port = Port()
+    with caplog.at_level(logging.WARNING):
+        async with running(bus, port, startup=missing):
+            station = await port.opened()
+            wanted(bus, TRACK, "", {"power": "on"})
+            bus.drain()
+            assert await station.heard(1) == [b"<1>"]
+            await station.heard_nothing_more()
+    assert "not-there.txt" in caplog.text
 
 
 # -- what the hardware reports -------------------------------------------
