@@ -772,23 +772,34 @@ export class TcPanel extends LitElement {
    *  them has moved. */
   private said: RunStatus | null = null;
 
+  /** The cabs the app was last told, written out: the array is built afresh
+   *  on every render, so what one frame's answer is compared against is its
+   *  text. The same care `run-status` takes field by field, and for the same
+   *  reason — the app holds what it is told, so telling it again on a frame
+   *  that changed nothing would re-render the whole page on every event the
+   *  bus carries. */
+  private saidCabs = "";
+
+  /** The throttle's cabs, where they have moved: they are the last frame's
+   *  answer like everything else the picture says (ui/THROTTLE.md). The app
+   *  holding them sets no property of this view to a new value, so nothing
+   *  comes back round. */
+  private tellCabs(): void {
+    const now = this.driving;
+    const written = JSON.stringify(now);
+    if (written === this.saidCabs) return;
+    this.saidCabs = written;
+    this.dispatchEvent(
+      new CustomEvent<Cab[]>("cabs", { detail: now, bubbles: true, composed: true }),
+    );
+  }
+
   override updated(): void {
     if (this.fitting) {
       this.fitting = false;
       this.canvas?.fit();
     }
-    // The throttle's cabs, every time this view has drawn: they are the last
-    // frame's answer like everything else the picture says, and there is no
-    // field to compare them against — the array is built afresh. The app
-    // holding them re-renders and sets no property of this view to a new
-    // value, so nothing comes back round.
-    this.dispatchEvent(
-      new CustomEvent<Cab[]>("cabs", {
-        detail: this.driving,
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    this.tellCabs();
     const now = this.status;
     const was = this.said;
     if (
