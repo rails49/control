@@ -280,7 +280,7 @@ alone. The path is not a topic, so none of this changes what a client may
 publish.
 
 **A browser cannot publish a request.** `tc49/dispatch/request_submitted` is
-refused like any other topic that is not one of the five above. A browser
+refused like any other topic that is not one of the eight above. A browser
 publishes gestures and the scheduler turns them into requests, so "only the
 scheduler writes requests" is something the relay checks rather than an
 intention
