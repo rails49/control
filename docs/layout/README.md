@@ -369,6 +369,18 @@ rather than folded back into a train standing there
 way is recorded clear and not forgotten, so it reads occupied again the
 ordinary way, by a change in the fold.
 
+**A spent end counts again.** What a release spends is the ends of X reading
+occupied at the moment it runs, and they count again as soon as that
+departure is over: when the end itself settles a level of its own, and when X
+is published occupied again, which un-spends *both* of its ends — a new train
+standing in X ends the previous departure's account. Otherwise an end that was
+spent and never changes again — a car left standing, a detector stuck occupied
+— would be out of the fold for good, and the block behind the next train would
+be published vacated while the steel still reads occupied. A level no move
+explains is still a level, and holding the run on it is the point
+([ADR-0048](../adr/0048-an-unexplained-reading-holds-the-run.md),
+[#331](https://github.com/rails49/control/issues/331)).
+
 **The debounce.** A camera-based detector runs at 2–8 Hz with no debounce of
 its own and is biased towards reporting occupied, so a new level is held for a
 **settling time** before it is acted on, and a level that flips back inside
