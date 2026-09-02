@@ -38,9 +38,10 @@ Each app's implementation details live beside it:
 - [Layout](docs/layout) — the [layout interface as a core
   app](docs/layout/README.md): the three rules a command meets, and the device
   vocabulary the hardware hangs under.
-- [Station](docs/station) — the [command station mirror](docs/station/README.md):
-  one process owns the USB device and serves it on TCP 2560, so the `dccex`
-  translator, JMRI and hand-held throttles share one station.
+- [DCC-EX over USB](docs/dccex_usb) — the [command station
+  mirror](docs/dccex_usb/README.md): one process owns the USB device and
+  serves it on TCP 2560, so the `dccex` translator, JMRI and hand-held
+  throttles share one command station.
 - [DCC-EX](docs/dccex) — the [translator](docs/dccex/README.md) between the
   device vocabulary and the command station: the mapping a row at a time, the
   latched stop and the zeros that precede its release, and the only page here

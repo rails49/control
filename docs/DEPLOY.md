@@ -73,7 +73,7 @@ on its own. There is no systemd unit to forget.
 | the app, over the certificate | 443 | `https://layout.rails49.org` |
 | the broker, native clients | 1883 | the LAN address |
 | the broker, a browser | 9001, and `/mqtt` | plaintext on the LAN, or through the proxy from a TLS page |
-| `station`, the command station mirrored | 2560 | the LAN address |
+| `dccex-usb`, the command station mirrored | 2560 | the LAN address |
 | JMRI's desktop | 6901 noVNC, 5901 VNC | `http://192.168.178.56:6901` |
 | JMRI's web server, once it is running | 12080 | the LAN address |
 
@@ -86,14 +86,15 @@ named by
 /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
 ```
 
-rather than `/dev/ttyUSB0`, which renumbers, and arrives inside the `station`
-container as `/dev/dccex`. The chip carries no serial number, so that path is
-stable only while it is the only CH340 on the box; a second one would want
-`TC49_STATION_DEVICE` set to whatever `ls /dev/serial/by-id/` then says.
+rather than `/dev/ttyUSB0`, which renumbers, and arrives inside the
+`dccex-usb` container as `/dev/dccex`. The chip carries no serial number, so
+that path is stable only while it is the only CH340 on the box; a second one
+would want `TC49_STATION_DEVICE` set to whatever `ls /dev/serial/by-id/` then
+says.
 
-Only `station` opens the device. Everything else — the `dccex` translator,
+Only `dccex-usb` opens the device. Everything else — the `dccex` translator,
 JMRI, hand-held throttles — is a client of 2560, and they coexist: every byte
-the station sends reaches every client, and a client's bytes go to the station
+the command station sends reaches every client, and a client's bytes go to it
 only as whole `<…>` messages (ADR-0043).
 
 ### JMRI
@@ -101,8 +102,16 @@ only as whole `<…>` messages (ADR-0043).
 An operator's tool and none of this app's business. The image does not start
 JMRI: open `http://192.168.178.56:6901`, and click DecoderPro or PanelPro on
 the desktop. Its profile is already pointed at the command station — a DCC++
-over TCP connection to `station:2560` — and `/home/jmri` is a volume, so
+over TCP connection to `dccex-usb:2560` — and `/home/jmri` is a volume, so
 whatever else is configured through the GUI survives the container.
+
+That volume is why renaming the service
+([#299](https://github.com/rails49/control/issues/299)) needs a click here.
+Compose's DNS follows the service name, and a profile saved before the rename
+still holds the old one, which no longer resolves: open DecoderPro, set the
+connection's host to `dccex-usb`, and save. Nothing else moves — the published
+port is still 2560, and everything reaching it by LAN address reaches it
+unchanged.
 
 ### The router
 

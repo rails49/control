@@ -5,6 +5,15 @@ Resolves the main question of the milestone-2 map
 physical binding of the layout interface, stated once for every kind of
 hardware and any layout.
 
+**Amended for
+[#299](https://github.com/rails49/control/issues/299), 2026-09-02:** the small
+app called `station` below is now `dccex-usb` — the package `tc49.dccex_usb`,
+the compose service and the image `dccex-usb`, its page
+[docs/dccex_usb/README.md](../dccex_usb/README.md). The word `station` was a
+block's role as well ([CONTEXT.md](../../CONTEXT.md), **Role**), and one name
+could not be both. Nothing it does changed, so the text below is left as it
+was written and the old name read as the new one.
+
 ## The layout interface is `layout`, always running, hardware-independent
 
 Everything [SYSTEM.md](../SYSTEM.md#layout-interface) and the ADRs put on
