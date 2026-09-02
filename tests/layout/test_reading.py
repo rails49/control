@@ -19,6 +19,8 @@ from tests.layout.railroad import (
     DEVICE_LINK,
     DEVICE_SENSOR,
     DEVICE_TRACK,
+    MODE,
+    MODE_WANTED,
     MOVE,
     PLACED,
     POWER,
@@ -37,10 +39,19 @@ from tests.layout.railroad import (
     wired,
 )
 
-COMMANDED = (ALIGN, MOVE, POWER_WANTED, PLACED, REMOVED, ASPECTS)
+COMMANDED = (
+    ALIGN,
+    MOVE,
+    POWER_WANTED,
+    MODE_WANTED,
+    PLACED,
+    REMOVED,
+    ASPECTS,
+)
 """Everything above the layout interface that reaches this app: two commands,
-a person's press, the two placement facts and the dispatcher's picture. A
-frame on one of these that cannot be read leaves the app exactly as it was."""
+a person's press, the gesture that takes a train in a throttle, the two
+placement facts and the dispatcher's picture. A frame on one of these that cannot be read leaves the
+app exactly as it was."""
 
 FOLDED = (DEVICE_TRACK, DEVICE_LINK + "/dccex")
 """The two device rows the railroad's power is folded from. An unreadable
@@ -169,10 +180,11 @@ def test_an_unreadable_reading_is_no_information_about_that_end() -> None:
     assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
 
 
-def test_a_fresh_app_has_said_two_things_and_no_more() -> None:
+def test_a_fresh_app_has_said_three_things_and_no_more() -> None:
     """It subscribes the observed half of the device vocabulary and writes
     the desired half, so nothing it publishes reaches its own handlers and
     there is no cascade to come up out of: a fresh railroad is the supply
-    commanded off and the app saying it believes it is."""
+    commanded off, the app saying it believes it is, and nobody driving
+    anything."""
     bus, _app = build()
-    assert set(bus.last_values) == {WANTED_TRACK, POWER}
+    assert set(bus.last_values) == {WANTED_TRACK, POWER, MODE}

@@ -103,11 +103,12 @@ remains the milestone-1 binding of the same interface (ADR-0030).
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import (
+    MANUAL,
     OCCUPIED,
     OFF,
     ON,
@@ -127,6 +128,7 @@ from tc49.lib.layout import (
 )
 from tc49.lib.payload import (
     Command,
+    Mode,
     Ordering,
     alignment,
     command,
@@ -139,6 +141,7 @@ from tc49.lib.payload import (
     power,
     reported_reason,
     shown_aspects,
+    wanted_mode,
 )
 from tc49.lib.roster import FORWARD, Roster
 
@@ -147,6 +150,7 @@ _log = logging.getLogger(__name__)
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
 POWER_WANTED = "tc49/layout/power_wanted"
+MODE_WANTED = "tc49/layout/mode_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
@@ -156,6 +160,7 @@ DEVICE = "tc49/layout/state/device/#"
 BLOCK_OCCUPIED = "tc49/layout/block_occupied"
 BLOCK_VACATED = "tc49/layout/block_vacated"
 POWER = "tc49/layout/state/power"
+MODE = "tc49/layout/state/mode"
 WANTED_TRACTION = "tc49/layout/state/wanted/traction"
 WANTED_POINT = "tc49/layout/state/wanted/point"
 WANTED_SIGNAL = "tc49/layout/state/wanted/signal"
@@ -190,18 +195,31 @@ class _Crossing:
     it comes in *at*. The two are opposite ends of the one block and the axes
     have been confused before (#279).
 
-    `commanded` is the addresses this move put a speed on, and it is what the
-    arrival writes zero to: exactly the cars that were told to run, since a
-    car nothing was sent for is a car nothing may be sent for. It empties on
-    the arrival, which is the first level the entered block settles occupied
-    — the train is in the block it was sent to and the tail clearing is a
-    fact about the block behind, so the zeros do not wait for the vacate
+    `train` is who is crossing, and it is here so that a train can be found by
+    name: taking one in a throttle or giving it back has to reach the move it
+    is in the middle of, and nothing else about a crossing says whose it is
+    (#297).
+
+    `implied` is what this move is worth on each addressed car — the speed the
+    grant implies, which is what a train handed back mid-transit is given. It
+    empties on the arrival, which is the first level the entered block settles
+    occupied: the train is in the block it was sent to and the tail clearing
+    is a fact about the block behind, so nothing here waits for the vacate
     (#296).
+
+    `driving` is whether the wheels are this app's for the length of this
+    crossing. It is true for an automatic train, false for a manual one whose
+    throttle a person is holding, and it moves with the mode: what it decides
+    is who writes — the speed at the start and the `0.0` at the arrival go out
+    exactly where it is true, since a car nothing was sent for is a car
+    nothing may be sent for.
     """
 
     origin: str
     far: str
-    commanded: tuple[str, ...] = ()
+    train: str
+    implied: tuple[tuple[str, float], ...] = ()
+    driving: bool = True
 
 
 @dataclass(frozen=True)
@@ -211,6 +229,26 @@ class _Settling:
 
     level: str
     at: float
+
+
+def _composed(
+    addressed: tuple[tuple[str, str], ...], nose_first: bool, magnitude: float
+) -> tuple[tuple[str, float], ...]:
+    """The signed speed each addressed car is given, out of how fast the train
+    is to run, whether it runs nose-first, and which way round each of its cars
+    is coupled.
+
+    The one composition, made twice: a `move` gets `nose_first` from the end it
+    departs through against the train's facing, and a person's throttle gets it
+    from the sign of the lever, a lever being stated nose-first positive
+    (SYSTEM.md, *Layout interface*). Either way a car runs positive when the
+    movement is nose-first and the car is `forward`, or when the movement is
+    propelled and the car is `reverse` — which is what lets one number drive a
+    top-and-tail set, the two locomotives running opposite (ADR-0045)."""
+    return tuple(
+        (addr, magnitude if (orientation == FORWARD) == nose_first else -magnitude)
+        for addr, orientation in addressed
+    )
 
 
 class LayoutInterface:
@@ -255,6 +293,11 @@ class LayoutInterface:
         # scheduler's state topic, there being nowhere else facing lives.
         self._position: dict[str, str] = {}
         self._facing: dict[str, str] = {}
+        # Who drives each train. Only the manual ones are held: `automatic` is
+        # the resting value and a train the map does not name is automatic, so
+        # this is the record of which trains a person has taken and it is what
+        # `state/mode` carries.
+        self._mode: dict[str, str] = {}
         # The transits an `align` has named, and the moves waiting on one.
         self._aligned: set[str] = set()
         self._held: dict[str, Command] = {}
@@ -287,9 +330,17 @@ class LayoutInterface:
         # believing (ADR-0030).
         bus.publish(WANTED_TRACK, {"power": OFF})
         bus.publish(POWER, {"power": OFF})
+        # And every train is automatic, which is the resting value and the
+        # honest one: this app's map of who drives is empty, so the topic says
+        # so rather than leaving a client to read that out of an absence
+        # (ADR-0032). It is not subscribed to and a value left there by a
+        # previous session is superseded rather than adopted — the mode is a
+        # person's hand on a throttle, and a restart is not a hand.
+        bus.publish(MODE, {"modes": {}})
         bus.subscribe(ALIGN, self._on_align)
         bus.subscribe(MOVE, self._on_move)
         bus.subscribe(POWER_WANTED, self._on_power_wanted)
+        bus.subscribe(MODE_WANTED, self._on_mode_wanted)
         bus.subscribe(PLACED, self._on_placed)
         bus.subscribe(REMOVED, self._on_removed)
         bus.subscribe(ASPECTS, self._on_aspects)
@@ -410,6 +461,14 @@ class LayoutInterface:
         waiting for its `align` is judged on the facing it has when it acts,
         like every other rule here.
 
+        A **manual** train's move runs the whole of this and writes nothing:
+        the throttle is a person's, so this app neither starts the train on
+        the grant nor stops it on arrival, and the refusal above has nothing
+        to refuse. The points still throw, the near end is still checked and
+        the crossing is still recorded, because those are the route and not
+        the driving (#297). What the move was worth is kept all the same: it
+        is what the train is given if it is handed back before it arrives.
+
         The crossing is what the fold needs and nothing above the interface
         could supply: no detector names the block a train is leaving, so the
         move that was carried out is the only thing that knows it (#288).
@@ -431,15 +490,25 @@ class LayoutInterface:
         if transit not in self._aligned:
             self._held[transit] = commanded
             return
+        driving = self._mode.get(commanded.train) != MANUAL
         wheels = self._traction(commanded, near)
         if wheels is None:
-            return
+            if driving:
+                return
+            # A manual train's move runs its course whatever this app could
+            # have made of the sign: nothing is being written, so there is no
+            # wrong way to drive it and no refusal to make (#297).
+            wheels = ()
         self._position[commanded.train] = commanded.into
         self._crossing[commanded.into] = _Crossing(
             origin=block_of(near),
             far=opposite_end(entered),
-            commanded=tuple(addr for addr, _speed in wheels),
+            train=commanded.train,
+            implied=wheels,
+            driving=driving,
         )
+        if not driving:
+            return
         for addr, speed in wheels:
             self._traction_write(addr, speed)
 
@@ -489,25 +558,45 @@ class LayoutInterface:
         **speed** falls the same way and for the same reason: this app would
         have to choose a number nobody asked for.
         """
-        train = self._roster.trains.get(commanded.train)
-        addressed = [
-            (coupled.car.addr, coupled.orientation)
-            for coupled in (train.cars if train is not None else ())
-            if coupled.car.addr is not None
-        ]
+        addressed = self._addressed(commanded.train)
         if not addressed:
             return ()
-        facing = self._facing.get(commanded.train)
+        facing = self._faces(commanded.train, block_of(near))
+        if facing is None or commanded.speed is None:
+            return None
+        return _composed(
+            addressed, facing_ends(facing)[1] == near, abs(commanded.speed)
+        )
+
+    def _addressed(self, train: str) -> tuple[tuple[str, str], ...]:
+        """Each car of the train that can be told a speed, as its address and
+        the way round it is coupled, in the train's own order.
+
+        `()` for a train the roster does not name and for one whose cars carry
+        no address, which are the same answer arrived at a step apart: either
+        way there are no wheels here to turn. No `kind` is read — a powered
+        van is a real thing, and the address is what says a car can be told
+        anything (ADR-0045)."""
+        made_up = self._roster.trains.get(train)
+        return tuple(
+            (coupled.car.addr, coupled.orientation)
+            for coupled in (made_up.cars if made_up is not None else ())
+            if coupled.car.addr is not None
+        )
+
+    def _faces(self, train: str, block: str) -> str | None:
+        """Which way the train points in `block`, or None where this app has
+        no facing for it there.
+
+        Three ways to have none, and they are one refusal: none published for
+        that train, one this build cannot spell, and one naming another block
+        — a facing is a run across one block, so a value about a block the
+        train is not in says nothing about what it would do here and is
+        refused rather than read as propelled (#296)."""
+        facing = self._facing.get(train)
         if facing is None or end_letter(facing) not in FACINGS:
             return None
-        if block_of(facing) != block_of(near) or commanded.speed is None:
-            return None
-        nose_first = facing_ends(facing)[1] == near
-        magnitude = abs(commanded.speed)
-        return tuple(
-            (addr, magnitude if (orientation == FORWARD) == nose_first else -magnitude)
-            for addr, orientation in addressed
-        )
+        return facing if block_of(facing) == block else None
 
     def _traction_write(self, addr: str, speed: float) -> None:
         """One decoder told how fast and which way to run, on the row that
@@ -517,6 +606,119 @@ class LayoutInterface:
         self._bus.publish(
             device_topic(WANTED_TRACTION, addr), {"addr": addr, "speed": speed}
         )
+
+    # -- who drives, and a person's throttle ---------------------------------
+
+    def _on_mode_wanted(self, topic: str, payload: Payload) -> None:
+        """A person took a train in a throttle, or gave it back (#207).
+
+        The gesture states where the mode is to **stand** rather than asking
+        for a change, so a second `manual` on a train already taken is not a
+        race and changes nothing. `train: null` names every train at once,
+        which is a thing a person does to a railroad rather than to the train
+        they have picked: every train this app holds becomes manual, or the map
+        empties, `automatic` being the resting value.
+
+        The map is published before a wheel is written, and the two writes go
+        out in that order for a reason: `state/mode` is what says whose the
+        throttle is, and the speed that follows is this app taking a train back
+        rather than driving one it does not have.
+
+        Nothing else moves the mode. A train lifted off the layout keeps whoever
+        was driving it, because a hand putting it down again is not a gesture
+        about who drives, and the throttle's own refusals are where a train
+        this app no longer holds is dealt with.
+        """
+        wanted = wanted_mode(payload)
+        if wanted is None:
+            return
+        after = self._modes(wanted)
+        if after == self._mode:
+            return
+        taken = [train for train in after if self._mode.get(train) != MANUAL]
+        given = [train for train in self._mode if after.get(train) != MANUAL]
+        self._mode = after
+        self._bus.publish(MODE, {"modes": dict(after)})
+        for train in taken:
+            self._took(train)
+        for train in given:
+            self._gave(train)
+
+    def _modes(self, wanted: Mode) -> dict[str, str]:
+        """The whole map as this gesture leaves it. Only the manual trains are
+        in it: a train the map does not name is automatic, so giving one back
+        is dropping it and handing the railroad over is naming every train it
+        holds — which is every train it has a position for, since a train that
+        stands nowhere is one nobody is driving."""
+        if wanted.train is None:
+            return (
+                dict.fromkeys(self._position, MANUAL) if wanted.mode == MANUAL else {}
+            )
+        after = dict(self._mode)
+        if wanted.mode == MANUAL:
+            after[wanted.train] = MANUAL
+        else:
+            after.pop(wanted.train, None)
+        return after
+
+    def _took(self, train: str) -> None:
+        """A train taken over: **nothing is written**. It keeps whatever speed
+        it had, and the person's first movement of the lever is what changes
+        it — writing zero on take-over would stop a running train the instant
+        somebody selected it, which is not what selecting it means (#207).
+
+        What does change is the arrival: a crossing this app was driving stops
+        being its to stop, so the `0.0` it was going to write when the train
+        got there does not go out. A person stops their own train, and the
+        signal at the far end is what tells them to.
+        """
+        flight = self._flight(train)
+        if flight is None:
+            return
+        block, crossing = flight
+        self._crossing[block] = replace(crossing, driving=False)
+
+    def _gave(self, train: str) -> None:
+        """A train handed back: it is given the speed its current grant
+        implies, which is `0.0` where there is none. A train handed back
+        mid-transit does not keep the speed a person left on it, and one
+        standing does not keep it either.
+
+        There is no grant to imply a speed in three cases and they all write
+        `0.0`: no move of this train's is in flight, one is but this app could
+        not sign it, and the rails are dead. The last is the third command rule
+        arriving here — a grant cannot be acted on over dead track at all, so
+        it implies nothing, and a desired speed left standing on a row is a
+        train that would start the moment the power came back.
+
+        A train with no addressed car has nothing written either way, which is
+        `_addressed` and not a case here.
+        """
+        flight = self._flight(train)
+        if flight is not None and self._power == ON and flight[1].implied:
+            block, crossing = flight
+            self._crossing[block] = replace(crossing, driving=True)
+            for addr, speed in crossing.implied:
+                self._traction_write(addr, speed)
+            return
+        for addr, _orientation in self._addressed(train):
+            self._traction_write(addr, 0.0)
+
+    def _flight(self, train: str) -> tuple[str, _Crossing] | None:
+        """The move this train is in the middle of — the block it is crossing
+        into and the record of it — or None where it is in the middle of none.
+
+        The **last** match and not the first: a crossing lives until the block
+        behind reports the tail clear, so a train that has arrived in Y and
+        been granted Y to Z has two, and the one that is still going anywhere
+        is the later. A train arriving empties its own crossing of the speed it
+        implied, so the older one has nothing left to say in any case.
+        """
+        found: tuple[str, _Crossing] | None = None
+        for block, crossing in self._crossing.items():
+            if crossing.train == train:
+                found = (block, crossing)
+        return found
 
     # -- where the trains stand ---------------------------------------------
 
@@ -740,16 +942,20 @@ class LayoutInterface:
         crossing = self._crossing.get(block)
         if crossing is None or level != OCCUPIED:
             return
-        if crossing.commanded:
+        if crossing.implied:
             # The arrival: the train is in the block it was sent to, so every
             # car this move commanded is told to stand. It does not wait for
             # the vacate — the tail clearing is a fact about the block behind
             # — and it happens on the first end of this block to settle
             # occupied, which is the end the train comes in at unless a
-            # reading arrived out of order.
-            for addr in crossing.commanded:
-                self._traction_write(addr, 0.0)
-            crossing = _Crossing(crossing.origin, crossing.far)
+            # reading arrived out of order. A **manual** train is stopped by
+            # the person driving it and gets no zero here (#297); either way
+            # the grant implies nothing more once the train is there, so what
+            # it implied goes with the arrival.
+            if crossing.driving:
+                for addr, _speed in crossing.implied:
+                    self._traction_write(addr, 0.0)
+            crossing = replace(crossing, implied=())
             self._crossing[block] = crossing
         if end == crossing.far:
             del self._crossing[block]

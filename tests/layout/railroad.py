@@ -20,6 +20,7 @@ from tc49.lib.roster import FORWARD, REVERSE, Car, Coupled, Roster, Train
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
 POWER_WANTED = "tc49/layout/power_wanted"
+MODE_WANTED = "tc49/layout/mode_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
@@ -28,6 +29,7 @@ FACING = "tc49/schedule/state/facing"
 BLOCK_OCCUPIED = "tc49/layout/block_occupied"
 BLOCK_VACATED = "tc49/layout/block_vacated"
 POWER = "tc49/layout/state/power"
+MODE = "tc49/layout/state/mode"
 DEVICE_SENSOR = "tc49/layout/state/device/sensor"
 WANTED_TRACTION = "tc49/layout/state/wanted/traction"
 WANTED_POINT = "tc49/layout/state/wanted/point"
@@ -190,6 +192,22 @@ def faces(bus: Bus, **facing: str) -> None:
     run each would make across its block (ADR-0019). The whole map, since that
     is what the state topic carries."""
     bus.publish(FACING, {"facing": dict(facing)})
+    bus.drain()
+
+
+def takes(bus: Bus, train: str | None) -> None:
+    """A person taking a train in a throttle. The gesture names where the mode
+    is to stand rather than asking for a change, and `None` is every train at
+    once — what a person does to a railroad rather than to the train they have
+    picked (#284)."""
+    bus.publish(MODE_WANTED, {"train": train, "mode": "manual"})
+    bus.drain()
+
+
+def gives(bus: Bus, train: str | None) -> None:
+    """The same gesture the other way: the train goes back to being driven on
+    its grants."""
+    bus.publish(MODE_WANTED, {"train": train, "mode": "automatic"})
     bus.drain()
 
 
