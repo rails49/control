@@ -815,8 +815,8 @@ def ganged_in_series() -> dict[str, Any]:
     """One way crossing two points on the same address, one lying straight and
     the other diverging. No accessory output can do that."""
     doc = two_blocks(
-        swa={"kind": "turnout", "addr": "1", "connection": "throat"},
-        swb={"kind": "turnout", "addr": "1", "connection": "throat"},
+        swa={"kind": "turnout", "addr": "dccex/1", "connection": "throat"},
+        swb={"kind": "turnout", "addr": "dccex/1", "connection": "throat"},
         swa_stop={"kind": "terminal"},
         swb_stop={"kind": "terminal"},
     )
@@ -831,8 +831,8 @@ def ganged_in_series() -> dict[str, Any]:
 
 
 def ganged_across_concurrent() -> dict[str, Any]:
-    """Two ways that may run at once, each crossing a point on address `1`,
-    one straight and one diverging."""
+    """Two ways that may run at once, each crossing a point on address
+    `dccex/1`, one straight and one diverging."""
     doc = crossover()
     for name, pin, leg, spare in (
         ("up", "uw", "straight", "diverging"),
@@ -841,7 +841,7 @@ def ganged_across_concurrent() -> dict[str, Any]:
         points = f"sw{name}"
         doc["symbols"][points] = {
             "kind": "turnout",
-            "addr": "1",
+            "addr": "dccex/1",
             "connection": "crossover",
         }
         doc["symbols"][f"{points}_stop"] = {"kind": "terminal"}
@@ -857,7 +857,7 @@ def ganged_across_concurrent() -> dict[str, Any]:
 def test_points_on_one_address_at_odds_in_one_way_are_a_fault() -> None:
     faults = Drawing.from_document(ganged_in_series()).review()["motor_faults"]
     assert [(f["addr"], f["positions"]) for f in faults] == [
-        ("1", {"closed": ["swa"], "thrown": ["swb"]})
+        ("dccex/1", {"closed": ["swa"], "thrown": ["swb"]})
     ]
     assert len(faults[0]["transits"]) == 1
 
@@ -867,7 +867,7 @@ def test_points_on_one_address_at_odds_across_concurrent_ways_are_a_fault() -> N
     fault. Declared concurrent is a promise two trains may hold it at once."""
     faults = Drawing.from_document(ganged_across_concurrent()).review()["motor_faults"]
     assert [(f["addr"], f["transits"]) for f in faults] == [
-        ("1", ["dn_straight", "up_straight"])
+        ("dccex/1", ["dn_straight", "up_straight"])
     ]
 
 
@@ -1535,16 +1535,17 @@ def test_every_leg_of_a_motorised_kind_wants_one_of_the_two_positions(
 
 @pytest.mark.parametrize("kind", sorted(POSITIONS))
 def test_a_motorised_symbol_takes_the_address_hardware_answers_to(kind: str) -> None:
-    """`addr` is a plain string and nothing checks it: a DCC accessory number
-    is a string that happens to be digits, and what a physical point answers to
-    is knowledge the drawing cannot hold (ADR-0022)."""
-    doc = two_blocks(points={"kind": kind, "addr": "31"})
-    assert Drawing.from_document(doc).symbols["points"].addr == "31"
+    """`addr` is a plain string the schema does not check: what a physical
+    point answers to under its system is knowledge the drawing cannot hold
+    (ADR-0022). Derivation asks only that it names one (ADR-0043)."""
+    doc = two_blocks(points={"kind": kind, "addr": "dccex/31"})
+    assert Drawing.from_document(doc).symbols["points"].addr == "dccex/31"
 
 
 def test_an_address_written_as_digits_is_read_as_the_string_it_names() -> None:
     """`addr: 31` in the yaml is the accessory number 31, not an integer the
-    schema has to refuse."""
+    schema has to refuse. It names no system, so the drawing it is on does not
+    derive, which is a separate sentence said at a separate time."""
     doc = two_blocks(points={"kind": "turnout", "addr": 31})
     assert Drawing.from_document(doc).symbols["points"].addr == "31"
 
@@ -1568,7 +1569,7 @@ def throat(**spec: Any) -> dict[str, Any]:
 def test_an_address_changes_nothing_in_the_layout_but_the_points() -> None:
     """The derived layout's shape does not depend on an address being there
     (#94) — everything except the `points` key itself (ADR-0031)."""
-    addressed = derive(throat(addr="31"))
+    addressed = derive(throat(addr="dccex/31"))
     bare = derive(throat())
     assert "points" in addressed["connections"]["points"]
     del addressed["connections"]["points"]["points"]
@@ -1578,9 +1579,9 @@ def test_an_address_changes_nothing_in_the_layout_but_the_points() -> None:
 def test_a_way_names_every_point_it_crosses_and_the_position_it_wants() -> None:
     """The layout's whole knowledge of hardware: an address and a position,
     per way, in the position the leg that way takes wants (ADR-0031)."""
-    assert derive(throat(addr="31"))["connections"]["points"]["points"] == {
-        "east_A__west_B": [{"addr": "31", "position": "closed"}],
-        "north_A__west_B": [{"addr": "31", "position": "thrown"}],
+    assert derive(throat(addr="dccex/31"))["connections"]["points"]["points"] == {
+        "east_A__west_B": [{"addr": "dccex/31", "position": "closed"}],
+        "north_A__west_B": [{"addr": "dccex/31", "position": "thrown"}],
     }
 
 
@@ -1591,14 +1592,65 @@ def test_a_point_wearing_no_address_is_left_out() -> None:
     assert "points" not in derive(throat())["connections"]["points"]
 
 
+def test_an_address_naming_no_system_is_refused_where_the_drawing_derives() -> None:
+    """A point is fixed wiring, and fixed wiring can be split across systems,
+    so its address names the one that answers for it first (ADR-0043). A bare
+    one reaches no translator: every `align` would name the point, nothing
+    would throw, and nothing would say why. The reason names the address, the
+    drawing being where it can be corrected."""
+    with pytest.raises(ValueError, match=r"'31', which names no system"):
+        derive(throat(addr="31"))
+
+
+@pytest.mark.parametrize("addr", ["31", "/31", "dccex/", "/"])
+def test_a_half_written_address_names_no_system_either(addr: str) -> None:
+    """Both levels have to be there: an address with nothing before the slash
+    names no system, and one with nothing after it names no device under the
+    system it does name."""
+    with pytest.raises(ValueError, match="names no system"):
+        derive(throat(addr=addr))
+
+
+def test_an_address_naming_a_system_is_taken_whatever_the_system_is() -> None:
+    """The drawing knows which system holds the wiring; it does not know which
+    translators run, and an address nobody answers to does no harm (ADR-0043).
+    So the first level is asked to be there and never checked against a
+    roll of systems."""
+    assert derive(throat(addr="jmri/LT3"))["connections"]["points"]["points"] == {
+        "east_A__west_B": [{"addr": "jmri/LT3", "position": "closed"}],
+        "north_A__west_B": [{"addr": "jmri/LT3", "position": "thrown"}],
+    }
+
+
+def test_a_drawing_wearing_no_address_at_all_still_derives() -> None:
+    """The refusal is about an address that is there and cannot be reached,
+    never about one that is absent: the committed railroads that wear none
+    derive as they always did, and the simulator needs none (ADR-0030)."""
+    unaddressed = [
+        name
+        for name in RAILROADS
+        if not any(symbol.addr for symbol in committed_drawing(name).symbols.values())
+    ]
+    assert unaddressed, "no railroad is left to prove an absent address derives"
+    for name in unaddressed:
+        assert committed(name).name == name
+
+
+def test_a_bare_address_still_loads() -> None:
+    """Checked where the drawing derives and never at save, with the pin
+    rules: an address half-typed is parked and reopened, and it is the layout
+    the apps read that has to be drivable (DRAWING.md)."""
+    assert Drawing.from_document(throat(addr="31")).symbols["points"].addr == "31"
+
+
 def test_one_address_wanted_in_both_positions_is_emitted_verbatim() -> None:
     """The way cannot be thrown at all, and the layout says so rather than
     dropping the transit: derivation's topology never depends on an address
     (#94), and `motor_faults` is where the fault is reported."""
     assert derive(ganged_in_series())["connections"]["throat"]["points"] == {
         "east_A__west_B": [
-            {"addr": "1", "position": "closed"},
-            {"addr": "1", "position": "thrown"},
+            {"addr": "dccex/1", "position": "closed"},
+            {"addr": "dccex/1", "position": "thrown"},
         ]
     }
 

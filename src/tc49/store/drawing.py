@@ -194,6 +194,7 @@ class Drawing:
 
     def derive(self) -> dict[str, Any]:
         """The layout document this drawing describes, in canonical order."""
+        self._check_addresses()
         grouped = self._transits()
         return {
             "layout": self.name,
@@ -528,6 +529,37 @@ class Drawing:
             for wire in self.wires
             if held.issuperset(wire)
         ]
+
+    # --- the address rule, checked at derivation, never at save ------------
+
+    def _check_addresses(self) -> None:
+        """Refuse a point address that names no system.
+
+        A point is fixed wiring, and fixed wiring can be split across systems
+        where traction cannot, so a point's address names the system that
+        answers for it as its first level — `dccex/5`, never `5`
+        (ADR-0043, CONTEXT.md, **Address**). A translator subscribes its own
+        system and recognises nothing else, so a bare address is one no
+        translator hears: `align` would name the point every time, nothing
+        would throw, and nothing would say why. That is the fault this
+        refusal catches, in front of the person holding the drawing.
+
+        Checked where the drawing derives and never at save, with the pin
+        rules: a drawing half-typed is parked and reopened, and it is the
+        derived layout that has to be drivable. An address is optional and an
+        absent one stays fine — a railroad wearing none derives and runs under
+        the simulator, which has no addresses (DRAWING.md).
+        """
+        for name in sorted(self.symbols):
+            addr = self.symbols[name].addr
+            system, sep, rest = addr.partition("/")
+            if addr and not (sep and system and rest):
+                raise ValueError(
+                    f"drawing '{self.name}': point '{name}' wears the address"
+                    f" '{addr}', which names no system — a point's address is"
+                    f" '<system>/<addr>', as 'dccex/5', and a translator"
+                    f" answers only for its own system"
+                )
 
     # --- the pin rules, checked at derivation, never at save ---------------
 
