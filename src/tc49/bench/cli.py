@@ -31,6 +31,13 @@ store instead — `~/tc49/` unless `--store` or `TC49_STORE` says otherwise
 what lets them run from an installed wheel. `layout show` is the topology
 review of a committed drawing and stays with the fixtures; `generate` writes
 into a checkout, which is what it is for.
+
+**Whichever of the two serves the store backs it up**, git being what keeps a
+copy of documents that are on one disk (ADR-0053, store/BACKUP.md). The saves
+that arrive over the HTTP face arm an idle timer that a watch thread lets
+fire, and quitting commits what it had not reached yet; `live --no-store`
+leaves both to the `tc49 serve` it is beside, because two processes committing
+one store would each commit the other's half-finished editing session.
 """
 
 import argparse
@@ -55,7 +62,8 @@ from tc49.bench.sweep import sweep
 from tc49.lib import rejection
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
-from tc49.store import DEFAULT_STORE, STORE_ENV, AssetStore, store_root, symbols
+from tc49.store import DEFAULT_STORE, STORE_ENV, AssetStore, Backup, store_root, symbols
+from tc49.store.backup import IDLE_S, PUSH_S, Watch
 from tc49.store.server import make_server
 
 LIVE_PERIOD_S = 0.1
@@ -406,6 +414,46 @@ def holding(store: AssetStore) -> str:
     )
 
 
+def noting(out: TextIO) -> Callable[[str], None]:
+    """Where backup says what came of a commit or a push: the same stream the
+    banner went to.
+
+    It is written from the watch thread as well as from the one quitting, so
+    it flushes each line — a push that could not reach the remote is the whole
+    of what a person gets to see about it, and a buffered one arrives after
+    the process it was explaining."""
+
+    def note(words: str) -> None:
+        out.write(f"{words}\n")
+        out.flush()
+
+    return note
+
+
+def backing(backup: Backup | None) -> str:
+    """The banner's line about backup: whether the store is being copied
+    anywhere, and what stands in the way where something does.
+
+    `None` is a session that left the store to a server already running
+    (`--no-store`), and backup with it: the saves it would coalesce arrive at
+    that server, and two processes committing one store would each be
+    committing the other's half-finished work (#321).
+    """
+    if backup is None:
+        return "  backup  left to the `tc49 serve` already running\n"
+    missing = backup.needs()
+    if not backup.automatic:
+        stands = "off" + (f": {missing[0]}" if missing else "")
+    elif missing:
+        stands = f"on, but {missing[0]}"
+    else:
+        stands = (
+            f"on: a commit after {IDLE_S:.0f}s of quiet, and a push every"
+            f" {PUSH_S:.0f}s"
+        )
+    return f"  backup  {stands}\n"
+
+
 def picking(pinned: bool) -> str:
     """What the banner promises about the railroad. A session ordinarily runs
     whichever railroad a client names and switches when another does (#148);
@@ -518,17 +566,26 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         # needs. Where one is already serving — scripts/dev.sh, whose store
         # outlives any session — a second would only fail to bind the port.
         store_line = ""
+        # Backup belongs to whichever process serves the store, because a save
+        # is what arms its idle timer and both would otherwise commit the
+        # other's half-finished editing session (#321).
+        backup: Backup | None = None
+        watch: Watch | None = None
         if not args.no_store:
-            store_server = make_server(root, args.store_port, args.host)
+            backup = Backup(root, log=noting(out))
+            store_server = make_server(root, args.store_port, args.host, backup)
             threading.Thread(
                 target=store_server.serve_forever, name="store", daemon=True
             ).start()
+            watch = Watch(backup)
+            watch.start()
             store_line = f"  store   http://{reachable(args.host)}:{args.store_port}\n"
         out.write(
             f"live: polling commands every {args.period}s\n"
             f"  bridge  ws://{reachable(args.host)}:{session.bridge.port}/<railroad>\n"
             f"{store_line}"
             f"  rooted  {root}: {holding(AssetStore(root))}\n"
+            f"{backing(backup)}"
             f"{physical}"
             f"{picking(args.station is not None)}; there is no timetable;"
             f" Ctrl-C ends the session, and {restart_note(args.state)}\n"
@@ -538,6 +595,13 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
             session.run(out)
         except KeyboardInterrupt:
             pass
+        # The commit on quit, before anything else is said about the way out:
+        # what a person drew in the last seconds of the session is the most
+        # likely thing to be lost, and it is the one the idle timer had not
+        # reached (ADR-0053).
+        if watch is not None and backup is not None:
+            watch.stop()
+            backup.quit()
         # The zeros and the track off have gone by here, the assembly having
         # stood its railroad down before letting the loop go (#314). Said
         # rather than assumed: leaving a live railroad behind is what this
@@ -552,13 +616,22 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
 
     if args.command == "serve":
         root = store_root(args.store)
-        server = make_server(root, args.port, args.host)
+        backup = Backup(root, log=noting(out))
+        server = make_server(root, args.port, args.host, backup)
+        watch = Watch(backup)
+        watch.start()
         out.write(
             f"serving {root} on http://{reachable(args.host)}:{server.server_port}\n"
             f"  {holding(AssetStore(root))}\n"
+            f"{backing(backup)}"
         )
         out.flush()
-        server.serve_forever()
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass  # Ctrl-C is how this ends, and it has one thing left to do
+        watch.stop()
+        backup.quit()
         return 0
 
     if args.command == "generate":
