@@ -11,6 +11,7 @@ import pytest
 
 from tc49.bench.cli import (
     GENERATORS,
+    backing,
     command_line,
     holding,
     main,
@@ -18,7 +19,7 @@ from tc49.bench.cli import (
 )
 from tc49.bench.metrics import metrics
 from tc49.bench.runner import find_assets, find_root
-from tc49.store import STORE_ENV, AssetStore, store_root
+from tc49.store import STORE_ENV, AssetStore, Backup, store_root
 from tests.harness import ASSETS, ROOT, railroads
 
 
@@ -303,3 +304,29 @@ def test_generate_writes_the_checkout_it_runs_in_unless_told_another(
     checkout at all."""
     assert command_line().parse_args(["generate"]).out is None
     assert find_root(Path(__file__)) == ROOT
+
+
+def test_the_banner_says_where_backup_stands(tmp_path: Path) -> None:
+    """A store nobody has run `git init` in is an ordinary state, so the
+    banner says what backup needs rather than the command refusing to come up
+    (ADR-0053). What it names is the command a person would have run
+    themselves — this never runs it for them."""
+    backup = Backup(tmp_path, log=lambda _: None)
+    off = backing(backup)
+    assert "backup  off" in off
+    assert "git init" in off
+
+    backup.switch(True)
+    assert "on, but" in backing(backup)
+    assert "git init" in backing(backup)
+
+
+def test_a_session_that_serves_no_store_leaves_backup_to_the_one_that_does(
+    tmp_path: Path,
+) -> None:
+    """`--no-store` is a session beside a `tc49 serve` that outlives it
+    (scripts/dev.sh). The saves are that server's, and so is the timer they
+    arm: two processes committing one store would each be committing the
+    other's half-finished editing session."""
+    assert "left to the `tc49 serve` already running" in backing(None)
+    assert "backup" in backing(Backup(tmp_path, log=lambda _: None))
