@@ -125,9 +125,13 @@ _Avoid_: switch, turnout (a turnout is one kind of point, not the category)
 
 **Address**:
 The string a point's motor answers to on the hardware, written `addr` and typed
-by whoever wired it. Nothing checks it — a DCC accessory number is a string
-that happens to be digits, and only the railroad knows what is true. Two points
-may share one, and then they move together
+by whoever wired it. It names the system that answers for it as its first
+level, `<system>/<addr>` — `dccex/5`, never `5` — and the drawing refuses at
+derive one that names no system
+([ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
+Nothing checks whether anything answers to it — a DCC accessory number is a
+string that happens to be digits, and only the railroad knows what is true. Two
+points may share one, and then they move together
 ([ADR-0022](docs/adr/0022-a-symbol-carries-its-hardware-address.md)).
 _Avoid_: id, number, dcc address
 

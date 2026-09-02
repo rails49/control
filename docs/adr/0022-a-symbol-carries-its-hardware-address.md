@@ -1,13 +1,18 @@
 # A symbol carries its hardware address
 
 **Partly superseded by
-[ADR-0031](0031-the-layout-carries-the-points-a-transit-needs.md).** Two things
-below have changed. "`addr` does not enter the layout document" is reversed:
-the layout carries the points each transit needs, which is how an address
-reaches the dispatcher — the question this ADR left open. And the two positions
-are `closed` and `thrown`, the pair a DCC accessory decoder answers to (#120),
-so the table below is keyed by those and no kind's legs are named for its
-positions. Everything else stands.
+[ADR-0031](0031-the-layout-carries-the-points-a-transit-needs.md) and
+[ADR-0043](0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md).**
+Three things below have changed. "`addr` does not enter the layout document" is
+reversed: the layout carries the points each transit needs, which is how an
+address reaches the dispatcher — the question this ADR left open. And the two
+positions are `closed` and `thrown`, the pair a DCC accessory decoder answers
+to (#120), so the table below is keyed by those and no kind's legs are named
+for its positions. And "nothing checks it" is now only half true of a point:
+an address names the system that answers for it as its first level,
+`<system>/<addr>` — `dccex/5`, never `5` — and derivation refuses one that does
+not (ADR-0043), while what a point answers to under that system stays knowledge
+the drawing cannot hold. Everything else stands.
 
 A turnout and a slip carry `addr`, a string the user types, naming whatever the
 hardware answers to. A block already carried the same thing per end as
