@@ -171,7 +171,7 @@ fetches a certificate for a name that is not its own.
 | --- | --- | --- |
 | `/live/<railroad>` | the bridge, `:8766`, prefix stripped | the same |
 | `/mqtt` | — | the broker's websocket listener, `:9001`, prefix stripped |
-| `/drawings`, `/review`, `/rosters` | vite's own proxy to the store | the store, `:8765` |
+| `/backup`, `/drawings`, `/review`, `/rosters` | vite's own proxy to the store | the store, `:8765` |
 | everything else | vite, `:5173` | `ui/dist` through nginx |
 
 `/mqtt` is there for the same reason `/live` is: a page served over TLS cannot
