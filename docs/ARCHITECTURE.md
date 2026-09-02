@@ -44,8 +44,9 @@ read, tested and eventually deployed without the others.
 of the same spec ([ADR-0014](adr/0014-python-apps-typescript-ui.md)), so
 nothing an app depends on is defined only in Python.
 
-`bench/` is not an app. It is the research harness, and the only code that
-wires apps together.
+`src/tc49/bench/` is not an app. It is the research harness, and the only code
+that wires apps together. Top-level `bench/` is the fixture data it roots
+itself at, and is not code at all.
 
 ## Package layout
 

@@ -29,8 +29,10 @@ meet over the event bus and the store's CRUD contract.
 
 `docs/SYSTEM.md` is the normative definition of those contracts and `lib/` is
 its Python binding, so a TypeScript UI gets a sibling language binding rather
-than chasing Python. `bench/` is the research harness, not an app, and is the
-only code that wires apps together. `tests/` mirrors the same structure;
+than chasing Python. `src/tc49/bench/` is the research harness, not an app,
+and is the only code that wires apps together; top-level `bench/` is the
+fixture data it roots itself at, while a session and the store server read an
+installation's own store. `tests/` mirrors the same structure;
 `tests/system/test_app_boundaries.py` enforces the import rule.
 
 `docs/` splits the same way: repo-wide pages at the top level, an app's
