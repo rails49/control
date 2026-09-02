@@ -29,10 +29,31 @@ layouts/<layout>.roster.yaml                    # the cars it owns, and its trai
 scenarios/<layout>/<scenario>.scenario.yaml     # e.g. reversing-loops/meet
 ```
 
-Those paths are the store's, read from wherever it is rooted. In this checkout
-that root is `bench/`, the harness's own directory: the committed fixtures are
-what the benchmark runs on and not an installation's data
-([#319](https://github.com/rails49/control/issues/319)).
+Those paths are the store's, read from wherever it is rooted, and there are
+**two roots that never meet**.
+
+An **installation's store is `~/tc49/`**, and holds the documents somebody's
+own railroad is made of. Visible and stable rather than an XDG data directory:
+it is a repository a person clones, pushes and looks at, not a cache a system
+may throw away and rebuild. `--store <path>` and `TC49_STORE` override it, the
+flag winning, and `tc49 live` and `tc49 serve` read no other root
+([#320](https://github.com/rails49/control/issues/320)).
+
+The **fixtures are the harness's**, under this checkout's `bench/`: what the
+benchmark runs on and not an installation's data
+([#319](https://github.com/rails49/control/issues/319)). `tc49 bench`, `tc49
+sweep` and `tc49 layout show` find them by searching for the checkout they are
+running in, so no store of anybody's can move a number in
+[BENCHMARKS.md](../bench/BENCHMARKS.md). Running a live session on one is
+`tc49 live <railroad> --store bench`, which is what `scripts/dev.sh` does.
+
+**Nothing seeds a store and an empty one is an ordinary state.** A fresh
+installation has drawn no railroad: the store lists nothing, catalogues
+nothing and answers an empty roster, the server comes up and answers `[]`, and
+`tc49 live <name>` refuses that name in words. The directories under the root
+are made by the `put` that needs them, so the first drawing somebody saves is
+what fills the store. A fixture copied in on first run would be a document the
+person did not make and cannot tell from one they did.
 
 To read a railroad's topology, print it:
 

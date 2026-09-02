@@ -25,6 +25,12 @@
 # --no-store; the app then survives ending a session and starting another,
 # which is the way round that matters.
 #
+# Both are rooted at this checkout's `bench/`, the benchmark fixtures, and not
+# at the `~/tc49` an installation reads (#320): the railroad named above is one
+# of those fixtures, and a developer working on the app wants them. Export
+# TC49_STORE to work on your own railroads instead, and the two servers agree
+# because one value roots them both.
+#
 # All three bind every interface rather than loopback, because the reverse
 # proxy serving `dev.rails49.org` runs in a container and cannot reach a macOS
 # host's loopback (ADR-0042, docs/DEPLOY.md). They are still reached here as
@@ -44,6 +50,7 @@ STORE=8765
 UI=5173
 BRIDGE=8766
 STORE_URL="http://127.0.0.1:$STORE/drawings"
+STORE_ROOT=${TC49_STORE:-$ROOT/bench}
 UI_URL="http://localhost:$UI/"
 BRIDGE_URL="ws://127.0.0.1:$BRIDGE"
 
@@ -170,13 +177,14 @@ fi
 [ -d ui/node_modules ] || (cd ui && pnpm install)
 
 echo "servers:"
-serve store "$STORE" "$STORE_URL" uv run tc49 serve --host 0.0.0.0
+serve store "$STORE" "$STORE_URL" \
+  uv run tc49 serve --host 0.0.0.0 --store "$STORE_ROOT"
 serve ui "$UI" "$UI_URL" pnpm --dir ui dev
 # An empty railroad is no railroad at all, not the empty string: `tc49 live`
 # takes it as optional, and comes up idle waiting to be told.
 serve bridge "$BRIDGE" "$BRIDGE_URL" \
   uv run tc49 live ${RAILROAD:+"$RAILROAD"} --port "$BRIDGE" --host 0.0.0.0 \
-  --no-store "$@"
+  --store "$STORE_ROOT" --no-store "$@"
 
 cat <<EOF
 

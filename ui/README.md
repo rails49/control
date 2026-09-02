@@ -13,10 +13,15 @@ Shoelace; the drawing surface is SVG in the DOM.
 The page talks to the store's HTTP face, which runs separately:
 
 ```
-uv run tc49 serve          # the store, on 127.0.0.1:8765
+uv run tc49 serve --store bench   # the store, on 127.0.0.1:8765
 pnpm install
-pnpm dev                   # the app at /, opening in the run view
+pnpm dev                          # the app at /, opening in the run view
 ```
+
+`tc49 serve` on its own serves `~/tc49`, an installation's own railroads, which
+a fresh checkout has none of; `--store bench` serves this repository's fixtures
+instead, which is what there is to draw against here
+([LAYOUT.md](../docs/store/LAYOUT.md), #320).
 
 The view is in the hash — `#run`, `#throttle` and `#edit` — so a reload and a
 bookmark keep it, and a link naming no view opens on the run view.
