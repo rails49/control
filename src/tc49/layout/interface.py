@@ -33,7 +33,12 @@ refusal rather than a rule about the bus: **no facing, no move** (below).
 promises no ordering between topics, so a `move` naming a transit no `align`
 has named is **held** until one does, and the points are written first. This
 is the obligation SYSTEM.md puts on the interface, and starting a train onto
-points that have not thrown is what it prevents.
+points that have not thrown is what it prevents. An `align` authorises **one**
+crossing and the move that is acted on spends it, so the rule guards every
+crossing of a transit rather than only its first — a record of every transit
+ever aligned would let the second move through with the points unthrown, which
+is a train taking the wrong path (#305). It costs nothing in the ordinary
+order, the dispatcher sending an `align` with every grant.
 
 **The near-end check.** A `move` is acted on only if that train is standing at
 the transit's near end (ADR-0047). At-least-once delivery can repeat one
@@ -312,7 +317,8 @@ class LayoutInterface:
         # this is the record of which trains a person has taken and it is what
         # `state/mode` carries.
         self._mode: dict[str, str] = {}
-        # The transits an `align` has named, and the moves waiting on one.
+        # The crossings an `align` has authorised, one entry per transit and
+        # each spent by the move that takes it, and the moves waiting on one.
         self._aligned: set[str] = set()
         self._held: dict[str, Command] = {}
         # The occupancy fold: the settled level at each block end, the level
@@ -514,6 +520,10 @@ class LayoutInterface:
             # have made of the sign: nothing is being written, so there is no
             # wrong way to drive it and no refusal to make (#297).
             wheels = ()
+        # The authorisation is spent here, with the act it authorised: an
+        # `align` stands for one crossing, so the next move over this transit
+        # waits for one of its own (#305).
+        self._aligned.discard(transit)
         self._position[commanded.train] = commanded.into
         self._crossing[commanded.into] = _Crossing(
             origin=block_of(near),
