@@ -1,10 +1,10 @@
 """The live session on the physical binding (#314): `LayoutInterface` and
 `DccEx` where the simulator would be.
 
-What is asserted is the assembly and the loop over it, with a plain TCP
-listener standing in for `dccex-usb`. The station is reached by **address**
-here rather than by the injected connection the translator's own suite uses —
-an address is what `--station` gives and opening it is what the session has to
+What is asserted is the assembly and the loop over it, over the station and
+the waiting `physical.py` holds: the station is reached by **address** here
+rather than by the injected connection the translator's own suite uses — an
+address is what `--station` gives and opening it is what the session has to
 get right — so these tests bind a port on loopback and nothing needs hardware,
 which is the rule the whole gate sits under.
 
@@ -15,124 +15,36 @@ not this suite's.
 
 import io
 import json
-import socket
 import threading
 import time
 from collections.abc import Callable
-from types import TracebackType
-from typing import Any, Self
+from typing import Any
 
 import pytest
 from websockets.sync.client import ClientConnection, connect
 
 from tc49.bench.cli import addressed, picking, station_note
 from tc49.bench.cli import station as station_address
-from tc49.bench.runner import Assembly, assemble_live, railroad
+from tc49.bench.runner import Assembly, assemble_live
 from tc49.bench.session import Session
-from tc49.lib.layout import Layout
 from tc49.lib.roster import Car, Coupled, Roster, Train
-from tc49.store import AssetStore
+from tests.bench.physical import (
+    HOST,
+    PERIOD_S,
+    TIMEOUT_S,
+    Station,
+    a_railroad,
+    closed_port,
+    until,
+    waits_until,
+)
 from tests.harness import ROOT, railroads
-
-HOST = "127.0.0.1"
-
-TIMEOUT_S = 5.0
-
-PERIOD_S = 0.01
-"""The pacer's turn, far shorter than a session's own 0.1s: what these tests
-wait on is a socket, and every turn is another look at whether it happened."""
 
 DEVICE_LINK = "tc49/layout/state/device/link/dccex"
 POWER_WANTED = "tc49/layout/power_wanted"
 
 TRACK_ON = b"<1>"
 TRACK_OFF = b"<0>"
-
-
-class Station:
-    """A command station's end of the port, on loopback.
-
-    One connection, answered with a status line so that the app has heard the
-    station *speak* — `device/link` goes `up` on an answer and not on an open
-    socket — and everything it is sent kept for the test to read.
-    """
-
-    def __init__(self) -> None:
-        self._listener = socket.socket()
-        self._listener.bind((HOST, 0))
-        self._listener.listen(1)
-        self.port = int(self._listener.getsockname()[1])
-        self._heard = bytearray()
-        self._lock = threading.Lock()
-        threading.Thread(target=self._serve, name="station", daemon=True).start()
-
-    def _serve(self) -> None:
-        try:
-            connection, _ = self._listener.accept()
-        except OSError:
-            return  # closed before anything connected, which is a test ending
-        with connection:
-            try:
-                connection.sendall(b"<p0>")  # answering: the rails are dark
-                while True:
-                    arrived = connection.recv(4096)
-                    if not arrived:
-                        return
-                    with self._lock:
-                        self._heard += arrived
-            except OSError:
-                return
-
-    def heard(self) -> bytes:
-        with self._lock:
-            return bytes(self._heard)
-
-    def waits_for(self, message: bytes, limit_s: float = TIMEOUT_S) -> bool:
-        """Whether that message has arrived, waiting up to `limit_s` for it:
-        the wire between the app writing and this end reading is a thread
-        boundary, so arrival is a wait and never a given."""
-        deadline = time.monotonic() + limit_s
-        while message not in self.heard():
-            if time.monotonic() > deadline:
-                return False
-            time.sleep(0.01)
-        return True
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(
-        self,
-        kind: type[BaseException] | None,
-        value: BaseException | None,
-        traceback: TracebackType | None,
-    ) -> None:
-        self._listener.close()
-
-
-def closed_port() -> int:
-    """A port nothing is listening on: a station that is not there."""
-    with socket.socket() as probe:
-        probe.bind((HOST, 0))
-        return int(probe.getsockname()[1])
-
-
-def waits_until(done: Callable[[], bool], limit_s: float = TIMEOUT_S) -> bool:
-    """Whether it happened inside the limit: what a test on the other side of
-    a thread has instead of an assumption."""
-    deadline = time.monotonic() + limit_s
-    while not done():
-        if time.monotonic() > deadline:
-            return False
-        time.sleep(0.01)
-    return True
-
-
-def until(done: Callable[[], bool], limit_s: float = TIMEOUT_S) -> Callable[[], bool]:
-    """A `stop` that ends the loop once `done`, or once the test has waited
-    long enough — a run that never finishes is a hang and not a failure."""
-    deadline = time.monotonic() + limit_s
-    return lambda: done() or time.monotonic() > deadline
 
 
 def link_of(assembly: Assembly) -> tuple[str, str]:
@@ -163,11 +75,6 @@ def link_while_running(
 
     assembly.run(PERIOD_S, stop=until(turn))
     return last
-
-
-def a_railroad() -> tuple[Layout, Roster]:
-    """Some railroad this checkout has: its layout and the stock it owns."""
-    return railroad(AssetStore(ROOT), railroads()[0])
 
 
 # -- which binding a run is built on -----------------------------------------
