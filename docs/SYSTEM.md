@@ -346,7 +346,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Topic | Kind | Writer | Meaning |
 | --- | --- | --- | --- |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
-| `tc49/layout/block_vacated` | event | layout | a detector saw a block empty |
+| `tc49/layout/block_vacated` | event | layout | a block is empty: both its ends read clear, or the move this app carried out named it the block behind a train now fully into the block ahead ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
 | `tc49/layout/power_wanted` | event | any (browser) | give the track power, stop every locomotive, or remove the supply ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)) |
 | `tc49/layout/state/power` | state | layout | whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
 | `tc49/layout/align` | command | any | set the route: throw these points |
