@@ -81,7 +81,7 @@ here would be a second party deciding how fast the railroad drives it.
 carries `{train, speed}`, −1.0 through 0 to 1.0 as a fraction of that train's
 maximum, and **`+` is the way the train points** — not a locomotive's own
 forward. `layout` composes the sign each car's decoder is given from the
-train's facing and the way round that car is coupled
+direction the lever states and the way round that car is coupled
 ([ADR-0045](../adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)),
 so a person driving a top-and-tail set pushes one lever and both locomotives
 do the right thing. Which locomotive a speed reaches is never this view's

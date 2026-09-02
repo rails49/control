@@ -234,7 +234,7 @@ tests/
   simulator/   test_move  test_power  test_placement  test_pacing  test_live
                test_reading
   layout/      test_align  test_move  test_aspects  test_power  test_reading
-               test_occupancy  test_traction
+               test_occupancy  test_traction  test_mode  test_throttle
   station/     test_framing  test_station
   dccex/       test_commands  test_replies  test_translator
   system/      test_skeleton  test_properties  test_safety_conditions
