@@ -18,6 +18,7 @@ export default defineConfig({
     host: true,
     allowedHosts: ["dev.rails49.org"],
     proxy: {
+      "/backup": "http://127.0.0.1:8765",
       "/drawings": "http://127.0.0.1:8765",
       "/review": "http://127.0.0.1:8765",
       "/rosters": "http://127.0.0.1:8765",
