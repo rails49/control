@@ -10,6 +10,11 @@ the store rather than to an app of its own — a `ui` package could not import
     POST /review                what a drawing means, derived and explained
     GET  /rosters/<name>        one railroad's roster: its trains, each with
                                 its length and the functions its cars declare
+    GET  /backup                whether the store can be backed up, is being,
+                                and what there is to restore to
+    PUT  /backup                turn automated backup on or off
+    POST /backup/commit         back the store up now, and attempt a push
+    POST /backup/restore        put the store back as a backup held it
 
 `review` is the one that carries the editor's whole view of topology: red
 pins, the portal labels that pair with nothing, junction membership, the
@@ -38,6 +43,14 @@ the one being edited, which has not been saved and may not derive. Work in
 progress is answered with 200 and a refusal inside; only a document that will
 not load at all is a bad request.
 
+The **backup** routes are store operations like the rest: what they act on is
+the installation's store, which is what this server has open, and a browser
+cannot shell out to git. The app drives git and does not own it, so a store
+that is not a repository is answered rather than initialized, and what git
+said comes back as it came (ADR-0053, #321). A save is what arms the idle
+timer, which is why `PUT /drawings/<name>` tells the backup it happened — the
+one place the two meet.
+
 The panel later adds a WebSocket bridge from `tc49/#` alongside this
 (ui/PANEL.md). That is not a store operation and does not live here.
 """
@@ -50,13 +63,16 @@ from urllib.parse import unquote
 
 from yaml import YAMLError
 
+from tc49.store.backup import Backup, Said
 from tc49.store.drawing import Drawing
 from tc49.store.store import AssetStore
 
 Response = tuple[int, dict[str, Any]]
 
 
-def handle(store: AssetStore, method: str, path: str, body: Any) -> Response:
+def handle(
+    store: AssetStore, backup: Backup, method: str, path: str, body: Any
+) -> Response:
     """Route one request. A function of what was asked rather than of a socket,
     so the contract is testable without serving anything.
 
@@ -65,18 +81,23 @@ def handle(store: AssetStore, method: str, path: str, body: Any) -> Response:
     editor wants to read the reason rather than lose the connection.
     """
     try:
-        return _route(store, method, path, body)
+        return _route(store, backup, method, path, body)
     except FileNotFoundError as missing:
         return 404, {"error": str(missing)}
     except (ValueError, TypeError, YAMLError) as bad:
         return 400, {"error": str(bad)}
 
 
-def _route(store: AssetStore, method: str, path: str, body: Any) -> Response:
+def _route(
+    store: AssetStore, backup: Backup, method: str, path: str, body: Any
+) -> Response:
     route = unquote(path.split("?", 1)[0])  # a cache-buster is not a new route
 
     if method == "GET" and route == "/drawings":
         return 200, {"drawings": store.list()}
+
+    if route.startswith("/backup"):
+        return _backup(backup, method, route, body)
 
     if method == "POST" and route == "/review":
         if not isinstance(body, dict):
@@ -115,12 +136,55 @@ def _route(store: AssetStore, method: str, path: str, body: Any) -> Response:
             except FileNotFoundError:
                 return 404, {"error": f"no drawing '{name}'"}
         if method == "PUT":
-            return _put(store, name, body)
+            return _put(store, backup, name, body)
 
     return 404, {"error": f"no route {method} {route}"}
 
 
-def _put(store: AssetStore, name: str, body: Any) -> Response:
+def _backup(backup: Backup, method: str, route: str, body: Any) -> Response:
+    """The four backup routes.
+
+    **A refusal comes back inside a 200**, the way `review`'s does. Nothing
+    here is a bad request: the store not being a repository, a remote that is
+    not there and a restore over documents that were never backed up are all
+    states of somebody's machine that the UI has to read and say, and a status
+    code would leave it guessing which of them it was. `ok` says whether it
+    happened and `said` carries git's own words.
+    """
+    if method == "GET" and route == "/backup":
+        return 200, backup.status()
+
+    if method == "PUT" and route == "/backup":
+        if not isinstance(body, dict) or not isinstance(
+            (on := cast(dict[str, Any], body).get("automatic")), bool
+        ):
+            return 400, {"error": "the switch takes {'automatic': true|false}"}
+        backup.switch(on)
+        return 200, backup.status()
+
+    if method == "POST" and route == "/backup/commit":
+        return _said(backup, backup.back_up())
+
+    if method == "POST" and route == "/backup/restore":
+        # The backup to come back to, and the last one where none is named:
+        # a person restoring usually names an earlier one, the session they
+        # want undone having been backed up itself.
+        wanted: Any = (
+            cast(dict[str, Any], body).get("commit") if isinstance(body, dict) else None
+        )
+        return _said(backup, backup.restore(str(wanted) if wanted else "HEAD"))
+
+    return 404, {"error": f"no route {method} {route}"}
+
+
+def _said(backup: Backup, said: Said) -> Response:
+    """What git made of it, over the state it left behind. One shape for both
+    driving routes, so a surface reads the answer and the store's standing
+    from one reply and cannot draw them from different moments."""
+    return 200, {"ok": said.ok, "said": said.words, **backup.status()}
+
+
+def _put(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
     if not isinstance(body, dict):
         return 400, {"error": "a drawing document is required"}
     doc = cast(dict[str, Any], body)
@@ -129,10 +193,19 @@ def _put(store: AssetStore, name: str, body: Any) -> Response:
             "error": f"drawing '{doc.get('drawing')}' cannot be saved as '{name}'"
         }
     store.put(doc)
+    # The save that arms the idle timer. It says a document was written and
+    # nothing about which — what moved is git's answer, and a person editing a
+    # roster by hand under the same store is as much a change as this is.
+    backup.saved()
     return 200, {"saved": name}
 
 
-def make_server(root: Path, port: int = 8765, host: str = "127.0.0.1") -> HTTPServer:
+def make_server(
+    root: Path,
+    port: int = 8765,
+    host: str = "127.0.0.1",
+    backup: Backup | None = None,
+) -> HTTPServer:
     """A server over `root`, not yet listening. One request at a time: there
     is one editor, and the YAML round trip behind `put` is a single shared
     reader. Handing the server back rather than running it is what lets a test
@@ -140,8 +213,13 @@ def make_server(root: Path, port: int = 8765, host: str = "127.0.0.1") -> HTTPSe
 
     Loopback unless told otherwise: it is the only client that ever needed to
     reach this, and the proxy that now does runs in a container, which cannot
-    reach a macOS host's loopback (ADR-0042, docs/DEPLOY.md)."""
+    reach a macOS host's loopback (ADR-0042, docs/DEPLOY.md).
+
+    The backup is taken rather than made where the caller has one — a session
+    holds it so that its watch thread and its own quit commit drive the same
+    timers this server's saves arm (`tc49 live`, #321)."""
     store = AssetStore(root)
+    backing = backup if backup is not None else Backup(root)
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -160,7 +238,7 @@ def make_server(root: Path, port: int = 8765, host: str = "127.0.0.1") -> HTTPSe
 
         def _answer(self, method: str, body: Any) -> None:
             try:
-                status, payload = handle(store, method, self.path, body)
+                status, payload = handle(store, backing, method, self.path, body)
             except Exception as failure:  # noqa: BLE001 — a reply beats a reset
                 status, payload = 500, {"error": repr(failure)}
             self._respond(status, payload)

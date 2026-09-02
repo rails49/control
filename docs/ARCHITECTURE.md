@@ -81,6 +81,10 @@ src/tc49/
                 root.py     store_root() — where an installation's own
                             documents are: `~/tc49/`, or `--store`/
                             `TC49_STORE` (store/LAYOUT.md, #320)
+                backup.py   Backup — git over that root, driven and not
+                            owned: a commit coalesced on idle, a push on its
+                            own timer, a restore refused over a dirty tree
+                            (store/BACKUP.md, ADR-0053)
   scheduler/    Scheduler — composes gestures into requests and submits a
                 timetable whole at the start of a run, mechanical arrival-end
                 expansion, deterministic ids, exhausted state topic

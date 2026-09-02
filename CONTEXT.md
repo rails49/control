@@ -762,6 +762,25 @@ is a train granted a move when the supply went: it is stranded between blocks
 and no sensor will ever say where it stopped.
 _Avoid_: shutdown, blackout, emergency stop (the track stays live for that)
 
+### Store
+
+**Backup**:
+A commit of an installation's store, made by the app driving git over the
+store root: everything under it, in one commit, under a message naming the
+documents that moved. Automated backup is off until somebody turns it on, and
+the app never creates the repository or the remote it pushes to
+([ADR-0053](docs/adr/0053-backup-drives-git-and-does-not-own-it.md),
+[docs/store/BACKUP.md](docs/store/BACKUP.md)).
+_Avoid_: snapshot, save (a save is one document written by the editor, and
+several of them make one backup), sync, archive
+
+**Restore**:
+Putting the store back as a named backup held it. Refused where documents have
+changed since the last backup, those being the ones git cannot give back. Not
+the **recovery** of a run's placement, which is about where trains stand and
+is a person's job; nothing about a restore reaches a session that is up.
+_Avoid_: revert, roll back, undo (the editor's, over one drawing), recovery
+
 ### Contracts
 
 **Binding**:

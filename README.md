@@ -30,7 +30,8 @@ Each app's implementation details live beside it:
 - [Store](docs/store) — the [drawing format and
   derivation](docs/store/DRAWING.md), the only committed topology, and the
   [derived layout, the roster and the harness's scenario
-  file](docs/store/LAYOUT.md) it feeds; the drawn railroads and their rosters
+  file](docs/store/LAYOUT.md) it feeds, and [backing a store
+  up](docs/store/BACKUP.md) with git; the drawn railroads and their rosters
   live in [bench/layouts/](bench/layouts) and the harness's scenarios in
   [bench/scenarios/](bench/scenarios).
 - [Bench](docs/bench) — the [benchmark suite](docs/bench/BENCHMARKS.md) and
