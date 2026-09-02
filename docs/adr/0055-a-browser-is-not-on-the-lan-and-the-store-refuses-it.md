@@ -1,11 +1,19 @@
 # A browser is not on the LAN, and the store refuses it
 
-> **A premise below is false.** "In development vite proxies the store's
-> routes without rewriting the header" — it does rewrite it, and every browser
-> write was refused until
+> **Two things in the paragraph headed "No client we serve loses anything"
+> are wrong.** Its premise — "in development vite proxies the store's routes
+> without rewriting the header" — is false: vite does rewrite it, and every
+> browser write to the store was refused until
 > [ADR-0057](0057-one-origin-rule-and-both-faces-read-it.md) fixed the proxy
-> and moved the rule into `lib`. The decision here stands; that sentence does
-> not.
+> and moved the rule into `lib`. Its route list is also short by one:
+> [#341](https://github.com/rails49/control/issues/341) proxies `/backup`
+> alongside `/drawings`, `/review` and `/rosters`, which matters because
+> `POST /backup/restore` is the request this ADR reasons about nine lines
+> above and could not reach the store through either proxy when this was
+> written ([#346](https://github.com/rails49/control/issues/346)).
+>
+> The decision stands and nothing here is superseded. That paragraph's
+> supporting sentences do not.
 
 Resolves [#329](https://github.com/rails49/control/issues/329).
 [ADR-0042](0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)
