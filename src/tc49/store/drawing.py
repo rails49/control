@@ -904,10 +904,10 @@ def _signals(where: str, spec: Any, ends: tuple[str, ...]) -> dict[str, str]:
     no end of the block is refused here, naming the block: `signals` is keyed
     by the block's own ends, and a misspelt one would silently signal nothing.
 
-    Nothing checks the address itself, for the reason nothing checks a point's:
-    what a physical signal answers to is knowledge the drawing cannot hold.
-    Two ends may share one — two signals on one address show one aspect
-    together, as two points on one address move together.
+    Nothing checks the address itself, for the reason nothing checks a point's
+    beyond its shape: what a physical signal answers to is knowledge the
+    drawing cannot hold. Two ends may share one — two signals on one address
+    show one aspect together, as two points on one address move together.
     """
     signals: dict[str, str] = {}
     for end, addr in as_mapping(spec or {}, f"{where}: signals").items():
