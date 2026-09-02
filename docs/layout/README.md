@@ -88,6 +88,15 @@ and this is the only component that sees both commands. An `align` names its
 transit before every grant, so a held command waits for the next frame and not
 for a timer.
 
+An `align` authorises **one** crossing and the move that is acted on spends
+it, so the rule guards every crossing of a transit and not only its first. A
+record of every transit ever aligned would pass the check forever after the
+first move, which is a train sent over points that have not thrown or that a
+later `align` for a crossing route has since thrown the other way (#305). This
+fails closed — a move with no `align` of its own waits — and costs nothing in
+the ordinary order, the points being thrown for each crossing whether or not
+this app remembers the last one.
+
 **The near-end check.** A `move` is acted on only if that train is standing at
 the transit's near end
 ([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
