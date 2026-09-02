@@ -9,9 +9,16 @@ from pathlib import Path
 
 import pytest
 
-from tc49.bench.cli import GENERATORS, command_line, main, restart_note
+from tc49.bench.cli import (
+    GENERATORS,
+    command_line,
+    holding,
+    main,
+    restart_note,
+)
 from tc49.bench.metrics import metrics
 from tc49.bench.runner import find_assets, find_root
+from tc49.store import STORE_ENV, AssetStore, store_root
 from tests.harness import ASSETS, ROOT, railroads
 
 
@@ -202,6 +209,10 @@ REFUSED_LIVE = [
 decided off the arguments alone, the last only by asking the store for the
 railroad — which takes a session, and a session is already serving.
 
+Each is run with `--store` naming the fixtures, so `nonesuch` is refused
+against a store that does hold railroads rather than against whatever the
+machine has in `~/tc49` (#320).
+
 A station is one physical railroad: it may not be pinned by the first client
 to connect, so it requires the positional railroad, and it replays no document
 onto steel that is standing where the last session left it (#314)."""
@@ -219,7 +230,76 @@ def test_a_refused_live_session_leaves_no_socket_bound(
     port = free_port()
     out = io.StringIO()
 
-    assert main(["live", "--port", str(port), *argv], out) == 2
+    argv = ["live", "--port", str(port), "--store", str(ASSETS), *argv]
+    assert main(argv, out) == 2
     assert wording in out.getvalue()
     with socket.socket() as after:
         after.bind(("127.0.0.1", port))  # nothing is listening on it
+
+
+def test_a_live_session_reads_the_installations_store_by_default() -> None:
+    """`~/tc49/` and not the checkout (#320). The fixtures under `bench/` are
+    the benchmark's inputs, so a session started with no flag comes up on the
+    railroads somebody drew — of which a fresh installation has none."""
+    assert command_line().parse_args(["live"]).store is None
+    assert command_line().parse_args(["serve"]).store is None
+    named = command_line().parse_args(["live", "--store", "/srv/railroad"])
+    assert named.store == Path("/srv/railroad")
+
+
+def test_the_environment_roots_a_session_and_the_flag_beats_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The UI opens the store with no arguments, so `TC49_STORE` has to be an
+    answer; a person typing `--store` is answering for this one command, which
+    is the last word."""
+    monkeypatch.setenv(STORE_ENV, str(tmp_path))
+    out = io.StringIO()
+    assert main(["live", "--port", str(free_port()), "reversing-loops"], out) == 2
+    assert "no railroad 'reversing-loops'" in out.getvalue()
+
+    assert store_root() == tmp_path
+    assert store_root(ASSETS) == ASSETS
+
+
+def test_no_fixture_is_reachable_from_a_store_of_ones_own(tmp_path: Path) -> None:
+    """Nothing seeds a store, so a railroad the checkout carries is not in
+    one: `tc49 live reversing-loops` against an empty root is refused in words
+    rather than quietly running the benchmark's copy."""
+    out = io.StringIO()
+    argv = ["live", "--port", str(free_port()), "--store", str(tmp_path)]
+    assert main([*argv, "reversing-loops"], out) == 2
+    assert "no railroad 'reversing-loops'" in out.getvalue()
+
+
+def test_an_empty_store_is_a_state_the_banner_says_rather_than_a_fault(
+    tmp_path: Path,
+) -> None:
+    """A fresh installation has drawn nothing. The session and the server come
+    up on it all the same, and what the banner owes is the root it looked in
+    and that there was nothing there — otherwise an empty store and a mistyped
+    `--store` read the same."""
+    assert "no railroad yet" in holding(AssetStore(tmp_path))
+    assert holding(AssetStore(ASSETS)) == ", ".join(railroads())
+
+
+def test_the_benchmark_reads_the_fixtures_whatever_the_store_holds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """BENCHMARKS.md records its numbers against the documents in this
+    checkout, so no store of anyone's can move one — `bench` and `sweep` find
+    the fixtures and never ask where the installation's store is (#320)."""
+    monkeypatch.setenv(STORE_ENV, str(tmp_path / "not-even-there"))
+    assert "crossover-yard/meet  (k = 2)" in run_cli("bench", "crossover-yard/meet")
+    assert run_cli("layout", "show", "crossover-yard").startswith("crossover-yard")
+
+
+def test_generate_writes_the_checkout_it_runs_in_unless_told_another(
+    tmp_path: Path,
+) -> None:
+    """The generated sources are a checkout's and not a store's, so this is
+    the one command that still goes looking for one. It is found rather than
+    fixed at import, which is what lets `live` and `serve` run outside a
+    checkout at all."""
+    assert command_line().parse_args(["generate"]).out is None
+    assert find_root(Path(__file__)) == ROOT
