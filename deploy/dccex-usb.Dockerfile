@@ -1,4 +1,4 @@
-# The `station` app in a container, because it is the one app that must be on
+# The `dccex-usb` app in a container, because it is the one app that must be on
 # the layout server: it owns the command station's USB device (ADR-0043).
 # #219 builds the app and leaves the image here, with the rest of deployment.
 #
@@ -21,5 +21,5 @@ RUN uv sync --frozen --no-dev
 # Unbuffered, because what this logs is connects and disconnects and they are
 # only useful as they happen.
 ENV PYTHONUNBUFFERED=1
-ENTRYPOINT ["uv", "run", "--no-sync", "python", "-m", "tc49.station"]
+ENTRYPOINT ["uv", "run", "--no-sync", "python", "-m", "tc49.dccex_usb"]
 CMD ["--device", "/dev/dccex", "--port", "2560"]

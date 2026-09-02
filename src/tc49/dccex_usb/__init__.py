@@ -1,3 +1,3 @@
-"""Station: the command station's serial device, mirrored on a TCP port."""
+"""dccex_usb: the command station's USB device, mirrored on a TCP port."""
 
-from tc49.station.station import Station as Station
+from tc49.dccex_usb.station import Station as Station

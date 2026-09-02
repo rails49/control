@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from tc49.station.station import READ_SIZE, Station
+from tc49.dccex_usb.station import READ_SIZE, Station
 
 SETTLE_S = 0.2
 TIMEOUT_S = 5.0

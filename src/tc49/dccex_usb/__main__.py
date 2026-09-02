@@ -1,6 +1,6 @@
-"""`python -m tc49.station` — the command line the container runs.
+"""`python -m tc49.dccex_usb` — the command line the container runs.
 
-Two flags and no more, the ones `deploy/station.Dockerfile` passes: the
+Two flags and no more, the ones `deploy/dccex-usb.Dockerfile` passes: the
 device to open and the port to serve it on. There is no bind address, because
 the server binds every interface and what limits its reach is the LAN
 (ADR-0042).
@@ -10,12 +10,12 @@ import argparse
 import asyncio
 import contextlib
 
-from tc49.station.station import Station
+from tc49.dccex_usb.station import Station
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        prog="python -m tc49.station",
+        prog="python -m tc49.dccex_usb",
         description="Mirror the command station's serial device on a TCP port.",
     )
     parser.add_argument("--device", required=True, help="the serial device to open")

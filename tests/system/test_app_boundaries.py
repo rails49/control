@@ -23,7 +23,7 @@ APPS = (
     "driver",
     "simulator",
     "layout",
-    "station",
+    "dccex_usb",
     "dccex",
 )
 
