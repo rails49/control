@@ -28,6 +28,7 @@ import { transitEnds, type Explained, type Layout } from "./store.js";
 import {
   Ordering,
   type Gesture,
+  type Mode,
   type Power,
   type Run,
   type Submission,
@@ -54,6 +55,15 @@ export type FacingRef = string;
  * union spanning the last two must not wear that layer's name.
  */
 export type Claim = "locked" | "committed";
+
+/** One block a train has ahead of it on the route it is committed to, and
+ *  how strong a claim the dispatcher has on it. The two words a route is lit
+ *  in, in a list rather than on a picture: what a person driving by hand
+ *  reads off the road in front of them (ui/THROTTLE.md). */
+export interface Ahead {
+  block: string;
+  claim: Claim;
+}
 
 /** What a committed route lights: the legs of each symbol its transits cross,
  *  the wires those transits are drawn over, and how strong a claim each
@@ -289,6 +299,11 @@ export class Panel {
    *  a session that has joined has been told; silence is a page that has not
    *  joined one, and not a claim that the rails are dead. */
   private powerWord: Power | null = null;
+  /** train → who turns its throttle, as `layout` last said. Only the trains
+   *  the map named: `automatic` is the resting value, so a train that is not
+   *  in it is automatic and there is nothing to record for it (CONTEXT.md,
+   *  **Automatic / manual**). */
+  private driven = new Map<string, Mode>();
   private requests = new Map<string, Request>();
   /** Whether the opening picture has arrived: a lock on a block before it is
    *  the run's opening placement, there being no occupancy event for a
@@ -336,6 +351,7 @@ export class Panel {
     this.disputed = { trains: new Set(), blocks: new Set() };
     this.runWord = null;
     this.powerWord = null;
+    this.driven.clear();
     this.requests.clear();
     this.started = false;
     this.ordering.reset();
@@ -483,6 +499,30 @@ export class Panel {
         // clearing an emergency stop or switching a supply back on.
         const { power } = event as unknown as { power: Power };
         this.powerWord = power;
+        return;
+      }
+      case "mode": {
+        // Who drives each train, whole from the topic: `layout` holds it and
+        // publishes it, and the throttle view reads it rather than its own
+        // gesture — a train is taken when the map says so and not when the
+        // person pressed (ui/THROTTLE.md).
+        //
+        // An entry whose value is neither word is **dropped** and that train
+        // keeps the mode it had: falling to `manual` would hand a train to a
+        // person who is not there, and falling to `automatic` would take one
+        // out of the hands of a person who is (SYSTEM.md, `layout`).
+        const { modes } = event as unknown as {
+          modes: Record<string, string>;
+        };
+        // Last value wins, so a train the map stops naming is automatic
+        // again — which is the resting value and not an absence of one.
+        const read = new Map<string, Mode>();
+        for (const [train, mode] of Object.entries(modes ?? {})) {
+          const held = this.driven.get(train);
+          if (mode === "automatic" || mode === "manual") read.set(train, mode);
+          else if (held !== undefined) read.set(train, held);
+        }
+        this.driven = read;
         return;
       }
       case "disputed": {
@@ -763,6 +803,78 @@ export class Panel {
     return [...where.keys()]
       .sort()
       .map((train) => ({ train, block: where.get(train)! }));
+  }
+
+  /**
+   * Who turns each train's throttle, as `layout` last said
+   * (CONTEXT.md, **Automatic / manual**). A train the map does not name is
+   * `automatic`, which is the resting value, so the reader below answers
+   * that for a train nothing has said anything about.
+   *
+   * Read and never derived, and never written from a gesture: the topic is
+   * the truth about who is driving, and a view that marked a train taken on
+   * its own press would show a person holding a train `layout` never handed
+   * them (ADR-0035, ui/THROTTLE.md).
+   */
+  modes(): ReadonlyMap<string, Mode> {
+    return this.driven;
+  }
+
+  /**
+   * The end of its block each placed train points at, `<block>.<end>`: where
+   * its facing runs to, which is the end it would depart through nose-first
+   * and the end whose signal it is reading (CONTEXT.md, **Facing**).
+   *
+   * The scheduler's answer with nothing added — the same value the run
+   * view's direction arrow is drawn from — put in the form the aspects are
+   * keyed by, so a throttle can ask what the train it is driving faces.
+   */
+  noses(): ReadonlyMap<string, EndRef> {
+    return new Map(
+      [...this.heading].map(([train, { block, toward }]) => [
+        train,
+        `${block}.${toward}`,
+      ]),
+    );
+  }
+
+  /**
+   * The blocks each train has ahead of it on the route it is committed to,
+   * in the order it would run them, with how strong a claim the dispatcher
+   * has on each: `locked` where it holds the lock and the train may move,
+   * `committed` where the route is chosen and the claim is not made yet.
+   *
+   * The same two words and the same ledger the picture lights a route with
+   * (ui/PANEL.md), read a train at a time because a person driving by hand
+   * is reading one train's road. The train's own block is not in it — what
+   * is ahead begins past where it stands — and a train with no committed
+   * route has nothing ahead, a route being the only thing that says which
+   * way it is going.
+   */
+  ahead(): Map<string, Ahead[]> {
+    const where = new Map<string, string | null>();
+    for (const { train, block } of this.placed()) where.set(train, block);
+    const found = new Map<string, Ahead[]>();
+    for (const request of this.requests.values()) {
+      if (request.phase !== "committed") continue;
+      const route = request.route ?? [];
+      const standing = where.get(request.train) ?? null;
+      const at = standing === null ? -1 : route.indexOf(standing);
+      found.set(
+        request.train,
+        route
+          .slice(at + 1)
+          .filter((resource) => resource in this.layout.blocks)
+          .map((block) => ({
+            block,
+            claim:
+              this.locks.get(block) === request.train
+                ? ("locked" as const)
+                : ("committed" as const),
+          })),
+      );
+    }
+    return found;
   }
 
   /** Whether that train still stands in that block. The right-click menu is
