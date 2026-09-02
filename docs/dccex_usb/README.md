@@ -1,7 +1,7 @@
-# Station
+# DCC-EX over USB
 
 The command station is reached over USB, and one process can hold the device.
-That process is the `station` app: it opens the serial device and mirrors it
+That process is the `dccex-usb` app: it opens the serial device and mirrors it
 on a TCP port, so everything else — the `dccex` translator, JMRI, a hand-held
 throttle — is a client of the port and they coexist
 ([ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
@@ -14,16 +14,16 @@ either of its sides.
 ## The command line
 
 ```
-python -m tc49.station --device /dev/dccex --port 2560
+python -m tc49.dccex_usb --device /dev/dccex --port 2560
 ```
 
 Two flags, and they are the whole interface: the device to open and the port
-to serve it on. `deploy/station.Dockerfile` passes exactly these, and
+to serve it on. `deploy/dccex-usb.Dockerfile` passes exactly these, and
 `deploy/compose.yaml` maps the cable in as `/dev/dccex` and publishes 2560
 ([DEPLOY.md](../DEPLOY.md#the-command-station)).
 
 There is no bind address. The server binds every interface, because the
-container publishes the port and JMRI reaches it as `station:2560`; what
+container publishes the port and JMRI reaches it as `dccex-usb:2560`; what
 limits its reach is the LAN, which is the trust boundary
 ([ADR-0042](../adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)).
 For the same reason there is no authentication and no limit on the number of

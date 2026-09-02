@@ -27,6 +27,9 @@ about where to *send* a train and never about where one may *be*, so origins
 and a person's placement are unconstrained and `through` on a terminal block
 is a headshunt rather than a contradiction. Absent it, a block is a station
 ([ADR-0046](docs/adr/0046-a-blocks-role-and-filter-are-advice-to-the-generator.md)).
+**Station** is this role and nothing else here: the app that owns the command
+station's USB device and mirrors it on TCP 2560 is `dccex-usb`
+([docs/dccex_usb/README.md](docs/dccex_usb/README.md)).
 _Avoid_: transient (one letter from **transit**), type, category, purpose
 
 **Admits**:

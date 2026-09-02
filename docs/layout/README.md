@@ -50,7 +50,8 @@ a speed cannot be composed without it and there is nowhere else it lives
 There is none yet, and that is the milestone and not the app: the bus is a
 Python object inside one process ([SYSTEM.md](../SYSTEM.md#the-bus)), so no
 core app has a command line — `scheduler`, `dispatcher` and `driver` have none
-either. `station` does, and it is the one app that speaks no bus topic at all.
+either. `dccex-usb` does, and it is the one app that speaks no bus topic at
+all.
 
 The app is constructed on the bus like the rest of them, with the two
 documents the railroad is — the layout it answers for and the roster of stock

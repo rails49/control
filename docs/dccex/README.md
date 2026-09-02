@@ -23,9 +23,9 @@ and nowhere else.
 
 ## What it connects to
 
-TCP **2560**, which the `station` app serves from the USB device
-([station/README.md](../station/README.md)). Not the USB device directly:
-`station` owns it, and the port is what lets JMRI and hand-held throttles
+TCP **2560**, which the `dccex-usb` app serves from the USB device
+([dccex_usb/README.md](../dccex_usb/README.md)). Not the USB device directly:
+`dccex-usb` owns it, and the port is what lets JMRI and hand-held throttles
 share the same command station. This app is one client of that port beside
 the others, and every client is a peer — nothing in the firmware ranks them.
 
@@ -187,7 +187,7 @@ would otherwise stand as an observation nobody made.
 
 **`device/link`** is `up` while the connection is open **and** the station has
 answered, `down` otherwise, with `detail` carrying what a person would want to
-read. An open socket is not a command station — `station` accepts a client
+read. An open socket is not a command station — `dccex-usb` accepts a client
 with the serial cable unplugged — so the link is not called good until
 something has come back on it. It goes on saying `down` for the whole outage,
 which is where a broken link becomes visible: at runtime, to a person who can
@@ -210,14 +210,14 @@ nobody to read it.
 There is none yet, and that is the milestone and not the app: the bus is a
 Python object inside one process ([SYSTEM.md](../SYSTEM.md#the-bus)), so no
 app that speaks a bus topic has a command line — `layout`, `scheduler`,
-`dispatcher` and `driver` have none either. `station` does, and it is the one
-app that speaks no bus topic at all.
+`dispatcher` and `driver` have none either. `dccex-usb` does, and it is the
+one app that speaks no bus topic at all.
 
 The app is constructed on the bus like the rest of them, with where the
 station is served, and `--startup` is the `startup` argument until then:
 
 ```python
-DccEx(bus, "station", 2560, startup=Path("/etc/tc49/dccex-startup.txt"))
+DccEx(bus, "dccex-usb", 2560, startup=Path("/etc/tc49/dccex-startup.txt"))
 ```
 
 `run()` is the connection: it connects, applies the retained desired state,

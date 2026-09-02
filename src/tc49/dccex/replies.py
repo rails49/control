@@ -1,22 +1,22 @@
 """What the station says, and the two facts this app reads out of it.
 
 The station writes `<…>` messages to every client, replies and unasked
-broadcasts alike, and one byte stream cannot say which a line is — `station`
-fans the whole conversation to everybody and routes nothing (ADR-0043). So
-what arrives here is everything the station has to say to anyone, and the
-reading is deliberately narrow: the power each track is in, and whether the
-emergency-stop lock is on. Everything else — a slot's speed, a turnout the
-station keeps of its own, a sensor it polls, a fast clock — is another
-client's business and is passed over unread.
+broadcasts alike, and one byte stream cannot say which a line is —
+`dccex-usb` fans the whole conversation to everybody and routes nothing
+(ADR-0043). So what arrives here is everything the station has to say to
+anyone, and the reading is deliberately narrow: the power each track is in,
+and whether the emergency-stop lock is on. Everything else — a slot's speed,
+a turnout the station keeps of its own, a sensor it polls, a fast clock — is
+another client's business and is passed over unread.
 
 Two functions, both pure. `messages` is the framing rule, bytes in and whole
 messages out; `reply` is one message read into a fact or into `None`. Neither
 raises, and a message this app does not recognise is not an error: it is the
 ordinary case, most of the traffic on the port being somebody else's.
 
-`station` frames the same `<…>` delimiters and this is not shared with it.
+`dccex-usb` frames the same `<…>` delimiters and this is not shared with it.
 Apps import `tc49.lib` and themselves, never each other (ADR-0013), and the
-delimiters are the hardware's rather than a contract of ours — `station`
+delimiters are the hardware's rather than a contract of ours — `dccex-usb`
 mirrors a device and holds its own copy for the same reason it imports
 nothing else of ours.
 """
