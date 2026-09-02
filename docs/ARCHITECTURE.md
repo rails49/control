@@ -115,7 +115,7 @@ src/tc49/
                             every client, a client's bytes written whole
                 framing.py  frame() — bytes in, whole `<…>` messages out
                 __main__.py `python -m tc49.dccex_usb --device … --port …`,
-                            the command line deploy/dccex-usb.Dockerfile runs
+                            the command line deploy/app.Dockerfile runs
   dccex/        translator.py  the translator between the device vocabulary
                                and the command station: the desired state out
                                over one connection to `dccex-usb`, the supply

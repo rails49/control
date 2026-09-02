@@ -1,6 +1,6 @@
 """`python -m tc49.dccex_usb` — the command line the container runs.
 
-Two flags and no more, the ones `deploy/dccex-usb.Dockerfile` passes: the
+Two flags and no more, the ones `deploy/app.Dockerfile` passes: the
 device to open and the port to serve it on. There is no bind address, because
 the server binds every interface and what limits its reach is the LAN
 (ADR-0042).
