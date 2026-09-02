@@ -63,11 +63,11 @@ async function asked(header: TcHeader, act: () => Promise<void>): Promise<string
 }
 
 /** A band with three railroads to pick from and one of them loaded. */
-const LOADED = { drawing: "gotthard", drawings: ["crossover-yard", "gotthard", "otira"] };
+const LOADED = { drawing: "reversing-loops", drawings: ["crossover-yard", "reversing-loops", "otira"] };
 
 describe("what the band names", () => {
   it("names the railroad that is loaded", async () => {
-    expect(reads(await band({ drawing: "gotthard" }), ".drawing")).toBe("gotthard");
+    expect(reads(await band({ drawing: "reversing-loops" }), ".drawing")).toBe("reversing-loops");
   });
 
   it("says plainly when none is", async () => {
@@ -89,7 +89,7 @@ describe("the railroad picker", () => {
     );
     expect(listed).toEqual([
       ["crossover-yard", ""],
-      ["gotthard", "✓"],
+      ["reversing-loops", "✓"],
       ["otira", ""],
     ]);
   });
@@ -109,7 +109,7 @@ describe("the railroad picker", () => {
   it("asks for nothing when the loaded railroad is chosen", async () => {
     const header = await listing(await band(LOADED));
     const heard = await asked(header, async () => {
-      await choose(header, "gotthard");
+      await choose(header, "reversing-loops");
     });
     expect(heard).toEqual([]);
     expect(header.renderRoot.querySelector("menu.drawings")).toBeNull();
@@ -135,19 +135,19 @@ describe("what the band marks as unsaved", () => {
   /** The dot is the whole indicator: no button's disabled state has to be
    *  read to see that a drawing has edits in it (#84). */
   it("marks a drawing with edits in it", async () => {
-    const header = await band({ drawing: "gotthard", unsaved: true });
+    const header = await band({ drawing: "reversing-loops", unsaved: true });
     expect(header.renderRoot.querySelector(".unsaved")).not.toBeNull();
   });
 
   it("marks nothing once the drawing is saved", async () => {
-    const header = await band({ drawing: "gotthard", unsaved: false });
+    const header = await band({ drawing: "reversing-loops", unsaved: false });
     expect(header.renderRoot.querySelector(".unsaved")).toBeNull();
   });
 
   /** The mark carries its meaning in a label as well as in ink, a dot being no
    *  use to a reader that cannot see it. */
   it("labels the dot rather than leaving it a glyph", async () => {
-    const header = await band({ drawing: "gotthard", unsaved: true });
+    const header = await band({ drawing: "reversing-loops", unsaved: true });
     const dot = header.renderRoot.querySelector(".unsaved")!;
     expect(dot.getAttribute("role")).toBe("img");
     expect(dot.getAttribute("aria-label")).toBe("unsaved");
@@ -245,13 +245,13 @@ describe("whether the drawing derives", () => {
   /** The coarse counterpart to the marks on the canvas (ADR-0024): one
    *  indicator, no fault named and nothing counted. */
   it("marks a drawing derivation refused", async () => {
-    expect(reads(await band({ drawing: "gotthard", derives: false }), ".refused")).toBe(
+    expect(reads(await band({ drawing: "reversing-loops", derives: false }), ".refused")).toBe(
       "does not derive",
     );
   });
 
   it("is clean while the drawing derives", async () => {
-    expect(reads(await band({ drawing: "gotthard", derives: true }), ".refused")).toBeNull();
+    expect(reads(await band({ drawing: "reversing-loops", derives: true }), ".refused")).toBeNull();
   });
 
   /** A page with nothing to say about derivation — the panel — says nothing. */

@@ -10,7 +10,7 @@ describe("fitting a label to a block", () => {
   it("draws a name that fits at the full size", () => {
     // Every block id in the repo is this short or shorter, so the shrink is a
     // safety net rather than the usual case.
-    for (const name of ["C4", "CE1", "airolo_1", "line_yellow"]) {
+    for (const name of ["C4", "CE1", "station_a_1", "line_yellow"]) {
       expect(fitted(name, BODY)).toBe(LABEL.size);
     }
   });

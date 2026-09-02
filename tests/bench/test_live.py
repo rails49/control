@@ -446,8 +446,8 @@ def test_naming_another_railroad_swaps_the_assembly_and_closes_the_old_client(
     railroad's events."""
     with joining(session, "crossover-yard") as first:
         assert payload_of(first, "power")["power"] == "on"
-        with joining(session, "gotthard-v0") as second:
-            assert put(second, "north", "airolo_1")["block"] == "airolo_1"
+        with joining(session, "reversing-loops-v0") as second:
+            assert put(second, "north", "station_a_1")["block"] == "station_a_1"
             with pytest.raises(ConnectionClosed):
                 while True:
                     first.recv(timeout=TIMEOUT)
@@ -489,8 +489,8 @@ def test_each_railroad_the_session_runs_keeps_its_own_picture(
     try:
         with joining(live, "crossover-yard") as client:
             assert put(client, "freight_1", "yard_w")["train"] == "freight_1"
-        with joining(live, "gotthard-v0") as other:
-            assert put(other, "north", "airolo_1")["train"] == "north"
+        with joining(live, "reversing-loops-v0") as other:
+            assert put(other, "north", "station_a_1")["train"] == "north"
     finally:
         live.stop()
         thread.join(TIMEOUT)
@@ -500,16 +500,18 @@ def test_each_railroad_the_session_runs_keeps_its_own_picture(
         layout: json.loads(state_for(kept, layout).read_text())[
             "tc49/dispatch/state/allocation"
         ]
-        for layout in ("crossover-yard", "gotthard-v0")
+        for layout in ("crossover-yard", "reversing-loops-v0")
     }
     assert set(pictures["crossover-yard"]["trains"]) == {"freight_1"}
-    assert set(pictures["gotthard-v0"]["trains"]) == {"north"}
+    assert set(pictures["reversing-loops-v0"]["trains"]) == {"north"}
 
 
 def test_a_railroads_file_is_named_beside_the_session_path() -> None:
     """Beside it and never it: two railroads must not be able to collide on
     one name, and the path the operator typed is the stem they share."""
     kept = Path("runs/tonight.json")
-    assert state_for(kept, "gotthard-v0") == Path("runs/tonight.gotthard-v0.json")
-    assert state_for(kept, "crossover-yard") != state_for(kept, "gotthard-v0")
-    assert state_for(kept, "gotthard-v0").parent == kept.parent
+    assert state_for(kept, "reversing-loops-v0") == Path(
+        "runs/tonight.reversing-loops-v0.json"
+    )
+    assert state_for(kept, "crossover-yard") != state_for(kept, "reversing-loops-v0")
+    assert state_for(kept, "reversing-loops-v0").parent == kept.parent

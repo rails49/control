@@ -20,11 +20,11 @@ def yard() -> Layout:
     return layout
 
 
-def gotthard() -> Layout:
+def reversing_loops() -> Layout:
     """The railroad on the bench, which the yard is not: it is the one drawn
     here with a reversing loop, and facing out and back through one is a
     question only it can be asked."""
-    layout, _roster, _ = load("gotthard/meet")
+    layout, _roster, _ = load("reversing-loops/meet")
     return layout
 
 
@@ -415,13 +415,17 @@ def test_a_propelled_train_into_a_terminal_block_faces_its_connected_end() -> No
 
 
 def test_a_route_out_and_back_through_a_reversing_loop_turns_the_train() -> None:
-    """Airolo's `CW.A` joins both `A1.A` and `A1.B` — a reversing loop's
+    """station-A's `CW.A` joins both `A1.A` and `A1.B` — a reversing loop's
     signature — so a train that runs out of `CW` and back into it comes home
     the other way round. Nose-first both moves, and the pass-through rule
     alone gives the reversal: nothing about #295 touches it."""
     bus = Bus(Clock())
     seen = collect(bus, FACING)
-    Scheduler(bus, gotthard(), seed(gotthard(), {"shunter": TrainSpec("CW", "B-to-A")}))
+    Scheduler(
+        bus,
+        reversing_loops(),
+        seed(reversing_loops(), {"shunter": TrainSpec("CW", "B-to-A")}),
+    )
 
     granted(bus, "shunter", "j1.A1_A__CW_A", "A1")
     assert seen[-1][1]["facing"]["shunter"] == "A1.A-to-B"

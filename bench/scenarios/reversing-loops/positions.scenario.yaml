@@ -1,6 +1,7 @@
-# gotthard/positions — one train, so the panel draws point positions (#130).
+# reversing-loops/positions — one train, so the panel draws point positions
+# (#130).
 #
-# `gotthard` is the only drawing whose points carry addresses, and the
+# `reversing-loops` is the only drawing whose points carry addresses, and the
 # panel reads position off `align`, address by address (ui/PANEL.md), so this
 # is the scenario that puts #98's position language on screen: a point drawn
 # in the position it was commanded to, with the road it does not offer faint.
@@ -8,7 +9,7 @@
 # One train and one request, because nothing more is needed to show it. `mover`
 # stands in C4, a terminal track, and asks for A2, so its route crosses both
 # junctions the drawing draws in detail: j2, where sw14 and sw15 must both
-# throw, and then j1, where the four points sharing `dccex/1` throw together,
+# throw, and then j1, where the four points sharing `dccex/105` throw together,
 # sw3 throws, and sw1 and sw2 stay closed. Nine of the seventeen addressed
 # turnouts end the run lying somewhere, in both positions, which is the whole
 # of the language in one picture.
@@ -16,7 +17,7 @@
 # It benchmarks nothing and carries no golden: a scenario to look at.
 
 scenario: positions
-layout: gotthard
+layout: reversing-loops
 
 trains:
   mover: { at: C4, facing: B-to-A }

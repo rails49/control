@@ -92,22 +92,22 @@ describe("the key beside the label", () => {
 describe("what a drawing has to be open for", () => {
   it("saves only a drawing that is open and has edits in it", () => {
     expect(on("save")).toBe(false);
-    expect(on("save", { opened: "gotthard", saved: true })).toBe(false);
-    expect(on("save", { opened: "gotthard", saved: false })).toBe(true);
+    expect(on("save", { opened: "reversing-loops", saved: true })).toBe(false);
+    expect(on("save", { opened: "reversing-loops", saved: false })).toBe(true);
   });
 
   it("forks only what is open, saved or not", () => {
     expect(on("save-as")).toBe(false);
-    expect(on("save-as", { opened: "gotthard" })).toBe(true);
-    expect(on("save-as", { opened: "gotthard", saved: false })).toBe(true);
+    expect(on("save-as", { opened: "reversing-loops" })).toBe(true);
+    expect(on("save-as", { opened: "reversing-loops", saved: false })).toBe(true);
   });
 
   /** The export writes the drawing that is open, saved or not: it is a
    *  picture of what is on the sheet, so unsaved edits belong in it. */
   it("exports only a drawing that is open", () => {
     expect(on("export-svg")).toBe(false);
-    expect(on("export-svg", { opened: "gotthard" })).toBe(true);
-    expect(on("export-svg", { opened: "gotthard", saved: false })).toBe(true);
+    expect(on("export-svg", { opened: "reversing-loops" })).toBe(true);
+    expect(on("export-svg", { opened: "reversing-loops", saved: false })).toBe(true);
   });
 
   it("always offers a new drawing", () => {
@@ -181,7 +181,7 @@ describe("what a train standing on the railroad freezes", () => {
    *  gone. Saving is here too — the edits it writes were made before the
    *  train arrived, and refusing to store them would strand them. */
   it("leaves looking at the drawing alone", () => {
-    const open = { opened: "gotthard", placed: 2 };
+    const open = { opened: "reversing-loops", placed: 2 };
     for (const id of ["zoom-in", "zoom-out", "fit"] as const) {
       expect(on(id, open), id).toBe(true);
     }
@@ -225,7 +225,7 @@ describe("the view", () => {
    *  either. */
   it("consults the netlist only of a drawing that is open", () => {
     expect(on("netlist")).toBe(false);
-    expect(on("netlist", { opened: "gotthard" })).toBe(true);
-    expect(on("netlist", { opened: "gotthard", saved: false })).toBe(true);
+    expect(on("netlist", { opened: "reversing-loops" })).toBe(true);
+    expect(on("netlist", { opened: "reversing-loops", saved: false })).toBe(true);
   });
 });

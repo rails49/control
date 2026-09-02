@@ -26,7 +26,7 @@ describe are in [GOALS.md](../GOALS.md) and
 catalogue/<model>.yaml                          # what a product is
 layouts/<layout>.drawing.yaml                   # the railroad, drawn
 layouts/<layout>.roster.yaml                    # the cars it owns, and its trains
-scenarios/<layout>/<scenario>.scenario.yaml     # e.g. gotthard/meet
+scenarios/<layout>/<scenario>.scenario.yaml     # e.g. reversing-loops/meet
 ```
 
 Those paths are the store's, read from wherever it is rooted. In this checkout
@@ -79,7 +79,7 @@ connections:
   ends, and each end belongs to **exactly one** connection. That is a real
   modelling constraint, not a notational one: it is why a siding cannot hang off
   the middle of a station track (its turnout is part of the connection at one
-  *end* of that track), and why Airolo is a single connection rather than two
+  *end* of that track), and why station-A is a single connection rather than two
   throats.
 - **Terminal blocks are derived, never declared** — a block is terminal iff only
   one of its ends appears in any connection.
@@ -114,8 +114,8 @@ connections:
   address and a position here, never a shape, a position on the canvas, or a
   switching time.
   Connection *length* is likewise absent — a connection can be metres of track,
-  as the Gotthard return loop is, but a train transits it and can never stop in
-  it.
+  as the `reversing-loops` return loop is, but a train transits it and can
+  never stop in it.
 - **A block end carries the address of the signal standing at it**, under
   `signals` on the block and keyed by the end, `A` or `B`. It is the drawing's
   ([DRAWING.md](DRAWING.md#hardware-ids)), a signal being fixed wiring whose
@@ -180,7 +180,7 @@ functions:                # function number -> what it does on this product
 ## Roster schema
 
 ```yaml
-roster: gotthard
+roster: reversing-loops
 
 cars:
   re460_1: { model: sbb-re460, addr: "460" }
@@ -330,14 +330,14 @@ Two structural facts fall out of the model and surprise people:
 - **A throat ladder has no track-to-track transit.** Moving from station track 2
   to track 1 is a reversing shunt, not a pass-through, so it is correctly absent.
   What *is* possible is entering a station track at one end and leaving at the
-  other — that is a pass-through, and it is how a train at Claro reaches the
-  yellow line.
+  other — that is a pass-through, and it is how a train at station-C reaches
+  the yellow line.
 - **A reversing loop has a signature: a path from a block end back to that same
-  end.** On Gotthard `line_yellow.A` reaches `airolo_2.A`, and leaving
-  `airolo_2.B` returns to `line_yellow.A`. A train goes out, through the
-  station, and comes back facing the other way without ever backing up. A single
-  route still cannot use it — a route is a simple path, so the return leg would
-  revisit `line_yellow` — so turning a train is two requests. That is consistent
+  end.** On `reversing-loops` `line_yellow.A` reaches `station_a_2.A`, and
+  leaving `station_a_2.B` returns to `line_yellow.A`. A train goes out, through
+  the station, and comes back facing the other way without ever backing up. A
+  single route still cannot use it — a route is a simple path, so the return
+  leg would revisit `line_yellow` — so turning a train is two requests. That is consistent
   with ADR-0001 but for a subtler reason than the ADR contemplates: here it is
   the simple-path rule doing the work, not the no-reversal rule. Autoreverse
   wiring is an electrical concern of the railroad and leaves no trace in either
@@ -347,24 +347,26 @@ Two structural facts fall out of the model and surprise people:
 
 | File | Shape | Role |
 | --- | --- | --- |
-| [`bench/layouts/gotthard.drawing.yaml`](../../bench/layouts/gotthard.drawing.yaml) | 15 blocks, 5 connections, 30 transits, 5 terminal blocks | the railroad on the bench, headline benchmark; drawn in the editor from the track itself, turnouts carrying their real decoder addresses |
-| [`bench/layouts/gotthard-v0.drawing.yaml`](../../bench/layouts/gotthard-v0.drawing.yaml) | 14 blocks, 4 connections, 29 transits, 5 terminal blocks | **superseded**, frozen; wrong about Claro track 3 and the west throat, kept only so ADR-0006, ADR-0012 and ADR-0029 can be re-run (#161) |
+| [`bench/layouts/reversing-loops.drawing.yaml`](../../bench/layouts/reversing-loops.drawing.yaml) | 15 blocks, 5 connections, 30 transits, 5 terminal blocks | the headline benchmark, and the bench's largest fixture; a frozen snapshot, drawn in the editor, with synthetic turnout addresses whose sharing is the part that means anything |
+| [`bench/layouts/reversing-loops-v0.drawing.yaml`](../../bench/layouts/reversing-loops-v0.drawing.yaml) | 14 blocks, 4 connections, 29 transits, 5 terminal blocks | **superseded**, frozen; wrong about station-C track 3 and the west throat, kept only so ADR-0006, ADR-0012 and ADR-0029 can be re-run (#161) |
 | [`bench/layouts/crossover-yard.drawing.yaml`](../../bench/layouts/crossover-yard.drawing.yaml) | 6 blocks, 3 connections, 8 transits | small, fast, drawn from real symbols throughout |
 
 `facing-pair` and `single-track-meet` are property-test railroads and are
 described in [ARCHITECTURE.md](../ARCHITECTURE.md#tests); they are small enough to
 read from those descriptions.
 
-Gotthard is drawn from the track itself, in the editor, and that drawing is the
-record — there is no second netlist it is checked against. `Gotthard.pdf`
-(WinTrack) is the source for block lengths, which are measured rather than
-assumed. No block end carries a signal address yet: the field is there and the
-addresses are typed onto the drawing from the railroad, which is the one place
-they are known ([ADR-0030](../adr/0030-the-physical-railroad-is-the-normative-binding.md)).
-Its turnouts carry the decoder addresses the hardware
-answers to, and which of them are *identical* is the part that matters: an
-address shared between two symbols means one decoder throws both, and the
-derivation composes the concurrency from that.
+`reversing-loops` was drawn in the editor, and that drawing is the record —
+there is no second netlist it is checked against. It is a **frozen snapshot**:
+a topology worth exercising, kept as the harness's fixture and tracking no
+railroad, so the benchmark history compares dispatchers rather than track
+(#319). Its block lengths were measured rather than assumed and stay as
+recorded. No block end carries a signal address: the field is there, and an
+address is typed onto a drawing from the railroad it belongs to, which is the
+one place it is known
+([ADR-0030](../adr/0030-the-physical-railroad-is-the-normative-binding.md)).
+Its turnout addresses are **synthetic**, and only which of them are *identical*
+means anything: an address shared between two symbols means one decoder throws
+both, and the derivation composes the concurrency from that.
 
 The owner's Rocrail netlist was that second record until #161. It is deleted:
 the drawing already carries the addresses, and Rocrail's ganging no longer

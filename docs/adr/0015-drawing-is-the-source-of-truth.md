@@ -24,20 +24,21 @@ review as a topology diff. But the drawing is YAML with stable ids, so a
 mis-dragged wire already appears as a changed pin-to-pin edge, which is the
 cause rather than the effect and reads at least as well. There is no cost
 argument either: derivation is three passes over a graph of tens of nodes, well
-under a millisecond for Gotthard, run once per `get` against a snapshot that is
-immutable for the run.
+under a millisecond for `reversing-loops`, run once per `get` against a
+snapshot that is immutable for the run.
 
 What this gives up is blast radius. One moved wire can flip concurrency across
 many transit pairs, and the drawing diff shows one changed line where a layout
 diff would show all of it. A `tc49 layout show <name>` command covers that on
 demand, as a tool rather than a committed file.
 
-Two consequences follow. Migration becomes compulsory, since a railroad that has
-not been drawn cannot be loaded; the generic N-pin connection symbol makes that
-mechanical and lossless, because derivation passes it through unchanged. And the
-reasoning comments that `layouts/gotthard.layout.yaml` carried have to move into
-the drawing, along with the parts of [LAYOUT.md](../store/LAYOUT.md) that
-document the layout schema as the authored format.
+Two consequences follow. Migration becomes compulsory, since a railroad that
+has not been drawn cannot be loaded; the generic N-pin connection symbol makes
+that mechanical and lossless, because derivation passes it through unchanged.
+And the reasoning comments that `layouts/reversing-loops.layout.yaml` carried
+have to move into the drawing, along with the parts of
+[LAYOUT.md](../store/LAYOUT.md) that document the layout schema as the authored
+format.
 
 [ADR-0010](0010-asset-store-serves-coarse-read-only-documents.md) is
 unaffected in shape: still two coarse document types, still whole-document

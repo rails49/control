@@ -33,7 +33,7 @@ def store(tmp_path: Path) -> AssetStore:
 def test_the_drawings_are_listed(store: AssetStore) -> None:
     status, body = handle(store, "GET", "/drawings", None)
     assert status == 200
-    assert "gotthard-v0" in body["drawings"]
+    assert "reversing-loops-v0" in body["drawings"]
 
 
 def test_a_drawing_is_served_as_the_document_it_is(store: AssetStore) -> None:
@@ -52,19 +52,19 @@ def test_an_unknown_drawing_is_not_found(store: AssetStore) -> None:
 def test_a_put_saves_the_drawing_and_keeps_its_prose(
     store: AssetStore, tmp_path: Path
 ) -> None:
-    doc = store.drawing("gotthard-v0")
+    doc = store.drawing("reversing-loops-v0")
     doc["symbols"]["sw16"]["at"] = [4, 7]
-    status, _ = handle(store, "PUT", "/drawings/gotthard-v0", doc)
+    status, _ = handle(store, "PUT", "/drawings/reversing-loops-v0", doc)
 
     assert status == 200
-    text = (tmp_path / "layouts" / "gotthard-v0.drawing.yaml").read_text()
+    text = (tmp_path / "layouts" / "reversing-loops-v0.drawing.yaml").read_text()
     assert "# The WX310, west of the station" in text
-    assert store.drawing("gotthard-v0")["symbols"]["sw16"]["at"] == [4, 7]
+    assert store.drawing("reversing-loops-v0")["symbols"]["sw16"]["at"] == [4, 7]
 
 
 def test_a_put_naming_a_different_drawing_is_refused(store: AssetStore) -> None:
     doc = store.drawing("facing-pair")
-    status, body = handle(store, "PUT", "/drawings/gotthard-v0", doc)
+    status, body = handle(store, "PUT", "/drawings/reversing-loops-v0", doc)
     assert status == 400
     assert "facing-pair" in body["error"]
 
@@ -73,9 +73,9 @@ def test_a_roster_is_served_for_the_railroad_that_owns_it(store: AssetStore) -> 
     """Every train the railroad owns, whether anything places it or not: the
     roster is the run view's source for what there is to place, and the one
     place a length is written down (ADR-0039, ui/PANEL.md)."""
-    status, body = handle(store, "GET", "/rosters/gotthard-v0", None)
+    status, body = handle(store, "GET", "/rosters/reversing-loops-v0", None)
     assert status == 200
-    assert body["roster"] == "gotthard-v0"
+    assert body["roster"] == "reversing-loops-v0"
     assert body["trains"]["south"] == {"length": 900, "functions": []}
     assert body["trains"] == dict(sorted(body["trains"].items()))
 
@@ -186,7 +186,10 @@ def test_a_query_string_does_not_make_a_new_route(store: AssetStore) -> None:
 
 
 def test_an_unknown_route_is_not_found(store: AssetStore) -> None:
-    for method, path in (("GET", "/nowhere"), ("DELETE", "/drawings/gotthard-v0")):
+    for method, path in (
+        ("GET", "/nowhere"),
+        ("DELETE", "/drawings/reversing-loops-v0"),
+    ):
         status, _ = handle(store, method, path, None)
         assert status == 404
 

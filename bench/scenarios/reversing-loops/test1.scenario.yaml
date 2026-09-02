@@ -1,5 +1,5 @@
 scenario: test1
-layout: gotthard
+layout: reversing-loops
 
 trains:
   short: { at: C1, facing: B-to-A }

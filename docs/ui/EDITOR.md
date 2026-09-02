@@ -22,7 +22,7 @@ throughout; the panel, which is used constantly, is where polish goes.
 The same railroad in this editor. Track is black and a block's rectangle white,
 and every pin is drawn.
 
-![Gotthard in the editor](images/gotthard.svg)
+![The `reversing-loops` fixture in the editor](images/reversing-loops.svg)
 
 ## What it is for
 
@@ -31,11 +31,11 @@ means what you think it means, because what the dispatcher runs is not the
 picture but the netlist derived from it, and the interesting part of that
 netlist is which movements may run at the same time.
 
-Airolo makes the point. Its WX310 is drawn the standard way, four turnouts and
-a crossing, and derivation composes 19 transits and 33 concurrent pairs out of
-them. Nobody can confirm 33 pairs by reading them. So the editor can show the
-derived netlist beside the drawing and, for any transit, the way it takes and
-the reason it excludes each other transit.
+The throat at station-A makes the point. Its WX310 is drawn the standard way,
+four turnouts and a crossing, and derivation composes 19 transits and 33
+concurrent pairs out of them. Nobody can confirm 33 pairs by reading them. So the editor can show
+the derived netlist beside the drawing and, for any transit, the way it takes
+and the reason it excludes each other transit.
 
 That was once the feature the rest of the editor existed to serve. It is now a
 debugging view, opened when something looks wrong rather than kept on screen
@@ -329,7 +329,7 @@ Signals and sensors are not palette entries. Every block has both at both
 ends, so there is nothing to place.
 
 The generic connection symbol is not placed and not drawn. It has no fixed pin
-set to place, migration is over, and since Claro east was redrawn from real
+set to place, migration is over, and since station-C east was redrawn from real
 symbols (#58) it has no users left at all.
 
 ### Units and colours
@@ -420,9 +420,9 @@ lamp pitch and the end margins: `2 x 0.22 + 0.11 + 2 x 0.10` is the 0.75G. At
 pin and the rectangle. These numbers were settled by looking at the built run
 mode, which is what the earlier draft of this page deferred them to.
 
-**An end nothing leaves carries no signal.** A siding's blind end — Claro 4's
-B end, which runs into a buffer stop — could only ever show red, and a signal
-that can never clear is furniture. Which ends those are is read off the
+**An end nothing leaves carries no signal.** A siding's blind end — station-C
+4's B end, which runs into a buffer stop — could only ever show red, and a
+signal that can never clear is furniture. Which ends those are is read off the
 derived layout: an end appears in a transit or it does not, joints being
 transits too, so no topology is computed here. The plaque and every lamp are
 omitted rather than dimmed, a dim signal being an aspect and there being no
@@ -651,12 +651,12 @@ itself, and the netlist pane is where it is read for debugging.
 written in one is not honoured: it is replaced before the first review is
 drawn, and the drawing is marked as holding unsaved edits, because it does.
 That is what makes a name clash impossible rather than rare: a typed name is
-one an edit can merge with another, and choosing which half is Airolo is not
-the editor's decision to make. Gotthard's `airolo` stays in the file's comments
-and in the netlist pane's section headers, under its minted replacement
-([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)). Nothing about
-the format changes: a `connection` key is still written and still read, so a
-hand-written railroad still loads and still derives.
+one an edit can merge with another, and choosing which half is station-A is not
+the editor's decision to make. `reversing-loops`'s `station_a` stays in the
+file's comments and in the netlist pane's section headers, under its minted
+replacement ([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)).
+Nothing about the format changes: a `connection` key is still written and still
+read, so a hand-written railroad still loads and still derives.
 
 Deleting a symbol can split a junction in two, and wiring two together merges
 them. Either way names end up where derivation refuses them, and either way
@@ -702,9 +702,9 @@ is a claim about the drawing that can be checked by looking at it. Selecting a
 symbol gives the inverse: every transit through it, split into those that can
 run together and those that cannot.
 
-`A3_B__CW_A` lit: out of Airolo's track 3, across the throat, into Claro west.
-That throat is the one the opening counts 19 transits and 33 concurrent pairs
-at; its connection is `j1`, minted
+`A3_B__CW_A` lit: out of station-A's track 3, across the throat, into station-C
+west. That throat is the one the opening counts 19 transits and 33 concurrent
+pairs at; its connection is `j1`, minted
 ([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)).
 
 ![a transit lit across the throat](images/butterfly-transit.svg)
@@ -901,8 +901,8 @@ properties dialog that sets a block's.
 
 TypeScript, pnpm, Lit and Shoelace, at `ui/` in the repo root. The drawing
 surface is SVG in the DOM: hit-testing, hover and selection come from pointer
-events, live state is a CSS class toggle. Gotthard is a few hundred elements,
-far below where SVG struggles.
+events, live state is a CSS class toggle. `reversing-loops` is a few hundred
+elements, far below where SVG struggles.
 
 Dragging a symbol out of the palette is pointer events too, not the HTML drag
 and drop API, which cannot do it: during a native drag the browser owns the
@@ -1072,15 +1072,15 @@ None of them can change a derived netlist, which is why they wait.
 No committed drawing has any placement and there is no auto-layout, so each
 railroad is drawn once by hand: `facing-pair` first at five symbols, then
 `crossover-yard` at fifteen because its scissors crossover is the derivation
-that DRAWING.md leans on hardest, then `single-track-meet`, then Gotthard at
-thirty-six symbols and forty-four wires. Each drawn railroad is checked by
-deriving it and comparing against the layout derived from the committed file.
-Structure should match exactly; transit names will differ wherever a `names:`
-override has not been re-entered.
+that DRAWING.md leans on hardest, then `single-track-meet`, then
+`reversing-loops` at thirty-six symbols and forty-four wires. Each drawn
+railroad is checked by deriving it and comparing against the layout derived
+from the committed file. Structure should match exactly; transit names will
+differ wherever a `names:` override has not been re-entered.
 
-Gotthard was last because Claro east had to be drawn from real symbols to be
-drawn at all, and that was #35: the netlist and the hand-written layout
-disagreed about its geometry. It landed on its own as #58, a topology change
-rather than a drawing one, with the trace churn reviewed. The tiles won, and
-what they showed is that the station's east end is two throats rather than
+`reversing-loops` was last because station-C east had to be drawn from real
+symbols to be drawn at all, and that was #35: the netlist and the hand-written
+layout disagreed about its geometry. It landed on its own as #58, a topology
+change rather than a drawing one, with the trace churn reviewed. The tiles won,
+and what they showed is that the station's east end is two throats rather than
 one.

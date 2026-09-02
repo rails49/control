@@ -55,10 +55,10 @@ def test_terminal_blocks_are_derived(store: AssetStore) -> None:
     assert isinstance(crossover, Layout)
     assert crossover.terminal_blocks == frozenset({"yard_w", "yard_e"})
 
-    gotthard_v0 = store.get("gotthard-v0")
-    assert isinstance(gotthard_v0, Layout)
-    assert gotthard_v0.terminal_blocks == frozenset(
-        {"airolo_4", "claro_4", "claro_5", "claro_6", "claro_7"}
+    reversing_loops_v0 = store.get("reversing-loops-v0")
+    assert isinstance(reversing_loops_v0, Layout)
+    assert reversing_loops_v0.terminal_blocks == frozenset(
+        {"station_a_4", "station_c_4", "station_c_5", "station_c_6", "station_c_7"}
     )
 
 

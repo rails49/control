@@ -215,7 +215,7 @@ def test_a_train_the_scenario_does_not_carry_is_not_adopted(tmp_path: Path) -> N
     """Stock is the scenario's, so the picture is read for the trains this
     session has and no others. A file left by another railroad names none of
     them and is simply not adopted, rather than half-adopted."""
-    stranger = {**MOVED, "trains": {"north": "claro_2", "freight_1": "dn_e"}}
+    stranger = {**MOVED, "trains": {"north": "station_c_2", "freight_1": "dn_e"}}
     _, dispatcher, _ = restarted(tmp_path, stranger)
 
     assert dispatcher.state.block_of == {"express_2": "up_e", "freight_1": "dn_e"}

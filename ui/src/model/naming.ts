@@ -24,8 +24,8 @@
  * merges them, which leaves both names on one junction. Derivation refuses
  * either way, and either way the editor settles it, because every name it is
  * choosing between is one it minted and nobody is reading `j7`. Which half is
- * Airolo was the one question it could not answer, and there is no longer an
- * Airolo to ask it about.
+ * station-A was the one question it could not answer, and there is no longer an
+ * station-A to ask it about.
  */
 
 import { TRANSITS } from "../symbols.generated.js";
@@ -58,7 +58,7 @@ export function remint(drawing: Drawing, review: Review): boolean {
  * writes it over every member.
  *
  * All of a connection's names go together rather than the typed ones alone. A
- * junction wearing `airolo` and `j2` is a merge that has already happened, and
+ * junction wearing `station_a` and `j2` is a merge that has already happened, and
  * keeping `j2` would hand the merged throat a name half of it never wore for
  * no gain: the name is nobody's to read either way.
  *

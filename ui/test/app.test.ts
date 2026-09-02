@@ -36,7 +36,7 @@ function stored(name: string): Drawing {
 }
 
 beforeEach(() => {
-  serving({ drawings: ["gotthard", "otira"], read: stored });
+  serving({ drawings: ["reversing-loops", "otira"], read: stored });
 });
 
 // An app listens on the window for as long as it is in the page, so one left
@@ -141,14 +141,14 @@ describe("switching view", () => {
    *  of ADR-0038: a toggle is not a reload. */
   it("keeps the loaded railroad, and the editor's document with it", async () => {
     const shell = await mounted("edit");
-    await load(shell, "gotthard");
-    expect(loaded(shell)).toBe("gotthard");
+    await load(shell, "reversing-loops");
+    expect(loaded(shell)).toBe("reversing-loops");
 
     await shows(shell, "run");
     await shows(shell, "edit");
 
-    expect(loaded(shell)).toBe("gotthard");
-    expect(session(shell).drawing.drawing).toBe("gotthard");
+    expect(loaded(shell)).toBe("reversing-loops");
+    expect(session(shell).drawing.drawing).toBe("reversing-loops");
     expect(editing(shell).editor).toBe(session(shell));
   });
 
@@ -215,7 +215,7 @@ describe("the picker over unsaved edits", () => {
    *  railroad, not one view's document (#101). */
   it("asks before the band's picker changes anything", async () => {
     const shell = await mounted("edit");
-    await load(shell, "gotthard");
+    await load(shell, "reversing-loops");
     session(shell).place("block", [4, 0]);
     editing(shell).dispatchEvent(
       new CustomEvent("edit", { bubbles: true, composed: true }),
@@ -225,6 +225,6 @@ describe("the picker over unsaved edits", () => {
     await load(shell, "otira");
 
     expect(shell.renderRoot.querySelector("sl-dialog")).not.toBeNull();
-    expect(loaded(shell)).toBe("gotthard");
+    expect(loaded(shell)).toBe("reversing-loops");
   });
 });

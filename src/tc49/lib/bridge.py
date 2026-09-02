@@ -13,14 +13,14 @@ and the dispatcher the sole feasibility authority precisely because nothing
 else can reach the bus (ADR-0036).
 
 **A client names the railroad it wants in the socket path** —
-``ws://127.0.0.1:8766/gotthard``, which a browser reaches as ``/live/gotthard``
-on the app's own origin (docs/DEPLOY.md) — and hears that railroad or
-none. The relay outlives the assembly it relays: ``rebind`` points it at a
-freshly built bus and settles every client on the swap, whoever named the
-new railroad starting to hear it and whoever was on the old one being closed
-so it re-picks rather than rendering one railroad fed by another's events
-(#148). A client that names a railroad other than the running one is asked
-for by ``wants`` and waits out of earshot until its swap lands; naming one
+``ws://127.0.0.1:8766/reversing-loops``, which a browser reaches as
+``/live/reversing-loops`` on the app's own origin (docs/DEPLOY.md) — and hears
+that railroad or none. The relay outlives the assembly it relays: ``rebind``
+points it at a freshly built bus and settles every client on the swap, whoever
+named the new railroad starting to hear it and whoever was on the old one being
+closed so it re-picks rather than rendering one railroad fed by another's
+events (#148). A client that names a railroad other than the running one is
+asked for by ``wants`` and waits out of earshot until its swap lands; naming one
 that does not exist is an error frame and a close, the running railroad
 untouched. No inbound topic carries any of this: the set stays exactly the
 marked rows, which is what ADR-0034's broker ACL will grant.

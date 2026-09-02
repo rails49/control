@@ -5,7 +5,7 @@ The drawing document type and the derivation of layouts from it, decided in
 symbol and the derivation passes in #42, the symbols of fixed geometry in #44.
 Every railroad is drawn (#43), each converted mechanically from the layout it
 was written as, then `crossover-yard` redrawn from real symbols on top of that
-and Gotthard's Airolo and Claro west in #46.
+and `reversing-loops`'s station-A and station-C west in #46.
 The store serves drawings alone (#45): a layout is derived on `get` and is not
 a file, which is what [LAYOUT.md](LAYOUT.md) describes. Order of work:
 derivation (Python, no UI), then the
@@ -135,14 +135,14 @@ a drawing mechanically and losslessly, and a junction whose real geometry is
 not yet drawn can be modelled anyway, then refined one junction at a time. A
 junction drawn this way shows no turnout detail on the panel.
 
-Migration is over and the kind has no users left, so it is legacy. It loads,
-it derives, and the [editor](../ui/EDITOR.md) gives it no support at all: it
-is neither placed nor drawn, having no fixed pin set to place. `facing-pair`'s
-one use was a plain joint, which is now a named wire (#48);
-`single-track-meet`'s four were turnouts, redrawn as such (#56); and Gotthard's
-Claro east, the last, was drawn from turnouts in #58, which is where the
-declared transits and the netlist's tiles were finally compared — and the
-tiles won. Whether the kind leaves the format is a decision in its own right.
+Migration is over and the kind has no users left, so it is legacy. It loads, it
+derives, and the [editor](../ui/EDITOR.md) gives it no support at all: it is
+neither placed nor drawn, having no fixed pin set to place. `facing-pair`'s one
+use was a plain joint, which is now a named wire (#48); `single-track-meet`'s
+four were turnouts, redrawn as such (#56); and `reversing-loops`'s station-C
+east, the last, was drawn from turnouts in #58, which is where the declared
+transits and the netlist's tiles were finally compared — and the tiles won.
+Whether the kind leaves the format is a decision in its own right.
 
 ### Portals
 
@@ -261,7 +261,7 @@ properties: `addr` on a turnout or a slip, and `signals` on a block, keyed by
 the end each signal stands at.
 
 ```yaml
-b_airolo: { kind: block, at: [12, 4], length: 900, signals: { A: 'dccex/40', B: 'dccex/41' } }
+b_station_a: { kind: block, at: [12, 4], length: 900, signals: { A: 'dccex/40', B: 'dccex/41' } }
 ```
 
 A **signal** is installed at one end of one block, so the drawing is where its
@@ -322,10 +322,10 @@ derives but cannot be driven ([EDITOR.md](../ui/EDITOR.md#validation)).
 
 **Points may share an address, and then they move together.** One accessory
 output throws a crossover's two ends as a unit, so a throat can have fewer
-usable ways than its geometry suggests — `gotthard` gangs `sw1` with `sw2`
-and `sw6` through `sw9`, all of them on `dccex`. Sharing is meaningful rather
-than a mistake, so nothing asks addresses to be unique. Two things do follow
-from it, and the review reports both as `motor_faults`:
+usable ways than its geometry suggests — `reversing-loops` gangs `sw1` with
+`sw2` and `sw6` through `sw9`, all of them on `dccex`. Sharing is meaningful
+rather than a mistake, so nothing asks addresses to be unique. Two things do
+follow from it, and the review reports both as `motor_faults`:
 
 - A way needing two points on one address set differently cannot be thrown.
 - Two ways declared `concurrent` promise that two trains may hold the
@@ -363,9 +363,9 @@ is immutable for the run:
 3. Composing symbol concurrency pairwise over those transits gives
    `concurrent`.
 
-Cost is negligible: Gotthard's largest component is Airolo, a few hundred
-traversal steps and 171 pairwise checks. The derived layout is run through
-the existing validator as a safety net against derivation bugs.
+Cost is negligible: `reversing-loops`'s largest component is station-A, a few
+hundred traversal steps and 171 pairwise checks. The derived layout is run
+through the existing validator as a safety net against derivation bugs.
 
 Pass 2 already computes the way each transit takes, as the symbols and local
 transits it crosses, and pass 3 already decides exclusivity by comparing two
@@ -425,8 +425,8 @@ the editor offers no way to name one and keeps them settled itself
 ([EDITOR.md](../ui/EDITOR.md#junctions)) — a split re-mints, a merge collapses
 to the lowest minted name the junction already wore, and a typed name among
 minted ones survives them. Names already in the committed drawings are kept as
-they are, minting only filling the gaps, so `airolo` still heads its connection
-in `tc49 layout show` and prefixes every transit id in a trace.
+they are, minting only filling the gaps, so `station_a` still heads its
+connection in `tc49 layout show` and prefixes every transit id in a trace.
 
 Derivation itself settles nothing. Two names on one junction is refused there
 as it always was, the layout being a pure function of the document
@@ -452,13 +452,13 @@ drawing back unchanged. `get` is left alone: every other caller wants the
 layout.
 
 `put` merges rather than dumps. Comments are most of what a drawing says about
-itself: 73 of Gotthard's 218 lines, including the junction-by-junction account
-of the railroad and which decoder addresses are ganged. Writing placement onto every symbol with
-`yaml.safe_dump` would delete all of it, so `put` applies the incoming
-document into the existing one key by key, in `store/yamlfile.py`. Reading a
-drawing and saving it back unchanged returns the file byte for byte; a symbol
-that moves keeps the comment written against it, and a symbol that is deleted
-takes that comment with it.
+itself: 90 of `reversing-loops`'s 235 lines, including the junction-by-junction
+account of the railroad and which decoder addresses are ganged. Writing
+placement onto every symbol with `yaml.safe_dump` would delete all of it, so
+`put` applies the incoming document into the existing one key by key, in
+`store/yamlfile.py`. Reading a drawing and saving it back unchanged returns the
+file byte for byte; a symbol that moves keeps the comment written against it,
+and a symbol that is deleted takes that comment with it.
 
 Three things do not survive. A comment inside `wires:` goes, the list having
 no keys to merge by and being replaced whole, so reasoning about wiring
@@ -487,11 +487,11 @@ railroads migrate with no topology re-typed; their reasoning comments moved
 into the drawings by hand, so no rationale was lost either. What it could not
 supply is geometry — a junction arrived as one opaque symbol, and refining it
 into turnouts and crossings was a separate, reviewable step, done for
-`crossover-yard` in #44, for Gotthard's Airolo and Claro west in #46, and for
-Claro east in #58. Refining is also where a drawing can start disagreeing with
-what was declared, which is what had stopped Claro east: drawing it moved three
-of its five transits and split it into the two throats its two lines actually
-make.
+`crossover-yard` in #44, for `reversing-loops`'s station-A and station-C west
+in #46, and for station-C east in #58. Refining is also where a drawing can
+start disagreeing with what was declared, which is what had stopped station-C
+east: drawing it moved three of its five transits and split it into the two
+throats its two lines actually make.
 
 The tool did its job and has been removed (#121). It had had no caller since
 #45, and no human will hand-author a layout, so the one use that could have

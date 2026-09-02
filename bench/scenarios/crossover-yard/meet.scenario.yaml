@@ -27,7 +27,8 @@ trains:
 # either end of it, so `to: [yard_e]` is `yard_e.A` and `yard_e.B` — and since
 # yard_e is terminal, `.B` appears in no connection and is pruned at admission,
 # recorded on `request_admitted`. Both yards are single blocks, so this layout
-# has no genuine choice of arrival track to show; Gotthard is where that lives.
+# has no genuine choice of arrival track to show; `reversing-loops` is where
+# that lives.
 #
 # `from` needs only the end. It carries the block where the author knows it,
 # and is then checked at load, against the block the file leaves the train in.

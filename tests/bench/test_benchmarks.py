@@ -36,21 +36,21 @@ from tests.harness import ROOT, load
 
 EXPECTED = ROOT / "benchmarks" / "expected"
 
-# Both railroads. `gotthard` is the one on the bench and carries the claims
-# below; `gotthard-v0` is frozen and carries only numbers, so that the evidence
+# Both railroads. `reversing-loops` is the one on the bench and carries the claims
+# below; `reversing-loops-v0` is frozen and carries only numbers, so that the evidence
 # ADR-0006, ADR-0012 and ADR-0029 cite stays reproducible rather than merely
 # archived (#161). If a v0 golden ever moves, the dispatcher changed — not the
 # railroad.
 NAMED_SCENARIOS = [
     "crossover-yard/meet",
-    "gotthard/meet",
-    "gotthard/saturation",
-    "gotthard/obstacle",
-    "gotthard/flexibility",
-    "gotthard-v0/meet",
-    "gotthard-v0/saturation",
-    "gotthard-v0/obstacle",
-    "gotthard-v0/flexibility",
+    "reversing-loops/meet",
+    "reversing-loops/saturation",
+    "reversing-loops/obstacle",
+    "reversing-loops/flexibility",
+    "reversing-loops-v0/meet",
+    "reversing-loops-v0/saturation",
+    "reversing-loops-v0/obstacle",
+    "reversing-loops-v0/flexibility",
 ]
 
 
@@ -121,39 +121,39 @@ def test_batch_trace_is_pinned_byte_identical() -> None:
 
 
 def test_a_two_block_route_leaves_incremental_nothing_to_withhold() -> None:
-    """`gotthard/meet` no longer splits, and the reason is worth pinning.
+    """`reversing-loops/meet` no longer splits, and the reason is worth pinning.
 
     Its routes are two blocks long, and an increment plus the one asked for
     ahead of it (ADR-0029) is exactly two blocks — so `Incremental` locks the
     whole route at the first grant and *is* `FullRoute` here. `south` takes
-    the airolo transit first and holds it until it crosses, `north` is
+    the station-A transit first and holds it until it crosses, `north` is
     refused `transit_conflict` twice, and only then falls through to the
     yellow. That is the cost ADR-0026 named as holding track speculatively,
     seen at the smallest scale that can show it.
 
     The strategies part company again as soon as a route is longer than the
-    lookahead; `gotthard/saturation` below is where that is asserted. If this
+    lookahead; `reversing-loops/saturation` below is where that is asserted. If this
     test ever fails, the lookahead or the route length changed, and the two
     should be compared afresh rather than the numbers simply re-recorded.
     """
-    results = {name: m for name, (_, m) in bench("gotthard/meet").items()}
+    results = {name: m for name, (_, m) in bench("reversing-loops/meet").items()}
     baseline, incremental = results["FullRoute"], results["Incremental"]
     assert incremental.makespan is not None and baseline.makespan is not None
     assert incremental.makespan == baseline.makespan
     assert incremental.moves_per_minute == baseline.moves_per_minute
 
 
-def test_incremental_drains_gotthard_saturation_faster() -> None:
+def test_incremental_drains_reversing_loops_saturation_faster() -> None:
     """The headline makespan gap: both strategies complete all eighteen
     workings, and `Incremental` does it in materially less simulated time.
 
     Re-derived on the railroad on the bench (#161), where the workload is six
     trains rather than five because the station tracks are seven rather than
     six. Under the grant boundary the gap widened with that move, from 24 vs
-    20 boundaries on `gotthard-v0` to 25 vs 19; the goldens carry today's
+    20 boundaries on `reversing-loops-v0` to 25 vs 19; the goldens carry today's
     numbers in seconds.
     """
-    results = {name: m for name, (_, m) in bench("gotthard/saturation").items()}
+    results = {name: m for name, (_, m) in bench("reversing-loops/saturation").items()}
     for m in results.values():
         assert m.status == "ok"
         assert len(m.completed) == 18
@@ -168,9 +168,9 @@ def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
     """The `|dest| = 6, k = 2` criterion of #33 and #34, met in two steps.
 
     Before congestion-aware costing (#33) the widened workload stalled
-    outright — every train tried `claro_1` then `claro_2`, both occupied,
+    outright — every train tried `station_c_1` then `station_c_2`, both occupied,
     and the rotation never started (0 of 15 workings, dead at once).
-    Costing started the rotation but left it at 11 of 15: the last airolo
+    Costing started the rotation but left it at 11 of 15: the last station-A
     slots went to older trains parking there for good, because no candidate
     ordering can stop an older pending request from taking a free slot.
     That is queue order, and the aging rule (#34) finishes the job — the
@@ -179,20 +179,20 @@ def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
     The committed scenario stays at `|dest| = 2`, the column the sweep
     reads every other against.
 
-    That account is `gotthard-v0`'s history and its counts are v0's. What is
+    That account is `reversing-loops-v0`'s history and its counts are v0's. What is
     asserted is the criterion itself, on the railroad on the bench: widened to
     every line-facing end, the workload still drains at the default `k`.
 
     Two of the eighteen workings are the track-3 shunt, `C3b` to `C3a`, which
-    the rotation cannot avoid — Claro has four station tracks and Airolo three,
-    so a cycle through all seven has one Claro-to-Claro hop. A shunt has no
+    the rotation cannot avoid — station-C has four station tracks and station-A three,
+    so a cycle through all seven has one station-C-to-station-C hop. A shunt has no
     `|dest|` axis: it arrives at `C3a.A`, an end that faces only the other half
     of track 3 and is not a station-to-station arrival end at all. Widening it
     would replace it with ends it cannot mean, turning the shunt into a line
     working and dissolving the rotation this test is about. So the sixteen line
     workings widen and the two shunts are left alone.
     """
-    layout, _roster, scenario = load("gotthard/saturation")
+    layout, _roster, scenario = load("reversing-loops/saturation")
     line_facing = {end for tracks in ARRIVALS.values() for t in tracks for end in t}
 
     def widen(req: RequestSpec) -> RequestSpec:
@@ -235,7 +235,7 @@ def test_the_obstacle_scenario_stalls_and_names_the_obstacle() -> None:
     Track 3's east end is `C3b.A` and there is no other: `C3a` has no east end,
     and from `C3a.B` the yellow is available, which would dissolve the premise.
     """
-    for _, m in bench("gotthard/obstacle").values():
+    for _, m in bench("reversing-loops/obstacle").values():
         assert m.status == "stalled"
         assert m.makespan is None  # excluded from makespan aggregates
         [stall] = m.stalls
@@ -244,9 +244,9 @@ def test_the_obstacle_scenario_stalls_and_names_the_obstacle() -> None:
 
 
 def test_flexibility_is_the_difference_between_stalling_and_finishing() -> None:
-    """Two Airolo -> Claro workings against one obstruction, differing only in
+    """Two station-A -> station-C workings against one obstruction, differing only in
     how many arrival ends each names."""
-    for _, m in bench("gotthard/flexibility").values():
+    for _, m in bench("reversing-loops/flexibility").values():
         assert m.status == "stalled"
         assert m.completed == ("flexible-1",)  # |dest| = 6 finishes
         [stall] = m.stalls

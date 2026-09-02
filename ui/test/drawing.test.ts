@@ -9,11 +9,11 @@ import {
 
 describe("naming a new drawing", () => {
   it("accepts a fresh name", () => {
-    expect(nameTrouble("gotthard-meet", ["gotthard"])).toBeNull();
+    expect(nameTrouble("reversing-loops-meet", ["reversing-loops"])).toBeNull();
   });
 
   it("refuses a taken name, so a fork never clobbers the original", () => {
-    expect(nameTrouble("gotthard", ["gotthard"])).toContain("already");
+    expect(nameTrouble("reversing-loops", ["reversing-loops"])).toContain("already");
   });
 
   it("refuses a slash, which the file path cannot carry", () => {
@@ -84,17 +84,17 @@ describe("the kinds that carry an address", () => {
  */
 describe("renaming a symbol", () => {
   it("accepts a name the drawing does not have", () => {
-    expect(symbolTrouble("claro_2", "b1", ["b1", "claro_1"])).toBeNull();
+    expect(symbolTrouble("station_c_2", "b1", ["b1", "station_c_1"])).toBeNull();
   });
 
   /** Applying a dialog nothing was typed into is not a rename. */
   it("accepts the name the symbol already wears", () => {
-    expect(symbolTrouble("b1", "b1", ["b1", "claro_1"])).toBeNull();
+    expect(symbolTrouble("b1", "b1", ["b1", "station_c_1"])).toBeNull();
   });
 
   it("refuses a name the drawing already has, saying which", () => {
-    expect(symbolTrouble("claro_1", "b1", ["b1", "claro_1"])).toBe(
-      "'claro_1' is already taken",
+    expect(symbolTrouble("station_c_1", "b1", ["b1", "station_c_1"])).toBe(
+      "'station_c_1' is already taken",
     );
   });
 

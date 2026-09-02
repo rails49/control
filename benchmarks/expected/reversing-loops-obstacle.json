@@ -1,5 +1,5 @@
 {
-  "scenario": "gotthard-v0/obstacle",
+  "scenario": "reversing-loops/obstacle",
   "k": 2,
   "strategies": {
     "FullRoute": {
@@ -16,7 +16,7 @@
         {
           "id": "stranded-1",
           "reason": "held",
-          "resource": "line_blue_1",
+          "resource": "CE1",
           "holder": "stock",
           "candidates_blocked": 2
         }
@@ -36,7 +36,7 @@
         {
           "id": "stranded-1",
           "reason": "held",
-          "resource": "line_blue_1",
+          "resource": "CE1",
           "holder": "stock",
           "candidates_blocked": 2
         }

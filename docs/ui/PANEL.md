@@ -183,11 +183,11 @@ that run comes out at — B for `A-to-B` — which is the whole of the reading.
 **Point positions are read off `align`.** The command carries the points it
 needs as address-and-position pairs
 ([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), and the
-panel holds the drawing, so an address maps back to the symbol wearing it.
-Two points wearing one address lie the same way, and an address no symbol
-wears is ignored. A point stays where the last command naming it left it,
-`align` speaking for one transit only. Each is drawn in its position, the road
-the other position offers faint, so a turnout shows its straight road or its
+panel holds the drawing, so an address maps back to the symbol wearing it. Two
+points wearing one address lie the same way, and an address no symbol wears is
+ignored. A point stays where the last command naming it left it, `align`
+speaking for one transit only. Each is drawn in its position, the road the
+other position offers faint, so a turnout shows its straight road or its
 diverging one and a slip's tick says which road it has. The panel infers
 nothing, which supersedes the inference
 [ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md) put here.
@@ -195,7 +195,7 @@ It still shows commanded position, not measured position, so a point that
 failed to throw looks fine. Reported position becomes worth adding if hardware
 with point feedback ever exists; the owner's points do not report. Only a
 drawing whose points carry addresses can show any of this, and
-[`gotthard/positions`](../../bench/scenarios/gotthard/positions.scenario.yaml)
+[`reversing-loops/positions`](../../bench/scenarios/reversing-loops/positions.scenario.yaml)
 is the scenario that does — one train across two junctions, which is the
 picture to run when the styling is what is being looked at (#130).
 
@@ -203,7 +203,7 @@ picture to run when the styling is what is being looked at (#130).
 end, always, so there is nothing to place and nothing in the drawing to
 record. A signal governs departures through one block end, and routes are
 strict pass-throughs with no reversal within a route, so a signal at
-`claro_2.B` can only mean "may the train in `claro_2` leave via B".
+`station_c_2.B` can only mean "may the train in `station_c_2` leave via B".
 
 **The panel derives no aspect.** The dispatcher publishes one — `stop`,
 `caution` or `clear`, read off how far ahead it has locked — on a last-value
@@ -421,13 +421,13 @@ subscribes to. The front end shares the editor's stack and symbol library.
 nothing else ([#171](https://github.com/rails49/control/issues/171)), so the
 band's picker is the only thing that sets which one, and the run view has no
 session of its own to pick. The loaded railroad rides in the socket path —
-`ws://localhost:5173/live/gotthard` — so the one choice says both which
-drawing to render and which railroad feeds it. A socket opened without it would render
-one railroad on another's events, which is what a session whose railroad was
-fixed at launch allowed (#148). Switching is a reconnect, which is what
+`ws://localhost:5173/live/reversing-loops` — so the one choice says both which
+drawing to render and which railroad feeds it. A socket opened without it would
+render one railroad on another's events, which is what a session whose railroad
+was fixed at launch allowed (#148). Switching is a reconnect, which is what
 joining already was. No inbound topic carries any of it: the set stays exactly
-the browser-writable rows that ADR-0034's broker ACL will grant, and that is what
-keeps ADR-0036's single-minter argument holding.
+the browser-writable rows that ADR-0034's broker ACL will grant, and that is
+what keeps ADR-0036's single-minter argument holding.
 
 `tc49 live` takes the railroad as an optional argument. With none it comes up
 idle on its port waiting to be told; with one it starts running that railroad

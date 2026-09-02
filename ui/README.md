@@ -30,12 +30,12 @@ binds each interface, because the reverse proxy that serves
 
 It also brings up the session the run view joins — a `tc49 live` on
 `ws://127.0.0.1:8766`, reached through the app's own origin at `/live` and
-started `--no-store` because the store is already up
-and outlives any one session. **The band's picker is the only thing that loads
-a railroad**, and the run view joins whatever is loaded: the socket path names
-it and the session builds it (#171). A railroad given to the script —
-`../scripts/dev.sh gotthard` — is the one the session comes up on rather than
-the one it is stuck with.
+started `--no-store` because the store is already up and outlives any one
+session. **The band's picker is the only thing that loads a railroad**, and the
+run view joins whatever is loaded: the socket path names it and the session
+builds it (#171). A railroad given to the script — `../scripts/dev.sh
+reversing-loops` — is the one the session comes up on rather than the one it is
+stuck with.
 
 `../scripts/dev.sh stop` puts down everything the script started and leaves
 alone anything it did not.

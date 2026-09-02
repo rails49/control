@@ -45,11 +45,11 @@ def test_k_is_overridable_and_changes_what_a_launch_may_try() -> None:
     # k = 1 no longer stalls the flexible request here — what k still caps is
     # how many candidates a refused launch tries, visible in the stall
     # diagnosis of the genuinely blocked one.
-    at_two = run_cli("bench", "gotthard-v0/flexibility")
-    at_one = run_cli("bench", "-k", "1", "gotthard-v0/flexibility")
+    at_two = run_cli("bench", "reversing-loops-v0/flexibility")
+    at_one = run_cli("bench", "-k", "1", "reversing-loops-v0/flexibility")
     assert "(k = 1)" in at_one
-    assert "fixed-1 stalled — 'claro_2' held by 'resident' (held, 1" in at_one
-    assert "fixed-1 stalled — 'claro_2' held by 'resident' (held, 2" in at_two
+    assert "fixed-1 stalled — 'station_c_2' held by 'resident' (held, 1" in at_one
+    assert "fixed-1 stalled — 'station_c_2' held by 'resident' (held, 2" in at_two
 
 
 def test_the_trace_flag_dumps_the_jsonl_events() -> None:
@@ -114,7 +114,7 @@ def test_find_root_locates_the_railroads_from_anywhere_and_says_so_if_not() -> N
     # say that rather than raising on an invented path. They live under
     # `bench/`, and the store is rooted there rather than at the checkout.
     assert (find_root(ROOT / "src" / "tc49" / "cli.py") / "bench" / "layouts").is_dir()
-    assert find_root(ASSETS / "scenarios" / "gotthard-v0") == ROOT
+    assert find_root(ASSETS / "scenarios" / "reversing-loops-v0") == ROOT
     assert find_assets(ROOT / "src" / "tc49" / "cli.py") == ASSETS
     with pytest.raises(FileNotFoundError, match="not usable from an installed wheel"):
         find_root(Path("/"))
@@ -124,7 +124,7 @@ def test_a_live_session_polls_for_commands_briskly() -> None:
     """The railroad's pacing is the simulator's own transit delays
     (ADR-0047); the period only bounds how long a gesture sits in the queue
     before it is drained, so it stays small."""
-    args = command_line().parse_args(["live", "gotthard-v0/meet"])
+    args = command_line().parse_args(["live", "reversing-loops-v0/meet"])
     assert args.period == 0.1
 
 
@@ -133,8 +133,8 @@ def test_a_live_session_may_come_up_with_no_railroad_at_all() -> None:
     port waiting to be told, and a railroad on the command line is the one it
     comes up on rather than the one it is fixed to."""
     assert command_line().parse_args(["live"]).railroad is None
-    named = command_line().parse_args(["live", "gotthard-v0"])
-    assert named.railroad == "gotthard-v0"
+    named = command_line().parse_args(["live", "reversing-loops-v0"])
+    assert named.railroad == "reversing-loops-v0"
 
 
 def test_the_period_flag_still_sets_the_period_and_says_the_default(
@@ -142,7 +142,9 @@ def test_the_period_flag_still_sets_the_period_and_says_the_default(
 ) -> None:
     """A faster session stays one flag away, and the help says what it is
     faster than."""
-    args = command_line().parse_args(["live", "gotthard-v0/meet", "--period", "0.5"])
+    args = command_line().parse_args(
+        ["live", "reversing-loops-v0/meet", "--period", "0.5"]
+    )
     assert args.period == 0.5
     with pytest.raises(SystemExit):
         command_line().parse_args(["live", "--help"])

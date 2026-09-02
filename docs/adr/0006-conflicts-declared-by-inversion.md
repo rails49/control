@@ -1,11 +1,12 @@
 # Transit conflicts are declared by inversion
 
 *(Amended for #161: the drawing cited below is now
-[bench/layouts/gotthard-v0.drawing.yaml](../../bench/layouts/gotthard-v0.drawing.yaml).
-The railroad on the bench splits Claro track 3 and separates the west throat,
-so `gotthard` derives 15 blocks and 33 concurrent pairs where this page counts
-14 and 37. The inversion argument does not depend on either count, and the
-measurements were taken on the frozen file. Nothing here is re-measured.)*
+[bench/layouts/reversing-loops-v0.drawing.yaml](../../bench/layouts/reversing-loops-v0.drawing.yaml).
+The railroad on the bench splits station-C track 3 and separates the west
+throat, so `reversing-loops` derives 15 blocks and 33 concurrent pairs where
+this page counts 14 and 37. The inversion argument does not depend on either
+count, and the measurements were taken on the frozen file. Nothing here is
+re-measured.)*
 
 A connection lists which pairs of its transits are `concurrent`; every pair not
 listed conflicts. The natural-reading alternative — list the pairs that
@@ -22,12 +23,12 @@ enforced as instantaneous admissibility at the grant rather than by `safe()`
 
 It also matches the shape of real track. Ladders and plain turnouts are fully
 exclusive and now declare nothing; only genuine crossings say anything at all.
-The Gotthard encoding declared no `concurrent` pairs whatsoever
-([bench/layouts/gotthard-v0.drawing.yaml](../../bench/layouts/gotthard-v0.drawing.yaml)), which was
-certainly too strict for a station that size — and is exactly the kind of thing
-that should cost measured throughput until the real turnout geometry is
-entered, rather than being assumed permissive. It did cost it, and #46 recovered
-it: drawing Airolo and Claro west composed 37 pairs and cut the
-`gotthard/saturation` makespan. Drawing Claro east (#58) then found it was two
-throats rather than one, so its five transits stopped conflicting across the
-two lines without a pair being declared anywhere.
+The `reversing-loops` encoding declared no `concurrent` pairs whatsoever
+([bench/layouts/reversing-loops-v0.drawing.yaml](../../bench/layouts/reversing-loops-v0.drawing.yaml)),
+which was certainly too strict for a station that size — and is exactly the
+kind of thing that should cost measured throughput until the real turnout
+geometry is entered, rather than being assumed permissive. It did cost it, and
+#46 recovered it: drawing station-A and station-C west composed 37 pairs and
+cut the `reversing-loops/saturation` makespan. Drawing station-C east (#58)
+then found it was two throats rather than one, so its five transits stopped
+conflicting across the two lines without a pair being declared anywhere.

@@ -3,7 +3,7 @@
  * lights.
  *
  * This is the feature the rest of the editor exists to serve (EDITOR.md).
- * Airolo's WX310 composes 19 transits and 33 concurrent pairs out of four
+ * station-A's WX310 composes 19 transits and 33 concurrent pairs out of four
  * turnouts and a crossing, and nobody can confirm 33 pairs by reading them. A
  * stated reason can be checked against the picture, so a transit names the
  * symbol it shares with each rival and a symbol names the leg each transit
@@ -125,7 +125,7 @@ export function chosenWay(review: Review, chosen: Chosen | null): Transit[] {
  * because no transit leaves them.
  *
  * A block shows a signal at each end, and at a siding's blind end that signal
- * could only ever be red — Claro 4's B end runs into a buffer stop
+ * could only ever be red — station-C 4's B end runs into a buffer stop
  * (EDITOR.md#symbol-geometry). Which ends those are is the derived layout's
  * answer: an end appears in a transit or it does not, and joints are transits
  * too, so this one field is the whole of it and no topology is computed here.

@@ -1,5 +1,5 @@
 {
-  "scenario": "gotthard/meet",
+  "scenario": "reversing-loops/meet",
   "k": 2,
   "strategies": {
     "FullRoute": {

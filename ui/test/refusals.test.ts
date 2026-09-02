@@ -168,12 +168,12 @@ describe("a name the drawing will not take", () => {
     const { shell, editing } = await holding();
     const dialog = await opened(shell, editing, "b1");
 
-    await typed(dialog, field(dialog), "claro_1");
+    await typed(dialog, field(dialog), "station_c_1");
     await apply(dialog);
     await settled(shell);
 
     expect(Object.keys(editing.drawing.symbols).sort()).toEqual([
-      "claro_1",
+      "station_c_1",
       "sw1",
     ]);
   });

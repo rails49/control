@@ -20,7 +20,7 @@ import type { ViewId } from "../src/model/views.js";
  *  a snapshot either way, and nothing standing on the layout to freeze it:
  *  everything alive at once. */
 const LIVE: Standing = {
-  opened: "gotthard",
+  opened: "reversing-loops",
   saved: false,
   selection: 1,
   editable: true,

@@ -45,13 +45,13 @@ departure end fixes the first transit. The **arrival ends** are a set, and any
 one of them satisfies the request; the dispatcher commits to one when it
 chooses the route ([ADR-0007](../adr/0007-requests-name-a-set-of-arrival-ends.md)).
 
-Both ends name the end the train **crosses**: `claro_1.B` as a departure means
-it leaves through `B`, and `airolo_2.A` as an arrival means it enters through
-`A` and comes to rest with its leading end toward `B`. The arrival end is
-therefore the end of the route's final transit, and constraining it is how a
+Both ends name the end the train **crosses**: `station_c_1.B` as a departure
+means it leaves through `B`, and `station_a_2.A` as an arrival means it enters
+through `A` and comes to rest with its leading end toward `B`. The arrival end
+is therefore the end of the route's final transit, and constraining it is how a
 scheduler says which way round the train must finish — a fact the reversing
-loop makes real, since turning a train costs a second request rather than
-being free.
+loop makes real, since turning a train costs a second request rather than being
+free.
 
 Naming both ends of one block says "either way round" and is exactly the
 looser request this model had before. Naming ends on several blocks says the
@@ -178,7 +178,7 @@ by the same line whichever of its tracks the train ends on — and before #33
 the lexicographic tie-break alone decided which `k` got tried, so every train
 tried the same smallest-id tracks first. That bias was measured twice: as the
 `route-blindness` counterexample (ARCHITECTURE.md, property 3) and as an
-outright stall of `gotthard-v0/saturation` authored at `|dest| = 6`
+outright stall of `reversing-loops-v0/saturation` authored at `|dest| = 6`
 ([BENCHMARKS.md](../bench/BENCHMARKS.md#the-k-axis)).
 
 The congestion count is a function of the dispatcher's live state, so the

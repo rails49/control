@@ -1,5 +1,5 @@
 {
-  "scenario": "gotthard-v0/saturation",
+  "scenario": "reversing-loops-v0/saturation",
   "k": 2,
   "strategies": {
     "FullRoute": {

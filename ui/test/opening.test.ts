@@ -31,7 +31,7 @@ const NAMED = "arth-goldau";
 
 beforeEach(() => {
   window.prompt = () => NAMED;
-  serving({ drawings: ["gotthard", "otira"], read: stored });
+  serving({ drawings: ["reversing-loops", "otira"], read: stored });
 });
 
 // A shell listens on the window for as long as it is in the page, so one left
@@ -40,11 +40,11 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-/** A mounted editor with `gotthard` open and saved, which is where every test
+/** A mounted editor with `reversing-loops` open and saved, which is where every test
  *  here starts. */
 async function opened(): Promise<TcApp> {
   const shell = await mounted();
-  await choose(shell, "gotthard");
+  await choose(shell, "reversing-loops");
   return shell;
 }
 
@@ -121,7 +121,7 @@ describe("opening a drawing over unsaved edits", () => {
     await choose(shell, "otira");
 
     expect(asked(shell)).not.toBeNull();
-    expect(open(shell)).toBe("gotthard");
+    expect(open(shell)).toBe("reversing-loops");
   });
 
   /** Declining costs nothing at all: the same drawing, the same edits, the
@@ -134,7 +134,7 @@ describe("opening a drawing over unsaved edits", () => {
     await answer(shell, "Cancel");
 
     expect(asked(shell)).toBeNull();
-    expect(open(shell)).toBe("gotthard");
+    expect(open(shell)).toBe("reversing-loops");
     expect(unsaved(shell)).toBe(true);
     expect(Object.keys(session(shell).drawing.symbols).sort()).toEqual(["b1", "e1"]);
     expect(session(shell).canUndo).toBe(true);
@@ -161,7 +161,7 @@ describe("opening a drawing over unsaved edits", () => {
 
     await choose(shell, "otira");
 
-    expect(asked(shell)!.textContent).toContain("'gotthard'");
+    expect(asked(shell)!.textContent).toContain("'reversing-loops'");
     expect(asked(shell)!.textContent).toContain("'otira'");
   });
 
@@ -187,7 +187,7 @@ describe("opening a drawing over unsaved edits", () => {
     await settled(shell);
 
     expect(asked(shell)).toBeNull();
-    expect(open(shell)).toBe("gotthard");
+    expect(open(shell)).toBe("reversing-loops");
     expect([...session(shell).selection]).toEqual(["b1"]);
   });
 
@@ -217,7 +217,7 @@ describe("starting a new drawing over unsaved edits", () => {
 
     expect(asked(shell)).not.toBeNull();
     expect(asks).toBe(0);
-    expect(open(shell)).toBe("gotthard");
+    expect(open(shell)).toBe("reversing-loops");
   });
 
   it("leaves everything as it was when the edits are kept", async () => {
@@ -228,7 +228,7 @@ describe("starting a new drawing over unsaved edits", () => {
     await answer(shell, "Cancel");
 
     expect(asked(shell)).toBeNull();
-    expect(open(shell)).toBe("gotthard");
+    expect(open(shell)).toBe("reversing-loops");
     expect(unsaved(shell)).toBe(true);
     expect(session(shell).canUndo).toBe(true);
   });
@@ -311,7 +311,7 @@ describe("choosing the drawing already open", () => {
     const shell = await opened();
     await drawn(shell);
 
-    await picked(shell, "gotthard");
+    await picked(shell, "reversing-loops");
 
     expect(asked(shell)).toBeNull();
     expect(unsaved(shell)).toBe(true);

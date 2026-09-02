@@ -188,10 +188,10 @@ describe("a wire between two blocks", () => {
 describe("opening a drawing", () => {
   it("replaces a name a person typed with one of its own", () => {
     const drawing = throat();
-    drawing.symbols.sw1!.connection = "airolo";
-    drawing.symbols.sw2!.connection = "airolo";
+    drawing.symbols.sw1!.connection = "station_a";
+    drawing.symbols.sw2!.connection = "station_a";
     const found = review({
-      junctions: [junction("airolo", ["airolo"], ["sw1", "sw2"])],
+      junctions: [junction("station_a", ["station_a"], ["sw1", "sw2"])],
     });
     expect(remint(drawing, found)).toBe(true);
     expect(drawing.symbols.sw1!.connection).toBe("j1");
@@ -199,11 +199,11 @@ describe("opening a drawing", () => {
 
   it("leaves every member of the junction wearing the one name", () => {
     const drawing = throat();
-    drawing.symbols.sw1!.connection = "airolo";
-    drawing.symbols.sw2!.connection = "airolo";
-    drawing.symbols.x1!.connection = "airolo";
+    drawing.symbols.sw1!.connection = "station_a";
+    drawing.symbols.sw2!.connection = "station_a";
+    drawing.symbols.x1!.connection = "station_a";
     const found = review({
-      junctions: [junction("airolo", ["airolo"], ["sw1", "sw2", "x1"])],
+      junctions: [junction("station_a", ["station_a"], ["sw1", "sw2", "x1"])],
     });
     remint(drawing, found);
     expect(
@@ -237,12 +237,12 @@ describe("opening a drawing", () => {
   it("keeps out of the way of the minted names it is keeping", () => {
     const drawing = throat();
     drawing.symbols.x1!.connection = "j1";
-    drawing.symbols.sw1!.connection = "airolo";
-    drawing.symbols.sw2!.connection = "airolo";
+    drawing.symbols.sw1!.connection = "station_a";
+    drawing.symbols.sw2!.connection = "station_a";
     const found = review({
       junctions: [
         junction("j1", ["j1"], ["x1"]),
-        junction("airolo", ["airolo"], ["sw1", "sw2"]),
+        junction("station_a", ["station_a"], ["sw1", "sw2"]),
       ],
     });
     remint(drawing, found);
@@ -251,16 +251,16 @@ describe("opening a drawing", () => {
   });
 
   it("settles a merge of two junctions a person had named", () => {
-    // The case the editor could not settle: delete the block between Airolo
-    // and Claro West and wire the neighbours together, and derivation refused
-    // because choosing which half is Airolo was nobody's to make. With neither
+    // The case the editor could not settle: delete the block between station-A
+    // and station-C West and wire the neighbours together, and derivation refused
+    // because choosing which half is station-A was nobody's to make. With neither
     // name honoured there is nothing to choose.
     const drawing = throat();
-    drawing.symbols.sw1!.connection = "airolo";
-    drawing.symbols.sw2!.connection = "airolo";
-    drawing.symbols.x1!.connection = "claro_west";
+    drawing.symbols.sw1!.connection = "station_a";
+    drawing.symbols.sw2!.connection = "station_a";
+    drawing.symbols.x1!.connection = "station_c_west";
     const found = review({
-      junctions: [junction(null, ["airolo", "claro_west"], ["sw1", "sw2", "x1"])],
+      junctions: [junction(null, ["station_a", "station_c_west"], ["sw1", "sw2", "x1"])],
     });
     expect(remint(drawing, found)).toBe(true);
     expect(
@@ -270,11 +270,11 @@ describe("opening a drawing", () => {
 
   it("re-mints both halves of a split a typed name was left on", () => {
     const drawing = throat();
-    for (const spec of Object.values(drawing.symbols)) spec.connection = "airolo";
+    for (const spec of Object.values(drawing.symbols)) spec.connection = "station_a";
     const found = review({
       junctions: [
-        junction("airolo", ["airolo"], ["sw1", "sw2"]),
-        junction("airolo", ["airolo"], ["x1"]),
+        junction("station_a", ["station_a"], ["sw1", "sw2"]),
+        junction("station_a", ["station_a"], ["x1"]),
       ],
     });
     expect(remint(drawing, found)).toBe(true);
@@ -296,12 +296,12 @@ describe("opening a drawing", () => {
 
   it("touches nothing but the names, so the topology is what it was", () => {
     const drawing = throat();
-    drawing.symbols.sw1!.connection = "airolo";
-    drawing.symbols.sw2!.connection = "airolo";
+    drawing.symbols.sw1!.connection = "station_a";
+    drawing.symbols.sw2!.connection = "station_a";
     const before = structuredClone(drawing);
     remint(
       drawing,
-      review({ junctions: [junction("airolo", ["airolo"], ["sw1", "sw2"])] }),
+      review({ junctions: [junction("station_a", ["station_a"], ["sw1", "sw2"])] }),
     );
     expect(bare(drawing)).toEqual(bare(before));
   });
@@ -336,7 +336,7 @@ describe("telling a minted name from a typed one", () => {
   it("knows the ones it makes", () => {
     expect(minted("j1")).toBe(true);
     expect(minted("j17")).toBe(true);
-    expect(minted("airolo")).toBe(false);
+    expect(minted("station_a")).toBe(false);
     expect(minted("j")).toBe(false);
     expect(minted("j0")).toBe(false);
     expect(minted("junction3")).toBe(false);
@@ -346,10 +346,10 @@ describe("telling a minted name from a typed one", () => {
 describe("naming a junction by hand", () => {
   it("writes the name onto every symbol of the region", () => {
     const drawing = throat();
-    nameJunction(drawing, ["sw1", "sw2", "x1"], "airolo");
+    nameJunction(drawing, ["sw1", "sw2", "x1"], "station_a");
     expect(
       Object.values(drawing.symbols).map((spec) => spec.connection),
-    ).toEqual(["airolo", "airolo", "airolo"]);
+    ).toEqual(["station_a", "station_a", "station_a"]);
   });
 });
 
@@ -373,8 +373,8 @@ describe("a junction with a joiner in it", () => {
 
   it("names the symbols that declare a transit and no others", () => {
     const drawing = bent();
-    nameJunction(drawing, ["sw1", "n1", "e1", "p1"], "airolo");
-    expect(drawing.symbols.sw1!.connection).toBe("airolo");
+    nameJunction(drawing, ["sw1", "n1", "e1", "p1"], "station_a");
+    expect(drawing.symbols.sw1!.connection).toBe("station_a");
     expect(drawing.symbols.n1).not.toHaveProperty("connection");
     expect(drawing.symbols.e1).not.toHaveProperty("connection");
     expect(drawing.symbols.p1).not.toHaveProperty("connection");
@@ -391,8 +391,8 @@ describe("a junction with a joiner in it", () => {
 
   it("takes back the one an older editor wrote", () => {
     const drawing = bent();
-    drawing.symbols.n1!.connection = "airolo";
-    nameJunction(drawing, ["sw1", "n1"], "airolo");
+    drawing.symbols.n1!.connection = "station_a";
+    nameJunction(drawing, ["sw1", "n1"], "station_a");
     expect(drawing.symbols.n1).not.toHaveProperty("connection");
   });
 });

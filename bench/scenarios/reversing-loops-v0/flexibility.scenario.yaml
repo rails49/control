@@ -1,0 +1,37 @@
+# reversing-loops-v0/flexibility — the |dest| contrast as a story
+# (docs/BENCHMARKS.md, #31).
+#
+# The same working written twice, once at `|dest| = 1` and once at `|dest| = 6`,
+# run side by side against the same obstruction:
+#
+#   fixed     to: [station_c_2.B]
+#             — one track, one way round
+#   flexible  to: [station_c_1, station_c_2, station_c_3]
+#             — any track, either way round
+#
+# Both are station-A -> station-C workings, both launched together, and
+# `resident` sits in station_c_2 with no request of its own, so the one track
+# `fixed` names is permanently unavailable. `fixed` stalls; `flexible` names
+# the same obstructed track among five other ends and finishes on one of them.
+#
+# Strictly the two workings cannot be identical — two trains cannot stand on
+# one station-A track — so they depart adjacent tracks into the same junction.
+# At station-A all three lines meet at WX310 and every one reaches every
+# station-C track, so the departure track does not fix the line and the two
+# workings really do face the same choice.
+#
+# This is the sweep's flexibility axis with the sweep taken out: `|dest|` is a
+# property of the request, and here it is the whole difference between a
+# request that completes and one that does not.
+
+scenario: flexibility
+layout: reversing-loops-v0
+
+trains:
+  fixed: { at: station_a_1, facing: B-to-A }
+  flexible: { at: station_a_2, facing: B-to-A }
+  resident: { at: station_c_2, facing: B-to-A } # idle: no request names it
+
+requests:
+  - { train: fixed, from: station_a_1.A, to: [station_c_2.B] }
+  - { train: flexible, from: station_a_2.A, to: [station_c_1, station_c_2, station_c_3] }

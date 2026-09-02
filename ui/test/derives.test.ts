@@ -45,7 +45,7 @@ beforeEach(() => {
 /** A mounted editor holding `symbols`, wired to nothing. */
 async function holding(symbols: Drawing["symbols"]): Promise<TcApp> {
   const shell = await mounted();
-  session(shell).reset({ drawing: "gotthard", symbols, wires: [] });
+  session(shell).reset({ drawing: "reversing-loops", symbols, wires: [] });
   return shell;
 }
 

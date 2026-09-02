@@ -154,8 +154,8 @@ and they behave exactly as they do today.
 
 The alternative default, `through`, would leave a generator with no
 destinations at all on an unlabelled drawing — a silent failure rather than a
-plain one. The honest cost of `station` is that an unlabelled Gotthard reads
-as all-stations, and the fix is that the author labels it.
+plain one. The honest cost of `station` is that an unlabelled `reversing-loops`
+reads as all-stations, and the fix is that the author labels it.
 
 ## Rejected
 

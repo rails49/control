@@ -84,12 +84,12 @@ describe("the symbol under a point", () => {
 describe("the junction a symbol belongs to", () => {
   const reviewed: Review = {
     ...NOTHING,
-    junctions: [{ name: "airolo", names: ["airolo"], symbols: ["sw1", "sw2"] }],
+    junctions: [{ name: "station_a", names: ["station_a"], symbols: ["sw1", "sw2"] }],
   };
 
   it("names the junction the symbol under the point is part of", () => {
     expect(under(ONE_TURNOUT, reviewed, { x: 2.5, y: 1.5 }).junction?.name).toBe(
-      "airolo",
+      "station_a",
     );
   });
 

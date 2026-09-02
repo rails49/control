@@ -24,7 +24,7 @@ from tc49.lib.layout import block_of
 from tc49.lib.scenario import Scenario
 from tests.harness import ROOT, load
 
-SIDINGS = {"claro_4", "claro_5", "claro_6", "claro_7", "airolo_4"}
+SIDINGS = {"station_c_4", "station_c_5", "station_c_6", "station_c_7", "station_a_4"}
 
 
 def every_workload() -> list[Workload]:
@@ -99,7 +99,7 @@ def test_arrival_sets_are_the_swept_dest_size_at_the_other_station() -> None:
             ends = sum(1 if "." in a else 2 for a in request.arrivals)
             assert ends == workload.dest
             # Every entry names a track of one station, and it is the station
-            # the train is not at — line workings run claro <-> airolo. Read
+            # the train is not at — line workings run station_c <-> station_a. Read
             # by lookup: block names are minted and carry no prefix to parse
             # (ADR-0023), which is what `partition("_")` used to assume.
             station = station_of(block_of(request.arrivals[0]))

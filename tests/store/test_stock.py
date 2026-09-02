@@ -41,7 +41,7 @@ CATALOGUE = models(RE460, IC2000, HBIS)
 
 def roster(cars: dict[str, Any], trains: dict[str, Any] | None = None) -> Any:
     return validate_roster(
-        {"roster": "gotthard", "cars": cars, "trains": trains or {}}, CATALOGUE
+        {"roster": "reversing-loops", "cars": cars, "trains": trains or {}}, CATALOGUE
     )
 
 
@@ -87,7 +87,7 @@ def test_a_car_inherits_the_three_and_may_not_override_them() -> None:
     catalogue = models({**RE460, "manufacturer": "Roco", "scale": "N"})
     owned = validate_roster(
         {
-            "roster": "gotthard",
+            "roster": "reversing-loops",
             "cars": {"re460_1": {"model": "sbb-re460", "manufacturer": "Arnold"}},
             "trains": {},
         },
@@ -106,7 +106,7 @@ def test_the_two_real_locomotives_are_addressed_and_drive_alone() -> None:
     `LayoutInterface._addressed` yields nothing and a `move` writes no traction
     row at all.
     """
-    roster = AssetStore(ASSETS).roster("gotthard")
+    roster = AssetStore(ASSETS).roster("reversing-loops")
     addressed = {
         name: train.cars[0].car.addr
         for name, train in roster.trains.items()
@@ -197,7 +197,7 @@ def test_an_unknown_key_loads_and_is_not_carried() -> None:
     catalogue = models({**IC2000, "shelf": "3b", "kind": "passenger"})
     plain = validate_roster(
         {
-            "roster": "gotthard",
+            "roster": "reversing-loops",
             "cars": {"ic_1": {"model": "sbb-ic2000"}},
             "trains": {"ic_721": {"cars": [{"car": "ic_1"}]}},
         },
@@ -205,7 +205,7 @@ def test_an_unknown_key_loads_and_is_not_carried() -> None:
     )
     embellished = validate_roster(
         {
-            "roster": "gotthard",
+            "roster": "reversing-loops",
             "shed": "erstfeld",
             "cars": {"ic_1": {"model": "sbb-ic2000", "bought": 2019}},
             "trains": {"ic_721": {"cars": [{"car": "ic_1"}], "notes": "evenings"}},
@@ -394,15 +394,15 @@ def test_a_roster_is_read_against_the_catalogue_beside_it(tmp_path: Path) -> Non
     (tmp_path / "catalogue").mkdir()
     (tmp_path / "catalogue" / "sbb-ic2000.yaml").write_text(yaml.safe_dump(IC2000))
     (tmp_path / "layouts").mkdir()
-    (tmp_path / "layouts" / "gotthard.roster.yaml").write_text(
+    (tmp_path / "layouts" / "reversing-loops.roster.yaml").write_text(
         yaml.safe_dump(
             {
-                "roster": "gotthard",
+                "roster": "reversing-loops",
                 "cars": {"ic_1": {"model": "sbb-ic2000"}},
                 "trains": {"ic_721": {"cars": [{"car": "ic_1"}]}},
             }
         )
     )
-    stock = AssetStore(tmp_path).roster("gotthard")
+    stock = AssetStore(tmp_path).roster("reversing-loops")
     assert stock.cars["ic_1"].length == 270
     assert stock.trains["ic_721"].length == 270

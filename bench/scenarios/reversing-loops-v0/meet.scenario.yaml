@@ -1,0 +1,27 @@
+# reversing-loops-v0/meet — two trains, opposite directions
+# (docs/BENCHMARKS.md, #31).
+#
+# The smallest story this railroad can tell: one train each way between the
+# stations, launched together, with three line sections to share out
+# between them.
+#
+# The asymmetry BENCHMARKS.md describes is what makes it worth running. `south`
+# leaves station-C by the east end of track 2, and at station-C the east end of
+# each track is served by exactly one blue line — blue 2 reaches tracks 1 and 2
+# — so its line is fixed by the departure end alone. `north` leaves station-A,
+# where all three lines meet at the single WX310 junction, so it has a genuine
+# choice and is the train that has to make it.
+#
+# Both name a single arrival track, either way round, so `|dest| = 2`: the
+# continuity point, the request this model had before arrival ends existed.
+
+scenario: meet
+layout: reversing-loops-v0
+
+trains:
+  south: { at: station_c_2, facing: A-to-B }
+  north: { at: station_a_1, facing: B-to-A }
+
+requests:
+  - { train: south, from: station_c_2.B, to: [station_a_2] }
+  - { train: north, from: station_a_1.A, to: [station_c_1] }

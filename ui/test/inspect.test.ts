@@ -343,7 +343,7 @@ describe("the pairs among the transits through a symbol", () => {
 
 describe("the block ends carrying no signal", () => {
   /** A siding: `yard` runs out of the scissors at its A end and into a buffer
-   *  stop at its B end, which is Claro 4's shape. */
+   *  stop at its B end, which is station-C 4's shape. */
   function siding(): Review {
     const found = scissors();
     found.layout!.blocks = { dn_e: { length: 3200 }, yard: { length: 900 } };

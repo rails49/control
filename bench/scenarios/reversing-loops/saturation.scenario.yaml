@@ -1,16 +1,16 @@
-# gotthard/saturation — the headline workload (docs/BENCHMARKS.md, #31).
+# reversing-loops/saturation — the headline workload (docs/BENCHMARKS.md, #31).
 #
 # Six trains, three workings each, every request in at the start. Batch arrivals
 # make makespan the drain time and contention maximal, which is where the two
 # locking strategies are supposed to separate.
 #
-# Six is the ceiling, per BENCHMARKS.md's axis note: Gotthard has seven station
-# tracks, and at seven every arrival block would be a permanent obstacle at
-# the start. At six there is exactly one free track, so the whole workload is
-# a rotation — each train moves into the slot the train ahead of it has just
-# vacated, and the free slot travels round the seven tracks. Nothing drains
-# except by rotation, which is what makes this saturation rather than merely
-# traffic.
+# Six is the ceiling, per BENCHMARKS.md's axis note: `reversing-loops` has
+# seven station tracks, and at seven every arrival block would be a permanent
+# obstacle at the start. At six there is exactly one free track, so the whole
+# workload is a rotation — each train moves into the slot the train ahead of it
+# has just vacated, and the free slot travels round the seven tracks. Nothing
+# drains except by rotation, which is what makes this saturation rather than
+# merely traffic.
 #
 # ## One hop in seven is a shunt, and it has to be
 #
@@ -18,13 +18,14 @@
 #
 #   A3 <- C1 <- A1 <- C2 <- A2 <- C3a <- C3b <- A3
 #
-# Claro has four station tracks and Airolo three, so a cycle through all seven
-# cannot alternate stations — that needs equal counts, which is what the
-# superseded `gotthard-v0` had. Exactly one hop per lap is therefore
-# Claro-to-Claro, and there is only one it can sensibly be: `C3b` to `C3a`,
-# the two halves of track 3, through `sw16` which stands between them. It is a
-# real move on the railroad and a short one. `t6` opens with it and `t1` closes
-# with it; the other sixteen workings are line workings.
+# There are four station tracks at station-C and three at station-A, so a cycle
+# through all seven cannot alternate stations — that needs equal counts, which
+# is what the superseded `reversing-loops-v0` had. Exactly one hop per lap is
+# therefore station-C-to-station-C, and there is only one it can sensibly be:
+# `C3b` to `C3a`, the two halves of track 3, through `sw16` which stands
+# between them. It is a real move on the railroad and a short one. `t6` opens
+# with it and `t1` closes with it; the other sixteen workings are line
+# workings.
 #
 # This is a property of the track, not a choice: splitting track 3 made the
 # station counts unequal, and an odd cycle has to absorb that somewhere.
@@ -36,27 +37,27 @@
 # destinations are `|dest| = 1`: each half has exactly one end that faces a
 # line (`C3a.B` to the yellow, `C3b.A` to blue 1), and the other end faces only
 # the other half, so a working into a half names one end or the wrong one.
-# `gotthard-v0` could say `|dest| = 2` throughout because its track 3 was one
-# block with two line-facing ends.
+# `reversing-loops-v0` could say `|dest| = 2` throughout because its track 3
+# was one block with two line-facing ends.
 #
 # ## Departure ends
 #
-# Departure ends alternate deliberately rather than uniformly. At Claro the
+# Departure ends alternate deliberately rather than uniformly. At station-C the
 # east end of a track is served by a blue line and the west end by the yellow,
 # so a workload that always departs the same way never touches one of the three
 # line sections; departing both ways is what puts all three under load. `C1.A`
 # and `C2.A` take blue 2 and blue 1, `C3a.B` and the `.B` departures take the
-# yellow, `C3b.A` takes blue 1. Departing Airolo the choice is real either way,
-# since all three lines reach both ends of every track — and that is where
+# yellow, `C3b.A` takes blue 1. Departing station-A the choice is real either
+# way, since all three lines reach both ends of every track — and that is where
 # `k = 2` earns its keep, choosing between two lines rather than two ends of
 # one track.
 #
-# Ported from `gotthard-v0/saturation` in #161, and re-derived rather than
-# renamed: the old workload was five trains on six tracks, and neither number
-# survives the split.
+# Ported from `reversing-loops-v0/saturation` in #161, and re-derived rather
+# than renamed: the old workload was five trains on six tracks, and neither
+# number survives the split.
 
 scenario: saturation
-layout: gotthard
+layout: reversing-loops
 
 trains:
   t1: { at: C1, facing: B-to-A }

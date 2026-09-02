@@ -1,23 +1,24 @@
 # The pending scan ages by refusal count
 
-*(Amended for #161: `gotthard/saturation` on this page means
-`gotthard-v0/saturation`. The netlist it was measured on is wrong about Claro
-track 3 and the west throat, and is frozen as `gotthard-v0` so these numbers
-stay reproducible. The railroad on the bench is a different workload — seven
-station tracks rather than six — and is deliberately not re-measured here.)*
+*(Amended for #161: `reversing-loops/saturation` on this page means
+`reversing-loops-v0/saturation`. The netlist it was measured on is wrong about
+station-C track 3 and the west throat, and is frozen as `reversing-loops-v0` so
+these numbers stay reproducible. The railroad on the bench is a different
+workload — seven station tracks rather than six — and is deliberately not
+re-measured here.)*
 
 The pending queue was scanned strictly oldest-first by admission order
 (`Request.seq`). That sounds fair but is not: the oldest request keeps being
-*tried* and *refused* while younger requests with clear routes launch past
-it, and a freed resource goes to whichever eligible request has the earliest
+*tried* and *refused* while younger requests with clear routes launch past it,
+and a freed resource goes to whichever eligible request has the earliest
 admission — even one that will park on it for good. After congestion-aware
-route costing (#33) the cost was measurable twice over: max per-request
-latency sat near twice the mean across the sweep (median ratio 1.73, worst
-2.01), and `gotthard/saturation` widened to `|dest| = 6` wedged at 11 of 15
-workings because the last airolo slots went to older trains finishing their
-chains there while younger through-traffic starved. No candidate ordering
-can prevent that — for the older request the free slot always sorts first —
-so it is queue order, not route choice (#34).
+route costing (#33) the cost was measurable twice over: max per-request latency
+sat near twice the mean across the sweep (median ratio 1.73, worst 2.01), and
+`reversing-loops/saturation` widened to `|dest| = 6` wedged at 11 of 15
+workings because the last station-A slots went to older trains finishing their
+chains there while younger through-traffic starved. No candidate ordering can
+prevent that — for the older request the free slot always sorts first — so it
+is queue order, not route choice (#34).
 
 **Decision: the scan orders by `(-refusals, seq)` — most-refused first,
 admission order among equals.** A request's refusal count increments each
@@ -41,14 +42,15 @@ Two alternatives from #34 were considered:
 
 ## Measured effect
 
-Against the post-#33 sweep: drained runs rise 330 → 364 of 560, with
-`|dest| = 2` up 9 → 16 at both live `k` and `|dest| = 6` at 79 of 80 for
-`k ∈ {1, 2, 4}`. On the 321 runs drained both before and after, max latency
-and makespan fall on 153 and rise on 31; the max/mean latency ratio's median
-moves 1.73 → 1.68. On committed `gotthard/saturation`, `Incremental` improves
-from makespan 20, mean latency 11.2, max 20 to 18 / 10.0 / 18; `FullRoute` is
-unchanged. Those are the figures as measured; the committed golden is lower
-since #46 drew Airolo and relaxed its exclusivity. The widened `|dest| = 6` workload drains fully at `k = 2`.
+Against the post-#33 sweep: drained runs rise 330 → 364 of 560, with `|dest| =
+2` up 9 → 16 at both live `k` and `|dest| = 6` at 79 of 80 for `k ∈ {1, 2, 4}`.
+On the 321 runs drained both before and after, max latency and makespan fall on
+153 and rise on 31; the max/mean latency ratio's median moves 1.73 → 1.68. On
+committed `reversing-loops/saturation`, `Incremental` improves from makespan
+20, mean latency 11.2, max 20 to 18 / 10.0 / 18; `FullRoute` is unchanged.
+Those are the figures as measured; the committed golden is lower since #46 drew
+station-A and relaxed its exclusivity. The widened `|dest| = 6` workload drains
+fully at `k = 2`.
 
 ## Consequences
 

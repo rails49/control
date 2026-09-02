@@ -49,8 +49,8 @@ describe("Live", () => {
    *  the panel shows it as trouble. Dropping it left a refusal invisible. */
   it("hands back the relay's refusal rather than dropping it", () => {
     const live = new Live();
-    expect(live.read(JSON.stringify({ error: "no scenario 'gotthard/nope'" }))).toEqual(
-      { error: "no scenario 'gotthard/nope'" },
+    expect(live.read(JSON.stringify({ error: "no scenario 'reversing-loops/nope'" }))).toEqual(
+      { error: "no scenario 'reversing-loops/nope'" },
     );
   });
 
