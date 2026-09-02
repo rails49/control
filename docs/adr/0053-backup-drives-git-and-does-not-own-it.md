@@ -31,12 +31,15 @@ all three for the cost of shelling out.
 A fresh installation's store is a directory nobody has run `git init` in, and
 that is not a fault. Backup is offered, says what is missing in the words of
 the command that would fix it, and changes nothing else: saving works, the
-server answers, the panel comes up. The same answer covers the store that is
-*inside* another repository rather than being one — a checkout's `bench/`,
-which is what a developer runs a session on
+server answers, the panel comes up. Backup is refused the same way for a store
+that is *inside* another repository rather than being one — a checkout's
+`bench/`, which is what a developer runs a session on
 ([#320](https://github.com/rails49/control/issues/320)). Backing that up would
 land somebody's railroad as commits in the control repository, beside code,
-under whatever branch was out.
+under whatever branch was out, so backup names the repository it found and
+stops there. Which of the three it is gets its own words, a person with no git
+installed and a person whose store is `bench/` having different things to do
+about it.
 
 **Automated backup is off until somebody turns it on**, and the switch is kept
 in the store, so *on* survives the restart that follows it.
