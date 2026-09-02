@@ -120,11 +120,18 @@ export class TcMenubar extends LitElement {
     if (id === null) return html`<li class="divider" role="separator"></li>`;
     const command = COMMANDS[id];
     const alive = command.enabled(this.standing);
+    // What the item has to say before it is opened, which is backup's alone
+    // (#321). It warns and never disables: a railroad that is not being backed
+    // up is a railroad somebody still has to be able to back up.
+    const says = command.mark?.(this.standing) ?? null;
     return html`
       <li>
         <button ?disabled=${!alive} @click=${() => this.choose(id)}>
           <span class="glyph">${GLYPHS[id]}</span>
           <span class="label">${command.label}</span>
+          ${says === null
+            ? nothing
+            : html`<span class="mark" title=${says} aria-label=${says}>!</span>`}
           ${command.key === undefined
             ? nothing
             : html`<kbd>${command.key}</kbd>`}

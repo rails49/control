@@ -230,3 +230,37 @@ describe("the view", () => {
     expect(on("netlist", { opened: "reversing-loops", saved: false })).toBe(true);
   });
 });
+
+/**
+ * What the `Backup…` item says before anybody opens it (#321).
+ *
+ * The mark is the only thing in the editor that reports a store which is not
+ * being kept anywhere. It warns and never disables: a railroad nobody is
+ * backing up is one somebody still has to be able to back up.
+ */
+describe("what backup says without being opened", () => {
+  function mark(backup: Standing["backup"]): string | null {
+    return COMMANDS.backup.mark!(standing({ backup })) ?? null;
+  }
+
+  it("says nothing where there is nothing to say", () => {
+    expect(mark("quiet")).toBeNull();
+  });
+
+  it("says a railroad has never been backed up", () => {
+    expect(mark("never")).toMatch(/never been backed up/);
+  });
+
+  it("says the copy on the other machine is behind", () => {
+    expect(mark("behind")).toMatch(/more than a day/);
+  });
+
+  /** Every other item is silent, so the mark means one thing wherever it is
+   *  seen. */
+  it("is backup's alone", () => {
+    const marked = (Object.keys(COMMANDS) as CommandId[]).filter(
+      (id) => COMMANDS[id].mark !== undefined,
+    );
+    expect(marked).toEqual(["backup"]);
+  });
+});

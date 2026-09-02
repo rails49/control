@@ -58,7 +58,28 @@ export interface Standing {
    *  it afresh — nothing here is latched, so the last train leaving thaws
    *  the drawing on its own. */
   placed: number;
+  /** Whether backup has anything to say without being asked (#321). */
+  backup: BackupStanding;
 }
+
+/**
+ * What backup says from outside its own dialog.
+ *
+ * Two things are worth a mark on a menu somebody is not looking at, and both
+ * are the same failure: believing the railroad is safe when it is not.
+ *
+ * - `never` — nothing has ever been backed up and nothing is going to be.
+ *   Automated backup is off until a person turns it on (#321), which leaves it
+ *   off for exactly the person it was written for: the one who drew a railroad
+ *   over months and never thought about backups.
+ * - `behind` — backup is on and the copy off this machine has been failing for
+ *   more than a day. Each failure on its own is a network coming and going;
+ *   a day of them is a remote that moved or a credential that expired.
+ *
+ * `quiet` is everything else, including a copy that failed an hour ago. Saying
+ * so every time would teach a person to ignore it.
+ */
+export type BackupStanding = "quiet" | "never" | "behind";
 
 /** Where the editor stands before it has been told anything: nothing open,
  *  nothing chosen, nothing to take back. */
@@ -70,6 +91,7 @@ export const NOTHING: Standing = {
   undo: false,
   redo: false,
   placed: 0,
+  backup: "quiet",
 };
 
 /**
@@ -88,6 +110,10 @@ export function frozen({ placed }: Standing): boolean {
 
 export interface Command {
   label: string;
+  /** What the item has to say before anybody opens it, or `null` for the
+   *  ordinary case of nothing. The bar draws a mark and says these words; the
+   *  command still runs, so this warns and never disables. */
+  mark?(standing: Standing): string | null;
   /** The key that does the same thing, as it reads beside the label.
    *  Undefined where there is none to name: Chrome keeps `⌘N` for a new
    *  window and it never reaches the page, so a blank is better than a
@@ -144,8 +170,24 @@ export const COMMANDS: Record<CommandId, Command> = {
   // in, and what backup says about it — that it is no git repository, and the
   // command that would make it one — is worth reading before the first save
   // rather than after it (ADR-0053).
-  backup: { label: "Backup…", enabled: () => true },
+  backup: { label: "Backup…", enabled: () => true, mark: backupSays },
 };
+
+/**
+ * What the `Backup…` item says without being opened.
+ *
+ * The words are the whole of the warning: a mark somebody has to open a dialog
+ * to understand is a mark they learn to ignore.
+ */
+function backupSays({ backup }: Standing): string | null {
+  if (backup === "never") {
+    return "this railroad has never been backed up";
+  }
+  if (backup === "behind") {
+    return "the copy on the other machine is more than a day behind";
+  }
+  return null;
+}
 
 /** A verb that reads the selection is dead without one. */
 function hasSelection({ selection }: Standing): boolean {

@@ -33,6 +33,7 @@ const KEPT: BackupDoc = {
     { commit: "a1b2c3d", said: "backup: reversing-loops", when: "2026-09-01 21:40" },
     { commit: "9f8e7d6", said: "backup: crossover-yard", when: "2026-08-30 18:02" },
   ],
+  copy: { waiting: 0, since: null, stale: false, ok: true, said: "" },
 };
 
 /** The store the model is driven against: what it answers, and what it was
@@ -331,3 +332,65 @@ async function chooseBackup(shell: TcApp): Promise<void> {
     .click();
   await settled(shell);
 }
+
+/**
+ * What backup says from outside its own dialog (#321).
+ *
+ * The person this reaches is the one who never opens the dialog, so the rule
+ * has to hold before anything is pressed and has to stay quiet about anything
+ * that is only worth reading once it is open.
+ */
+describe("what backup says without being opened", () => {
+  async function standing(stands: Partial<BackupDoc>) {
+    const store = new Fake();
+    store.stands = { ...KEPT, ...stands };
+    const backing = new Backing(() => {}, store);
+    await backing.load();
+    return backing.standing;
+  }
+
+  it("says nothing until the store has been asked", () => {
+    expect(new Backing(() => {}, new Fake()).standing).toBe("quiet");
+  });
+
+  it("says a store with no backups and no automation has never been kept", async () => {
+    expect(await standing({ automatic: false, backups: [] })).toBe("never");
+  });
+
+  /** A store that is not a repository at all reads the same way: what a person
+   *  has to know is that nothing is being kept, and the dialog is where the
+   *  difference between having no repository and having no backups is spelled
+   *  out. */
+  it("says the same of a store that is not a repository", async () => {
+    expect(
+      await standing({ repository: false, automatic: false, backups: [] }),
+    ).toBe("never");
+  });
+
+  it("says nothing of a store that has been backed up", async () => {
+    expect(await standing({ automatic: false })).toBe("quiet");
+  });
+
+  it("says nothing of a store waiting on its first automatic backup", async () => {
+    expect(await standing({ automatic: true, backups: [] })).toBe("quiet");
+  });
+
+  /** A failed copy an hour old is a network coming and going. A day of them is
+   *  a remote that moved, and somebody believing they have an off-machine copy
+   *  who does not. */
+  it("says nothing of a copy that failed an hour ago", async () => {
+    expect(
+      await standing({
+        copy: { waiting: 1, since: 3600, stale: false, ok: false, said: "no route" },
+      }),
+    ).toBe("quiet");
+  });
+
+  it("says a copy that has been failing for a day is behind", async () => {
+    expect(
+      await standing({
+        copy: { waiting: 3, since: 200000, stale: true, ok: false, said: "no route" },
+      }),
+    ).toBe("behind");
+  });
+});

@@ -103,6 +103,15 @@ export const menubarStyles = css`
     ${menuShortcut}
   }
 
+  /* What an item says before anybody opens it (#321). Beside the label rather
+     than at the row's end, where the key lives: it is about the word, not
+     about the gesture. */
+  .mark {
+    margin-left: 0.35rem;
+    font-weight: 700;
+    color: var(--unfinished);
+  }
+
   ${menuRowChosen}
 
   /* A dead item still reads, so that what is missing to bring it back can be
