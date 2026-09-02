@@ -205,9 +205,14 @@ REFUSED_LIVE = [
     (["--scenario", "crossover-yard/meet", "--station", "dccex-usb:2560"], "name one"),
     (["--station", "dccex-usb:2560"], "name the railroad it is under"),
     (["reversing-loops", "--startup", "trip.txt"], "name the --station it goes to"),
+    (
+        ["--scenario", "crossover-yard/meet", "--startup", "trip.txt"],
+        "name the --station it goes to",
+    ),
+    (["--startup", "trip.txt"], "name the --station it goes to"),
     (["nonesuch"], "no railroad 'nonesuch'"),
 ]
-"""Every `tc49 live` the CLI refuses, and a word of the refusal. Four are
+"""Every `tc49 live` the CLI refuses, and a word of the refusal. Six are
 decided off the arguments alone, the last only by asking the store for the
 railroad — which takes a session, and a session is already serving.
 
