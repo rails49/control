@@ -1,11 +1,18 @@
 # gotthard — the cars this railroad owns and the trains made up from them
 # (CONTEXT.md, **Roster**).
 #
-# The stock is synthetic: nobody owns one of these, so every train is a single
-# car of the `bench-<length>` model of its length (`catalogue/`) rather than a
-# product. A train's length is the sum of its cars and is never authored
-# (ADR-0045); each sum is the length this file stated before the rewrite, train
-# for train, so no benchmark result moves (#223).
+# Most of the stock is synthetic: nobody owns one of these, so every benchmark
+# train is a single car of the `bench-<length>` model of its length
+# (`catalogue/`) rather than a product. A train's length is the sum of its cars
+# and is never authored (ADR-0045); each sum is the length this file stated
+# before the rewrite, train for train, so no benchmark result moves (#223).
+#
+# `e10` and `ce68` are the exception and are real: two locomotives somebody
+# owns, with the addresses their decoders answer to, so that a `move` on the
+# physical binding has wheels to turn (#317). They are additive — no scenario
+# names them, so no benchmark sees them — and they are on loan. An
+# installation's own stock does not belong in this repository and moves out
+# under #318.
 #
 # Being on the roster is what makes a train **known**; where it stands, if
 # anywhere, is the run's and not this file's (ADR-0039). A scenario over this
@@ -15,6 +22,12 @@
 roster: gotthard
 
 cars:
+  # Real, and the only two here that are. `addr` is bare — no system prefix,
+  # unlike a point's (ADR-0045) — and quoted, so one address is not written
+  # two ways.
+  ce68_car: { model: arnold-ce68, addr: "11" }
+  e10_car: { model: conrad-e10, addr: "10" }
+
   fixed_car: { model: bench-450 }
   flexible_car: { model: bench-450 }
   long_car: { model: bench-1000 }
@@ -35,6 +48,11 @@ cars:
   too_long_car: { model: bench-1500 }
 
 trains:
+  # One locomotive each, so each derives `light engine` rather than a hauled
+  # kind, and each drives on its own.
+  ce68: { cars: [{ car: ce68_car }] }
+  e10: { cars: [{ car: e10_car }] }
+
   fixed: { cars: [{ car: fixed_car }] }
   flexible: { cars: [{ car: flexible_car }] }
   long: { cars: [{ car: long_car }] }
