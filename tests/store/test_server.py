@@ -344,7 +344,7 @@ class FakeGit:
         self.porcelain = " M layouts/reversing-loops.drawing.yaml\n"
         self.pushes = Said(True, "")
 
-    def __call__(self, root: Path, *args: str) -> Said:
+    def __call__(self, root: Path, *args: str, timeout: float | None = None) -> Said:
         self.calls.append(args)
         if args[0] == "rev-parse":
             return Said(True, str(root))

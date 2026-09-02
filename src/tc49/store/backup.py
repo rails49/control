@@ -55,6 +55,25 @@ PUSH_S = 300.0
 pushed. It is the off-machine copy rather than the backup, so it is unhurried;
 nothing waits on it and a failure only means the next timer tries again."""
 
+PUSH_TIMEOUT_S = 30.0
+"""How long one `git push` is given before it is killed.
+
+A remote that is refusing answers at once; a remote that is simply unreachable
+— a laptop off the wifi, a host that no longer resolves — does not answer at
+all, and git waits on the operating system's connect timeout, which is minutes.
+Nothing is lost by cutting that short: the commit is the backup, the copy is
+retried on the next timer, and a session that is being stopped gets to stop.
+"""
+
+STALE_S = 24 * 60 * 60.0
+"""How long a backup may sit here uncopied before the editor says so.
+
+Each failed copy on its own is not worth interrupting anybody for — a network
+comes and goes. A remote that has been unreachable for a day is not a network
+blip; it is a remote that moved, or a credential that expired, and the person
+who turned backup on believes they have an off-machine copy and does not.
+"""
+
 TICK_S = 1.0
 """How often :class:`Watch` lets the two timers above fire. It only bounds how
 late a deadline is noticed, so it stays well under either of them."""
@@ -87,16 +106,23 @@ class Driver(Protocol):
     """How a git command is run. A seam so the policy above can be tested
     without a repository, and the one place a process is started."""
 
-    def __call__(self, root: Path, *args: str) -> Said: ...
+    def __call__(
+        self, root: Path, *args: str, timeout: float | None = None
+    ) -> Said: ...
 
 
-def git(root: Path, *args: str) -> Said:
+def git(root: Path, *args: str, timeout: float | None = None) -> Said:
     """Run one git command in `root` and answer what it said.
 
     `-C` rather than a working directory, so nothing about this process's own
     directory reaches the command. Both streams are joined because git writes
     its refusals to one and its answers to the other, and the caller wants the
     words rather than the stream they came on.
+
+    `timeout` bounds the wait and is given only to the push, the one command
+    here that talks to another machine. A killed command reads as an ordinary
+    refusal, in words saying what was waited on, because that is what it is:
+    git was asked and did not answer in time.
     """
     try:
         done = subprocess.run(
@@ -104,7 +130,10 @@ def git(root: Path, *args: str) -> Said:
             capture_output=True,
             text=True,
             check=False,
+            timeout=timeout,
         )
+    except subprocess.TimeoutExpired:
+        return Said(False, f"git {args[0]} gave no answer in {timeout:.0f}s")
     except OSError as missing:  # no git on this machine, or no such directory
         return Said(False, str(missing))
     return Said(done.returncode == 0, f"{done.stdout}{done.stderr}".strip())
@@ -159,11 +188,20 @@ class Backup:
     repository* is what lets the UI offer backup and say what it needs.
 
     The timers are read by the watch thread and armed by the thread serving a
-    save, so the state they share is behind a lock. It is held across the git
-    command a tick decides to run: a save arriving mid-commit waits for the
-    subprocess and is then counted, where without the lock it would be
-    swallowed by the commit that was already running and the drawing would sit
-    unbacked up until the next one.
+    save, so the state they share is behind a lock. It is held across the
+    *commit*: a save arriving mid-commit waits for the subprocess and is then
+    counted, where without the lock it would be swallowed by the commit that
+    was already running and the drawing would sit unbacked up until the next
+    one. A commit is local and takes milliseconds, so nothing waits long.
+
+    **The push is outside it, and off every thread that serves a request.**
+    A `git push` to a host that is not answering takes as long as the
+    operating system's connect timeout, and a lock held across it is a lock
+    that stops saves: the store's server answers one request at a time, so a
+    save waiting on the network is the whole store waiting on the network,
+    which #321 forbids. The tick thread is the only one that pushes; the
+    button asks for a push and returns once the commit it really wanted is
+    made.
     """
 
     def __init__(
@@ -174,13 +212,19 @@ class Backup:
         now: Callable[[], float] = time.monotonic,
         idle_s: float = IDLE_S,
         push_s: float = PUSH_S,
+        push_timeout_s: float = PUSH_TIMEOUT_S,
+        stale_s: float = STALE_S,
+        wall: Callable[[], float] = time.time,
     ) -> None:
         self.root = root
         self._run = run
         self._log = log if log is not None else _note
         self._now = now
+        self._wall = wall
         self._idle_s = idle_s
         self._push_s = push_s
+        self._push_timeout_s = push_timeout_s
+        self._stale_s = stale_s
         self._lock = threading.RLock()
         # When the store was last written, `None` where nothing is waiting on
         # the idle timer. A commit clears it, which is what stops a quiet
@@ -191,6 +235,16 @@ class Backup:
         # there is something to push keeps a quiet store off the network.
         self._unpushed = False
         self._pushed_at = now()
+        # A push the button asked for, waiting for the next tick to make it.
+        self._push_wanted = False
+        # What the last attempt to push said, `None` before there was one.
+        # Read by the UI, which is where a copy that keeps failing is said out
+        # loud rather than only written to a terminal nobody is watching.
+        self._push_said: Said | None = None
+        # Held for the length of one `git push`, and never waited on: it is
+        # what keeps a session ending from pushing over a tick that already
+        # is.
+        self._pushing_now = threading.Lock()
 
     # --- what the store is ---------------------------------------------------
 
@@ -309,6 +363,33 @@ class Backup:
             made.append({"commit": commit, "said": message, "when": when})
         return made
 
+    def copy(self) -> dict[str, Any]:
+        """How the copy off this machine stands: how many backups the remote
+        has not been given, how long the oldest of them has been waiting, and
+        what the last attempt said.
+
+        Asked of git rather than remembered, so it survives a restart. A
+        person who turned backup on, drew for weeks and never opened this
+        dialog is exactly who a failing copy has to reach, and a count kept in
+        this process would be zero every morning.
+
+        `waiting` is wall-clock seconds since the oldest uncopied backup was
+        made, and `stale` is that against :data:`STALE_S`. Both are absent
+        where there is nothing waiting or no upstream to measure against — a
+        store with no remote is :meth:`needs`'s to talk about, not this.
+        """
+        said = self._run(self.root, "log", "@{u}..HEAD", "--format=%ct")
+        made = [int(line) for line in said.words.split() if line.isdigit()]
+        waiting = self._wall() - min(made) if said.ok and made else None
+        last = self._push_said
+        return {
+            "waiting": len(made) if said.ok else 0,
+            "since": waiting,
+            "stale": waiting is not None and waiting >= self._stale_s,
+            "ok": None if last is None else last.ok,
+            "said": "" if last is None else last.words,
+        }
+
     def status(self) -> dict[str, Any]:
         """The whole of what the UI reads: where the store is, whether it can
         be backed up, whether it is being, what is outstanding and what there
@@ -320,6 +401,7 @@ class Backup:
             "needs": self.needs(),
             "outstanding": self.outstanding(),
             "backups": self.backups(),
+            "copy": self.copy(),
         }
 
     # --- the timers ----------------------------------------------------------
@@ -346,8 +428,15 @@ class Backup:
             if self._touched is not None and now - self._touched >= self._idle_s:
                 self._touched = None
                 self._backed_up(self.commit())
-            if self._unpushed and now - self._pushed_at >= self._push_s:
-                self._pushing()
+            due = self._push_wanted or now - self._pushed_at >= self._push_s
+            pushing = self._unpushed and due
+            if pushing:
+                # Claimed here, under the lock, so that the next tick does not
+                # decide the same push is due while this one is still running.
+                self._push_wanted = False
+                self._pushed_at = now
+        if pushing:
+            self._pushing()
 
     def quit(self) -> None:
         """The session is ending: commit what is outstanding and attempt a
@@ -362,8 +451,11 @@ class Backup:
                 return
             self._touched = None
             self._backed_up(self.commit())
-            if self._unpushed:
-                self._pushing()
+            pushing = self._unpushed
+            if pushing:
+                self._pushed_at = self._now()
+        if pushing:
+            self._pushing()
 
     # --- driving git ---------------------------------------------------------
 
@@ -391,13 +483,19 @@ class Backup:
     def push(self) -> Said:
         """Hand the commits to the remote. Whatever git makes of the branch
         that is out and the upstream it has — none of that is this app's to
-        decide, and a store with no remote reads git's own refusal."""
+        decide, and a store with no remote reads git's own refusal.
+
+        **Called with no lock held**, and given a deadline, because this is
+        the one thing here that waits on another machine.
+        """
         if not self.repository():
             return Said(False, self.needs()[0])
-        self._pushed_at = self._now()
-        said = self._run(self.root, "push")
-        if said.ok:
-            self._unpushed = False
+        said = self._run(self.root, "push", timeout=self._push_timeout_s)
+        with self._lock:
+            self._pushed_at = self._now()
+            self._push_said = said
+            if said.ok:
+                self._unpushed = False
         return said
 
     def back_up(self) -> Said:
@@ -415,7 +513,12 @@ class Backup:
             said = self.commit()
             self._backed_up(said)
             if said.ok and self._unpushed:
-                self._pushing()
+                # Asked for rather than made here. The press is answered by
+                # the commit, which is the backup; the copy off this machine
+                # is the next tick's, so that a remote nobody can reach does
+                # not hold this reply — and with it every other route the
+                # store serves — open for the length of a connect timeout.
+                self._push_wanted = True
             return said
 
     def restore(self, commit: str = "HEAD") -> Said:
@@ -478,9 +581,21 @@ class Backup:
         **A lost network is logged and nothing else** — it never reaches a
         caller and never becomes a dialog. The commit is on this disk, which
         is the backup; the push is the copy off it, and the next timer tries
-        again.
+        again. What a person is told instead is in :meth:`status`: a copy that
+        has been failing for a day says so in the editor, because a month of
+        silence is the failure backup exists to prevent.
+
+        Skipped where a push is already running, which is a session ending
+        over a tick that is still waiting on the network. There is nothing to
+        wait for: the copy in flight is carrying the same commits.
         """
-        said = self.push()
+        if not self._pushing_now.acquire(blocking=False):
+            self._log("backup: a copy is already on its way")
+            return
+        try:
+            said = self.push()
+        finally:
+            self._pushing_now.release()
         self._log(f"backup: {said.words}" if said.words else "backup: pushed")
 
 

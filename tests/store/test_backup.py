@@ -22,7 +22,15 @@ from pathlib import Path
 
 import pytest
 
-from tc49.store.backup import Backup, Said, Watch, document, documents
+from tc49.store.backup import (
+    PUSH_TIMEOUT_S,
+    Backup,
+    Said,
+    Watch,
+    document,
+    documents,
+    git,
+)
 
 pytestmark = pytest.mark.skipif(
     shutil.which("git") is None, reason="the app drives git, and there is none here"
@@ -41,8 +49,14 @@ class FakeGit:
         self.porcelain = porcelain
         self.pushes = Said(True, "")
         self.calls: list[tuple[str, ...]] = []
+        # The deadline the last push was given, so a test can say that the one
+        # command here that waits on another machine is bounded.
+        self.deadline: float | None = None
+        # What `log @{u}..HEAD --format=%ct` answers: the backups the remote
+        # has not been given, newest first, as unix seconds.
+        self.uncopied: list[int] = []
 
-    def __call__(self, root: Path, *args: str) -> Said:
+    def __call__(self, root: Path, *args: str, timeout: float | None = None) -> Said:
         self.calls.append(args)
         if args[0] == "rev-parse":
             top = self.toplevel if self.toplevel is not None else str(root)
@@ -55,7 +69,10 @@ class FakeGit:
             self.porcelain = ""
             return Said(True, "[main 0000000] " + args[2])
         if args[0] == "push":
+            self.deadline = timeout
             return self.pushes
+        if args[0] == "log" and "@{u}..HEAD" in args:
+            return Said(True, "\n".join(str(made) for made in self.uncopied))
         return Said(True, "")
 
     @property
@@ -289,6 +306,130 @@ def test_a_quiet_store_stays_off_the_network(tmp_path: Path, clock: FakeClock) -
     assert ("push",) not in run.calls
 
 
+# --- a copy off this machine never waits in front of a save -------------------
+
+
+class SlowGit(FakeGit):
+    """A git whose push does not come back until the test lets it.
+
+    What every other fake here cannot be: instant. The requirement #321 states
+    — "a lost network must never block a save" — is about how long something
+    takes, so a fake that answers at once tests the outcome and never the
+    waiting, which is how the defect shipped.
+    """
+
+    def __init__(self, porcelain: str = "") -> None:
+        super().__init__(porcelain=porcelain)
+        self.pushing = threading.Event()
+        self.release = threading.Event()
+
+    def __call__(self, root: Path, *args: str, timeout: float | None = None) -> Said:
+        if args[0] == "push":
+            self.pushing.set()
+            self.release.wait(timeout=5.0)
+        return super().__call__(root, *args, timeout=timeout)
+
+
+def test_a_save_does_not_wait_for_a_copy_that_is_going_nowhere(
+    tmp_path: Path, clock: FakeClock
+) -> None:
+    """The store's server answers one request at a time, so a save that waits
+    on `git push` is every route waiting on it: the drawing does not come back
+    and the panel cannot read a roster. Against a host that is unreachable
+    rather than refusing, that is the operating system's connect timeout."""
+    run = SlowGit(porcelain=" M layouts/reversing-loops.drawing.yaml\n")
+    backup = backing(tmp_path, run, clock, [])
+
+    backup.saved()
+    clock.now += 20.0
+    backup.due()  # commits, and the copy is not owed until the push timer
+    clock.now += 300.0
+    copying = threading.Thread(target=backup.due, daemon=True)
+    copying.start()
+    assert run.pushing.wait(timeout=5.0), "the copy never started"
+
+    began = time.monotonic()
+    backup.saved()  # the save the editor is waiting on
+    waited = time.monotonic() - began
+
+    run.release.set()
+    copying.join(timeout=5.0)
+    assert waited < 0.5, f"a save waited {waited:.2f}s on a copy off the machine"
+
+
+def test_the_button_answers_with_the_commit_and_leaves_the_copy_to_the_timer(
+    tmp_path: Path, clock: FakeClock
+) -> None:
+    """`Back up now` runs on the thread serving the request, so a push made
+    there blocks the store's whole face for as long as the network takes. The
+    commit is what was asked for and is made; the copy is the next tick's."""
+    run = FakeGit(porcelain=" M layouts/reversing-loops.drawing.yaml\n")
+    backup = backing(tmp_path, run, clock)
+
+    said = backup.back_up()
+
+    assert said.ok
+    assert run.messages == ["backup: reversing-loops"]
+    assert ("push",) not in run.calls
+
+    backup.due()  # the tick the press asked for, with no timer left to wait
+    assert ("push",) in run.calls
+
+
+def test_a_copy_is_given_a_deadline(tmp_path: Path, clock: FakeClock) -> None:
+    """A remote that refuses answers at once; one that is simply unreachable
+    does not answer at all, and git waits on the connect timeout. A session
+    being stopped has to be able to stop."""
+    run = FakeGit(porcelain=" M layouts/reversing-loops.drawing.yaml\n")
+    backup = backing(tmp_path, run, clock)
+    backup.saved()
+    backup.quit()
+    assert run.deadline == PUSH_TIMEOUT_S
+
+
+def test_a_command_that_gives_no_answer_reads_as_a_refusal(tmp_path: Path) -> None:
+    """The real driver, and the only branch of it a fake cannot stand in for:
+    what a killed command says. It is a refusal like any other, in words
+    saying what was waited on."""
+    said = git(tmp_path, "status", timeout=0)
+    assert not said.ok
+    assert "no answer" in said.words
+
+
+def test_a_copy_that_has_been_failing_for_a_day_says_so(
+    tmp_path: Path, clock: FakeClock
+) -> None:
+    """Each failed copy on its own is not worth interrupting anybody for. A
+    remote unreachable for a day is a remote that moved, and the person who
+    turned backup on believes they have a copy off this machine and does not.
+
+    Asked of git rather than remembered, so a restart does not forget it.
+    """
+    day = 24 * 60 * 60
+    run = FakeGit(porcelain="")
+    backup = Backup(
+        tmp_path, run=run, log=lambda _: None, now=clock, wall=lambda: 10 * day
+    )
+
+    run.uncopied = []
+    assert backup.copy() == {
+        "waiting": 0,
+        "since": None,
+        "stale": False,
+        "ok": None,
+        "said": "",
+    }
+
+    run.uncopied = [10 * day - 3600, 10 * day - 60]
+    an_hour = backup.copy()
+    assert an_hour["waiting"] == 2
+    assert an_hour["since"] == 3600
+    assert not an_hour["stale"]
+
+    run.uncopied = [10 * day - 2 * day]
+    assert backup.copy()["stale"]
+
+
 # --- a store that is not a repository ----------------------------------------
 
 
@@ -326,7 +467,9 @@ def test_a_repository_with_no_remote_says_the_backup_stays_here(
     """It backs up, and what it has not got is the copy off this machine."""
 
     class NoRemote(FakeGit):
-        def __call__(self, root: Path, *args: str) -> Said:
+        def __call__(
+            self, root: Path, *args: str, timeout: float | None = None
+        ) -> Said:
             if args[0] == "remote":
                 return Said(True, "")
             return super().__call__(root, *args)
@@ -532,7 +675,9 @@ def test_a_machine_with_no_git_says_that_rather_than_run_git_init(
     than a command they have not got."""
 
     class NoGit:
-        def __call__(self, root: Path, *args: str) -> Said:
+        def __call__(
+            self, root: Path, *args: str, timeout: float | None = None
+        ) -> Said:
             return Said(False, "[Errno 2] No such file or directory: 'git'")
 
     backup = Backup(tmp_path, run=NoGit())
