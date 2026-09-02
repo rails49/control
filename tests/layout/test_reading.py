@@ -1,6 +1,6 @@
 """Every payload is read and never trusted (#287, SYSTEM.md rule 4).
 
-Six topics from five publishers reach this app, and it answers none of them:
+Nine topics from six publishers reach this app, and it answers none of them:
 it reports observations, so a refusal would have nowhere to go (ADR-0034). A
 frame that cannot be read is dropped, silently and to the trace, and none of
 them raises — a binding that raised on a payload would be taken down by
