@@ -441,20 +441,30 @@ def placement(payload: object) -> Placement | None:
 
 @dataclass(frozen=True)
 class Command:
-    """The four names a `move` command states: which train, over which
-    connection's which transit, into which block.
+    """The four names a `move` command states — which train, over which
+    connection's which transit, into which block — and the speed it asks for.
 
-    Not the speed the command also carries (#283): the milestone-1 binding
-    takes a fixed delay per transit, so it has nothing to do with a fraction
-    of a locomotive's maximum, and a reader demanding one would drop commands
-    that binding can carry out perfectly well. A binding that drives a real
-    locomotive reads it where it turns it into whatever its hardware wants.
+    The four names are what makes a command readable and the speed is not
+    (#283): the milestone-1 binding takes a fixed delay per transit, so it
+    has nothing to do with a fraction of a locomotive's maximum, and a reader
+    demanding one would drop commands that binding can carry out perfectly
+    well. So it is read **beside** them and answers None where the frame
+    states none, and what a move with no speed is worth is the binding's: the
+    simulator ignores it, and `layout`, which turns it into a signed speed on
+    every locomotive of the train, has nothing to send and drops the command
+    rather than choose a speed nobody asked for (#296).
+
+    A **magnitude** in 0.0 … 1.0 and never a signed one: which way a train
+    runs along the track is the layout interface's to compose, out of the
+    train's facing and the way round each of its cars is coupled, and no
+    publisher of a `move` holds either fact (SYSTEM.md, *Layout interface*).
     """
 
     train: str
     connection: str
     transit: str
     into: str
+    speed: float | None = None
 
 
 def command(payload: object) -> Command | None:
@@ -466,6 +476,10 @@ def command(payload: object) -> Command | None:
     halves back together (`lib.layout.end_across`). Whether they name anything
     on this railroad is that layout question and not this one — a name is all
     there is to read in a payload.
+
+    The speed rides beside the names and never with them: a frame that states
+    none still commands a move, and what that is worth is the binding's
+    (`Command`).
     """
     if not isinstance(payload, dict):
         return None
@@ -474,7 +488,7 @@ def command(payload: object) -> Command | None:
     if not all(isinstance(name, str) for name in named):
         return None
     train, connection, transit, into = cast(list[str], named)
-    return Command(train, connection, transit, into)
+    return Command(train, connection, transit, into, _fraction(fields, "speed"))
 
 
 @dataclass(frozen=True)
@@ -594,12 +608,26 @@ def desired_speed(payload: object) -> float | None:
     is the translator's and not read here: the contract states −1.0 … 1.0 and
     there is nothing above a locomotive's maximum to ask for.
     """
+    return _fraction(payload, "speed")
+
+
+def _fraction(payload: object, field: str) -> float | None:
+    """One named number field of a payload, or None where the payload states
+    no such thing.
+
+    Shared by the two speeds — the one a `wanted/traction` value asks a
+    locomotive for and the one a `move` asks of a train — because they fail
+    the same way and differ only in whose speed they are. A **boolean is not
+    a number**, refused ahead of the numeric read the way a stamp refuses
+    one: JSON `true` is an `int` in Python and would otherwise be taken for
+    full speed.
+    """
     if not isinstance(payload, dict):
         return None
-    speed = cast(dict[str, object], payload).get("speed")
-    if isinstance(speed, bool) or not isinstance(speed, (int, float)):
+    stated = cast(dict[str, object], payload).get(field)
+    if isinstance(stated, bool) or not isinstance(stated, (int, float)):
         return None
-    return float(speed)
+    return float(stated)
 
 
 def desired_position(payload: object) -> str | None:

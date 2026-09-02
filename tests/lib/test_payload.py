@@ -366,6 +366,28 @@ def test_a_command_reads_as_the_train_the_transit_and_the_block_entered() -> Non
     ) == Command("freight_1", "west_ladder", "to_dn", "dn_w")
 
 
+def test_a_command_carries_the_speed_it_states_and_none_where_it_states_one_badly() -> (
+    None
+):
+    """The speed rides beside the names rather than with them (#283): a frame
+    stating none, or stating something that is no number, still commands a
+    move, and what a move with no speed is worth is the binding's. A boolean
+    is not a speed — JSON `true` is an `int` in Python and would otherwise be
+    read as full speed."""
+    named = {
+        "train": "freight_1",
+        "connection": "west_ladder",
+        "transit": "to_dn",
+        "into": "dn_w",
+    }
+    assert command(named | {"speed": 0.4}) == Command(
+        "freight_1", "west_ladder", "to_dn", "dn_w", 0.4
+    )
+    for stated in ({}, {"speed": True}, {"speed": "fast"}, {"speed": None}):
+        read = command(named | stated)
+        assert read is not None and read.speed is None, stated
+
+
 def test_a_payload_commanding_no_move_reads_as_none() -> None:
     """A command is read exactly as an announcement is: `tc49/layout/move`
     names the layout interface because the interface responds to it, and
