@@ -1138,16 +1138,25 @@ the signal, and both kinds of train move only on a route the dispatcher
 allocated. *Manual* names who turns the throttle and nothing else; an operator
 running a signal at stop is rogue operation the system does not model.
 
-The two gestures are **written and not yet acted on**: the UI's throttle view
-publishes both ([ui/THROTTLE.md](ui/THROTTLE.md),
-[#291](https://github.com/rails49/control/issues/291)), and nothing subscribes
-to either — they are not on the *Subscribes* line above, and `state/mode` has
-no publisher yet, so every train reads `automatic`. They reach a locomotive
-through the traction write, which `layout` now makes on each `move`
-([#296](https://github.com/rails49/control/issues/296)); what is still to come
-is reading them, so that a person's speed reaches the same composition a
-dispatched move does
-([#297](https://github.com/rails49/control/issues/297)).
+A `move` for a manual train **still runs its course**: the points throw, the
+near end is checked and the crossing is recorded, because that is the route and
+the route is not the driving. The one thing that does not happen is the
+traction write, on the grant or on the arrival — a person stops their own
+train, and the signal at the far end is what tells them to.
+
+The UI's throttle view publishes both gestures
+([ui/THROTTLE.md](ui/THROTTLE.md),
+[#291](https://github.com/rails49/control/issues/291)) and the core app
+`layout` acts on both
+([#297](https://github.com/rails49/control/issues/297)), reaching a locomotive
+through the same traction write a `move` does
+([#296](https://github.com/rails49/control/issues/296)) — a lever states
+nose-first where a move states the block it is going into, and the sign each
+decoder is given is composed the same way from there. They are not on the
+*Subscribes* line above because that is the **role's** footprint and this is
+the physical binding's alone: the milestone-1 simulator has no person's hand on
+it, every train it runs is automatic, and a railroad running under it publishes
+no `state/mode` at all.
 
 On the physical railroad the layout interface is the core app `layout`, and
 hardware sits under it by address, as thin translators speaking a device-level

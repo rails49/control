@@ -16,8 +16,9 @@ becomes the addresses that answer for it, no address ever reaching a command
 (#199).
 
 **Everything the bus hands it is read and never trusted** (SYSTEM.md, rule 4).
-Seven topics from six publishers — the detectors joining them with the fold
-(#288) — none of which this app answers — it reports
+Nine topics from six publishers — the detectors joining them with the fold
+(#288), and the throttle's two gestures coming from where a person's press
+already does (#297) — none of which this app answers — it reports
 observations — so a frame that cannot be read is **dropped**, silently and to
 the trace, and a command the layout contradicts goes the same way. Raising on
 one would take the app running the railroad down at the whim of whoever
@@ -96,10 +97,21 @@ facing this app has never seen is dropped rather than guessed, and a train
 whose cars carry no address at all is carried out with nothing to publish
 (#296).
 
-What is **not** here yet: the mode and a person's throttle, which reach a
-locomotive through that same write (#297), and the function topic beside it,
-which is nobody's until a throttle asks. The simulator is untouched and
-remains the milestone-1 binding of the same interface (ADR-0030).
+**Who drives.** A train is `automatic` or `manual`, `mode_wanted` moves it and
+`state/mode` says where it stands — `automatic` at rest, so a train the map
+does not name is automatic (#207). The word names who turns the throttle and
+nothing else: a manual train is dispatched like any other, holds its block,
+is granted moves and gets its points thrown and its near end checked. What it
+changes is exactly one thing — whether this app writes the wheels. A person's
+`throttle_wanted` reaches those same rows, signed the same way, the lever
+stating nose-first where a `move` states a destination block. Taking a train
+writes nothing and giving it back writes what its grant implies, which is
+`0.0` where there is none (#297).
+
+What is **not** here yet: the function topic beside the traction write, which
+is nobody's until a gesture carries a function press. The simulator is
+untouched and remains the milestone-1 binding of the same interface
+(ADR-0030).
 """
 
 import logging
