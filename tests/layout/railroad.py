@@ -21,6 +21,7 @@ ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
 POWER_WANTED = "tc49/layout/power_wanted"
 MODE_WANTED = "tc49/layout/mode_wanted"
+THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
@@ -208,6 +209,13 @@ def gives(bus: Bus, train: str | None) -> None:
     """The same gesture the other way: the train goes back to being driven on
     its grants."""
     bus.publish(MODE_WANTED, {"train": train, "mode": "automatic"})
+    bus.drain()
+
+
+def turns(bus: Bus, train: str, speed: float) -> None:
+    """A person's lever, signed for the train — positive is the way the train
+    points, whichever way round its locomotives are wired."""
+    bus.publish(THROTTLE_WANTED, {"train": train, "speed": speed})
     bus.drain()
 
 
