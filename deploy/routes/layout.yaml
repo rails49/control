@@ -12,7 +12,7 @@ http:
         certResolver: le
 
     layout-store:
-      rule: "Host(`layout.rails49.org`) && (PathPrefix(`/drawings`) || PathPrefix(`/review`) || PathPrefix(`/rosters`))"
+      rule: "Host(`layout.rails49.org`) && (PathPrefix(`/backup`) || PathPrefix(`/drawings`) || PathPrefix(`/review`) || PathPrefix(`/rosters`))"
       entryPoints: [websecure]
       service: layout-store
       tls:
