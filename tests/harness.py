@@ -17,6 +17,7 @@ from tc49.bench.runner import (
     StrategyFactory,
     assemble,
     assemble_live,
+    find_assets,
     find_root,
     run_scenario,
 )
@@ -28,6 +29,7 @@ from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 
 __all__ = [
+    "ASSETS",
     "ROOT",
     "RUN_WANTED",
     "Assembly",
@@ -48,7 +50,8 @@ __all__ = [
     "timetabled",
 ]
 
-ROOT = find_root()  # one definition of where the railroads live
+ROOT = find_root()  # the checkout: the goldens and the generated sources
+ASSETS = find_assets()  # one definition of where the railroads live: `bench/`
 
 
 def catalogued(root: Path) -> Path:
@@ -59,7 +62,7 @@ def catalogued(root: Path) -> Path:
     root with `layouts/` and no `catalogue/` is a roster naming models nothing
     has.
     """
-    shutil.copytree(ROOT / "catalogue", root / "catalogue")
+    shutil.copytree(ASSETS / "catalogue", root / "catalogue")
     return root
 
 
@@ -69,7 +72,7 @@ run = run_scenario
 
 def load(scenario_id: str) -> tuple[Layout, Roster, Scenario]:
     """The wiring module's loader against the one root the suite uses."""
-    return load_scenario(AssetStore(ROOT), scenario_id)
+    return load_scenario(AssetStore(ASSETS), scenario_id)
 
 
 def live(scenario_id: str, state: Path | None = None) -> Assembly:
@@ -92,7 +95,7 @@ def railroads() -> list[str]:
     under #319, and a test that named one would then go red for a reason that
     is not its own.
     """
-    return AssetStore(ROOT).list()
+    return AssetStore(ASSETS).list()
 
 
 def stock(**lengths: int) -> Roster:

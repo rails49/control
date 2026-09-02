@@ -5,12 +5,12 @@ import pytest
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.layout import Layout
 from tc49.store import AssetStore
-from tests.harness import ROOT
+from tests.harness import ASSETS
 
 
 @pytest.fixture
 def crossover() -> Layout:
-    layout = AssetStore(ROOT).get("crossover-yard")
+    layout = AssetStore(ASSETS).get("crossover-yard")
     assert isinstance(layout, Layout)
     return layout
 

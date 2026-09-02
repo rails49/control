@@ -38,7 +38,7 @@ from tests.bench.physical import (
     until,
     waits_until,
 )
-from tests.harness import ROOT, railroads
+from tests.harness import ASSETS, railroads
 
 DEVICE_LINK = "tc49/layout/state/device/link/dccex"
 POWER_WANTED = "tc49/layout/power_wanted"
@@ -248,7 +248,7 @@ def test_a_station_refuses_the_switch_and_says_why() -> None:
     another's. The refusal is in words, on the naming client's own thread, and
     the railroad already running is untouched."""
     first, second = railroads()[0], railroads()[1]
-    live = Session(ROOT, PERIOD_S, station=(HOST, closed_port()))
+    live = Session(ASSETS, PERIOD_S, station=(HOST, closed_port()))
     try:
         assert live.wants(first) is None
         refusal = live.wants(second)
@@ -261,7 +261,7 @@ def test_a_station_refuses_the_switch_and_says_why() -> None:
 def test_a_session_with_no_station_switches_as_it_always_did() -> None:
     """The simulated session is untouched: naming another railroad is what the
     panel's picker does, and it is still accepted."""
-    live = Session(ROOT, PERIOD_S)
+    live = Session(ASSETS, PERIOD_S)
     try:
         assert live.wants(railroads()[0]) is None
         assert live.wants(railroads()[1]) is None
@@ -291,7 +291,7 @@ def test_a_session_on_a_station_comes_up_and_the_panel_joins_it() -> None:
     writes."""
     name = railroads()[0]
     with Station() as station:
-        live = Session(ROOT, PERIOD_S, station=(HOST, station.port))
+        live = Session(ASSETS, PERIOD_S, station=(HOST, station.port))
         assert live.wants(name) is None
         log = io.StringIO()
         thread = threading.Thread(target=live.run, args=(log,), daemon=True)

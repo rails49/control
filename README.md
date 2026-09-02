@@ -31,8 +31,8 @@ Each app's implementation details live beside it:
   derivation](docs/store/DRAWING.md), the only committed topology, and the
   [derived layout, the roster and the harness's scenario
   file](docs/store/LAYOUT.md) it feeds; the drawn railroads and their rosters
-  live in [layouts/](layouts) and the harness's scenarios in
-  [scenarios/](scenarios).
+  live in [bench/layouts/](bench/layouts) and the harness's scenarios in
+  [bench/scenarios/](bench/scenarios).
 - [Bench](docs/bench) — the [benchmark suite](docs/bench/BENCHMARKS.md) and
   the [metrics derivations](docs/bench/METRICS.md).
 - [Layout](docs/layout) — the [layout interface as a core

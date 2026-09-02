@@ -18,14 +18,14 @@ import pytest
 
 from tc49.store import AssetStore
 from tc49.store.server import handle, make_server
-from tests.harness import ROOT, catalogued
+from tests.harness import ASSETS, catalogued
 
 
 @pytest.fixture
 def store(tmp_path: Path) -> AssetStore:
     catalogued(tmp_path)
     (tmp_path / "layouts").mkdir()
-    for path in (ROOT / "layouts").glob("*.yaml"):
+    for path in (ASSETS / "layouts").glob("*.yaml"):
         shutil.copy(path, tmp_path / "layouts" / path.name)
     return AssetStore(tmp_path)
 
@@ -205,7 +205,7 @@ def test_the_routes_are_reachable_over_http(tmp_path: Path) -> None:
     a socket — the rest of this file tests the contract, not the plumbing."""
     (tmp_path / "layouts").mkdir()
     shutil.copy(
-        ROOT / "layouts" / "facing-pair.drawing.yaml",
+        ASSETS / "layouts" / "facing-pair.drawing.yaml",
         tmp_path / "layouts" / "facing-pair.drawing.yaml",
     )
     server = make_server(tmp_path, port=0)

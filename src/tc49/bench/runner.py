@@ -47,8 +47,16 @@ STRATEGIES: dict[str, StrategyFactory] = {
 }
 
 
+FIXTURES = "bench"
+"""The directory inside a checkout holding the harness's inputs: the drawings
+and rosters under `layouts/`, the models under `catalogue/`, and the placements
+under `scenarios/`. They sit under the bench rather than beside `src/` because
+they are what the benchmark is run *on* and not the system's own data, and a
+directory at the top level reads as a place to put a railroad (#319)."""
+
+
 def find_root(start: Path | None = None) -> Path:
-    """The repo root: the nearest ancestor holding `layouts/`.
+    """The repo root: the nearest ancestor holding `bench/layouts/`.
 
     The railroads and the scenarios are repo data, not package data — the
     wheel ships `src/tc49` alone — so the benchmark commands only mean
@@ -57,13 +65,24 @@ def find_root(start: Path | None = None) -> Path:
     a sentence instead of a `FileNotFoundError` on a path nobody wrote.
     """
     for candidate in (start or Path(__file__)).resolve().parents:
-        if (candidate / "layouts").is_dir():
+        if (candidate / FIXTURES / "layouts").is_dir():
             return candidate
     raise FileNotFoundError(
-        "no 'layouts/' directory in any parent — `tc49 bench` and `tc49 sweep`"
-        " read the railroads and scenarios from a checkout of the repository,"
-        " and are not usable from an installed wheel"
+        f"no '{FIXTURES}/layouts/' directory in any parent — `tc49 bench` and"
+        " `tc49 sweep` read the railroads and scenarios from a checkout of the"
+        " repository, and are not usable from an installed wheel"
     )
+
+
+def find_assets(start: Path | None = None) -> Path:
+    """The store root inside a checkout: the fixtures the asset store serves.
+
+    The store is rooted at a directory holding `layouts/`, `catalogue/` and
+    `scenarios/` (LAYOUT.md), which in a checkout is `bench/` and not the
+    checkout itself — the repo root is where `benchmarks/expected/` and the
+    UI's generated sources are, and those are not the store's.
+    """
+    return find_root(start) / FIXTURES
 
 
 def load(store: AssetStore, scenario_id: str) -> tuple[Layout, Roster, Scenario]:

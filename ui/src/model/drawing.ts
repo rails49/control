@@ -123,8 +123,9 @@ export function emptyDrawing(name: string): Drawing {
 }
 
 /** Why a name cannot name a new drawing, or `null` for one that can. It
- *  becomes `layouts/<name>.drawing.yaml`, and a taken name is refused rather
- *  than overwritten: overwriting deliberately is open-and-save. */
+ *  becomes `layouts/<name>.drawing.yaml` under the store's root, and a taken
+ *  name is refused rather than overwritten: overwriting deliberately is
+ *  open-and-save. */
 export function nameTrouble(name: string, taken: readonly string[]): string | null {
   if (name.includes("/")) return `'${name}' cannot name a file`;
   if (taken.includes(name)) return `'${name}' is already a railroad`;

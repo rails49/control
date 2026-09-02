@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from tc49.bench.metrics import metrics
-from tc49.bench.runner import STRATEGIES, find_root, run_scenario
+from tc49.bench.runner import FIXTURES, STRATEGIES, find_root, run_scenario
 from tc49.lib.layout import Layout, block_of
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tc49.store import AssetStore
@@ -263,9 +263,13 @@ def row(workload: Workload, k: int, locking: str, trace: str) -> dict[str, Any]:
 
 
 def sweep(out_dir: Path | None = None, root: Path | None = None) -> int:
-    """Run the grid, writing one row per run. Returns the row count."""
+    """Run the grid, writing one row per run. Returns the row count.
+
+    `root` is the checkout, not the store's root: the fixtures are read from
+    `bench/` under it and the rows are written beside it in `out/`.
+    """
     root = root or find_root()
-    store = AssetStore(root)
+    store = AssetStore(root / FIXTURES)
     layout = store.get(LAYOUT)
     assert isinstance(layout, Layout)
     roster = store.roster(LAYOUT)

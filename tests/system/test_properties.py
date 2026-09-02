@@ -19,7 +19,7 @@ from tc49.dispatcher.safety import safe
 from tc49.lib.bus import Payload
 from tc49.store import AssetStore
 from tests.generate import fixture_yaml, scenarios
-from tests.harness import ROOT, Assembly, build, events, run
+from tests.harness import ASSETS, Assembly, build, events, run
 
 K = 2  # the default candidate budget; the k axis is swept by `tc49 sweep`
 TICK_LIMIT = 100  # a backstop against live-lock, never the normal stop
@@ -137,7 +137,7 @@ def test_differential_against_the_baseline(
     exists to find out. Every form of it falls to adversarial search: the completed
     sets can be incomparable, the counts can favour either side, and even
     when both strategies complete exactly the same set `Incremental` can be
-    slower. `scenarios/crossover-yard/route-blindness.scenario.yaml` is the
+    slower. `bench/scenarios/crossover-yard/route-blindness.scenario.yaml` is the
     shrunk counterexample, kept as the regression fixture for the
     congestion-aware costing (#33) that removed its mechanism; the write-up
     is in the scenario file. The dominance claim stays withdrawn: the
@@ -177,5 +177,5 @@ def test_generated_documents_are_committable_fixtures(
     """The shrink output is a scenario file: rendered as YAML text it passes
     the same asset-store validation a committed file gets, unchanged."""
     doc, _, _roster, scenario = case
-    store = AssetStore(ROOT)
+    store = AssetStore(ASSETS)
     assert store.validate_scenario(yaml.safe_load(fixture_yaml(doc))) == scenario

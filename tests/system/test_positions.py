@@ -30,7 +30,7 @@ from typing import Any
 from tc49.dispatcher import Incremental
 from tc49.store import AssetStore
 from tc49.store.drawing import POSITIONS
-from tests.harness import ROOT, events, load, run
+from tests.harness import ASSETS, events, load, run
 
 SCENARIO = "gotthard/positions"
 UI_SUITE = "ui/test/points.test.ts"  # the suite that copies part of this one
@@ -54,7 +54,7 @@ def commanded(trace: str) -> dict[str, str]:
 def symbols() -> dict[str, dict[str, Any]]:
     """The drawing the scenario runs on, symbol by symbol."""
     drawing, _, _ = SCENARIO.partition("/")  # a scenario is layout-qualified
-    document: dict[str, Any] = AssetStore(ROOT).drawing(drawing)
+    document: dict[str, Any] = AssetStore(ASSETS).drawing(drawing)
     return document["symbols"]
 
 

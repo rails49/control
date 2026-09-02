@@ -195,7 +195,7 @@ It still shows commanded position, not measured position, so a point that
 failed to throw looks fine. Reported position becomes worth adding if hardware
 with point feedback ever exists; the owner's points do not report. Only a
 drawing whose points carry addresses can show any of this, and
-[`gotthard/positions`](../../scenarios/gotthard/positions.scenario.yaml)
+[`gotthard/positions`](../../bench/scenarios/gotthard/positions.scenario.yaml)
 is the scenario that does — one train across two junctions, which is the
 picture to run when the styling is what is being looked at (#130).
 

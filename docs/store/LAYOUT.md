@@ -29,6 +29,11 @@ layouts/<layout>.roster.yaml                    # the cars it owns, and its trai
 scenarios/<layout>/<scenario>.scenario.yaml     # e.g. gotthard/meet
 ```
 
+Those paths are the store's, read from wherever it is rooted. In this checkout
+that root is `bench/`, the harness's own directory: the committed fixtures are
+what the benchmark runs on and not an installation's data
+([#319](https://github.com/rails49/control/issues/319)).
+
 To read a railroad's topology, print it:
 
 ```
@@ -342,9 +347,9 @@ Two structural facts fall out of the model and surprise people:
 
 | File | Shape | Role |
 | --- | --- | --- |
-| [`layouts/gotthard.drawing.yaml`](../../layouts/gotthard.drawing.yaml) | 15 blocks, 5 connections, 30 transits, 5 terminal blocks | the railroad on the bench, headline benchmark; drawn in the editor from the track itself, turnouts carrying their real decoder addresses |
-| [`layouts/gotthard-v0.drawing.yaml`](../../layouts/gotthard-v0.drawing.yaml) | 14 blocks, 4 connections, 29 transits, 5 terminal blocks | **superseded**, frozen; wrong about Claro track 3 and the west throat, kept only so ADR-0006, ADR-0012 and ADR-0029 can be re-run (#161) |
-| [`layouts/crossover-yard.drawing.yaml`](../../layouts/crossover-yard.drawing.yaml) | 6 blocks, 3 connections, 8 transits | small, fast, drawn from real symbols throughout |
+| [`bench/layouts/gotthard.drawing.yaml`](../../bench/layouts/gotthard.drawing.yaml) | 15 blocks, 5 connections, 30 transits, 5 terminal blocks | the railroad on the bench, headline benchmark; drawn in the editor from the track itself, turnouts carrying their real decoder addresses |
+| [`bench/layouts/gotthard-v0.drawing.yaml`](../../bench/layouts/gotthard-v0.drawing.yaml) | 14 blocks, 4 connections, 29 transits, 5 terminal blocks | **superseded**, frozen; wrong about Claro track 3 and the west throat, kept only so ADR-0006, ADR-0012 and ADR-0029 can be re-run (#161) |
+| [`bench/layouts/crossover-yard.drawing.yaml`](../../bench/layouts/crossover-yard.drawing.yaml) | 6 blocks, 3 connections, 8 transits | small, fast, drawn from real symbols throughout |
 
 `facing-pair` and `single-track-meet` are property-test railroads and are
 described in [ARCHITECTURE.md](../ARCHITECTURE.md#tests); they are small enough to

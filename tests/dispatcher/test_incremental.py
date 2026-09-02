@@ -7,7 +7,7 @@ from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tc49.store import AssetStore
-from tests.harness import ROOT, events, load, run, stock
+from tests.harness import ASSETS, events, load, run, stock
 
 
 def final_time(trace: str) -> float:
@@ -51,7 +51,7 @@ def assert_no_conflicting_transits_overlap(trace: str, layout: Layout) -> None:
 
 
 def test_facing_pair_refuses_a_launch_and_quiesces() -> None:
-    layout = AssetStore(ROOT).get("facing-pair")
+    layout = AssetStore(ASSETS).get("facing-pair")
     assert isinstance(layout, Layout)
     scenario = Scenario(
         "swap",
@@ -135,7 +135,7 @@ def test_shared_destination_refusal_names_the_committed_train() -> None:
     # committed to it, though nothing there is locked yet. On gotthard-v0 the
     # two trains approach airolo_1 over different connections (blue 2 and
     # the yellow), so nothing else refuses first.
-    layout = AssetStore(ROOT).get("gotthard-v0")
+    layout = AssetStore(ASSETS).get("gotthard-v0")
     assert isinstance(layout, Layout)
     scenario = Scenario(
         "collide",
