@@ -74,6 +74,8 @@ is where a person writes theirs. The command spelling is the station's, and it
 wants firmware that has the per-district limit — that patch, the command and
 flashing it are a separate project and not this repository's work
 ([rails49/CommandStation-EX#1](https://github.com/rails49/CommandStation-EX/issues/1)).
+Until it lands the values are compiled into the station instead, which is a
+reflash to change one and the reason for wanting the command at all.
 
 **The file is not parsed beyond blank and comment.** A line beginning with `#`
 is a note and a blank line is layout; every other line is stripped of
@@ -95,12 +97,11 @@ trip currents runs at the firmware's default until somebody notices.
 on anyway.** Refusing to power on because a configuration file was missing is
 worse than coming up at whatever the firmware defaults to
 ([ADR-0050](../adr/0050-broken-hardware-is-reported-never-worked-around.md)).
-What that default is belongs to the firmware and not here, and the two are
-opposite: the patched firmware defaults every district low, so a missing file
-there is a railroad that trips early, which is safe and visible, while stock
-firmware carries the board definition's own trip current — 5000 mA on each of
-the four outputs this railroad uses — so until the patch is flashed a missing
-file leaves the wiring at the board's limit rather than its own.
+What that default is belongs to the firmware and not here, and it is a choice
+made there: a station's trip currents are fixed when its firmware is built, so
+one built with this railroad's four values is protected with no file at all and
+the file only changes them. One built with the stock definition trips at 5000 mA
+on every output, and a missing file leaves the wiring behind that.
 
 ## The mapping
 
