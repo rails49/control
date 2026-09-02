@@ -5,12 +5,12 @@ to every connected client as one JSON frame, ``{"topic": …, "payload": …}``,
 and a frame on an inbound topic — an inventory row marked browser-writable,
 those being the panel's write surface — is published as the event it names.
 The mark is what the relay reads, not a prefix: a topic names the component
-that responds to it, so the five gestures sit under ``schedule`` and
-``dispatch`` beside the announcements those two make. Anything else inbound is
-refused with an error frame, ``request_submitted`` included: the browser
-writes gestures and never requests, so the scheduler stays the single minter
-and the dispatcher the sole feasibility authority precisely because nothing
-else can reach the bus (ADR-0036).
+that responds to it, so the eight gestures sit under ``schedule``,
+``dispatch`` and ``layout`` beside everything else those three answer.
+Anything else inbound is refused with an error frame, ``request_submitted``
+included: the browser writes gestures and never requests, so the scheduler
+stays the single minter and the dispatcher the sole feasibility authority
+precisely because nothing else can reach the bus (ADR-0036).
 
 **A client names the railroad it wants in the socket path** —
 ``ws://127.0.0.1:8766/reversing-loops``, which a browser reaches as
