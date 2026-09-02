@@ -51,15 +51,19 @@ import {
   type RosterRow,
 } from "../model/panel.js";
 import { positionsBySymbol } from "../model/scene.js";
-import { readRoster, UNREVIEWED, type Review } from "../model/store.js";
+import { readRoster, UNREVIEWED, type Review, type TrainDoc } from "../model/store.js";
+import { cabs, type Cab } from "../model/throttle.js";
 import {
   DRAINING,
   gesture,
   Live,
+  modeWanted,
   placement,
   powerWanted,
   reversal,
   runWanted,
+  throttleWanted,
+  type Mode,
   type Power,
   type Run,
 } from "../model/trace.js";
@@ -169,10 +173,11 @@ export class TcPanel extends LitElement {
   @state() private session: string | null = null;
   @state() private connected = false;
   @state() private trouble: string | null = null;
-  /** The railroad's roster: every train it owns and how long each is, read
-   *  off the store when the session is joined (ADR-0039). The bus says where
-   *  the trains are and never what there is to place. */
-  @state() private stock: Record<string, { length: number }> = {};
+  /** The railroad's roster: every train it owns, how long each is and what a
+   *  person driving it can switch, read off the store when the session is
+   *  joined (ADR-0039, ADR-0045). The bus says where the trains are and never
+   *  what there is to place or what one is made of. */
+  @state() private stock: Record<string, TrainDoc> = {};
   /** What was still disputed at the moment the hold was released, in words,
    *  `null` while there is nothing to say. */
   @state() private released: string | null = null;
@@ -444,6 +449,44 @@ export class TcPanel extends LitElement {
     this.socket.send(powerWanted(power));
   }
 
+  /**
+   * Take a train in a throttle, or give it back: one `mode_wanted` naming the
+   * train and where its mode should stand
+   * ([#207](https://github.com/rails49/control/issues/207)).
+   *
+   * The throttle view is another view of this app and holds no session, so
+   * its gestures come here, exactly as the band's power presses do — one
+   * socket per page, and the topics are ones this view already writes.
+   * `layout` answers by publishing `state/mode`, and the view reads who is
+   * driving off that rather than off its own press (ADR-0035).
+   */
+  pressMode(train: string, mode: Mode): void {
+    this.send(modeWanted(train, mode));
+  }
+
+  /** The throttle turned: one `throttle_wanted` carrying the number the lever
+   *  shows. One signed speed for the train — which locomotive it reaches, and
+   *  which way round that one stands, is `layout`'s (CONTEXT.md,
+   *  **Throttle**). */
+  pressThrottle(train: string, speed: number): void {
+    this.send(throttleWanted(train, speed));
+  }
+
+  /** Turn a train round where it stands, from the throttle: the same
+   *  `reversal_wanted` this view's own menu writes, the scheduler flipping
+   *  the facing and nothing moving (ADR-0019). */
+  pressReversal(train: string): void {
+    this.send(reversal(train));
+  }
+
+  /** One frame, over a session that is answering. `connected` and not merely
+   *  a socket: a send on a closed one is discarded rather than thrown, and a
+   *  gesture nobody heard must not look like one that landed. */
+  private send(frame: string): void {
+    if (this.socket === null || !this.connected) return;
+    this.socket.send(frame);
+  }
+
   /** The supply removed, once the drain has landed. */
   private cut(): void {
     this.draining = false;
@@ -697,6 +740,34 @@ export class TcPanel extends LitElement {
     return roster(this.stock, this.standing);
   }
 
+  /**
+   * What the throttle view draws: one cab per train the railroad has placed
+   * (`model/throttle.ts`, ui/THROTTLE.md).
+   *
+   * Worked out here because everything it is made of is here — the run's
+   * picture, `layout`'s modes, the scheduler's facing, the dispatcher's
+   * aspects and the railroad's roster — and handed up whole, the throttle
+   * being a view of this app with no session of its own. Nothing of the
+   * throttle's own is in it: which train a person picked and where they have
+   * put the lever are theirs, and live in the view with the pointer.
+   */
+  private get driving(): Cab[] {
+    const model = this.panel;
+    if (model === null || this.session === null) return [];
+    const placed = model.placed();
+    return cabs({
+      placed,
+      modes: model.modes(),
+      noses: model.noses(),
+      aspects: model.aspects(),
+      ahead: model.ahead(),
+      inFlight: new Set(
+        placed.filter(({ train }) => model.inFlight(train)).map(({ train }) => train),
+      ),
+      stock: this.stock,
+    });
+  }
+
   /** The last status the app was told, so it is told again only when one of
    *  them has moved. */
   private said: RunStatus | null = null;
@@ -706,6 +777,18 @@ export class TcPanel extends LitElement {
       this.fitting = false;
       this.canvas?.fit();
     }
+    // The throttle's cabs, every time this view has drawn: they are the last
+    // frame's answer like everything else the picture says, and there is no
+    // field to compare them against — the array is built afresh. The app
+    // holding them re-renders and sets no property of this view to a new
+    // value, so nothing comes back round.
+    this.dispatchEvent(
+      new CustomEvent<Cab[]>("cabs", {
+        detail: this.driving,
+        bubbles: true,
+        composed: true,
+      }),
+    );
     const now = this.status;
     const was = this.said;
     if (

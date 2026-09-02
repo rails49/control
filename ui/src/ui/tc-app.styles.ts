@@ -16,8 +16,8 @@ import { palette } from "./shared.styles.js";
  * on a number would be two places to change it, and the panes would drift
  * apart across a toggle.
  *
- * Both views sit in the work row, in the same cell, and the one that is not
- * current is hidden rather than taken away. Taking it away would close the
+ * Every view sits in the work row, in the same cell, and the ones that are not
+ * current are hidden rather than taken away. Taking it away would close the
  * live session on every toggle, which is the wrong price for looking at the
  * netlist; and `visibility` leaves the hidden view its real width and height,
  * so a canvas fitted while it is hidden fits to the shape it will be seen at.
@@ -60,7 +60,8 @@ export const appStyles = css`
   }
 
   tc-editor,
-  tc-panel {
+  tc-panel,
+  tc-throttle {
     grid-area: work;
     min-width: 0;
     min-height: 0;

@@ -178,9 +178,18 @@ export const RUN = icon(svg`
   <path d="M5.5 5.5h2.5" />
 `);
 
-/** The picture on the toggle that switches to a view. Exhaustive over `ViewId`
+/** A lever on its quadrant, centred: what a person drives a train with, and
+ *  the one control the throttle view is about. */
+export const THROTTLE = icon(svg`
+  <path d="M2.5 12.5h11" />
+  <path d="M8 12.5V4" />
+  <circle cx="8" cy="3" r="1.4" />
+`);
+
+/** The picture on the selector's button for a view. Exhaustive over `ViewId`
  *  by its type, as `GLYPHS` is over `CommandId`. */
 export const ICONS: Record<ViewId, SVGTemplateResult> = {
   edit: EDIT,
   run: RUN,
+  throttle: THROTTLE,
 };

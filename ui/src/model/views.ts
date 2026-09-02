@@ -2,6 +2,9 @@
  * The views the app has of the railroad it has loaded, as data
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
  *
+ * The two control surfaces come first and the editor last: the app opens on
+ * the first of them, and the editor is the setup tool you go to deliberately.
+ *
  * One app, one railroad, N views. The band renders the list as a **selector**,
  * one icon-button per view with the current one marked: two of them were a
  * single toggle, and the third made it this, which is the redesign ADR-0038
@@ -15,7 +18,7 @@
  * `CommandId`.
  */
 
-export type ViewId = "run" | "edit";
+export type ViewId = "run" | "throttle" | "edit";
 
 export interface View {
   id: ViewId;
@@ -28,6 +31,7 @@ export interface View {
  *  you go to deliberately. */
 export const VIEWS: View[] = [
   { id: "run", label: "Run" },
+  { id: "throttle", label: "Throttle" },
   { id: "edit", label: "Edit" },
 ];
 

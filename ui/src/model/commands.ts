@@ -189,6 +189,10 @@ export const MENUS: Record<ViewId, Menu[]> = {
     { name: "View", items: ["zoom-in", "zoom-out", "fit", null, "netlist"] },
   ],
   run: [{ name: "View", items: ["zoom-in", "zoom-out", "fit"] }],
+  // The throttle draws no document: there is nothing to zoom, nothing to
+  // save, and the two gestures it writes are controls in the view itself
+  // rather than verbs in a menu (ui/THROTTLE.md).
+  throttle: [],
 };
 
 /** What each view pins at the right end of the bar, in the order they sit in.
@@ -199,4 +203,5 @@ export const MENUS: Record<ViewId, Menu[]> = {
 export const TOOLS: Record<ViewId, CommandId[]> = {
   edit: ["zoom-out", "zoom-in", "fit"],
   run: ["zoom-out", "zoom-in", "fit"],
+  throttle: [],
 };

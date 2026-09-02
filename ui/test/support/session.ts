@@ -15,6 +15,7 @@
 import type { Drawing } from "../../src/model/drawing.js";
 import { centreOf, type Point } from "../../src/model/geometry.js";
 import type { Explained, Layout, Review } from "../../src/model/store.js";
+import type { ViewId } from "../../src/model/views.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
 import { band, CLEAN, mounted, serving, settled } from "./shell.js";
 
@@ -22,7 +23,19 @@ import { band, CLEAN, mounted, serving, settled } from "./shell.js";
  *  pane and short enough for either block. `goods` is the one the suites below
  *  place; `shunter` is the train that is off the layout, which is an ordinary
  *  state and not a fault (ADR-0039). */
-export const STOCK = { goods: { length: 400 }, shunter: { length: 200 } };
+export const STOCK = {
+  goods: {
+    length: 400,
+    // What a person driving `goods` can switch, by the names a catalogue
+    // gives them: the throttle's whole source for its buttons (ADR-0045).
+    functions: [
+      { name: "headlights", values: ["off", "on"] },
+      { name: "vacuum", values: ["off", "low", "high"] },
+    ],
+  },
+  // Nothing to switch, which is most of the stock a railroad owns.
+  shunter: { length: 200 },
+};
 
 /** Two blocks and nothing joining them: enough to derive, enough to paint, and
  *  enough for a train to stand, be dragged and be disputed in. */
@@ -139,9 +152,11 @@ export async function loads(shell: TcApp, railroad: string): Promise<void> {
   await settled(shell);
 }
 
-/** An app in the run view with the toy railroad loaded and the bridge open. */
-export async function joined(): Promise<TcApp> {
-  const shell = await mounted("run");
+/** An app with the toy railroad loaded and the bridge open, showing the run
+ *  view or another: the session is the run view's whichever is on screen, so
+ *  a suite about the throttle joins the same way (ui/THROTTLE.md). */
+export async function joined(view: ViewId = "run"): Promise<TcApp> {
+  const shell = await mounted(view);
   await loads(shell, "toy");
   return shell;
 }

@@ -20,13 +20,14 @@
 
 import type { Drawing } from "../../src/model/drawing.js";
 import type { Editor } from "../../src/model/editor.js";
-import type { Review } from "../../src/model/store.js";
+import type { Review, TrainDoc } from "../../src/model/store.js";
 import type { ViewId } from "../../src/model/views.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
 import type { TcEditor } from "../../src/ui/tc-editor.js";
 import type { TcHeader } from "../../src/ui/tc-header.js";
 import type { TcMenubar } from "../../src/ui/tc-menubar.js";
 import type { TcPanel } from "../../src/ui/tc-panel.js";
+import type { TcThrottle } from "../../src/ui/tc-throttle.js";
 
 /** A drawing the store is happy with: nothing to report. */
 export const CLEAN: Review = {
@@ -47,9 +48,10 @@ export const CLEAN: Review = {
 export interface Answers {
   /** The names `/drawings` lists. */
   drawings: string[];
-  /** The trains a railroad owns, which is what `/rosters/<name>` answers
-   *  (ADR-0039). */
-  rosterOf: (railroad: string) => Record<string, { length: number }>;
+  /** The trains a railroad owns, each with its length and what a person
+   *  driving it can switch, which is what `/rosters/<name>` answers
+   *  (ADR-0039, ADR-0045). */
+  rosterOf: (railroad: string) => Record<string, TrainDoc>;
   /** What `/drawings/<name>` answers with. */
   read: (name: string) => Drawing;
   /** What `/review` answers with. */
@@ -182,6 +184,11 @@ export function editing(shell: TcApp): TcEditor {
 /** The run view, and whatever it has drawn inside itself. */
 export function running(shell: TcApp): TcPanel {
   return shell.renderRoot.querySelector("tc-panel")!;
+}
+
+/** The throttle view, and whatever it has drawn inside itself. */
+export function throttling(shell: TcApp): TcThrottle {
+  return shell.renderRoot.querySelector("tc-throttle")!;
 }
 
 /** The drawing surface the run view is painting on: the SVG a press over the
