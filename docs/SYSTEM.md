@@ -301,6 +301,19 @@ as soon as it subscribes; a relay that left it out would promise less than the
 bus it stands in for. The relay is not composing a description of the run
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
 
+**A socket from a page on another origin is refused.** A handshake carrying an
+`Origin` header is answered 403 before the upgrade, and no socket exists,
+unless the origin's host is the handshake's own `Host` or its hostname is
+loopback — the app on its own origin, and a page served from the machine the
+bridge runs on, which is what `?bridge=` names. A handshake with no `Origin`
+is a native client and goes through, as it does at the store's face. A
+WebSocket has no preflight, so this check is the whole of what stands between
+a page and the gestures above. The rule belongs to the browser's way onto the
+bus rather than to this relay: the broker that replaces it satisfies the rule
+at the proxy
+([ADR-0056](adr/0056-the-browsers-way-onto-the-bus-refuses-a-foreign-origin.md),
+[ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)).
+
 **The relay checks the topic and never the payload.** A broker enforces which
 topics a client may publish on, so that check survives the relay's deletion. A
 broker does not check payloads, so payload checking belongs where it will
