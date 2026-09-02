@@ -12,7 +12,7 @@ its own page: the dispatcher's are
 
 An **app** is a unit that will run as its own container
 ([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are eight in
-Python — store, scheduler, dispatcher, driver, simulator, layout, dccex_usb,
+Python — store, scheduler, dispatcher, driver, simulator, layout, dccex-usb,
 dccex — and one in the browser: `ui/`, which is **one** app, one page holding
 one loaded railroad and a list of views of it
 ([ADR-0038](adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
