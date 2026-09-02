@@ -270,13 +270,6 @@ def test_the_routes_are_reachable_over_http(tmp_path: Path) -> None:
             urlopen(f"{url}/drawings/atlantis")
         assert missing.value.code == 404
 
-        # The browser preflights a JSON POST from the editor's own origin.
-        preflight = Request(f"{url}/review", method="OPTIONS")
-        with urlopen(preflight) as allowed:
-            assert allowed.status == 200
-            assert allowed.headers["Access-Control-Allow-Origin"] == "*"
-            assert "POST" in allowed.headers["Access-Control-Allow-Methods"]
-
         # A body the handler cannot measure is answered, not dropped.
         unmeasured = Request(
             f"{url}/review",
@@ -287,6 +280,90 @@ def test_the_routes_are_reachable_over_http(tmp_path: Path) -> None:
         with pytest.raises(HTTPError) as refused:
             urlopen(unmeasured)
         assert refused.value.code == 400
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def served(tmp_path: Path) -> tuple[Any, str, Thread]:
+    """A server on a port, listening, with the caller owning the shutdown."""
+    (tmp_path / "layouts").mkdir()
+    shutil.copy(
+        ASSETS / "layouts" / "facing-pair.drawing.yaml",
+        tmp_path / "layouts" / "facing-pair.drawing.yaml",
+    )
+    server = make_server(tmp_path, port=0)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, f"http://127.0.0.1:{server.server_port}", thread
+
+
+def test_a_page_on_another_origin_is_refused_every_route(tmp_path: Path) -> None:
+    """A page somebody's browser visits while the store is running must not be
+    able to drive the railroad it is on the network with (#329, ADR-0055).
+
+    `Origin` is written by the browser and a page cannot forge it, so a
+    request carrying one that is not this server's own `Host` is answered 403
+    and nothing runs — the read that would list the backups and the write that
+    would roll the store back alike. No `Access-Control-*` header is sent
+    either way, which is the other half: even the reply to the refusal is one
+    the page cannot read."""
+    server, url, thread = served(tmp_path)
+    try:
+        for method, route, body in (
+            ("GET", "/drawings", None),
+            ("GET", "/backup", None),
+            ("POST", "/backup/restore", b'{"commit": "abc123"}'),
+        ):
+            foreign = Request(
+                f"{url}{route}",
+                data=body,
+                headers={"Origin": "http://evil.example"},
+                method=method,
+            )
+            with pytest.raises(HTTPError) as refused:
+                urlopen(foreign)
+            assert refused.value.code == 403
+            assert refused.value.headers.get("Access-Control-Allow-Origin") is None
+
+        # And the preflight that would ask permission for the JSON body.
+        with pytest.raises(HTTPError) as preflight:
+            urlopen(Request(f"{url}/review", method="OPTIONS"))
+        assert preflight.value.code == 403
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_the_app_reaches_every_route_on_its_own_origin(tmp_path: Path) -> None:
+    """Which is how the app reaches them: vite proxies these routes in
+    development and the same proxy that serves the page routes them on a
+    layout server, so the browser's `Origin` and the `Host` that arrives here
+    are one host. Nothing needed a CORS header to begin with."""
+    server, url, thread = served(tmp_path)
+    host = f"127.0.0.1:{server.server_port}"
+    try:
+        same = Request(
+            f"{url}/drawings", headers={"Origin": f"http://{host}"}, method="GET"
+        )
+        with urlopen(same) as listed:
+            assert json.load(listed) == {"drawings": ["facing-pair"]}
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_a_client_with_no_origin_at_all_goes_through(tmp_path: Path) -> None:
+    """A native client, a `curl`, a same-origin `GET`: no page wrote the
+    header because no page is involved. The LAN stays the trust boundary and
+    this narrows nothing about it (ADR-0042)."""
+    server, url, thread = served(tmp_path)
+    try:
+        with urlopen(f"{url}/drawings") as listed:
+            assert json.load(listed) == {"drawings": ["facing-pair"]}
     finally:
         server.shutdown()
         server.server_close()

@@ -51,6 +51,17 @@ said comes back as it came (ADR-0053, #321). A save is what arms the idle
 timer, which is why `PUT /drawings/<name>` tells the backup it happened — the
 one place the two meet.
 
+**Every route is refused to a page on another origin.** A request carrying an
+`Origin` header that is not this server's own `Host` is answered 403 and
+nothing here runs, and no `Access-Control-*` header is sent at all. The app
+fetches these routes on its own origin — through vite's proxy in development
+and through the same proxy that serves the page on a layout server — so it
+never needed one. What this stops is a page somebody's browser happens to
+visit driving the store of a railroad it is on the same network as, which is
+not what "the LAN is the trust boundary" ever meant (ADR-0055, ADR-0042). A
+request with no `Origin` at all is a native client and goes through: the LAN
+boundary is unchanged.
+
 The panel later adds a WebSocket bridge from `tc49/#` alongside this
 (ui/PANEL.md). That is not a store operation and does not live here.
 """
@@ -59,7 +70,7 @@ import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, cast
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 
 from yaml import YAMLError
 
@@ -232,16 +243,42 @@ def make_server(
             self._answer("POST", self._body())
 
         def do_OPTIONS(self) -> None:
-            """The preflight a browser sends before a JSON POST from the
-            editor's own origin, which is not this one."""
-            self._respond(200, {})
+            """A preflight only ever comes from a page on another origin, and
+            the answer to those is no (ADR-0055). Refused in the terms that
+            make it a refusal to a browser: no `Access-Control-Allow-Origin`
+            in the reply, whatever the status says."""
+            self._respond(403, {"error": "cross-origin request refused"})
 
         def _answer(self, method: str, body: Any) -> None:
+            if not self._same_origin():
+                self._respond(403, {"error": "cross-origin request refused"})
+                return
             try:
                 status, payload = handle(store, backing, method, self.path, body)
             except Exception as failure:  # noqa: BLE001 — a reply beats a reset
                 status, payload = 500, {"error": repr(failure)}
             self._respond(status, payload)
+
+        def _same_origin(self) -> bool:
+            """Whether this request comes from the page this server is part
+            of, which is the only browser it serves (ADR-0055).
+
+            `Origin` is a header the browser writes and a page cannot forge,
+            and it is absent exactly where there is no page: a native client,
+            a `curl`, a same-origin `GET`. Those are let through — the LAN is
+            the trust boundary and this does not narrow it (ADR-0042).
+
+            The comparison is host against host and not scheme against
+            scheme, because TLS terminates at the proxy: the browser's origin
+            is `https://layout.rails49.org` and what arrives here is plain
+            HTTP under that same `Host`. In development vite proxies the
+            store's routes without rewriting the header, so the two agree
+            there for the same reason.
+            """
+            origin = self.headers.get("Origin")
+            if origin is None:
+                return True
+            return urlsplit(origin).netloc == (self.headers.get("Host") or "")
 
         def _body(self) -> Any:
             try:
@@ -255,11 +292,11 @@ def make_server(
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(encoded)))
-            # The editor is served from its own origin in development, so the
-            # browser asks. Bound to the loopback, there is nobody else to ask.
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            # No `Access-Control-*` at all: the app fetches these routes on
+            # its own origin, in development through vite's proxy and on a
+            # layout server through the same proxy that serves the page, so
+            # nothing this server answers needs a browser's permission to be
+            # read (ADR-0055).
             self.end_headers()
             self.wfile.write(encoded)
 
