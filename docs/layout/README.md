@@ -121,7 +121,7 @@ A held command meets all three at the moment it is acted on and not at the
 moment it arrived, since the railroad can move under it while it waits.
 
 **Every payload is read and never trusted**
-([SYSTEM.md](../SYSTEM.md#event-inventory), rule 4). Seven topics from six
+([SYSTEM.md](../SYSTEM.md#event-inventory), rule 4). Nine topics from six
 publishers reach this app and it answers none of them — it reports observations
 — so a frame that cannot be read is **dropped**, silently and to the trace, and
 so is a command the layout contradicts: one naming a transit this railroad does
@@ -332,6 +332,19 @@ transit, read off the layout from the `move` that was carried out. The block's
 *far* end is a different thing — its second sensor, the one a train trips once
 it is fully in — and the two are opposite ends of the one block
 ([#279](https://github.com/rails49/control/issues/279)).
+
+**One departure is one release.** The same departure reaches this app twice —
+as the move it carried out, which is what names the block behind, and as that
+block's own detectors going clear, which is the tail leaving — and which
+settles first is a race, the train being out of X at the instant it is fully
+into Y. So whichever arrives first publishes the `block_vacated` and the other
+says nothing: what this app has said about each block is one record, written by
+whichever rule publishes it, and the occupied levels X still holds when the
+move releases it are the train that left and are **spent** by that release
+rather than folded back into a train standing there
+([#311](https://github.com/rails49/control/issues/311)). A block released this
+way is recorded clear and not forgotten, so it reads occupied again the
+ordinary way, by a change in the fold.
 
 **The debounce.** A camera-based detector runs at 2–8 Hz with no debounce of
 its own and is biased towards reporting occupied, so a new level is held for a
