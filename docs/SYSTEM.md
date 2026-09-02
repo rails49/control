@@ -383,7 +383,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Scheduler | `tc49/dispatch/#` **and** `tc49/schedule/#` |
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
-| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects` **and** `tc49/layout/state/device/#` |
+| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/schedule/state/facing` **and** `tc49/layout/state/device/#` |
 | Translator | `tc49/layout/state/wanted/#` |
 | Trace tap | `tc49/#` |
 
@@ -1031,11 +1031,11 @@ that drives realistically later grows behind the same topic.
 
 ### Layout interface
 
-*Reads* the layout. *Subscribes* `tc49/layout/align`, `tc49/layout/move`,
-`tc49/layout/power_wanted`, `tc49/dispatch/train_placed` / `train_removed`,
-`tc49/dispatch/state/aspects` and `tc49/layout/state/device/#`. *Publishes* the
-sensor events, `state/power` and the desired half of the device vocabulary
-below.
+*Reads* the layout and the roster. *Subscribes* `tc49/layout/align`,
+`tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` /
+`train_removed`, `tc49/dispatch/state/aspects`, `tc49/schedule/state/facing`
+and `tc49/layout/state/device/#`. *Publishes* the sensor events, `state/power`
+and the desired half of the device vocabulary below.
 
 That is the **role's** footprint, and its two bindings meet all of it. The
 core app `layout` folds a block's two detectors into the sensor events and
@@ -1066,7 +1066,13 @@ in the drawing
 rather than being kept by an adapter. A `move` carries a `speed` as well, and
 the interface is what gives that magnitude a sign: which way a train runs
 along the track is the transit's near end composed with the way round the
-locomotive stands, and both are facts this side of the boundary.
+locomotive stands, and both are facts this side of the boundary. The first of
+the two is the train's **facing**, which is the scheduler's state and the one
+thing the interface reads that is neither a command nor a device row
+([ADR-0052](adr/0052-layout-reads-facing-and-composes-the-sign-of-a-speed.md)):
+a `move` for a train whose facing it has not seen is dropped rather than
+guessed at, and a train whose cars carry no address is carried out with
+nothing to publish.
 
 One **obligation** comes with them: the layout interface must not act on a
 `move` before the `align` that names the same transit. The two commands have
@@ -1137,9 +1143,11 @@ publishes both ([ui/THROTTLE.md](ui/THROTTLE.md),
 [#291](https://github.com/rails49/control/issues/291)), and nothing subscribes
 to either — they are not on the *Subscribes* line above, and `state/mode` has
 no publisher yet, so every train reads `automatic`. They reach a locomotive
-through the traction write, which is why they wait on it
-([#296](https://github.com/rails49/control/issues/296),
-[#297](https://github.com/rails49/control/issues/297)).
+through the traction write, which `layout` now makes on each `move`
+([#296](https://github.com/rails49/control/issues/296)); what is still to come
+is reading them, so that a person's speed reaches the same composition a
+dispatched move does
+([#297](https://github.com/rails49/control/issues/297)).
 
 On the physical railroad the layout interface is the core app `layout`, and
 hardware sits under it by address, as thin translators speaking a device-level
@@ -1233,14 +1241,15 @@ address nothing answers to does no harm, as a packet nobody picks up does
 ([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 The rows are `tc49.lib.inventory.DEVICE_TOPICS`.
 
-**What `layout` asks of the hardware.** Three of the five are written today —
+**What `layout` asks of the hardware.** Four of the five are written today —
 `wanted/point` on each `align`, `wanted/signal` on each aspect the dispatcher
-shows, and `wanted/track` on each press of the power (#287). Traction and
-function wait on the write that composes a speed's sign out of the way a
-locomotive is parked
-([#296](https://github.com/rails49/control/issues/296)). All five are
-**subscribed** by a translator, which acts on the addresses it recognises and
-holds no table of the ones it does not
+shows, `wanted/track` on each press of the power (#287), and `wanted/traction`
+on each `move` it acts on and again on the arrival, its sign composed from the
+train's facing and the way round each car is coupled
+([#296](https://github.com/rails49/control/issues/296)). `wanted/function` has
+no writer: a function press has no gesture to arrive on and is nobody's until a
+throttle asks. All five are **subscribed** by a translator, which acts on the
+addresses it recognises and holds no table of the ones it does not
 ([#289](https://github.com/rails49/control/issues/289)).
 
 | Topic | Payload | Values |

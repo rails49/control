@@ -22,19 +22,27 @@ them.
 ## What it reads and writes
 
 *Reads* the layout — the transits a `move` may name, and the signal standing at
-each block end. Nothing else: the points a transit needs ride on `align`
+each block end — and the **roster**, which is how a train becomes the addresses
+that answer for it. Nothing else of the railroad's: the points a transit needs
+ride on `align`
 ([ADR-0031](../adr/0031-the-layout-carries-the-points-a-transit-needs.md)), so
 this app throws what it is told and holds no table of its own.
 
 *Subscribes* `tc49/layout/align`, `tc49/layout/move`,
 `tc49/layout/power_wanted`, `tc49/dispatch/train_placed`,
-`tc49/dispatch/train_removed`, `tc49/dispatch/state/aspects` and
-`tc49/layout/state/device/#`.
+`tc49/dispatch/train_removed`, `tc49/dispatch/state/aspects`,
+`tc49/schedule/state/facing` and `tc49/layout/state/device/#`.
 
 *Publishes* `tc49/layout/block_occupied`, `tc49/layout/block_vacated`,
+`tc49/layout/state/wanted/traction/<addr>`,
 `tc49/layout/state/wanted/point/<addr>`,
 `tc49/layout/state/wanted/signal/<addr>`, `tc49/layout/state/wanted/track` and
 `tc49/layout/state/power`.
+
+The facing is the one topic here that is nobody's hardware and nobody's
+command: it is the scheduler's state, and this app reads it because the sign of
+a speed cannot be composed without it and there is nowhere else it lives
+([ADR-0052](../adr/0052-layout-reads-facing-and-composes-the-sign-of-a-speed.md)).
 
 ## The command line
 
@@ -43,12 +51,14 @@ Python object inside one process ([SYSTEM.md](../SYSTEM.md#the-bus)), so no
 core app has a command line — `scheduler`, `dispatcher` and `driver` have none
 either. `station` does, and it is the one app that speaks no bus topic at all.
 
-The app is constructed on the bus like the rest of them, with the railroad it
-answers for, the run clock, and the settling time the debounce below uses:
+The app is constructed on the bus like the rest of them, with the two
+documents the railroad is — the layout it answers for and the roster of stock
+that runs on it — the run clock, and the settling time the debounce below
+uses:
 
 ```python
-LayoutInterface(bus, layout, clock)          # 300 ms of settling
-LayoutInterface(bus, layout, clock, 0.05)    # detectors that need less
+LayoutInterface(bus, layout, roster, clock)          # 300 ms of settling
+LayoutInterface(bus, layout, roster, clock, 0.05)    # detectors that need less
 ```
 
 The clock is required rather than defaulted for the bus's reason: an app given
@@ -100,13 +110,77 @@ A held command meets all three at the moment it is acted on and not at the
 moment it arrived, since the railroad can move under it while it waits.
 
 **Every payload is read and never trusted**
-([SYSTEM.md](../SYSTEM.md#event-inventory), rule 4). Six topics from five
+([SYSTEM.md](../SYSTEM.md#event-inventory), rule 4). Seven topics from six
 publishers reach this app and it answers none of them — it reports observations
 — so a frame that cannot be read is **dropped**, silently and to the trace, and
 so is a command the layout contradicts: one naming a transit this railroad does
 not hold, or one whose transit reaches neither end of the block the command says
 the train is entering. Either way the command names no near end for a train to
 be standing at.
+
+## The traction write
+
+On a `move` it acts on, this app publishes
+`tc49/layout/state/wanted/traction/<addr>` for every car of the train that has
+an address, and `0.0` to exactly those addresses again when the train arrives.
+It is the last thing between the device vocabulary and a wheel turning, and it
+is the one write here that composes two facts rather than passing one on.
+
+**How fast** is the move's own `speed`, a magnitude in 0.0 … 1.0
+([#283](https://github.com/rails49/control/issues/283)). The sign is this app's
+to give and never the command's, so what is taken is the magnitude and a frame
+that signed one anyway does not get to reverse a locomotive by it.
+
+**Which way** is two facts composed:
+
+1. **Does this move leave the end the train faces?** The move's departure end
+   is the end of the origin block the transit crosses, and facing — read from
+   `tc49/schedule/state/facing`, a retained state topic, so the last value is
+   there even with the scheduler down — says which end the train's nose points
+   at. Equal means the train goes nose-first; different means it is
+   **propelled**, which is an ordinary movement and not an error (CONTEXT.md,
+   **Propelled**).
+2. **Which way round is this car coupled?** The `orientation` on the car's
+   entry in the train, `forward` or `reverse`
+   ([ADR-0045](../adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+   This is what lets a locomotive at each end of a train run opposite.
+
+So the sign sent to one car is **positive** when the move is nose-first and the
+car is `forward`, or when the move is propelled and the car is `reverse`, and
+negative otherwise.
+
+**Which cars.** Every car of the train that has an `addr`, in the train's own
+order. A car whose model's `kind` is not a locomotive but which carries a
+decoder is commanded too — nothing here reads `kind`, because a powered van is
+a real thing and the address is what says a car can be told a speed.
+
+### Two refusals
+
+**No facing, no move.** A `move` for a train whose facing this app has never
+seen is dropped: none published for it, one it cannot spell, or one naming a
+block other than the one the train is departing. Guessing is a locomotive
+driven the wrong way down the track, and a drop is what a failed read is worth
+for an app that answers nothing ([SYSTEM.md](../SYSTEM.md#event-inventory),
+rule 4). Nothing holds the command for a facing, so a facing arriving later
+does not retroactively run the train — where a command is *held* for its
+`align`, though, it is signed on the facing it has at the moment it acts, like
+every other rule here. A `move` that states no **speed** falls the same way and
+for the same reason: this app would have to choose a number nobody asked for.
+
+**No address, no command.** A train whose cars carry no address at all — the
+simulator's trains are like this, and so is anything a hand moves — still gets
+its `align`, its near-end check and its crossing record, and simply has nothing
+to publish. That is not a failure and is not logged as one, and it is the same
+answer for a train this railroad's roster does not name: there are no wheels
+there to turn the wrong way, so no facing is wanted either.
+
+### Arrival
+
+`0.0` goes to every address this app commanded, on the **first** of the entered
+block's ends to settle occupied — the reading `block_occupied` goes out on. It
+does not wait for the vacate: the train is in the block it was sent to, and the
+tail clearing is a fact about the block behind. Exactly the addresses that were
+commanded, since a car nothing was sent for is a car nothing may be sent for.
 
 ## Alignment
 
@@ -233,14 +307,13 @@ the supply going away below it moves `state/power` and never `wanted/track`.
 
 ## What is not here yet
 
-- **The traction write**, `tc49/layout/state/wanted/traction/<addr>`, and
-  therefore anything that turns a wheel. It composes a speed's sign out of the
-  train's facing and each car's orientation, which is why it is
-  [#296](https://github.com/rails49/control/issues/296) and why this app reads
-  no roster today. An accepted `move` records the train as crossing and stops
-  there; the absence is deliberate.
 - **A train's mode and a person's throttle**, which reach the locomotive
-  through that same write
-  ([#297](https://github.com/rails49/control/issues/297)).
+  through the traction write above
+  ([#297](https://github.com/rails49/control/issues/297)). Nothing here reads
+  `tc49/layout/mode_wanted` or `tc49/layout/throttle_wanted` yet, and
+  `tc49/layout/state/mode` has no publisher.
+- **The function row**, `tc49/layout/state/wanted/function/<addr>/<number>`.
+  It is the one desired row with no writer: a function press has no gesture to
+  arrive on, so it is nobody's until a throttle asks (ADR-0045).
 - **Any hardware protocol.** This app speaks the device vocabulary and nothing
   else; what a translator does with an address is its own business.

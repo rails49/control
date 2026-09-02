@@ -303,13 +303,27 @@ for. Every one of those is a change the stock actually underwent: committing
 to a route is a plan and moves no arrow
 ([#295](https://github.com/rails49/control/issues/295)). Held by the scheduler
 and published on its own state topic as `<block>.A-to-B`, which every view
-reads to draw a train's direction. Not dispatcher state — a request's
+reads to draw a train's direction and `layout` reads to give a speed its sign
+([ADR-0052](docs/adr/0052-layout-reads-facing-and-composes-the-sign-of-a-speed.md)).
+Not dispatcher state — a request's
 departure end carries everything the dispatcher needs, and may contradict
 facing.
 _Avoid_: direction (ambiguous with travel direction), heading, orientation.
 The bare end letter the value once was is retired
 ([#241](https://github.com/rails49/control/issues/241)): it is refused at
 load and refused in a state file, never read as a run.
+
+**Propelled**:
+A movement out of the end a train's nose points *away* from: pushed rather
+than pulled. Said of one move and never of a train, since the same train is
+propelled over one transit and nose-first over the next. An **ordinary
+movement and not an error** — a request's **departure end** may ask for one,
+and a train that makes one enters the next block tail-first, which is one of
+the four rules that determine **facing**. It is half of the sign `layout` puts
+on a speed, the other half being each car's **orientation**
+([ADR-0052](docs/adr/0052-layout-reads-facing-and-composes-the-sign-of-a-speed.md)).
+_Avoid_: reversing (which is turning round at rest, and a different thing),
+backing, shunting, pushed as the noun
 
 **Automatic / manual**:
 Who turns a train's throttle. Every train is one or the other and
