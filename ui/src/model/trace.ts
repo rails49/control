@@ -63,6 +63,8 @@ export class Live {
  *  requests ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). */
 export const REQUEST_WANTED = "tc49/schedule/request_wanted";
 export const REVERSAL_WANTED = "tc49/schedule/reversal_wanted";
+export const MODE_WANTED = "tc49/layout/mode_wanted";
+export const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
 export const RUN_WANTED = "tc49/dispatch/run_wanted";
 export const PLACEMENT_WANTED = "tc49/dispatch/placement_wanted";
 export const POWER_WANTED = "tc49/layout/power_wanted";
@@ -148,6 +150,40 @@ export function runWanted(run: Run): string {
  *  hardware itself. */
 export function powerWanted(power: Power): string {
   return JSON.stringify({ topic: POWER_WANTED, payload: { power } });
+}
+
+/** Who turns a train's throttle: `automatic` at rest, `manual` while a person
+ *  has taken it in a throttle and until they give it back
+ *  ([#207](https://github.com/rails49/control/issues/207)). The same two words
+ *  the `mode_wanted` gesture names and every entry of the `modes` map on
+ *  `tc49/layout/state/mode` carries. Not said of the *system*, which is
+ *  **held** or **running** and a different thing on a different topic
+ *  (CONTEXT.md). */
+export type Mode = "automatic" | "manual";
+
+/** A `mode_wanted` frame: take this train in a throttle, or give it back. It
+ *  names where the mode should stand rather than asking for a change, as
+ *  `run_wanted` and `power_wanted` do, so a second `manual` on a train
+ *  already taken is not a race — and the view goes on reading who drives off
+ *  `state/mode`, which `layout` writes and this never assumes (ADR-0035).
+ *
+ *  The train is always named here. `train: null` on the topic hands over
+ *  **every** train at once, which is a thing a person does to a railroad and
+ *  not to the train they have picked, so no gesture of this view writes it. */
+export function modeWanted(train: string, mode: Mode): string {
+  return JSON.stringify({ topic: MODE_WANTED, payload: { train, mode } });
+}
+
+/** A `throttle_wanted` frame: how fast a person is driving a train, `-1.0`
+ *  … `1.0` as a fraction of that train's maximum, `0.0` being stop.
+ *
+ *  **Signed for the train and not for a locomotive**: positive is the way the
+ *  train points, so one lever drives a top-and-tail set and `layout` composes
+ *  the sign each car's decoder is given out of the train's facing and the way
+ *  round that car is coupled (CONTEXT.md, **Throttle**; ADR-0045). Which
+ *  address it reaches is `layout`'s and no view's. */
+export function throttleWanted(train: string, speed: number): string {
+  return JSON.stringify({ topic: THROTTLE_WANTED, payload: { train, speed } });
 }
 
 /** A `request_submitted` payload: what the scheduler composes out of a

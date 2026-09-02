@@ -10,6 +10,8 @@ import {
   DRAINING,
   gesture,
   Live,
+  MODE_WANTED,
+  modeWanted,
   Ordering,
   POWER_WANTED,
   powerWanted,
@@ -19,6 +21,8 @@ import {
   RUN_WANTED,
   runWanted,
   STATE_LEAVES,
+  THROTTLE_WANTED,
+  throttleWanted,
 } from "../src/model/trace.js";
 
 describe("Live", () => {
@@ -107,6 +111,45 @@ describe("runWanted", () => {
    *  itself when the drain completes. */
   it("carries the drain on the same word", () => {
     expect(JSON.parse(runWanted(DRAINING)).payload).toEqual({ run: "draining" });
+  });
+});
+
+/** Taking a train in a throttle and giving it back (#207): the fifth thing
+ *  the page may write. It names where the mode should stand rather than
+ *  asking for a change, as the run's and the supply's gestures do, and who is
+ *  driving is read back off `state/mode` rather than assumed from the press. */
+describe("modeWanted", () => {
+  it("names the train and where its mode should stand", () => {
+    expect(JSON.parse(modeWanted("t1", "manual"))).toEqual({
+      topic: "tc49/layout/mode_wanted",
+      payload: { train: "t1", mode: "manual" },
+    });
+    expect(JSON.parse(modeWanted("t1", "automatic")).payload).toEqual({
+      train: "t1",
+      mode: "automatic",
+    });
+    expect(MODE_WANTED).toBe("tc49/layout/mode_wanted");
+  });
+});
+
+/** The throttle being turned (#207): the sixth. One number for the train,
+ *  signed for the way the train points — which locomotive it reaches, and
+ *  which way round that one stands, is `layout`'s (CONTEXT.md,
+ *  **Throttle**). */
+describe("throttleWanted", () => {
+  it("names the train and one speed", () => {
+    expect(JSON.parse(throttleWanted("t1", -0.5))).toEqual({
+      topic: "tc49/layout/throttle_wanted",
+      payload: { train: "t1", speed: -0.5 },
+    });
+    expect(THROTTLE_WANTED).toBe("tc49/layout/throttle_wanted");
+  });
+
+  it("carries a stop as the number zero", () => {
+    expect(JSON.parse(throttleWanted("t1", 0)).payload).toEqual({
+      train: "t1",
+      speed: 0,
+    });
   });
 });
 

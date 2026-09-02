@@ -156,7 +156,29 @@ export async function review(drawing: Drawing): Promise<Review> {
  */
 export interface RosterDoc {
   roster: string;
-  trains: Record<string, { length: number }>;
+  trains: Record<string, TrainDoc>;
+}
+
+/** One train on the roster: how long it is, and what a person driving it can
+ *  switch. Both are **derived from the cars it is made of** and neither is
+ *  authored, so the pair arrives together
+ *  ([ADR-0045](../../../docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+ *  The cars themselves, their addresses and which DCC number each function
+ *  sits on are not here: a decoder detail is no view's (ui/THROTTLE.md). */
+export interface TrainDoc {
+  length: number;
+  /** Absent from an older store's answer, which is a train with nothing to
+   *  switch rather than a document to refuse. */
+  functions?: Fn[];
+}
+
+/** One thing a person can switch on a train, by the name the catalogue gives
+ *  it: `headlights`, `vacuum`. `values` is what it can be in, **first entry
+ *  first** — that is the one it is in when nothing has been commanded, which
+ *  is why it is a list and not a set (`tc49.lib.roster.Function`). */
+export interface Fn {
+  name: string;
+  values: string[];
 }
 
 export async function readRoster(railroad: string): Promise<RosterDoc> {
