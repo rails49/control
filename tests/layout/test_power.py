@@ -12,6 +12,7 @@ from tc49.lib.clock import Clock
 from tests.layout.railroad import (
     DEVICE_LINK,
     DEVICE_TRACK,
+    MODE,
     POWER,
     POWER_WANTED,
     WANTED_TRACK,
@@ -25,9 +26,10 @@ from tests.layout.railroad import (
 
 def test_the_railroad_comes_up_off_before_anything_else() -> None:
     """Nothing moves and no turnout throws until a person turns it on
-    (ADR-0051). The two values are the first things the app says, and the
-    order is the honest one: the supply is commanded off, and then the app
-    states what it believes about it."""
+    (ADR-0051). The three values are the first things the app says, and the
+    order is the honest one: the supply is commanded off, then the app states
+    what it believes about it, and then that nobody has taken a train — the
+    map of who drives is empty and the topic says so (#297)."""
     clock = Clock()
     bus = Bus(clock)
     seen = heard(bus, "tc49/#")
@@ -37,6 +39,7 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
     assert seen == [
         (WANTED_TRACK, {"at": 0.0, "power": "off"}),
         (POWER, {"at": 0.0, "power": "off"}),
+        (MODE, {"at": 0.0, "modes": {}}),
     ]
 
 
