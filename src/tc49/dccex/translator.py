@@ -2,11 +2,11 @@
 
 The first of the thin apps that hang under `layout` (ADR-0043). Above it the
 bus carries the **device vocabulary** — what each device should do, and what
-each is observed to do — and below it is one TCP connection to `station`,
+each is observed to do — and below it is one TCP connection to `dccex-usb`,
 which owns the command station's serial device and serves it on port 2560 so
-that JMRI and hand-held throttles share the same station (docs/station/README.md).
-Not the USB device: `station` owns that, and this app is one client of the
-port beside the others.
+that JMRI and hand-held throttles share the same command station
+(docs/dccex_usb/README.md). Not the USB device: `dccex-usb` owns that, and
+this app is one client of the port beside the others.
 
 **The boundary this app exists to hold.** Every other component is oblivious
 to what powers the layout, and nothing above the layout interface expects
@@ -105,7 +105,7 @@ SYSTEM = "dccex"
 """The first level of a point or signal address this app answers to, and the
 address `device/link` carries: a hardware system names itself once."""
 
-HOST = "station"
+HOST = "dccex-usb"
 PORT = 2560
 
 WANTED = "tc49/layout/state/wanted/#"
@@ -152,7 +152,7 @@ class Wanted(NamedTuple):
 
 
 class DccEx:
-    """The translator, on the bus and on one connection to `station`.
+    """The translator, on the bus and on one connection to `dccex-usb`.
 
     `run()` is the whole of the connection: it connects, applies the retained
     desired state, reads what the station says until the link goes, and

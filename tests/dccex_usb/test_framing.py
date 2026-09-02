@@ -1,6 +1,6 @@
 """Tests at the framing seam: bytes in, whole `<…>` messages out."""
 
-from tc49.station.framing import MAX_MESSAGE, frame
+from tc49.dccex_usb.framing import MAX_MESSAGE, frame
 
 
 def test_a_whole_message_arrives_whole() -> None:

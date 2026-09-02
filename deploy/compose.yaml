@@ -87,13 +87,14 @@ services:
 
   # The one container that owns the command station's USB device, mirroring it
   # to TCP 2560 so the dccex translator, JMRI and hand-held throttles share one
-  # station (ADR-0043, #219). The device is named by its `by-id` path rather
-  # than `/dev/ttyUSB0`, which renumbers, and lands inside as `/dev/dccex` so
-  # the command line says nothing about which chip is in the cable.
-  station:
+  # command station (ADR-0043, #219). The device is named by its `by-id` path
+  # rather than `/dev/ttyUSB0`, which renumbers, and lands inside as
+  # `/dev/dccex` so the command line says nothing about which chip is in the
+  # cable.
+  dccex-usb:
     build:
       context: ..
-      dockerfile: deploy/station.Dockerfile
+      dockerfile: deploy/dccex-usb.Dockerfile
     profiles: [layout]
     restart: unless-stopped
     ports:
@@ -103,11 +104,11 @@ services:
     command: ["--device", "/dev/dccex", "--port", "2560"]
 
   # JMRI, a third-party GUI appliance and none of this app's business: an
-  # operator's DecoderPro and panel tool, reaching the same station as a plain
-  # client of 2560 (#196). Nothing of ours is in it and it owns no device. The
-  # image does not start JMRI — a person clicks DecoderPro through noVNC on
+  # operator's DecoderPro and panel tool, reaching the same command station as a
+  # plain client of 2560 (#196). Nothing of ours is in it and it owns no device.
+  # The image does not start JMRI — a person clicks DecoderPro through noVNC on
   # 6901 — and `/home/jmri` is a volume because that is where the click that
-  # points it at the station persists.
+  # points it at `dccex-usb` persists.
   jmri:
     image: jsa1987/jmri-docker:stable
     # A fresh /tmp on every start. The image's websockify dials
