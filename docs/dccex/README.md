@@ -46,6 +46,56 @@ session state to agree. The `wanted/track` row is applied first, so power
 reaches the rails before a turnout is asked to throw and a release's zeros
 land before the speeds rather than over the top of them.
 
+## The startup file
+
+`--startup <path>` names a file of raw station commands, one per line, that
+this app sends **on every transition of `wanted/track` into `on`, straight
+after the track-on command**. The flag is optional; with no file the byte
+stream is exactly what it is without it.
+
+That file is where this installation's **power district trip currents** are
+written, and the only place they appear. This railroad has four districts,
+A–D, and each takes the current its wiring can really carry; a district is a
+hardware-level fact that reaches no bus topic
+([#217](https://github.com/rails49/control/issues/217)), so no other component
+learns there are four of them, or any.
+
+```
+# /etc/tc49/dccex-startup.txt — trip currents for the four districts
+<= A LIMIT 3000>
+<= B LIMIT 3000>
+<= C LIMIT 1500>
+<= D LIMIT 1500>
+```
+
+**The values above are this installation's**, not a default and not a
+recommendation: what a district can take is what is wired to it, and the file
+is where a person writes theirs. The command spelling is the station's, and it
+wants firmware that has the per-district limit — that patch, the command and
+flashing it are a separate project and not this repository's work.
+
+**The file is not parsed beyond blank and comment.** A line beginning with `#`
+is a note and a blank line is layout; every other line is stripped of
+surrounding whitespace and handed to the station exactly as typed. That is the
+whole point of it: a person writes anything their station understands —
+auto-reverse and polarity are the same kind of hardware configuration and
+belong here if they ever need setting — without this app growing a vocabulary
+for it, and without a mechanism that would reach the scheduler, the dispatcher
+or the driver.
+
+**It is a transition and not a level.** A second `on` over rails that are
+already live sends nothing: the station has the values. Any other word sends
+them again — an `off` and back, and the emergency-stop lock and its release —
+and so does a new link — the station on the far end of the
+next one may be one that has just restarted, and one that has forgotten its
+trip currents runs at the firmware's default until somebody notices.
+
+**A file that is missing or cannot be read is logged and the railroad powers
+on anyway.** Coming up at the firmware's low default is a railroad that trips
+early, which is safe and visible; refusing to power on because a configuration
+file was missing is worse
+([ADR-0050](../adr/0050-broken-hardware-is-reported-never-worked-around.md)).
+
 ## The mapping
 
 | desired | sent |
@@ -157,10 +207,10 @@ app that speaks a bus topic has a command line — `layout`, `scheduler`,
 app that speaks no bus topic at all.
 
 The app is constructed on the bus like the rest of them, with where the
-station is served:
+station is served, and `--startup` is the `startup` argument until then:
 
 ```python
-DccEx(bus, "station", 2560)
+DccEx(bus, "station", 2560, startup=Path("/etc/tc49/dccex-startup.txt"))
 ```
 
 `run()` is the connection: it connects, applies the retained desired state,
