@@ -223,26 +223,50 @@ class Backup:
         session on — would have its backups land as commits in that
         repository, next to code, under whatever branch happened to be out.
         """
+        return self._inside() == self.root.resolve()
+
+    def _inside(self) -> Path | None:
+        """The top of the repository this store is in, `None` where git could
+        not say — because there is no repository, or because there is no git
+        on this machine at all."""
         said = self._run(self.root, "rev-parse", "--show-toplevel")
         if not said.ok:
-            return False
+            return None
         try:
-            return Path(said.words).resolve() == self.root.resolve()
+            return Path(said.words).resolve()
         except OSError:
-            return False
+            return None
 
     def needs(self) -> list[str]:
         """What backup has not got, in the words a person is offered it in.
 
         A list because two things can be missing at once, and because the
         answer with nothing missing is empty rather than a sentence saying so.
+
+        The three ways of having no repository are told apart, because they
+        send a person to different places. A store **inside** another
+        repository is not one to run `git init` in — it is `bench/`, and the
+        repository it is in is this checkout. And git itself may be what is
+        missing, in a container built without it: "run `git init`" for "there
+        is no git" sends somebody to a command they cannot run, so git's own
+        words come with it.
         """
-        if not self.repository():
+        top = self._inside()
+        if top is not None and top != self.root.resolve():
+            return [
+                (
+                    f"{self.root} is inside the git repository at {top} rather"
+                    " than being one, so backing it up would commit into that"
+                    " repository — back up a store of its own instead"
+                )
+            ]
+        if top is None:
+            said = self._run(self.root, "rev-parse", "--show-toplevel")
             return [
                 (
                     f"{self.root} is not a git repository — `git init` there,"
                     " and `git remote add origin <url>` for a copy off this"
-                    " machine"
+                    f" machine. git said: {said.words}"
                 )
             ]
         if not self._run(self.root, "remote").words:
