@@ -15,7 +15,16 @@ import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
 import { hashOf, viewOf } from "../src/model/views.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { band, bar, editing, mounted, serving, session, settled } from "./support/shell.js";
+import {
+  band,
+  bar,
+  editing,
+  mounted,
+  serving,
+  session,
+  settled,
+  shows,
+} from "./support/shell.js";
 
 /** A drawing a red pin short of nothing, one per name the store has. */
 function stored(name: string): Drawing {
@@ -41,12 +50,6 @@ async function load(shell: TcApp, name: string): Promise<void> {
   band(shell).dispatchEvent(
     new CustomEvent<string>("railroad-wanted", { detail: name }),
   );
-  await settled(shell);
-}
-
-/** Press the band's view toggle, which is the one control that switches. */
-async function toggled(shell: TcApp): Promise<void> {
-  (band(shell).renderRoot.querySelector("button.view") as HTMLElement).click();
   await settled(shell);
 }
 
@@ -111,10 +114,10 @@ describe("the hash the view is bookmarked by", () => {
     }
   });
 
-  it("says which view the toggle chose, so a reload keeps it", async () => {
+  it("says which view the selector chose, so a reload keeps it", async () => {
     const shell = await mounted("run");
 
-    await toggled(shell);
+    await shows(shell, "edit");
 
     expect(showing(shell)).toBe("tc-editor");
     expect(named()).toBe("edit");
@@ -141,8 +144,8 @@ describe("switching view", () => {
     await load(shell, "gotthard");
     expect(loaded(shell)).toBe("gotthard");
 
-    await toggled(shell);
-    await toggled(shell);
+    await shows(shell, "run");
+    await shows(shell, "edit");
 
     expect(loaded(shell)).toBe("gotthard");
     expect(session(shell).drawing.drawing).toBe("gotthard");
@@ -157,7 +160,7 @@ describe("switching view", () => {
     expect(shell.renderRoot.querySelector("tc-panel")).not.toBeNull();
     expect(showing(shell)).toBe("tc-editor");
 
-    await toggled(shell);
+    await shows(shell, "run");
 
     expect(shell.renderRoot.querySelector("tc-editor")).not.toBeNull();
     expect(showing(shell)).toBe("tc-panel");
@@ -169,7 +172,7 @@ describe("switching view", () => {
     const shell = await mounted("edit");
     expect(titles(shell)).toEqual(["File", "Edit", "View"]);
 
-    await toggled(shell);
+    await shows(shell, "run");
 
     expect(titles(shell)).toEqual(["View"]);
   });
@@ -183,7 +186,7 @@ describe("switching view", () => {
     await settled(shell);
     expect(bar(shell).renderRoot.querySelector("menu")).not.toBeNull();
 
-    await toggled(shell);
+    await shows(shell, "run");
 
     expect(bar(shell).renderRoot.querySelector("menu")).toBeNull();
   });

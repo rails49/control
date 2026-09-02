@@ -149,6 +149,15 @@ export async function mounted(view: ViewId = "edit"): Promise<TcApp> {
   return shell;
 }
 
+/** Press the band's view selector for one view, which is the one control that
+ *  switches: a button per view, the current one marked (ADR-0038). */
+export async function shows(shell: TcApp, view: ViewId): Promise<void> {
+  band(shell)
+    .renderRoot.querySelector<HTMLButtonElement>(`button.view[data-view="${view}"]`)!
+    .click();
+  await settled(shell);
+}
+
 /** The editing session the app is holding. It is the component's own, and
  *  reaching through for it is how a DOM suite drives the document. */
 export function session(shell: TcApp): Editor {

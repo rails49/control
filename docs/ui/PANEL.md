@@ -610,7 +610,7 @@ railroad the app has loaded and the picker that loads another, the unsaved
 dot, the health area — the store not answering, the bridge, whether the rails
 have power, how far the run has got, whether the trains standing here have
 frozen the drawing — the three track-power presses beside that reading, and
-the view toggle. The **bar** is this
+the view selector. The **bar** is this
 view's document's: a `View` menu carrying zoom and fit, those three pinned as
 icon buttons at its right end, and **HOLD/GO**.
 

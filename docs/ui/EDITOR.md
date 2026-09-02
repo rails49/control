@@ -91,13 +91,13 @@ clock does rather than as the refusal above it — a railroad with trains on it
 is the ordinary state and nothing about it is wrong — and it is what explains
 an Edit menu of dead verbs to whoever opens one.
 
-**The view toggle is at the right end.** The views are a list with one current
-entry, `{id, label, icon}` in `model/views.ts`, and two of them render as a
-single icon-button wearing the other one's name — which is what a toggle is. A
-third entry makes it a selector, so a stock screen and a schedule table add a
-line rather than force a redesign. Which view is current is in the location
-hash, so a reload and a bookmark keep it, and a hash naming no view is the run
-view.
+**The view selector is at the right end.** The views are a list with one
+current entry, `{id, label, icon}` in `model/views.ts`, drawn as one
+icon-button each with the current one marked. Two of them were a single
+icon-button wearing the other one's name — which is what a toggle is — and the
+third made it this selector, so a stock screen and a schedule table add a line
+rather than force a redesign. Which view is current is in the location hash, so
+a reload and a bookmark keep it, and a hash naming no view is the run view.
 
 The rule this section carried — that the band "shows status and nothing else",
 everything pressable staying in the row below — is amended rather than kept.
