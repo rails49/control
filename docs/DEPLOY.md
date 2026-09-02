@@ -56,13 +56,26 @@ one place a secret sits on disk: `/etc/tc49/deploy.env`, owned `root:docker`
 and mode 640, outside the clone, written once from a machine that does have
 `op`. Revoke and rewrite it rather than editing it in place.
 
+The clone pulls over ssh — `git@github.com:rails49/control.git` — with the key
+that is already on the box. The repository is public, so HTTPS needs no
+credential for it, but GitHub challenges the second request of an anonymous
+fetch often enough that an unattended pull stops to ask for a username. Over
+ssh there is nothing to ask.
+
 ```
 ssh blocks
 cd ~/control && git pull
 pnpm --dir ui build
 TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
-  -f deploy/compose.yaml --profile layout up -d
+  -f deploy/compose.yaml --profile layout up -d --remove-orphans
 ```
+
+`scripts/deploy.sh` is that sequence, run over ssh from the dev box.
+
+`--remove-orphans` is there because a container whose service was renamed
+keeps running under the old name and keeps its published port. After
+[#299](https://github.com/rails49/control/issues/299) the `station` container
+held 2560, and `dccex-usb` could not start until it was gone.
 
 Nothing starts this at boot but Docker itself: every service is
 `restart: unless-stopped` and the daemon is enabled, so a power cut comes back
