@@ -1607,19 +1607,20 @@ def test_gotthards_ganged_points_come_out_one_entry_each() -> None:
     """The railroad that gangs points, worked through by hand from its wires.
 
     `A1.A` reaches `A4.B` over `sw2` alone, lying straight, and `sw2` shares
-    address `5` with `sw1`, so one entry is the whole of it. `A2.A` reaches
-    `CE1.B` over five points: `sw1` straight (`5`), `sw3` diverging (`6`),
-    then `sw8` and `sw7` both straight — which are two of the four on address
-    `1`, wanting the same position, so they collapse to one — and `sw10`
-    diverging (`2`). Sorted by address, four entries for five points.
+    address `dccex/5` with `sw1`, so one entry is the whole of it. `A2.A`
+    reaches `CE1.B` over five points: `sw1` straight (`dccex/5`), `sw3`
+    diverging (`dccex/6`), then `sw8` and `sw7` both straight — which are two
+    of the four on `dccex/1`, wanting the same position, so they collapse to
+    one — and `sw10` diverging (`dccex/2`). Sorted by address, four entries
+    for five points, and sorting is by the whole address, system and all.
     """
     points = committed("gotthard").connections["j1"].points
-    assert points["A1_A__A4_B"] == (Point("5", "closed"),)
+    assert points["A1_A__A4_B"] == (Point("dccex/5", "closed"),)
     assert points["A2_A__CE1_B"] == (
-        Point("1", "closed"),
-        Point("2", "thrown"),
-        Point("5", "closed"),
-        Point("6", "thrown"),
+        Point("dccex/1", "closed"),
+        Point("dccex/2", "thrown"),
+        Point("dccex/5", "closed"),
+        Point("dccex/6", "thrown"),
     )
 
 

@@ -104,8 +104,11 @@ describe("a point drawn in a position", () => {
  * one piece, with the alignment `gotthard/positions` produces.
  */
 
-/** j1 of `gotthard` in miniature: sw1 and sw2 share address 5 and move
- *  together, sw3 wears 6, and sw4 wears one the run never commands.
+/** j1 of `gotthard` in miniature: sw1 and sw2 share address `dccex/5` and
+ *  move together, sw3 wears `dccex/6`, and sw4 wears one the run never
+ *  commands. A point's address names the system that answers for it as its
+ *  first level (ADR-0043); the panel keys its ledger by the whole of it and
+ *  reads none of the levels apart.
  *
  *  A transcription, this and the `align` below both: the four symbols are the
  *  committed drawing's and the command is what `gotthard/positions` really
@@ -116,10 +119,10 @@ describe("a point drawn in a position", () => {
 const YARD: Drawing = {
   drawing: "yard",
   symbols: {
-    sw1: { kind: "turnout", at: [15, 4], addr: "5" },
-    sw2: { kind: "turnout", at: [15, 3], addr: "5" },
-    sw3: { kind: "turnout", at: [14, 5], addr: "6" },
-    sw4: { kind: "turnout", at: [24, 4], addr: "7" },
+    sw1: { kind: "turnout", at: [15, 4], addr: "dccex/5" },
+    sw2: { kind: "turnout", at: [15, 3], addr: "dccex/5" },
+    sw3: { kind: "turnout", at: [14, 5], addr: "dccex/6" },
+    sw4: { kind: "turnout", at: [24, 4], addr: "dccex/7" },
   },
   wires: [],
 };
@@ -165,22 +168,35 @@ function against(symbol: string, ...commands: Partial<TraceEvent>[]): string[] {
 
 describe("a point the alignment command has placed", () => {
   it("fades the road it does not offer, on both points on the address", () => {
-    // What crossing j1 to reach A2 commands: address 5 closed and 6 thrown.
+    // What crossing j1 to reach A2 commands: `dccex/5` closed and `dccex/6`
+    // thrown.
     // A turnout's legs are named for its positions, so lying closed it offers
     // the straight road and the diverging one is the road set against.
-    const j1 = align(["1", "thrown"], ["5", "closed"], ["6", "thrown"]);
+    const j1 = align(
+      ["dccex/1", "thrown"],
+      ["dccex/5", "closed"],
+      ["dccex/6", "thrown"],
+    );
     expect(against("sw1", j1)).toEqual(["diverging"]);
     expect(against("sw2", j1)).toEqual(["diverging"]);
     expect(against("sw3", j1)).toEqual(["straight"]);
   });
 
   it("moves the fade to the other road when the alignment changes", () => {
-    // The other way through the same junction, to A1, which wants address 5
-    // thrown instead: the pair swap which of their roads is on offer. 6 is
-    // thrown for either road, so sw3 does not move and its straight road
-    // stays the faint one.
-    const j1 = align(["1", "thrown"], ["5", "closed"], ["6", "thrown"]);
-    const over = align(["1", "thrown"], ["5", "thrown"], ["6", "thrown"]);
+    // The other way through the same junction, to A1, which wants `dccex/5`
+    // thrown instead: the pair swap which of their roads is on offer.
+    // `dccex/6` is thrown for either road, so sw3 does not move and its
+    // straight road stays the faint one.
+    const j1 = align(
+      ["dccex/1", "thrown"],
+      ["dccex/5", "closed"],
+      ["dccex/6", "thrown"],
+    );
+    const over = align(
+      ["dccex/1", "thrown"],
+      ["dccex/5", "thrown"],
+      ["dccex/6", "thrown"],
+    );
     expect(against("sw1", j1, over)).toEqual(["straight"]);
     expect(against("sw2", j1, over)).toEqual(["straight"]);
     expect(against("sw3", j1, over)).toEqual(["straight"]);
@@ -189,7 +205,7 @@ describe("a point the alignment command has placed", () => {
   it("leaves a point no command has named with both roads on offer", () => {
     // sw4 is on the far side of the station and this route never crosses it,
     // so nothing has said which way it lies and the panel says nothing either.
-    expect(against("sw4", align(["5", "closed"]))).toEqual([]);
+    expect(against("sw4", align(["dccex/5", "closed"]))).toEqual([]);
   });
 });
 
