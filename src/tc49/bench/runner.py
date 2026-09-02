@@ -114,6 +114,19 @@ class Assembly:
     def trace(self) -> str:
         return self._out.getvalue()
 
+    @property
+    def simulation(self) -> Simulator:
+        """The simulator this run is bound to.
+
+        What a caller that wants the engine itself goes through: the batch
+        loop, and a live loop a test paces turn by turn rather than on a wall
+        clock. It asserts rather than answering nothing, because there is no
+        second thing to do — a caller reaching here has already decided which
+        binding it is looking at.
+        """
+        assert self.simulator is not None, "this run has no simulator"
+        return self.simulator
+
 
 def assemble(
     layout: Layout,
@@ -202,5 +215,5 @@ def run_scenario(
 ) -> str:
     """Wire everything on one bus, run to quiescence, return the trace."""
     assembly = assemble(layout, roster, scenario, make_strategy, k)
-    assembly.simulator.run(event_limit)
+    assembly.simulation.run(event_limit)
     return assembly.trace

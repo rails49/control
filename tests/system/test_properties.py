@@ -69,7 +69,7 @@ def test_safety_invariant_holds_after_every_grant(
         ), f"unsafe state after granting {payload}"
 
     assembly.bus.subscribe("tc49/dispatch/move_granted", check)
-    assembly.simulator.run(TICK_LIMIT)
+    assembly.simulation.run(TICK_LIMIT)
     assert safe(*safety_view(assembly.dispatcher.state))
 
 
@@ -117,7 +117,7 @@ def test_quiescence_is_always_a_permanent_obstacle(
     doc, layout, roster, scenario = case
     note(fixture_yaml(doc))
     assembly = build(layout, roster, scenario, Incremental, K)
-    assembly.simulator.run(TICK_LIMIT)
+    assembly.simulation.run(TICK_LIMIT)
     assert_quiescence_is_a_permanent_obstacle(assembly)
 
 
@@ -148,7 +148,7 @@ def test_differential_against_the_baseline(
     note(fixture_yaml(doc))
     for strategy in (FullRoute, Incremental):
         assembly = build(layout, roster, scenario, strategy, K)
-        assembly.simulator.run(TICK_LIMIT)
+        assembly.simulation.run(TICK_LIMIT)
         assert_quiescence_is_a_permanent_obstacle(assembly)
 
 

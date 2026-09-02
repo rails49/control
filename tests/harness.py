@@ -144,7 +144,7 @@ def ticks(
 
     # A period longer than any delay, so each turn's step reaches the next
     # scheduled event exactly; the sleep is injected away.
-    assembly.simulator.run_live(3600.0, sleep=lambda _: None, stop=stop)
+    assembly.simulation.run_live(3600.0, sleep=lambda _: None, stop=stop)
 
 
 RUN_WANTED = "tc49/dispatch/run_wanted"

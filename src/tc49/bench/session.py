@@ -168,7 +168,7 @@ class Session:
                 Replay(assembly.bus, layout, scenario)
             out.write(f"  running {name}\n")
             out.flush()
-            assembly.simulator.run_live(
+            assembly.simulation.run_live(
                 self._period_s, sleep=self._pause, stop=self._swap.is_set
             )
 
