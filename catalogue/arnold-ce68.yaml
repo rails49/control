@@ -1,0 +1,15 @@
+# An SBB Ce 6/8 II — the "Krokodil" — N scale, the second of the two products
+# this installation owns (#317). Named for its manufacturer for the reason
+# `conrad-e10.yaml` gives.
+#
+# `length` is over buffers, measured on the item (`catalogue/README.md`).
+# F0 carries the lights and there is nothing else on it — no sound.
+
+model: arnold-ce68
+kind: locomotive
+length: 122
+manufacturer: Arnold
+scale: N
+description: SBB Ce 6/8 II "Krokodil"
+functions:
+  "0": { name: lights }

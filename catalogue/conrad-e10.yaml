@@ -1,0 +1,17 @@
+# A DB E10 in blue, N scale — one of the two products this installation owns
+# (#317). Named for its manufacturer rather than its prototype: the same
+# prototype is made by several, with different decoders and so different
+# function maps, and the name is the key a car refers to (CONTEXT.md,
+# **Catalogue**).
+#
+# `length` is over buffers, measured on the item (`catalogue/README.md`).
+# F0 carries the lights and there is nothing else on it — no sound.
+
+model: conrad-e10
+kind: locomotive
+length: 103
+manufacturer: Conrad
+scale: N
+description: DB E10, blue
+functions:
+  "0": { name: lights }

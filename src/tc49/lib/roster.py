@@ -63,12 +63,30 @@ class Model:
 
     Shared between railroads, which is why it is keyed by its own name and
     not by the railroad's (CONTEXT.md, **Catalogue**).
+
+    `manufacturer`, `scale` and `description` are what a real product needs
+    beyond a synthetic one, and all three are **plain data**: nothing filters,
+    indexes or branches on them. They were already legal as unknown keys —
+    `check_required` is lenient for stock documents precisely because "an
+    unknown key there is a field someone added for a manufacturer or a shelf
+    number" (#285) — so this promotes three of them from ignored to read.
+
+    `scale` is a property of the product and not of the installation: the same
+    prototype is made in N and H0. It affects no arithmetic, since `length` is
+    millimetres of actual model track either way.
+
+    `description` is free text, and it earns a field rather than a comment
+    because comments do not survive a save (DRAWING.md): once a roster is
+    written by anything but a person, a note in the YAML is lost.
     """
 
     name: str
     kind: str
     length: int
     functions: dict[str, Function] = field(default_factory=dict[str, Function])
+    manufacturer: str | None = None
+    scale: str | None = None
+    description: str | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +101,11 @@ class Car:
     `addr` is the number programmed into its decoder, **bare** — no system
     prefix, unlike a point's (ADR-0045) — and absent where the car has no
     decoder.
+
+    `manufacturer`, `scale` and `description` are carried so that "the model's
+    every field" stays true of a car, but they are **inherited and never
+    overridden**: who made a product and what scale it is are facts about the
+    product, so a car saying otherwise would be describing a different one.
     """
 
     model: str
@@ -90,6 +113,9 @@ class Car:
     length: int
     functions: dict[str, Function] = field(default_factory=dict[str, Function])
     addr: str | None = None
+    manufacturer: str | None = None
+    scale: str | None = None
+    description: str | None = None
 
 
 @dataclass(frozen=True)

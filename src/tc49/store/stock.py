@@ -54,6 +54,9 @@ def validate_model(doc: Any, name: str) -> Model:
         _kind(spec["kind"], where),
         check_length(spec["length"], where),
         _functions(spec.get("functions"), where),
+        _text(spec.get("manufacturer"), f"{where}: manufacturer"),
+        _text(spec.get("scale"), f"{where}: scale"),
+        _text(spec.get("description"), f"{where}: description"),
     )
 
 
@@ -113,6 +116,12 @@ def _car(doc: Any, catalogue: Mapping[str, Model], where: str) -> Car:
             else model.functions
         ),
         _addr(spec.get("addr"), where),
+        # Inherited, never overridden: what a product is stays the product's
+        # (`lib.roster.Car`). A car naming these would be describing a
+        # different one, so they are not read off the car's own document.
+        model.manufacturer,
+        model.scale,
+        model.description,
     )
 
 
@@ -171,6 +180,20 @@ def _kind(kind: Any, where: str) -> str:
             f" got {kind!r}"
         )
     return kind
+
+
+def _text(value: Any, where: str) -> str | None:
+    """One of a model's optional descriptive fields, absent where unstated.
+
+    Refused rather than coerced, for `_addr`'s reason one field along: a
+    `scale: 160` would read as a number where every other catalogue writes a
+    word, and the two would not sort or compare as the same thing.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{where}: must be a non-empty string, got {value!r}")
+    return value
 
 
 def _addr(addr: Any, where: str) -> str | None:

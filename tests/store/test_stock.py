@@ -54,6 +54,73 @@ def test_a_model_is_a_length_a_kind_and_what_each_function_does() -> None:
     assert model.functions["5"].values == ("off", "low", "high")
 
 
+def test_a_model_may_say_who_made_it_what_scale_and_what_it_is() -> None:
+    """The three a real product needs beyond a synthetic one (#317). Plain
+    data: read back and carried, and nothing branches on them."""
+    model = models({**RE460, "manufacturer": "Roco", "scale": "N", "description": "a"})
+    assert model["sbb-re460"].manufacturer == "Roco"
+    assert model["sbb-re460"].scale == "N"
+    assert model["sbb-re460"].description == "a"
+
+
+def test_a_model_saying_none_of_the_three_is_still_a_model() -> None:
+    """Every `bench-<length>` stand-in is written this way, so all three are
+    optional and absent reads as absent rather than as a blank."""
+    assert CATALOGUE["hbis"].manufacturer is None
+    assert CATALOGUE["hbis"].scale is None
+    assert CATALOGUE["hbis"].description is None
+
+
+def test_the_three_are_words_and_not_coerced() -> None:
+    """`scale: 160` would read as a number where every other catalogue writes
+    a word, and the two would not compare as the same thing — `_addr`'s reason
+    one field along."""
+    with pytest.raises(ValueError, match="scale: must be a non-empty string"):
+        models({**IC2000, "scale": 160})
+
+
+def test_a_car_inherits_the_three_and_may_not_override_them() -> None:
+    """Who made a product and what scale it is are facts about the product, so
+    a car saying otherwise would be describing a different one. The car's own
+    document is not read for them, and what it says is ignored as any unknown
+    key is."""
+    catalogue = models({**RE460, "manufacturer": "Roco", "scale": "N"})
+    owned = validate_roster(
+        {
+            "roster": "gotthard",
+            "cars": {"re460_1": {"model": "sbb-re460", "manufacturer": "Arnold"}},
+            "trains": {},
+        },
+        catalogue,
+    )
+    assert owned.cars["re460_1"].manufacturer == "Roco"
+    assert owned.cars["re460_1"].scale == "N"
+
+
+def test_the_two_real_locomotives_are_addressed_and_drive_alone() -> None:
+    """#317: the first stock on a committed roster that somebody owns. Each is
+    one car with the bare address its decoder answers to, and one train of that
+    car — so each derives `light engine` and each drives on its own.
+
+    The addresses are what the whole entry is for: without one,
+    `LayoutInterface._addressed` yields nothing and a `move` writes no traction
+    row at all.
+    """
+    roster = AssetStore(ROOT).roster("gotthard")
+    addressed = {
+        name: train.cars[0].car.addr
+        for name, train in roster.trains.items()
+        if train.cars and train.cars[0].car.addr is not None
+    }
+    assert addressed == {"e10": "10", "ce68": "11"}
+    for name, length in (("e10", 103), ("ce68", 122)):
+        train = roster.trains[name]
+        assert train.length == length
+        assert train.kind == "light engine"
+        assert train.cars[0].car.scale == "N"
+        assert [function.name for function in train.functions] == ["lights"]
+
+
 def test_a_model_file_names_itself() -> None:
     """Filed under one name and referred to by another is a car pointing at
     nothing, so the disagreement is refused where it is written."""
@@ -119,10 +186,15 @@ def test_an_address_is_written_as_a_string() -> None:
 
 
 def test_an_unknown_key_loads_and_is_not_carried() -> None:
-    """A field for the manufacturer, or the shelf a locomotive lives on, is
-    worth writing down and no version of this software will ever read it — so
-    it loads, at every level of both documents, and nothing carries it."""
-    catalogue = models({**IC2000, "manufacturer": "Roco", "kind": "passenger"})
+    """The shelf a locomotive lives on, or what it cost, is worth writing down
+    and no version of this software will ever read it — so it loads, at every
+    level of both documents, and nothing carries it.
+
+    `manufacturer` used to be the example here and is now a field of its own
+    (#317). That is the intended path for one of these: lenient today, read
+    the day something needs it, and no file rewritten either way.
+    """
+    catalogue = models({**IC2000, "shelf": "3b", "kind": "passenger"})
     plain = validate_roster(
         {
             "roster": "gotthard",
@@ -280,7 +352,11 @@ def test_the_committed_catalogue_is_what_the_library_railroads_need() -> None:
         for train in AssetStore(ROOT).roster(name).trains.values()
     }
     assert owned <= lengths
-    assert all(model.kind == "freight" for model in catalogue.values())
+    # The synthetic stock is hauled, so a train of it derives `freight` rather
+    # than `light engine`. The real locomotives beside it are the exception
+    # and are `locomotive` (#317).
+    bench = [model for model in catalogue.values() if model.name.startswith("bench-")]
+    assert all(model.kind == "freight" for model in bench)
 
 
 def test_every_library_train_is_one_bench_car_of_its_length() -> None:
@@ -290,6 +366,10 @@ def test_every_library_train_is_one_bench_car_of_its_length() -> None:
     Nothing under `layouts/` authors a length any more — a train's is the sum
     of its cars — and the sum is the length that train had before, which is
     why no benchmark result moved.
+
+    The two real locomotives (#317) are one car each as well, but of a product
+    rather than a stand-in, so what holds of every train is the car count and
+    that the length is derived; only the synthetic ones name a `bench-` model.
     """
     store = AssetStore(ROOT)
     for railroad in sorted(store.list()):
@@ -297,7 +377,9 @@ def test_every_library_train_is_one_bench_car_of_its_length() -> None:
             where = f"roster '{railroad}': train '{name}'"
             assert train.stated_length is None, where
             assert len(train.cars) == 1, where
-            assert train.cars[0].car.model == f"bench-{train.length}", where
+            model = train.cars[0].car.model
+            if model.startswith("bench-"):
+                assert model == f"bench-{train.length}", where
 
 
 def test_an_installation_with_no_catalogue_knows_no_models(tmp_path: Path) -> None:
