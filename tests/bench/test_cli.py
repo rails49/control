@@ -12,7 +12,7 @@ import pytest
 from tc49.bench.cli import GENERATORS, command_line, main, restart_note
 from tc49.bench.metrics import metrics
 from tc49.bench.runner import find_root
-from tests.harness import ROOT
+from tests.harness import ROOT, railroads
 
 
 def run_cli(*argv: str) -> str:
@@ -165,6 +165,20 @@ def test_a_session_is_told_where_to_keep_the_run(
     assert "--state" in capsys.readouterr().out
 
 
+def test_a_station_is_the_flag_that_selects_the_physical_binding() -> None:
+    """A physical run needs the station's address anyway, so nothing else says
+    which binding it is (#314); `--startup` is the trip currents that address
+    is handed. Without them the session takes exactly what it took before."""
+    name = railroads()[0]
+    plain = command_line().parse_args(["live", name])
+    assert plain.station is None and plain.startup is None
+    driven = command_line().parse_args(
+        ["live", name, "--station", "dccex-usb:2560", "--startup", "trip.txt"]
+    )
+    assert driven.station == ("dccex-usb", 2560)
+    assert driven.startup == Path("trip.txt")
+
+
 def free_port() -> int:
     """A port nothing is listening on, so a refusal can be watched giving back
     one it really held. The default 8766 would have the suite fight whatever
@@ -176,11 +190,17 @@ def free_port() -> int:
 
 REFUSED_LIVE = [
     (["--scenario", "crossover-yard/meet", "--state", "run.json"], "name one"),
+    (["--scenario", "crossover-yard/meet", "--station", "dccex-usb:2560"], "name one"),
+    (["--station", "dccex-usb:2560"], "name the railroad it is under"),
     (["nonesuch"], "no railroad 'nonesuch'"),
 ]
-"""Every `tc49 live` the CLI refuses, and a word of the refusal. One is
-decided off the arguments alone, the other only by asking the store for the
-railroad — which takes a session, and a session is already serving."""
+"""Every `tc49 live` the CLI refuses, and a word of the refusal. Three are
+decided off the arguments alone, the last only by asking the store for the
+railroad — which takes a session, and a session is already serving.
+
+A station is one physical railroad: it may not be pinned by the first client
+to connect, so it requires the positional railroad, and it replays no document
+onto steel that is standing where the last session left it (#314)."""
 
 
 @pytest.mark.parametrize("argv, wording", REFUSED_LIVE)
