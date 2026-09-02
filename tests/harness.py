@@ -39,6 +39,7 @@ __all__ = [
     "live",
     "load",
     "press",
+    "railroads",
     "run",
     "run_wanted",
     "runs",
@@ -81,6 +82,17 @@ def live(scenario_id: str, state: Path | None = None) -> Assembly:
     """
     layout, roster, scenario = load(scenario_id)
     return assemble_live(layout, roster, scenario.trains, state=state)
+
+
+def railroads() -> list[str]:
+    """The railroads this checkout has, in name order.
+
+    A test that needs a railroad and does not care which takes one from here
+    rather than spelling a name. The library railroads are renamed and moved
+    under #319, and a test that named one would then go red for a reason that
+    is not its own.
+    """
+    return AssetStore(ROOT).list()
 
 
 def stock(**lengths: int) -> Roster:
