@@ -26,6 +26,7 @@ from tests.layout.railroad import (
     POWER,
     POWER_WANTED,
     REMOVED,
+    THROTTLE_WANTED,
     WANTED_TRACK,
     align,
     build,
@@ -44,13 +45,14 @@ COMMANDED = (
     MOVE,
     POWER_WANTED,
     MODE_WANTED,
+    THROTTLE_WANTED,
     PLACED,
     REMOVED,
     ASPECTS,
 )
 """Everything above the layout interface that reaches this app: two commands,
-a person's press, the gesture that takes a train in a throttle, the two
-placement facts and the dispatcher's picture. A frame on one of these that cannot be read leaves the
+a person's press, the throttle's two gestures, the two placement facts and the
+dispatcher's picture. A frame on one of these that cannot be read leaves the
 app exactly as it was."""
 
 FOLDED = (DEVICE_TRACK, DEVICE_LINK + "/dccex")

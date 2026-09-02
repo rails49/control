@@ -142,6 +142,7 @@ from tc49.lib.payload import (
     reported_reason,
     shown_aspects,
     wanted_mode,
+    wanted_throttle,
 )
 from tc49.lib.roster import FORWARD, Roster
 
@@ -151,6 +152,7 @@ ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
 POWER_WANTED = "tc49/layout/power_wanted"
 MODE_WANTED = "tc49/layout/mode_wanted"
+THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
@@ -341,6 +343,7 @@ class LayoutInterface:
         bus.subscribe(MOVE, self._on_move)
         bus.subscribe(POWER_WANTED, self._on_power_wanted)
         bus.subscribe(MODE_WANTED, self._on_mode_wanted)
+        bus.subscribe(THROTTLE_WANTED, self._on_throttle_wanted)
         bus.subscribe(PLACED, self._on_placed)
         bus.subscribe(REMOVED, self._on_removed)
         bus.subscribe(ASPECTS, self._on_aspects)
@@ -584,19 +587,30 @@ class LayoutInterface:
             if coupled.car.addr is not None
         )
 
-    def _faces(self, train: str, block: str) -> str | None:
-        """Which way the train points in `block`, or None where this app has
-        no facing for it there.
-
-        Three ways to have none, and they are one refusal: none published for
-        that train, one this build cannot spell, and one naming another block
-        — a facing is a run across one block, so a value about a block the
-        train is not in says nothing about what it would do here and is
-        refused rather than read as propelled (#296)."""
+    def _points(self, train: str) -> str | None:
+        """The facing this app holds for the train, or None where it holds
+        none it can spell: none published for that train, or a value outside
+        the `<block>.<A-to-B|B-to-A>` form, which the bare end letter this
+        topic once carried is (#241)."""
         facing = self._facing.get(train)
         if facing is None or end_letter(facing) not in FACINGS:
             return None
-        return facing if block_of(facing) == block else None
+        return facing
+
+    def _faces(self, train: str, block: str) -> str | None:
+        """The same, of a train standing in `block`: None where the facing
+        held names another block.
+
+        A facing is a run across one block, so a value about a block the train
+        is not in says nothing about what it would do here and is refused
+        rather than read as propelled (#296). Asked by the `move`, whose sign
+        is composed out of the end it departs through, and **not** by the
+        throttle, whose sign is the lever's own: a facing lags the train it is
+        about, being published by another app on another topic, and a lever
+        that went dead for as long as the lag lasted would be a person pulling
+        back to stop and not being heard."""
+        facing = self._points(train)
+        return facing if facing is not None and block_of(facing) == block else None
 
     def _traction_write(self, addr: str, speed: float) -> None:
         """One decoder told how fast and which way to run, on the row that
@@ -719,6 +733,47 @@ class LayoutInterface:
             if crossing.train == train:
                 found = (block, crossing)
         return found
+
+    def _on_throttle_wanted(self, topic: str, payload: Payload) -> None:
+        """A person turned a lever, which reaches a locomotive by the same road
+        a grant does: one signed speed per addressed car, composed the way a
+        `move`'s is (#297).
+
+        The lever is signed for the **train** — positive nose-first — so the
+        sign is the composition's `nose_first` outright, and what the facing is
+        for here is not the number but the refusal beside it. A person pushes
+        forward and the train moves nose-first, whichever way round the
+        locomotives are wired and however many of them there are.
+
+        Four things drop a gesture, and none of them is an error to answer:
+
+        A train that is **not manual** is not a person's to drive. The grant
+        is what moves an automatic train, and a lever a nobody is holding does
+        not get to overtake it.
+
+        **Dead rails refuse a person's hand** as they refuse a grant
+        (ADR-0041). Nothing is written rather than a zero: the row already
+        holds whatever the last move left, and a gesture that could not be
+        acted on has said nothing about it.
+
+        A train this app **does not hold** — one standing nowhere it knows of
+        — and one with **no facing** are the `move`'s two refusals, arriving
+        here for the `move`'s reason: this app will not drive a train the rest
+        of the system is not holding the geometry of (#296). Which block the
+        facing names is not asked, and `_faces` says why.
+        """
+        turned = wanted_throttle(payload)
+        if turned is None:
+            return
+        if self._mode.get(turned.train) != MANUAL or self._power != ON:
+            return
+        if turned.train not in self._position or self._points(turned.train) is None:
+            return
+        wheels = _composed(
+            self._addressed(turned.train), turned.speed >= 0.0, abs(turned.speed)
+        )
+        for addr, speed in wheels:
+            self._traction_write(addr, speed)
 
     # -- where the trains stand ---------------------------------------------
 
