@@ -188,7 +188,15 @@ def test_an_interrupt_stands_the_railroad_down_before_the_run_leaves() -> None:
     already been delivered, and the zeros are drained out before the link is
     let go. Any one of those could stop being true silently, so the interrupt
     is sent here for real — `raise_signal` is a SIGINT to this process, and
-    the handler that answers it is the one a terminal's Ctrl-C reaches.
+    the handler installed over the run is the one a terminal's Ctrl-C
+    reaches.
+
+    Installed rather than assumed, because a suite does not always inherit
+    it: a shell hands a background child SIGINT already ignored, and a raised
+    signal then does nothing at all. `asyncio.Runner` puts its cancelling
+    handler in only over `default_int_handler`, so the run is entered in the
+    state an interactive session is in and the ambient one is put back
+    afterwards.
 
     The interrupt arrives once the station has heard a locomotive commanded,
     so what is asserted after it is a zero over a speed that was really
@@ -213,8 +221,12 @@ def test_an_interrupt_stands_the_railroad_down_before_the_run_leaves() -> None:
                 signal.raise_signal(signal.SIGINT)
             return False  # the interrupt ends the run, never the stop
 
-        with pytest.raises(KeyboardInterrupt):
-            driven.run(PERIOD_S, stop=until(interrupts))
+        ambient = signal.signal(signal.SIGINT, signal.default_int_handler)
+        try:
+            with pytest.raises(KeyboardInterrupt):
+                driven.run(PERIOD_S, stop=until(interrupts))
+        finally:
+            signal.signal(signal.SIGINT, ambient)
 
         assert station.waits_for(HALTED_10), "the interrupt sent no zeros"
         assert station.waits_for(TRACK_OFF), "the interrupt left the track on"
