@@ -34,7 +34,8 @@ export type CommandId =
   | "zoom-in"
   | "zoom-out"
   | "fit"
-  | "netlist";
+  | "netlist"
+  | "backup";
 
 /** Where the editor stands, as far as a command needs to know. */
 export interface Standing {
@@ -138,6 +139,12 @@ export const COMMANDS: Record<CommandId, Command> = {
     key: "N",
     enabled: ({ opened }) => opened !== "",
   },
+  // The store's and not the drawing's, so nothing about what is open makes it
+  // dead: a store with no railroad in it yet is one somebody is about to draw
+  // in, and what backup says about it — that it is no git repository, and the
+  // command that would make it one — is worth reading before the first save
+  // rather than after it (ADR-0053).
+  backup: { label: "Backup…", enabled: () => true },
 };
 
 /** A verb that reads the selection is dead without one. */
@@ -181,7 +188,10 @@ export interface Menu {
  */
 export const MENUS: Record<ViewId, Menu[]> = {
   edit: [
-    { name: "File", items: ["new", "save", "save-as", null, "export-svg"] },
+    {
+      name: "File",
+      items: ["new", "save", "save-as", null, "export-svg", null, "backup"],
+    },
     {
       name: "Edit",
       items: ["undo", "redo", null, "rotate", "flip", "delete", null, "properties"],

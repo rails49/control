@@ -185,6 +185,59 @@ export async function readRoster(railroad: string): Promise<RosterDoc> {
   return await ask<RosterDoc>("GET", `/rosters/${encodeURIComponent(railroad)}`);
 }
 
+/**
+ * One backup: what to name to come back to it, the message naming the
+ * documents that moved, and when it was made. Straight off `git log`, which is
+ * where the app's knowledge of history begins and ends
+ * ([ADR-0053](../../../docs/adr/0053-backup-drives-git-and-does-not-own-it.md)).
+ */
+export interface Backup {
+  commit: string;
+  said: string;
+  when: string;
+}
+
+/**
+ * Where backup stands over the store the server has open: whether it can back
+ * up at all, whether it is doing so, what is waiting and what there is to come
+ * back to.
+ *
+ * `ok` and `said` are on the answer to a **press** — backing up now, or
+ * restoring — and absent from a plain read. `said` is git's own words, passed
+ * through: this app knows nothing about a rejected push or a missing remote
+ * beyond being able to show what git called it.
+ */
+export interface BackupDoc {
+  root: string;
+  repository: boolean;
+  automatic: boolean;
+  /** What backup has not got, in the words of the command that would give it
+   *  — no repository, or no remote. Empty where nothing is missing. */
+  needs: string[];
+  /** The documents that have moved since the last backup, by the names the
+   *  store gives them. */
+  outstanding: string[];
+  backups: Backup[];
+  ok?: boolean;
+  said?: string;
+}
+
+export async function readBackup(): Promise<BackupDoc> {
+  return await ask<BackupDoc>("GET", "/backup");
+}
+
+export async function switchBackup(automatic: boolean): Promise<BackupDoc> {
+  return await ask<BackupDoc>("PUT", "/backup", { automatic });
+}
+
+export async function backUpNow(): Promise<BackupDoc> {
+  return await ask<BackupDoc>("POST", "/backup/commit", {});
+}
+
+export async function restoreBackup(commit: string): Promise<BackupDoc> {
+  return await ask<BackupDoc>("POST", "/backup/restore", { commit });
+}
+
 async function ask<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
     method,

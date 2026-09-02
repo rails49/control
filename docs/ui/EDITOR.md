@@ -121,6 +121,7 @@ pinned at its right end. Every command the editor has is in it, with the key
 that does the same thing printed beside the item.
 
     File   New…  ·  Save ⌘S  ·  Save As… ⇧⌘S  ·  ──  ·  Export SVG…
+           ·  ──  ·  Backup…
     Edit   Undo ⌘Z  ·  Redo ⇧⌘Z  ·  ──  ·  Rotate R  ·  Flip F  ·  Delete ⌫
            ·  ──  ·  Properties…
     View   Zoom in +  ·  Zoom out −  ·  Fit 0  ·  ──  ·  Netlist N
@@ -177,7 +178,10 @@ assigns the id to a `never`, so a command added to the union without an arm
 fails to compile rather than drawing a live item that does nothing (#102).
 
 Export SVG… writes the drawing to a file; what it writes is under
-[Files](#files).
+[Files](#files). Backup… opens the one dialog there is about the **store** —
+every railroad in it rather than the one that is open — which is why it is the
+one item in the menu that nothing about the open drawing can kill
+([Backing the store up](#backing-the-store-up)).
 
 ## Canvas
 
@@ -713,8 +717,10 @@ Derivation refusing is shown the same way, at the edit that caused it.
 
 ## Files
 
-A drawing is a file, `layouts/<name>.drawing.yaml`, so it persists and is
-shared through git like everything else in the repo (#64). `File ▸ New…`
+A drawing is a file, `layouts/<name>.drawing.yaml`, in the installation's
+store — `~/tc49/` unless something says otherwise
+([#320](https://github.com/rails49/control/issues/320)) — and what keeps a copy
+of it is [backup](#backing-the-store-up). `File ▸ New…`
 asks for a name up front and opens an empty canvas under it; nothing is
 written until the first Save, so an abandoned start leaves no file. Save As…
 writes the open drawing, unsaved edits included, under a new name at once, and
@@ -769,6 +775,28 @@ not a copy of the rules, is what keeps the file and the screen in step.
 The file is the user's and not the repo's: a Blob behind an `<a download>`, no
 store round trip and no new endpoint. Editor only; the panel's own image is a
 screenshot and PANEL.md wants nothing here.
+
+### Backing the store up
+
+`File ▸ Backup…` opens the one dialog about the store as a whole: where it is,
+what has moved since the last backup, what backup has not got, what git last
+said, and the backups there are to come back to. The app **drives git and does
+not own it**
+([ADR-0053](../adr/0053-backup-drives-git-and-does-not-own-it.md),
+[store/BACKUP.md](../store/BACKUP.md)): the two presses are *Back up now* and
+the switch that turns automated backup on, and neither this dialog nor anything
+behind it runs `git init`, makes a remote or resolves a conflict.
+
+A store nobody has made a repository is the ordinary state of a fresh
+installation, so what backup needs reads as the command that would supply it
+rather than as a fault, and everything else in the editor is unaffected.
+
+**Restoring takes two presses**: the backup to come back to is chosen in the
+list, and the footer's *Restore* is what does it. Over documents that have not
+been backed up it is refused in words naming them, which arrives the way a
+refusal from `/review` does — inside a 200, read rather than caught. The words
+in the dialog are git's own, kept whether the press worked or not: this app
+knows nothing to add to *could not resolve host*.
 
 ## Validation
 
@@ -913,8 +941,9 @@ editing view listens on the window and routes.
 
 **The page is one entry**, `index.html`, and `tc-app` is what it holds
 (ADR-0038). The app owns the loaded railroad — the `Editor`, the `Filing` that
-talks to the store, and the question asked before unsaved edits are thrown
-away — and the two rows of chrome; `tc-editor` is the editing view and holds
+talks to the store, the `Backing` that says where backup stands, and the
+question asked before unsaved edits are thrown away — and the two rows of
+chrome; `tc-editor` is the editing view and holds
 what only editing has. Both views stay on the page and the one that is not
 current is hidden rather than taken away: taking it away would close the live
 session on every toggle, and `visibility` leaves the hidden view its real

@@ -20,7 +20,7 @@
 
 import type { Drawing } from "../../src/model/drawing.js";
 import type { Editor } from "../../src/model/editor.js";
-import type { Review, TrainDoc } from "../../src/model/store.js";
+import type { BackupDoc, Review, TrainDoc } from "../../src/model/store.js";
 import type { ViewId } from "../../src/model/views.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
 import type { TcEditor } from "../../src/ui/tc-editor.js";
@@ -28,6 +28,18 @@ import type { TcHeader } from "../../src/ui/tc-header.js";
 import type { TcMenubar } from "../../src/ui/tc-menubar.js";
 import type { TcPanel } from "../../src/ui/tc-panel.js";
 import type { TcThrottle } from "../../src/ui/tc-throttle.js";
+
+/** A store nobody has run `git init` in, which is what a fresh installation
+ *  is and what every suite that never opens the backup dialog runs against
+ *  (ADR-0053). */
+export const UNBACKED: BackupDoc = {
+  root: "/home/somebody/tc49",
+  repository: false,
+  automatic: false,
+  needs: ["/home/somebody/tc49 is not a git repository — `git init` there"],
+  outstanding: [],
+  backups: [],
+};
 
 /** A drawing the store is happy with: nothing to report. */
 export const CLEAN: Review = {
@@ -56,6 +68,9 @@ export interface Answers {
   read: (name: string) => Drawing;
   /** What `/review` answers with. */
   review: () => Promise<Review>;
+  /** What the backup routes answer: where backup stands, and what git said
+   *  where a press asked it to do something. */
+  backup: BackupDoc;
   /** A failure every route rejects with instead of answering, which is what a
    *  store that is not running looks like from here. */
   broken: Error | null;
@@ -75,6 +90,7 @@ export function serving(answers: Partial<Answers> = {}): Answers {
       throw new Error(`no drawing '${name}'`);
     },
     review: () => Promise.resolve(CLEAN),
+    backup: UNBACKED,
     broken: null,
     ...answers,
   };
@@ -93,6 +109,9 @@ export function serving(answers: Partial<Answers> = {}): Answers {
  *  (EDITOR.md#implementation). */
 function answered(store: Answers, path: string): Promise<unknown> {
   if (path === "/review") return store.review();
+  if (path === "/backup" || path.startsWith("/backup/")) {
+    return Promise.resolve(store.backup);
+  }
   if (path === "/drawings") return Promise.resolve({ drawings: [...store.drawings] });
   if (path.startsWith("/rosters/")) {
     const railroad = decodeURIComponent(path.slice("/rosters/".length));
