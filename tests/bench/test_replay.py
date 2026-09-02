@@ -25,7 +25,7 @@ from tc49.bench.runner import Assembly, assemble, assemble_live
 from tc49.bench.session import Session
 from tc49.dispatcher import Incremental
 from tc49.lib.scenario import TrainSpec
-from tests.harness import ROOT, events, load
+from tests.harness import ASSETS, events, load
 
 SCENARIO = "crossover-yard/meet"
 
@@ -184,7 +184,7 @@ def test_a_replay_and_a_kept_picture_are_two_placements_and_the_cli_refuses() ->
 def test_a_scenario_is_the_only_thing_the_cli_may_replay() -> None:
     """CLI-only and never browser-reachable (#171): `plays` is the harness's
     way in, and it refuses anything that is not a scenario the store has."""
-    session = Session(ROOT, 0.0)
+    session = Session(ASSETS, 0.0)
     try:
         assert session.plays("crossover-yard/nonesuch") is not None
         assert session.plays("crossover-yard") is not None  # a railroad, not one

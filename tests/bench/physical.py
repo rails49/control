@@ -22,7 +22,7 @@ from tc49.bench.runner import railroad
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
 from tc49.store import AssetStore
-from tests.harness import ROOT, railroads
+from tests.harness import ASSETS, railroads
 
 HOST = "127.0.0.1"
 
@@ -121,4 +121,4 @@ def until(done: Callable[[], bool], limit_s: float = TIMEOUT_S) -> Callable[[], 
 
 def a_railroad() -> tuple[Layout, Roster]:
     """Some railroad this checkout has: its layout and the stock it owns."""
-    return railroad(AssetStore(ROOT), railroads()[0])
+    return railroad(AssetStore(ASSETS), railroads()[0])

@@ -32,7 +32,14 @@ from typing import TextIO
 
 from tc49.bench.detector import LEVELS, SHAPE
 from tc49.bench.metrics import Metrics, Stall, metrics
-from tc49.bench.runner import DEFAULT_K, STRATEGIES, find_root, load, run_scenario
+from tc49.bench.runner import (
+    DEFAULT_K,
+    STRATEGIES,
+    find_assets,
+    find_root,
+    load,
+    run_scenario,
+)
 from tc49.bench.session import Session
 from tc49.bench.sweep import sweep
 from tc49.lib import rejection
@@ -42,6 +49,12 @@ from tc49.store import AssetStore, symbols
 from tc49.store.server import make_server
 
 ROOT = find_root()
+"""The checkout, which is what `generate` writes into."""
+
+ASSETS = find_assets()
+"""The store root: `bench/`, where the drawings, the rosters, the catalogue and
+the scenarios are. Not the checkout — the fixtures are the harness's inputs and
+live under it (#319)."""
 
 LIVE_PERIOD_S = 0.1
 """Seconds a live session waits between polls for commands arriving over the
@@ -102,7 +115,7 @@ all and one flag says which checkout (ADR-0014)."""
 
 
 def bench(
-    scenario_id: str, k: int = DEFAULT_K, root: Path = ROOT
+    scenario_id: str, k: int = DEFAULT_K, root: Path = ASSETS
 ) -> dict[str, tuple[str, Metrics]]:
     """One scenario under every strategy: (trace, metrics) per strategy."""
     layout, roster, scenario = load(AssetStore(root), scenario_id)
@@ -418,7 +431,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         # own sensors, and a `tc49 live` in a pipeline reads nothing it was
         # not asked to.
         session = Session(
-            ROOT,
+            ASSETS,
             args.period,
             args.port,
             args.state,
@@ -450,13 +463,15 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         if args.station is not None:
             named = args.railroad
             assert isinstance(named, str)  # named, by the refusal above
-            physical = station_note(args.station, named, AssetStore(ROOT).roster(named))
+            physical = station_note(
+                args.station, named, AssetStore(ASSETS).roster(named)
+            )
         # A session carries a store so that one command is all a browser
         # needs. Where one is already serving — scripts/dev.sh, whose store
         # outlives any session — a second would only fail to bind the port.
         store_line = ""
         if not args.no_store:
-            store_server = make_server(ROOT, args.store_port, args.host)
+            store_server = make_server(ASSETS, args.store_port, args.host)
             threading.Thread(
                 target=store_server.serve_forever, name="store", daemon=True
             ).start()
@@ -487,9 +502,9 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         return 0
 
     if args.command == "serve":
-        server = make_server(ROOT, args.port, args.host)
+        server = make_server(ASSETS, args.port, args.host)
         out.write(
-            f"serving {ROOT} on http://{reachable(args.host)}:{server.server_port}\n"
+            f"serving {ASSETS} on http://{reachable(args.host)}:{server.server_port}\n"
         )
         out.flush()
         server.serve_forever()
@@ -505,7 +520,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         return 0
 
     if args.command == "layout":
-        layout = AssetStore(ROOT).get(args.layout)
+        layout = AssetStore(ASSETS).get(args.layout)
         assert isinstance(layout, Layout)
         out.write(format_layout(layout))
         return 0

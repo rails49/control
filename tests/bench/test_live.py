@@ -35,7 +35,7 @@ from tc49.bench.runner import Assembly, assemble_live
 from tc49.bench.session import Session, state_for
 from tc49.lib.bridge import Bridge
 from tc49.lib.bus import Payload
-from tests.harness import ROOT, events, load
+from tests.harness import ASSETS, events, load
 
 WANTED = "tc49/schedule/request_wanted"
 REVERSAL = "tc49/schedule/reversal_wanted"
@@ -354,7 +354,7 @@ def test_a_reversal_naming_a_train_the_session_lacks_is_dropped(
 def session() -> Iterator[Session]:
     """A whole session, idle, its loop on a thread of its own — which is what
     `tc49 live` with no railroad named is."""
-    live = Session(ROOT, PERIOD_S)
+    live = Session(ASSETS, PERIOD_S)
     thread = threading.Thread(target=live.run, args=(io.StringIO(),), daemon=True)
     thread.start()
     yield live
@@ -483,7 +483,7 @@ def test_each_railroad_the_session_runs_keeps_its_own_picture(
     this one could clear it. So the path names one file per railroad.
     """
     kept = tmp_path / "run.json"
-    live = Session(ROOT, PERIOD_S, state=kept)
+    live = Session(ASSETS, PERIOD_S, state=kept)
     thread = threading.Thread(target=live.run, args=(io.StringIO(),), daemon=True)
     thread.start()
     try:

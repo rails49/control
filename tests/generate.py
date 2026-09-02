@@ -21,11 +21,11 @@ from tc49.lib.layout import Layout, connected_facing, end_letter
 from tc49.lib.roster import Roster
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
-from tests.harness import ROOT
+from tests.harness import ASSETS
 
 LIBRARY = ("facing-pair", "single-track-meet", "crossover-yard")
 
-_STORE = AssetStore(ROOT)
+_STORE = AssetStore(ASSETS)
 
 
 def _load(layout_id: str) -> Layout:

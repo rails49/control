@@ -10,13 +10,13 @@ from ruamel.yaml.representer import RepresenterError
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore, yamlfile
-from tests.harness import ROOT, catalogued
+from tests.harness import ASSETS, catalogued
 from tests.store.railroads import RAILROADS
 
 
 @pytest.fixture
 def store() -> AssetStore:
-    return AssetStore(ROOT)
+    return AssetStore(ASSETS)
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def scratch_store(tmp_path: Path) -> AssetStore:
     # places trains the roster names (ADR-0039).
     for suffix in (".drawing.yaml", ".roster.yaml"):
         shutil.copy(
-            ROOT / "layouts" / f"crossover-yard{suffix}",
+            ASSETS / "layouts" / f"crossover-yard{suffix}",
             tmp_path / "layouts" / f"crossover-yard{suffix}",
         )
     return AssetStore(tmp_path)
@@ -38,7 +38,7 @@ def drawings(tmp_path: Path) -> AssetStore:
     """Every committed railroad, somewhere writable."""
     catalogued(tmp_path)
     (tmp_path / "layouts").mkdir()
-    for path in (ROOT / "layouts").glob("*.yaml"):
+    for path in (ASSETS / "layouts").glob("*.yaml"):
         shutil.copy(path, tmp_path / "layouts" / path.name)
     return AssetStore(tmp_path)
 
@@ -54,7 +54,7 @@ def prose(text: str) -> list[str]:
 # The railroads that explain themselves in comments, which is what there is to
 # keep. Not every drawing has them — one made in the editor starts with none —
 # so the ones with prose are read off rather than assumed to be all of them.
-COMMENTED = [name for name in RAILROADS if prose(written(ROOT, name))]
+COMMENTED = [name for name in RAILROADS if prose(written(ASSETS, name))]
 
 
 def meet_document() -> dict[str, Any]:
@@ -128,7 +128,7 @@ def test_placing_every_symbol_keeps_the_prose(
 @pytest.mark.parametrize("name", RAILROADS)
 def test_a_saved_drawing_derives_what_it_did(drawings: AssetStore, name: str) -> None:
     drawings.put(drawings.drawing(name))
-    assert drawings.get(name) == AssetStore(ROOT).get(name)
+    assert drawings.get(name) == AssetStore(ASSETS).get(name)
 
 
 def test_a_placement_lands_above_the_next_symbol_s_comment(

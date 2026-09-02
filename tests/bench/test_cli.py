@@ -11,8 +11,8 @@ import pytest
 
 from tc49.bench.cli import GENERATORS, command_line, main, restart_note
 from tc49.bench.metrics import metrics
-from tc49.bench.runner import find_root
-from tests.harness import ROOT, railroads
+from tc49.bench.runner import find_assets, find_root
+from tests.harness import ASSETS, ROOT, railroads
 
 
 def run_cli(*argv: str) -> str:
@@ -109,11 +109,13 @@ def test_generate_writes_every_generated_file(tmp_path: Path) -> None:
 
 
 def test_find_root_locates_the_railroads_from_anywhere_and_says_so_if_not() -> None:
-    # `layouts/` and `scenarios/` are repo data, not package data — the wheel
-    # ships src/tc49 alone — so the benchmark commands only work inside a
-    # checkout, and must say that rather than raising on an invented path.
-    assert (find_root(ROOT / "src" / "tc49" / "cli.py") / "layouts").is_dir()
-    assert find_root(ROOT / "scenarios" / "gotthard-v0") == ROOT
+    # The fixtures are repo data, not package data — the wheel ships src/tc49
+    # alone — so the benchmark commands only work inside a checkout, and must
+    # say that rather than raising on an invented path. They live under
+    # `bench/`, and the store is rooted there rather than at the checkout.
+    assert (find_root(ROOT / "src" / "tc49" / "cli.py") / "bench" / "layouts").is_dir()
+    assert find_root(ASSETS / "scenarios" / "gotthard-v0") == ROOT
+    assert find_assets(ROOT / "src" / "tc49" / "cli.py") == ASSETS
     with pytest.raises(FileNotFoundError, match="not usable from an installed wheel"):
         find_root(Path("/"))
 

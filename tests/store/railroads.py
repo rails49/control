@@ -12,16 +12,16 @@ from typing import Any
 import yaml
 
 from tc49.store.drawing import Drawing
-from tests.harness import ROOT
+from tests.harness import ASSETS
 
 _SUFFIX = ".drawing.yaml"
 RAILROADS = sorted(
-    path.name.removesuffix(_SUFFIX) for path in (ROOT / "layouts").glob(f"*{_SUFFIX}")
+    path.name.removesuffix(_SUFFIX) for path in (ASSETS / "layouts").glob(f"*{_SUFFIX}")
 )
 
 
 def read(name: str) -> dict[str, Any]:
-    doc: dict[str, Any] = yaml.safe_load((ROOT / "layouts" / name).read_text())
+    doc: dict[str, Any] = yaml.safe_load((ASSETS / "layouts" / name).read_text())
     return doc
 
 

@@ -151,11 +151,13 @@ ui/                         the layout editor: TypeScript, pnpm, Lit
                             netlist, properties, menu
               test/         the Vitest tests
 
-layouts/                    <layout>.drawing.yaml — the drawn railroads,
+bench/                      the harness's inputs, the store rooted here
+  layouts/                  <layout>.drawing.yaml — the drawn railroads,
                             the only committed topology; the store derives
                             each layout from its drawing
                             <layout>.roster.yaml — the trains it owns
-scenarios/<layout>/         <scenario>.scenario.yaml — the harness's placement
+  catalogue/                <model>.yaml — what a product is
+  scenarios/<layout>/       <scenario>.scenario.yaml — the harness's placement
                             and request lists
 benchmarks/expected/        <name>.json — golden numbers, asserted in pytest
 out/                        sweep JSONL, gitignored
@@ -273,10 +275,10 @@ deadlocks. The library is chosen to be adversarial:
 - `facing-pair` — two facing blocks with no other connection, DISPATCH.md's
   minimal deadlock.
 - `single-track-meet` — a passing loop that forces meet-pass decisions, at
-  [`layouts/single-track-meet.drawing.yaml`](../layouts/single-track-meet.drawing.yaml).
+  [`bench/layouts/single-track-meet.drawing.yaml`](../bench/layouts/single-track-meet.drawing.yaml).
 - `crossover-yard` — the double crossover of `image.png`, exercising partial
   transit concurrency; already drawn, at
-  [`layouts/crossover-yard.drawing.yaml`](../layouts/crossover-yard.drawing.yaml).
+  [`bench/layouts/crossover-yard.drawing.yaml`](../bench/layouts/crossover-yard.drawing.yaml).
 
 Four properties:
 
@@ -302,7 +304,7 @@ Four properties:
    the counts can favour either side, and even when both strategies complete
    exactly the same set `Incremental` can be slower. The shrunk counterexample
    is committed as
-   [`crossover-yard/route-blindness`](../scenarios/crossover-yard/route-blindness.scenario.yaml)
+   [`crossover-yard/route-blindness`](../bench/scenarios/crossover-yard/route-blindness.scenario.yaml)
    and asserted exactly in `tests/dispatcher/test_incremental.py`: two trains,
    no idle obstacle, no starvation, and `FullRoute` a transit faster (a
    boundary, in the units of the day).

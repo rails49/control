@@ -21,12 +21,12 @@ from tc49.lib.layout import (
     opposite_end,
 )
 from tc49.store import AssetStore
-from tests.harness import ROOT, load
+from tests.harness import ASSETS, load
 
 
 @pytest.fixture
 def store() -> AssetStore:
-    return AssetStore(ROOT)
+    return AssetStore(ASSETS)
 
 
 def minimal_layout() -> dict[str, Any]:

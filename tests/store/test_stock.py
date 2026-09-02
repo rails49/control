@@ -17,7 +17,7 @@ import yaml
 from tc49.lib.roster import Model, Train
 from tc49.store import AssetStore
 from tc49.store.stock import validate_model, validate_roster
-from tests.harness import ROOT
+from tests.harness import ASSETS
 
 
 def models(*docs: dict[str, Any]) -> dict[str, Model]:
@@ -106,7 +106,7 @@ def test_the_two_real_locomotives_are_addressed_and_drive_alone() -> None:
     `LayoutInterface._addressed` yields nothing and a `move` writes no traction
     row at all.
     """
-    roster = AssetStore(ROOT).roster("gotthard")
+    roster = AssetStore(ASSETS).roster("gotthard")
     addressed = {
         name: train.cars[0].car.addr
         for name, train in roster.trains.items()
@@ -344,12 +344,12 @@ def test_a_train_states_a_length_only_where_it_names_no_cars() -> None:
 def test_the_committed_catalogue_is_what_the_library_railroads_need() -> None:
     """Every length the five rosters use, which is what lets each synthetic
     train be one car and no product be invented (#223)."""
-    catalogue = AssetStore(ROOT).catalogue()
+    catalogue = AssetStore(ASSETS).catalogue()
     lengths = {model.length for model in catalogue.values()}
     owned = {
         train.length
-        for name in sorted(AssetStore(ROOT).list())
-        for train in AssetStore(ROOT).roster(name).trains.values()
+        for name in sorted(AssetStore(ASSETS).list())
+        for train in AssetStore(ASSETS).roster(name).trains.values()
     }
     assert owned <= lengths
     # The synthetic stock is hauled, so a train of it derives `freight` rather
@@ -371,7 +371,7 @@ def test_every_library_train_is_one_bench_car_of_its_length() -> None:
     rather than a stand-in, so what holds of every train is the car count and
     that the length is derived; only the synthetic ones name a `bench-` model.
     """
-    store = AssetStore(ROOT)
+    store = AssetStore(ASSETS)
     for railroad in sorted(store.list()):
         for name, train in store.roster(railroad).trains.items():
             where = f"roster '{railroad}': train '{name}'"

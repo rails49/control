@@ -36,7 +36,7 @@ view, drive a train, and overwrite a drawing through `PUT /drawings/<name>`.
 That is the decision rather than an oversight. An operator walks up with a
 phone and starts running trains, and a login between a person and a throttle
 buys nothing on a layout where the people present are the people invited. The
-cost is bounded on both sides: `layouts/` is committed, so a bad write is a
+cost is bounded on both sides: `bench/layouts/` is committed, so a bad write is a
 checkout, and there is no inbound path from the internet to abuse.
 
 What this does not license is reading the ACL as a guard against strangers. It

@@ -42,7 +42,7 @@ from tests.bench.physical import (
     until,
     waits_until,
 )
-from tests.harness import ROOT, railroads
+from tests.harness import ASSETS, railroads
 
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
@@ -420,7 +420,7 @@ def test_a_reading_typed_at_a_session_reaches_a_panel_as_the_row_it_is() -> None
     end = f"{a_block(layout)}.A"
     with Station() as station:
         live = Session(
-            ROOT,
+            ASSETS,
             PERIOD_S,
             station=(HOST, station.port),
             readings=io.StringIO(f"{end} occupied\n"),

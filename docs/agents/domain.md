@@ -16,6 +16,10 @@ Top level is repo-wide; each app's implementation details sit in its own subfold
 ```
 /
 ├── CONTEXT.md                              ← the glossary
+├── bench/
+│   ├── layouts/                            ← the encoded railroads
+│   ├── catalogue/                          ← the models an installation knows
+│   └── scenarios/                          ← the harness's request lists
 ├── docs/
 │   ├── GOALS.md                            ← assets and operations
 │   ├── MILESTONE-1.md                      ← scope: what is built first, what is not
@@ -33,8 +37,6 @@ Top level is repo-wide; each app's implementation details sit in its own subfold
 │   └── bench/
 │       ├── BENCHMARKS.md                   ← layouts, workloads, sweep axes
 │       └── METRICS.md                      ← how each number is derived
-├── layouts/                                ← the encoded railroads
-└── scenarios/                              ← the harness's request lists
 ```
 
 Everything under `docs/` except `adr/` is spec prose, not glossary or decisions — read it for what the system does; read `CONTEXT.md` for what the words mean.
