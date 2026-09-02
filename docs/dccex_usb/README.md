@@ -1,4 +1,4 @@
-# DCC-EX over USB
+# Command station over USB
 
 The command station is reached over USB, and one process can hold the device.
 That process is the `dccex-usb` app: it opens the serial device and mirrors it
