@@ -135,6 +135,13 @@ maintains its own orientation from the placement plus every `move` it
 executes, routes being strict pass-throughs. It is hard to think through
 without trying, so it waits on running experience and stays fog on the map.
 
+**Settled under
+[ADR-0052](0052-layout-reads-facing-and-composes-the-sign-of-a-speed.md):**
+`layout` subscribes to the retained state topic. The second option is rejected
+as a second copy of a fact one component already holds, and reading a retained
+state topic is not the inversion it looks like — facing is on a state topic
+because views read it. Everything else here stands.
+
 ## `layout` reads the roster
 
 `tc49/drive/move` names a train; ADR-0043 has `layout` writing desired speed
