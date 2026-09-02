@@ -269,6 +269,36 @@ def test_a_block_a_crossing_released_reads_occupied_again_as_any_other() -> None
     assert seen == [(BLOCK_OCCUPIED, {"block": "up_w"})]
 
 
+def test_a_block_published_occupied_again_counts_both_its_ends() -> None:
+    """A release spends the ends it accounted for, and the next train into
+    that block ends that account. Otherwise an end that was spent and never
+    changes again — a car left standing, a detector stuck occupied — is out of
+    the fold for good, and the block behind the next train is published
+    vacated while the steel still reads occupied. A level no move explains is
+    still a level (ADR-0048), so it holds the run (#331)."""
+    bus, app, clock = wired()
+    energised(bus)
+    stand(bus, "freight_1", "up_w")
+    reads(bus, "up_w.A", "occupied")
+    reads(bus, "up_w.B", "occupied")
+    settle(bus, app, clock)
+    align(bus, "crossover", "to_dn")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")  # the release: both ends of up_w spent
+    settle(bus, app, clock)
+    reads(bus, "up_w.B", "clear")  # the tail leaves; up_w.A is a stranded car
+    settle(bus, app, clock)
+    seen = occupancy(bus)
+
+    reads(bus, "up_w.B", "occupied")  # a second train arrives
+    settle(bus, app, clock)
+    reads(bus, "up_w.B", "clear")  # and leaves again
+    settle(bus, app, clock)
+
+    assert seen == [(BLOCK_OCCUPIED, {"block": "up_w"})]
+
+
 def test_a_block_reads_occupied_while_either_of_its_ends_does() -> None:
     """Both detectors of a block stay inside the interface, and what they
     answer together is one occupancy: the block is clear when neither end
