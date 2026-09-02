@@ -296,8 +296,10 @@ def test_a_store_that_is_not_a_repository_says_what_backup_needs(
     tmp_path: Path,
 ) -> None:
     """A normal state and not a fault: the store works, backup is offered, and
-    what it says is the command a person would have run themselves. Nothing
-    here runs `git init` (ADR-0053)."""
+    what it says is the command a person would have run themselves, with git's
+    own words after it — a machine with no git at all is the other thing this
+    covers, and "run `git init`" alone would send somebody to a command they
+    have not got. Nothing here runs it either way (ADR-0053)."""
     backup = Backup(tmp_path, run=FakeGit(toplevel=""))
     assert not backup.repository()
     assert "git init" in backup.needs()[0]
@@ -312,7 +314,10 @@ def test_a_store_inside_a_larger_repository_is_not_one(tmp_path: Path) -> None:
     beside code, under whatever branch was out."""
     backup = Backup(tmp_path / "bench", run=FakeGit(toplevel=str(tmp_path)))
     assert not backup.repository()
-    assert "git init" in backup.needs()[0]
+    # Not `git init` here, which is the answer to the other way of having no
+    # repository: this one is in one, and it is the checkout.
+    assert "is inside the git repository at" in backup.needs()[0]
+    assert str(tmp_path) in backup.needs()[0]
 
 
 def test_a_repository_with_no_remote_says_the_backup_stays_here(
@@ -517,3 +522,19 @@ def test_the_watch_lets_the_timers_fire(repository: Path) -> None:
     stopped = backup.ticks
     time.sleep(0.05)
     assert backup.ticks == stopped
+
+
+def test_a_machine_with_no_git_says_that_rather_than_run_git_init(
+    tmp_path: Path,
+) -> None:
+    """A container built without git is the case this is really about: the
+    words are git's own, so what a person is sent to is installing it rather
+    than a command they have not got."""
+
+    class NoGit:
+        def __call__(self, root: Path, *args: str) -> Said:
+            return Said(False, "[Errno 2] No such file or directory: 'git'")
+
+    backup = Backup(tmp_path, run=NoGit())
+    assert not backup.repository()
+    assert "No such file or directory: 'git'" in backup.needs()[0]

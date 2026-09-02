@@ -84,5 +84,7 @@ same one press.
 - **Back up a store that is inside a larger repository.** A checkout's
   `bench/` is what a developer runs a session on with `--store bench`; backing
   it up would land somebody's railroad as commits in the control repository,
-  beside code, under whatever branch was out. It reads as *not a repository*
-  and says the same thing.
+  beside code, under whatever branch was out. Backup says which repository it
+  is in and stops there.
+- **Install git.** A machine with none says so in git's own words rather than
+  offering `git init`, which is a command nobody can run without it.
