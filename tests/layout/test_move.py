@@ -186,3 +186,57 @@ def test_an_align_lets_through_the_move_it_names_and_no_other() -> None:
     align(bus, "crossover", "straight")
 
     assert app.position == {"freight_1": "up_w"}
+
+
+def test_an_align_authorises_one_crossing_and_the_move_consumes_it() -> None:
+    """The rule protects every crossing of a transit and not just its first.
+
+    A transit is crossed many times in a session, and a record of every one
+    ever aligned would pass the check forever after the first — leaving the
+    move that arrives before its `align` unheld exactly when the points have
+    not thrown. So the move takes the authorisation with it, and the next one
+    waits for an `align` of its own (#305).
+    """
+    bus, app = build()
+    energised(bus)
+    stand(bus, "freight_1", "up_w")
+    align(bus, "crossover", "to_dn")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+    assert app.position == {"freight_1": "dn_e"}
+
+    stand(bus, "freight_1", "up_w")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+
+    assert app.position == {"freight_1": "up_w"}
+
+
+def test_the_consumed_move_is_held_and_the_next_align_releases_it() -> None:
+    """Held rather than dropped: the second crossing meets the same rule the
+    first did, so its `align` lands and the train goes (#305)."""
+    bus, app = build()
+    energised(bus)
+    stand(bus, "freight_1", "up_w")
+    align(bus, "crossover", "to_dn")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+
+    stand(bus, "freight_1", "up_w")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+    align(bus, "crossover", "to_dn")
+
+    assert app.position == {"freight_1": "dn_e"}
+
+
+def test_a_move_released_by_its_align_consumes_it_too() -> None:
+    """The other path to the same act: a move that waited is acted on inside
+    the `align`, and it leaves no authorisation behind it either (#305)."""
+    bus, app = build()
+    energised(bus)
+    stand(bus, "freight_1", "up_w")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+    align(bus, "crossover", "to_dn")
+    assert app.position == {"freight_1": "dn_e"}
+
+    stand(bus, "freight_1", "up_w")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+
+    assert app.position == {"freight_1": "up_w"}
