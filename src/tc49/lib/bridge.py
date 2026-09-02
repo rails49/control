@@ -32,6 +32,15 @@ state topic delivers its latest value to a late subscriber, a broker delivers
 it the moment a client subscribes, and a relay that dropped it would be
 weaker than the contract it binds (ADR-0032).
 
+**A handshake from a page on another origin is refused 403 before the
+upgrade**, and gets no socket at all (ADR-0056). A WebSocket has no preflight,
+so nothing but this stands between a page somebody's browser visits and the
+gestures above. An `Origin` matching the handshake's own `Host` is the app on
+its own origin; a loopback one is a page served from this machine, which
+`?bridge=` is; no `Origin` at all is a native client and not a page. The rule
+belongs to the browser's way onto the bus rather than to this file, and the
+broker that replaces it satisfies the rule at the proxy (#349).
+
 It lives here beside the bus binding it rides on and shares its fate: when
 the bus becomes a real broker, the browser speaks MQTT-over-WebSocket to the
 broker directly and this file is deleted (ADR-0013 wiring note, #67).
@@ -47,15 +56,23 @@ and last such handoff, and the same size: the handler thread says which
 railroad, and the thread that owns the assembly does the building.
 """
 
+import http
 import json
 import threading
 from collections.abc import Callable
+from urllib.parse import urlsplit
 
 from websockets.exceptions import ConnectionClosed
+from websockets.http11 import Request, Response
 from websockets.sync.server import Server, ServerConnection, serve
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import INBOUND
+
+LOOPBACK = frozenset({"localhost", "127.0.0.1", "::1"})
+"""Hosts a page served from this machine is at. A page an attacker controls is
+served from somewhere else on the internet and its origin is that somewhere,
+so no such page can claim one of these (ADR-0056)."""
 
 Wants = Callable[[str], str | None]
 """Asked for a railroad a client named, on that client's own handler thread:
@@ -86,7 +103,9 @@ class Bridge:
         bus.subscribe("tc49/#", self._relay)
         # Loopback unless told otherwise, which is what the browser reached
         # until a proxy did (ADR-0042).
-        self._server: Server = serve(self._serve_client, host, port)
+        self._server: Server = serve(
+            self._serve_client, host, port, process_request=self._refuse_foreign
+        )
         threading.Thread(
             target=self._server.serve_forever, name="bridge", daemon=True
         ).start()
@@ -141,6 +160,38 @@ class Bridge:
                 client.send(frame)
             except ConnectionClosed:
                 pass  # its handler thread is already on the way out
+
+    def _refuse_foreign(
+        self, connection: ServerConnection, request: Request
+    ) -> Response | None:
+        """403 a handshake from a page on another origin, before the upgrade.
+
+        A WebSocket is not subject to the same-origin policy — there is no
+        preflight and the browser opens the socket whatever the origin — so
+        this check is the whole of what stands between a page somebody's
+        browser visits and the eight gestures the relay publishes (ADR-0056).
+
+        `Origin` is written by the browser and a page cannot forge it. It is
+        absent exactly where there is no page — a native throttle, a test
+        client — and those go through: the LAN is the trust boundary and this
+        does not narrow it (ADR-0042). The comparison is host against host
+        because TLS terminates at the proxy, the same reason the store's is
+        (ADR-0055).
+
+        Refused here rather than with the error frame every other refusal
+        uses: those are refusals to a client we serve, and this one is not.
+        Handing a foreign page a socket to tell it that it may not have one
+        would be the decision undone.
+        """
+        origin = request.headers.get("Origin")
+        if origin is None:
+            return None
+        at = urlsplit(origin)
+        if at.hostname in LOOPBACK or at.netloc == (request.headers.get("Host") or ""):
+            return None
+        return connection.respond(
+            http.HTTPStatus.FORBIDDEN, "cross-origin socket refused\n"
+        )
 
     def _serve_client(self, connection: ServerConnection) -> None:
         # The railroad the client named, off the socket path. A handler runs

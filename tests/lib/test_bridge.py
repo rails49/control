@@ -15,6 +15,7 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
+from websockets.exceptions import InvalidStatus
 from websockets.sync.client import ClientConnection, connect
 
 from tc49.lib.bridge import Bridge
@@ -290,3 +291,45 @@ def test_a_departed_client_does_not_take_the_bridge_down(
         bus.publish("tc49/layout/boundary", {"boundary": 1})
         bus.drain()  # the gone client is skipped, the live one served
         assert receive(survivor)["payload"] == {"boundary": 1}
+
+
+def test_a_page_on_another_origin_gets_no_socket(bridge: Bridge) -> None:
+    """A WebSocket has no preflight, so the handshake check is the whole of
+    what stands between a page somebody's browser visits and the gestures
+    (ADR-0056). Refused before the upgrade: there is no socket to send an
+    error frame over, which is the point — a foreign page is not a client
+    this serves and gets nothing to read.
+
+    The rest of this file connects without an `Origin` at all and joins, which
+    is the other half of the rule: no header means no page, and a native
+    client goes through as it does at the store's face.
+    """
+    with pytest.raises(InvalidStatus) as refused:
+        connect(
+            f"ws://127.0.0.1:{bridge.port}",
+            additional_headers={"Origin": "http://evil.example"},
+        )
+    assert refused.value.response.status_code == 403
+    assert bridge.connections == 0
+
+
+def test_the_app_on_its_own_origin_joins(bridge: Bridge) -> None:
+    """What the panel sends: `/live` on the page's own host, which vite
+    proxies in development and the reverse proxy strips in front of a layout
+    server, so `Origin` and `Host` arrive equal (docs/DEPLOY.md)."""
+    at = f"127.0.0.1:{bridge.port}"
+    with connect(f"ws://{at}", additional_headers={"Origin": f"http://{at}"}):
+        settled(bridge, 1)
+
+
+def test_a_page_on_this_machine_reaches_a_bridge_elsewhere(bridge: Bridge) -> None:
+    """`?bridge=` names a session somewhere else (#148), so the page's origin
+    and the bridge's host disagree by design. A page served from this machine
+    is admitted anyway: an attacker's page is served from somewhere else on
+    the internet and its origin is that somewhere, so none can claim
+    loopback."""
+    with connect(
+        f"ws://127.0.0.1:{bridge.port}",
+        additional_headers={"Origin": "http://localhost:5173"},
+    ):
+        settled(bridge, 1)
