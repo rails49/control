@@ -73,7 +73,8 @@ flowchart TB
 - **Asset store** — serves the drawing a layout derives from and the
   railroad's roster. It is not on the bus, because it answers queries and the
   bus does not.
-- **UI** — the panel, and a throttle later. It watches the bus and writes
+- **UI** — the panel and the throttle a person drives from. It watches the bus
+  and writes
   **gestures** on the eight browser-writable topics of the inventory below. A
   gesture is not a request: it names a train and where to put it, and the
   scheduler composes the request
@@ -1131,10 +1132,12 @@ the signal, and both kinds of train move only on a route the dispatcher
 allocated. *Manual* names who turns the throttle and nothing else; an operator
 running a signal at stop is rogue operation the system does not model.
 
-The three rows are **declared and not yet acted on**: nothing publishes or
-subscribes to any of them, they are not on the *Subscribes* line above, and a
-throttle to drive from is the UI's own work. They reach a locomotive through
-the traction write, which is why they wait on it
+The two gestures are **written and not yet acted on**: the UI's throttle view
+publishes both ([ui/THROTTLE.md](ui/THROTTLE.md),
+[#291](https://github.com/rails49/control/issues/291)), and nothing subscribes
+to either — they are not on the *Subscribes* line above, and `state/mode` has
+no publisher yet, so every train reads `automatic`. They reach a locomotive
+through the traction write, which is why they wait on it
 ([#296](https://github.com/rails49/control/issues/296),
 [#297](https://github.com/rails49/control/issues/297)).
 

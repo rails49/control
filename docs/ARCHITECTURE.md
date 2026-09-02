@@ -189,7 +189,7 @@ docs/
   dispatcher/      DISPATCH.md  SAFETY.md  INTERNALS.md
   store/           LAYOUT.md  DRAWING.md
   bench/           BENCHMARKS.md  METRICS.md
-  ui/              EDITOR.md  PANEL.md — design pages for the app to come
+  ui/              EDITOR.md  PANEL.md  THROTTLE.md — a page per view
   layout/          README.md
   station/         README.md
   dccex/           README.md
