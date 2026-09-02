@@ -2,10 +2,11 @@
  * The views the app has of the railroad it has loaded, as data
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
  *
- * One app, one railroad, N views. Today there are two — the run view and the
- * editor — and the band renders the list as a single toggle while there are
- * exactly two. A stock screen and a schedule table add an entry here rather
- * than force a redesign of the control, which is the whole reason this is a
+ * One app, one railroad, N views. The band renders the list as a **selector**,
+ * one icon-button per view with the current one marked: two of them were a
+ * single toggle, and the third made it this, which is the redesign ADR-0038
+ * said the list would keep small. A stock screen and a schedule table add an
+ * entry here rather than force another, which is the whole reason this is a
  * list and not a boolean.
  *
  * The labels are here and the icons are not: an icon is a `lit` template and

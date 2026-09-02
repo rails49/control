@@ -5,8 +5,8 @@ import { dismiss, menuBox, menuRow, menuRowChosen } from "./shared.styles.js";
 /**
  * The band across the top (`tc-header`): what is true of the whole system, and
  * the controls that act on it — the railroad picker at the left, the three
- * track-power presses beside the reading they act on, and the view toggle at
- * the right. The spacer parts what is loaded from what is going on, and the
+ * track-power presses beside the reading they act on, and the view selector
+ * at the right. The spacer parts what is loaded from what is going on, and the
  * rest is text.
  */
 export const headerStyles = css`
@@ -212,7 +212,15 @@ export const headerStyles = css`
     border-color: var(--hint);
   }
 
-  /* The view toggle: square around its icon, as the bar's tools are. */
+  /* The view selector: the buttons sit together as one control, so the group
+     reads as a choice among them rather than as three loose presses. */
+  .views {
+    display: flex;
+    flex: none;
+    gap: 0.1rem;
+  }
+
+  /* One view: square around its icon, as the bar's tools are. */
   .view {
     display: flex;
     flex: none;
@@ -229,5 +237,12 @@ export const headerStyles = css`
 
   .view:hover {
     background: #f0eeea;
+  }
+
+  /* Where you are. A mark and not a missing button: the list is what the
+     views are, and the current one is one of them (ADR-0038). */
+  .view.current {
+    background: #ebe8e2;
+    color: var(--ink);
   }
 `;

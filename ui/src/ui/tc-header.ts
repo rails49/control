@@ -65,8 +65,8 @@ export class TcHeader extends LitElement {
   /** Whether the loaded railroad holds edits the store has not been given. */
   @property({ type: Boolean }) unsaved = false;
 
-  /** The view that is current, which the toggle at the right end offers a way
-   *  out of. */
+  /** The view that is current, which the selector at the right end marks and
+   *  offers a way out of. */
   @property() view: ViewId = VIEWS[0]!.id;
 
   /** Whether a session is joined, which is what makes the bridge a thing to
@@ -149,7 +149,7 @@ export class TcHeader extends LitElement {
           </span>`
         : nothing}
       <span class="spacer"></span>
-      ${this.health()} ${this.supply()} ${this.toggle()}
+      ${this.health()} ${this.supply()} ${this.chooser()}
     `;
   }
 
@@ -249,32 +249,49 @@ export class TcHeader extends LitElement {
   }
 
   /**
-   * Which view is current, and the way to the next one.
+   * Which view is current, and the way to each of the others: **a selector**,
+   * one icon-button per view with the current one marked.
    *
-   * The views are a list with one current entry (`model/views.ts`). Two of
-   * them render as a single icon-button wearing the other one's icon and
-   * name, which is what a toggle is; a third makes this a selector, and that
-   * is the redesign the list is here to avoid.
+   * The views are a list with one current entry (`model/views.ts`), and
+   * ADR-0038 wrote down what the list is for: two of them render as one
+   * icon-button wearing the other's name, which is what a toggle is, and a
+   * third makes it a selector. The third is here (#291), so this is that —
+   * the redesign the list existed to keep small, and it is small: every view
+   * gets a button, and the current one is the one that is marked rather than
+   * the one that is missing.
+   *
+   * The current view's own button is live and asks for the view it is
+   * already showing. Nothing happens — the app ignores a switch to the view
+   * it holds — and a control whose only dead button is the one under the
+   * pointer would say the app was busy rather than that you are already
+   * there.
    */
-  private toggle() {
-    const at = VIEWS.findIndex((view) => view.id === this.view);
-    const next = VIEWS[(at + 1) % VIEWS.length]!;
+  private chooser() {
     return html`
-      <button
-        class="view"
-        title=${next.label}
-        aria-label=${next.label}
-        @click=${() =>
-          this.dispatchEvent(
-            new CustomEvent<ViewId>("view-wanted", {
-              detail: next.id,
-              bubbles: true,
-              composed: true,
-            }),
-          )}
-      >
-        ${ICONS[next.id]}
-      </button>
+      <div class="views" role="group" aria-label="views">
+        ${VIEWS.map((view) => {
+          const current = view.id === this.view;
+          return html`
+            <button
+              class=${`view ${current ? "current" : ""}`}
+              data-view=${view.id}
+              title=${view.label}
+              aria-label=${view.label}
+              aria-pressed=${current}
+              @click=${() =>
+                this.dispatchEvent(
+                  new CustomEvent<ViewId>("view-wanted", {
+                    detail: view.id,
+                    bubbles: true,
+                    composed: true,
+                  }),
+                )}
+            >
+              ${ICONS[view.id]}
+            </button>
+          `;
+        })}
+      </div>
     `;
   }
 

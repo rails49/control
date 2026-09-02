@@ -25,7 +25,7 @@ import { centreOf } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { TcProperties } from "../src/ui/tc-properties.js";
-import { band, editing, inside, session, settled } from "./support/shell.js";
+import { band, editing, inside, session, settled, shows } from "./support/shell.js";
 import {
   bridging,
   joined,
@@ -52,13 +52,12 @@ beforeEach(bridging);
 
 afterEach(unbridged);
 
-/** An app joined to a session, showing the editing view: the toggle in the
- *  band is how an operator gets there, and it is the one that has anything to
+/** An app joined to a session, showing the editing view: the band's selector
+ *  is how an operator gets there, and it is the view that has anything to
  *  freeze. */
 async function editor(): Promise<TcApp> {
   const shell = await joined();
-  band(shell).renderRoot.querySelector<HTMLButtonElement>("button.view")!.click();
-  await settled(shell);
+  await shows(shell, "edit");
   return shell;
 }
 
