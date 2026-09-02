@@ -5,6 +5,8 @@ import { defineConfig } from "vitest/config";
 //
 // One entry, `index.html`, and vite finds it without being told: the app is
 // one page with a view in its hash (ADR-0038).
+const STORE = "http://127.0.0.1:8765";
+
 export default defineConfig({
   server: {
     // A second `pnpm dev` must fail rather than move to the next free port:
@@ -17,11 +19,17 @@ export default defineConfig({
     // been told about, so the name is named.
     host: true,
     allowedHosts: ["dev.rails49.org"],
+    // `changeOrigin: false` on every store route, which the string shorthand
+    // does not give: vite turns `"/x": "http://…"` into `changeOrigin: true`
+    // and rewrites `Host` to the target, so the store saw the page's origin
+    // against its own address and refused every write (#351). The reverse
+    // proxy in front of a layout server passes the host header through, so
+    // this is what makes development behave the way deployment does.
     proxy: {
-      "/backup": "http://127.0.0.1:8765",
-      "/drawings": "http://127.0.0.1:8765",
-      "/review": "http://127.0.0.1:8765",
-      "/rosters": "http://127.0.0.1:8765",
+      "/backup": { target: STORE, changeOrigin: false },
+      "/drawings": { target: STORE, changeOrigin: false },
+      "/review": { target: STORE, changeOrigin: false },
+      "/rosters": { target: STORE, changeOrigin: false },
       // The bridge under a path of the app's own origin, which is what lets
       // the panel build one URL whether TLS is terminated in front of it or
       // not. The proxy in front of a layout server strips the same prefix.

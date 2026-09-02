@@ -56,11 +56,13 @@ one place the two meet.
 nothing here runs, and no `Access-Control-*` header is sent at all. The app
 fetches these routes on its own origin — through vite's proxy in development
 and through the same proxy that serves the page on a layout server — so it
-never needed one. What this stops is a page somebody's browser happens to
-visit driving the store of a railroad it is on the same network as, which is
-not what "the LAN is the trust boundary" ever meant (ADR-0055, ADR-0042). A
-request with no `Origin` at all is a native client and goes through: the LAN
-boundary is unchanged.
+never needed one. Vite rewrites `Host` to the proxy's target, which is why a
+page served from this machine is admitted whatever the `Host` (ADR-0057).
+What this stops is a page somebody's browser happens to visit driving the
+store of a railroad it is on the same network as, which is not what "the LAN
+is the trust boundary" ever meant (ADR-0055, ADR-0042). A request with no
+`Origin` at all is a native client and goes through: the LAN boundary is
+unchanged.
 
 The panel later adds a WebSocket bridge from `tc49/#` alongside this
 (ui/PANEL.md). That is not a store operation and does not live here.
@@ -70,10 +72,11 @@ import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, cast
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote
 
 from yaml import YAMLError
 
+from tc49.lib.origin import is_own_page
 from tc49.store.backup import Backup, Said
 from tc49.store.drawing import Drawing
 from tc49.store.store import AssetStore
@@ -263,22 +266,11 @@ def make_server(
             """Whether this request comes from the page this server is part
             of, which is the only browser it serves (ADR-0055).
 
-            `Origin` is a header the browser writes and a page cannot forge,
-            and it is absent exactly where there is no page: a native client,
-            a `curl`, a same-origin `GET`. Those are let through — the LAN is
-            the trust boundary and this does not narrow it (ADR-0042).
-
-            The comparison is host against host and not scheme against
-            scheme, because TLS terminates at the proxy: the browser's origin
-            is `https://layout.rails49.org` and what arrives here is plain
-            HTTP under that same `Host`. In development vite proxies the
-            store's routes without rewriting the header, so the two agree
-            there for the same reason.
+            The rule itself is `lib/origin.py`, shared with the bridge's
+            handshake so the two faces a browser can reach cannot drift
+            (ADR-0057).
             """
-            origin = self.headers.get("Origin")
-            if origin is None:
-                return True
-            return urlsplit(origin).netloc == (self.headers.get("Host") or "")
+            return is_own_page(self.headers.get("Origin"), self.headers.get("Host"))
 
         def _body(self) -> Any:
             try:
