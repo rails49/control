@@ -326,9 +326,10 @@ class DccEx:
         of them.
 
         A file that is missing or cannot be read is logged and nothing else:
-        the power-on goes ahead, because a railroad at the firmware's low
-        default trips early, which is safe and visible, and one that refuses
-        to come up over a configuration file is worse (ADR-0050).
+        the power-on goes ahead, because a railroad that refuses to come up
+        over a configuration file is worse than one at whatever trip current
+        the firmware defaults to (ADR-0050). What that default is belongs to
+        the firmware and not here.
         """
         path = self._startup
         if path is None:
