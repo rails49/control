@@ -59,10 +59,15 @@ app publishes there is folded from what the hardware reports: `_folded` is the
 whole rule. It cannot verify that the supply really went and does not try; it
 is the system designer's job to put a device there that does (#232).
 
-**On startup the railroad is off.** The app comes up having written
-`wanted/track: off` and `state/power: off`, so nothing moves and no turnout
-throws until a person turns it on, normally from the panel. It never writes
-`off` of its own accord thereafter: it writes the word it was told to write.
+**On startup the railroad is off, and at rest.** The app comes up having
+written `wanted/track: off` and `state/power: off`, so nothing moves and no
+turnout throws until a person turns it on, normally from the panel. It never
+writes `off` of its own accord thereafter: it writes the word it was told to
+write. It also comes up having written `0.0` over every retained
+`wanted/traction` row it finds, so a speed the last session left on a durable
+bus is not sent to a station at the first connect and the locomotive does not
+roll on the power-on (ADR-0054). `wanted/point` replays instead: a point has
+no resting value to write.
 
 **Levels in, edges out.** A detector reports presence at one block end, and
 presence is a level that can be asked for at any time; the bus carries the
@@ -352,6 +357,29 @@ class LayoutInterface:
         # believing (ADR-0030).
         bus.publish(WANTED_TRACK, {"power": OFF})
         bus.publish(POWER, {"power": OFF})
+        # And it comes up **at rest**, which is the same ruling one level
+        # down. A traction row is retained, so a bus that outlived the app
+        # hands the last session's speed back verbatim and a translator
+        # subscribed to it sends that speed at the first connect: the
+        # locomotive rolls the moment somebody powers the rails, with no
+        # grant, the run still held, and nothing on the bus that says why
+        # (#333, ADR-0054). Held-by-default never enters the path, the row
+        # having been written by a session that is gone.
+        #
+        # Zero is written here rather than by a translator standing down,
+        # because this app is the row's one writer and this is where "the
+        # railroad comes up dark" already lives: the ruling then holds when a
+        # process is killed as well as when it exits.
+        #
+        # `wanted/point` is left to replay on purpose. Traction has a resting
+        # value and a point has none — there is no neutral position to write
+        # into the row — so the retained belief about where the last session
+        # left the blades is the only answer short of throwing every point at
+        # startup.
+        for topic in bus.last_values:
+            split = split_device(topic)
+            if split is not None and split[0] == WANTED_TRACTION:
+                self._traction_write(split[1], 0.0)
         # And every train is automatic, which is the resting value and the
         # honest one: this app's map of who drives is empty, so the topic says
         # so rather than leaving a client to read that out of an absence

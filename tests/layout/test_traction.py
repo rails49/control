@@ -18,6 +18,8 @@ from tc49.lib.clock import Clock
 from tests.layout.railroad import (
     DEVICE_SENSOR,
     FACING,
+    WANTED_POINT,
+    WANTED_TRACTION,
     Unstamped,
     align,
     build,
@@ -365,3 +367,70 @@ def test_an_unexplained_reading_stops_nobody() -> None:
     settle(bus, app, clock)
 
     assert speeds(written) == []
+
+
+# -- the railroad comes up at rest -------------------------------------------
+
+
+def test_a_speed_the_last_session_left_is_zeroed_at_startup() -> None:
+    """A traction row is retained, so a bus that outlived the app hands the
+    last session's speed straight back, and a translator subscribed to it
+    sends that speed at the first connect: the locomotive rolls the moment
+    somebody powers the rails, with no grant, the run still held, and nothing
+    on the bus that says why (#333).
+
+    So this app opens by wanting zero on every row it finds, the way it
+    already opens by wanting the track off (ADR-0054)."""
+    clock = Clock()
+    bus = Bus(clock)
+    bus.publish(f"{WANTED_TRACTION}/10", {"addr": "10", "speed": 0.5})
+    bus.drain()
+
+    LayoutInterface(bus, railroad(), stock(), clock)
+    bus.drain()
+
+    assert bus.last_values[f"{WANTED_TRACTION}/10"] == {
+        "at": 0.0,
+        "addr": "10",
+        "speed": 0.0,
+    }
+
+
+def test_the_zero_is_written_for_a_locomotive_this_session_never_hears_of() -> None:
+    """Every row on the bus and not the ones this app has commanded: the row
+    was written by the previous session's dispatcher, and this one's map of
+    who is where is empty. A translator standing down cannot reach these
+    either — it zeroes the addresses it commanded, and a fresh one has
+    commanded none."""
+    clock = Clock()
+    bus = Bus(clock)
+    bus.publish(f"{WANTED_TRACTION}/10", {"addr": "10", "speed": 0.5})
+    bus.publish(f"{WANTED_TRACTION}/11", {"addr": "11", "speed": -1.0})
+    bus.drain()
+
+    written = commanded(bus)
+    LayoutInterface(bus, railroad(), stock(), clock)
+    bus.drain()
+
+    assert speeds(written)[-2:] == [("10", 0.0), ("11", 0.0)]
+
+
+def test_a_point_the_last_session_left_thrown_replays_untouched() -> None:
+    """The asymmetry, stated: traction has a resting value and a point has
+    none — there is no neutral position to write into the row — so the
+    retained belief about where the last session left the blades stands, and
+    restoring the route picture is the only answer short of throwing every
+    point at startup (#333, ADR-0054)."""
+    clock = Clock()
+    bus = Bus(clock)
+    bus.publish(f"{WANTED_POINT}/dccex/12", {"addr": "dccex/12", "position": "thrown"})
+    bus.drain()
+
+    LayoutInterface(bus, railroad(), stock(), clock)
+    bus.drain()
+
+    assert bus.last_values[f"{WANTED_POINT}/dccex/12"] == {
+        "at": 0.0,
+        "addr": "dccex/12",
+        "position": "thrown",
+    }

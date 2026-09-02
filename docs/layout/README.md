@@ -426,6 +426,19 @@ throws until a person turns it on, normally from the panel. Thereafter it never
 writes `off` of its own accord: it writes the word it was told to write, and
 the supply going away below it moves `state/power` and never `wanted/track`.
 
+**And on startup the railroad is at rest.** The app also comes up having
+written `0.0` over every retained `wanted/traction` row it finds. A traction
+row is durable, so a bus that outlived the app hands the last session's speed
+straight back and a translator sends it at the first connect — a locomotive
+rolling on the power-on with no grant and the run still held
+([#333](https://github.com/rails49/control/issues/333)). Zero is written here
+rather than by a translator standing down, because this app is the row's one
+writer and the ruling then holds when a process is killed as well as when it
+exits. `wanted/point` is left to replay: traction has a resting value and a
+point has none, so the retained belief about where the last session left the
+blades is the only answer short of throwing every point at startup
+([ADR-0054](../adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
+
 ## What is not here yet
 
 - **The function row**, `tc49/layout/state/wanted/function/<addr>/<number>`.

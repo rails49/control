@@ -18,6 +18,7 @@ import json
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -42,9 +43,13 @@ from tests.harness import ASSETS, railroads
 
 DEVICE_LINK = "tc49/layout/state/device/link/dccex"
 POWER_WANTED = "tc49/layout/power_wanted"
+WANTED_TRACTION = "tc49/layout/state/wanted/traction"
 
 TRACK_ON = b"<1>"
 TRACK_OFF = b"<0>"
+
+HALF_SPEED_10 = b"<t 10 63 1>"
+HALTED_10 = b"<t 10 0 1>"
 
 
 def link_of(assembly: Assembly) -> tuple[str, str]:
@@ -305,3 +310,31 @@ def test_a_session_on_a_station_comes_up_and_the_panel_joins_it() -> None:
             thread.join(TIMEOUT_S)
             live.bridge.close()
     assert station.waits_for(TRACK_OFF), "the session stood the railroad down"
+
+
+def test_a_speed_the_last_session_left_does_not_roll_a_locomotive(
+    tmp_path: Path,
+) -> None:
+    """`--state` with `--station` is the combination hardware improves, the
+    trains really being where the last session left them (#314) — and the
+    desired picture it keeps is retained, so the last session's speed would
+    otherwise be replayed to the station and the locomotive would roll the
+    instant the operator presses power-on, with no grant and the run still
+    held (#333).
+
+    `layout` comes up having written zero over the row, so what the station
+    hears is a stop and never the speed."""
+    state = tmp_path / "kept.json"
+    state.write_text(
+        json.dumps({f"{WANTED_TRACTION}/10": {"addr": "10", "speed": 0.5}})
+    )
+    layout, roster = a_railroad()
+    with Station() as station:
+        driven = assemble_live(
+            layout, roster, state=state, station=(HOST, station.port)
+        )
+        driven.bus.publish(POWER_WANTED, {"power": "on"})
+        driven.run(PERIOD_S, stop=until(lambda: station.waits_for(TRACK_ON, 0.0)))
+
+        assert station.waits_for(HALTED_10)
+        assert HALF_SPEED_10 not in station.heard()
