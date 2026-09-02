@@ -38,8 +38,9 @@ so nothing but this stands between a page somebody's browser visits and the
 gestures above. An `Origin` matching the handshake's own `Host` is the app on
 its own origin; a loopback one is a page served from this machine, which
 `?bridge=` is; no `Origin` at all is a native client and not a page. The rule
-belongs to the browser's way onto the bus rather than to this file, and the
-broker that replaces it satisfies the rule at the proxy (#349).
+is `lib/origin.py`, shared with the store's face (ADR-0057), and it belongs to
+the browser's way onto the bus rather than to this file: the broker that
+replaces this relay satisfies it at the proxy (#349).
 
 It lives here beside the bus binding it rides on and shares its fate: when
 the bus becomes a real broker, the browser speaks MQTT-over-WebSocket to the
@@ -60,7 +61,6 @@ import http
 import json
 import threading
 from collections.abc import Callable
-from urllib.parse import urlsplit
 
 from websockets.exceptions import ConnectionClosed
 from websockets.http11 import Request, Response
@@ -68,11 +68,7 @@ from websockets.sync.server import Server, ServerConnection, serve
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import INBOUND
-
-LOOPBACK = frozenset({"localhost", "127.0.0.1", "::1"})
-"""Hosts a page served from this machine is at. A page an attacker controls is
-served from somewhere else on the internet and its origin is that somewhere,
-so no such page can claim one of these (ADR-0056)."""
+from tc49.lib.origin import is_own_page
 
 Wants = Callable[[str], str | None]
 """Asked for a railroad a client named, on that client's own handler thread:
@@ -183,11 +179,7 @@ class Bridge:
         Handing a foreign page a socket to tell it that it may not have one
         would be the decision undone.
         """
-        origin = request.headers.get("Origin")
-        if origin is None:
-            return None
-        at = urlsplit(origin)
-        if at.hostname in LOOPBACK or at.netloc == (request.headers.get("Host") or ""):
+        if is_own_page(request.headers.get("Origin"), request.headers.get("Host")):
             return None
         return connection.respond(
             http.HTTPStatus.FORBIDDEN, "cross-origin socket refused\n"

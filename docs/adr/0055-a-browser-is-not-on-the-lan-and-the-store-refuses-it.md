@@ -1,5 +1,12 @@
 # A browser is not on the LAN, and the store refuses it
 
+> **A premise below is false.** "In development vite proxies the store's
+> routes without rewriting the header" — it does rewrite it, and every browser
+> write was refused until
+> [ADR-0057](0057-one-origin-rule-and-both-faces-read-it.md) fixed the proxy
+> and moved the rule into `lib`. The decision here stands; that sentence does
+> not.
+
 Resolves [#329](https://github.com/rails49/control/issues/329).
 [ADR-0042](0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)
 rules that there is no authentication and the LAN is the trust boundary:

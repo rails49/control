@@ -338,15 +338,20 @@ def test_a_page_on_another_origin_is_refused_every_route(tmp_path: Path) -> None
 
 
 def test_the_app_reaches_every_route_on_its_own_origin(tmp_path: Path) -> None:
-    """Which is how the app reaches them: vite proxies these routes in
-    development and the same proxy that serves the page routes them on a
-    layout server, so the browser's `Origin` and the `Host` that arrives here
-    are one host. Nothing needed a CORS header to begin with."""
+    """Which is how the app reaches them on a layout server: the proxy that
+    serves the page routes them and passes the host header through, so the
+    browser's `Origin` and the `Host` that arrives here are one host. Named
+    rather than loopback, so this is the host comparison and not the loopback
+    clause below."""
     server, url, thread = served(tmp_path)
-    host = f"127.0.0.1:{server.server_port}"
     try:
         same = Request(
-            f"{url}/drawings", headers={"Origin": f"http://{host}"}, method="GET"
+            f"{url}/drawings",
+            headers={
+                "Origin": "https://layout.rails49.org",
+                "Host": "layout.rails49.org",
+            },
+            method="GET",
         )
         with urlopen(same) as listed:
             assert json.load(listed) == {"drawings": ["facing-pair"]}
@@ -616,3 +621,30 @@ def test_a_store_that_is_no_repository_serves_and_saves_as_it_always_did(
     assert status == 200
     assert body["repository"] is False
     assert "git init" in body["needs"][0]
+
+
+def test_a_page_on_this_machine_reaches_a_store_whose_host_was_rewritten(
+    tmp_path: Path,
+) -> None:
+    """The app in development: vite rewrites `Host` to the proxy's target, so
+    the page's own origin and the host arriving here disagree by an accident
+    of the proxy and every write was refused (#351).
+
+    A loopback origin is admitted whatever the `Host` (ADR-0057). It gives an
+    attacker nothing — a page it controls is served from somewhere else and
+    its origin is that somewhere — and anyone who can serve a page from this
+    machine can reach the store with no browser at all.
+    """
+    server, url, thread = served(tmp_path)
+    try:
+        proxied = Request(
+            f"{url}/drawings",
+            headers={"Origin": "http://localhost:5173"},  # Host: 127.0.0.1:port
+            method="GET",
+        )
+        with urlopen(proxied) as listed:
+            assert json.load(listed) == {"drawings": ["facing-pair"]}
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
