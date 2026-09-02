@@ -61,6 +61,14 @@ there is not a new kind of knowledge.
 
 ## Translators are optional, coexist, and live here
 
+> **"Live here" no longer holds, and neither does the heading's premise.** A
+> translator exists because a command station speaks a dialect; hardware built
+> to speak the bus needs none, and one somebody else wrote is as much part of
+> the railroad as ours. See
+> [ADR-0058](0058-hardware-meets-the-bus-and-a-translator-is-only-for-hardware-that-cannot.md).
+> The mechanism in this section — addresses naming a system, no ownership
+> table, zero or several answering — stands.
+
 `dccex` speaks the command station's `<…>` protocol; `jmri` speaks JMRI's
 JSON servlet and is the path for every railroad JMRI supports, with one known
 limit — JMRI reports power as on or off only, so it never says `stopped`.
