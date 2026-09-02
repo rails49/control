@@ -1,6 +1,15 @@
 """Reading a payload from outside, in the one place both apps read one (#127)."""
 
-from tc49.lib.inventory import DRAINING, HELD, OFF, ON, RUNNING, STOPPED
+from tc49.lib.inventory import (
+    AUTOMATIC,
+    DRAINING,
+    HELD,
+    MANUAL,
+    OFF,
+    ON,
+    RUNNING,
+    STOPPED,
+)
 from tc49.lib.layout import Point
 from tc49.lib.payload import (
     Alignment,
@@ -8,9 +17,11 @@ from tc49.lib.payload import (
     Command,
     Gesture,
     Grant,
+    Mode,
     Ordering,
     Picture,
     Placement,
+    Throttle,
     alignment,
     chosen,
     command,
@@ -34,6 +45,8 @@ from tc49.lib.payload import (
     run_state,
     shown_aspects,
     stamp,
+    wanted_mode,
+    wanted_throttle,
 )
 
 
@@ -258,6 +271,68 @@ def test_a_power_gesture_that_cannot_be_read_is_dropped() -> None:
     ]
     for payload in refused:
         assert commanded_power(payload) is None, payload
+
+
+def test_a_mode_gesture_reads_as_the_train_and_the_word_it_names() -> None:
+    """Taking a train in a throttle and giving it back: one gesture that names
+    where the mode should stand rather than asking for a change (#284)."""
+    assert wanted_mode({"train": "freight_1", "mode": "manual"}) == Mode(
+        "freight_1", MANUAL
+    )
+    assert wanted_mode({"train": "freight_1", "mode": "automatic"}) == Mode(
+        "freight_1", AUTOMATIC
+    )
+
+
+def test_a_null_train_is_every_train_at_once() -> None:
+    """The gesture a person makes to a railroad rather than to the train they
+    have picked, and an explicit `null` is how a page says it."""
+    assert wanted_mode({"train": None, "mode": "manual"}) == Mode(None, MANUAL)
+
+
+def test_a_payload_naming_no_mode_reads_as_none() -> None:
+    """A third word is dropped whole and the train's mode stays where it was:
+    falling to `manual` hands a train to a person who is not there, and
+    falling to `automatic` takes one out of the hands of a person who is."""
+    refused: list[object] = [
+        None,  # no payload at all
+        "manual",  # not an object
+        {"mode": "manual"},  # no train, where a null one is a statement
+        {"train": "freight_1"},  # no mode
+        {"train": 1, "mode": "manual"},  # not a name
+        {"train": "freight_1", "mode": None},
+        {"train": "freight_1", "mode": "Manual"},  # outside the closed set
+        {"train": "freight_1", "mode": "held"},  # the run's word, not this one
+    ]
+    for payload in refused:
+        assert wanted_mode(payload) is None, payload
+
+
+def test_a_throttle_gesture_reads_as_the_train_and_the_signed_speed() -> None:
+    """Signed for the train and not for a locomotive: positive is the way the
+    train points, and which decoder that reaches is `layout`'s."""
+    assert wanted_throttle({"train": "freight_1", "speed": 0.4}) == Throttle(
+        "freight_1", 0.4
+    )
+    assert wanted_throttle({"train": "freight_1", "speed": -1}) == Throttle(
+        "freight_1", -1.0
+    )
+
+
+def test_a_payload_turning_no_throttle_reads_as_none() -> None:
+    """A throttle is a speed, so a frame that states none turns nothing and
+    there is nothing left to act on."""
+    refused: list[object] = [
+        None,
+        0.4,  # not an object
+        {"speed": 0.4},  # no train
+        {"train": "freight_1"},  # no speed
+        {"train": "freight_1", "speed": None},
+        {"train": "freight_1", "speed": True},  # a boolean is not a speed
+        {"train": "freight_1", "speed": "0.4"},  # nor a string
+    ]
+    for payload in refused:
+        assert wanted_throttle(payload) is None, payload
 
 
 def test_an_occupancy_frame_reads_as_the_block_it_names() -> None:

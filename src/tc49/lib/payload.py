@@ -69,6 +69,13 @@ must be droppable. The milestone-1 simulator reads none of these: its points
 are always aligned and its track is always live, which is why `align` had no
 reader at all until there was an app that throws something.
 
+The throttle's **two gestures** are read here for the first reason of them all
+(#297): a person's page writes both, any number of pages may write either, and
+`layout` acts on them with nothing to answer back to. They are the pair that
+takes a train in a throttle and turns it, and `layout` is where the two meet
+the roster and become a speed on a decoder — which is why neither reader knows
+anything of a train beyond its name.
+
 The **desired half of the device vocabulary** is read here from the other
 side of the same seam (#289): `layout` writes those rows and a translator
 acts on the ones it recognises, so the reading belongs where the writing's
@@ -106,9 +113,11 @@ from typing import cast
 
 from tc49.lib.inventory import (
     AT,
+    AUTOMATIC,
     CLEAR,
     DRAINING,
     HELD,
+    MANUAL,
     OCCUPIED,
     OFF,
     ON,
@@ -320,6 +329,84 @@ def commanded_power(payload: object) -> str | None:
     if not isinstance(wanted, str) or wanted not in (ON, STOPPED, OFF):
         return None
     return wanted
+
+
+@dataclass(frozen=True)
+class Mode:
+    """Who is to drive a train, as a `mode_wanted` gesture states it: the
+    train it names, or `None` for **every** train at once.
+
+    The `None` here is the gesture's own and is not the `None` `wanted_mode`
+    answers with, which says the payload could not be read at all — the pair
+    `Placement` carries, for the same reason: one gesture in two directions,
+    and the wider of the two is a thing a person does to a railroad rather
+    than to the train they have picked (#284).
+    """
+
+    train: str | None
+    mode: str
+
+
+def wanted_mode(payload: object) -> Mode | None:
+    """The mode a gesture asks for, or None where it asks for none.
+
+    An **enum**, read like the run state and the commanded power beside it: a
+    payload naming a third word is dropped whole and the train's mode stays
+    where it was, since falling to `manual` would hand a train to a person who
+    is not there and falling to `automatic` would take one out of the hands of
+    a person who is (`lib.inventory.AUTOMATIC`). A gesture carries no id, so
+    there is nothing to address a refusal to either (ADR-0034).
+
+    A **missing** `train` fails the read and an explicit `null` succeeds, the
+    rule `placement` keeps on its block: handing over the whole railroad is
+    too much to read into a frame that lost a field on the way, where a
+    `null` a page wrote is a positive statement about every train.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    if "train" not in fields:
+        return None
+    train, mode = fields.get("train"), fields.get("mode")
+    if not (train is None or isinstance(train, str)):
+        return None
+    if not isinstance(mode, str) or mode not in (AUTOMATIC, MANUAL):
+        return None
+    return Mode(train, mode)
+
+
+@dataclass(frozen=True)
+class Throttle:
+    """The lever a person is holding: which train, and how fast.
+
+    A **signed** fraction of that train's maximum, `-1.0` … `1.0` with `0.0`
+    stop, and signed for the *train* rather than for a locomotive — positive
+    is the way the train points (CONTEXT.md, **Throttle**). Which decoder that
+    reaches, and which way round it stands, is `layout`'s: no throttle holds a
+    roster and none names an address (#199).
+    """
+
+    train: str
+    speed: float
+
+
+def wanted_throttle(payload: object) -> Throttle | None:
+    """The throttle a gesture turns, or None where it turns none.
+
+    The speed is not read beside the train the way a `move`'s is read beside
+    its four names: a throttle *is* a speed, so a frame that states none turns
+    nothing and there is nothing left to act on. What a fraction past the
+    range is worth is the same question `desired_speed` leaves to the
+    translator — the contract states −1.0 … 1.0 and there is nothing above a
+    train's maximum to ask for.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    train, speed = fields.get("train"), _fraction(fields, "speed")
+    if not isinstance(train, str) or speed is None:
+        return None
+    return Throttle(train, speed)
 
 
 def occupancy(payload: object) -> str | None:
