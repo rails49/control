@@ -9,10 +9,12 @@ built from a **railroad** — a drawing, its roster, and a person who places the
 trains (#171) — and the railroad it comes up on is an argument the panel may
 override, the socket path naming the one a client wants (#148). `--scenario`
 is the harness's own test run: it comes up on the railroad the scenario names
-and replays the document as gestures (`bench/replay.py`). `sweep` takes no
-arguments:
-the grid of BENCHMARKS.md is the research design, not a knob, and that page is
-its single source of truth.
+and replays the document as gestures (`bench/replay.py`). `--station` puts the
+**physical binding** where the simulator would be — the layout interface and
+the `dccex` translator, driving a real command station (#314) — and pins the
+session to the railroad named, a station being one physical railroad.
+`sweep` takes no arguments: the grid of BENCHMARKS.md is the research design,
+not a knob, and that page is its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
 review that a committed layout file used to give in a diff (ADR-0015).
 `generate` rewrites every TypeScript file the UI is handed rather than
@@ -32,6 +34,7 @@ from tc49.bench.session import Session
 from tc49.bench.sweep import sweep
 from tc49.lib import rejection
 from tc49.lib.layout import Layout
+from tc49.lib.roster import Roster
 from tc49.store import AssetStore, symbols
 from tc49.store.server import make_server
 
@@ -42,6 +45,49 @@ LIVE_PERIOD_S = 0.1
 bridge, unless `--period` says otherwise. The railroad's own pacing is the
 simulator's transit delays (ADR-0047); this only bounds how long a gesture
 sits in the queue before it is drained, so it stays small."""
+
+STATION_EXAMPLE = "dccex-usb:2560"
+"""What a station address looks like, for the help and for a refusal. The
+`dccex-usb` mirror serves the command station on 2560 (docs/dccex_usb), and a
+person running the two on one machine types this."""
+
+
+def station(text: str) -> tuple[str, int]:
+    """`<host>:<port>` as the address a connection is opened to.
+
+    One argument and not two, because an address is one thing a person copies
+    off a running `dccex-usb`. The port is split off the right, so an IPv6
+    host written in brackets keeps its colons.
+    """
+    host, _, port = text.rpartition(":")
+    if not host or not port.isdigit():
+        raise argparse.ArgumentTypeError(
+            f"'{text}' is not a station address — write it <host>:<port>,"
+            f" e.g. {STATION_EXAMPLE}"
+        )
+    return host, int(port)
+
+
+def addressed(roster: Roster) -> tuple[int, int]:
+    """How many of a railroad's trains have at least one addressed car, and
+    how many have none.
+
+    The one count a physical run's banner adds. A `move` for a train whose
+    cars carry no address writes no traction row at all, so this is what turns
+    "my train did nothing" into a one-line diagnosis.
+
+    A count and not a refusal: a railroad whose stock is only partly addressed
+    is an ordinary state rather than a fault. It reads what the roster in
+    front of it says and assumes nothing about where that roster came from —
+    the ones committed here are benchmark fixtures, and the stock somebody
+    actually owns belongs in an installation's own documents (#318).
+    """
+    driveable = sum(
+        any(coupled.car.addr is not None for coupled in train.cars)
+        for train in roster.trains.values()
+    )
+    return driveable, len(roster.trains) - driveable
+
 
 GENERATORS: dict[str, Callable[[], str]] = {
     symbols.GENERATED_PATH: symbols.render,
@@ -203,6 +249,23 @@ def command_line() -> argparse.ArgumentParser:
         " railroad's pacing is the simulator's own transit delays)",
     )
     live_parser.add_argument(
+        "--station",
+        type=station,
+        metavar="HOST:PORT",
+        help="drive a real command station at that address, e.g."
+        f" {STATION_EXAMPLE}: the layout interface and the dccex translator"
+        " come up where the simulator would, and no simulator is built."
+        " Requires the railroad, a station being one physical railroad, and"
+        " is not for use with --scenario",
+    )
+    live_parser.add_argument(
+        "--startup",
+        type=Path,
+        help="a file of raw station commands sent when the rails are powered,"
+        " where each of this railroad's power districts states the trip"
+        " current it really takes (docs/dccex/README.md). Needs --station",
+    )
+    live_parser.add_argument(
         "--port", type=int, default=8766, help="the bridge's WebSocket port"
     )
     live_parser.add_argument(
@@ -255,6 +318,42 @@ def command_line() -> argparse.ArgumentParser:
     return parser
 
 
+def station_note(where: tuple[str, int], name: str, roster: Roster) -> str:
+    """What a physical run says about itself that a simulated one does not:
+    which station it drives and that it stays on this railroad, that it cannot
+    see, and how much of the stock it can move.
+
+    **The session is blind, and says so.** Nothing publishes
+    `tc49/layout/state/device/sensor` in a physical run yet — detection is its
+    own issue — so a granted move writes a traction row, the locomotive rolls,
+    and no arrival is ever reported. It is said here rather than refused: a
+    live run comes up **held**, and held admits and commits nothing, so
+    lifting it is already a deliberate gesture. A second lock that existed
+    only until detection landed would be a mechanism somebody has to remember
+    to delete.
+    """
+    driveable, unaddressed = addressed(roster)
+    trains = driveable + unaddressed
+    return (
+        f"  station {where[0]}:{where[1]}, driving {name} — one physical"
+        " railroad, so this session switches to no other\n"
+        f"  {driveable} of {trains} trains carry an address; a move for one of"
+        f" the other {unaddressed} writes nothing\n"
+        "this session drives and never sees: nothing reports an arrival yet,"
+        " so a granted move rolls and is never seen to finish\n"
+    )
+
+
+def picking(pinned: bool) -> str:
+    """What the banner promises about the railroad. A session ordinarily runs
+    whichever railroad a client names and switches when another does (#148);
+    one driving a command station stays where it is, and the banner must not
+    go on offering the other thing."""
+    if pinned:
+        return "the panel joins this railroad and may not switch it"
+    return "the panel names the railroad and may switch it"
+
+
 def restart_note(state: Path | None) -> str:
     """What the live banner promises about coming back up. With no file the
     session forgets the railroad when the process ends, and the banner has
@@ -288,7 +387,36 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
                 " --state comes up on the last session's placement; name one\n"
             )
             return 2
-        session = Session(ROOT, args.period, args.port, args.state, args.host)
+        # A scenario is a document replayed onto an empty layout, and a
+        # station is steel standing where somebody left it: replaying
+        # placements onto it would command a railroad into a picture the
+        # trains are not in. `--state` is the one combination hardware
+        # improves, and is allowed (#314).
+        if args.scenario is not None and args.station is not None:
+            out.write(
+                "--scenario replays a document as gestures and --station"
+                " drives real trains standing where they were left; name one\n"
+            )
+            return 2
+        # The station is one physical railroad, so the railroad is not the
+        # first client's to pin. Both refusals come before the session,
+        # because a session serves from construction and one decided after it
+        # would leave the bridge port bound (#179).
+        if args.station is not None and args.railroad is None:
+            out.write(
+                "--station drives one physical railroad; name the railroad it"
+                " is under\n"
+            )
+            return 2
+        session = Session(
+            ROOT,
+            args.period,
+            args.port,
+            args.state,
+            args.host,
+            args.station,
+            args.startup,
+        )
         # What the session comes up on, and the refusal if it cannot: a
         # scenario names its own railroad and replays onto it, a railroad
         # comes up empty, and with neither the session waits to be told.
@@ -304,6 +432,15 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
             session.bridge.close()
             out.write(f"{opening}\n")
             return 2
+        # What a physical run says about itself. The roster is read here and
+        # not held from the argument check above, because the session has
+        # already opened the railroad by now: this is the stock it is running
+        # and not a second opinion about whether the railroad is there.
+        physical = ""
+        if args.station is not None:
+            named = args.railroad
+            assert isinstance(named, str)  # named, by the refusal above
+            physical = station_note(args.station, named, AssetStore(ROOT).roster(named))
         # A session carries a store so that one command is all a browser
         # needs. Where one is already serving — scripts/dev.sh, whose store
         # outlives any session — a second would only fail to bind the port.
@@ -318,14 +455,25 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
             f"live: polling commands every {args.period}s\n"
             f"  bridge  ws://{reachable(args.host)}:{session.bridge.port}/<railroad>\n"
             f"{store_line}"
-            "the panel names the railroad and may switch it; there is no"
-            f" timetable; Ctrl-C ends the session, and {restart_note(args.state)}\n"
+            f"{physical}"
+            f"{picking(args.station is not None)}; there is no timetable;"
+            f" Ctrl-C ends the session, and {restart_note(args.state)}\n"
         )
         out.flush()
         try:
             session.run(out)
         except KeyboardInterrupt:
             pass
+        # The zeros and the track off have gone by here, the assembly having
+        # stood its railroad down before letting the loop go (#314). Said
+        # rather than assumed: leaving a live railroad behind is what this
+        # prevents, and a person watching the process end wants to read that
+        # it did not.
+        if args.station is not None:
+            out.write(
+                "stood the railroad down: zero to every locomotive commanded,"
+                " then the track off\n"
+            )
         return 0
 
     if args.command == "serve":

@@ -13,16 +13,24 @@ and moved under #319, so a name spelled here would go red for a reason that is
 not this suite's.
 """
 
+import io
+import json
 import socket
 import threading
 import time
 from collections.abc import Callable
 from types import TracebackType
-from typing import Self
+from typing import Any, Self
 
+import pytest
+from websockets.sync.client import ClientConnection, connect
+
+from tc49.bench.cli import addressed, picking, station_note
+from tc49.bench.cli import station as station_address
 from tc49.bench.runner import Assembly, assemble_live, railroad
+from tc49.bench.session import Session
 from tc49.lib.layout import Layout
-from tc49.lib.roster import Roster
+from tc49.lib.roster import Car, Coupled, Roster, Train
 from tc49.store import AssetStore
 from tests.harness import ROOT, railroads
 
@@ -107,6 +115,17 @@ def closed_port() -> int:
     with socket.socket() as probe:
         probe.bind((HOST, 0))
         return int(probe.getsockname()[1])
+
+
+def waits_until(done: Callable[[], bool], limit_s: float = TIMEOUT_S) -> bool:
+    """Whether it happened inside the limit: what a test on the other side of
+    a thread has instead of an assumption."""
+    deadline = time.monotonic() + limit_s
+    while not done():
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.01)
+    return True
 
 
 def until(done: Callable[[], bool], limit_s: float = TIMEOUT_S) -> Callable[[], bool]:
@@ -244,3 +263,137 @@ def test_the_run_ending_switches_the_track_off() -> None:
         assert station.waits_for(TRACK_OFF)
         heard = station.heard()
         assert heard.rindex(TRACK_OFF) > heard.rindex(TRACK_ON)
+
+
+# -- the address, and what the banner makes of the railroad ------------------
+
+
+def test_a_station_is_one_address_a_person_copies() -> None:
+    """`<host>:<port>`, one argument, because that is one thing to copy off a
+    running `dccex-usb`. The port splits off the right, so a bracketed IPv6
+    host keeps its own colons."""
+    assert station_address("dccex-usb:2560") == ("dccex-usb", 2560)
+    assert station_address("[::1]:2560") == ("[::1]", 2560)
+
+
+@pytest.mark.parametrize("text", ["dccex-usb", "2560", ":2560", "host:port", ""])
+def test_an_address_that_is_not_one_is_refused_with_the_shape(text: str) -> None:
+    with pytest.raises(Exception, match="<host>:<port>"):
+        station_address(text)
+
+
+def test_the_banner_counts_the_trains_a_move_can_actually_reach() -> None:
+    """A `move` for a train whose cars carry no address writes no traction row
+    at all, so the count is what turns "my train did nothing" into a one-line
+    diagnosis. It is a count and not a refusal: a railroad only partly
+    addressed is an ordinary state, and the rosters committed here are
+    benchmark fixtures with no addresses on them (#318)."""
+    real = Car(model="a-loco", kind="locomotive", length=200, addr="10")
+    synthetic = Car(model="bench-450", kind="freight", length=450)
+    roster = Roster(
+        "test",
+        {
+            "driveable": Train(cars=(Coupled(real),)),
+            "hauled": Train(cars=(Coupled(real), Coupled(synthetic))),
+            "unreachable": Train(cars=(Coupled(synthetic),)),
+        },
+    )
+    assert addressed(roster) == (2, 1)
+
+
+def test_a_roster_with_no_addresses_at_all_reads_correctly() -> None:
+    """Which is what every railroad in this checkout is until an installation
+    brings its own stock — so the banner has to read right either way."""
+    layout, roster = a_railroad()
+    driveable, unaddressed = addressed(roster)
+    assert driveable + unaddressed == len(roster.trains)
+    assert layout.name
+
+
+def test_the_banner_stops_promising_a_switch_a_pinned_session_refuses() -> None:
+    """A session ordinarily runs whichever railroad a client names (#148). One
+    driving a command station stays where it is, and the banner must say the
+    thing that is true of the session in front of it."""
+    assert picking(False) == "the panel names the railroad and may switch it"
+    assert "may not switch" in picking(True)
+
+
+def test_the_note_names_the_station_the_railroad_and_what_cannot_be_seen() -> None:
+    """The three things a physical run says about itself that a simulated one
+    does not, the blindness among them: nothing reports an arrival yet, so a
+    granted move rolls and is never seen to finish (#314)."""
+    name = railroads()[0]
+    _layout, roster = a_railroad()
+    note = station_note(("dccex-usb", 2560), name, roster)
+    assert "dccex-usb:2560" in note and name in note
+    assert "switches to no other" in note
+    assert "never seen to finish" in note
+    assert f"of {len(roster.trains)} trains carry an address" in note
+
+
+# -- a station pins the railroad ---------------------------------------------
+
+
+def test_a_station_refuses_the_switch_and_says_why() -> None:
+    """`DccEx` holds a desired picture keyed by topic, and carrying one across
+    a railroad change would re-apply one railroad's speeds and points to
+    another's. The refusal is in words, on the naming client's own thread, and
+    the railroad already running is untouched."""
+    first, second = railroads()[0], railroads()[1]
+    live = Session(ROOT, PERIOD_S, station=(HOST, closed_port()))
+    try:
+        assert live.wants(first) is None
+        refusal = live.wants(second)
+        assert refusal is not None
+        assert first in refusal and "one physical railroad" in refusal
+    finally:
+        live.bridge.close()
+
+
+def test_a_session_with_no_station_switches_as_it_always_did() -> None:
+    """The simulated session is untouched: naming another railroad is what the
+    panel's picker does, and it is still accepted."""
+    live = Session(ROOT, PERIOD_S)
+    try:
+        assert live.wants(railroads()[0]) is None
+        assert live.wants(railroads()[1]) is None
+    finally:
+        live.bridge.close()
+
+
+# -- the whole session -------------------------------------------------------
+
+
+def link_frame(client: ClientConnection) -> dict[str, Any]:
+    """The first frame that says the link is up, read through the picture a
+    joining client is served — which opens with the `down` the run was
+    constructed saying, the railroad being unreached until it is reached."""
+    deadline = time.monotonic() + TIMEOUT_S
+    while time.monotonic() < deadline:
+        frame = json.loads(client.recv(timeout=TIMEOUT_S))
+        if frame.get("topic") == DEVICE_LINK and frame["payload"]["link"] == "up":
+            payload: dict[str, Any] = frame["payload"]
+            return payload
+    raise AssertionError("the session never said the link was up")
+
+
+def test_a_session_on_a_station_comes_up_and_the_panel_joins_it() -> None:
+    """The whole of it: a session named a station comes up on the physical
+    binding, and a panel joining it is served the row only that binding
+    writes."""
+    name = railroads()[0]
+    with Station() as station:
+        live = Session(ROOT, PERIOD_S, station=(HOST, station.port))
+        assert live.wants(name) is None
+        log = io.StringIO()
+        thread = threading.Thread(target=live.run, args=(log,), daemon=True)
+        thread.start()
+        try:
+            assert waits_until(lambda: f"running {name}" in log.getvalue())
+            with connect(f"ws://{HOST}:{live.bridge.port}/{name}") as client:
+                assert link_frame(client)["system"] == "dccex"
+        finally:
+            live.stop()
+            thread.join(TIMEOUT_S)
+            live.bridge.close()
+    assert station.waits_for(TRACK_OFF), "the session stood the railroad down"

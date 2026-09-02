@@ -5,9 +5,9 @@ names it in the socket path, and switching is a reconnect (#148, ui/PANEL.md)
 — so this holds the swap loop that the bridge's `rebind` is the other half
 of.
 
-`assemble_live` builds bus, scheduler, dispatcher, driver and simulator from
-**a railroad**: its drawing and its roster, and nothing else (#171). A switch
-is a new assembly and never a mutation. The thread that calls `run` owns every
+`assemble_live` builds bus, scheduler, dispatcher, driver and one binding of
+the layout interface from **a railroad**: its drawing and its roster, and
+nothing else (#171). A switch is a new assembly and never a mutation. The thread that calls `run` owns every
 one of them: it waits to be told which railroad, builds it, hands the bus to
 the bridge, and runs it until somebody names another. A client's handler
 thread only calls `wants`, which is one railroad recorded and one event set —
@@ -18,6 +18,13 @@ there, on the handler's own thread and before anything is recorded, so a typo
 cannot take down a live railroad. A run outlives its clients: closing the
 browser leaves the railroad running, and it is the process ending that ends
 the session.
+
+**A station pins the railroad.** A session given one drives steel, and a
+station is one physical railroad, so `wants` refuses a switch in words once
+the railroad is running (#314). `DccEx` holds a desired picture keyed by
+topic, and carrying one across a railroad change would re-apply one
+railroad's speeds and points to another's; rebuilding it per switch would
+tear down a TCP session against steel that did not change.
 
 This is milestone-1 wiring and stays small. There is no session registry and
 no run manager; what persists is the bus's own retained state, where the
@@ -63,9 +70,21 @@ class Session:
         port: int = 0,
         state: Path | None = None,
         host: str = "127.0.0.1",
+        station: tuple[str, int] | None = None,
+        startup: Path | None = None,
     ) -> None:
         self._store = AssetStore(root)
         self._period_s = period_s
+        # Where a command station is served, or None for a session on the
+        # simulator. Its presence is the whole of what selects the binding:
+        # a physical run needs the address anyway (#314).
+        self._station = station
+        self._startup = startup
+        # The railroad a station has pinned this session to, once one is
+        # running. Set on the first railroad accepted rather than at
+        # construction, because the railroad arrives as an argument the
+        # command line hands over through `wants` like any client would.
+        self._pinned: str | None = None
         # Where the runs' pictures live between processes, or None to forget
         # them with the process. The path names one file per railroad, since
         # switching railroads is the panel's to do and a picture belongs to
@@ -94,7 +113,19 @@ class Session:
         not have, or whose drawing does not derive, is refused here and
         nothing is recorded, so the railroad already running is untouched by
         a typo.
+
+        A session driving a command station refuses every railroad but the
+        one it is on: the station is one physical railroad, and the steel
+        does not change because a browser named something else (#314). The
+        bridge asks only for a railroad other than the running one, so this
+        refuses a switch and never a join.
         """
+        if self._station is not None and self._pinned is not None:
+            return (
+                f"this session drives the command station at"
+                f" {self._station[0]}:{self._station[1]} and stays on"
+                f" '{self._pinned}': a station is one physical railroad"
+            )
         return self._want(name, None)
 
     def plays(self, scenario_id: str) -> str | None:
@@ -128,6 +159,7 @@ class Session:
             return f"railroad '{name}': {refused}"
         with self._lock:
             self._wanted = (name, *wanted, scenario)
+            self._pinned = name
             self._swap.set()
         return None
 
@@ -159,7 +191,13 @@ class Session:
             # No strategy named, so the session locks the way `assemble_live`
             # defaults: incrementally, which is what the panel's two colours
             # mean and what ui/PANEL.md says a live run does (#165).
-            assembly = assemble_live(layout, roster, state=kept)
+            assembly = assemble_live(
+                layout,
+                roster,
+                state=kept,
+                station=self._station,
+                startup=self._startup,
+            )
             self.bridge.rebind(assembly.bus, name)
             # After the rebind, so a client that named this railroad is
             # already registered and sees the replay's gestures and their
@@ -168,9 +206,9 @@ class Session:
                 Replay(assembly.bus, layout, scenario)
             out.write(f"  running {name}\n")
             out.flush()
-            assembly.simulation.run_live(
-                self._period_s, sleep=self._pause, stop=self._swap.is_set
-            )
+            # Whichever binding it was built on: the assembly holds the loop,
+            # and the two have a signature in common and nothing else (#314).
+            assembly.run(self._period_s, sleep=self._pause, stop=self._swap.is_set)
 
     def _pause(self, period_s: float) -> None:
         """The live loop's sleep, cut short by a swap: a railroad picked in
