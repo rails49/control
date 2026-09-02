@@ -1,6 +1,10 @@
 # The layout box: the UI is built, so nginx serves `ui/dist` and the store is
 # reached directly rather than through vite's proxy. `layout.rails49.org`
 # holds the address the router has reserved for this machine.
+#
+# Every service here is a container and none is on the host (#354), so they
+# are named by service and reached over compose's own DNS. `/live` answers 502
+# until somebody starts a session, a session being a run rather than a daemon.
 
 http:
   routers:
@@ -55,11 +59,11 @@ http:
     layout-store:
       loadBalancer:
         servers:
-          - url: "http://host.docker.internal:8765"
+          - url: "http://store:8765"
     layout-live:
       loadBalancer:
         servers:
-          - url: "http://host.docker.internal:8766"
+          - url: "http://session:8766"
     layout-mqtt:
       loadBalancer:
         servers:

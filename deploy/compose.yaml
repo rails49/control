@@ -92,16 +92,90 @@ services:
   # `/dev/dccex` so the command line says nothing about which chip is in the
   # cable.
   dccex-usb:
-    build:
+    build: &app
       context: ..
-      dockerfile: deploy/dccex-usb.Dockerfile
+      dockerfile: deploy/app.Dockerfile
     profiles: [layout]
     restart: unless-stopped
     ports:
       - "2560:2560"
     devices:
       - "${TC49_STATION_DEVICE:-/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0}:/dev/dccex"
-    command: ["--device", "/dev/dccex", "--port", "2560"]
+    command:
+      ["python", "-m", "tc49.dccex_usb", "--device", "/dev/dccex", "--port", "2560"]
+
+  # The store's HTTP face, always on, because the documents are the one thing
+  # here that is nobody's run: the editor reads and writes them whether or not
+  # a railroad is moving (#354). The layout box holds the authoritative copy —
+  # it is the machine wired to the steel — rooted at a directory on the host
+  # rather than a volume, so it stays somewhere a person can `cd` into and push
+  # from (#320). A fresh box has no `~/tc49` and the bind mount makes it: an
+  # empty store is an ordinary state and the server comes up and answers.
+  #
+  # Bound to every interface because the proxy reaches it from another
+  # container; what limits its reach is the LAN (ADR-0042), and a page on
+  # another origin is refused at the face itself (ADR-0057).
+  store:
+    build: *app
+    profiles: [layout]
+    restart: unless-stopped
+    volumes:
+      - ${TC49_STORE:-~/tc49}:/store
+    command: ["tc49", "serve", "--host", "0.0.0.0", "--store", "/store"]
+
+  # A session: one run of one railroad, and the only thing here that is not
+  # infrastructure. It is started deliberately rather than kept up, because a
+  # run has an operator and a railroad chosen and `bench` is the harness that
+  # wires the apps together rather than an app (CLAUDE.md, #354) — so `/live`
+  # answers 502 until somebody starts one, which is the truth.
+  #
+  #   docker compose -f deploy/compose.yaml --profile session \
+  #     run -d --use-aliases --name session session gotthard
+  #   docker attach session                 to type the readings
+  #
+  # `run` rather than `up`, because the railroad is named when the session is
+  # started and not in this file: a station drives one physical railroad, so
+  # `tc49 live --station` refuses to come up without it, and a compose variable
+  # that has no default would have to be set for every other invocation of this
+  # file too. `--use-aliases` is what puts the container on the network under
+  # its service name, which is how the proxy's `/live` route finds it.
+  #
+  # It reaches the command station through the mirror rather than the device,
+  # which is what lets JMRI and a hand-held throttle share it (ADR-0043), and
+  # it reads the same store the face above serves. `TC49_STATION` moves it:
+  # the default is this box's mirror, and a station reachable some other way
+  # is an address like any other. What it speaks is DCC-EX either way — a
+  # railroad JMRI drives wants the `jmri` translator ADR-0043 designs and
+  # nothing implements (#357).
+  #
+  # No `depends_on`: the store and the mirror belong to the `layout` profile
+  # and are already up, and naming them here would drag that profile into
+  # every invocation of this one.
+  #
+  # `stdin_open` because a session driving a station reads this process's own
+  # input, which is where a person types the readings no detector publishes
+  # yet (#315). It also keeps stdin from closing when nobody is attached,
+  # which would otherwise end the session moments after it started.
+  session:
+    build: *app
+    profiles: [session]
+    restart: "no"
+    stdin_open: true
+    tty: true
+    volumes:
+      - ${TC49_STORE:-~/tc49}:/store
+    # An entrypoint and no command: the flags are the same every time and the
+    # railroad is what `run` appends, so `run … session gotthard` is the whole
+    # of what an operator types.
+    entrypoint:
+      - "tc49"
+      - "live"
+      - "--store"
+      - "/store"
+      - "--host"
+      - "0.0.0.0"
+      - "--station"
+      - "${TC49_STATION:-dccex-usb:2560}"
 
   # JMRI, a third-party GUI appliance and none of this app's business: an
   # operator's DecoderPro and panel tool, reaching the same command station as a

@@ -18,7 +18,7 @@ python -m tc49.dccex_usb --device /dev/dccex --port 2560
 ```
 
 Two flags, and they are the whole interface: the device to open and the port
-to serve it on. `deploy/dccex-usb.Dockerfile` passes exactly these, and
+to serve it on. `deploy/app.Dockerfile` passes exactly these, and
 `deploy/compose.yaml` maps the cable in as `/dev/dccex` and publishes 2560
 ([DEPLOY.md](../DEPLOY.md#the-command-station)).
 

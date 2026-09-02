@@ -72,6 +72,11 @@ TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
 
 `scripts/deploy.sh` is that sequence, run over ssh from the dev box.
 
+A route file change needs the proxy recreated, not just recomposed: the file
+is bind-mounted one file deep, so a `git pull` replaces the inode and the
+container keeps the one it started with. That is [#353](https://github.com/rails49/control/issues/353);
+until it lands, `--force-recreate proxy`.
+
 `--remove-orphans` is there because a container whose service was renamed
 keeps running under the old name and keeps its published port. After
 [#299](https://github.com/rails49/control/issues/299) the `station` container
@@ -81,14 +86,56 @@ Nothing starts this at boot but Docker itself: every service is
 `restart: unless-stopped` and the daemon is enabled, so a power cut comes back
 on its own. There is no systemd unit to forget.
 
+**Nothing runs on that box outside a container**, and there is no Python on it
+to run anything else (#354). Every service below is built from one image,
+`deploy/app.Dockerfile`, with a command of its own.
+
 | runs on the layout server | port | reached how |
 | --- | --- | --- |
 | the app, over the certificate | 443 | `https://layout.rails49.org` |
+| the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/rosters` |
 | the broker, native clients | 1883 | the LAN address |
 | the broker, a browser | 9001, and `/mqtt` | plaintext on the LAN, or through the proxy from a TLS page |
 | `dccex-usb`, the command station mirrored | 2560 | the LAN address |
 | JMRI's desktop | 6901 noVNC, 5901 VNC | `http://192.168.178.56:6901` |
 | JMRI's web server, once it is running | 12080 | the LAN address |
+
+### The store, and the documents it serves
+
+The store is always on, because the documents are the one thing there that is
+nobody's run: the editor reads and writes them whether or not a railroad is
+moving. It is rooted at `~/tc49` on the box, bind-mounted in, which is a
+directory rather than a docker volume so it stays somewhere to `cd` into and
+push from (#320). `TC49_STORE` moves it.
+
+A fresh box has no `~/tc49` and the bind mount makes one. An empty store is an
+ordinary state and not a fault — nothing seeds it, by decision — so the server
+comes up, answers, and lists nothing until somebody draws. The directory is
+written by the container and so is owned by root on the host; nothing on the
+host needs to write it, and turning the store into a git repository happens
+through the app rather than a terminal (#355).
+
+### Running a session
+
+A session is a run of one railroad, with an operator, and not a daemon — so it
+is started deliberately and `/live` answers 502 until it is:
+
+```
+ssh blocks
+cd ~/control
+TC49_RAILROAD=gotthard docker compose --env-file /etc/tc49/deploy.env \
+  -f deploy/compose.yaml --profile session up -d session
+docker attach deploy-session-1
+```
+
+Attaching is not optional housekeeping: a session driving the command station
+reads its own input, which is where a person types the block readings no
+detector publishes yet (#315). Detach with `ctrl-p ctrl-q`, which leaves it
+running; `ctrl-c` stands the railroad down and ends the run.
+
+It reaches the command station through `dccex-usb:2560` rather than the device
+— which is what lets JMRI and a hand-held throttle share one station
+(ADR-0043) — and reads the same `~/tc49` the store serves.
 
 ### The command station
 
