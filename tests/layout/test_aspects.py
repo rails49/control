@@ -16,6 +16,7 @@ from tests.layout.railroad import (
     build,
     heard,
     railroad,
+    stock,
 )
 
 
@@ -61,7 +62,7 @@ def test_the_opening_value_seeds_every_signal_with_stop() -> None:
     bus.publish(ASPECTS, {"aspects": {"up_w.B": "stop", "up_e.A": "stop"}})
     bus.drain()
 
-    LayoutInterface(bus, railroad(), clock)
+    LayoutInterface(bus, railroad(), stock(), clock)
     bus.drain()
 
     assert bus.last_values[WANTED_SIGNAL + "/dccex/40"] == {
@@ -106,7 +107,7 @@ def test_a_picture_older_than_the_one_held_is_ignored() -> None:
     message, so it would stand for good (#240)."""
     clock = Clock()
     bus = Unstamped(clock)
-    LayoutInterface(bus, railroad(), clock)
+    LayoutInterface(bus, railroad(), stock(), clock)
     bus.drain()
     bus.publish(ASPECTS, {"at": 20.0, "aspects": {"up_w.B": "clear"}})
     bus.drain()

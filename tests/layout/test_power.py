@@ -19,6 +19,7 @@ from tests.layout.railroad import (
     energised,
     heard,
     railroad,
+    stock,
 )
 
 
@@ -30,7 +31,7 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
     clock = Clock()
     bus = Bus(clock)
     seen = heard(bus, "tc49/#")
-    LayoutInterface(bus, railroad(), clock)
+    LayoutInterface(bus, railroad(), stock(), clock)
     bus.drain()
 
     assert seen == [

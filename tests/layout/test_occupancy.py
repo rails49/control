@@ -29,6 +29,7 @@ from tests.layout.railroad import (
     reads,
     settle,
     stand,
+    stock,
     wired,
 )
 
@@ -322,7 +323,7 @@ def test_a_reading_older_than_the_one_held_is_ignored() -> None:
     last message, so it would stand for good (#240)."""
     clock = Clock()
     bus = Unstamped(clock)
-    app = LayoutInterface(bus, railroad(), clock)
+    app = LayoutInterface(bus, railroad(), stock(), clock)
     bus.drain()
     seen = occupancy(bus)
 

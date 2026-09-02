@@ -8,13 +8,15 @@ answers for that address and read here. Nothing above this app names a device
 and nothing below it names a transit, which is what lets two hardware systems
 drive one railroad with no ownership table anywhere.
 
-It holds a `Layout` and nothing else of the railroad's: the points a transit
-needs ride on `align` (ADR-0031), so this app throws what it is told, and the
-signal standing at a block end is `signal_at`, which is why the aspect the
-dispatcher publishes for a person to read needs no address on it (#203).
+It holds a `Layout` and a `Roster`: the points a transit needs ride on `align`
+(ADR-0031), so this app throws what it is told; the signal standing at a block
+end is `signal_at`, which is why the aspect the dispatcher publishes for a
+person to read needs no address on it (#203); and the roster is how a train
+becomes the addresses that answer for it, no address ever reaching a command
+(#199).
 
 **Everything the bus hands it is read and never trusted** (SYSTEM.md, rule 4).
-Six topics from five publishers — the detectors joining them with the fold
+Seven topics from six publishers — the detectors joining them with the fold
 (#288) — none of which this app answers — it reports
 observations — so a frame that cannot be read is **dropped**, silently and to
 the trace, and a command the layout contradicts goes the same way. Raising on
@@ -23,7 +25,8 @@ published it. The reading is `lib.payload`'s and whether the names name
 anything here is `lib.layout`'s.
 
 Three rules govern the two commands, and each exists because the bus promises
-less than it looks like it does:
+less than it looks like it does. A fourth thing stops a `move`, and it is a
+refusal rather than a rule about the bus: **no facing, no move** (below).
 
 **Align before move.** The two commands have two publishers and the bus
 promises no ordering between topics, so a `move` naming a transit no `align`
@@ -83,12 +86,20 @@ bindings. `settle()` is what applies a level that has stood long enough,
 called by whoever owns the loop, so nothing here sleeps and a test drives the
 clock directly.
 
-What is **not** here yet: the traction write that turns a wheel, which
-composes a speed's sign out of facing and each car's orientation (#296), and
-the mode and the throttle that reach a locomotive through it (#297). An
-accepted `move` records the train as crossing and waits for the detectors. The
-simulator is untouched and remains the milestone-1 binding of the same
-interface (ADR-0030).
+**The traction write.** On a `move` it acts on, this app publishes a signed
+speed for every car of the train that has an address, and `0.0` for each of
+them again on arrival. **How fast** is the move's own speed, a magnitude.
+**Which way** is two facts composed: whether the move leaves the end the train
+faces — read off `tc49/schedule/state/facing`, there being nowhere else facing
+lives (ADR-0045) — and which way round each car is coupled. A move whose
+facing this app has never seen is dropped rather than guessed, and a train
+whose cars carry no address at all is carried out with nothing to publish
+(#296).
+
+What is **not** here yet: the mode and a person's throttle, which reach a
+locomotive through that same write (#297), and the function topic beside it,
+which is nobody's until a throttle asks. The simulator is untouched and
+remains the milestone-1 binding of the same interface (ADR-0030).
 """
 
 import logging
@@ -104,7 +115,16 @@ from tc49.lib.inventory import (
     device_topic,
     split_device,
 )
-from tc49.lib.layout import Layout, block_of, end_across, end_crossed, opposite_end
+from tc49.lib.layout import (
+    FACINGS,
+    Layout,
+    block_of,
+    end_across,
+    end_crossed,
+    end_letter,
+    facing_ends,
+    opposite_end,
+)
 from tc49.lib.payload import (
     Command,
     Ordering,
@@ -112,6 +132,7 @@ from tc49.lib.payload import (
     command,
     commanded_power,
     detected,
+    kept_facing,
     link_up,
     named_train,
     placement,
@@ -119,6 +140,7 @@ from tc49.lib.payload import (
     reported_reason,
     shown_aspects,
 )
+from tc49.lib.roster import FORWARD, Roster
 
 _log = logging.getLogger(__name__)
 
@@ -128,11 +150,13 @@ POWER_WANTED = "tc49/layout/power_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
+FACING = "tc49/schedule/state/facing"
 DEVICE = "tc49/layout/state/device/#"
 
 BLOCK_OCCUPIED = "tc49/layout/block_occupied"
 BLOCK_VACATED = "tc49/layout/block_vacated"
 POWER = "tc49/layout/state/power"
+WANTED_TRACTION = "tc49/layout/state/wanted/traction"
 WANTED_POINT = "tc49/layout/state/wanted/point"
 WANTED_SIGNAL = "tc49/layout/state/wanted/signal"
 WANTED_TRACK = "tc49/layout/state/wanted/track"
@@ -165,10 +189,19 @@ class _Crossing:
     once it is fully in — and not the end across the transit, which is the end
     it comes in *at*. The two are opposite ends of the one block and the axes
     have been confused before (#279).
+
+    `commanded` is the addresses this move put a speed on, and it is what the
+    arrival writes zero to: exactly the cars that were told to run, since a
+    car nothing was sent for is a car nothing may be sent for. It empties on
+    the arrival, which is the first level the entered block settles occupied
+    — the train is in the block it was sent to and the tail clearing is a
+    fact about the block behind, so the zeros do not wait for the vacate
+    (#296).
     """
 
     origin: str
     far: str
+    commanded: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -185,14 +218,20 @@ class LayoutInterface:
         self,
         bus: Bus,
         layout: Layout,
+        roster: Roster,
         clock: Clock,
         settling_s: float = SETTLING_S,
     ) -> None:
         """`layout`: the railroad this app answers for — the transits a `move`
         may name, and the signal standing at each block end. The whole of what
-        it reads: the points ride on `align`, and the roster arrives with the
-        traction write, which is where a car's address and the way it is
-        parked are read (#296).
+        it reads: the points ride on `align` (ADR-0031).
+
+        `roster`: the cars the railroad owns and the trains made up from them,
+        which is how a train becomes addresses. No address ever reaches
+        `tc49/layout/move` (#199), so turning the train the command names into
+        the decoders that answer for it is this app's, and each car's
+        orientation — the way round it is coupled — is half of the sign the
+        traction write carries (ADR-0045).
 
         `clock`: the run clock, read and never advanced here — the one thing
         the settling time is measured against. Required rather than defaulted
@@ -207,10 +246,15 @@ class LayoutInterface:
         """
         self._bus = bus
         self._layout = layout
+        self._roster = roster
         self._clock = clock
         self._settling_s = settling_s
-        # Where each train stands, which is the whole of the near-end check.
+        # Where each train stands, which is the whole of the near-end check,
+        # and which way each one points, which is half of the traction write's
+        # sign. The one is this app's own record and the other is read off the
+        # scheduler's state topic, there being nowhere else facing lives.
         self._position: dict[str, str] = {}
+        self._facing: dict[str, str] = {}
         # The transits an `align` has named, and the moves waiting on one.
         self._aligned: set[str] = set()
         self._held: dict[str, Command] = {}
@@ -229,7 +273,8 @@ class LayoutInterface:
         self._links: dict[str, bool] = {}
         self._power = OFF
         # The stamps held against the state topics this app consumes: the
-        # aspects and every device row. Two values of one topic delivered
+        # aspects, the facing and every device row. Two values of one topic
+        # delivered
         # backwards would otherwise leave a signal showing an aspect the
         # railroad has moved on from, or the supply reading dead while it is
         # live, with nothing to notice (#240).
@@ -248,6 +293,7 @@ class LayoutInterface:
         bus.subscribe(PLACED, self._on_placed)
         bus.subscribe(REMOVED, self._on_removed)
         bus.subscribe(ASPECTS, self._on_aspects)
+        bus.subscribe(FACING, self._on_facing)
         bus.subscribe(DEVICE, self._on_device)
 
     # -- live state, for the tests ------------------------------------------
@@ -350,11 +396,19 @@ class LayoutInterface:
         and none of them is an error: the interface answers nothing, so a
         refusal would have nowhere to go (ADR-0034).
 
-        The train is recorded as crossing and nothing is published: the write
-        that turns a wheel is #296, and the sensors that will say the train
-        arrived are the detectors'. Recording it at the moment of acting is
-        what makes the redelivery a no-op — the train has left the near end
-        as surely as it has on the steel.
+        The train is recorded as crossing and every car of it that has an
+        address is told how fast and which way to run. Recording the crossing
+        at the moment of acting is what makes the redelivery a no-op — the
+        train has left the near end as surely as it has on the steel — and the
+        sensors that will say it arrived are the detectors'.
+
+        There is a fourth thing that stops a command here and it is a refusal
+        rather than a rule about the bus: a train with wheels to turn and no
+        facing this app has seen is **dropped**, because the sign cannot be
+        composed and a guess is a locomotive driven the wrong way down the
+        track (`_traction`). It is checked last, after the hold, so a command
+        waiting for its `align` is judged on the facing it has when it acts,
+        like every other rule here.
 
         The crossing is what the fold needs and nothing above the interface
         could supply: no detector names the block a train is leaving, so the
@@ -377,9 +431,91 @@ class LayoutInterface:
         if transit not in self._aligned:
             self._held[transit] = commanded
             return
+        wheels = self._traction(commanded, near)
+        if wheels is None:
+            return
         self._position[commanded.train] = commanded.into
         self._crossing[commanded.into] = _Crossing(
-            origin=block_of(near), far=opposite_end(entered)
+            origin=block_of(near),
+            far=opposite_end(entered),
+            commanded=tuple(addr for addr, _speed in wheels),
+        )
+        for addr, speed in wheels:
+            self._traction_write(addr, speed)
+
+    # -- the traction write -------------------------------------------------
+
+    def _traction(
+        self, commanded: Command, near: str
+    ) -> tuple[tuple[str, float], ...] | None:
+        """What this move is worth on each of the train's decoders: one signed
+        speed per addressed car, `()` where the train has none, and None where
+        the move is to be dropped for want of the facts to sign it (#296).
+
+        **How fast** is the move's own speed, a magnitude — the sign is this
+        app's to give and never the command's, so the magnitude is taken and
+        whatever sign a publisher put on it is not (SYSTEM.md, *Layout
+        interface*).
+
+        **Which way** is two facts composed. The first is whether the move
+        leaves the end the train faces: `near` is the end of the origin block
+        this transit crosses, which is the end the train departs through, and
+        facing says which end its nose points at. Equal is nose-first;
+        different is **propelled** — pushed out of the end its nose points
+        away from — which is an ordinary movement and not an error
+        (CONTEXT.md, **Facing**). The second is the car's `orientation`, the
+        way round it is coupled: that is what lets a locomotive at each end of
+        a train run opposite (ADR-0045). So a car runs positive when the move
+        is nose-first and the car is `forward`, or when the move is propelled
+        and the car is `reverse`, and negative otherwise.
+
+        **Which cars.** Every car with an `addr`, in the train's own order. No
+        `kind` is read: a powered van is a real thing, and the address is what
+        says a car can be told a speed.
+
+        **No address, no command**, and it is not a failure: a train whose
+        cars carry no address at all — the simulator's trains are like this,
+        and so is anything a hand moves — still gets its `align`, its near-end
+        check and its crossing record, and simply has nothing to publish. That
+        is why the answer is `()` rather than None, and why a train the roster
+        does not name at all reaches the same answer: there are no wheels
+        here to turn wrongly.
+
+        **No facing, no move.** A train that has wheels to turn and no facing
+        this app has seen — none published, one it cannot spell, or one naming
+        another block than the one the train is departing — is dropped whole.
+        Facing arriving later does not run it: the command was dropped, and
+        nothing here holds it (SYSTEM.md, rule 4). A move that states no
+        **speed** falls the same way and for the same reason: this app would
+        have to choose a number nobody asked for.
+        """
+        train = self._roster.trains.get(commanded.train)
+        addressed = [
+            (coupled.car.addr, coupled.orientation)
+            for coupled in (train.cars if train is not None else ())
+            if coupled.car.addr is not None
+        ]
+        if not addressed:
+            return ()
+        facing = self._facing.get(commanded.train)
+        if facing is None or end_letter(facing) not in FACINGS:
+            return None
+        if block_of(facing) != block_of(near) or commanded.speed is None:
+            return None
+        nose_first = facing_ends(facing)[1] == near
+        magnitude = abs(commanded.speed)
+        return tuple(
+            (addr, magnitude if (orientation == FORWARD) == nose_first else -magnitude)
+            for addr, orientation in addressed
+        )
+
+    def _traction_write(self, addr: str, speed: float) -> None:
+        """One decoder told how fast and which way to run, on the row that
+        answers for its address. The address is **bare**, unlike a point's: a
+        decoder answers to the number it was programmed with whoever sends the
+        packet (ADR-0043)."""
+        self._bus.publish(
+            device_topic(WANTED_TRACTION, addr), {"addr": addr, "speed": speed}
         )
 
     # -- where the trains stand ---------------------------------------------
@@ -407,6 +543,34 @@ class LayoutInterface:
         if train is None:
             return
         self._position.pop(train, None)
+
+    # -- which way each train points ----------------------------------------
+
+    def _on_facing(self, topic: str, payload: Payload) -> None:
+        """Which way each train points, as the scheduler holds it: the run
+        each would make across its block (ADR-0019).
+
+        Read here because the sign of a speed cannot be composed without it
+        and there is nowhere else it lives — `train_placed` carries a train
+        and a block, and nothing under the interface knows which way round a
+        train stands (ADR-0045). It is a **retained** state topic, so the last
+        value is there to be handed over on subscribing even with the
+        scheduler down, and stamp-guarded like every other state topic this
+        app takes (#240).
+
+        The value is the whole map and is adopted as one: a state topic's last
+        value is what facing *is*, so a train missing from a value that reads
+        has no facing here and its next move is dropped, which is the safe
+        direction. A value that cannot be read at all is no value: the map
+        already held stands, since forgetting every train's facing on one bad
+        frame would stop the railroad on a payload.
+        """
+        if not self._ordering.accepts(topic, payload):
+            return
+        held = kept_facing(payload)
+        if held is None:
+            return
+        self._facing = held
 
     # -- the signals --------------------------------------------------------
 
@@ -548,19 +712,22 @@ class LayoutInterface:
         """A level that has stood for the settling time, turned into whatever
         events it is worth.
 
-        Two things come of it. A **block** reads occupied while either of its
-        ends does, and a change in that fold is the block's own occupancy
+        Three things come of it. A **block** reads occupied while either of
+        its ends does, and a change in that fold is the block's own occupancy
         event — the block a hand put a locomotive on, as much as the block a
         train was granted, since a level no move explains is still a level and
         judging it is the dispatcher's (ADR-0048).
 
-        And where the block is one a train is crossing into, its **second**
-        sensor going occupied says the train is fully in, so the block behind
-        is clear. That is the one event no detector could produce: occupancy
-        is anonymous and the block behind is named by the move this app
-        carried out. The entered block's own event has already gone out on its
-        first sensor, so the order is occupied then vacated — the only order
-        the steel can produce (ADR-0047).
+        Where the block is one a train is crossing into, the first of its ends
+        to read occupied is the **arrival**, and every car that move commanded
+        is told to stand (#296).
+
+        And its **second** sensor going occupied says the train is fully in,
+        so the block behind is clear. That is the one event no detector could
+        produce: occupancy is anonymous and the block behind is named by the
+        move this app carried out. The entered block's own event has already
+        gone out on its first sensor, so the order is occupied then vacated —
+        the only order the steel can produce (ADR-0047).
         """
         self._level[end] = level
         block = block_of(end)
@@ -571,7 +738,20 @@ class LayoutInterface:
                 BLOCK_OCCUPIED if occupied else BLOCK_VACATED, {"block": block}
             )
         crossing = self._crossing.get(block)
-        if crossing is not None and level == OCCUPIED and end == crossing.far:
+        if crossing is None or level != OCCUPIED:
+            return
+        if crossing.commanded:
+            # The arrival: the train is in the block it was sent to, so every
+            # car this move commanded is told to stand. It does not wait for
+            # the vacate — the tail clearing is a fact about the block behind
+            # — and it happens on the first end of this block to settle
+            # occupied, which is the end the train comes in at unless a
+            # reading arrived out of order.
+            for addr in crossing.commanded:
+                self._traction_write(addr, 0.0)
+            crossing = _Crossing(crossing.origin, crossing.far)
+            self._crossing[block] = crossing
+        if end == crossing.far:
             del self._crossing[block]
             self._bus.publish(BLOCK_VACATED, {"block": crossing.origin})
 
