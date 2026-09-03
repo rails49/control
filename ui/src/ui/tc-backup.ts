@@ -15,16 +15,20 @@
  * git's words are shown as they came: the app knows nothing to add to them,
  * and paraphrasing a rejected push would be inventing an explanation.
  *
- * **What is missing is offered as the command that supplies it.** A store
- * nobody has run `git init` in is the ordinary state of a fresh installation,
- * and this never runs it: a program that made a repository behind somebody's
- * back would be owning git rather than driving it.
+ * **A store that is no repository is offered the way in.** That is the
+ * ordinary state of a fresh installation, and nothing here runs `git init`: a
+ * program that made a repository behind somebody's back would be owning git
+ * rather than driving it. What the dialog does instead is show the key the
+ * store made for itself and take the address of an empty repository the
+ * person made on github.com, which the store clones (#355). The key is the
+ * public half; pasting it in the wrong place loses nothing.
  */
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
+import "@shoelace-style/shoelace/dist/components/input/input.js";
 
 import type { Backing } from "../model/backup.js";
 import type { Copy } from "../model/store.js";
@@ -53,6 +57,9 @@ export class TcBackup extends LitElement {
    *  it — rather than a row that restores where it is clicked. */
   @state() private picked: string | null = null;
 
+  /** The address typed so far of the repository to adopt. */
+  @state() private address = "";
+
   override render() {
     const backing = this.backing;
     if (backing === null) return nothing;
@@ -63,8 +70,14 @@ export class TcBackup extends LitElement {
           ? html`<p class="hint">asking the store…</p>`
           : html`
               <p class="root">${stands.root}</p>
-              ${this.needs(stands.needs)} ${this.waiting(stands.outstanding)}
-              ${this.copy(stands.copy)} ${this.said()}
+              ${stands.remote === null
+                ? nothing
+                : html`<p class="hint">the copy goes to ${stands.remote}</p>`}
+              ${this.needs(stands.needs)}
+              ${stands.repository
+                ? html`${this.waiting(stands.outstanding)} ${this.copy(stands.copy)}`
+                : this.adopt(stands.key, backing.busy)}
+              ${this.key(stands.key, stands.repository)} ${this.said()}
               <div class="presses">
                 <sl-button
                   variant="primary"
@@ -109,6 +122,55 @@ export class TcBackup extends LitElement {
     return html`<ul class="needs">
       ${needs.map((need) => html`<li>${need}</li>`)}
     </ul>`;
+  }
+
+  /**
+   * The way in, for a store that is no repository: the address of an empty
+   * one the person made, and the press that adopts it. Drawn under what
+   * backup needs, which says what to make and where the key goes.
+   */
+  private adopt(key: string | null, busy: boolean) {
+    return html`<div class="adopt">
+      <sl-input
+        label="Repository"
+        placeholder="git@github.com:you/my-railroad.git"
+        value=${this.address}
+        @sl-input=${(event: Event) => {
+          this.address = (event.target as HTMLInputElement).value;
+        }}
+      ></sl-input>
+      <sl-button
+        variant="primary"
+        ?disabled=${busy || this.address.trim() === ""}
+        @click=${() => void this.backing?.adopt(this.address)}
+      >
+        Back up to it
+      </sl-button>
+      ${key === null
+        ? html`<p class="hint">
+            this store has no key of its own, so git pushes with whatever this
+            machine's ssh already has
+          </p>`
+        : nothing}
+    </div>`;
+  }
+
+  /**
+   * The store's own key, the public half, for the repository's deploy keys.
+   * Always there once the store has one: a key that has to be pasted again —
+   * the repository was remade, the box was — is needed exactly when the
+   * store is a repository already, so it folds away rather than going.
+   */
+  private key(key: string | null, repository: boolean) {
+    if (key === null) return nothing;
+    const shown = html`<pre class="key">${key}</pre>
+      <sl-button size="small" @click=${() => void copy(key)}>Copy the key</sl-button>`;
+    return repository
+      ? html`<details class="key">
+          <summary>this store's key</summary>
+          ${shown}
+        </details>`
+      : shown;
   }
 
   /** The documents that have moved since the last backup, named. It is what
@@ -188,9 +250,21 @@ export class TcBackup extends LitElement {
    *  history may be another one — a restore of its own is in it. */
   private close(): void {
     this.picked = null;
+    this.address = "";
     this.dispatchEvent(
       new CustomEvent<void>("backup-closed", { bubbles: true, composed: true }),
     );
+  }
+}
+
+/** The key onto the clipboard, where the browser allows it. Where it does
+ *  not — a page not served over TLS, a browser asked too soon — the key is
+ *  still on the screen to select, so a refusal here is nothing to say. */
+async function copy(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // selectable on the screen either way
   }
 }
 

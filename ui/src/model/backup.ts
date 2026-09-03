@@ -21,6 +21,7 @@
 
 import type { BackupStanding } from "./commands.js";
 import {
+  adoptRepository,
   backUpNow,
   readBackup,
   restoreBackup,
@@ -34,10 +35,17 @@ export interface BackupStore {
   switchBackup(automatic: boolean): Promise<BackupDoc>;
   backUpNow(): Promise<BackupDoc>;
   restoreBackup(commit: string): Promise<BackupDoc>;
+  adoptRepository(url: string): Promise<BackupDoc>;
 }
 
 /** The store as it is over HTTP, which is what the app runs against. */
-const live: BackupStore = { readBackup, switchBackup, backUpNow, restoreBackup };
+const live: BackupStore = {
+  readBackup,
+  switchBackup,
+  backUpNow,
+  restoreBackup,
+  adoptRepository,
+};
 
 export class Backing {
   private answer: BackupDoc | null = null;
@@ -130,6 +138,12 @@ export class Backing {
    *  and not a failure. */
   async restore(commit: string): Promise<void> {
     await this.asked(() => this.store.restoreBackup(commit));
+  }
+
+  /** Make the store a repository by adopting the empty one at `url`, which
+   *  the person made. The store clones it; nothing here runs git (#355). */
+  async adopt(url: string): Promise<void> {
+    await this.asked(() => this.store.adoptRepository(url));
   }
 
   /**

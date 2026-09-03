@@ -53,6 +53,39 @@ export const backupStyles = css`
     margin: 0.8rem 0 0.2rem;
   }
 
+  .adopt {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.5rem;
+    align-items: end;
+    margin: 0.6rem 0 0.2rem;
+  }
+
+  .adopt .hint {
+    grid-column: 1 / -1;
+  }
+
+  pre.key {
+    margin: 0.5rem 0 0.3rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--hint) 10%, transparent);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.75rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    user-select: all;
+  }
+
+  details.key {
+    margin: 0.5rem 0 0.2rem;
+  }
+
+  details.key summary {
+    cursor: pointer;
+    color: var(--hint);
+  }
+
   h3 {
     margin: 1rem 0 0.4rem;
     font-size: 0.75rem;
