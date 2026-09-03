@@ -1,5 +1,7 @@
 # The edge terminates TLS and the LAN is the trust boundary
 
+**Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** "the five apps stay native until MQTT lands" below is superseded. MQTT lands, and the apps containerize with it, one service each.
+
 The stack is reached at one name over a real certificate, and behind that name
 every app listens in plaintext on loopback. One reverse proxy holds the
 certificate and owns the only socket anyone off the box can reach. Nothing

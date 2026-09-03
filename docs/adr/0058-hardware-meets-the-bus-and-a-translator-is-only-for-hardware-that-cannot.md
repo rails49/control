@@ -1,5 +1,7 @@
 # Hardware meets the bus, and a translator is only for hardware that cannot
 
+**Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** the scaffolding named under *Consequences* — `tc49 live --station` constructing the translator in the session's process — is removed, and the debt of a deployment requiring one box's hardware is [#357](https://github.com/rails49/control/issues/357).
+
 Resolves [#357](https://github.com/rails49/control/issues/357).
 [ADR-0043](0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)
 put hardware under the layout interface by address and got the mechanism
