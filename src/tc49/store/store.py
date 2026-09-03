@@ -88,11 +88,43 @@ class AssetStore:
         installation with no `catalogue/` directory knows none, which is a
         railroad whose stock is still written the old way and not a fault.
         """
-        models: dict[str, Model] = {}
-        for path in sorted((self._root / "catalogue").glob("*.yaml")):
-            name = path.name.removesuffix(".yaml")
-            models[name] = stock.validate_model(self._read(path), name)
-        return models
+        return {
+            name: stock.validate_model(self._read(path), name)
+            for name, path in self._model_paths().items()
+        }
+
+    def model(self, name: str) -> dict[str, Any]:
+        """One model document itself, which `catalogue` validates away.
+
+        As written, the way `drawing` is: the catalogue screen edits this
+        file, and a model's document is the one place a field nothing reads
+        — the shelf a locomotive lives on — survives a save (`store.stock`).
+        Checked all the same, so what comes back is a model.
+        """
+        doc = cast(dict[str, Any], self._read(self._model_path(name)))
+        stock.validate_model(doc, name)
+        return doc
+
+    def models(self) -> dict[str, dict[str, Any]]:
+        """Every model document as written, by name: `catalogue` unvalidated
+        away, for the screen that edits them rather than the roster that
+        reads against them."""
+        return {name: self.model(name) for name in self._model_paths()}
+
+    def put_model(self, doc: dict[str, Any], name: str) -> None:
+        """Create or replace one model, validated before anything is written
+        — a document that does not validate leaves no file behind, and a
+        catalogue on disk is one a roster can be read against.
+
+        Merged into the file like a drawing rather than dumped over it: a
+        catalogue entry is hand-written and says on itself where the length
+        was measured (`catalogue/README.md`), and a fresh dump would delete
+        that (ADR-0018).
+        """
+        stock.validate_model(doc, name)
+        path = self._model_path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        yamlfile.save(path, doc)
 
     def get(self, name: str) -> Layout | Scenario:
         if "/" in name:
@@ -135,6 +167,17 @@ class AssetStore:
 
     def _drawing_path(self, name: str) -> Path:
         return self._root / "layouts" / f"{name}.drawing.yaml"
+
+    def _model_path(self, name: str) -> Path:
+        return self._root / "catalogue" / f"{name}.yaml"
+
+    def _model_paths(self) -> dict[str, Path]:
+        """The catalogue's files by the name each is filed under, which is
+        its own. An installation with no `catalogue/` has none."""
+        return {
+            path.name.removesuffix(".yaml"): path
+            for path in sorted((self._root / "catalogue").glob("*.yaml"))
+        }
 
     def _roster_path(self, name: str) -> Path:
         return self._root / "layouts" / f"{name}.roster.yaml"

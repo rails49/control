@@ -406,3 +406,77 @@ def test_a_roster_is_read_against_the_catalogue_beside_it(tmp_path: Path) -> Non
     stock = AssetStore(tmp_path).roster("reversing-loops")
     assert stock.cars["ic_1"].length == 270
     assert stock.trains["ic_721"].length == 270
+
+
+def test_a_model_comes_back_as_the_document_it_is(tmp_path: Path) -> None:
+    """What the catalogue screen edits is the file, not the merged model a
+    car reads: every field as written, including the ones nothing branches
+    on."""
+    written = {**RE460, "manufacturer": "Roco", "shelf": "3b"}
+    (tmp_path / "catalogue").mkdir()
+    (tmp_path / "catalogue" / "sbb-re460.yaml").write_text(yaml.safe_dump(written))
+    store = AssetStore(tmp_path)
+    assert store.model("sbb-re460") == written
+    assert store.models() == {"sbb-re460": written}
+
+
+def test_a_model_file_that_does_not_validate_is_refused_at_the_read(
+    tmp_path: Path,
+) -> None:
+    """A catalogue is hand-authored and never passed through `put_model`, so
+    the check runs again here: a `get` never answers with a document a car
+    could not be read against."""
+    (tmp_path / "catalogue").mkdir()
+    (tmp_path / "catalogue" / "sbb-re460.yaml").write_text(
+        yaml.safe_dump({**RE460, "model": "sbb-re465"})
+    )
+    with pytest.raises(ValueError, match="names itself"):
+        AssetStore(tmp_path).model("sbb-re460")
+
+
+def test_an_installation_with_no_catalogue_has_no_documents_either(
+    tmp_path: Path,
+) -> None:
+    """The empty catalogue reads empty rather than missing, which is what a
+    box nobody has written a model on yet is."""
+    assert AssetStore(tmp_path).models() == {}
+    with pytest.raises(FileNotFoundError):
+        AssetStore(tmp_path).model("sbb-re460")
+
+
+def test_a_model_is_written_and_read_back(tmp_path: Path) -> None:
+    """`put_model` makes the directory a fresh box has not got, and a roster
+    naming the model is readable the moment it is there — which is the whole
+    of why a model can be written at all (#392)."""
+    store = AssetStore(tmp_path)
+    store.put_model(dict(IC2000), "sbb-ic2000")
+    assert store.model("sbb-ic2000") == IC2000
+    assert store.catalogue()["sbb-ic2000"].length == 270
+
+
+def test_a_model_that_does_not_validate_leaves_no_file_behind(
+    tmp_path: Path,
+) -> None:
+    """Validated before anything is written: a half-written catalogue entry
+    is a roster that stops loading, and the refusal names the field."""
+    store = AssetStore(tmp_path)
+    with pytest.raises(ValueError, match="kind"):
+        store.put_model({**IC2000, "kind": "wagon"}, "sbb-ic2000")
+    with pytest.raises(ValueError, match="names itself"):
+        store.put_model(dict(IC2000), "sbb-ic2001")
+    assert store.models() == {}
+
+
+def test_saving_a_model_keeps_what_the_file_says_about_it(tmp_path: Path) -> None:
+    """Where the length was measured, and which item is in the box: a
+    catalogue entry explains itself in comments the way a drawing does, and a
+    save that dropped them would lose the only copy of that (ADR-0018)."""
+    (tmp_path / "catalogue").mkdir()
+    (tmp_path / "catalogue" / "sbb-ic2000.yaml").write_text(
+        "# Measured over buffers, on the item.\n" + yaml.safe_dump(IC2000)
+    )
+    store = AssetStore(tmp_path)
+    store.put_model({**IC2000, "length": 271}, "sbb-ic2000")
+    text = (tmp_path / "catalogue" / "sbb-ic2000.yaml").read_text()
+    assert "# Measured over buffers, on the item." in text
+    assert store.model("sbb-ic2000")["length"] == 271
