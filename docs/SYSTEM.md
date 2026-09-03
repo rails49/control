@@ -619,6 +619,9 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     PUT  /drawings/<name>       create or replace it
     POST /review                what a drawing means: the derived layout, explained
     GET  /rosters/<name>        one railroad's roster
+    GET  /catalogue             the models the installation knows, by name
+    GET  /catalogue/<name>      one model, whole
+    PUT  /catalogue/<name>      create or replace it
     GET  /backup                what backup can do here, and what it needs
     PUT  /backup                turn automated backup on or off
     POST /backup/commit         back the store up now, and attempt a push
@@ -630,8 +633,8 @@ rather than in an app of its own
 ([ADR-0013](adr/0013-apps-are-deployment-units.md)). `review` is the one
 route that is not CRUD: it takes an unsaved document and answers what it
 derives to, so the editor holds no second copy of the derivation
-([ui/EDITOR.md](ui/EDITOR.md)). `delete` and the roster's `put` are not on
-the HTTP face yet, and a scenario never is (below).
+([ui/EDITOR.md](ui/EDITOR.md)). `delete` is on no route, for any document,
+and the roster's `put` is not there yet; a scenario never is (below).
 
 **Every route is refused to a page on another origin.** A request carrying an
 `Origin` header that is neither the server's own `Host` nor a loopback host —
@@ -673,8 +676,8 @@ LAN is still the trust boundary and a browser is not on it
   on the network — a push runs on the store's own timer, never on the thread
   serving a request — so an unreachable remote costs a save nothing.
 
-- **Three document types** — `drawing`, `roster` and `scenario` — each
-  fetched and stored whole. Symbols, wires, trains and requests live inside a
+- **Four document types** — `drawing`, `roster`, `scenario` and the
+  catalogue's `model` — each fetched and stored whole. Symbols, wires, trains and requests live inside a
   document and cannot be addressed on their own. A layout is **derived** from
   a drawing at `get` rather than being a document type of its own
   ([ADR-0015](adr/0015-drawing-is-the-source-of-truth.md)), so a railroad has
@@ -692,6 +695,20 @@ LAN is still the trust boundary and a browser is not on it
   person's placement is what puts it on the rails. A train nothing places
   comes up **off the layout**. **The drawing and the roster are the whole of
   what a run is built from** (#171).
+- **The catalogue is the installation's, and it is writable over HTTP** — the
+  models it knows, one document per model, named for itself and read by every
+  railroad on the box: a model is what a product is, and a product does not
+  become a different product on another layout
+  ([ADR-0045](adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+  One file per model is what keeps two entries independently editable and a
+  backup's `git diff` readable. A car names a model and is complete only
+  against one, so a box with no catalogue is a box where no roster can be
+  written at all, and `PUT /catalogue/<name>` is what makes the first one
+  ([#392](https://github.com/rails49/control/issues/392)). The routes answer
+  the documents as written rather than the merged models a roster is read
+  against, because what reads them is the screen that edits them. There is no
+  `DELETE`: an unused model costs nothing, and one a car still names could not
+  be removed anyway.
 - **A name is the id** — `crossover-yard` for a railroad and its roster, and
   `crossover-yard/meet`, qualified by layout, for one of the harness's
   scenarios. The verbs are `get`, `put` (create or replace a whole document),
