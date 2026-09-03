@@ -140,9 +140,16 @@ services:
       GIT_CONFIG_VALUE_1: tc49 backup
       GIT_CONFIG_KEY_2: user.email
       GIT_CONFIG_VALUE_2: backup@tc49.invalid
+    # `keys` holds the deploy key the store makes for itself and pushes with
+    # (#355): a volume rather than a path in the store, so that no commit can
+    # ever carry the private half, and a volume rather than a host directory,
+    # so that nothing on the host is made or pointed at. It outlives the
+    # container, which is rebuilt on every deploy.
     volumes:
       - ${TC49_STORE:-~/tc49}:/store
-    command: ["tc49", "serve", "--host", "0.0.0.0", "--store", "/store"]
+      - keys:/keys
+    command:
+      ["tc49", "serve", "--host", "0.0.0.0", "--store", "/store", "--keys", "/keys"]
 
   # A session: one run of one railroad, and the only thing here that is not
   # infrastructure. It is started deliberately rather than kept up, because a
@@ -227,3 +234,4 @@ services:
 volumes:
   acme:
   jmri:
+  keys:
