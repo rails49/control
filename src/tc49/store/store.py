@@ -74,7 +74,52 @@ class AssetStore:
         path = self._roster_path(name)
         if not path.exists():
             return Roster(name, {})
-        roster = self.validate_roster(self._read(path))
+        return self._roster(self._read(path), name)
+
+    def roster_document(self, name: str) -> dict[str, Any]:
+        """One railroad's roster document itself, which `roster` validates
+        away.
+
+        As written, the way `drawing` and `model` are: this is what the stock
+        screen edits, so an entry comes back in the shape the file has it — a
+        car where the railroad has something to say about the item, its model
+        where it has not (ADR-0061) — rather than the merged cars a train is
+        derived from. Checked all the same, so what comes back is a roster.
+
+        A railroad with no roster file owns nothing yet, and answers the empty
+        document rather than a `FileNotFoundError`: owning nothing is an
+        ordinary state, and the screen that writes the first car has to be
+        able to read it to draw itself (`roster`).
+        """
+        path = self._roster_path(name)
+        if not path.exists():
+            return {"roster": name, "cars": {}, "trains": {}}
+        doc = cast(dict[str, Any], self._read(path))
+        self._roster(doc, name)
+        return doc
+
+    def put_roster(self, doc: dict[str, Any], name: str) -> None:
+        """Create or replace one railroad's roster, validated before anything
+        is written — a roster that does not validate leaves no file behind,
+        and the file on disk is one a run can be built from.
+
+        Whole-document, so a roster written without a car is that car removed:
+        a roster is one document and there is no verb for a part of it.
+
+        Merged into the file like a drawing rather than dumped over it: a
+        roster says on itself which synthetic car stands for what and where a
+        length came from, and a fresh dump would delete that (ADR-0018).
+        """
+        self._roster(doc, name)
+        path = self._roster_path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        yamlfile.save(path, doc)
+
+    def _roster(self, doc: Any, name: str) -> Roster:
+        """A roster document validated against the installation's catalogue
+        and against the name it is filed under — the two checks a roster read
+        or written under `name` gets, wherever it came from."""
+        roster = self.validate_roster(doc)
         if roster.railroad != name:
             raise ValueError(f"roster '{name}': file names itself '{roster.railroad}'")
         return roster
