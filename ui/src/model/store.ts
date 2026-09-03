@@ -210,6 +210,12 @@ export interface Backup {
 export interface BackupDoc {
   root: string;
   repository: boolean;
+  /** Where the copy off this machine goes, `null` where nowhere. */
+  remote: string | null;
+  /** The public half of the store's own deploy key, for the person to paste
+   *  into the repository's deploy keys; `null` where the store has none
+   *  (#355). */
+  key: string | null;
   automatic: boolean;
   /** What backup has not got, in the words of the command that would give it
    *  — no repository, or no remote. Empty where nothing is missing. */
@@ -262,6 +268,10 @@ export async function backUpNow(): Promise<BackupDoc> {
 
 export async function restoreBackup(commit: string): Promise<BackupDoc> {
   return await ask<BackupDoc>("POST", "/backup/restore", { commit });
+}
+
+export async function adoptRepository(url: string): Promise<BackupDoc> {
+  return await ask<BackupDoc>("POST", "/backup/repository", { url });
 }
 
 async function ask<T>(method: string, path: string, body?: unknown): Promise<T> {

@@ -35,8 +35,12 @@ import type { TcThrottle } from "../../src/ui/tc-throttle.js";
 export const UNBACKED: BackupDoc = {
   root: "/home/somebody/tc49",
   repository: false,
+  remote: null,
+  key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTheSuite tc49 backup",
   automatic: false,
-  needs: ["/home/somebody/tc49 is not a git repository — `git init` there"],
+  needs: [
+    "/home/somebody/tc49 is not a git repository — create an empty private repository on github.com, add the key below to it under Settings ▸ Deploy keys, with write access, and enter its address below",
+  ],
   outstanding: [],
   backups: [],
   copy: { waiting: 0, since: null, stale: false, ok: null, said: "" },

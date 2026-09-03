@@ -26,6 +26,8 @@ import { bar, mounted, serving, settled, UNBACKED } from "./support/shell.js";
 const KEPT: BackupDoc = {
   root: "/home/somebody/tc49",
   repository: true,
+  remote: "git@github.com:somebody/railroad.git",
+  key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTheSuite tc49 backup",
   automatic: false,
   needs: [],
   outstanding: ["reversing-loops"],
@@ -70,6 +72,14 @@ class Fake implements BackupStore {
     return this.answer(`restore ${commit}`, {
       ok: false,
       said: "refused: reversing-loops changed since the last backup",
+    });
+  }
+
+  adoptRepository(url: string): Promise<BackupDoc> {
+    this.stands = { ...this.stands, repository: true, remote: url, needs: [] };
+    return this.answer(`adopt ${url}`, {
+      ok: true,
+      said: `backing up to ${url}; nothing is in it yet`,
     });
   }
 }
@@ -209,12 +219,41 @@ describe("the backup dialog", () => {
     expect(reads(surface)).toContain("waiting to be backed up: reversing-loops");
   });
 
-  /** A store nobody has run `git init` in is the ordinary state of a fresh
-   *  installation, and what it needs reads as the command that supplies it.
-   *  Nothing here runs it (ADR-0053). */
-  it("says what backup needs, in the words of the command that gives it", async () => {
+  /** A store that is no repository is the ordinary state of a fresh
+   *  installation. What it needs reads as what to make; the key the store
+   *  made for itself is there to paste; and nothing here runs `git init`
+   *  (ADR-0053, #355). */
+  it("says what backup needs, and shows the key to paste", async () => {
     const { dialog: surface } = await dialog(UNBACKED);
-    expect(reads(surface)).toContain("git init");
+    expect(reads(surface)).toContain("create an empty private repository");
+    expect(reads(surface)).toContain("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTheSuite");
+    expect(reads(surface)).not.toContain("git init");
+  });
+
+  /** The way in: an address typed, one press, and the store clones it. The
+   *  press is greyed until there is an address, so a click on nothing asks
+   *  the store nothing. */
+  it("adopts the repository whose address was entered", async () => {
+    const { dialog: surface, store } = await dialog(UNBACKED);
+    press(surface, "Back up to it");
+    expect(store.asked).not.toContain("adopt git@github.com:somebody/railroad.git");
+
+    const input = surface.renderRoot.querySelector("sl-input")!;
+    input.value = "git@github.com:somebody/railroad.git";
+    input.dispatchEvent(new Event("sl-input", { bubbles: true }));
+    await surface.updateComplete;
+    press(surface, "Back up to it");
+    await new Promise((settle) => setTimeout(settle, 0));
+    await surface.updateComplete;
+
+    expect(store.asked).toContain("adopt git@github.com:somebody/railroad.git");
+    expect(reads(surface)).toContain("the copy goes to git@github.com:somebody/railroad.git");
+  });
+
+  it("keeps the key to hand once the store is a repository", async () => {
+    const { dialog: surface } = await dialog();
+    expect(surface.renderRoot.querySelector("details.key")).not.toBeNull();
+    expect(surface.renderRoot.querySelector("sl-input")).toBeNull();
   });
 
   it("lists the backups newest first, each by what moved in it", async () => {
