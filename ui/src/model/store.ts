@@ -149,16 +149,20 @@ export async function review(drawing: Drawing): Promise<Review> {
 }
 
 /**
- * A railroad's roster: every train it owns, whether on the layout or off it
+ * A railroad's trains: every one it owns, whether on the layout or off it
  * ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)).
  *
  * An asset of the railroad rather than a fact about the run, which is the line
  * [ADR-0010](../../../docs/adr/0010-asset-store-serves-coarse-read-only-documents.md)
  * draws: the store says what stock there is and how long each train is, the
- * bus says where it stands. Read-only here — editing a roster is another
- * screen's.
+ * bus says where it stands.
+ *
+ * **Derived, which is why it is a path below the roster**: what the run views
+ * read is worked out from the cars a train is made of, and the document those
+ * cars are written in is `/rosters/<railroad>` itself
+ * ([#388](https://github.com/rails49/control/issues/388)).
  */
-export interface RosterDoc {
+export interface TrainsDoc {
   roster: string;
   trains: Record<string, TrainDoc>;
 }
@@ -185,8 +189,11 @@ export interface Fn {
   values: string[];
 }
 
-export async function readRoster(railroad: string): Promise<RosterDoc> {
-  return await ask<RosterDoc>("GET", `/rosters/${encodeURIComponent(railroad)}`);
+export async function readTrains(railroad: string): Promise<TrainsDoc> {
+  return await ask<TrainsDoc>(
+    "GET",
+    `/rosters/${encodeURIComponent(railroad)}/trains`,
+  );
 }
 
 /**

@@ -51,7 +51,7 @@ import {
   type RosterRow,
 } from "../model/panel.js";
 import { positionsBySymbol } from "../model/scene.js";
-import { readRoster, UNREVIEWED, type Review, type TrainDoc } from "../model/store.js";
+import { readTrains, UNREVIEWED, type Review, type TrainDoc } from "../model/store.js";
 import { cabs, type Cab } from "../model/throttle.js";
 import {
   DRAINING,
@@ -299,7 +299,7 @@ export class TcPanel extends LitElement {
   private async join(railroad: string): Promise<void> {
     const mine = ++this.joins;
     try {
-      const stock = await readRoster(railroad);
+      const stock = await readTrains(railroad);
       if (mine !== this.joins || this.built !== railroad) return;
       this.stock = stock.trains;
       this.session = railroad;

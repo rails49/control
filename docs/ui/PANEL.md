@@ -44,7 +44,7 @@ not reshuffle as the railroad moves.
 
 A railroad's **roster** is every train it owns, whether on the layout or off
 it ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)), so the pane is
-fed from two places: `GET /rosters/<railroad>` for what there is and how long
+fed from two places: `GET /rosters/<railroad>/trains` for what there is and how long
 each train is, and `tc49/dispatch/state/allocation` for which of them the run
 has. Two sources because they are two things — the store serves the railroad's
 assets, the bus carries the run
@@ -516,7 +516,7 @@ scheduler's own retained topic. Both are written by apps that are always
 running, so there is no cold start to seed, and no topic describes the run — a
 topic that did would be the bridge describing itself (#67). The one thing the
 view reads from the store is the loaded railroad's roster
-(`GET /rosters/<railroad>`) — what stock there is and how long each train is,
+(`GET /rosters/<railroad>/trains`) — what stock there is and how long each train is,
 an asset rather than a fact about the run, which is the line
 [ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)
 already draws. Everything else is derived from the bus: the state topics carry
