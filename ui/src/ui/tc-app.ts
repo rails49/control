@@ -13,7 +13,9 @@
  * **One session, and it is the run view's.** The throttle is a view of this
  * app with nothing of its own to join, so what it draws comes down from the
  * view that holds the socket and its gestures go back the same way the band's
- * power presses do (ui/THROTTLE.md).
+ * power presses do (ui/THROTTLE.md). The stock screen takes the same route for
+ * what it needs of the run: which trains are placed, which is what its length
+ * guard is (ui/STOCK.md).
  *
  * It also holds everything the two rows need. The band is the system's, so the
  * picker that loads a railroad and the toggle that switches view report here;
@@ -55,6 +57,7 @@ import "./tc-editor.js";
 import "./tc-header.js";
 import "./tc-menubar.js";
 import "./tc-panel.js";
+import "./tc-stock.js";
 import "./tc-throttle.js";
 import type { TcBackup } from "./tc-backup.js";
 import type { TcEditor } from "./tc-editor.js";
@@ -79,7 +82,7 @@ const QUIET: RunStatus = {
   power: null,
   draining: false,
   trouble: null,
-  placed: 0,
+  placed: [],
 };
 
 @customElement("tc-app")
@@ -197,6 +200,7 @@ export class TcApp extends LitElement {
         class=${this.view === "run" ? "" : "off"}
         .drawing=${this.editor.drawing}
         .review=${this.filing.reviewed}
+        .current=${this.view === "run"}
         @run-status=${(event: CustomEvent<RunStatus>) => {
           this.status = event.detail;
         }}
@@ -217,6 +221,13 @@ export class TcApp extends LitElement {
         @reversal-wanted=${(event: CustomEvent<string>) =>
           this.running?.pressReversal(event.detail)}
       ></tc-throttle>
+
+      <tc-stock
+        class=${this.view === "stock" ? "" : "off"}
+        .railroad=${name}
+        .current=${this.view === "stock"}
+        .placed=${this.status.placed}
+      ></tc-stock>
 
       <tc-editor
         class=${this.view === "edit" ? "" : "off"}
@@ -316,7 +327,7 @@ export class TcApp extends LitElement {
       editable: spec !== undefined && editable(spec.kind),
       undo: this.editor.canUndo,
       redo: this.editor.canRedo,
-      placed: this.status.placed,
+      placed: this.status.placed.length,
       backup: this.backing.standing,
     };
   }

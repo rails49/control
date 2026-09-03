@@ -93,7 +93,7 @@ describe("which view the app opens in", () => {
   /** A link that has gone stale opens on the control surface rather than on
    *  nothing. */
   it("opens in the run view on a hash naming no view", async () => {
-    location.hash = "#stock";
+    location.hash = "#schedule";
     const shell = document.createElement("tc-app");
     document.body.append(shell);
     await settled(shell);

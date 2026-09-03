@@ -20,13 +20,20 @@
 
 import type { Drawing } from "../../src/model/drawing.js";
 import type { Editor } from "../../src/model/editor.js";
-import type { BackupDoc, Review, TrainDoc } from "../../src/model/store.js";
+import type {
+  BackupDoc,
+  ModelDoc,
+  Review,
+  RosterDoc,
+  TrainDoc,
+} from "../../src/model/store.js";
 import type { ViewId } from "../../src/model/views.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
 import type { TcEditor } from "../../src/ui/tc-editor.js";
 import type { TcHeader } from "../../src/ui/tc-header.js";
 import type { TcMenubar } from "../../src/ui/tc-menubar.js";
 import type { TcPanel } from "../../src/ui/tc-panel.js";
+import type { TcStock } from "../../src/ui/tc-stock.js";
 import type { TcThrottle } from "../../src/ui/tc-throttle.js";
 
 /** A store nobody has run `git init` in, which is what a fresh installation
@@ -69,6 +76,17 @@ export interface Answers {
    *  driving it can switch, which is what `/rosters/<name>/trains` answers
    *  (ADR-0039, ADR-0045). */
   rosterOf: (railroad: string) => Record<string, TrainDoc>;
+  /** The roster **as the document it is**, which is what `/rosters/<name>`
+   *  answers and what the stock screen edits: the two are different shapes on
+   *  two routes, one derived and one as written (#388). */
+  documentOf: (railroad: string) => RosterDoc;
+  /** Every model the installation knows, which `/catalogue` answers. An
+   *  installation that has written none answers an empty map — a fresh box,
+   *  and not a fault (#392). */
+  catalogue: Record<string, ModelDoc>;
+  /** Every document a `PUT` has been given, in the order they arrived: what a
+   *  suite about a screen that writes reads to see what was written. */
+  saved: { path: string; body: unknown }[];
   /** What `/drawings/<name>` answers with. */
   read: (name: string) => Drawing;
   /** What `/review` answers with. */
@@ -91,6 +109,9 @@ export function serving(answers: Partial<Answers> = {}): Answers {
   const store: Answers = {
     drawings: [],
     rosterOf: () => ({}),
+    documentOf: (railroad) => ({ roster: railroad, trains: {} }),
+    catalogue: {},
+    saved: [],
     read: (name) => {
       throw new Error(`no drawing '${name}'`);
     },
@@ -99,9 +120,19 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     broken: null,
     ...answers,
   };
-  globalThis.fetch = ((path: string) => {
+  globalThis.fetch = ((path: string, init?: RequestInit) => {
     asked += 1;
     if (store.broken !== null) return Promise.reject(store.broken);
+    if ((init?.method ?? "GET") === "PUT") {
+      store.saved.push({
+        path,
+        body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+      });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ saved: path }),
+      } as unknown as Response);
+    }
     return answered(store, path).then(
       (body) =>
         ({ ok: true, json: () => Promise.resolve(body) }) as unknown as Response,
@@ -118,11 +149,15 @@ function answered(store: Answers, path: string): Promise<unknown> {
     return Promise.resolve(store.backup);
   }
   if (path === "/drawings") return Promise.resolve({ drawings: [...store.drawings] });
+  if (path === "/catalogue") return Promise.resolve({ models: store.catalogue });
   if (path.startsWith("/rosters/")) {
-    const railroad = decodeURIComponent(
-      path.slice("/rosters/".length).replace(/\/trains$/, ""),
-    );
-    return Promise.resolve({ roster: railroad, trains: store.rosterOf(railroad) });
+    const rest = path.slice("/rosters/".length);
+    // The document and the derived answer are two routes, and the suffix is
+    // what tells them apart the same way the store's own face does.
+    const railroad = decodeURIComponent(rest.replace(/\/trains$/, ""));
+    return rest.endsWith("/trains")
+      ? Promise.resolve({ roster: railroad, trains: store.rosterOf(railroad) })
+      : Promise.resolve(store.documentOf(railroad));
   }
   const name = decodeURIComponent(path.slice("/drawings/".length));
   return Promise.resolve(store.read(name));
@@ -210,6 +245,11 @@ export function editing(shell: TcApp): TcEditor {
 /** The run view, and whatever it has drawn inside itself. */
 export function running(shell: TcApp): TcPanel {
   return shell.renderRoot.querySelector("tc-panel")!;
+}
+
+/** The stock view, and whatever it has drawn inside itself. */
+export function stocking(shell: TcApp): TcStock {
+  return shell.renderRoot.querySelector("tc-stock")!;
 }
 
 /** The throttle view, and whatever it has drawn inside itself. */

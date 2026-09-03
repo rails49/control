@@ -99,11 +99,13 @@ export interface RunStatus {
   /** What a session refused, or the store not answering. Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
   trouble: string | null;
-  /** How many trains the run has on the layout. The bar reads it as the rule
-   *  that trains on the layout freeze the drawing (`model/commands.ts`,
-   *  ADR-0038): only this view knows, and the editing view is where it is
-   *  felt. */
-  placed: number;
+  /** The trains the run has on the layout, by name. The bar reads how many
+   *  there are as the rule that trains on the layout freeze the drawing
+   *  (`model/commands.ts`, ADR-0038), and the stock screen reads which they
+   *  are as the rule that a placed train's length may not be corrected
+   *  (ui/STOCK.md): only this view knows, and neither of the two views where
+   *  it is felt does. */
+  placed: readonly string[];
 }
 
 /** What the right-click found, as the canvas hands it over: `trainAt`'s answer
@@ -167,6 +169,17 @@ export class TcPanel extends LitElement {
   /** What the store says that drawing means. A railroad that does not derive
    *  has no layout to paint on, and the band already says so. */
   @property({ attribute: false }) review: Review | null = null;
+
+  /** Whether this view is the current one.
+   *
+   *  **The roster is read again when it becomes current.** The store is not on
+   *  the bus, so nothing publishes a roster change (ADR-0010): a person who
+   *  adds a locomotive on the stock screen and switches here must see it, and
+   *  the run keeps the roster it joined with until then (ui/STOCK.md). It is
+   *  the roster and not the session — the socket is untouched, and what the
+   *  bus says about where the trains are is not re-read, because nothing about
+   *  it went stale. */
+  @property({ type: Boolean }) current = false;
 
   /** The railroad a live session is joined on, `null` while none is. It is
    *  the loaded railroad or nothing (#171). */
@@ -234,6 +247,9 @@ export class TcPanel extends LitElement {
    * layout to build from, so nothing is painted and the band says why.
    */
   override willUpdate(changed: Map<string, unknown>): void {
+    if (changed.has("current") && this.current && this.session !== null) {
+      void this.reread(this.session);
+    }
     if (!changed.has("drawing") && !changed.has("review")) return;
     const name = this.drawing?.drawing ?? null;
     const layout = this.review?.layout ?? null;
@@ -313,6 +329,24 @@ export class TcPanel extends LitElement {
       // the fix rather than repeating what `fetch` said.
       this.trouble = "the store is not answering — run `tc49 serve`";
       if (mine === this.joins) this.retry();
+    }
+  }
+
+  /**
+   * The railroad's roster, read again over a session that is already up.
+   *
+   * Only the roster: the session is joined, the socket is open and every
+   * retained topic has been replayed, so re-joining would take a live picture
+   * down to bring back a document. A read that fails leaves what the view
+   * already has — the roster it joined with is a better answer than none, and
+   * the store not answering is already said elsewhere.
+   */
+  private async reread(railroad: string): Promise<void> {
+    try {
+      const stock = await readTrains(railroad);
+      if (this.session === railroad) this.stock = stock.trains;
+    } catch {
+      // Kept as it was: see above.
     }
   }
 
@@ -712,7 +746,7 @@ export class TcPanel extends LitElement {
       power: this.session === null ? null : (this.panel?.power ?? null),
       draining: this.draining,
       trouble: this.trouble,
-      placed: this.standing.length,
+      placed: this.standing.map(({ train }) => train),
     };
   }
 
@@ -810,7 +844,7 @@ export class TcPanel extends LitElement {
       was.power === now.power &&
       was.draining === now.draining &&
       was.trouble === now.trouble &&
-      was.placed === now.placed
+      same(was.placed, now.placed)
     ) {
       return;
     }
@@ -868,6 +902,13 @@ declare global {
   interface HTMLElementTagNameMap {
     "tc-panel": TcPanel;
   }
+}
+
+/** Whether two lists of placed trains say the same thing. The status is
+ *  compared field by field so the app is told only when something moved, and
+ *  a list is built afresh on every render. */
+function same(was: readonly string[], now: readonly string[]): boolean {
+  return was.length === now.length && was.every((train, at) => train === now[at]);
 }
 
 /** Whether a client point is inside an element's box. Where each part of the

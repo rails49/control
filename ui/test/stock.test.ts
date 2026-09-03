@@ -2,11 +2,11 @@
  * The roster document's calls: which route each one asks, and what it makes of
  * the answer (#388).
  *
- * At the client rather than through a screen, because there is no stock screen
- * yet: what is under test is that the document's route and the run views'
- * derived one are two routes — `GET` and `PUT` on `/rosters/<railroad>` are
- * inverses over the file, and `/rosters/<railroad>/trains` is what the panel
- * and the throttle read.
+ * At the client rather than through the screen that now edits them
+ * (`test/making.test.ts`): what is under test is that the document's route and
+ * the run views' derived one are two routes — `GET` and `PUT` on
+ * `/rosters/<railroad>` are inverses over the file, and
+ * `/rosters/<railroad>/trains` is what the panel and the throttle read.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

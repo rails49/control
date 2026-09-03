@@ -245,6 +245,12 @@ export const MENUS: Record<ViewId, Menu[]> = {
   // save, and the two gestures it writes are controls in the view itself
   // rather than verbs in a menu (ui/THROTTLE.md).
   throttle: [],
+  // Stock draws two documents and neither is a drawing: there is no viewport
+  // to move, and what it writes — a model, a roster — are controls in the
+  // view itself for the same reason the throttle's gestures are
+  // (ui/STOCK.md). `File ▸ Save` here would be a second Save meaning
+  // something else than the one beside it.
+  stock: [],
 };
 
 /** What each view pins at the right end of the bar, in the order they sit in.
@@ -256,4 +262,5 @@ export const TOOLS: Record<ViewId, CommandId[]> = {
   edit: ["zoom-out", "zoom-in", "fit"],
   run: ["zoom-out", "zoom-in", "fit"],
   throttle: [],
+  stock: [],
 };

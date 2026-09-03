@@ -196,10 +196,20 @@ export const THROTTLE = icon(svg`
   <circle cx="8" cy="3" r="1.4" />
 `);
 
+/** A wagon: a body on two wheels, which is what anything on the roster is —
+ *  the stock screen is about the cars a railroad owns and the trains made up
+ *  from them, and not about the track they stand on. */
+export const STOCK = icon(svg`
+  <path d="M2.5 4.5h11v5h-11z" />
+  <circle cx="5.5" cy="11.5" r="1.6" />
+  <circle cx="10.5" cy="11.5" r="1.6" />
+`);
+
 /** The picture on the selector's button for a view. Exhaustive over `ViewId`
  *  by its type, as `GLYPHS` is over `CommandId`. */
 export const ICONS: Record<ViewId, SVGTemplateResult> = {
   edit: EDIT,
   run: RUN,
+  stock: STOCK,
   throttle: THROTTLE,
 };

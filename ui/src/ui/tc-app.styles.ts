@@ -61,6 +61,7 @@ export const appStyles = css`
 
   tc-editor,
   tc-panel,
+  tc-stock,
   tc-throttle {
     grid-area: work;
     min-width: 0;
