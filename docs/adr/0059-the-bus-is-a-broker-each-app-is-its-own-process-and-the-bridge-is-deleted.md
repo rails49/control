@@ -52,6 +52,19 @@ every filter in the inventory for a case this deployment does not have, and a
 shared broker can add a prefix in front of `tc49/` at its own edge
 (Mosquitto's bridge does exactly this) without the contract changing.
 
+**Amended under
+[ADR-0060](0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md):**
+"switching railroads is restarting the apps, and the band's railroad picker
+goes with the bridge" no longer holds. A railroad is chosen on the bus —
+`tc49/layout/railroad_wanted`, answered by the layout interface — and the
+picker stays and writes it, live only while track power reads `off`. That
+clause did not engage with ADR-0038, which had considered restricting the
+picker and declined, and taken literally it leaves a person unable to create a
+railroad from the app at all. Loading one clears the retained rows each app
+owns, which restarting the apps does not. The rest of this decision is
+untouched: one broker runs one railroad, topics stay flat, and a namespace
+level per railroad is still rejected.
+
 **3. Retained state lives in the broker and nowhere else.** `durable.py`,
 `tc49 live --state` and the state file are deleted. The broker keeps retained
 values while it runs, which is what restarting one app needs, and keeps
