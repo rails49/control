@@ -26,6 +26,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
+# GitHub's host keys, so the first push from a box that has never spoken to
+# github.com is checked against something rather than asked about: nobody is
+# at a prompt in a container, and trusting whatever answers first is the wrong
+# corner to cut on a box that holds a key to somebody's repository (#355).
+COPY deploy/github.known_hosts /etc/ssh/ssh_known_hosts
+
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
