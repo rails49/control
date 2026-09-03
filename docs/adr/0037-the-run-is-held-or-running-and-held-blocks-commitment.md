@@ -33,12 +33,18 @@ are a closed set is an **enum**; this ADR calls it a *word*, the term
 `CONTEXT.md` used until #242. Nothing below has been rewritten, so read *word*
 as *enum* throughout.
 
-**Amended under
+**Amended for
 [#294](https://github.com/rails49/control/issues/294):** "Two values today"
-is three. The drain the enum was kept open for has landed as `draining`, and
-the section *The drain is the third value* below carries what each of the
-three does. The name of this decision stands: the run is still held or
-running when it is not draining, and `held` still blocks commitment.
+is three: `held`, `running` and `draining`. The drain the enum was kept open
+for has landed, and it commits more than a hold and less than a release — it
+admits, it goes on granting a train already moving, and it launches nothing,
+ending when the dispatcher writes `held` itself. It is what
+[ADR-0051](0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)'s
+OFF asks for and waits on before it commands power off, that ADR having left
+the value itself to this issue. The section *The drain is the third value*
+below carries the three side by side. The name of this decision stands: the
+run is still held or running when it is not draining, and `held` still blocks
+commitment.
 
 The bar it was built for is @iot49's: *"after power up, no trains should move
 without operator intervention."* Nothing enforced it, and there was no gesture
