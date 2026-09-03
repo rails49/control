@@ -2,15 +2,17 @@
  * The views the app has of the railroad it has loaded, as data
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
  *
- * The two control surfaces come first and the editor last: the app opens on
- * the first of them, and the editor is the setup tool you go to deliberately.
+ * The control surfaces come first and the setup tools last: the app opens on
+ * the first of them, and stock and the editor are what you go to
+ * deliberately.
  *
  * One app, one railroad, N views. The band renders the list as a **selector**,
  * one icon-button per view with the current one marked: two of them were a
  * single toggle, and the third made it this, which is the redesign ADR-0038
- * said the list would keep small. A stock screen and a schedule table add an
- * entry here rather than force another, which is the whole reason this is a
- * list and not a boolean.
+ * said the list would keep small. The stock screen was the first entry to
+ * arrive that way rather than force another redesign (#393), and a schedule
+ * table adds one the same way — which is the whole reason this is a list and
+ * not a boolean.
  *
  * The labels are here and the icons are not: an icon is a `lit` template and
  * `model/` imports no `ui/`. `ICONS` in `ui/icons.ts` is keyed by `ViewId`, so
@@ -18,7 +20,7 @@
  * `CommandId`.
  */
 
-export type ViewId = "run" | "throttle" | "edit";
+export type ViewId = "run" | "throttle" | "stock" | "edit";
 
 export interface View {
   id: ViewId;
@@ -27,11 +29,12 @@ export interface View {
 }
 
 /** Every view, in the order the control offers them. The app opens in the
- *  first of them: it is a control surface, and the editor is the setup tool
- *  you go to deliberately. */
+ *  first of them: it is a control surface, and stock and the editor are the
+ *  setup tools you go to deliberately. */
 export const VIEWS: View[] = [
   { id: "run", label: "Run" },
   { id: "throttle", label: "Throttle" },
+  { id: "stock", label: "Stock" },
   { id: "edit", label: "Edit" },
 ];
 

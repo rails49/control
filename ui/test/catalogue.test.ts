@@ -2,10 +2,10 @@
  * The catalogue calls: which route each one asks, and what it makes of the
  * answer (#392).
  *
- * At the client rather than through a screen, because there is no screen yet:
- * what is under test is the shape of the request — a model is the
- * installation's and is addressed by its own name, with no railroad in the
- * path (ADR-0045) — and the unwrapping of the answer.
+ * At the client rather than through the screen that now writes them
+ * (`test/making.test.ts`): what is under test is the shape of the request — a
+ * model is the installation's and is addressed by its own name, with no
+ * railroad in the path (ADR-0045) — and the unwrapping of the answer.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
