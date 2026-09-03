@@ -106,7 +106,7 @@ same lever drives the train the other way physically, which is the point of
 working in the train's frame.
 
 **The functions** of the train's own cars, by the names the catalogue gives
-them and by no number, from `GET /rosters/<railroad>` — a train's functions
+them and by no number, from `GET /rosters/<railroad>/trains` — a train's functions
 are derived from its cars, name by name, the first car declaring one settling
 what its values are (ADR-0045). A train whose cars declare none shows none,
 which is most of the stock a railroad owns.
@@ -169,7 +169,7 @@ the layout, which also lets go of the train entirely: there is nothing left
 for a lever to move.
 
 The **roster route** carries what a person can switch beside the length
-(`GET /rosters/<railroad>`, `store/server.py`). Both are derived from the cars
+(`GET /rosters/<railroad>/trains`, `store/server.py`). Both are derived from the cars
 the train is made of and neither is authored, so they arrive together; the
 cars themselves, their addresses and which function number each name sits on are
 the roster screen's and the translator's, never a view's.

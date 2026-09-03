@@ -66,7 +66,7 @@ export interface Answers {
   /** The names `/drawings` lists. */
   drawings: string[];
   /** The trains a railroad owns, each with its length and what a person
-   *  driving it can switch, which is what `/rosters/<name>` answers
+   *  driving it can switch, which is what `/rosters/<name>/trains` answers
    *  (ADR-0039, ADR-0045). */
   rosterOf: (railroad: string) => Record<string, TrainDoc>;
   /** What `/drawings/<name>` answers with. */
@@ -119,7 +119,9 @@ function answered(store: Answers, path: string): Promise<unknown> {
   }
   if (path === "/drawings") return Promise.resolve({ drawings: [...store.drawings] });
   if (path.startsWith("/rosters/")) {
-    const railroad = decodeURIComponent(path.slice("/rosters/".length));
+    const railroad = decodeURIComponent(
+      path.slice("/rosters/".length).replace(/\/trains$/, ""),
+    );
     return Promise.resolve({ roster: railroad, trains: store.rosterOf(railroad) });
   }
   const name = decodeURIComponent(path.slice("/drawings/".length));
