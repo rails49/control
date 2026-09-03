@@ -22,6 +22,14 @@ WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
 COPY pyproject.toml uv.lock README.md ./
+
+# The dependencies in a layer of their own, ahead of the source. `src/` changes
+# on nearly every deploy and `uv.lock` seldom does, and a single sync would put
+# them in one layer: a source change would then re-resolve and reinstall
+# packages that did not move. `--no-install-project` is what leaves the project
+# itself out of this one, so the layer's only input is the lock file.
+RUN uv sync --frozen --no-install-project --no-dev
+
 COPY src ./src
 RUN uv sync --frozen --no-dev
 
