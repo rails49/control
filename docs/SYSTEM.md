@@ -618,7 +618,9 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     GET  /drawings/<name>       one drawing, whole
     PUT  /drawings/<name>       create or replace it
     POST /review                what a drawing means: the derived layout, explained
-    GET  /rosters/<name>        one railroad's roster
+    GET  /rosters/<name>        one railroad's roster, whole
+    PUT  /rosters/<name>        create or replace it
+    GET  /rosters/<name>/trains its trains, each with its length and functions
     GET  /catalogue             the models the installation knows, by name
     GET  /catalogue/<name>      one model, whole
     PUT  /catalogue/<name>      create or replace it
@@ -633,8 +635,11 @@ rather than in an app of its own
 ([ADR-0013](adr/0013-apps-are-deployment-units.md)). `review` is the one
 route that is not CRUD: it takes an unsaved document and answers what it
 derives to, so the editor holds no second copy of the derivation
-([ui/EDITOR.md](ui/EDITOR.md)). `delete` is on no route, for any document,
-and the roster's `put` is not there yet; a scenario never is (below).
+([ui/EDITOR.md](ui/EDITOR.md)). `/rosters/<name>/trains` is the other
+derivation on this face: what the run views read, and a path of its own
+because `GET` and `PUT` on the document have to be inverses
+([#388](https://github.com/rails49/control/issues/388)). `delete` is on no
+route, for any document; a scenario is on none at all (below).
 
 **Every route is refused to a page on another origin.** A request carrying an
 `Origin` header that is neither the server's own `Host` nor a loopback host —
@@ -687,14 +692,22 @@ LAN is still the trust boundary and a browser is not on it
   library binding, and no browser can reach one
   ([#171](https://github.com/rails49/control/issues/171)). The two document
   types a run is built from are the other two.
-- **A railroad owns its roster** — the trains it has, each with a name and a
-  length, kept beside its drawing and under the same name
+- **A railroad owns its roster** — the cars it has and the trains made up from
+  them, kept beside its drawing and under the same name
   ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). A railroad with no
   roster file owns no trains yet, which is the state a drawing made this
   morning is in. Being on the roster is what makes a train **known**, and a
   person's placement is what puts it on the rails. A train nothing places
   comes up **off the layout**. **The drawing and the roster are the whole of
-  what a run is built from** (#171).
+  what a run is built from** (#171). It is **writable over HTTP**, and that is
+  what completes the flow the app exists for: draw a railroad, save it, make
+  up a train and put it on. A train's entry names **either a car or a model**
+  — `cars` holds identified stock, and ten identical hoppers are named by
+  their model where they are used
+  ([ADR-0061](adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
+  A `PUT` is the whole document, so a roster arriving without a car is that
+  car removed and there is no `DELETE`
+  ([#388](https://github.com/rails49/control/issues/388)).
 - **The catalogue is the installation's, and it is writable over HTTP** — the
   models it knows, one document per model, named for itself and read by every
   railroad on the box: a model is what a product is, and a product does not

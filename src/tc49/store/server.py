@@ -8,8 +8,10 @@ rather than to an app of its own — a `ui` package could not import
     GET  /drawings/<name>       one drawing, as the document it is
     PUT  /drawings/<name>       save it, keeping what the file says
     POST /review                what a drawing means, derived and explained
-    GET  /rosters/<name>        one railroad's roster: its trains, each with
-                                its length and the functions its cars declare
+    GET  /rosters/<name>        one railroad's roster, as the document it is
+    PUT  /rosters/<name>        save it, keeping what the file says
+    GET  /rosters/<name>/trains its trains, each with its length and the
+                                functions its cars declare
     GET  /catalogue             every model the installation knows, by name
     GET  /catalogue/<name>      one model, as the document it is
     PUT  /catalogue/<name>      save it, keeping what the file says
@@ -26,21 +28,30 @@ derived layout, and why each pair of transits does or does not run together.
 The front end reimplements none of it, so a second union-find cannot disagree
 with the first inside the tool whose job is to be believed.
 
-The roster route is the run views': a run is built from a railroad, and its
-stock is the railroad's roster (ui/PANEL.md, ADR-0039), the bridge relaying the
-bus rather than describing the run. The panel reads a train's length off it and
-the throttle reads what a person driving that train can switch
+**The route is the document, so `GET` and `PUT` on `/rosters/<name>` are
+inverses**: the roster as the file has it, which is what an editing surface
+needs and what makes a roster creatable from the app at all. Until it was, a
+person could draw a railroad and save it and then not put a train on it — the
+flow the app exists for stopped one step short (#388). Strict, unlike a
+drawing: a drawing is readable half-made because there is a picture to look at,
+and a roster is not. A roster arriving without a car is that car removed, so
+removing one needs no verb.
+
+`/rosters/<name>/trains` is the run views': a run is built from a railroad, and
+its stock is the railroad's roster (ui/PANEL.md, ADR-0039), the bridge relaying
+the bus rather than describing the run. The panel reads a train's length off it
+and the throttle reads what a person driving that train can switch
 (ui/THROTTLE.md), both of them derived from the cars the train is made of. It
-is a read of the store like any other, so it answers with the *validated*
-document.
+is a path of its own because it is a *derived* answer and deliberately
+withholds the cars, the addresses and the function numbers an editing surface
+has to have, so one route could not serve both.
 
 A **scenario is not served at all**. It is the harness's file format, read off
 disk by `tc49 bench` and by `tc49 live --scenario`, and never
 browser-reachable (#171).
 
-The roster is a read of the railroad and not of the run: which trains it owns
-does not change while a session is up, and what the bus says is where they
-are. Editing one is `scratch/4-stock`'s, so there is no `PUT` here yet.
+Either way the roster is the railroad's and not the run's: which trains it owns
+does not change while a session is up, and what the bus says is where they are.
 
 The **catalogue** routes are the installation's rather than any railroad's: a
 model is what a product is and a car names one (ADR-0045). They answer
@@ -67,8 +78,9 @@ cannot shell out to git. The app drives git and does not own it, so a store
 that is not a repository is answered rather than initialized, and what git
 said comes back as it came (ADR-0053, #321). It becomes one by adopting an
 empty repository the person made, cloned at the address they give (#355). A
-save is what arms the idle timer, which is why a `PUT` — a drawing's or a
-model's — tells the backup it happened, the one place the two meet.
+save is what arms the idle timer, which is why every `PUT` — a drawing's, a
+model's, a roster's — tells the backup it happened, the one place the two
+meet.
 
 **Every route is refused to a page on another origin.** A request carrying an
 `Origin` header that is not this server's own `Host` is answered 403 and
@@ -96,6 +108,7 @@ from urllib.parse import unquote
 from yaml import YAMLError
 
 from tc49.lib.origin import is_own_page
+from tc49.lib.roster import Roster
 from tc49.store.backup import Backup, Said
 from tc49.store.drawing import Drawing
 from tc49.store.store import AssetStore
@@ -152,29 +165,20 @@ def _route(
         if method == "PUT":
             return _put_model(store, backup, model, body)
 
-    railroad = route.removeprefix("/rosters/")
-    if method == "GET" and railroad != route and "/" not in railroad:
-        roster = store.roster(railroad)
-        # The train's length and what a person driving it can switch, and
-        # nothing else: the cars it is made of, their addresses and which
-        # function number each name sits on are the roster screen's and the
-        # translator's, not a view's (ui/THROTTLE.md, ADR-0045). Written out
-        # rather than `asdict`, which would put every field of the document on
-        # this face the day one is added — and would drop both of these, which
-        # a train derives.
-        return 200, {
-            "roster": roster.railroad,
-            "trains": {
-                name: {
-                    "length": train.length,
-                    "functions": [
-                        {"name": function.name, "values": list(function.values)}
-                        for function in train.functions
-                    ],
-                }
-                for name, train in sorted(roster.trains.items())
-            },
-        }
+    rest = route.removeprefix("/rosters/")
+    if rest != route:
+        # The document is the route, so `/rosters/<name>` alone is the roster
+        # itself and the run view's derived answer hangs below it. Which is
+        # why the guard is a partition rather than a refusal of every path
+        # with a '/' in it, as the drawing's and the model's still are.
+        railroad, _, derived = rest.partition("/")
+        if method == "GET" and derived == "trains":
+            return 200, _trains(store.roster(railroad))
+        if not derived:
+            if method == "GET":
+                return 200, store.roster_document(railroad)
+            if method == "PUT":
+                return _put_roster(store, backup, railroad, body)
 
     name = route.removeprefix("/drawings/")
     if name != route and "/" not in name:
@@ -251,6 +255,52 @@ def _put(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
     # The save that arms the idle timer. It says a document was written and
     # nothing about which — what moved is git's answer, and a person editing a
     # roster by hand under the same store is as much a change as this is.
+    backup.saved()
+    return 200, {"saved": name}
+
+
+def _trains(roster: Roster) -> dict[str, Any]:
+    """What the run views read a roster for: each train's length and what a
+    person driving it can switch.
+
+    Derived rather than written down, which is why it is a path of its own
+    below the document: `/rosters/<name>` is the roster as the file has it and
+    `GET` and `PUT` there are inverses, and one answer cannot be both that and
+    this. The cars a train is made of, their addresses and which function
+    number each name sits on are the stock screen's and the translator's, not
+    a view's (ui/THROTTLE.md, ADR-0045). Written out rather than `asdict`,
+    which would put every field of the document on this face the day one is
+    added — and would drop both of these, which a train derives.
+    """
+    return {
+        "roster": roster.railroad,
+        "trains": {
+            name: {
+                "length": train.length,
+                "functions": [
+                    {"name": function.name, "values": list(function.values)}
+                    for function in train.functions
+                ],
+            }
+            for name, train in sorted(roster.trains.items())
+        },
+    }
+
+
+def _put_roster(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
+    """One railroad's roster, created or replaced.
+
+    Whole-document like every other write on this face, so a roster arriving
+    without a car is that car removed and removing one needs no verb of its
+    own. Strict: a drawing is readable half-made because there is a picture to
+    look at, and a roster is not, so a document that does not validate is a
+    400 carrying the validator's words and nothing is written.
+    """
+    if not isinstance(body, dict):
+        return 400, {"error": "a roster document is required"}
+    store.put_roster(cast(dict[str, Any], body), name)
+    # As a drawing's save does, and for the same reason: a roster written is a
+    # document of the store that has moved (#388).
     backup.saved()
     return 200, {"saved": name}
 

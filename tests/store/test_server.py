@@ -83,13 +83,124 @@ def test_a_put_naming_a_different_drawing_is_refused(
     assert "facing-pair" in body["error"]
 
 
-def test_a_roster_is_served_for_the_railroad_that_owns_it(
+def test_a_roster_is_served_as_the_document_it_is(
+    store: AssetStore, backup: Backup
+) -> None:
+    """The route is the document, so what comes back is the file: the cars
+    the railroad owns and the entries each train is made of, which is what an
+    editing surface needs and what the derived answer withholds (#388)."""
+    status, body = handle(store, backup, "GET", "/rosters/reversing-loops-v0", None)
+    assert status == 200
+    assert body["roster"] == "reversing-loops-v0"
+    assert body["cars"]["south_car"] == {"model": "bench-900"}
+    assert body["trains"]["south"] == {"cars": [{"car": "south_car"}]}
+
+
+def test_a_roster_is_written_and_read_back(tmp_path: Path, backup: Backup) -> None:
+    """The round trip the stock screen is, on a box with nothing on it: a
+    drawing saved this morning has no roster beside it, and this is what puts
+    the first train on the railroad (#388, #392)."""
+    catalogued(tmp_path)
+    store = AssetStore(tmp_path)
+    doc = {
+        "roster": "oval",
+        "cars": {"krokodil_a": {"model": "arnold-ce68", "addr": "3"}},
+        "trains": {"ore": {"cars": [{"car": "krokodil_a"}, {"model": "bench-600"}]}},
+    }
+    assert handle(store, backup, "PUT", "/rosters/oval", doc) == (
+        200,
+        {"saved": "oval"},
+    )
+    assert handle(store, backup, "GET", "/rosters/oval", None) == (200, doc)
+    # And the same document read as the run views read it: one car of 122 and
+    # one of 600, summed by the train that names them (ADR-0061).
+    assert handle(store, backup, "GET", "/rosters/oval/trains", None)[1] == {
+        "roster": "oval",
+        "trains": {
+            "ore": {
+                "length": 722,
+                "functions": [{"name": "lights", "values": ["off", "on"]}],
+            }
+        },
+    }
+
+
+def test_a_roster_naming_a_model_the_installation_has_not_is_refused(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """400 carrying what the validator said, and nothing written: a roster is
+    strict — there is no picture to look at, so there is no half-made shape
+    to save."""
+    catalogued(tmp_path)
+    store = AssetStore(tmp_path)
+    status, body = handle(
+        store,
+        backup,
+        "PUT",
+        "/rosters/oval",
+        {
+            "roster": "oval",
+            "cars": {},
+            "trains": {"ore": {"cars": [{"model": "hopper"}]}},
+        },
+    )
+    assert status == 400
+    assert "hopper" in body["error"]
+    assert not (tmp_path / "layouts" / "oval.roster.yaml").exists()
+
+
+def test_two_cars_sharing_a_decoder_address_are_refused(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Both answer the same packet and no run can tell them apart, so the
+    roster that says so is refused rather than written."""
+    catalogued(tmp_path)
+    store = AssetStore(tmp_path)
+    status, body = handle(
+        store,
+        backup,
+        "PUT",
+        "/rosters/oval",
+        {
+            "roster": "oval",
+            "cars": {
+                "krokodil_a": {"model": "arnold-ce68", "addr": "3"},
+                "krokodil_b": {"model": "arnold-ce68", "addr": "3"},
+            },
+            "trains": {},
+        },
+    )
+    assert status == 400
+    assert "share address '3'" in body["error"]
+    assert not (tmp_path / "layouts" / "oval.roster.yaml").exists()
+
+
+def test_a_roster_cannot_be_saved_under_another_railroads_name(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """The name in the path is the railroad the roster belongs to, so a
+    document naming another one is refused rather than filed under this."""
+    catalogued(tmp_path)
+    status, body = handle(
+        AssetStore(tmp_path),
+        backup,
+        "PUT",
+        "/rosters/oval",
+        {"roster": "loop", "cars": {}, "trains": {}},
+    )
+    assert status == 400
+    assert "loop" in body["error"]
+
+
+def test_the_run_views_answer_is_the_trains_below_the_document(
     store: AssetStore, backup: Backup
 ) -> None:
     """Every train the railroad owns, whether anything places it or not: the
     roster is the run view's source for what there is to place, and the one
     place a length is written down (ADR-0039, ui/PANEL.md)."""
-    status, body = handle(store, backup, "GET", "/rosters/reversing-loops-v0", None)
+    status, body = handle(
+        store, backup, "GET", "/rosters/reversing-loops-v0/trains", None
+    )
     assert status == 200
     assert body["roster"] == "reversing-loops-v0"
     assert body["trains"]["south"] == {"length": 900, "functions": []}
@@ -114,7 +225,9 @@ def test_a_trains_functions_are_served_with_it(tmp_path: Path, backup: Backup) -
         "cars:\n  re460_1: {model: re460}\n"
         "trains:\n  light_1: {cars: [{car: re460_1}]}\n"
     )
-    status, body = handle(AssetStore(tmp_path), backup, "GET", "/rosters/shed", None)
+    status, body = handle(
+        AssetStore(tmp_path), backup, "GET", "/rosters/shed/trains", None
+    )
     assert status == 200
     assert body["trains"]["light_1"] == {
         "length": 220,
@@ -129,8 +242,13 @@ def test_a_railroad_with_no_roster_owns_nothing_yet(
     store: AssetStore, backup: Backup
 ) -> None:
     """A drawing made this morning has no roster file beside it, which is not
-    a missing railroad: it is a railroad with no trains on it yet."""
+    a missing railroad: it is a railroad with no trains on it yet. Both routes
+    say so — the document is the empty one the stock screen draws itself
+    from, and the derived answer has no trains in it."""
     status, body = handle(store, backup, "GET", "/rosters/facing-pair-2", None)
+    assert status == 200
+    assert body == {"roster": "facing-pair-2", "cars": {}, "trains": {}}
+    status, body = handle(store, backup, "GET", "/rosters/facing-pair-2/trains", None)
     assert status == 200
     assert body == {"roster": "facing-pair-2", "trains": {}}
 
@@ -317,6 +435,11 @@ def test_an_unknown_route_is_not_found(store: AssetStore, backup: Backup) -> Non
     for method, path in (
         ("GET", "/nowhere"),
         ("DELETE", "/drawings/reversing-loops-v0"),
+        # No DELETE on this face for any document, and nothing below a roster
+        # but the run views' derived answer, which is read and never written.
+        ("DELETE", "/rosters/reversing-loops-v0"),
+        ("PUT", "/rosters/reversing-loops-v0/trains"),
+        ("GET", "/rosters/reversing-loops-v0/cars"),
     ):
         status, _ = handle(store, backup, method, path, None)
         assert status == 404
@@ -330,6 +453,7 @@ def test_review_is_the_only_route_that_takes_a_document(
     doc: dict[str, Any] = store.drawing("facing-pair")
     assert handle(store, backup, "PUT", "/drawings/facing-pair", None)[0] == 400
     assert handle(store, backup, "PUT", "/catalogue/conrad-e10", None)[0] == 400
+    assert handle(store, backup, "PUT", "/rosters/facing-pair", None)[0] == 400
     assert handle(store, backup, "POST", "/review", None)[0] == 400
     assert handle(store, backup, "POST", "/review", doc)[0] == 200
 
@@ -691,6 +815,26 @@ def test_saving_a_model_arms_the_idle_timer(
     driven.switch(True)
     doc = {"model": "re460", "kind": "locomotive", "length": 220}
     assert handle(store, driven, "PUT", "/catalogue/re460", doc)[0] == 200
+    assert [call for call in driving.calls if call[0] == "commit"] == []
+
+    clock[0] += 20.0
+    driven.due()
+    assert [call[0] for call in driving.calls if call[0] == "commit"] == ["commit"]
+
+
+def test_saving_a_roster_arms_the_idle_timer(
+    store: AssetStore, driven: Backup, driving: FakeGit, clock: list[float]
+) -> None:
+    """A roster written over the route is a document of the store that moved,
+    so it arms the timer the way a drawing and a model do — the one place
+    saving and backup meet (#388)."""
+    driven.switch(True)
+    doc = {
+        "roster": "facing-pair-2",
+        "cars": {"t1_car": {"model": "bench-1000"}},
+        "trains": {"t1": {"cars": [{"car": "t1_car"}]}},
+    }
+    assert handle(store, driven, "PUT", "/rosters/facing-pair-2", doc)[0] == 200
     assert [call for call in driving.calls if call[0] == "commit"] == []
 
     clock[0] += 20.0
