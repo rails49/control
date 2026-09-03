@@ -18,6 +18,14 @@ FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
 
+# git, because the store's backup drives it: it commits the documents and
+# pushes them off the machine, and a `python:slim` carries none. Without it
+# the backup answers that `/store` is not a repository, which is true of every
+# store and says nothing about the one it was asked about.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 

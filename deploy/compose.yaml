@@ -127,8 +127,21 @@ services:
     build: *app
     profiles: [layout]
     restart: unless-stopped
+    # The key the push goes out with, read-only, and the host keys to check
+    # github against — the app drives git and does not own it, so the
+    # credential is the machine's and not the image's. `safe.directory`
+    # because the documents belong to the person and this process is root:
+    # git refuses a repository it does not own until it is told this one is
+    # expected.
+    environment:
+      GIT_SSH_COMMAND: "ssh -i /root/.ssh/id_ed25519 -o UserKnownHostsFile=/root/.ssh/known_hosts"
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: /store
     volumes:
       - ${TC49_STORE:-~/tc49}:/store
+      - ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519:ro
+      - ${HOME}/.ssh/known_hosts:/root/.ssh/known_hosts:ro
     command: ["tc49", "serve", "--host", "0.0.0.0", "--store", "/store"]
 
   # A session: one run of one railroad, and the only thing here that is not
