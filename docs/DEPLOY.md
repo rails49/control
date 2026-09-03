@@ -93,6 +93,7 @@ to run anything else (#354). Every service below is built from one image,
 | runs on the layout server | port | reached how |
 | --- | --- | --- |
 | the app, over the certificate | 443 | `https://layout.rails49.org` |
+| the redirect to it | 80 | `layout.rails49.org` typed bare |
 | the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/rosters` |
 | the broker, native clients | 1883 | the LAN address |
 | the broker, a browser | 9001, and `/mqtt` | plaintext on the LAN, or through the proxy from a TLS page |
@@ -208,8 +209,14 @@ needs no maintenance when the box changes networks.
 
 ## What the proxy carries
 
-One entry point, `:443`, and one route file from `deploy/routes/`, named by
-`TC49_SITE` and `dev` unless it is set. A box mounts its own and no other:
+Two entry points and one route file from `deploy/routes/`, named by
+`TC49_SITE` and `dev` unless it is set. The routers all sit on `:443`. `:80`
+carries a redirect to it and holds no router of its own, because a person types
+a bare hostname and the browser tries http first; a box publishing 443 alone
+refuses that connection and reads as down. The certificate comes from a DNS-01
+challenge, so nothing needs `:80` reachable from outside the LAN.
+
+A box mounts its own route file and no other:
 Traefik asks for a certificate at startup for every router it can see, rather
 than when a request for that name first arrives, so a box carrying both files
 fetches a certificate for a name that is not its own.

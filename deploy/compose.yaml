@@ -26,7 +26,12 @@ services:
   proxy:
     image: traefik:v3.3
     restart: unless-stopped
+    # 80 carries a redirect and nothing else. A person types a bare hostname
+    # and the browser tries http, so a box that publishes 443 alone refuses
+    # the connection and the site reads as down (#364). The certificate comes
+    # from a DNS-01 challenge, so nothing here needs 80 to reach the outside.
     ports:
+      - "80:80"
       - "443:443"
     # The token and the ACME account, from whatever `op run` put in the
     # environment; without it compose stops rather than starting a proxy that
@@ -38,6 +43,9 @@ services:
       CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN:?run this under op run --env-file=deploy/op.env}
       TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_EMAIL: ${TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_EMAIL:?run this under op run --env-file=deploy/op.env}
     command:
+      - --entryPoints.web.address=:80
+      - --entryPoints.web.http.redirections.entryPoint.to=websecure
+      - --entryPoints.web.http.redirections.entryPoint.scheme=https
       - --entryPoints.websecure.address=:443
       - --providers.file.directory=/etc/traefik/routes
       - --providers.file.watch=true
