@@ -783,13 +783,16 @@ what has moved since the last backup, what backup has not got, what git last
 said, and the backups there are to come back to. The app **drives git and does
 not own it**
 ([ADR-0053](../adr/0053-backup-drives-git-and-does-not-own-it.md),
-[store/BACKUP.md](../store/BACKUP.md)): the two presses are *Back up now* and
-the switch that turns automated backup on, and neither this dialog nor anything
-behind it runs `git init`, makes a remote or resolves a conflict.
+[store/BACKUP.md](../store/BACKUP.md)): the presses are *Back up now*, the
+switch that turns automated backup on, and *Back up to it*, which hands the
+address of an empty repository the person made to the store to adopt
+([#355](https://github.com/rails49/control/issues/355)). Neither this dialog
+nor anything behind it runs `git init`, makes a remote or resolves a conflict.
 
 A store nobody has made a repository is the ordinary state of a fresh
-installation, so what backup needs reads as the command that would supply it
-rather than as a fault, and everything else in the editor is unaffected.
+installation, so what backup needs reads as what to make rather than as a
+fault, the key to paste into that repository's deploy keys is on the screen
+beside it, and everything else in the editor is unaffected.
 
 **The item marks itself when nobody is looking.** The app asks the store where
 backup stands once, when it comes up, and `Backup…` carries a `!` in two

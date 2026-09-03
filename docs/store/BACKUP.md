@@ -9,8 +9,10 @@ of it.
 **The app drives git; it does not own it**
 ([ADR-0053](../adr/0053-backup-drives-git-and-does-not-own-it.md)). It commits,
 pushes and restores when the timer or a person asks, and surfaces what git
-said. It never runs `git init`, never makes a branch or a remote, never
-resolves a conflict and never handles a credential.
+said. It never runs `git init`, never makes a branch or a remote and never
+resolves a conflict. The one credential it holds is a deploy key it made for
+itself, good for one repository and nothing else
+([#355](https://github.com/rails49/control/issues/355)).
 
 Terminology follows [CONTEXT.md](../../CONTEXT.md) — **backup** and
 **restore**; the routes are in [SYSTEM.md](../SYSTEM.md#asset-store) and the
@@ -18,23 +20,38 @@ code is `src/tc49/store/backup.py`.
 
 ## Setting one up
 
-Two commands, once, in the store:
+Once, in a browser, and no terminal
+([#355](https://github.com/rails49/control/issues/355)):
 
-```
-cd ~/tc49
-git init
-git remote add origin git@github.com:you/my-railroad.git   # optional
-```
+1. Make an **empty, private repository** on github.com — no README, no
+   licence, nothing in it.
+2. Open `File ▸ Backup…`. The dialog shows the key this store made for
+   itself. Copy it and paste it into that repository under *Settings ▸ Deploy
+   keys*, with *Allow write access* ticked. It is the public half; pasting it
+   somewhere wrong loses nothing.
+3. Enter the repository's ssh address — `git@github.com:you/my-railroad.git`
+   — and press *Back up to it*.
 
-Then turn automated backup on — `File ▸ Backup…` in the UI, and *Turn
-automatic backup on* in the dialog it opens, which writes `backup.yaml` in the
-store. It is a document of the installation like
-the catalogue is, so it is backed up with the rest and a restored store comes
-back with backup still on.
+The store clones the repository and moves the clone's `.git` in under the
+drawings already there, which become the first backup. Then *Turn automatic
+backup on* in the same dialog, which writes `backup.yaml` in the store. It is
+a document of the installation like the catalogue is, so it is backed up with
+the rest and a restored store comes back with backup still on.
 
-Nothing above is done for you, and until it is done the store still works: the
-server comes up, the editor saves, and backup says what is missing in the
-words of the command that would fix it.
+A repository that already holds anything is refused: that is a restore onto a
+new box, which is a different act, and the dialog says so rather than
+guessing which was meant. Until a repository is adopted the store still works:
+the server comes up, the editor saves, and backup says what is missing.
+
+**The key.** It is made by the store the first time the dialog asks for it,
+where `tc49 serve --keys` gave it somewhere to keep one — on the layout server
+a docker volume, `keys`, so that it is outside the store and no commit can
+carry it, and on nothing the host has to make. It opens that one repository
+and nothing else of yours, so a box on a wireless anybody can join reaches
+nothing else of yours either. Revoking it is deleting it from the repository's
+deploy keys. A store with nowhere to keep a key — `tc49 serve` on a
+workstation without `--keys` — pushes with whatever ssh key that machine
+already has, and the dialog says so.
 
 ## What it does while you draw
 
@@ -94,11 +111,13 @@ same one press.
 
 ## What it will not do
 
-- **Make the repository or the remote.** Two commands a person runs once, with
-  their own account and their own host.
+- **Make the repository or the remote.** The person makes the repository, in
+  a web form, and the remote arrives with the address they enter; the store
+  clones and never runs `git init` or `git remote add`.
 - **Resolve a conflict.** It reports what git said and stops. A store is one
   person's, and sharing one between people is not something this offers.
-- **Handle credentials.** Whatever git already uses is what it uses.
+- **Hold a credential of yours.** The key it pushes with is its own, opens one
+  repository, and its private half never leaves the machine.
 - **Back up a store that is inside a larger repository.** A checkout's
   `bench/` is what a developer runs a session on with `--store bench`; backing
   it up would land somebody's railroad as commits in the control repository,

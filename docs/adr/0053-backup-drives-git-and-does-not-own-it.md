@@ -13,6 +13,15 @@ when the timer or a person asks, and it surfaces what git said. It never runs
 `git init`, never makes a branch or a remote, never resolves a conflict, never
 moves `HEAD` and never handles a credential.
 
+*Amended by [#355](https://github.com/rails49/control/issues/355).* A store
+becomes a repository by cloning an empty one the person made on github.com,
+which runs neither `init` nor `remote add`; and the store makes a deploy key
+of its own to push with, good for that one repository, whose private half
+never leaves the machine. That is the one credential it holds, and the last
+clause above is read with that exception. What it still never holds is a
+credential of the person's — a token, or the machine's own ssh key, either of
+which opens more than the one repository.
+
 The two rejected positions are on either side of it.
 
 **Owning the repository** — initializing it, choosing a branch, holding a

@@ -114,7 +114,12 @@ ordinary state and not a fault — nothing seeds it, by decision — so the serv
 comes up, answers, and lists nothing until somebody draws. The directory is
 written by the container and so is owned by root on the host; nothing on the
 host needs to write it, and turning the store into a git repository happens
-through the app rather than a terminal (#355).
+through the app rather than a terminal (#355): the backup dialog shows the
+key the store made for itself and takes the address of an empty repository
+the person made. That key lives in the `keys` docker volume — outside the
+store, so no commit can carry it, and on no host path — and GitHub's host keys
+are in the image, so the first push is checked against them rather than asked
+about ([store/BACKUP.md](store/BACKUP.md)).
 
 ### Running a session
 

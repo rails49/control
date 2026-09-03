@@ -774,9 +774,10 @@ _Avoid_: shutdown, blackout, emergency stop (the track stays live for that)
 A commit of an installation's store, made by the app driving git over the
 store root: everything under it, in one commit, under a message naming the
 documents that moved. Automated backup is off until somebody turns it on, and
-the app never creates the repository or the remote it pushes to
+the app never creates the repository or the remote it pushes to: it adopts an
+empty repository the person made, and pushes under a deploy key of its own
 ([ADR-0053](docs/adr/0053-backup-drives-git-and-does-not-own-it.md),
-[docs/store/BACKUP.md](docs/store/BACKUP.md)).
+[docs/store/BACKUP.md](docs/store/BACKUP.md), #355).
 _Avoid_: snapshot, save (a save is one document written by the editor, and
 several of them make one backup), sync, archive
 
