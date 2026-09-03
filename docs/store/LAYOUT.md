@@ -216,6 +216,11 @@ trains:
       - { car: re460_1 }
       - { car: ic_1, orientation: reverse }
       - { car: ic_2 }
+  ore:
+    cars:
+      - { car: re460_2 }
+      - { model: hbis }            # one of these, and nothing more to say
+      - { model: hbis }
 ```
 
 - **A roster belongs to the railroad**, not to a run: it sits beside the
@@ -230,6 +235,15 @@ trains:
   car has no decoder. Two cars on one railroad sharing one are refused: both
   answer the same packet and no run can tell them apart. Written as a string,
   so `460` and `"460"` cannot be one address spelled two ways.
+- **`cars:` holds identified stock**, and a train's entry names **either a car
+  or a model** ([ADR-0061](../adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
+  An item earns a name where there is something to say about it — an address,
+  or a field corrected on that item — and anything else is named by its model
+  where it is used: ten identical hoppers have nothing to tell one from
+  another, so ten names would be a distinction the file then asks a person to
+  maintain. An entry naming a model builds a car from it with no address and
+  nothing overridden, so length, kind and functions derive exactly as they do
+  for a named car. Naming both, or neither, is refused.
 - **`cars:` under a train is ordered, head first.** `orientation` is `forward`
   or `reverse` and defaults to `forward`; `reverse` says the car's nose points
   toward the tail, so a top-and-tail set is a reversed locomotive at the end.
