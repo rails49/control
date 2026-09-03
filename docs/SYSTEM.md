@@ -888,6 +888,10 @@ ADR-0047).
 **`draining` is the ordinary shutdown**, and the gate it closes is on
 launching rather than on admission: the trains already moving go on being
 granted until each finishes its request, and nothing is launched behind them.
+Every end one of them is leaving by goes on **showing its aspect**, where a
+hold puts them all to `stop`: the answer to "may this train leave" is yes for
+a train the drain is still granting, and a signal at stop over one that has
+just been told to go would be the hold's lie the other way about.
 The dispatcher writes `held` **itself** at the first moment no train is active
 and none is crossing, and that transition is the drain's completion — what the
 panel watches for before it cuts track power
