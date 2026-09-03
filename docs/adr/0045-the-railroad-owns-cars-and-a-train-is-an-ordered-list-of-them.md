@@ -11,6 +11,17 @@ Nothing here is built beyond the read path and the fields `layout` consumes.
 The map is a planning map, and the migration is
 [#223](https://github.com/rails49/control/issues/223).
 
+**Amended under
+[ADR-0061](0061-stock-with-nothing-of-its-own-is-named-by-its-model.md):**
+"zero overrides is the common case and still names its model, so a car has
+exactly one shape" no longer holds. A consist entry names either a car or a
+model, and `cars` holds identified stock — an item with an address or with a
+field corrected on it. An item with neither carries only its name, which for
+ten identical hoppers records a distinction that does not exist. A car entry
+with neither is still legal, so nothing here migrates. The three levels below
+stand, and so does the rejection of a car that states its own fields and names
+no model.
+
 ## Three levels, because three different things are true
 
 A **model** is what a product *is*: a length, a **kind**, and the meaning of
