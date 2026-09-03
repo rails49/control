@@ -55,6 +55,13 @@ operator can see. The roster is read when the session is joined and forgotten
 when it is left: a page told nothing must not claim every train is off the
 layout.
 
+**It is read again when this becomes the current view.** The store is not on
+the bus, so nothing publishes a roster change: a person who makes a train up in
+the [stock view](STOCK.md) and switches here must see it, and until then the run
+keeps the roster it joined with. Only the roster — the session is joined, the
+socket is open and every retained topic has been replayed, so re-joining would
+take a live picture down to bring back a document.
+
 Trains standing nowhere have rows because those rows are what there is to drag
 back onto the railroad. It is also the pane that unfreezes the drawing
 ([EDITOR.md](EDITOR.md#trains-on-the-layout-freeze-the-drawing)): while a

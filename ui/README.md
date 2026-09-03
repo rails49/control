@@ -4,8 +4,10 @@ One app, one loaded railroad, and a list of views of it
 ([ADR-0038](../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)):
 the run view, which paints a live session over the drawing
 ([PANEL.md](../docs/ui/PANEL.md)), the throttle, which a person drives one
-train from ([THROTTLE.md](../docs/ui/THROTTLE.md)), and the editor, which draws
-the railroad ([EDITOR.md](../docs/ui/EDITOR.md)). TypeScript, pnpm, Lit and
+train from ([THROTTLE.md](../docs/ui/THROTTLE.md)), the stock view, where the
+cars and the trains a railroad owns are made
+([STOCK.md](../docs/ui/STOCK.md)), and the editor, which draws the railroad
+([EDITOR.md](../docs/ui/EDITOR.md)). TypeScript, pnpm, Lit and
 Shoelace; the drawing surface is SVG in the DOM.
 
 ## Running it
@@ -23,8 +25,9 @@ a fresh checkout has none of; `--store bench` serves this repository's fixtures
 instead, which is what there is to draw against here
 ([LAYOUT.md](../docs/store/LAYOUT.md), #320).
 
-The view is in the hash — `#run`, `#throttle` and `#edit` — so a reload and a
-bookmark keep it, and a link naming no view opens on the run view.
+The view is in the hash — `#run`, `#throttle`, `#stock` and `#edit` — so a
+reload and a bookmark keep it, and a link naming no view opens on the run
+view.
 
 `../scripts/dev.sh` does all of it and starts only what is not already up,
 which is worth having because vite holds 5173 strictly: a second `pnpm dev`
@@ -72,6 +75,8 @@ src/
                  bookmarked by
     panel.ts     the run's model: bus payloads in, render state out
     throttle.ts  what the throttle draws for each train there is to drive
+    stock.ts     the roster and the catalogue being edited, and everything
+                 derived from the pair
     scene.ts     what the drawing alone answers: the frame a fit and an export
                  are drawn in, an arrow's pose, which symbol wears an address
   render/
@@ -94,6 +99,8 @@ src/
                    canvas to paint
     tc-throttle.ts the throttle view: pick a train, take it, drive it, give
                    it back — the session stays the run view's
+    tc-stock.ts    the stock view: cars and models on the left, the trains
+                   composed from them on the right
     dismissal.ts   the overlay a menu drops over the page, worn by all three
                    menu systems: the press outside that dismisses, and the
                    right-click that is handed on to what is underneath
