@@ -15,6 +15,7 @@ the store rather than to an app of its own — a `ui` package could not import
     PUT  /backup                turn automated backup on or off
     POST /backup/commit         back the store up now, and attempt a push
     POST /backup/restore        put the store back as a backup held it
+    POST /backup/repository     back up to an empty repository the person made
 
 `review` is the one that carries the editor's whole view of topology: red
 pins, the portal labels that pair with nothing, junction membership, the
@@ -47,9 +48,10 @@ The **backup** routes are store operations like the rest: what they act on is
 the installation's store, which is what this server has open, and a browser
 cannot shell out to git. The app drives git and does not own it, so a store
 that is not a repository is answered rather than initialized, and what git
-said comes back as it came (ADR-0053, #321). A save is what arms the idle
-timer, which is why `PUT /drawings/<name>` tells the backup it happened — the
-one place the two meet.
+said comes back as it came (ADR-0053, #321). It becomes one by adopting an
+empty repository the person made, cloned at the address they give (#355). A
+save is what arms the idle timer, which is why `PUT /drawings/<name>` tells
+the backup it happened — the one place the two meet.
 
 **Every route is refused to a page on another origin.** A request carrying an
 `Origin` header that is not this server's own `Host` is answered 403 and
@@ -156,7 +158,7 @@ def _route(
 
 
 def _backup(backup: Backup, method: str, route: str, body: Any) -> Response:
-    """The four backup routes.
+    """The five backup routes.
 
     **A refusal comes back inside a 200**, the way `review`'s does. Nothing
     here is a bad request: the store not being a repository, a remote that is
@@ -187,6 +189,13 @@ def _backup(backup: Backup, method: str, route: str, body: Any) -> Response:
             cast(dict[str, Any], body).get("commit") if isinstance(body, dict) else None
         )
         return _said(backup, backup.restore(str(wanted) if wanted else "HEAD"))
+
+    if method == "POST" and route == "/backup/repository":
+        if not isinstance(body, dict) or not isinstance(
+            (url := cast(dict[str, Any], body).get("url")), str
+        ):
+            return 400, {"error": "adopting takes {'url': '<address>'}"}
+        return _said(backup, backup.adopt(url))
 
     return 404, {"error": f"no route {method} {route}"}
 

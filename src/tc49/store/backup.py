@@ -19,6 +19,21 @@ repository: a checkout's `bench/` is inside the control repo, and backing that
 up would commit the research fixtures under somebody's railroad. It is
 refused in the same words rather than by a special case.
 
+**A store becomes a repository by adopting one the person made** (#355). On
+a layout box there is no terminal to run `git init` in, and this never runs
+it anyway. The person makes an empty repository on github.com and gives its
+address; :meth:`Backup.adopt` clones it and moves the clone's `.git` under the
+store, so the documents already there become the first backup. Neither `init`
+nor `remote add` is run: the repository is the person's and the remote came
+with the address.
+
+**The push goes out under a key the store made for itself**, where it was
+given somewhere to keep one (`keys`). The public half is shown by
+:meth:`Backup.status` for the person to paste into that repository's deploy
+keys — a key scoped to one repository, so a box on a wireless anybody can
+join reaches nothing else of theirs. The private half never leaves the
+machine and lives outside the store, so it cannot be committed.
+
 **Commit on idle.** :meth:`Backup.saved` arms a deadline that each further
 save pushes out, and :meth:`Backup.due` — the watch thread's tick — commits
 once the store has been quiet for `idle_s`. Commit-per-save is history nobody
@@ -33,8 +48,10 @@ unreachable remote is logged and retried on the next timer, and no caller
 ever waits on the network to write a drawing.
 """
 
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections.abc import Callable
@@ -77,6 +94,11 @@ who turned backup on believes they have an off-machine copy and does not.
 TICK_S = 1.0
 """How often :class:`Watch` lets the two timers above fire. It only bounds how
 late a deadline is noticed, so it stays well under either of them."""
+
+KEY = "id_ed25519"
+"""The file the store's own deploy key is kept in, under `keys`, with the
+public half beside it as `id_ed25519.pub`. Ed25519 because it is short enough
+to read back and paste, and the one every host supports."""
 
 SWITCH = "backup.yaml"
 """The file in the store that says whether automated backup is on.
@@ -215,9 +237,14 @@ class Backup:
         push_timeout_s: float = PUSH_TIMEOUT_S,
         stale_s: float = STALE_S,
         wall: Callable[[], float] = time.time,
+        keys: Path | None = None,
     ) -> None:
+        """`keys` is where this store's own deploy key is kept, and `None`
+        where it has none — a workstation, where git pushes with whatever
+        the person's ssh already has."""
         self.root = root
         self._run = run
+        self._keys = keys
         self._log = log if log is not None else _note
         self._now = now
         self._wall = wall
@@ -299,11 +326,11 @@ class Backup:
 
         The three ways of having no repository are told apart, because they
         send a person to different places. A store **inside** another
-        repository is not one to run `git init` in — it is `bench/`, and the
-        repository it is in is this checkout. And git itself may be what is
-        missing, in a container built without it: "run `git init`" for "there
-        is no git" sends somebody to a command they cannot run, so git's own
-        words come with it.
+        repository is not one to adopt into — it is `bench/`, and the
+        repository it is in is this checkout. A store that is in none is told
+        what to make and where to enter it (:meth:`adopt`), with git's own
+        words after it, because git itself may be what is missing and those
+        words are the only way to tell.
         """
         top = self._inside()
         if top is not None and top != self.root.resolve():
@@ -316,11 +343,17 @@ class Backup:
             ]
         if top is None:
             said = self._run(self.root, "rev-parse", "--show-toplevel")
+            key = (
+                " add the key below to it under Settings ▸ Deploy keys, with"
+                " write access, and"
+                if self.key() is not None
+                else ""
+            )
             return [
                 (
-                    f"{self.root} is not a git repository — `git init` there,"
-                    " and `git remote add origin <url>` for a copy off this"
-                    f" machine. git said: {said.words}"
+                    f"{self.root} is not a git repository — create an empty"
+                    f" private repository on github.com,{key} enter its address"
+                    f" below. git said: {said.words}"
                 )
             ]
         if not self._run(self.root, "remote").words:
@@ -390,6 +423,60 @@ class Backup:
             "said": "" if last is None else last.words,
         }
 
+    def remote(self) -> str | None:
+        """Where the copy off this machine goes, `None` where nowhere."""
+        said = self._run(self.root, "remote", "get-url", "origin")
+        return said.words if said.ok and said.words else None
+
+    def key(self) -> str | None:
+        """The public half of this store's own deploy key, made the first
+        time it is asked for.
+
+        `None` where the store was given nowhere to keep one, and for a store
+        inside another repository, which is nobody's to adopt into. Made
+        unasked because it is not a document: it is the box's own identity,
+        like the host key sshd makes on first start, and a person cannot
+        paste it into a repository's deploy keys before it exists. The
+        private half is written beside it and read by nothing here — git's
+        ssh is told where it is (:meth:`adopt`) and that is all.
+        """
+        if self._keys is None:
+            return None
+        public = self._keys / f"{KEY}.pub"
+        try:
+            return public.read_text().strip()
+        except OSError:
+            pass
+        top = self._inside()
+        if top is not None and top != self.root.resolve():
+            return None
+        self._keys.mkdir(parents=True, exist_ok=True)
+        try:
+            done = subprocess.run(
+                [
+                    "ssh-keygen",
+                    "-q",
+                    "-t",
+                    "ed25519",
+                    "-N",
+                    "",
+                    "-C",
+                    "tc49 backup",
+                    "-f",
+                    str(self._keys / KEY),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError as missing:  # no ssh-keygen on this machine
+            self._log(f"backup: no key could be made: {missing}")
+            return None
+        if done.returncode != 0:
+            self._log(f"backup: no key could be made: {done.stderr.strip()}")
+            return None
+        return public.read_text().strip()
+
     def status(self) -> dict[str, Any]:
         """The whole of what the UI reads: where the store is, whether it can
         be backed up, whether it is being, what is outstanding and what there
@@ -397,6 +484,8 @@ class Backup:
         return {
             "root": str(self.root),
             "repository": self.repository(),
+            "remote": self.remote(),
+            "key": self.key(),
             "automatic": self.automatic,
             "needs": self.needs(),
             "outstanding": self.outstanding(),
@@ -458,6 +547,80 @@ class Backup:
             self._pushing()
 
     # --- driving git ---------------------------------------------------------
+
+    def adopt(self, url: str) -> Said:
+        """Make the store a repository by cloning the empty one at `url`.
+
+        `git clone` refuses a directory with anything in it, and a store
+        worth backing up has drawings in it, so the clone goes to a directory
+        of its own inside the store and its `.git` is moved up one level. The
+        documents stay where they are and read as outstanding, which makes
+        them the first backup. Inside the store rather than in `/tmp`, so the
+        move is a rename on one filesystem and never a copy of a repository.
+
+        **Refused where the repository holds anything.** A repository with
+        backups in it is a restore onto a new box, which is a different act
+        with a different question in it — which of two stores wins — and this
+        says so rather than guessing. Refused too for a store that is already
+        a repository, or is inside one; both are :meth:`needs`'s words.
+
+        The clone carries two settings into the repository it makes, by
+        `clone -c`, which writes them to the new `.git/config` and nowhere
+        else: where the store's own key is, so that git's ssh offers that and
+        not whatever else the machine has; and `push.autoSetupRemote`, so
+        that the first push of a branch that has never been pushed sets its
+        upstream rather than asking for a flag. Neither is `init`, a branch
+        or a remote: the branch is the one the clone gave and the remote came
+        with the address.
+
+        The one route that waits on the network on the thread serving it,
+        because the person who pressed the button is waiting for the answer;
+        it is given the push's deadline.
+        """
+        with self._lock:
+            top = self._inside()
+            if top == self.root.resolve():
+                where = self.remote()
+                return Said(
+                    False,
+                    f"{self.root} is a repository already"
+                    + (f", backing up to {where}" if where else ""),
+                )
+            if top is not None:
+                return Said(False, self.needs()[0])
+            url = url.strip()
+            if not url:
+                return Said(False, "no address was given")
+            self.root.mkdir(parents=True, exist_ok=True)
+            into = Path(tempfile.mkdtemp(prefix=".adopting-", dir=self.root))
+            try:
+                settings = ["-c", "push.autoSetupRemote=true"]
+                if self._keys is not None and self.key() is not None:
+                    ssh = f"ssh -i {self._keys / KEY} -o IdentitiesOnly=yes"
+                    settings += ["-c", f"core.sshCommand={ssh}"]
+                said = self._run(
+                    self.root,
+                    "clone",
+                    "--quiet",
+                    *settings,
+                    "--",
+                    url,
+                    str(into),
+                    timeout=self._push_timeout_s,
+                )
+                if not said.ok:
+                    return said
+                if self._run(into, "rev-parse", "--verify", "--quiet", "HEAD").ok:
+                    return Said(
+                        False,
+                        f"{url} already holds backups. Bringing those onto"
+                        " this box is a restore, not this; to back this store"
+                        " up, give it an empty repository",
+                    )
+                (into / ".git").rename(self.root / ".git")
+            finally:
+                shutil.rmtree(into, ignore_errors=True)
+            return Said(True, f"backing up to {url}; nothing is in it yet")
 
     def commit(self) -> Said:
         """Commit what has moved, under a message naming the documents.

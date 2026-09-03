@@ -178,9 +178,7 @@ def test_the_message_names_the_documents_that_moved(
     """A timer commit with a generic message is the noise the timer exists to
     avoid, and this costs one line."""
     run = FakeGit(
-        porcelain=(
-            " M layouts/reversing-loops.drawing.yaml\n" "?? catalogue/re460.yaml\n"
-        )
+        porcelain=(" M layouts/reversing-loops.drawing.yaml\n?? catalogue/re460.yaml\n")
     )
     backup = backing(tmp_path, run, clock)
     backup.saved()
@@ -437,13 +435,14 @@ def test_a_store_that_is_not_a_repository_says_what_backup_needs(
     tmp_path: Path,
 ) -> None:
     """A normal state and not a fault: the store works, backup is offered, and
-    what it says is the command a person would have run themselves, with git's
-    own words after it — a machine with no git at all is the other thing this
-    covers, and "run `git init`" alone would send somebody to a command they
-    have not got. Nothing here runs it either way (ADR-0053)."""
+    what it says is what to make and where to enter it, with git's own words
+    after it — a machine with no git at all is the other thing this covers,
+    and those words are the only way to tell. Nothing here runs `git init`
+    either way (ADR-0053)."""
     backup = Backup(tmp_path, run=FakeGit(toplevel=""))
     assert not backup.repository()
-    assert "git init" in backup.needs()[0]
+    assert "create an empty private repository" in backup.needs()[0]
+    assert "key" not in backup.needs()[0]  # it was given nowhere to keep one
     assert not backup.commit().ok
     assert not backup.restore().ok
     assert not backup.push().ok
@@ -683,3 +682,138 @@ def test_a_machine_with_no_git_says_that_rather_than_run_git_init(
     backup = Backup(tmp_path, run=NoGit())
     assert not backup.repository()
     assert "No such file or directory: 'git'" in backup.needs()[0]
+
+
+# --- adopting a repository the person made (#355) -----------------------------
+
+keygen = pytest.mark.skipif(
+    shutil.which("ssh-keygen") is None, reason="the store's key is ssh-keygen's"
+)
+
+
+@keygen
+def test_a_store_makes_a_key_of_its_own_on_first_ask(tmp_path: Path) -> None:
+    """The public half is what the dialog shows and the person pastes into the
+    repository's deploy keys; it is made the first time it is asked for and is
+    the same key every time after. The private half stays beside it, outside
+    the store, where no commit can reach it."""
+    keys = tmp_path / "keys"
+    backup = Backup(tmp_path / "tc49", run=FakeGit(toplevel=""), keys=keys)
+    shown = backup.key()
+    assert shown is not None and shown.startswith("ssh-ed25519 ")
+    assert backup.key() == shown
+    assert (keys / "id_ed25519").exists()
+    assert "add the key below" in backup.needs()[0]
+    assert backup.status()["key"] == shown
+
+
+def test_a_store_given_nowhere_to_keep_a_key_has_none(tmp_path: Path) -> None:
+    """A workstation: git pushes with whatever the person's ssh already has."""
+    assert Backup(tmp_path, run=FakeGit(toplevel="")).key() is None
+
+
+@keygen
+def test_no_key_is_made_for_a_store_inside_another_repository(
+    tmp_path: Path,
+) -> None:
+    """`bench/` is nobody's to adopt into, so there is nothing for a key to
+    push."""
+    backup = Backup(
+        tmp_path / "bench", run=FakeGit(toplevel=str(tmp_path)), keys=tmp_path / "k"
+    )
+    assert backup.key() is None
+    assert not (tmp_path / "k").exists()
+
+
+def empty_remote(tmp_path: Path) -> str:
+    """What github.com hands over once the form is submitted: a bare, empty
+    repository, here on disk so nothing reaches the network."""
+    bare = tmp_path / "somebody-railroad.git"
+    run_git(tmp_path, "init", "-q", "--bare", "-b", "main", str(bare))
+    return str(bare)
+
+
+def test_a_store_adopts_an_empty_repository_and_keeps_its_documents(
+    tmp_path: Path,
+) -> None:
+    """The ordinary case: the store has been drawn in for weeks before anybody
+    thinks about backup. `git clone` refuses a directory with anything in it,
+    so the clone's `.git` is moved in under the documents, which then read as
+    outstanding and become the first backup — and the first push lands
+    without a branch ever being named here."""
+    root = tmp_path / "tc49"
+    (root / "layouts").mkdir(parents=True)
+    drawn(root, "reversing-loops", "drawing: reversing-loops\n")
+    remote = empty_remote(tmp_path)
+    backup = Backup(root, log=lambda _: None)
+    assert not backup.repository()
+
+    said = backup.adopt(remote)
+
+    assert said.ok, said.words
+    assert backup.repository()
+    assert backup.remote() == remote
+    assert backup.needs() == []
+    assert backup.outstanding() == ["reversing-loops"]
+    assert (root / "layouts" / "reversing-loops.drawing.yaml").exists()
+    assert [p.name for p in root.iterdir() if p.name.startswith(".adopting")] == []
+
+    run_git(root, "config", "user.email", "suite@example.invalid")
+    run_git(root, "config", "user.name", "The Suite")
+    run_git(root, "config", "commit.gpgsign", "false")
+    assert backup.commit().ok
+    assert backup.push().ok, backup.push().words
+    assert "backup: reversing-loops" in run_git(Path(remote), "log", "--format=%s")
+
+
+def test_a_repository_that_already_holds_backups_is_not_adopted(
+    tmp_path: Path,
+) -> None:
+    """That is a restore onto a new box — which of two stores wins is a
+    question this does not answer — so it is refused in words, and the store
+    is left exactly as it was: no `.git`, no clone lying about."""
+    root = tmp_path / "tc49"
+    (root / "layouts").mkdir(parents=True)
+    other = tmp_path / "other"
+    run_git(tmp_path, "init", "-q", "-b", "main", str(other))
+    run_git(other, "config", "user.email", "suite@example.invalid")
+    run_git(other, "config", "user.name", "The Suite")
+    run_git(other, "config", "commit.gpgsign", "false")
+    (other / "a").write_text("a")
+    run_git(other, "add", "a")
+    run_git(other, "commit", "-q", "-m", "held")
+    backup = Backup(root, log=lambda _: None)
+
+    said = backup.adopt(str(other))
+
+    assert not said.ok
+    assert "already holds backups" in said.words
+    assert not (root / ".git").exists()
+    assert sorted(p.name for p in root.iterdir()) == ["layouts"]
+
+
+def test_an_address_that_cannot_be_reached_is_refused_in_gits_words(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "tc49"
+    backup = Backup(root, log=lambda _: None)
+
+    said = backup.adopt(str(tmp_path / "nowhere.git"))
+
+    assert not said.ok
+    assert "nowhere.git" in said.words
+    assert not (root / ".git").exists()
+    assert list(root.iterdir()) == []
+
+
+def test_a_store_that_is_a_repository_is_not_adopted_again(repository: Path) -> None:
+    backup = Backup(repository, log=lambda _: None)
+    said = backup.adopt("git@github.com:somebody/railroad.git")
+    assert not said.ok
+    assert "is a repository already" in said.words
+
+
+def test_adopting_nowhere_is_refused(tmp_path: Path) -> None:
+    said = Backup(tmp_path, run=FakeGit(toplevel="")).adopt("  ")
+    assert not said.ok
+    assert not (tmp_path / ".git").exists()

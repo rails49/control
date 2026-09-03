@@ -339,18 +339,18 @@ def test_generate_writes_the_checkout_it_runs_in_unless_told_another(
 
 
 def test_the_banner_says_where_backup_stands(tmp_path: Path) -> None:
-    """A store nobody has run `git init` in is an ordinary state, so the
-    banner says what backup needs rather than the command refusing to come up
-    (ADR-0053). What it names is the command a person would have run
-    themselves — this never runs it for them."""
+    """A store that is no repository is an ordinary state, so the banner says
+    what backup needs rather than the command refusing to come up (ADR-0053).
+    What it names is what to make and where to enter it (#355) — this never
+    runs `git init` for anybody."""
     backup = Backup(tmp_path, log=lambda _: None)
     off = backing(backup)
     assert "backup  off" in off
-    assert "git init" in off
+    assert "create an empty private repository" in off
 
     backup.switch(True)
     assert "on, but" in backing(backup)
-    assert "git init" in backing(backup)
+    assert "create an empty private repository" in backing(backup)
 
 
 def test_a_session_that_serves_no_store_leaves_backup_to_the_one_that_does(

@@ -520,6 +520,23 @@ def test_a_restore_over_a_dirty_tree_is_refused_inside_a_200(
     assert "reversing-loops" in body["said"]
 
 
+def test_adopting_a_repository_takes_its_address(
+    store: AssetStore, driven: Backup, driving: FakeGit
+) -> None:
+    """The route hands the address to the backup and answers what it said,
+    inside a 200 like every other refusal — here, that the fake's store is a
+    repository already."""
+    assert handle(store, driven, "POST", "/backup/repository", None)[0] == 400
+    assert handle(store, driven, "POST", "/backup/repository", {"url": 3})[0] == 400
+    status, body = handle(
+        store, driven, "POST", "/backup/repository", {"url": "git@example:a/b.git"}
+    )
+    assert status == 200
+    assert body["ok"] is False
+    assert "is a repository already" in body["said"]
+    assert body["repository"] is True
+
+
 def test_a_restore_names_the_backup_to_come_back_to(
     store: AssetStore, driven: Backup, driving: FakeGit
 ) -> None:
@@ -607,7 +624,8 @@ def test_a_store_that_is_no_repository_serves_and_saves_as_it_always_did(
     store: AssetStore, tmp_path: Path
 ) -> None:
     """The ordinary state of a fresh installation. Backup says what it needs
-    and nothing else changes — nothing here runs `git init`."""
+    and nothing else changes — nothing here runs `git init`; the way in is a
+    repository the person made (#355)."""
     backup = Backup(tmp_path / "not-a-repo", log=lambda _: None)
     assert handle(store, backup, "GET", "/drawings", None)[0] == 200
     assert (
@@ -620,7 +638,7 @@ def test_a_store_that_is_no_repository_serves_and_saves_as_it_always_did(
     status, body = handle(store, backup, "GET", "/backup", None)
     assert status == 200
     assert body["repository"] is False
-    assert "git init" in body["needs"][0]
+    assert "create an empty private repository" in body["needs"][0]
 
 
 def test_a_page_on_this_machine_reaches_a_store_whose_host_was_rewritten(
