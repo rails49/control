@@ -22,6 +22,10 @@ export GIT_TERMINAL_PROMPT=0
 cd ~/control
 git pull
 pnpm --dir ui build
+# `--build`, because compose builds only when no image is tagged for the
+# service and would otherwise keep one from before the pull. The store, the
+# session and the mirror all build from one context now, so a change under
+# `src/` reaches none of them without it (#365).
 TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
-  -f deploy/compose.yaml --profile layout up -d --remove-orphans
+  -f deploy/compose.yaml --profile layout up -d --build --remove-orphans
 REMOTE
