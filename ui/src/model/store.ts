@@ -2,6 +2,10 @@
  * The store's routes (EDITOR.md, PANEL.md), the shapes they answer with, and
  * nothing else.
  *
+ * A railroad's documents — its drawing, its roster — and the installation's
+ * catalogue beside them: a model is shared between railroads, so reading one
+ * takes no railroad's name (ADR-0045).
+ *
  * `review` is the whole of the editor's view of topology: red pins, the portal
  * labels that pair with nothing, the junctions as symbol groups, the derived
  * layout, its explanation, the refusal where there is one, and the way that
@@ -183,6 +187,64 @@ export interface Fn {
 
 export async function readRoster(railroad: string): Promise<RosterDoc> {
   return await ask<RosterDoc>("GET", `/rosters/${encodeURIComponent(railroad)}`);
+}
+
+/**
+ * One model: what a product *is*, independent of any railroad that owns one
+ * ([ADR-0045](../../../docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+ *
+ * The **document as written**, and not the merged model a car reads: this is
+ * what the catalogue screen edits, so every field comes back as it is on disk
+ * — including the ones nothing branches on, the shelf a locomotive lives on
+ * among them. `model` is the name it is filed under and the key every car
+ * refers to it by, so it is what the path says.
+ */
+export interface ModelDoc {
+  model: string;
+  /** `locomotive`, `passenger`, `freight` or `special`. A train's kind is
+   *  derived and is never one a document states (CONTEXT.md, **Kind**). */
+  kind: string;
+  /** Millimetres of actual model track, measured over buffers on the item,
+   *  whatever the scale (`catalogue/README.md`). */
+  length: number;
+  manufacturer?: string;
+  scale?: string;
+  description?: string;
+  /** What each DCC function does on this product, keyed by the function
+   *  number **written as a string**: YAML integer keys and JSON object keys
+   *  do not agree, so the number is quoted at both ends. */
+  functions?: Record<string, ModelFn>;
+}
+
+/** One function on a model: what it is called, and what it can be in. Absent
+ *  `values` is the plain switch, `["off", "on"]`, off to begin with. */
+export interface ModelFn {
+  name: string;
+  values?: string[];
+}
+
+/**
+ * The installation's catalogue: every model it knows, by name.
+ *
+ * One catalogue for the box rather than one per railroad — a product does not
+ * become a different product on another layout (CONTEXT.md, **Catalogue**) —
+ * so this takes no railroad. An installation that has written no model yet
+ * answers an empty map, which is what a fresh box is and not a fault.
+ */
+export async function readCatalogue(): Promise<Record<string, ModelDoc>> {
+  return (await ask<{ models: Record<string, ModelDoc> }>("GET", "/catalogue"))
+    .models;
+}
+
+export async function readModel(name: string): Promise<ModelDoc> {
+  return await ask<ModelDoc>("GET", `/catalogue/${encodeURIComponent(name)}`);
+}
+
+/** Create or replace one model. The store validates it and writes nothing
+ *  where it does not validate, so a refusal arrives as a thrown error
+ *  carrying the validator's words. */
+export async function saveModel(model: ModelDoc): Promise<void> {
+  await ask("PUT", `/catalogue/${encodeURIComponent(model.model)}`, model);
 }
 
 /**
