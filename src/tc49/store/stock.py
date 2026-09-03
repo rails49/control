@@ -18,6 +18,13 @@ and is refused where the mistake was made.
 A car's fields are merged onto its model's here rather than by whatever reads
 one, so **the merged result is what is validated** and every consumer sees a
 complete car however it was written.
+
+An **entry in a train names either a car or a model**
+([ADR-0061](../../../docs/adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)):
+`cars` holds identified stock — an item with an address, or with a field
+corrected on it — and an item with nothing of its own is named by its model
+where it is used. Either way the entry is loaded into a `Car`, so nothing
+downstream of the roster reads which shape it was written in.
 """
 
 from collections.abc import Mapping
@@ -88,7 +95,7 @@ def validate_roster(doc: Any, catalogue: Mapping[str, Model]) -> Roster:
         cars[name] = car
 
     trains = {
-        name: _train(train_spec, cars, f"{where}: train '{name}'")
+        name: _train(train_spec, cars, catalogue, f"{where}: train '{name}'")
         for name, train_spec in as_mapping(spec["trains"], f"{where}: trains").items()
     }
     return Roster(railroad, trains, cars)
@@ -125,14 +132,19 @@ def _car(doc: Any, catalogue: Mapping[str, Model], where: str) -> Car:
     )
 
 
-def _train(doc: Any, cars: Mapping[str, Car], where: str) -> Train:
-    """A train: an ordered list of the railroad's cars, head first.
+def _train(
+    doc: Any, cars: Mapping[str, Car], catalogue: Mapping[str, Model], where: str
+) -> Train:
+    """A train: an ordered list of the stock it is made up of, head first.
 
     Its length and its kind are derived from those cars and are never
     authored. A train stating `length` and naming no cars is the shape the
     committed rosters had before #223 rewrote them into cars, and it still
     loads for the sake of an older file; stating both would be two ways to
     know one length, which is the field that rots, so it is refused.
+
+    The catalogue is here because an entry may name a model rather than a car
+    (ADR-0061), and a model is what such an entry is built from.
     """
     spec = as_mapping(doc, where)
     if "cars" in spec and "length" in spec:
@@ -150,25 +162,80 @@ def _train(doc: Any, cars: Mapping[str, Car], where: str) -> Train:
             stated_length=check_length(spec["length"], where), priority=priority
         )
 
-    ordered: list[Coupled] = []
     if not isinstance(spec["cars"], list):
         raise TypeError(f"{where}: cars must be a list, head first")
-    for entry in cast(list[Any], spec["cars"]):
-        held = check_required(entry, f"{where}: car entry", {"car"})
+    ordered = [
+        _coupled(entry, cars, catalogue, where)
+        for entry in cast(list[Any], spec["cars"])
+    ]
+    return Train(tuple(ordered), priority)
+
+
+def _coupled(
+    entry: Any, cars: Mapping[str, Car], catalogue: Mapping[str, Model], where: str
+) -> Coupled:
+    """One place in a train: what stands there, and which way round it is
+    coupled.
+
+    The entry names **either a car or a model** (ADR-0061). A car is
+    identified stock — an item with an address, or with a field corrected on
+    that item — and anything else is named by its model here, because ten
+    identical hoppers have nothing to tell one from another and a name for
+    each would be a distinction the document then asks a person to maintain.
+    Naming both would be two ways to say which item this is, so it is refused
+    where the mistake was made.
+
+    An entry naming a model builds a car from it with no address and nothing
+    overridden: having something of its own to say is exactly what puts an
+    item on `cars` instead.
+    """
+    held = as_mapping(entry, f"{where}: car entry")
+    if ("car" in held) == ("model" in held):
+        both = "car" in held
+        raise ValueError(
+            f"{where}: a car entry names either a car or a model, and this"
+            f" names {'both' if both else 'neither'}"
+        )
+    if "car" in held:
         named = held["car"]
         if not isinstance(named, str) or named not in cars:
             raise ValueError(
                 f"{where}: names car {named!r}, which the railroad has not"
             )
-        orientation = held.get("orientation", ORIENTATIONS[0])
-        if orientation not in ORIENTATIONS:
-            raise ValueError(
-                f"{where}: car '{named}' orientation must be"
-                f" {' or '.join(repr(one) for one in ORIENTATIONS)},"
-                f" got {orientation!r}"
-            )
-        ordered.append(Coupled(cars[named], orientation))
-    return Train(tuple(ordered), priority)
+        car = cars[named]
+    else:
+        named = held["model"]
+        model = catalogue.get(named) if isinstance(named, str) else None
+        if model is None:
+            raise ValueError(f"{where}: names unknown model {named!r}")
+        car = _anonymous(model)
+    orientation = held.get("orientation", ORIENTATIONS[0])
+    if orientation not in ORIENTATIONS:
+        raise ValueError(
+            f"{where}: car '{named}' orientation must be"
+            f" {' or '.join(repr(one) for one in ORIENTATIONS)},"
+            f" got {orientation!r}"
+        )
+    return Coupled(car, orientation)
+
+
+def _anonymous(model: Model) -> Car:
+    """An item with nothing of its own: its model, entire, with no address.
+
+    A `Car` all the same, so length, kind and functions derive exactly as
+    they do for a named one and nothing downstream of the roster can tell the
+    two entries apart (ADR-0061).
+    """
+    return Car(
+        model.name,
+        model.kind,
+        model.length,
+        model.functions,
+        None,
+        model.manufacturer,
+        model.scale,
+        model.description,
+    )
 
 
 def _kind(kind: Any, where: str) -> str:

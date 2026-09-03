@@ -210,11 +210,16 @@ _Avoid_: type (reads as a synonym of *kind*, which is taken), class, product
 
 **Car**:
 One item a railroad owns: **a model with zero or more fields overridden**, and
-its own DCC address where it has a decoder, unique across the railroad. Zero
-overrides is the common case and still names its model, so a car has one
-shape; scratch-built stock earns a model of its own rather than a second kind
-of car. A **locomotive is a car** whose model's kind says so, which is why the
-address hangs here and not on a train.
+its own DCC address where it has a decoder, unique across the railroad. A car
+always names its model; scratch-built stock earns a model of its own rather
+than a second kind of car. The roster's `cars` holds **identified stock** — an
+item with an address, or with a field corrected on that item — and an item with
+nothing of its own is **named by its model** where it is used, ten identical
+hoppers having nothing to tell one from another
+([ADR-0061](docs/adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
+A car with neither is still legal, so nothing on an older roster changes. A
+**locomotive is a car** whose model's kind says so, which is why the address
+hangs here and not on a train.
 _Avoid_: vehicle, item, wagon, rolling stock (the mass noun, which is *stock*)
 
 **Address** (of a car):
@@ -270,7 +275,10 @@ _Avoid_: rank, class, weight
 
 **Roster**:
 The **cars** a railroad owns, served by the store beside its drawing, with the
-trains made up from them alongside. With the
+trains made up from them alongside. A train names one of those cars or names a
+**model** directly, which is what an item with nothing of its own is
+([ADR-0061](docs/adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
+With the
 drawing it is the whole of what a **run** is built from: a railroad, its
 stock, and a person who puts the stock on the rails
 ([#171](https://github.com/rails49/control/issues/171)). A car in

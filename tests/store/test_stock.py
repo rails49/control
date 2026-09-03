@@ -327,6 +327,67 @@ def test_a_train_is_made_of_cars_the_railroad_owns() -> None:
         roster({}, {"ic_721": {"cars": [{"car": "ic_1"}]}})
 
 
+def test_an_entry_with_nothing_of_its_own_names_its_model() -> None:
+    """Ten identical hoppers: nobody can tell the third from the seventh, so
+    naming each would record a distinction that does not exist (ADR-0061).
+    The entry is loaded into a car all the same, so the train derives exactly
+    as one made of named cars does."""
+    stock = roster(
+        {"re460_1": {"model": "sbb-re460", "addr": "460"}},
+        {
+            "ic_721": {
+                "cars": [
+                    {"car": "re460_1"},
+                    {"model": "sbb-ic2000"},
+                    {"model": "sbb-ic2000"},
+                ]
+            }
+        },
+    )
+    train = stock.trains["ic_721"]
+    assert train.length == 220 + 270 + 270
+    assert train.kind == "passenger"
+    assert [coupled.car.model for coupled in train.cars] == [
+        "sbb-re460",
+        "sbb-ic2000",
+        "sbb-ic2000",
+    ]
+    # Nothing of its own is nothing to be driven by: an address is what puts
+    # an item on `cars`, and the railroad owns two of these and names none.
+    assert [coupled.car.addr for coupled in train.cars] == ["460", None, None]
+    assert stock.cars == {"re460_1": stock.cars["re460_1"]}
+
+
+def test_an_entry_naming_a_model_is_oriented_like_any_other() -> None:
+    """A hopper turned round is still a hopper: which way an item is coupled
+    is a fact of this rake and not of the item, so it works on either shape
+    of entry."""
+    stock = roster(
+        {},
+        {"ore": {"cars": [{"model": "hbis", "orientation": "reverse"}]}},
+    )
+    assert stock.trains["ore"].cars[0].orientation == "reverse"
+
+
+def test_an_entry_naming_a_model_the_installation_has_not_is_refused() -> None:
+    """Where the mistake was made: a model nothing has is stock nothing can
+    say the length of, exactly as it is on a car."""
+    with pytest.raises(ValueError, match="names unknown model 'hopper'"):
+        roster({}, {"ore": {"cars": [{"model": "hopper"}]}})
+
+
+def test_an_entry_names_one_of_the_two_and_not_both() -> None:
+    """Naming both would be two ways to say which item stands there, and
+    naming neither says nothing at all."""
+    with pytest.raises(ValueError, match="names both"):
+        roster(
+            {"ic_1": {"model": "sbb-ic2000"}},
+            {"ic_721": {"cars": [{"car": "ic_1", "model": "sbb-ic2000"}]}},
+        )
+    with pytest.raises(ValueError, match="names neither"):
+        roster({}, {"ic_721": {"cars": [{"orientation": "reverse"}]}})
+
+
 def test_a_train_states_a_length_only_where_it_names_no_cars() -> None:
     """The shape the committed rosters had before #223 rewrote them, kept so
     an older file on disk still loads. Saying both would be two ways to know
