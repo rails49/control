@@ -623,6 +623,7 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     PUT  /backup                turn automated backup on or off
     POST /backup/commit         back the store up now, and attempt a push
     POST /backup/restore        put the store back as a backup held it
+    POST /backup/repository     back up to an empty repository the person made
 
 Every route is a store operation, which is why the server lives in the store
 rather than in an app of its own
@@ -647,13 +648,23 @@ LAN is still the trust boundary and a browser is not on it
 
 - **Backup is git, driven and not owned**
   ([ADR-0053](adr/0053-backup-drives-git-and-does-not-own-it.md),
-  [store/BACKUP.md](store/BACKUP.md)). The four routes above commit, push and
-  restore the store they are served from; the app never runs `git init`, never
-  makes a branch or a remote and never resolves a conflict, so a store that is
-  not a repository is a normal state that says what it needs. Every refusal —
-  git's, and the one over a dirty tree — comes back inside a 200 with `ok`
-  false and git's own words in `said`, because each of them is a state of
-  somebody's machine that the UI has to read out rather than a bad request.
+  [store/BACKUP.md](store/BACKUP.md)). The five routes above commit, push,
+  restore and adopt; the app never runs `git init`, never makes a branch or a
+  remote and never resolves a conflict, so a store that is not a repository is
+  a normal state that says what it needs. It becomes one by **adopting** an
+  empty repository the person made on github.com: `POST /backup/repository`
+  takes its address, the store clones it and moves the clone's `.git` under
+  the documents already there, which become the first backup
+  ([#355](https://github.com/rails49/control/issues/355)). A repository that
+  already holds anything is refused in words — that is a restore onto a new
+  box, not this. The push goes out under a deploy key the store makes for
+  itself where it was given somewhere to keep one (`tc49 serve --keys`);
+  `GET /backup` shows the public half in `key` for the person to paste into
+  that one repository's deploy keys, and `remote` says where the copy goes.
+  Every refusal — git's, and the one over a dirty tree — comes back inside a
+  200 with `ok` false and git's own words in `said`, because each of them is
+  a state of somebody's machine that the UI has to read out rather than a bad
+  request.
   The switch is a document of the installation, `backup.yaml` in the store, so
   automated backup stays on across the restart that follows turning it on.
   `GET /backup` also answers how far behind the copy off the machine is, in
