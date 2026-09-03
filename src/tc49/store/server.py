@@ -1,7 +1,7 @@
 """The store's HTTP face: what the layout editor talks to (ui/EDITOR.md).
 
-Five routes, every one of them a store operation, which is why this belongs to
-the store rather than to an app of its own — a `ui` package could not import
+Every route is a store operation, which is why this belongs to the store
+rather than to an app of its own — a `ui` package could not import
 `tc49.store` and stay inside ADR-0013.
 
     GET  /drawings              the railroads there are
@@ -10,6 +10,9 @@ the store rather than to an app of its own — a `ui` package could not import
     POST /review                what a drawing means, derived and explained
     GET  /rosters/<name>        one railroad's roster: its trains, each with
                                 its length and the functions its cars declare
+    GET  /catalogue             every model the installation knows, by name
+    GET  /catalogue/<name>      one model, as the document it is
+    PUT  /catalogue/<name>      save it, keeping what the file says
     GET  /backup                whether the store can be backed up, is being,
                                 and what there is to restore to
     PUT  /backup                turn automated backup on or off
@@ -39,6 +42,20 @@ The roster is a read of the railroad and not of the run: which trains it owns
 does not change while a session is up, and what the bus says is where they
 are. Editing one is `scratch/4-stock`'s, so there is no `PUT` here yet.
 
+The **catalogue** routes are the installation's rather than any railroad's: a
+model is what a product is and a car names one (ADR-0045). They answer
+documents rather than the merged models a roster is read against, because what
+reads them is the screen that edits them — and because a model document keeps
+fields nothing here will ever branch on, the shelf a locomotive lives on among
+them (`store.stock`). One file per model, which is what keeps two entries
+independently editable and a backup's `git diff` readable.
+
+`PUT /catalogue/<name>` is the first write on this face that is not a
+drawing's, and it is the one a fresh box needs: with no `catalogue/` directory
+every car names a model the installation has not got, so no roster can be
+written at all (#392). There is **no `DELETE`** — this face has no DELETE verb
+for any document, and an unused model costs nothing.
+
 `review` takes a *document* rather than a name because the interesting drawing is
 the one being edited, which has not been saved and may not derive. Work in
 progress is answered with 200 and a refusal inside; only a document that will
@@ -50,8 +67,8 @@ cannot shell out to git. The app drives git and does not own it, so a store
 that is not a repository is answered rather than initialized, and what git
 said comes back as it came (ADR-0053, #321). It becomes one by adopting an
 empty repository the person made, cloned at the address they give (#355). A
-save is what arms the idle timer, which is why `PUT /drawings/<name>` tells
-the backup it happened — the one place the two meet.
+save is what arms the idle timer, which is why a `PUT` — a drawing's or a
+model's — tells the backup it happened, the one place the two meet.
 
 **Every route is refused to a page on another origin.** A request carrying an
 `Origin` header that is not this server's own `Host` is answered 403 and
@@ -119,6 +136,21 @@ def _route(
         if not isinstance(body, dict):
             return 400, {"error": "review takes a drawing document"}
         return 200, Drawing.from_document(body).review()
+
+    if method == "GET" and route == "/catalogue":
+        # An installation with no `catalogue/` directory knows no models,
+        # which is every fresh box: an empty map rather than a 404.
+        return 200, {"models": store.models()}
+
+    model = route.removeprefix("/catalogue/")
+    if model != route and "/" not in model:
+        if method == "GET":
+            try:
+                return 200, store.model(model)
+            except FileNotFoundError:
+                return 404, {"error": f"no model '{model}'"}
+        if method == "PUT":
+            return _put_model(store, backup, model, body)
 
     railroad = route.removeprefix("/rosters/")
     if method == "GET" and railroad != route and "/" not in railroad:
@@ -219,6 +251,23 @@ def _put(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
     # The save that arms the idle timer. It says a document was written and
     # nothing about which — what moved is git's answer, and a person editing a
     # roster by hand under the same store is as much a change as this is.
+    backup.saved()
+    return 200, {"saved": name}
+
+
+def _put_model(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
+    """One model, created or replaced.
+
+    The name in the path is what the document is filed under and what every
+    car refers to it by, so a document naming another model is refused rather
+    than filed under this one — the disagreement `_put` catches for a drawing,
+    caught here by the validator and in the words it puts it in.
+    """
+    if not isinstance(body, dict):
+        return 400, {"error": "a model document is required"}
+    store.put_model(cast(dict[str, Any], body), name)
+    # As a drawing's save does, and for the same reason: a model written is a
+    # document of the store that has moved (#392).
     backup.saved()
     return 200, {"saved": name}
 

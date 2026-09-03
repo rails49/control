@@ -135,6 +135,102 @@ def test_a_railroad_with_no_roster_owns_nothing_yet(
     assert body == {"roster": "facing-pair-2", "trains": {}}
 
 
+def test_the_catalogue_is_served_as_the_documents_it_holds(
+    store: AssetStore, backup: Backup
+) -> None:
+    """Every model the installation knows, keyed by name and each as written:
+    what the screen that edits them reads, rather than the merged models a
+    roster is read against (#392)."""
+    status, body = handle(store, backup, "GET", "/catalogue", None)
+    assert status == 200
+    assert body["models"]["arnold-ce68"] == {
+        "model": "arnold-ce68",
+        "kind": "locomotive",
+        "length": 122,
+        "manufacturer": "Arnold",
+        "scale": "N",
+        "description": 'SBB Ce 6/8 II "Krokodil"',
+        "functions": {"0": {"name": "lights"}},
+    }
+    assert "bench-900" in body["models"]
+
+
+def test_a_model_is_served_as_the_document_it_is(
+    store: AssetStore, backup: Backup
+) -> None:
+    status, body = handle(store, backup, "GET", "/catalogue/conrad-e10", None)
+    assert status == 200
+    assert body["model"] == "conrad-e10"
+
+
+def test_an_unknown_model_is_not_found(store: AssetStore, backup: Backup) -> None:
+    status, body = handle(store, backup, "GET", "/catalogue/atlantis", None)
+    assert status == 404
+    assert "atlantis" in body["error"]
+
+
+def test_an_installation_with_no_catalogue_answers_an_empty_map(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Which is every fresh box: no `catalogue/` directory is no models yet,
+    and the screen that would write the first one has to be able to read the
+    empty map to draw itself."""
+    status, body = handle(
+        AssetStore(tmp_path / "fresh"), backup, "GET", "/catalogue", None
+    )
+    assert status == 200
+    assert body == {"models": {}}
+
+
+def test_a_model_is_written_and_read_back(tmp_path: Path, backup: Backup) -> None:
+    """The round trip a fresh box needs: with no catalogue every car names a
+    model the installation has not got, so no roster can be written at all
+    until one can be (#392)."""
+    doc = {"model": "re460", "kind": "locomotive", "length": 220}
+    store = AssetStore(tmp_path)
+    assert handle(store, backup, "PUT", "/catalogue/re460", doc) == (
+        200,
+        {"saved": "re460"},
+    )
+    assert handle(store, backup, "GET", "/catalogue/re460", None) == (200, doc)
+
+
+def test_a_model_that_does_not_validate_leaves_no_file_behind(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """400 carrying what the validator said, and nothing written: a
+    half-written entry is a roster that stops loading."""
+    store = AssetStore(tmp_path)
+    status, body = handle(
+        store,
+        backup,
+        "PUT",
+        "/catalogue/re460",
+        {"model": "re460", "kind": "wagon", "length": 220},
+    )
+    assert status == 400
+    assert "kind" in body["error"]
+    assert handle(store, backup, "GET", "/catalogue", None)[1] == {"models": {}}
+
+
+def test_a_model_cannot_be_saved_under_another_name(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """The name in the path is the key every car refers to the model by, so a
+    document naming another one is refused rather than filed under this."""
+    store = AssetStore(tmp_path)
+    status, body = handle(
+        store,
+        backup,
+        "PUT",
+        "/catalogue/re465",
+        {"model": "re460", "kind": "locomotive", "length": 220},
+    )
+    assert status == 400
+    assert "re460" in body["error"]
+    assert handle(store, backup, "GET", "/catalogue", None)[1] == {"models": {}}
+
+
 def test_a_review_returns_the_layout_and_why_it_is_that(
     store: AssetStore, backup: Backup
 ) -> None:
@@ -233,6 +329,7 @@ def test_review_is_the_only_route_that_takes_a_document(
     worth catching rather than ignoring."""
     doc: dict[str, Any] = store.drawing("facing-pair")
     assert handle(store, backup, "PUT", "/drawings/facing-pair", None)[0] == 400
+    assert handle(store, backup, "PUT", "/catalogue/conrad-e10", None)[0] == 400
     assert handle(store, backup, "POST", "/review", None)[0] == 400
     assert handle(store, backup, "POST", "/review", doc)[0] == 200
 
@@ -583,6 +680,22 @@ def test_a_save_arms_the_idle_timer(
     assert [call[2] for call in driving.calls if call[0] == "commit"] == [
         "backup: reversing-loops"
     ]
+
+
+def test_saving_a_model_arms_the_idle_timer(
+    store: AssetStore, driven: Backup, driving: FakeGit, clock: list[float]
+) -> None:
+    """A model written over the route is a document of the store that moved,
+    so it arms the timer the way a drawing does — the catalogue is backed up
+    with everything else and not by itself (#392)."""
+    driven.switch(True)
+    doc = {"model": "re460", "kind": "locomotive", "length": 220}
+    assert handle(store, driven, "PUT", "/catalogue/re460", doc)[0] == 200
+    assert [call for call in driving.calls if call[0] == "commit"] == []
+
+    clock[0] += 20.0
+    driven.due()
+    assert [call[0] for call in driving.calls if call[0] == "commit"] == ["commit"]
 
 
 def test_a_save_lands_over_a_remote_that_cannot_be_reached(
