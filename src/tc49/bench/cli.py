@@ -359,6 +359,15 @@ def command_line() -> argparse.ArgumentParser:
         "--host", default=LOOPBACK, help=f"the address it binds (default {LOOPBACK})"
     )
     store_flag(serve_parser)
+    serve_parser.add_argument(
+        "--keys",
+        type=Path,
+        metavar="DIR",
+        help="where the store keeps the deploy key its backups push with; a"
+        " key is made there on first use, and its public half is shown in the"
+        " backup dialog (#355). Without it, git pushes with whatever ssh key"
+        " this machine already has",
+    )
 
     generate_parser = commands.add_parser(
         "generate", help="write the UI's generated TypeScript from its Python source"
@@ -453,8 +462,7 @@ def backing(backup: Backup | None) -> str:
         stands = f"on, but {missing[0]}"
     else:
         stands = (
-            f"on: a commit after {IDLE_S:.0f}s of quiet, and a push every"
-            f" {PUSH_S:.0f}s"
+            f"on: a commit after {IDLE_S:.0f}s of quiet, and a push every {PUSH_S:.0f}s"
         )
     return f"  backup  {stands}\n"
 
@@ -633,7 +641,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
 
     if args.command == "serve":
         root = store_root(args.store)
-        backup = Backup(root, log=noting(out))
+        backup = Backup(root, log=noting(out), keys=args.keys)
         server = make_server(root, args.port, args.host, backup)
         watch = Watch(backup)
         watch.start()
