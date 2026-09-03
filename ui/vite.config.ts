@@ -30,6 +30,7 @@ export default defineConfig({
       "/drawings": { target: STORE, changeOrigin: false },
       "/review": { target: STORE, changeOrigin: false },
       "/rosters": { target: STORE, changeOrigin: false },
+      "/catalogue": { target: STORE, changeOrigin: false },
       // The bridge under a path of the app's own origin, which is what lets
       // the panel build one URL whether TLS is terminated in front of it or
       // not. The proxy in front of a layout server strips the same prefix.
