@@ -1,5 +1,7 @@
 # The layout interface is a core app, and hardware hangs under it by address
 
+**Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** an address no longer names its system as its first level, and a translator no longer subscribes its own system: whatever is wired acts on the addresses it recognises, and the link row is keyed by an id the publisher chooses. The rest of the mechanism below stands.
+
 Resolves the main question of the milestone-2 map
 ([#194](https://github.com/rails49/control/issues/194)): the shape of the
 physical binding of the layout interface, stated once for every kind of
