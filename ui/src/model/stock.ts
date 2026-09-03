@@ -653,7 +653,7 @@ export class Stock {
   }
 
   /** Every train's entries with one car's name changed, so a rename does not
-   *  leave a consist naming a car the railroad has not. */
+   *  leave a train naming a car the railroad has not. */
   private renamed(was: string, name: string): Record<string, RosterTrain> {
     const trains: Record<string, RosterTrain> = {};
     for (const [key, train] of Object.entries(this.doc.trains)) {
