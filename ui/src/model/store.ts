@@ -4,7 +4,10 @@
  *
  * A railroad's documents — its drawing, its roster — and the installation's
  * catalogue beside them: a model is shared between railroads, so reading one
- * takes no railroad's name (ADR-0045).
+ * takes no railroad's name (ADR-0045). A document's route answers the document
+ * as written and takes it back the same way, so `GET` and `PUT` on one path
+ * are inverses; what a run view reads instead is *derived* and hangs below it,
+ * `/rosters/<railroad>/trains` being the one there is (#388).
  *
  * `review` is the whole of the editor's view of topology: red pins, the portal
  * labels that pair with nothing, the junctions as symbol groups, the derived
@@ -194,6 +197,81 @@ export async function readTrains(railroad: string): Promise<TrainsDoc> {
     "GET",
     `/rosters/${encodeURIComponent(railroad)}/trains`,
   );
+}
+
+/**
+ * A railroad's roster **as the document it is**: the cars it owns, and the
+ * trains made up from them
+ * ([ADR-0045](../../../docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+ *
+ * What the stock screen edits, which is why it is this and not `TrainsDoc`:
+ * the derived answer withholds the cars, the addresses and the function
+ * numbers on purpose, and those are exactly what there is to edit. `GET` and
+ * `PUT` on the same path are inverses, and a `PUT` is the whole document — a
+ * roster saved without a car is that car removed
+ * ([#388](https://github.com/rails49/control/issues/388)).
+ */
+export interface RosterDoc {
+  /** The railroad that owns it, which is the name in the path. */
+  roster: string;
+  /** The **identified stock**: an item with an address, or with a field
+   *  corrected on that item. A railroad that owns nothing yet has none, which
+   *  is a drawing saved this morning and not a fault. */
+  cars?: Record<string, CarDoc>;
+  trains: Record<string, RosterTrain>;
+}
+
+/** One item the railroad owns: its model, with anything true of this item and
+ *  not of the product said over the top of it. Every field but `model` is
+ *  optional, and stating none is legal — a name is worth having wherever a
+ *  person wants one. */
+export interface CarDoc {
+  model: string;
+  /** The number programmed into its decoder, **as a string** and bare — no
+   *  system prefix, unlike a point's. Absent where it has no decoder, and no
+   *  two cars on one railroad may wear the same one. */
+  addr?: string;
+  kind?: string;
+  length?: number;
+  functions?: Record<string, ModelFn>;
+}
+
+/** A train the railroad has made up: an ordered list, head first. Its length
+ *  and its kind are derived from those cars and are never written down, which
+ *  is what `/rosters/<railroad>/trains` answers with. */
+export interface RosterTrain {
+  cars: Coupled[];
+  /** Lowest number highest, and absent is lowest of all. No default number is
+   *  written into a document. */
+  priority?: number;
+}
+
+/** One place in a train: what stands there, and which way round it is
+ *  coupled. It names **either a car or a model** — a car where the railroad
+ *  has something to say about that item, and otherwise the model, ten
+ *  identical hoppers having nothing to tell one from another
+ *  ([ADR-0061](../../../docs/adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)). */
+export interface Coupled {
+  car?: string;
+  model?: string;
+  /** `forward` or `reverse`, and `forward` where unstated: `reverse` says the
+   *  car's nose points toward the tail. */
+  orientation?: string;
+}
+
+/** The roster document, whole. A railroad with no roster file answers the
+ *  empty one — owning nothing is an ordinary state, and it is what the screen
+ *  writing the first car draws itself from. */
+export async function readRoster(railroad: string): Promise<RosterDoc> {
+  return await ask<RosterDoc>("GET", `/rosters/${encodeURIComponent(railroad)}`);
+}
+
+/** Create or replace one railroad's roster. Strict, unlike a drawing: the
+ *  store validates it against the installation's catalogue and writes nothing
+ *  where it does not validate, so a refusal arrives as a thrown error carrying
+ *  the validator's words. */
+export async function saveRoster(roster: RosterDoc): Promise<void> {
+  await ask("PUT", `/rosters/${encodeURIComponent(roster.roster)}`, roster);
 }
 
 /**
