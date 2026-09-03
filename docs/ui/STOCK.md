@@ -122,11 +122,11 @@ the run view's roster pane is where a rake goes onto the rails (ADR-0039).
 
 **Not a decoder programmer.** The address is the number already programmed into
 that decoder, recorded here so the roster can say which item is which; nothing
-on this screen writes to a command station, and which DCC number a function
-sits on is a fact about the product rather than something a view shows twice
-(ADR-0045).
+on this screen writes to a command station, and which function number a name
+sits on is a fact about the product, kept for the translator and never shown
+by a view (ADR-0045).
 
-**Not a count of what the railroad owns.** A consist may name more hoppers than
+**Not a count of what the railroad owns.** A train may name more hoppers than
 there are, and the number drifts the moment an item is bought or broken with
 nothing able to tell the software (ADR-0061, *what was rejected*).
 
