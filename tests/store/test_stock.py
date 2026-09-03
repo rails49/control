@@ -45,6 +45,18 @@ def roster(cars: dict[str, Any], trains: dict[str, Any] | None = None) -> Any:
     )
 
 
+def _catalogued(root: Path) -> None:
+    """The three models this file's rosters name, written as files."""
+    (root / "catalogue").mkdir()
+    for doc in (RE460, IC2000, HBIS):
+        (root / "catalogue" / f"{doc['model']}.yaml").write_text(yaml.safe_dump(doc))
+
+
+def _catalogued_store(root: Path) -> AssetStore:
+    _catalogued(root)
+    return AssetStore(root)
+
+
 def test_a_model_is_a_length_a_kind_and_what_each_function_does() -> None:
     model = CATALOGUE["sbb-re460"]
     assert (model.kind, model.length) == ("locomotive", 220)
@@ -541,3 +553,117 @@ def test_saving_a_model_keeps_what_the_file_says_about_it(tmp_path: Path) -> Non
     text = (tmp_path / "catalogue" / "sbb-ic2000.yaml").read_text()
     assert "# Measured over buffers, on the item." in text
     assert store.model("sbb-ic2000")["length"] == 271
+
+
+def test_a_roster_comes_back_as_the_document_it_is(tmp_path: Path) -> None:
+    """What the stock screen edits is the file: an entry naming a car stays
+    one and an entry naming a model stays one, rather than both arriving as
+    the merged cars a train is derived from (ADR-0061)."""
+    written = {
+        "roster": "reversing-loops",
+        "cars": {"re460_1": {"model": "sbb-re460", "addr": "460", "shelf": "3b"}},
+        "trains": {"ore": {"cars": [{"car": "re460_1"}, {"model": "hbis"}]}},
+    }
+    _catalogued(tmp_path)
+    (tmp_path / "layouts").mkdir()
+    (tmp_path / "layouts" / "reversing-loops.roster.yaml").write_text(
+        yaml.safe_dump(written)
+    )
+    assert AssetStore(tmp_path).roster_document("reversing-loops") == written
+
+
+def test_a_railroad_with_no_roster_file_answers_the_empty_document(
+    tmp_path: Path,
+) -> None:
+    """Owning nothing is an ordinary state — a drawing made this morning —
+    and the screen that writes the first car reads this to draw itself."""
+    assert AssetStore(tmp_path).roster_document("facing-pair") == {
+        "roster": "facing-pair",
+        "cars": {},
+        "trains": {},
+    }
+
+
+def test_a_roster_file_that_does_not_validate_is_refused_at_the_read(
+    tmp_path: Path,
+) -> None:
+    """A roster is hand-authored and never passed through `put_roster`, so
+    the check runs again here: a read never answers with a document a run
+    could not be built from."""
+    _catalogued(tmp_path)
+    (tmp_path / "layouts").mkdir()
+    (tmp_path / "layouts" / "reversing-loops.roster.yaml").write_text(
+        yaml.safe_dump({"roster": "loops", "cars": {}, "trains": {}})
+    )
+    with pytest.raises(ValueError, match="names itself"):
+        AssetStore(tmp_path).roster_document("reversing-loops")
+
+
+def test_a_roster_is_written_and_read_back(tmp_path: Path) -> None:
+    """The round trip the stock screen is: `put_roster` makes the directory a
+    fresh box has not got, and the document comes back as it went in."""
+    doc = {
+        "roster": "oval",
+        "cars": {"re460_1": {"model": "sbb-re460", "addr": "460"}},
+        "trains": {"ore": {"cars": [{"car": "re460_1"}, {"model": "hbis"}]}},
+    }
+    store = _catalogued_store(tmp_path)
+    store.put_roster(dict(doc), "oval")
+    assert store.roster_document("oval") == doc
+    assert store.roster("oval").trains["ore"].length == 220 + 180
+
+
+def test_a_roster_that_does_not_validate_leaves_no_file_behind(
+    tmp_path: Path,
+) -> None:
+    """Validated before anything is written: a roster naming a model the
+    installation has not got is one no run could be built from, and the
+    refusal names it."""
+    store = _catalogued_store(tmp_path)
+    with pytest.raises(ValueError, match="names unknown model 'hopper'"):
+        store.put_roster(
+            {
+                "roster": "oval",
+                "cars": {},
+                "trains": {"ore": {"cars": [{"model": "hopper"}]}},
+            },
+            "oval",
+        )
+    with pytest.raises(ValueError, match="names itself"):
+        store.put_roster({"roster": "loop", "cars": {}, "trains": {}}, "oval")
+    assert not (tmp_path / "layouts" / "oval.roster.yaml").exists()
+
+
+def test_a_roster_written_without_a_car_is_that_car_removed(tmp_path: Path) -> None:
+    """A roster is a whole document, so removing a car or a train needs no
+    verb of its own — and what the file says about itself survives the save
+    the way a drawing's does (ADR-0018)."""
+    store = _catalogued_store(tmp_path)
+    (tmp_path / "layouts").mkdir()
+    (tmp_path / "layouts" / "oval.roster.yaml").write_text(
+        "# The two Krokodils, as delivered.\n"
+        + yaml.safe_dump(
+            {
+                "roster": "oval",
+                "cars": {
+                    "re460_1": {"model": "sbb-re460", "addr": "460"},
+                    "re460_2": {"model": "sbb-re460", "addr": "461"},
+                },
+                "trains": {"ore": {"cars": [{"car": "re460_1"}]}},
+            }
+        )
+    )
+    store.put_roster(
+        {
+            "roster": "oval",
+            "cars": {"re460_1": {"model": "sbb-re460", "addr": "460"}},
+            "trains": {},
+        },
+        "oval",
+    )
+    text = (tmp_path / "layouts" / "oval.roster.yaml").read_text()
+    assert "# The two Krokodils, as delivered." in text
+    assert store.roster_document("oval")["cars"] == {
+        "re460_1": {"model": "sbb-re460", "addr": "460"}
+    }
+    assert store.roster("oval").trains == {}
