@@ -1,18 +1,23 @@
 // @vitest-environment happy-dom
 
 /**
- * Opening another drawing, and starting one, over edits the store has not been
- * given (#101, #415).
+ * Starting a railroad over edits the store has not been given (#101, #415).
  *
  * A DOM test of the shell: what is thrown away is the shell's own state — the
  * drawing, the flag the band's dot reads, the snapshots undo walks — and the
  * question is a dialog the operator answers. It mounts the shell the way
  * `refusals.test.ts` does.
  *
+ * **`File ▸ New` is the one gesture that asks.** The railroad itself arrives
+ * on the bus — the broker says which one it runs and the app reads it off the
+ * store (#371, ADR-0059 decision 2) — and nobody is at the keyboard to have
+ * meant that, so it is loaded rather than asked about. The picker that used to
+ * ask went with the bridge.
+ *
  * The roster is here for the same reason the drawing is: it is the second
- * document the loaded railroad carries, the stock view holds it, and changing
- * the railroad throws it away. The question is the app's either way, so it is
- * asked about here rather than in the stock view's own suites (#415).
+ * document the loaded railroad carries, the stock view holds it, and starting
+ * another throws it away. The question is the app's either way, so it is asked
+ * about here rather than in the stock view's own suites (#415).
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -30,6 +35,7 @@ import {
   shows,
   stocking,
 } from "./support/shell.js";
+import { loads } from "./support/session.js";
 
 /** A drawing a red pin short of nothing, one per name the store has. */
 function stored(name: string): Drawing {
@@ -54,36 +60,12 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-/** A mounted editor with `reversing-loops` open and saved, which is where every test
- *  here starts. */
+/** A mounted editor with `reversing-loops` open and saved, which is where every
+ *  test here starts. */
 async function opened(): Promise<TcApp> {
   const shell = await mounted();
-  await choose(shell, "reversing-loops");
+  await loads(shell, "reversing-loops");
   return shell;
-}
-
-/** Choose a railroad in the band, which is the one way one is loaded. */
-async function choose(shell: TcApp, name: string): Promise<void> {
-  shell.renderRoot
-    .querySelector("tc-header")!
-    .dispatchEvent(new CustomEvent<string>("railroad-wanted", { detail: name }));
-  await settled(shell);
-}
-
-/** Choose a railroad the way the operator does: the band's picker, and a
- *  click on the entry. `choose` hands the shell the event the band would have
- *  sent, which is past the band's own guard on the ticked entry; this goes
- *  through it. */
-async function picked(shell: TcApp, name: string): Promise<void> {
-  const band = shell.renderRoot.querySelector("tc-header")!;
-  (band.renderRoot.querySelector("button.chosen") as HTMLElement).click();
-  await settled(shell);
-  const entries = [...band.renderRoot.querySelectorAll("menu.drawings li button")];
-  const entry = entries.find(
-    (one) => one.querySelector(".label")!.textContent!.trim() === name,
-  ) as HTMLElement;
-  entry.click();
-  await settled(shell);
 }
 
 /** Ask for a new drawing, which is the other way the open one is thrown
@@ -126,94 +108,6 @@ function unsaved(shell: TcApp): boolean {
   const band = shell.renderRoot.querySelector("tc-header")!;
   return band.renderRoot.querySelector(".unsaved") !== null;
 }
-
-describe("opening a drawing over unsaved edits", () => {
-  it("asks before anything is read or reset", async () => {
-    const shell = await opened();
-    await drawn(shell);
-
-    await choose(shell, "otira");
-
-    expect(asked(shell)).not.toBeNull();
-    expect(open(shell)).toBe("reversing-loops");
-  });
-
-  /** Declining costs nothing at all: the same drawing, the same edits, the
-   *  same dot, and undo still holding the step that made them. */
-  it("leaves everything as it was when the edits are kept", async () => {
-    const shell = await opened();
-    await drawn(shell);
-    await choose(shell, "otira");
-
-    await answer(shell, "Cancel");
-
-    expect(asked(shell)).toBeNull();
-    expect(open(shell)).toBe("reversing-loops");
-    expect(unsaved(shell)).toBe(true);
-    expect(Object.keys(session(shell).drawing.symbols).sort()).toEqual(["b1", "e1"]);
-    expect(session(shell).canUndo).toBe(true);
-  });
-
-  it("opens the drawing chosen once the edits are given up", async () => {
-    const shell = await opened();
-    await drawn(shell);
-    await choose(shell, "otira");
-
-    await answer(shell, "Discard");
-
-    expect(asked(shell)).toBeNull();
-    expect(open(shell)).toBe("otira");
-    expect(unsaved(shell)).toBe(false);
-    expect(session(shell).canUndo).toBe(false);
-  });
-
-  /** The question names both drawings: the one about to be thrown away and
-   *  the one asked for. */
-  it("names what is at stake and what was asked for", async () => {
-    const shell = await opened();
-    await drawn(shell);
-
-    await choose(shell, "otira");
-
-    expect(asked(shell)!.textContent).toContain("'reversing-loops'");
-    expect(asked(shell)!.textContent).toContain("'otira'");
-  });
-
-  /** Nothing is open until a drawing is chosen, and what is drawn before that
-   *  is worth the same question — under a name the band does not have. */
-  it("asks about a canvas drawn on before anything was opened", async () => {
-    const shell = await mounted();
-    await drawn(shell);
-
-    await choose(shell, "otira");
-
-    expect(asked(shell)!.textContent).toContain("The canvas has edits");
-  });
-
-  /** The question is modal, so Escape is its: it declines, and the selection
-   *  behind it is not the canvas's to clear on the way. */
-  it("takes Escape as a refusal, and the canvas hears nothing", async () => {
-    const shell = await opened();
-    await drawn(shell);
-    await choose(shell, "otira");
-
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    await settled(shell);
-
-    expect(asked(shell)).toBeNull();
-    expect(open(shell)).toBe("reversing-loops");
-    expect([...session(shell).selection]).toEqual(["b1"]);
-  });
-
-  it("opens straight away when there is nothing to lose", async () => {
-    const shell = await opened();
-
-    await choose(shell, "otira");
-
-    expect(asked(shell)).toBeNull();
-    expect(open(shell)).toBe("otira");
-  });
-});
 
 describe("starting a new drawing over unsaved edits", () => {
   /** The name is asked for after the edits are, not before: a prompt answered
@@ -266,6 +160,33 @@ describe("starting a new drawing over unsaved edits", () => {
     expect(asked(shell)).toBeNull();
     expect(open(shell)).toBe(NAMED);
   });
+
+  /** Nothing is loaded until the broker names a railroad, and what is drawn
+   *  before that is worth the same question — under a name the band has
+   *  not got. */
+  it("asks about a canvas drawn on before anything was loaded", async () => {
+    const shell = await mounted();
+    await drawn(shell);
+
+    await fresh(shell);
+
+    expect(asked(shell)!.textContent).toContain("The canvas has edits");
+  });
+
+  /** The question is modal, so Escape is its: it declines, and the selection
+   *  behind it is not the canvas's to clear on the way. */
+  it("takes Escape as a refusal, and the canvas hears nothing", async () => {
+    const shell = await opened();
+    await drawn(shell);
+    await fresh(shell);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await settled(shell);
+
+    expect(asked(shell)).toBeNull();
+    expect(open(shell)).toBe("reversing-loops");
+    expect([...session(shell).selection]).toEqual(["b1"]);
+  });
 });
 
 /**
@@ -293,11 +214,11 @@ describe("a new drawing nothing has been drawn on", () => {
     expect(open(shell)).toBe(NAMED);
   });
 
-  it("is thrown away for a drawing opened without a question", async () => {
+  it("is thrown away for the railroad the broker names, without a question", async () => {
     const shell = await mounted();
     await fresh(shell);
 
-    await choose(shell, "otira");
+    await loads(shell, "otira");
 
     expect(asked(shell)).toBeNull();
     expect(open(shell)).toBe("otira");
@@ -316,16 +237,16 @@ describe("a new drawing nothing has been drawn on", () => {
 });
 
 /**
- * The tick says which drawing is open and nothing more. The bar asks for
- * nothing when it is clicked (`menubar.test.ts`), and this is what that buys
- * at the editor: the assertion that survives the guard moving (#136).
+ * The retained row the broker holds is republished whenever a page
+ * resubscribes, so the railroad it names arrives again and again. It is the
+ * one the app already has, and nothing is thrown away for it (#136, #371).
  */
-describe("choosing the drawing already open", () => {
-  it("leaves the edits, the dot and the undo history untouched", async () => {
+describe("the railroad the broker names", () => {
+  it("leaves the edits, the dot and the undo history untouched where it is the one loaded", async () => {
     const shell = await opened();
     await drawn(shell);
 
-    await picked(shell, "reversing-loops");
+    await loads(shell, "reversing-loops");
 
     expect(asked(shell)).toBeNull();
     expect(unsaved(shell)).toBe(true);
@@ -333,12 +254,12 @@ describe("choosing the drawing already open", () => {
     expect(Object.keys(session(shell).drawing.symbols).sort()).toEqual(["b1", "e1"]);
   });
 
-  /** The same click on the entry beside it does open, so what is asserted
-   *  above is the tick's doing and not the click going nowhere. */
-  it("opens one that is not the drawing already open", async () => {
+  /** Another name does load, so what is asserted above is the app reading the
+   *  row and not the row going nowhere. */
+  it("loads one that is not the railroad already loaded", async () => {
     const shell = await opened();
 
-    await picked(shell, "otira");
+    await loads(shell, "otira");
 
     expect(open(shell)).toBe("otira");
   });
@@ -351,7 +272,7 @@ describe("choosing the drawing already open", () => {
  * What the store answers is a train to compose into and a model to compose
  * from, so one press of `+` beside the model is an edit nobody has saved.
  */
-describe("opening a railroad over unsaved roster edits", () => {
+describe("starting a railroad over unsaved roster edits", () => {
   const HOPPER: ModelDoc = { model: "hopper", kind: "freight", length: 100 };
 
   /** A railroad that owns one rake of one hopper, whichever name is asked
@@ -375,7 +296,7 @@ describe("opening a railroad over unsaved roster edits", () => {
       documentOf: owned,
     });
     const shell = await mounted("stock");
-    await choose(shell, "reversing-loops");
+    await loads(shell, "reversing-loops");
     return shell;
   }
 
@@ -400,12 +321,12 @@ describe("opening a railroad over unsaved roster edits", () => {
     return stocking(shell).renderRoot.querySelectorAll("li.entry").length;
   }
 
-  it("asks before the picker changes anything, and names the roster", async () => {
+  it("asks before `File ▸ New` changes anything, and names the roster", async () => {
     const shell = await stocked();
     await composed(shell);
     expect(entries(shell)).toBe(2);
 
-    await choose(shell, "otira");
+    await fresh(shell);
 
     expect(asked(shell)!.textContent).toContain("has edits that have not been saved");
     expect(asked(shell)!.textContent).toContain("the roster");
@@ -418,7 +339,7 @@ describe("opening a railroad over unsaved roster edits", () => {
   it("leaves the rake being composed in place when the edits are kept", async () => {
     const shell = await stocked();
     await composed(shell);
-    await choose(shell, "otira");
+    await fresh(shell);
 
     await answer(shell, "Cancel");
 
@@ -427,15 +348,15 @@ describe("opening a railroad over unsaved roster edits", () => {
     expect(entries(shell)).toBe(2);
   });
 
-  it("opens the railroad chosen once they are given up, and reads its roster", async () => {
+  it("starts the railroad once they are given up, and reads its roster", async () => {
     const shell = await stocked();
     await composed(shell);
-    await choose(shell, "otira");
+    await fresh(shell);
 
     await answer(shell, "Discard");
 
     expect(asked(shell)).toBeNull();
-    expect(open(shell)).toBe("otira");
+    expect(open(shell)).toBe(NAMED);
     expect(entries(shell)).toBe(1);
   });
 
@@ -446,7 +367,7 @@ describe("opening a railroad over unsaved roster edits", () => {
     await drawn(shell);
     await composed(shell);
 
-    await choose(shell, "otira");
+    await fresh(shell);
 
     expect(asked(shell)!.textContent).toContain("the drawing and the roster");
   });
@@ -457,7 +378,7 @@ describe("opening a railroad over unsaved roster edits", () => {
     const shell = await stocked();
     await drawn(shell);
 
-    await choose(shell, "otira");
+    await fresh(shell);
 
     expect(asked(shell)!.textContent).toContain("the drawing");
     expect(asked(shell)!.textContent).not.toContain("the roster");
@@ -468,10 +389,10 @@ describe("opening a railroad over unsaved roster edits", () => {
     await composed(shell);
     await kept(shell);
 
-    await choose(shell, "otira");
+    await fresh(shell);
 
     expect(asked(shell)).toBeNull();
-    expect(open(shell)).toBe("otira");
+    expect(open(shell)).toBe(NAMED);
   });
 
   /** Switching view changes no railroad, so nothing is read again and the
