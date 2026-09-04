@@ -394,6 +394,26 @@ export class Stock {
     this.dirty = false;
   }
 
+  /**
+   * What stops the roster being saved, or `null` where nothing does.
+   *
+   * A train with nothing in it is the one thing: the store refuses an empty
+   * `cars` list (`store/stock.py`), and a train that reached it would come
+   * back a refusal about a document rather than about the row on the screen.
+   * Refused here, the words are this screen's own and the saved roster is
+   * unchanged. `edits` stays true — there is still something to give the
+   * store once the train is filled — so Save stays enabled (#412).
+   */
+  stopsSaving(): string | null {
+    const empty = Object.entries(this.doc.trains)
+      .sort(([one], [other]) => (one < other ? -1 : 1))
+      .find(([, train]) => train.cars.length === 0);
+    return empty === undefined
+      ? null
+      : `train '${empty[0]}' has nothing in it — press + beside a car or a` +
+          ` model, or remove it`;
+  }
+
   // --- what the three lists draw -------------------------------------------
 
   cars(placed: readonly string[] = []): CarRow[] {

@@ -74,6 +74,16 @@ validates it against the catalogue and writes nothing where it does not
 validate, so a refusal arrives in the validator's own words and is shown on the
 screen that caused it.
 
+**A train with nothing in it cannot be saved.** Making one up and pressing
+Save is the order of work this screen invites, so the screen refuses that save
+itself, before the `PUT`, naming the train: *train 'ore' has nothing in it —
+press + beside a car or a model, or remove it*. The store refuses the same
+document — an empty `cars` list names no cars (`store/stock.py`) — so a roster
+it takes is always one `/rosters/<railroad>/trains` can answer, and the roster
+on disk is unchanged either way. Save stays enabled: there is still something
+to give the store once the train is filled
+([#412](https://github.com/rails49/control/issues/412)).
+
 **Refusals name what holds a thing.** A car a train is made of cannot be
 removed, and the message says which train. A model's row says what names it —
 the cars that are one, then the trains whose entries do — for the same reason,

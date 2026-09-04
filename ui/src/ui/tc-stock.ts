@@ -485,6 +485,14 @@ export class TcStock extends LitElement {
   private save = async (): Promise<void> => {
     const stock = this.stock;
     if (stock === null) return;
+    // Asked before the `PUT` so the words are this screen's own and the saved
+    // roster is untouched: a train with nothing in it is one the store
+    // refuses whole, and the refusal names the row to go and fill (#412).
+    const stopped = stock.stopsSaving();
+    if (stopped !== null) {
+      this.did(stopped);
+      return;
+    }
     try {
       await saveRoster(stock.roster);
       stock.kept();

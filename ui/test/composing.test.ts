@@ -168,6 +168,24 @@ describe("making up a train", () => {
     expect(screen.roster.trains.ore!.cars[0]).toEqual({ car: "krokodil-a" });
   });
 
+  /** The store refuses an empty `cars` list, so the screen refuses the save
+   *  first and the words name the row to go and fill (#412). */
+  it("stops the save while a train has nothing in it, and names the train", () => {
+    const screen = stock(EMPTY);
+    screen.addTrain("ore");
+    expect(screen.stopsSaving()).toBe(
+      "train 'ore' has nothing in it — press + beside a car or a model, or remove it",
+    );
+    expect(screen.edits).toBe(true);
+    screen.append("ore", { model: "hopper" });
+    expect(screen.stopsSaving()).toBeNull();
+  });
+
+  it("stops nothing where every train has something in it", () => {
+    expect(stock().stopsSaving()).toBeNull();
+    expect(stock(EMPTY).stopsSaving()).toBeNull();
+  });
+
   it("unmakes a rake without taking its cars off the roster", () => {
     const screen = stock();
     screen.removeTrain("ore");
