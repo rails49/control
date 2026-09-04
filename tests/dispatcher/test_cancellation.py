@@ -22,7 +22,7 @@ from tc49.bench.runner import Assembly, assemble_live
 from tc49.dispatcher import FullRoute
 from tc49.lib.bus import Payload
 from tc49.lib.scenario import TrainSpec
-from tests.harness import RUN_WANTED, events, leaves, load, press, stock, ticks
+from tests.harness import RUN_WANTED, events, leaves, load, press, runs, stock, ticks
 
 CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
 REQUEST_WANTED = "tc49/schedule/request_wanted"
@@ -241,7 +241,7 @@ def test_a_cancellation_needs_no_held_run() -> None:
     cancel(assembly, "freight_1")
     ticks(assembly, 4)
 
-    assert [line["run"] for line in leaves(assembly, "run")] == ["running"]
+    assert runs(assembly) == ["running"]
     assert [line["reason"] for line in cancellations(assembly)] == ["revoked"]
 
 

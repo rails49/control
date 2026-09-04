@@ -575,6 +575,9 @@ class Dispatcher:
         # the track is dead while it is live, or the other way about, with
         # nothing to notice.
         self._ordering = Ordering()
+        # The last `state/run` row published, so the topic moves only when
+        # what it says moves — the run word or `moving`, either of them.
+        self._published_run: Payload | None = None
         # The opening statement is the whole of what the dispatcher holds, in
         # the order a grant phase says it. Aspects are in it because a restart
         # has a previous value on that topic too: the last session's
@@ -883,7 +886,7 @@ class Dispatcher:
         """
         if self._state.run != DRAINING:
             return
-        if self._state.active or self._state.crossing:
+        if self._moving():
             return
         self._move_run(HELD)
 
@@ -1135,9 +1138,14 @@ class Dispatcher:
         """What a placement changes besides the lock table: the picture a
         joining client draws from, and the disputed set — the entry the person
         just resolved leaves it, which is what empties it as the railroad is
-        walked (#153)."""
+        walked (#153) — and `moving`, which a placement can move without a
+        sweep: saying where a crossing train stands drops the hint, and
+        lifting it off the layout drops the hint and its request together.
+        That is the documented way out of a drain a wedged train holds open
+        (ADR-0062), so the row has to follow it or the panel waits forever."""
         self._publish_allocation()
         self._publish_disputed()
+        self._publish_run()
 
     # -- the sensors, and the sweep they trigger ----------------------------
 
@@ -1333,6 +1341,12 @@ class Dispatcher:
         self._publish_allocation()
         self._publish_disputed()
         self._drained()
+        # And what `moving` reads, after the drain has had its say: a sweep
+        # grants the moves that start one and covers every place a train
+        # stops being active, so it is where the boolean moves under a run
+        # word that is standing still (ADR-0062). A completed drain has just
+        # published the pair itself, and this republishes nothing.
+        self._publish_run()
 
     def _grant(self) -> None:
         state = self._state
@@ -1507,14 +1521,44 @@ class Dispatcher:
             },
         )
 
+    def _moving(self) -> bool:
+        """Whether a power cut now would strand something: any train active,
+        or any train crossing (CONTEXT.md, **Moving**).
+
+        One test, read by the two that need it — the drain's completion, and
+        the `moving` the row carries — because they are the same question and
+        a second copy of it could answer differently. A **crossing** train
+        counts with no request behind it: a restored hint is a train the
+        dispatcher believes is between two blocks (`_drained`).
+        """
+        return bool(self._state.active or self._state.crossing)
+
     def _publish_run(self) -> None:
-        """Whether the run is held, running or draining, on a last-value
-        topic. An enum and not a boolean, which is what let the drain take a
-        third value here rather than invent a state of its own (#123, #294).
-        The dispatcher writes the third one as well as reading it: a drain
-        ends itself at `held`, and that transition is what the panel watches
-        for (`_drained`)."""
-        self._publish("state/run", {"run": self._state.run})
+        """Whether the run is held, running or draining, and whether anything
+        is moving, on a last-value topic. An enum and not a boolean, which is
+        what let the drain take a third value here rather than invent a state
+        of its own (#123, #294). The dispatcher writes the third one as well
+        as reading it: a drain ends itself at `held`, and that transition is
+        what the panel watches for (`_drained`).
+
+        **`moving` rides beside the run word and is not a fourth value of
+        it** (ADR-0062). `held` alone does not say the railroad is still: the
+        dispatcher writes that word when a drain completes, and a person's
+        HOLD writes the same word with trains still rolling, so a reader
+        waiting to cut power was answered by the wrong event. Both are
+        published together, and either moving publishes the row — a running
+        run whose last train arrives says `running` with `moving` false.
+
+        The **whole row** is what is compared, so a value that changes
+        nothing publishes nothing, as it does for every other state topic
+        here. That is what lets this be called wherever `moving` can have
+        moved without a caller working out whether it did.
+        """
+        row: Payload = {"run": self._state.run, "moving": self._moving()}
+        if row == self._published_run:
+            return
+        self._published_run = row
+        self._publish("state/run", row)
 
     def _publish_aspects(self) -> None:
         """The signalled ends, on a last-value topic, when any of them has

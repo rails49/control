@@ -17,7 +17,16 @@ from typing import cast
 
 from tc49.bench.runner import Assembly
 from tc49.lib.bus import Payload
-from tests.harness import RUN_WANTED, leaves, live, press, run_wanted, runs, ticks
+from tests.harness import (
+    RUN_WANTED,
+    leaves,
+    live,
+    press,
+    run_rows,
+    run_wanted,
+    runs,
+    ticks,
+)
 
 REQUEST_WANTED = "tc49/schedule/request_wanted"
 
@@ -130,12 +139,18 @@ def test_a_value_that_is_no_run_state_leaves_the_run_alone(
 
 def test_the_same_value_twice_republishes_nothing(timetabled: Assembly) -> None:
     """A state topic moves when its value moves, as every other one here
-    does; a press that changes nothing is not a change."""
+    does; a press that changes nothing is not a change. Read as the rows went
+    out, `moving` and all, so a repeat of one has nowhere to hide: what the
+    dispatcher compares before publishing is the whole row (#406)."""
     press(timetabled, RUN_WANTED, {"run": "held"})
     press(timetabled, RUN_WANTED, {"run": "held"})
     ticks(timetabled, 2)
 
-    assert runs(timetabled) == ["running", "held"]
+    assert run_rows(timetabled) == [
+        ("running", False),
+        ("running", True),
+        ("held", True),
+    ]
 
 
 def test_a_request_wanted_is_still_admitted_while_held() -> None:
