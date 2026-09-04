@@ -1339,8 +1339,9 @@ on a durable bus is not replayed to a station and no locomotive rolls on the
 power-on
 ([ADR-0054](adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
 `wanted/point` replays instead — a point has no resting value to write. **`state/power` is folded from what the hardware reports**, never from
-having commanded it: the supply's own word wherever every link ever seen reads
-up, and `off` otherwise, which is where an unreadable frame on either row falls
+having commanded it: the supply's own word wherever every id ever heard reads
+its link `up`, and `off` otherwise, which is where an unreadable frame on
+either row falls
 ([layout/README.md](layout/README.md#power)). The simulator answers none of
 this — simulated track is always live, and a power cut is a physical act
 (ADR-0030).
@@ -1447,13 +1448,31 @@ rather than writing them.
 | --- | --- | --- |
 | `tc49/layout/state/device/sensor/<block>.<end>` | `addr`, `occupancy`, `reason` | `occupancy` `occupied`, `clear` or `unknown`; `reason` *optional*, free text, only with `unknown` |
 | `tc49/layout/state/device/point/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
-| `tc49/layout/state/device/track` | `power` | `power` `on`, `stopped` or `off` |
-| `tc49/layout/state/device/link/<system>` | `system`, `link`, `detail` | `link` `up` or `down`; `detail` *optional*, free text |
+| `tc49/layout/state/device/track` | `power`, `reason` | `power` `on`, `stopped` or `off`; `reason` *optional*, free text |
+| `tc49/layout/state/device/link/<id>` | `id`, `link`, `detail` | `link` `up` or `down`; `detail` *optional*, free text |
 
 The address rules are the desired half's, and `link` is the one row whose
-address comes back under a name of its own: it is addressed by the system
-whose connection it reports, and the payload repeats that as `system` rather
-than as `addr`, there being no device at the far end of it.
+address comes back under a name of its own: it is keyed by whatever the
+publisher calls itself, and the payload repeats that as `id` rather than as
+`addr`, there being no device at the far end of it.
+
+**The link's `id` is the publisher's own.** It appears in no drawing, no
+configuration and no list of ours, and nothing but `layout` reads the row. It
+is a key rather than nothing at all because one railroad may have several
+participants, and the second's `up` would otherwise erase the first's `down`.
+`layout` folds `state/power` to `off` for any id it has heard say `down` and
+never waits for an id it has not heard, so nothing must announce itself for
+the railroad to come up
+([ADR-0058](adr/0058-hardware-meets-the-bus-and-a-translator-is-only-for-hardware-that-cannot.md)).
+A publisher may set an MQTT last will of `down` on its own row, which
+[ADR-0040](adr/0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md)
+permits as a faster signal no safety property depends on (ADR-0059).
+
+**`reason` on the supply is for the participant that cannot reach it**:
+`{power: off, reason: "…"}`, so a person reads why the railroad is dark
+without a second row to find. Free text and optional, on the same terms as
+the sensor's — nothing branches on it, and a supply that reads `off` with no
+reason is no less `off`.
 
 **A sensor is addressed by the block end it watches**, `<block>.<end>`, one
 topic per sensor, and never by a camera's own identifier
@@ -1474,10 +1493,10 @@ above give and for the same reason: a feature nothing needs is overhead.
 — no model, not calibrated, drift — and `reason` carries that for a person to
 read, while a consumer treats `unknown` as no information about that end.
 
-**`link` is where a broken link becomes observable.** A translator publishes
-its own link to the hardware as observed state like any other, so a UI can say
-the command station is unreachable instead of the railroad merely looking
-idle, and goes on saying so while the failure lasts
+**`link` is where a broken link becomes observable.** A participant that knows
+it cannot reach its hardware says so as observed state like any other, so a UI
+can say the command station is unreachable instead of the railroad merely
+looking idle, and goes on saying so while the failure lasts
 ([ADR-0050](adr/0050-broken-hardware-is-reported-never-worked-around.md)).
 That is where verifying the link belongs: at runtime, with a person present
 who can act on it, and not in a test suite that would need a powered layout to

@@ -624,9 +624,10 @@ written by `layout`, with a **translator**, one app per hardware system,
 subscribing all of them and acting on every address it recognises — one nobody
 answers to does no harm (ADR-0059). What it is **observed to do**, under
 `tc49/layout/state/device/` — a sensor's occupancy, a point's position where
-the hardware reports one, the track's power, and a translator's **link** —
-written by whatever watches or drives the thing addressed, of which there is
-exactly one per address, and read by `layout`. The rest of the system never
+the hardware reports one, the track's power, and a participant's **link**,
+keyed by the id it calls itself — written by whatever watches or drives the
+thing addressed, of which there is exactly one per address, and read by
+`layout`. The rest of the system never
 names a device, `align` and `move` naming a transit
 ([ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 Both halves are `tc49.lib.inventory.DEVICE_TOPICS`.
@@ -644,9 +645,11 @@ A **function** takes two levels, the decoder and the function number, and a
 **sensor** a shape of its own, the block end it watches. Not a leaf: the row is
 the topic above the address, which is what `split_device`
 takes apart. The two `track` rows carry none, there being one railroad-wide
-power desired and one observed; a **link** carries one and repeats it as
-`system` rather than as `addr`, naming no device.
-_Avoid_: id, suffix, path
+power desired and one observed; a **link** carries one and repeats it as `id`
+rather than as `addr`, being keyed by whatever the publisher calls itself and
+naming no device.
+_Avoid_: suffix, path; and *id* for an address, which is the link row's key
+alone
 
 **Traction**:
 Moving a train: what a locomotive's decoder does with a **speed**, against the
@@ -680,17 +683,23 @@ _Avoid_: camera (one kind of detector), block detector; and not the **sensor**
 itself, which is the block end watched and is what the topic is addressed by
 
 **Link**:
-Whether a translator can reach the hardware it drives: `up` or `down`,
-observed and published like any other device state, addressed by the `system`
-whose link it is and carrying a free-text `detail`. It is what lets a view say
-the command station is unreachable rather than leaving the railroad merely
-looking idle, and it is where verifying that the hardware is really reachable
-belongs: at runtime, with a person present who can act on it, never in a gate
-that would need a powered layout to pass
+Whether a participant can reach the hardware it drives: `up` or `down`,
+observed and published like any other device state, carrying a free-text
+`detail`. It is what lets a view say the command station is unreachable rather
+than leaving the railroad merely looking idle, and it is where verifying that
+the hardware is really reachable belongs: at runtime, with a person present
+who can act on it, never in a gate that would need a powered layout to pass
 ([ADR-0050](docs/adr/0050-broken-hardware-is-reported-never-worked-around.md),
-ADR-0043).
+ADR-0043). Its row is keyed by an **id**, which is whatever the publisher
+calls itself and appears in no drawing, no configuration and no list of ours:
+a key because one railroad may have several participants, and the second's
+`up` would otherwise erase the first's `down`. `layout` folds the supply to
+`off` for any id it has heard say `down` and never waits for an id it has not
+heard
+([ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
 _Avoid_: connection (the track between two blocks, which is its own entry),
-health, heartbeat, status
+health, heartbeat, status; and not the hardware **system** the id used to
+name, an id naming the publisher and not a product
 
 **Enum**:
 A field whose values are a closed set the contract names, listed beside the
