@@ -804,6 +804,22 @@ _Avoid_: shutdown, blackout, emergency stop (the track stays live for that)
 
 ### Store
 
+**Railroad**:
+One person's railroad, and what every document is keyed by: a **drawing**, the
+**roster** of the stock it owns, and the scenarios drawn on it, all filed under
+one name — `crossover-yard` — which is the name the store lists. An
+installation may hold many; **one broker runs one**, so every topic on a bus is
+about that one and topics stay flat
+([ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
+A view learns which from `tc49/layout/state/railroad`, published retained by
+whichever binding of the layout interface is running — the one app bound to a
+railroad — and then loads that railroad from the store. Which one is loaded is
+a person's choice made while the apps run, on `tc49/layout/railroad_wanted` and
+only while track power reads `off`
+([ADR-0060](docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+_Avoid_: installation (the box and its store, which may hold several
+railroads), site, world, session (one run of one railroad)
+
 **Backup**:
 A commit of an installation's store, made by the app driving git over the
 store root: everything under it, in one commit, under a message naming the
