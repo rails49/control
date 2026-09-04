@@ -25,6 +25,7 @@ import {
   settled,
   shows,
 } from "./support/shell.js";
+import { loads } from "./support/session.js";
 
 /** A drawing a red pin short of nothing, one per name the store has. */
 function stored(name: string): Drawing {
@@ -45,12 +46,10 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-/** Load a railroad, the way the band's picker does. */
+/** Load a railroad, the way the broker does: the retained row that says which
+ *  railroad it runs (#371). */
 async function load(shell: TcApp, name: string): Promise<void> {
-  band(shell).dispatchEvent(
-    new CustomEvent<string>("railroad-wanted", { detail: name }),
-  );
-  await settled(shell);
+  await loads(shell, name);
 }
 
 /** Which view is on screen: the one that is not hidden. */
@@ -189,42 +188,5 @@ describe("switching view", () => {
     await shows(shell, "run");
 
     expect(bar(shell).renderRoot.querySelector("menu")).toBeNull();
-  });
-});
-
-describe("the band's picker against the bar's menus", () => {
-  /** The band sits above the bar, so a press on the picker lands on it rather
-   *  than on the overlay the open menu is waiting for. The menu would be left
-   *  down with the keyboard still its, so the picker takes it up. */
-  it("takes a menu on the bar up when the picker goes down", async () => {
-    const shell = await mounted("edit");
-    (bar(shell).renderRoot.querySelector("button.title") as HTMLElement).click();
-    await settled(shell);
-    expect(bar(shell).renderRoot.querySelector("menu")).not.toBeNull();
-
-    (band(shell).renderRoot.querySelector("button.chosen") as HTMLElement).click();
-    await settled(shell);
-
-    expect(bar(shell).renderRoot.querySelector("menu")).toBeNull();
-    expect(band(shell).renderRoot.querySelector("menu.drawings")).not.toBeNull();
-  });
-});
-
-describe("the picker over unsaved edits", () => {
-  /** The question is the app's, because what it guards is the app's: the
-   *  railroad, not one view's document (#101). */
-  it("asks before the band's picker changes anything", async () => {
-    const shell = await mounted("edit");
-    await load(shell, "reversing-loops");
-    session(shell).place("block", [4, 0]);
-    editing(shell).dispatchEvent(
-      new CustomEvent("edit", { bubbles: true, composed: true }),
-    );
-    await settled(shell);
-
-    await load(shell, "otira");
-
-    expect(shell.renderRoot.querySelector("sl-dialog")).not.toBeNull();
-    expect(loaded(shell)).toBe("reversing-loops");
   });
 });

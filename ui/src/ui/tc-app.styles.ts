@@ -42,11 +42,11 @@ export const appStyles = css`
     font: 13px/1.4 system-ui, sans-serif;
   }
 
-  /* The rows stack the way they read: the band's picker hangs over the bar,
-     and the bar's menus hang over the work. z-index only competes inside one
-     stacking context, and a shadow root establishes none, so the contexts are
-     made here rather than left to the painting order — which is DOM order, and
-     would put the bar's own text over the list hanging off the band. */
+  /* The rows stack the way they read: the band sits over the bar, and the
+     bar's menus hang over the work. z-index only competes inside one stacking
+     context, and a shadow root establishes none, so the contexts are made here
+     rather than left to the painting order — which is DOM order, and would put
+     the work's own painting over a menu hanging off the bar. */
   tc-header {
     position: relative;
     z-index: 20;

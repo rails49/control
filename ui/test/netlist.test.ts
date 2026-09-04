@@ -21,6 +21,7 @@ import type { Drawing } from "../src/model/drawing.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import { editing, inside, mounted, serving, settled } from "./support/shell.js";
+import { loads } from "./support/session.js";
 
 const DRAWING: Drawing = {
   drawing: "reversing-loops",
@@ -37,10 +38,7 @@ beforeEach(() => {
  *  alive at all. */
 async function open(): Promise<TcApp> {
   const shell = await mounted();
-  shell.renderRoot
-    .querySelector("tc-header")!
-    .dispatchEvent(new CustomEvent("railroad-wanted", { detail: "reversing-loops" }));
-  await settled(shell);
+  await loads(shell, "reversing-loops");
   return shell;
 }
 
@@ -94,16 +92,13 @@ describe("the column the netlist sits in", () => {
     expect(showing(shell)).toBe(false);
   });
 
-  /** Opening a drawing is where the netlist is closed, so a debugging view
+  /** Opening a railroad is where the netlist is closed, so a debugging view
    *  left open over one railroad is not inherited by the next. */
-  it("is shut again by opening a drawing", async () => {
+  it("is shut again by opening a railroad", async () => {
     const shell = await open();
     await asked(shell, "netlist");
 
-    shell.renderRoot
-      .querySelector("tc-header")!
-      .dispatchEvent(new CustomEvent("railroad-wanted", { detail: "reversing-loops" }));
-    await settled(shell);
+    await loads(shell, "otira");
 
     expect(showing(shell)).toBe(false);
   });

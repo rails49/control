@@ -12,24 +12,26 @@
  *
  * **One session, and it is the run view's.** The throttle is a view of this
  * app with nothing of its own to join, so what it draws comes down from the
- * view that holds the socket and its gestures go back the same way the band's
- * power presses do (ui/THROTTLE.md). The stock screen takes the same route for
+ * view that holds the broker's client and its gestures go back the same way
+ * the band's power presses do (ui/THROTTLE.md). The stock screen takes the same route for
  * what it needs of the run: which trains are placed, which is what its length
  * guard is (ui/STOCK.md).
  *
  * It also holds everything the two rows need. The band is the system's, so the
- * picker that loads a railroad and the toggle that switches view report here;
- * the bar is the current view's document's, so a command comes here and is
- * either run against the document this holds or passed to the view that owns
- * the surface. The keyboard is the same single path — `model/commands.ts`
+ * toggle that switches view reports here; the bar is the current view's
+ * document's, so a command comes here and is either run against the document
+ * this holds or passed to the view that owns the surface. The keyboard is the same single path — `model/commands.ts`
  * decides what is dead, and an item and the key printed beside it cannot come
  * to mean different things.
  *
- * **The band's picker is the only thing that loads a railroad**
- * ([#171](https://github.com/rails49/control/issues/171)). A run is built from
- * a railroad and nothing else, so the run view has no session of its own to
- * pick: it joins whatever this holds, and the two cannot come to name
- * different railroads.
+ * **The broker is the only thing that loads a railroad**
+ * ([#371](https://github.com/rails49/control/issues/371)). One broker runs one
+ * railroad and the layout interface says which on a retained row
+ * ([ADR-0059](../../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+ * decision 2), so the run view reads that row and hands the name up here; this
+ * reads the documents off the store. There is no picker, switching railroads
+ * being restarting the apps, and the run view and this cannot come to name
+ * different ones.
  */
 
 import { LitElement, html, nothing } from "lit";
@@ -117,11 +119,11 @@ export class TcApp extends LitElement {
    *  than the view's. */
   @state() private netlist = false;
 
-  /** What is waiting on the operator's word before the loaded railroad is
-   *  thrown away: the railroad wanted, or `null` for a new one, `null` being a
-   *  choice and not the absence of one. `discarding` itself is `null` while
-   *  nothing is waiting, which is the ordinary state. */
-  @state() private discarding: { wanted: string | null } | null = null;
+  /** Whether the operator's word is being waited on before the loaded
+   *  railroad is thrown away for a new one. `File ▸ New` is the only gesture
+   *  that asks: the railroad itself arrives on the bus (#371), which is not a
+   *  press anybody made. */
+  @state() private discarding = false;
 
   /** Whether the stock view holds roster edits the store has not been given,
    *  as that view last said. The drawing's own are the filing's; the roster is
@@ -135,9 +137,9 @@ export class TcApp extends LitElement {
    *  (#321), and that costs one `GET /backup` a page load. */
   @state() private backingUp = false;
 
-  /** What the run view says about itself: the bridge, how far the run has got,
-   *  and what a session refused. The band reads it, and the run view is the
-   *  only thing that knows any of it. */
+  /** What the run view says about itself: the broker, how far the run has
+   *  got, and what went wrong. The band reads it, and the run view is the only
+   *  thing that knows any of it. */
   @state() private status: RunStatus = QUIET;
 
   /** The trains there are to drive, one cab each, as the view holding the
@@ -172,7 +174,6 @@ export class TcApp extends LitElement {
     return html`
       <tc-header
         .drawing=${name}
-        .drawings=${this.filing.drawings}
         .unsaved=${!this.filing.saved}
         .derives=${this.filing.derives}
         .trouble=${this.filing.trouble ?? this.status.trouble}
@@ -183,11 +184,7 @@ export class TcApp extends LitElement {
         .frozen=${still}
         .view=${this.view}
         @power-wanted=${(event: CustomEvent<Power>) => this.supplying(event.detail)}
-        @railroad-wanted=${(event: CustomEvent<string>) => this.discard(event.detail)}
         @view-wanted=${(event: CustomEvent<ViewId>) => this.showing(event.detail)}
-        @picker-open=${(event: CustomEvent<boolean>) => {
-          if (event.detail) this.renderRoot.querySelector<TcMenubar>("tc-menubar")?.close();
-        }}
       ></tc-header>
 
       <tc-menubar
@@ -256,9 +253,7 @@ export class TcApp extends LitElement {
         }}
       ></tc-backup>
 
-      ${this.discarding === null
-        ? nothing
-        : this.question(this.discarding.wanted)}
+      ${this.discarding ? this.question() : nothing}
     `;
   }
 
@@ -304,15 +299,15 @@ export class TcApp extends LitElement {
     }
   }
 
-  /** HOLD or GO, pressed on the bar. The socket is the run view's, so the
-   *  press goes there: the bar draws the run's word and this carries it, and
-   *  neither decides anything about the run. */
+  /** HOLD or GO, pressed on the bar. The broker's client is the run view's, so
+   *  the press goes there: the bar draws the run's word and this carries it,
+   *  and neither decides anything about the run. */
   private held(run: Run): void {
     this.running?.press(run);
   }
 
   /** ON, STOP or OFF, pressed on the band. The same path HOLD and GO take and
-   *  for the same reason: the socket is the run view's, and the band decides
+   *  for the same reason: the client is the run view's, and the band decides
    *  nothing about the railroad it is naming (ADR-0051). */
   private supplying(power: Power): void {
     this.running?.pressPower(power);
@@ -361,7 +356,7 @@ export class TcApp extends LitElement {
     if (!COMMANDS[id].enabled(this.standing)) return;
     switch (id) {
       case "new":
-        this.discard(null);
+        this.discard();
         return;
       case "save":
         void this.filing.save(this.editor);
@@ -446,18 +441,16 @@ export class TcApp extends LitElement {
    *  evening's drawing to (#101), so what would discard them says so and
    *  waits. It is a dialog of the app's own, not a native `confirm`, which the
    *  page cannot style and a browser may suppress. */
-  private question(wanted: string | null) {
-    // Nothing is loaded until a railroad is chosen, and what is drawn on the
-    // canvas before that is still an evening's work.
+  private question() {
+    // Nothing is loaded until the broker names a railroad, and what is drawn
+    // on the canvas before that is still an evening's work.
     const losing =
       this.filing.opened === "" ? "The canvas" : `'${this.filing.opened}'`;
-    const instead =
-      wanted === null ? "Starting a new railroad" : `Opening '${wanted}'`;
     return html`
       <sl-dialog open label="Discard unsaved edits?" @sl-after-hide=${this.kept}>
         <p>
           ${losing} has edits that have not been saved: ${this.losing}.
-          ${instead} discards them.
+          Starting a new railroad discards them.
         </p>
         <sl-button slot="footer" @click=${this.kept}>Cancel</sl-button>
         <sl-button slot="footer" variant="danger" @click=${this.discarded}>
@@ -476,22 +469,21 @@ export class TcApp extends LitElement {
     return this.filing.edits ? "the drawing and the roster" : "the roster";
   }
 
-  /** Throw the loaded railroad away for another, or for a new one — the two
-   *  things that discard whatever has been drawn since the last save. Edits an
-   *  operator would recognise as lost are asked about first; with nothing to
-   *  lose there is nothing to ask, and the railroad opens as it always did
-   *  (#101). What is asked about is `edits` and not `saved`: a canvas just
-   *  started is unsaved and has nothing on it (#136).
-   *
-   *  It guards the band's picker, which is the one way the loaded railroad
-   *  changes (#171).
+  /** Throw the loaded railroad away for a new one, which is what `File ▸ New`
+   *  asks for and the one gesture of a person's that discards whatever has
+   *  been drawn since the last save — the railroad itself arrives on the bus
+   *  (#371), which nobody pressed. Edits an operator would recognise as lost
+   *  are asked about first; with nothing to lose there is nothing to ask, and
+   *  the canvas empties as it always did (#101). What is asked about is
+   *  `edits` and not `saved`: a canvas just started is unsaved and has nothing
+   *  on it (#136).
    *
    *  **Two documents, one question.** The drawing is the filing's and the
    *  roster is the stock view's, and changing the railroad throws both away —
    *  so either one being unsaved asks, and the words name which (#415). */
-  private discard(wanted: string | null): void {
-    if (this.filing.edits || this.rosterEdits) this.discarding = { wanted };
-    else void this.opening(wanted);
+  private discard(): void {
+    if (this.filing.edits || this.rosterEdits) this.discarding = true;
+    else void this.opening(null);
   }
 
   /**
@@ -511,16 +503,16 @@ export class TcApp extends LitElement {
 
   /** The operator said the edits can go. */
   private discarded(): void {
-    const pending = this.discarding;
-    this.discarding = null;
-    if (pending !== null) void this.opening(pending.wanted);
+    if (!this.discarding) return;
+    this.discarding = false;
+    void this.opening(null);
   }
 
   /** The operator said they cannot — by the Cancel button, by Escape, or by
    *  the dialog's own close. Nothing has been read or reset by this point, the
    *  question having come first. */
   private kept(): void {
-    this.discarding = null;
+    this.discarding = false;
   }
 
   /**
@@ -597,7 +589,7 @@ export class TcApp extends LitElement {
     // dialog's: Escape answers it and nothing else reaches anything. `r`
     // rotating the selection behind a modal, or Escape clearing it while
     // taking the question down, is the same bug the open menu has below.
-    if (this.discarding !== null) {
+    if (this.discarding) {
       if (event.key === "Escape") {
         event.preventDefault();
         this.kept();

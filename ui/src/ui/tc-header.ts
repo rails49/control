@@ -2,9 +2,9 @@
  * The band across the top: what is true of the whole system
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
  *
- * Which railroad is loaded and the way to another, whether it holds unsaved
- * edits, whether what the app talks to is answering, and which view is
- * current. The bar below carries what acts on that view's document.
+ * Which railroad is loaded, whether it holds unsaved edits, whether what the
+ * app talks to is answering, and which view is current. The bar below carries
+ * what acts on that view's document.
  *
  * The line is *what it is about*, not *whether it is pressable*. The rule this
  * carried — "it shows status and nothing else. Everything a person presses
@@ -29,7 +29,6 @@ import { customElement, property, state } from "lit/decorators.js";
 
 import type { Power } from "../model/trace.js";
 import { VIEWS, type ViewId } from "../model/views.js";
-import { dismissal } from "./dismissal.js";
 import { ICONS } from "./icons.js";
 import { headerStyles } from "./tc-header.styles.js";
 
@@ -59,9 +58,6 @@ export class TcHeader extends LitElement {
   /** The railroad the app has loaded, `null` while none is. */
   @property() drawing: string | null = null;
 
-  /** The railroads there are to load, as the store lists them. */
-  @property({ attribute: false }) drawings: readonly string[] = [];
-
   /** Whether the loaded railroad holds edits the store has not been given. */
   @property({ type: Boolean }) unsaved = false;
 
@@ -69,11 +65,11 @@ export class TcHeader extends LitElement {
    *  offers a way out of. */
   @property() view: ViewId = VIEWS[0]!.id;
 
-  /** Whether a session is joined, which is what makes the bridge a thing to
+  /** Whether a session is joined, which is what makes the broker a thing to
    *  report on at all. */
   @property({ type: Boolean }) joined = false;
 
-  /** What the app could not do — the store not answering, a bridge that is
+  /** What the app could not do — the store not answering, a broker that is
    *  not there, a name no drawing can wear. Never a fault of the drawing
    *  itself: those are marked where they are (ADR-0024). */
   @property() trouble: string | null = null;
@@ -90,7 +86,7 @@ export class TcHeader extends LitElement {
    *  what the run is doing to the drawing. */
   @property({ type: Boolean }) frozen = false;
 
-  /** Whether the bridge is answering, read only while a session is joined. */
+  /** Whether the broker is answering, read only while a session is joined. */
   @property({ type: Boolean }) linked = false;
 
   /** Seconds the joined session has been on screen, `null` with no session
@@ -116,9 +112,6 @@ export class TcHeader extends LitElement {
    *  button says it is still waiting rather than pretending it is done. */
   @property({ type: Boolean }) draining = false;
 
-  /** Whether the picker's list is down. */
-  @state() private picking = false;
-
   override updated(changed: PropertyValues<this>): void {
     if (!changed.has("joined")) return;
     if (this.joined && this.sessionTimer === undefined) {
@@ -142,7 +135,7 @@ export class TcHeader extends LitElement {
 
   override render() {
     return html`
-      ${this.picker()}
+      ${this.named()}
       ${this.unsaved
         ? html`<span class="unsaved" role="img" title="unsaved" aria-label="unsaved">
             ●
@@ -216,7 +209,7 @@ export class TcHeader extends LitElement {
    * powered and the person has to be able to see that. ON is the way out of
    * a wait, which is why the word on it does not change.
    *
-   * With no session joined there is no railroad to command, and a bridge that
+   * With no session joined there is no railroad to command, and a broker that
    * is not answering would swallow the press, so the three are drawn only on
    * a joined session and are dead while it is not connected.
    */
@@ -296,82 +289,22 @@ export class TcHeader extends LitElement {
   }
 
   /**
-   * Which railroad is loaded, and the way to another (#167). It is the band's
-   * because it is the whole system's: both views are of it, and a menu on one
-   * view's bar would be the editor deciding what the run view is looking at.
+   * Which railroad is loaded (#167). It is the band's because it is the whole
+   * system's: both views are of it, and neither owns it.
    *
-   * The railroad that is loaded is ticked, and the tick is all that entry is:
-   * choosing it closes the list and asks for nothing (#101). Re-reading it
-   * would throw away whatever has been drawn since, which is a lot to ask of a
-   * click that looks like it does nothing. The rule moves here whole from
-   * `File ▸ Open`.
+   * **A reading and not a choice.** One broker runs one railroad and the
+   * layout interface says which on a retained row
+   * ([ADR-0059](../../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+   * decision 2), so the app is told which railroad it is looking at and
+   * switching is restarting the apps. The picker that stood here went with the
+   * bridge.
    */
-  private picker() {
-    const name = this.drawing ?? "no railroad";
+  private named() {
     return html`
-      ${this.picking
-        ? dismissal(() => this.pick(false))
-        : nothing}
       <div class="picker">
-        <button
-          class="chosen"
-          aria-haspopup="true"
-          aria-expanded=${this.picking}
-          ?disabled=${this.drawings.length === 0}
-          @click=${() => this.pick(!this.picking)}
-        >
-          <span class="drawing">${name}</span>
-          <span class="more">▾</span>
-        </button>
-        ${this.picking
-          ? html`
-              <menu class="drawings">
-                ${this.drawings.map(
-                  (one) => html`
-                    <li>
-                      <button @click=${() => this.wanting(one)}>
-                        <span class="tick">${one === this.drawing ? "✓" : ""}</span>
-                        <span class="label">${one}</span>
-                      </button>
-                    </li>
-                  `,
-                )}
-              </menu>
-            `
-          : nothing}
+        <span class="drawing">${this.drawing ?? "no railroad"}</span>
       </div>
     `;
-  }
-
-  /** Put the list down, or take it up. The app is told either way: the band
-   *  sits above the bar, so a press here lands on the picker rather than on
-   *  the overlay a menu on the bar is waiting for, and the menu would be left
-   *  down with the keyboard still its. */
-  private pick(down: boolean): void {
-    if (this.picking === down) return;
-    this.picking = down;
-    this.dispatchEvent(
-      new CustomEvent<boolean>("picker-open", {
-        detail: down,
-        bubbles: true,
-        composed: true,
-      }),
-    );
-  }
-
-  /** One of the railroads was chosen. The band says which is wanted and stops
-   *  there — the shell is what loads it, and what it asks first is the shell's
-   *  question too (#137). */
-  private wanting(name: string): void {
-    this.pick(false);
-    if (name === this.drawing) return;
-    this.dispatchEvent(
-      new CustomEvent<string>("railroad-wanted", {
-        detail: name,
-        bubbles: true,
-        composed: true,
-      }),
-    );
   }
 }
 
