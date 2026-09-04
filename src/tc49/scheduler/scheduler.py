@@ -100,6 +100,16 @@ class Scheduler:
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
         self._counters: Counter[str] = Counter()  # one undivided minter
         self._published: Payload = {}  # the facing last sent, so only changes go
+        # Before the opening rows and not after. Over a broker a publish is
+        # asynchronous where a subscribe waits for the broker to acknowledge,
+        # so anything published first opens a window a round trip wide in which
+        # a gesture addressed to this app is lost — `exhausted` is what a
+        # client waits for to know the app is up, and an event is not retained,
+        # so nothing replays it. In one process the window had no width and the
+        # order did not show. Both handlers already ignore this app's own rows
+        # coming back (`_on_gesture`), which is what makes this side safe.
+        bus.subscribe("tc49/dispatch/#", self._on_dispatch)
+        bus.subscribe("tc49/schedule/#", self._on_gesture)
         self._publish_facing()
         for request in timetable:
             self._counters[request.train] += 1
@@ -112,8 +122,6 @@ class Scheduler:
                 }
             )
         self._bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
-        bus.subscribe("tc49/dispatch/#", self._on_dispatch)
-        bus.subscribe("tc49/schedule/#", self._on_gesture)
 
     def _submit(self, event: Payload) -> None:
         self._train_of[event["id"]] = event["train"]
