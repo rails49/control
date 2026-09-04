@@ -185,5 +185,22 @@ def leaves(assembly: Assembly, leaf: str) -> list[Payload]:
 
 
 def runs(assembly: Assembly) -> list[str]:
-    """Every value `tc49/dispatch/state/run` took, in the order it took them."""
-    return [str(line["run"]) for line in leaves(assembly, "run")]
+    """Every value `tc49/dispatch/state/run` took, in the order it took them.
+
+    Consecutive repeats collapse, because the row carries `moving` beside the
+    run word and is republished when that moves on its own — a running run
+    whose last train arrives says `running` again with `moving` false, and
+    that is not the run taking a value (#406). The dispatcher compares the
+    whole row before publishing, so a repeat is never an identical one;
+    `run_rows` is what reads the rows as they went out.
+    """
+    said = [word for word, _ in run_rows(assembly)]
+    return [word for i, word in enumerate(said) if i == 0 or word != said[i - 1]]
+
+
+def run_rows(assembly: Assembly) -> list[tuple[str, bool]]:
+    """Every `tc49/dispatch/state/run` row as it was published: the run word
+    and whether anything was moving (ADR-0062)."""
+    return [
+        (str(line["run"]), bool(line.get("moving"))) for line in leaves(assembly, "run")
+    ]

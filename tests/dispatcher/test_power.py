@@ -29,7 +29,16 @@ from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import HELD, OFF, ON, RUNNING
-from tests.harness import RUN_WANTED, leaves, load, press, run_wanted, runs, ticks
+from tests.harness import (
+    RUN_WANTED,
+    leaves,
+    load,
+    press,
+    run_rows,
+    run_wanted,
+    runs,
+    ticks,
+)
 
 POWER = "tc49/layout/state/power"
 
@@ -146,9 +155,14 @@ def test_a_power_payload_that_cannot_be_read_holds_the_run(payload: object) -> N
 
 def test_the_same_value_twice_republishes_nothing(timetabled: Assembly) -> None:
     """A binding that restates its supply on a timer says nothing new, and an
-    already-held run is not held again."""
+    already-held run is not held again. Read as the rows went out, `moving`
+    and all: the whole row is what the dispatcher compares (#406)."""
     ticks(timetabled, 5, at={1: power("off"), 2: power("off"), 3: power("off")})
-    assert runs(timetabled) == ["running", "held"]
+    assert run_rows(timetabled) == [
+        ("running", False),
+        ("running", True),
+        ("held", True),
+    ]
 
 
 def test_power_holds_a_run_that_is_already_held(timetabled: Assembly) -> None:

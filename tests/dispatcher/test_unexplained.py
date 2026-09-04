@@ -142,5 +142,7 @@ def test_the_readings_a_granted_move_explains_hold_nothing() -> None:
     requests complete."""
     trace = run(*load("crossover-yard/meet"))
 
-    assert [line["run"] for line in events(trace, "run")] == ["running"]
+    # Every row the run published said `running`: what moves the topic here
+    # is `moving` alone, as the trains take their routes and finish them.
+    assert {line["run"] for line in events(trace, "run")} == {"running"}
     assert len(events(trace, "request_completed")) == 3
