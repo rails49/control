@@ -149,6 +149,25 @@ def test_a_roster_naming_a_model_the_installation_has_not_is_refused(
     assert not (tmp_path / "layouts" / "oval.roster.yaml").exists()
 
 
+def test_a_roster_with_a_train_that_has_nothing_in_it_is_refused(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """400 and nothing written, so a roster the store takes is always one
+    `GET /rosters/<name>/trains` can answer: an empty `cars` list names no
+    cars, and the train it names is the one to go and fill (#412)."""
+    catalogued(tmp_path)
+    status, body = handle(
+        AssetStore(tmp_path),
+        backup,
+        "PUT",
+        "/rosters/oval",
+        {"roster": "oval", "cars": {}, "trains": {"ore": {"cars": []}}},
+    )
+    assert status == 400
+    assert "train 'ore': names no cars" in body["error"]
+    assert not (tmp_path / "layouts" / "oval.roster.yaml").exists()
+
+
 def test_two_cars_sharing_a_decoder_address_are_refused(
     tmp_path: Path, backup: Backup
 ) -> None:
