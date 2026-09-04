@@ -273,10 +273,9 @@ software the way a camera watching a block end is. The key is the end, `A` or
 is refused at load, naming the block. A block may signal one end, both, or
 neither, and an unsignalled end is absent rather than empty: an end nothing
 ever leaves carries no signal, one that could only show `stop` being furniture
-([CONTEXT.md](../../CONTEXT.md#layout), **Signal**). The value carries its
-system as its first level, `<system>/<addr>`, the point rule of
-[ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md):
-fixed wiring can be split across systems where traction cannot.
+([CONTEXT.md](../../CONTEXT.md#layout), **Signal**). The value is any non-empty
+string and names no system, as a point's address does not
+([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
 
 Derivation carries the signals into the layout document beside the block's
 length, so the layout answers which signal stands at a block end without
@@ -302,22 +301,18 @@ block end it watches,
 drawing records
 ([ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 
-**A point's address names its system as its first level**, `<system>/<addr>`
-— `dccex/5`, never `5` — the rule its signal wears above and
-[ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)'s:
-fixed wiring can be split across systems where traction cannot. A translator
-subscribes its own system and recognises nothing else, so a bare address is one
-no translator hears — `align` would name the point every time and nothing would
-throw. **Derivation refuses one**, naming the address, where the pin rules are
-checked and for their reason: an address half-typed is saved and reopened, and
-it is the derived layout that has to be drivable. An absent address is not a
-bare one and stays fine.
+**A point's address names no system**, the rule its signal wears above and
+[ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)'s:
+it is the string the hardware answers to, `5` as readily as anything else, and
+whatever is wired subscribes the desired rows and acts on the addresses it
+recognises. Two systems that number a point alike both act, and that is the
+deployer's addressing to fix.
 
-Beyond that `addr` is a plain string and nothing checks it for shape. What a
-point answers to under its system is knowledge the drawing cannot hold, and
-which systems are running is knowledge nothing here has either: an address
-nobody answers to does no harm (ADR-0043). The one check the editor makes is
-that a motorised symbol has *some* address, since a drawing without them
+`addr` is a plain string and nothing checks it, for shape or for anything
+else. What a point answers to is knowledge the drawing cannot hold, and which
+systems are running is knowledge nothing here has either: an address nobody
+answers to does no harm (ADR-0059). The one check the editor makes is that a
+motorised symbol has *some* address, since a drawing without them
 derives but cannot be driven ([EDITOR.md](../ui/EDITOR.md#validation)).
 
 **Points may share an address, and then they move together.** One accessory

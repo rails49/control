@@ -1540,17 +1540,16 @@ def test_every_leg_of_a_motorised_kind_wants_one_of_the_two_positions(
 
 @pytest.mark.parametrize("kind", sorted(POSITIONS))
 def test_a_motorised_symbol_takes_the_address_hardware_answers_to(kind: str) -> None:
-    """`addr` is a plain string the schema does not check: what a physical
-    point answers to under its system is knowledge the drawing cannot hold
-    (ADR-0022). Derivation asks only that it names one (ADR-0043)."""
+    """`addr` is a plain string neither the schema nor derivation checks: what
+    a physical point answers to is knowledge the drawing cannot hold
+    (ADR-0022)."""
     doc = two_blocks(points={"kind": kind, "addr": "dccex/31"})
     assert Drawing.from_document(doc).symbols["points"].addr == "dccex/31"
 
 
 def test_an_address_written_as_digits_is_read_as_the_string_it_names() -> None:
     """`addr: 31` in the yaml is the accessory number 31, not an integer the
-    schema has to refuse. It names no system, so the drawing it is on does not
-    derive, which is a separate sentence said at a separate time."""
+    schema has to refuse, and the drawing it is on derives."""
     doc = two_blocks(points={"kind": "turnout", "addr": 31})
     assert Drawing.from_document(doc).symbols["points"].addr == "31"
 
@@ -1597,30 +1596,33 @@ def test_a_point_wearing_no_address_is_left_out() -> None:
     assert "points" not in derive(throat())["connections"]["points"]
 
 
-def test_an_address_naming_no_system_is_refused_where_the_drawing_derives() -> None:
-    """A point is fixed wiring, and fixed wiring can be split across systems,
-    so its address names the one that answers for it first (ADR-0043). A bare
-    one reaches no translator: every `align` would name the point, nothing
-    would throw, and nothing would say why. The reason names the address, the
-    drawing being where it can be corrected."""
-    with pytest.raises(ValueError, match=r"'31', which names no system"):
-        derive(throat(addr="31"))
+def test_a_bare_address_derives() -> None:
+    """An address names no system: it is the string the drawing carries and
+    the hardware answers to, and `5` is as good an accessory number as
+    anything else (ADR-0059, withdrawing the system level of ADR-0043).
+    Whatever is wired acts on the addresses it recognises, so there is nothing
+    here for the drawing to refuse."""
+    assert derive(throat(addr="31"))["connections"]["points"]["points"] == {
+        "east_A__west_B": [{"addr": "31", "position": "closed"}],
+        "north_A__west_B": [{"addr": "31", "position": "thrown"}],
+    }
 
 
 @pytest.mark.parametrize("addr", ["31", "/31", "dccex/", "/"])
-def test_a_half_written_address_names_no_system_either(addr: str) -> None:
-    """Both levels have to be there: an address with nothing before the slash
-    names no system, and one with nothing after it names no device under the
-    system it does name."""
-    with pytest.raises(ValueError, match="names no system"):
-        derive(throat(addr=addr))
+def test_any_non_empty_address_is_taken_as_written(addr: str) -> None:
+    """Nothing checks the address's shape any more than it checks whether
+    anything answers to it: only the railroad knows what is true, and an
+    address nobody answers to does no harm (ADR-0059)."""
+    assert derive(throat(addr=addr))["connections"]["points"]["points"] == {
+        "east_A__west_B": [{"addr": addr, "position": "closed"}],
+        "north_A__west_B": [{"addr": addr, "position": "thrown"}],
+    }
 
 
 def test_an_address_naming_a_system_is_taken_whatever_the_system_is() -> None:
-    """The drawing knows which system holds the wiring; it does not know which
-    translators run, and an address nobody answers to does no harm (ADR-0043).
-    So the first level is asked to be there and never checked against a
-    roll of systems."""
+    """A slash is no longer a level the contract reads, so an address that
+    happens to carry one is a string like any other — what the deployer wired
+    is what the hardware is asked for (ADR-0059)."""
     assert derive(throat(addr="jmri/LT3"))["connections"]["points"]["points"] == {
         "east_A__west_B": [{"addr": "jmri/LT3", "position": "closed"}],
         "north_A__west_B": [{"addr": "jmri/LT3", "position": "thrown"}],
