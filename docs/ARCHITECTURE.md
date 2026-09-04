@@ -122,7 +122,12 @@ src/tc49/
                               store, the broker, the picture the last process
                               left, then a drain loop that ends on a signal
                               (ADR-0059)
-  driver/       Driver — move_granted → move
+  driver/       driver.py     Driver — move_granted → move
+                __main__.py   `python -m tc49.driver --broker … --railroad
+                              …`, the command line a container runs: the
+                              broker, the translator on it, then a drain
+                              loop that ends on a signal. No store — this
+                              app reads no documents (ADR-0059)
   simulator/    Simulator — the milestone-1 layout interface: a
                 discrete-event engine that schedules each accepted move's
                 sensors on fixed delays, owns the run clock, pacing and
@@ -274,7 +279,7 @@ tests/
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
                test_main
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks
-  driver/      test_driver
+  driver/      test_driver  test_main
   simulator/   test_move  test_power  test_placement  test_pacing  test_live
                test_reading
   layout/      test_align  test_move  test_aspects  test_power  test_reading
