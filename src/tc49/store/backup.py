@@ -190,10 +190,20 @@ def documents(porcelain: str) -> list[str]:
     Sorted and deduplicated because a message is a list a person reads and not
     a diff: a drawing saved twice moved once, and a rename that shows as one
     line naming two paths moved the document it arrived at.
+
+    The status column goes by splitting at the first space rather than by
+    cutting three characters off, because the text arrives here stripped —
+    :func:`git` strips everything it ran — and a first line whose status is
+    ` M` has lost its leading space by then. A fixed cut took the first
+    character of the name with it, and the list a person reads before pressing
+    the button named `ackup.yaml` (#389). Both shapes read the same way round:
+    the status letters, then the path, and a rename's second space goes with
+    the leading whitespace of the path.
     """
     names: set[str] = set()
     for line in porcelain.splitlines():
-        path = line[3:].strip()  # `XY path`, the two status letters and a space
+        _, _, path = line.lstrip().partition(" ")  # `XY path`, status then name
+        path = path.strip()
         if not path:
             continue
         _, arrow, renamed = path.partition(" -> ")

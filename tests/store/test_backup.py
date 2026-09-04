@@ -150,6 +150,28 @@ def test_the_documents_of_a_status_are_sorted_and_counted_once() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    "first",
+    [
+        " M layouts/reversing-loops.drawing.yaml",
+        "?? layouts/reversing-loops.drawing.yaml",
+        "A  layouts/reversing-loops.drawing.yaml",
+        "MM layouts/reversing-loops.drawing.yaml",
+        "R  layouts/old.drawing.yaml -> layouts/reversing-loops.drawing.yaml",
+    ],
+)
+def test_the_first_document_is_named_in_full_whatever_its_status(first: str) -> None:
+    """`git` strips what it ran, so a first line whose status column starts
+    with a space — ` M`, the commonest of them — reaches the parser one
+    character shorter than git wrote it. Read both ways round, because the
+    status column is what is being dropped and not a fixed three characters
+    (#389)."""
+    porcelain = f"{first}\n?? catalogue/re460.yaml\n"
+    named = ["re460 model", "reversing-loops"]
+    assert documents(porcelain) == named
+    assert documents(porcelain.strip()) == named
+
+
 # --- the idle timer ----------------------------------------------------------
 
 
