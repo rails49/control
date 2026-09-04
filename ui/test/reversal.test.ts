@@ -24,21 +24,22 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import "../src/ui/tc-app.js";
 import type { Point } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { band, chose, running, settled } from "./support/shell.js";
+import { chose, running, settled } from "./support/shell.js";
 import {
-  Bridge,
-  bridging,
+  Broker,
+  brokering,
   joined,
+  loads,
   MIDDLE,
   PAPER,
   said,
-  unbridged,
+  unbrokered,
   written,
 } from "./support/session.js";
 
-beforeEach(bridging);
+beforeEach(brokering);
 
-afterEach(unbridged);
+afterEach(unbrokered);
 
 const ALLOCATION = "tc49/dispatch/state/allocation";
 
@@ -109,7 +110,7 @@ describe("what the right-click offers", () => {
    *  (#171). */
   it("offers nothing over a train with no session joined", async () => {
     const shell = await standing();
-    Bridge.last!.close();
+    Broker.last!.closes();
     await settled(shell);
 
     expect(await clicked(shell, MIDDLE.a)).toEqual({ native: false });
@@ -172,27 +173,21 @@ describe("a menu the run has outlived", () => {
     await clicked(shell, MIDDLE.a);
     expect(offered(shell)).toHaveLength(1);
 
-    Bridge.last!.close();
+    Broker.last!.closes();
     await settled(shell);
 
     expect(offered(shell)).toEqual([]);
   });
 
-  /** A railroad swapped under an open menu is the same thing again: the app
-   *  loads another and the menu is about a train on the one that went. */
+  /** A railroad swapped under an open menu is the same thing again: the
+   *  broker names another and the menu is about a train on the one that
+   *  went. */
   it("takes it down when the app loads another railroad", async () => {
     const shell = await standing();
     await clicked(shell, MIDDLE.a);
     expect(offered(shell)).toHaveLength(1);
 
-    band(shell).dispatchEvent(
-      new CustomEvent<string>("railroad-wanted", {
-        detail: "other",
-        bubbles: true,
-        composed: true,
-      }),
-    );
-    await settled(shell);
+    await loads(shell, "other");
 
     expect(offered(shell)).toEqual([]);
   });

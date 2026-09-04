@@ -30,12 +30,19 @@ import {
   stocking,
   type Answers,
 } from "./support/shell.js";
-import { bridging, DERIVES, said, stored, unbridged } from "./support/session.js";
+import {
+  brokering,
+  DERIVES,
+  loads,
+  said,
+  stored,
+  unbrokered,
+} from "./support/session.js";
 
 let store: Answers;
 
 beforeEach(() => {
-  bridging();
+  brokering();
   // A fresh box: the installation has written no model and the railroad has
   // no roster file, which is what the screen writing the first car draws
   // itself from and not a fault.
@@ -50,23 +57,15 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  unbridged();
+  unbrokered();
 });
 
-/** The app with the toy railroad loaded, showing the stock screen. The band's
- *  picker is the only thing that loads a railroad (#171). */
+/** The app with the toy railroad loaded, showing the stock screen. The
+ *  broker's retained row is the only thing that loads a railroad
+ *  (#371, ADR-0059 decision 2). */
 async function opened(): Promise<TcApp> {
   const shell = await mounted("stock");
-  shell.renderRoot
-    .querySelector("tc-header")!
-    .dispatchEvent(
-      new CustomEvent<string>("railroad-wanted", {
-        detail: "toy",
-        bubbles: true,
-        composed: true,
-      }),
-    );
-  await settled(shell);
+  await loads(shell, "toy");
   return shell;
 }
 

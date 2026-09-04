@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@shoelace-style/shoelace": "^2.20.1",
-    "lit": "^3.2.1"
+    "lit": "^3.2.1",
+    "mqtt": "^5.15.2"
   },
   "devDependencies": {
     "happy-dom": "^20.11.2",

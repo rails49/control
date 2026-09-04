@@ -23,17 +23,17 @@ import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import { settled, shows, throttling } from "./support/shell.js";
 import {
-  Bridge,
-  bridging,
+  Broker,
+  brokering,
   joined,
   said,
-  unbridged,
+  unbrokered,
   written,
 } from "./support/session.js";
 
-beforeEach(bridging);
+beforeEach(brokering);
 
-afterEach(unbridged);
+afterEach(unbrokered);
 
 const ALLOCATION = "tc49/dispatch/state/allocation";
 const POWER = "tc49/layout/state/power";
@@ -388,7 +388,7 @@ describe("with the rails dead", () => {
     const shell = await driving();
     await pick(shell, "goods");
 
-    Bridge.last!.close();
+    Broker.last!.closes();
     await settled(shell);
 
     expect(offered(shell)).toEqual([]);

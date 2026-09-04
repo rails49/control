@@ -23,12 +23,12 @@ import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcRoster } from "../src/ui/tc-roster.js";
 import { running, settled, surface } from "./support/shell.js";
 import {
-  bridging,
+  brokering,
   joined,
   loads,
   MIDDLE,
   said,
-  unbridged,
+  unbrokered,
   written,
 } from "./support/session.js";
 
@@ -129,9 +129,9 @@ describe("what the pane lists", () => {
 });
 
 describe("what fills it in a live session", () => {
-  beforeEach(bridging);
+  beforeEach(brokering);
 
-  afterEach(unbridged);
+  afterEach(unbrokered);
 
   /** Two sources, one list: the store says what the railroad owns and how
    *  long each train is, the bus says which of them are on the layout
@@ -187,9 +187,9 @@ describe("what fills it in a live session", () => {
  * grid square and a block's centre is the point to let go over.
  */
 describe("its drags", () => {
-  beforeEach(bridging);
+  beforeEach(brokering);
 
-  afterEach(unbridged);
+  afterEach(unbrokered);
 
   /** The run held, with `goods` standing in `a` and `shunter` off the layout:
    *  the state both drags are made from. */

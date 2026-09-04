@@ -1,7 +1,7 @@
 /**
- * The live feed's payloads: the frames the bridge relays read as events, and
- * the frames the browser writes back. No DOM anywhere; a frame is text in and
- * an event out.
+ * The bus's payloads: what the broker delivers on a topic read as events, and
+ * the frames the browser publishes back. No DOM anywhere; a topic and its text
+ * in, an event out.
  */
 
 import { describe, expect, it } from "vitest";
@@ -26,46 +26,38 @@ import {
 } from "../src/model/trace.js";
 
 describe("Live", () => {
-  const frame = (topic: string, payload: Record<string, unknown> = {}) =>
-    JSON.stringify({ topic, payload });
-
-  it("reads a relayed frame as the event its topic leaf names", () => {
+  it("reads a message as the event its topic leaf names", () => {
     const live = new Live();
-    expect(live.read(frame("tc49/dispatch/lock_granted", { train: "t1" }))).toEqual({
-      event: { event: "lock_granted", train: "t1" },
-    });
+    expect(
+      live.read("tc49/dispatch/lock_granted", JSON.stringify({ train: "t1" })),
+    ).toEqual({ event: "lock_granted", train: "t1" });
   });
 
   /** No payload carries a timestamp and the tap's `time` is the harness's
-   *  own (ADR-0047), so a frame is the payload and its leaf, whole. */
-  it("adds nothing of its own to a frame", () => {
+   *  own (ADR-0047), so an event is the payload and its leaf, whole. */
+  it("adds nothing of its own to a message", () => {
     const live = new Live();
-    const heard = live.read(frame("tc49/layout/block_occupied", { block: "b" }));
-    expect(heard).toEqual({ event: { event: "block_occupied", block: "b" } });
+    const heard = live.read("tc49/layout/block_occupied", JSON.stringify({ block: "b" }));
+    expect(heard).toEqual({ event: "block_occupied", block: "b" });
   });
 
-  /** The relay's `{error}` is the whole of what a session says about itself
-   *  going wrong — a refused frame, or a path naming no scenario (#148) — and
-   *  the panel shows it as trouble. Dropping it left a refusal invisible. */
-  it("hands back the relay's refusal rather than dropping it", () => {
+  /** A retained row is cleared by publishing an empty payload on it, which is
+   *  a message like any other as far as this is concerned: nothing to apply,
+   *  and nothing to fall over. */
+  it("ignores what is not a JSON object", () => {
     const live = new Live();
-    expect(live.read(JSON.stringify({ error: "no scenario 'reversing-loops/nope'" }))).toEqual(
-      { error: "no scenario 'reversing-loops/nope'" },
-    );
-  });
-
-  it("ignores what is not a frame at all", () => {
-    const live = new Live();
-    expect(live.read("not json")).toBeNull();
-    expect(live.read(JSON.stringify({ topic: 7, payload: {} }))).toBeNull();
-    expect(live.read(JSON.stringify({ error: 7 }))).toBeNull();
+    expect(live.read("tc49/dispatch/state/run", "")).toBeNull();
+    expect(live.read("tc49/dispatch/state/run", "not json")).toBeNull();
+    expect(live.read("tc49/dispatch/state/run", "7")).toBeNull();
+    expect(live.read("tc49/dispatch/state/run", "[1]")).toBeNull();
+    expect(live.read("tc49/dispatch/state/run", "null")).toBeNull();
   });
 });
 
 describe("gesture", () => {
-  it("wraps a drag in the one frame the relay accepts", () => {
+  it("names the topic a drag is published on and what goes on it", () => {
     const wanted = { train: "t1", dest: ["b.A"] };
-    expect(JSON.parse(gesture(wanted))).toEqual({
+    expect(gesture(wanted)).toEqual({
       topic: "tc49/schedule/request_wanted",
       payload: wanted,
     });
@@ -73,7 +65,7 @@ describe("gesture", () => {
   });
 
   it("carries no id and no departure end, those being the scheduler's", () => {
-    const payload = JSON.parse(gesture({ train: "t1", dest: ["b.A"] })).payload;
+    const { payload } = gesture({ train: "t1", dest: ["b.A"] });
     expect(Object.keys(payload).sort()).toEqual(["dest", "train"]);
   });
 });
@@ -83,7 +75,7 @@ describe("gesture", () => {
  *  moves, and no id, because a gesture carries none. */
 describe("reversal", () => {
   it("names the train and nothing else", () => {
-    expect(JSON.parse(reversal("t1"))).toEqual({
+    expect(reversal("t1")).toEqual({
       topic: "tc49/schedule/reversal_wanted",
       payload: { train: "t1" },
     });
@@ -96,11 +88,11 @@ describe("reversal", () => {
  *  so two presses of the same value are not a race. */
 describe("runWanted", () => {
   it("names where the run should stand and nothing else", () => {
-    expect(JSON.parse(runWanted("held"))).toEqual({
+    expect(runWanted("held")).toEqual({
       topic: "tc49/dispatch/run_wanted",
       payload: { run: "held" },
     });
-    expect(JSON.parse(runWanted("running")).payload).toEqual({ run: "running" });
+    expect(runWanted("running").payload).toEqual({ run: "running" });
     expect(RUN_WANTED).toBe("tc49/dispatch/run_wanted");
   });
 
@@ -110,7 +102,7 @@ describe("runWanted", () => {
    *  and what the OFF sequence waits for is the `held` the dispatcher writes
    *  itself when the drain completes. */
   it("carries the drain on the same word", () => {
-    expect(JSON.parse(runWanted(DRAINING)).payload).toEqual({ run: "draining" });
+    expect(runWanted(DRAINING).payload).toEqual({ run: "draining" });
   });
 });
 
@@ -120,11 +112,11 @@ describe("runWanted", () => {
  *  driving is read back off `state/mode` rather than assumed from the press. */
 describe("modeWanted", () => {
   it("names the train and where its mode should stand", () => {
-    expect(JSON.parse(modeWanted("t1", "manual"))).toEqual({
+    expect(modeWanted("t1", "manual")).toEqual({
       topic: "tc49/layout/mode_wanted",
       payload: { train: "t1", mode: "manual" },
     });
-    expect(JSON.parse(modeWanted("t1", "automatic")).payload).toEqual({
+    expect(modeWanted("t1", "automatic").payload).toEqual({
       train: "t1",
       mode: "automatic",
     });
@@ -138,7 +130,7 @@ describe("modeWanted", () => {
  *  **Throttle**). */
 describe("throttleWanted", () => {
   it("names the train and one speed", () => {
-    expect(JSON.parse(throttleWanted("t1", -0.5))).toEqual({
+    expect(throttleWanted("t1", -0.5)).toEqual({
       topic: "tc49/layout/throttle_wanted",
       payload: { train: "t1", speed: -0.5 },
     });
@@ -146,7 +138,7 @@ describe("throttleWanted", () => {
   });
 
   it("carries a stop as the number zero", () => {
-    expect(JSON.parse(throttleWanted("t1", 0)).payload).toEqual({
+    expect(throttleWanted("t1", 0).payload).toEqual({
       train: "t1",
       speed: 0,
     });
@@ -158,12 +150,12 @@ describe("throttleWanted", () => {
  *  has to decide what powered-off-and-emergency-stopped means. */
 describe("powerWanted", () => {
   it("names where the supply should stand and nothing else", () => {
-    expect(JSON.parse(powerWanted("stopped"))).toEqual({
+    expect(powerWanted("stopped")).toEqual({
       topic: "tc49/layout/power_wanted",
       payload: { power: "stopped" },
     });
-    expect(JSON.parse(powerWanted("on")).payload).toEqual({ power: "on" });
-    expect(JSON.parse(powerWanted("off")).payload).toEqual({ power: "off" });
+    expect(powerWanted("on").payload).toEqual({ power: "on" });
+    expect(powerWanted("off").payload).toEqual({ power: "off" });
     expect(POWER_WANTED).toBe("tc49/layout/power_wanted");
   });
 

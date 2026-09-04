@@ -24,11 +24,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import { band, settled } from "./support/shell.js";
-import { bridging, joined, said, unbridged, written } from "./support/session.js";
+import { brokering, joined, said, unbrokered, written } from "./support/session.js";
 
-beforeEach(bridging);
+beforeEach(brokering);
 
-afterEach(unbridged);
+afterEach(unbrokered);
 
 const POWER_WANTED = "tc49/layout/power_wanted";
 const RUN_WANTED = "tc49/dispatch/run_wanted";

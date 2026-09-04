@@ -207,6 +207,7 @@ export class TcApp extends LitElement {
         .drawing=${this.editor.drawing}
         .review=${this.filing.reviewed}
         .current=${this.view === "run"}
+        @railroad=${(event: CustomEvent<string>) => this.loaded(event.detail)}
         @run-status=${(event: CustomEvent<RunStatus>) => {
           this.status = event.detail;
         }}
@@ -491,6 +492,21 @@ export class TcApp extends LitElement {
   private discard(wanted: string | null): void {
     if (this.filing.edits || this.rosterEdits) this.discarding = { wanted };
     else void this.opening(wanted);
+  }
+
+  /**
+   * The railroad the broker runs, as the run view read it off the retained row
+   * the layout interface owns
+   * ([#371](https://github.com/rails49/control/issues/371)).
+   *
+   * One broker runs one railroad and switching is restarting the apps
+   * (ADR-0059, decision 2), so this arrives once — as the run view's
+   * subscription lands — and it is not a person's press: nothing is asked,
+   * because there is nobody at the keyboard to have meant it.
+   */
+  private loaded(railroad: string): void {
+    if (railroad === this.filing.opened) return;
+    void this.opening(railroad);
   }
 
   /** The operator said the edits can go. */

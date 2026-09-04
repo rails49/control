@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vitest/config";
 
 // The store's HTTP face runs separately (`uv run tc49 serve`), so the dev
@@ -32,18 +34,28 @@ export default defineConfig({
       "/layouts": { target: STORE, changeOrigin: false },
       "/rosters": { target: STORE, changeOrigin: false },
       "/catalogue": { target: STORE, changeOrigin: false },
-      // The bridge under a path of the app's own origin, which is what lets
-      // the panel build one URL whether TLS is terminated in front of it or
-      // not. The proxy in front of a layout server strips the same prefix.
-      "/live": {
-        target: "ws://127.0.0.1:8766",
+      // The broker's WebSocket listener under a path of the app's own origin,
+      // which is what lets the panel build one URL whether TLS is terminated
+      // in front of it or not. The proxy in front of a layout server strips
+      // the same prefix (docs/DEPLOY.md).
+      "/mqtt": {
+        target: "ws://127.0.0.1:9001",
         ws: true,
-        rewrite: (path) => path.replace(/^\/live/, ""),
+        rewrite: (path) => path.replace(/^\/mqtt/, ""),
       },
     },
   },
   test: {
     include: ["test/**/*.test.ts"],
+    // The broker stands where MQTT.js does. The run view is a client of a
+    // broker (ADR-0059, decision 4), so what a DOM suite has to drive is the
+    // broker's side — a connection that lands, retained rows answering a
+    // subscription, and what the page published back — and that is
+    // `test/support/broker.ts`. The library itself is not this repo's to
+    // test, and the surface the view asks of it is five calls wide.
+    alias: {
+      mqtt: fileURLToPath(new URL("./test/support/broker.ts", import.meta.url)),
+    },
     // Six times vitest's default, and for every suite rather than the three
     // that happened to lose a race (#157). A gate run once took 979s and the
     // suites that timed out were not special — the load was — so pinning a

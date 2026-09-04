@@ -1,6 +1,6 @@
 /**
- * The live feed's payloads: the frames the bridge relays, read as the events
- * the panel model applies, and the frames the browser may write back.
+ * The bus's payloads: what the broker delivers on a topic, read as the events
+ * the panel model applies, and the frames the browser may publish back.
  *
  * The run view's one source is the bus (ADR-0038). A recorded trace is the
  * harness's — the tap writes it, metrics derive from it and benchmarks assert
@@ -17,50 +17,52 @@ export interface TraceEvent {
   [field: string]: unknown;
 }
 
-/** What a frame from the relay turned out to be: an event to apply, or the
- *  relay's refusal to show. */
-export type Heard = { event: TraceEvent } | { error: string };
+/** One message the browser publishes: the topic, and the payload that goes on
+ *  it. A pair and not a wrapper, because the browser is a client of the broker
+ *  ([ADR-0059](../../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+ *  decision 4): what a gesture composes is what MQTT carries, and the run view
+ *  hands the two straight to `publish`. */
+export interface Frame {
+  topic: string;
+  payload: Record<string, unknown>;
+}
 
 /**
- * The live feed: the bridge's frames read as the events the panel model
+ * The live feed: one message off the broker, read as the event the panel model
  * applies (ui/PANEL.md, #72).
  *
- * The relay carries `{topic, payload}` and nothing else — the topic leaf is
- * the event, exactly as SYSTEM.md's inventory has it — so the whole of the
- * browser's side of the contract is here.
+ * A message is a topic and a payload already, and the topic leaf is the
+ * event, exactly as SYSTEM.md's inventory has it — so the whole of the
+ * browser's side of the contract is here. Retained values arrive as the
+ * subscription lands (ADR-0032), which is what a page joining mid-run is fed
+ * and what the bridge used to send on connect.
  *
- * The relay's one other frame is `{error}`: a refused inbound frame, or a
- * socket path naming no railroad (#148, #171). It is the whole of what a session
- * says about itself going wrong, so it comes back to be shown as trouble
- * rather than being dropped. A frame that is neither is dropped rather than
- * thrown — a session must not end because a stray one arrived.
+ * A payload that is not a JSON object is dropped rather than thrown — an
+ * empty payload is how a retained row is cleared, and a page must not go dark
+ * because something published a stray one under `tc49/`.
  */
 export class Live {
-  read(message: string): Heard | null {
-    let frame: { topic?: unknown; payload?: unknown; error?: unknown };
+  read(topic: string, payload: string): TraceEvent | null {
+    let body: unknown;
     try {
-      frame = JSON.parse(message) as typeof frame;
+      body = JSON.parse(payload) as unknown;
     } catch {
       return null;
     }
-    if (typeof frame?.error === "string") return { error: frame.error };
-    if (typeof frame?.topic !== "string" || typeof frame?.payload !== "object") {
-      return null;
-    }
-    const payload = (frame.payload ?? {}) as Record<string, unknown>;
+    if (typeof body !== "object" || body === null || Array.isArray(body)) return null;
     return {
-      event: {
-        event: frame.topic.slice(frame.topic.lastIndexOf("/") + 1),
-        ...payload,
-      },
+      event: topic.slice(topic.lastIndexOf("/") + 1),
+      ...(body as Record<string, unknown>),
     };
   }
 }
 
 /** The topics the browser may write, and the frames that carry them
- *  (SYSTEM.md, the bridge). Anything else inbound the relay refuses,
- *  `request_submitted` included: the browser writes gestures and never
- *  requests ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). */
+ *  (SYSTEM.md). With anonymous clients a broker cannot tell a page from an
+ *  app, so this list is convention rather than enforcement (ADR-0059,
+ *  decision 4) — and the browser still writes gestures and never requests,
+ *  `request_submitted` included
+ *  ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). */
 export const REQUEST_WANTED = "tc49/schedule/request_wanted";
 export const REVERSAL_WANTED = "tc49/schedule/reversal_wanted";
 export const MODE_WANTED = "tc49/layout/mode_wanted";
@@ -115,16 +117,16 @@ export interface Gesture {
   dest: string[];
 }
 
-export function gesture(wanted: Gesture): string {
-  return JSON.stringify({ topic: REQUEST_WANTED, payload: wanted });
+export function gesture(wanted: Gesture): Frame {
+  return { topic: REQUEST_WANTED, payload: { ...wanted } };
 }
 
 /** A `reversal_wanted` frame: turn this train around where it stands. The
  *  train is the whole payload — the gesture asks for the little arrow in its
  *  block to point the other way, and composes no request at all
  *  ([ADR-0019](../../../docs/adr/0019-facing-is-scheduler-state.md)). */
-export function reversal(train: string): string {
-  return JSON.stringify({ topic: REVERSAL_WANTED, payload: { train } });
+export function reversal(train: string): Frame {
+  return { topic: REVERSAL_WANTED, payload: { train } };
 }
 
 /** A `placement_wanted` frame: where a train actually is, said by the person
@@ -134,16 +136,16 @@ export function reversal(train: string): string {
  *  ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)). The
  *  key is always written: the dispatcher reads it for presence, and a frame
  *  without it is not a train taken off the layout. */
-export function placement(train: string, block: string | null): string {
-  return JSON.stringify({ topic: PLACEMENT_WANTED, payload: { train, block } });
+export function placement(train: string, block: string | null): Frame {
+  return { topic: PLACEMENT_WANTED, payload: { train, block } };
 }
 
 /** A `run_wanted` frame: hold the run, release it, or drain it. It says where
  *  the run should stand rather than asking for a change, so a press that
  *  agrees with where it already stands is not a race — and the dispatcher is
  *  the one writer of `state/run`, this being a gesture like the other two. */
-export function runWanted(run: Run): string {
-  return JSON.stringify({ topic: RUN_WANTED, payload: { run } });
+export function runWanted(run: Run): Frame {
+  return { topic: RUN_WANTED, payload: { run } };
 }
 
 /** A `power_wanted` frame: give the track power, stop every locomotive where
@@ -156,8 +158,8 @@ export function runWanted(run: Run): string {
  *  `run_wanted` does, so a press that agrees with where it already stands is
  *  not a race. `layout` is what answers it, and a page never reaches the
  *  hardware itself. */
-export function powerWanted(power: Power): string {
-  return JSON.stringify({ topic: POWER_WANTED, payload: { power } });
+export function powerWanted(power: Power): Frame {
+  return { topic: POWER_WANTED, payload: { power } };
 }
 
 /** Who turns a train's throttle: `automatic` at rest, `manual` while a person
@@ -178,8 +180,8 @@ export type Mode = "automatic" | "manual";
  *  The train is always named here. `train: null` on the topic hands over
  *  **every** train at once, which is a thing a person does to a railroad and
  *  not to the train they have picked, so no gesture of this view writes it. */
-export function modeWanted(train: string, mode: Mode): string {
-  return JSON.stringify({ topic: MODE_WANTED, payload: { train, mode } });
+export function modeWanted(train: string, mode: Mode): Frame {
+  return { topic: MODE_WANTED, payload: { train, mode } };
 }
 
 /** A `throttle_wanted` frame: how fast a person is driving a train, `-1.0`
@@ -190,8 +192,8 @@ export function modeWanted(train: string, mode: Mode): string {
  *  the sign each car's decoder is given out of the train's facing and the way
  *  round that car is coupled (CONTEXT.md, **Throttle**; ADR-0045). Which
  *  address it reaches is `layout`'s and no view's. */
-export function throttleWanted(train: string, speed: number): string {
-  return JSON.stringify({ topic: THROTTLE_WANTED, payload: { train, speed } });
+export function throttleWanted(train: string, speed: number): Frame {
+  return { topic: THROTTLE_WANTED, payload: { train, speed } };
 }
 
 /** A `request_submitted` payload: what the scheduler composes out of a
