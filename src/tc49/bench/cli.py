@@ -35,16 +35,21 @@ into a checkout, which is what it is for.
 **Whichever of the two serves the store backs it up**, git being what keeps a
 copy of documents that are on one disk (ADR-0053, store/BACKUP.md). The saves
 that arrive over the HTTP face arm an idle timer that a watch thread lets
-fire, and quitting commits what it had not reached yet; `live --no-store`
+fire, and quitting commits what it had not reached yet — Ctrl-C, or the
+SIGTERM a deploy stops the container with, which end `serve` the same way
+(#410); `live --no-store`
 leaves both to the `tc49 serve` it is beside, because two processes committing
 one store would each commit the other's half-finished editing session.
 """
 
 import argparse
+import contextlib
+import signal
 import sys
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from pathlib import Path
+from types import FrameType
 from typing import TextIO
 
 from tc49.bench.detector import LEVELS, SHAPE
@@ -487,6 +492,37 @@ def restart_note(state: Path | None) -> str:
     return f"a restart adopts the placement and facing kept beside {state}"
 
 
+@contextlib.contextmanager
+def ending_as_ctrl_c_does(taken: int = signal.SIGTERM) -> Generator[None]:
+    """SIGTERM raising the interrupt Ctrl-C raises, for the length of the
+    block.
+
+    The store's server is PID 1 in its container, and PID 1 gets no default
+    action for SIGTERM: `docker stop` — which every `compose up` that
+    recreates the service does, and `scripts/deploy.sh` recreates it on each
+    deploy — waited ten seconds and then killed it, so the commit on quit was
+    never made and the store was unreachable for those ten seconds (#410).
+
+    Raising the interrupt rather than calling the server's shutdown, because
+    a handler runs on the thread that is already inside `serve_forever` and
+    that shutdown waits there for it to return. It is the one exit path too:
+    Ctrl-C and a deploy leave by the same door rather than by two that have
+    to be kept in step.
+
+    The handler that was there is put back on the way out, so a `serve` run
+    inside another process leaves that process's handling as it found it.
+    """
+
+    def interrupt(_signal: int, _frame: FrameType | None) -> None:
+        raise KeyboardInterrupt
+
+    was = signal.signal(taken, interrupt)
+    try:
+        yield
+    finally:
+        signal.signal(taken, was)
+
+
 def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
     args = command_line().parse_args(argv)
     if args.command == "bench":
@@ -645,16 +681,23 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         server = make_server(root, args.port, args.host, backup)
         watch = Watch(backup)
         watch.start()
-        out.write(
-            f"serving {root} on http://{reachable(args.host)}:{server.server_port}\n"
-            f"  {holding(AssetStore(root))}\n"
-            f"{backing(backup)}"
-        )
-        out.flush()
-        try:
-            server.serve_forever()
-        except KeyboardInterrupt:
-            pass  # Ctrl-C is how this ends, and it has one thing left to do
+        # The banner is inside the handling, and not before it, so that a
+        # deploy's SIGTERM arriving in the first milliseconds of the process
+        # is the tidy exit too rather than the default kill.
+        with ending_as_ctrl_c_does():
+            try:
+                out.write(
+                    f"serving {root} on"
+                    f" http://{reachable(args.host)}:{server.server_port}\n"
+                    f"  {holding(AssetStore(root))}\n"
+                    f"{backing(backup)}"
+                )
+                out.flush()
+                server.serve_forever()
+            except KeyboardInterrupt:
+                # Ctrl-C is how this ends by hand and SIGTERM how a deploy
+                # ends it; both arrive here, and there is one thing left to do
+                pass
         watch.stop()
         backup.quit()
         return 0
