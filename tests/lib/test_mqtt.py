@@ -213,6 +213,59 @@ def test_a_cleared_retained_value_leaves_the_picture(
     assert until(lambda: POWER not in reader.last_values)
 
 
+def test_clearing_takes_the_row_off_the_broker(
+    buses: Callable[[], MqttBus], broker: Broker
+) -> None:
+    """The other half of the row above, from our side: what a reload does to
+    the rows of the railroad that left. A client connecting afterwards is
+    handed nothing on that topic, which is the whole point — a retained value
+    outlives the process that wrote it (ADR-0059 decision 3, ADR-0060)."""
+    writer = buses()
+    writer.publish(POWER, {"power": "on"})
+    assert until(lambda: POWER in writer.last_values)
+
+    writer.clear(POWER)
+    assert POWER not in writer.last_values
+
+    late = buses()
+    late.subscribe("tc49/#", lambda topic, payload: None)
+    settle(late)
+    assert POWER not in late.last_values, "the broker still holds the row"
+
+
+def test_an_event_topic_has_nothing_to_clear(buses: Callable[[], MqttBus]) -> None:
+    """Only a state topic is retained, so asking for an event topic is a bug
+    in the caller rather than a no-op to absorb."""
+    with pytest.raises(ValueError):
+        buses().clear(OCCUPIED)
+
+
+def test_forgetting_drops_the_subscriptions_at_the_broker_too(
+    buses: Callable[[], MqttBus],
+) -> None:
+    """What a reload does to the app that was running: its handlers go, and
+    the filters go at the broker with them, so nothing arrives for a railroad
+    nobody is running. Subscribing again is also what makes the broker send
+    its retained values a second time, which is how what comes next reads
+    them."""
+    writer, reader = buses(), buses()
+    heard: list[str] = []
+    reader.subscribe("tc49/#", lambda topic, payload: heard.append(topic))
+    writer.publish(OCCUPIED, {"block": "yard_w"})
+    assert drained(reader, lambda: heard == [OCCUPIED])
+
+    reader.forget()
+    writer.publish(OCCUPIED, {"block": "yard_e"})
+    settle(reader)
+    assert heard == [OCCUPIED], "a forgotten filter still delivered"
+
+    # And the retained picture comes again to whatever subscribes next.
+    writer.publish(POWER, {"power": "on"})
+    again: list[str] = []
+    reader.subscribe("tc49/#", lambda topic, payload: again.append(topic))
+    assert drained(reader, lambda: POWER in again)
+
+
 def test_the_payload_on_the_wire_is_json(
     buses: Callable[[], MqttBus], raw: paho.Client
 ) -> None:
