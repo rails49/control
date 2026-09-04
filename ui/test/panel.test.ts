@@ -1272,10 +1272,12 @@ describe("whether the run is held", () => {
  *  and orthogonal to it (ADR-0062, #406). `held` alone does not say the
  *  railroad is still: the dispatcher writes that word when a drain completes,
  *  and a person's HOLD writes the same word with trains still rolling. What
- *  waits on it before cutting power is #408; here it is parsed. */
+ *  waits on it before cutting power is the OFF button (#408); here it is
+ *  parsed, a row that carries no such field saying nothing rather than
+ *  saying false. */
 describe("whether anything is moving", () => {
-  it("says nothing is before the dispatcher has said", () => {
-    expect(panel().moving).toBe(false);
+  it("says nothing at all before the dispatcher has said", () => {
+    expect(panel().moving).toBe(null);
   });
 
   it("takes the boolean the row carries, beside the word", () => {
@@ -1288,22 +1290,22 @@ describe("whether anything is moving", () => {
     expect(model.moving).toBe(false);
   });
 
-  it("reads a row without the field as nothing moving", () => {
-    // An older dispatcher publishes the word alone. Absence is not evidence
-    // that a train is in motion, and the reader that acts on this acts on
-    // evidence and on nothing else.
+  it("reads a row without the field as nothing said", () => {
+    // An older dispatcher publishes the word alone. The three answers are
+    // kept apart rather than collapsed here: what a silence means is the
+    // reader's, and the panel's OFF and `layout`'s guard differ on it (#408).
     const model = panel();
     feed(model, { event: "run", run: "running", moving: true });
     feed(model, { event: "run", run: "held" });
     expect(model.run).toBe("held");
-    expect(model.moving).toBe(false);
+    expect(model.moving).toBe(null);
   });
 
   it("is forgotten when the model starts over", () => {
     const model = panel();
     feed(model, { event: "run", run: "running", moving: true });
     model.reset();
-    expect(model.moving).toBe(false);
+    expect(model.moving).toBe(null);
   });
 });
 

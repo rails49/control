@@ -294,12 +294,13 @@ export class Panel {
    *  said anything (ADR-0037). Read and never derived: a held run is a
    *  decision the dispatcher publishes, not something a picture shows. */
   private runWord: Run | null = null;
-  /** Whether anything the dispatcher granted is still under way, as it last
-   *  said beside the run word (ADR-0062). `false` before it has said
-   *  anything and `false` for a row without the field: the field says a
-   *  train would be stranded, and a reader acts on evidence that something
-   *  moves and on nothing else. Parsed here; what waits on it is #408. */
-  private movingWord = false;
+  /** What the run's row last said about anything the dispatcher granted
+   *  being under way (ADR-0062), `null` where it said nothing — before the
+   *  dispatcher has spoken, and for a row an older one wrote without the
+   *  field. The three are kept apart rather than collapsed here, because
+   *  what a silence means is the reader's to decide and the two readers
+   *  differ (#408). */
+  private movingWord: boolean | null = null;
   /** Whether the layout says a train may move at all, `null` before it has
    *  said anything (ADR-0041). The layout states it from its constructor, so
    *  a session that has joined has been told; silence is a page that has not
@@ -356,7 +357,7 @@ export class Panel {
     this.heading.clear();
     this.disputed = { trains: new Set(), blocks: new Set() };
     this.runWord = null;
-    this.movingWord = false;
+    this.movingWord = null;
     this.powerWord = null;
     this.driven.clear();
     this.requests.clear();
@@ -503,10 +504,10 @@ export class Panel {
         // `moving` rides beside the word and is not a fourth value of it: a
         // held run can be moving, because a move already granted runs to its
         // sensor, and a running run with nothing granted is not (ADR-0062).
-        // A row without it reads false — an older dispatcher says nothing
-        // about what is under way, and nothing is what a reader may not
-        // treat as evidence of a train in motion.
-        this.movingWord = moving === true;
+        // A row without it says nothing rather than saying false — an older
+        // dispatcher publishes the word alone, and what a reader makes of
+        // that silence is the reader's (#408).
+        this.movingWord = typeof moving === "boolean" ? moving : null;
         return;
       }
       case "power": {
@@ -642,11 +643,14 @@ export class Panel {
   }
 
   /** Whether any train is active or crossing, so a power cut now would
-   *  strand it (CONTEXT.md, **Moving**). Read beside `run` and never derived:
-   *  the picture a page draws says where trains stand, not what the
-   *  dispatcher has granted. `false` until the dispatcher says otherwise —
-   *  what OFF waits to read before cutting power (ADR-0062). */
-  get moving(): boolean {
+   *  strand it (CONTEXT.md, **Moving**), `null` where the run's row said
+   *  nothing about it: an older dispatcher publishes the word alone, and a
+   *  page that has heard no row at all has been told nothing either. Read
+   *  beside `run` and never derived: the picture a page draws says where
+   *  trains stand, not what the dispatcher has granted. What OFF waits to
+   *  read `false` before cutting power (ADR-0062), a silence leaving the
+   *  wait standing. */
+  get moving(): boolean | null {
     return this.movingWord;
   }
 
