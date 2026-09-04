@@ -153,8 +153,8 @@ def test_the_row_this_app_does_not_act_on_passes_by_unread() -> None:
     standing = len(written)
 
     bus.publish(
-        "tc49/layout/state/device/point/dccex/12",
-        {"addr": "dccex/12", "position": "thrown"},
+        "tc49/layout/state/device/point/12",
+        {"addr": "12", "position": "thrown"},
     )
     bus.drain()
 

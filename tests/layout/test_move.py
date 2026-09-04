@@ -50,8 +50,8 @@ def test_a_move_delivered_before_its_align_waits_for_it() -> None:
 
     align(bus, "crossover", "to_dn")
     assert [topic for topic, _ in written] == [
-        WANTED_POINT + "/dccex/12",
-        WANTED_POINT + "/dccex/13",
+        WANTED_POINT + "/12",
+        WANTED_POINT + "/13",
     ]
     assert app.position == {"freight_1": "dn_e"}
 

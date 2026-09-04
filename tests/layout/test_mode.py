@@ -301,7 +301,7 @@ def test_a_manual_trains_move_throws_its_points_and_writes_no_speed() -> None:
     align(bus, "crossover", "to_dn")
     move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
 
-    assert [payload["addr"] for _topic, payload in thrown] == ["dccex/12", "dccex/13"]
+    assert [payload["addr"] for _topic, payload in thrown] == ["12", "13"]
     assert speeds(written) == []
     assert app.position == {"single": "dn_e"}
 

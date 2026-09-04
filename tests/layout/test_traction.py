@@ -423,14 +423,14 @@ def test_a_point_the_last_session_left_thrown_replays_untouched() -> None:
     point at startup (#333, ADR-0054)."""
     clock = Clock()
     bus = Bus(clock)
-    bus.publish(f"{WANTED_POINT}/dccex/12", {"addr": "dccex/12", "position": "thrown"})
+    bus.publish(f"{WANTED_POINT}/12", {"addr": "12", "position": "thrown"})
     bus.drain()
 
     LayoutInterface(bus, railroad(), stock(), clock)
     bus.drain()
 
-    assert bus.last_values[f"{WANTED_POINT}/dccex/12"] == {
+    assert bus.last_values[f"{WANTED_POINT}/12"] == {
         "at": 0.0,
-        "addr": "dccex/12",
+        "addr": "12",
         "position": "thrown",
     }

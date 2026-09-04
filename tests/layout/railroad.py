@@ -44,10 +44,10 @@ POINTS: dict[str, list[dict[str, str]]] = {
     # The way over the crossover throws two, one of which the straight way
     # wants the other way about.
     "to_dn": [
-        {"addr": "dccex/12", "position": "thrown"},
-        {"addr": "dccex/13", "position": "thrown"},
+        {"addr": "12", "position": "thrown"},
+        {"addr": "13", "position": "thrown"},
     ],
-    "straight": [{"addr": "dccex/12", "position": "closed"}],
+    "straight": [{"addr": "12", "position": "closed"}],
 }
 
 
@@ -57,9 +57,9 @@ def document() -> dict[str, Any]:
         "layout": "bench",
         "units": "mm",
         "blocks": {
-            "up_w": {"length": 1000, "signals": {"B": "dccex/40"}},
-            "up_e": {"length": 1000, "signals": {"A": "dccex/41"}},
-            "dn_e": {"length": 1000, "signals": {"A": "dccex/41"}},
+            "up_w": {"length": 1000, "signals": {"B": "40"}},
+            "up_e": {"length": 1000, "signals": {"A": "41"}},
+            "dn_e": {"length": 1000, "signals": {"A": "41"}},
         },
         "connections": {
             "crossover": {

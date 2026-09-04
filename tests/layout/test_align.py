@@ -23,12 +23,12 @@ def test_each_pair_is_written_to_the_point_it_addresses() -> None:
 
     assert written == [
         (
-            WANTED_POINT + "/dccex/12",
-            {"at": 0.0, "addr": "dccex/12", "position": "thrown"},
+            WANTED_POINT + "/12",
+            {"at": 0.0, "addr": "12", "position": "thrown"},
         ),
         (
-            WANTED_POINT + "/dccex/13",
-            {"at": 0.0, "addr": "dccex/13", "position": "thrown"},
+            WANTED_POINT + "/13",
+            {"at": 0.0, "addr": "13", "position": "thrown"},
         ),
     ]
 
@@ -45,8 +45,8 @@ def test_two_pairs_naming_one_address_are_one_write() -> None:
             "connection": "crossover",
             "transit": "to_dn",
             "points": [
-                {"addr": "dccex/12", "position": "thrown"},
-                {"addr": "dccex/12", "position": "thrown"},
+                {"addr": "12", "position": "thrown"},
+                {"addr": "12", "position": "thrown"},
             ],
         },
     )
@@ -54,8 +54,8 @@ def test_two_pairs_naming_one_address_are_one_write() -> None:
 
     assert written == [
         (
-            WANTED_POINT + "/dccex/12",
-            {"at": 0.0, "addr": "dccex/12", "position": "thrown"},
+            WANTED_POINT + "/12",
+            {"at": 0.0, "addr": "12", "position": "thrown"},
         )
     ]
 
@@ -84,7 +84,7 @@ def test_the_points_are_written_again_on_every_align() -> None:
     align(bus, "crossover", "straight")
     align(bus, "crossover", "straight")
 
-    assert [topic for topic, _ in written] == [WANTED_POINT + "/dccex/12"] * 2
+    assert [topic for topic, _ in written] == [WANTED_POINT + "/12"] * 2
 
 
 def test_the_way_back_moves_the_shared_point_the_other_way() -> None:
