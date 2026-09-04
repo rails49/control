@@ -250,6 +250,34 @@ describe("making up a train", () => {
     ]);
   });
 
+  /** The screen invites this order of work — make a train up, then fill it —
+   *  so an empty train is easy to save. The store refuses one, and the
+   *  refusal it answers is about a document; this one is about the row
+   *  (#412). */
+  it("refuses the save while a train has nothing in it, and sends no PUT", async () => {
+    const shell = await opened();
+    await product(shell, "hopper", "freight", "100");
+    await train(shell, "ore");
+    await pressed(shell, "sl-button.save");
+
+    expect(written()).toBeUndefined();
+    expect(trouble(shell)).toBe(
+      "train 'ore' has nothing in it — press + beside a car or a model, or remove it",
+    );
+    // Still there to be filled, and the press is still there to make again.
+    expect(parts(shell, "li.train")).toHaveLength(1);
+    expect(
+      (screen(shell).renderRoot.querySelector("sl-button.save") as HTMLElement & {
+        disabled: boolean;
+      }).disabled,
+    ).toBe(false);
+
+    await add(shell, "product", 0);
+    await pressed(shell, "sl-button.save");
+    expect(written()!.trains.ore!.cars).toEqual([{ model: "hopper" }]);
+    expect(trouble(shell)).toBeNull();
+  });
+
   it("says what holds a car somebody asked to remove, and keeps it", async () => {
     const shell = await opened();
     await ore(shell);
