@@ -16,9 +16,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
 import { centreOf } from "../src/model/geometry.js";
-import type { Explained, Layout } from "../src/model/store.js";
+import { RETRY_MS, type Explained, type Layout } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { bridgeAt, RETRY_MS } from "../src/ui/tc-panel.js";
+import { bridgeAt } from "../src/ui/tc-panel.js";
 import {
   band,
   bar,

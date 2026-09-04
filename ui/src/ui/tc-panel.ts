@@ -51,7 +51,13 @@ import {
   type RosterRow,
 } from "../model/panel.js";
 import { positionsBySymbol } from "../model/scene.js";
-import { readTrains, UNREVIEWED, type Review, type TrainDoc } from "../model/store.js";
+import {
+  readTrains,
+  RETRY_MS,
+  UNREVIEWED,
+  type Review,
+  type TrainDoc,
+} from "../model/store.js";
 import { cabs, type Cab } from "../model/throttle.js";
 import {
   DRAINING,
@@ -147,17 +153,6 @@ export function bridgeAt(page: {
 }
 
 const BRIDGE = bridgeAt(location);
-
-/** How long the view waits before trying a dropped session again.
- *
- *  The loaded railroad **is** the session (#171), so a page with a railroad on
- *  it wants to be joined to that railroad and there is no choice left for a
- *  person to make: the band's picker says nothing about a name it is already
- *  showing, and a session that went is not a reason to make somebody reload.
- *  Three seconds is long enough not to hammer a port nothing is listening on,
- *  and short enough that restarting `tc49 live` under an open tab reconnects
- *  while the operator is still looking at it. */
-export const RETRY_MS = 3000;
 
 @customElement("tc-panel")
 export class TcPanel extends LitElement {
