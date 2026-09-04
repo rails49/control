@@ -630,6 +630,7 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     GET  /drawings/<name>       one drawing, whole
     PUT  /drawings/<name>       create or replace it
     POST /review                what a drawing means: the derived layout, explained
+    GET  /layouts/<name>        the layout that drawing derives to
     GET  /rosters/<name>        one railroad's roster, whole
     PUT  /rosters/<name>        create or replace it
     GET  /rosters/<name>/trains its trains, each with its length and functions
@@ -648,10 +649,30 @@ rather than in an app of its own
 route that is not CRUD: it takes an unsaved document and answers what it
 derives to, so the editor holds no second copy of the derivation
 ([ui/EDITOR.md](ui/EDITOR.md)). `/rosters/<name>/trains` is the other
-derivation on this face: what the run views read, and a path of its own
+derivation the browser reads: what the run views read, and a path of its own
 because `GET` and `PUT` on the document have to be inverses
 ([#388](https://github.com/rails49/control/issues/388)). `delete` is on no
 route, for any document; a scenario is on none at all (below).
+
+`/layouts/<name>` is the derivation **the apps** read. Each of the scheduler,
+the dispatcher and the layout interface takes a `Layout` at construction, and
+in its own process none of them can import the store to derive one
+([ADR-0013](adr/0013-apps-are-deployment-units.md),
+[ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
+decision 5), so the store serves the layout its drawing derives to, as the
+document [LAYOUT.md](store/LAYOUT.md) describes. Read-only: a layout is
+derived and never authored, and what an editor writes is the drawing
+([ADR-0015](adr/0015-drawing-is-the-source-of-truth.md)). A railroad with no
+drawing is a **404**; a drawing that is there and does not derive yet is a
+**422** carrying the refusal, which is work in progress rather than a bad
+request — the same fault the editor reads out of `review` and draws, said to
+a caller that has nothing to run on. `src/tc49/lib/documents.py` is the
+client: it reads this route, `/rosters/<name>` and `/catalogue` by name off a
+base URL and answers a `Layout` and a `Roster`, retrying with backoff while
+the store is not up. An app started before the store is an ordinary state and
+not a fault, said on stderr and never absorbed
+([ADR-0050](adr/0050-broken-hardware-is-reported-never-worked-around.md)),
+which is what lets the deployment carry no `depends_on`.
 
 **Every route is refused to a page on another origin.** A request carrying an
 `Origin` header that is neither the server's own `Host` nor a loopback host —

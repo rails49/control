@@ -65,6 +65,14 @@ src/tc49/
     layout.py     Layout — blocks, connections, transits, conflict matrix
                   (expanded from `concurrent` by inversion), derived
                   terminal blocks
+    roster.py     Model, Car, Train, Roster — a railroad's stock and the
+                  installation's models (ADR-0045)
+    stock.py      the validator that reads the roster and the catalogue into
+                  those, beside the types because an app in its own process
+                  reads a roster too and has no store to import
+    documents.py  Documents — the layout, the roster and the catalogue read
+                  off the store's HTTP face by name, retried while the store
+                  is not up (ADR-0059 decision 5)
     scenario.py   Scenario, TrainSpec, RequestSpec — the harness's own
                   document, which no app reads (#171)
     inventory.py  the event inventory's leaf fields
@@ -80,7 +88,8 @@ src/tc49/
                 server.py   the store's HTTP face: list, read a drawing
                             document, write one, and review one — red pins,
                             junctions, joints, the layout and why it is that
-                            (ui/EDITOR.md)
+                            (ui/EDITOR.md); and the derived layout an app in
+                            its own process reads (ADR-0059 decision 5)
                 symbols.py  render() — the symbol library as the TypeScript
                             the editor draws against
                 root.py     store_root() — where an installation's own
