@@ -32,6 +32,15 @@ RUN apt-get update \
 # corner to cut on a box that holds a key to somebody's repository (#355).
 COPY deploy/github.known_hosts /etc/ssh/ssh_known_hosts
 
+# Somewhere for the `keys` volume to land on. Docker fills a fresh named
+# volume from what the image has at that path, ownership and mode included,
+# and makes it root's where the image has nothing — which the store cannot
+# write, because it runs as the person who deployed the box (#387) and that
+# uid is not known here. So the directory is made open to whoever the
+# container turns out to be. Nothing else is in it, it is on no host path,
+# and the private half ssh-keygen writes into it is 0600 on its own.
+RUN mkdir /keys && chmod 1777 /keys
+
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 

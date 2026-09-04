@@ -125,8 +125,10 @@ services:
   # a railroad is moving (#354). The layout box holds the authoritative copy —
   # it is the machine wired to the steel — rooted at a directory on the host
   # rather than a volume, so it stays somewhere a person can `cd` into and push
-  # from (#320). A fresh box has no `~/tc49` and the bind mount makes it: an
-  # empty store is an ordinary state and the server comes up and answers.
+  # from (#320). `scripts/deploy.sh` makes that directory before it runs this
+  # file, because a bind mount whose source is missing is made by Docker as
+  # root and shuts the person out of their own documents (#387); an empty
+  # store is an ordinary state and the server comes up and answers.
   #
   # Bound to every interface because the proxy reaches it from another
   # container; what limits its reach is the LAN (ADR-0042), and a page on
@@ -135,27 +137,46 @@ services:
     build: *app
     profiles: [layout]
     restart: unless-stopped
-    # What git needs to commit here. `safe.directory` because the documents
-    # belong to the person and this process is root: git refuses a repository
-    # it does not own until it is told this one is expected. An identity,
-    # because a container has none and git will not commit without one; the
-    # commits are the app's, made on the person's behalf, and are named so.
+    # The person who deployed the box, not root (#387). Every drawing the
+    # editor saves and every object the backup commits is theirs on the host,
+    # so the store stays a directory they can edit, `git init` and push from
+    # rather than one only the container can write. `deploy.sh` exports these
+    # from `id -u` and `id -g` there; the default is the account an Ubuntu
+    # install makes for the person who installed it.
+    user: "${TC49_UID:-1000}:${TC49_GID:-1000}"
+    # What git needs to commit here: an identity, because a container has none
+    # and git will not commit without one; the commits are the app's, made on
+    # the person's behalf, and are named so. No `safe.directory` — this
+    # process is the person now, so git is not looking at a repository owned
+    # by somebody else (#387).
+    #
+    # `HOME` because the passwd file below names a home this image does not
+    # have, and ssh says so on stderr when it cannot make `~/.ssh` there —
+    # git's words are what the backup dialog shows, so they are kept about
+    # the push. Nothing is kept in it: the host keys are in the image and the
+    # deploy key is in `keys`.
     environment:
-      GIT_CONFIG_COUNT: "3"
-      GIT_CONFIG_KEY_0: safe.directory
-      GIT_CONFIG_VALUE_0: /store
-      GIT_CONFIG_KEY_1: user.name
-      GIT_CONFIG_VALUE_1: tc49 backup
-      GIT_CONFIG_KEY_2: user.email
-      GIT_CONFIG_VALUE_2: backup@tc49.invalid
+      GIT_CONFIG_COUNT: "2"
+      GIT_CONFIG_KEY_0: user.name
+      GIT_CONFIG_VALUE_0: tc49 backup
+      GIT_CONFIG_KEY_1: user.email
+      GIT_CONFIG_VALUE_1: backup@tc49.invalid
+      HOME: /tmp
     # `keys` holds the deploy key the store makes for itself and pushes with
     # (#355): a volume rather than a path in the store, so that no commit can
     # ever carry the private half, and a volume rather than a host directory,
     # so that nothing on the host is made or pointed at. It outlives the
     # container, which is rebuilt on every deploy.
+    #
+    # OpenSSH refuses to run for a uid with no passwd entry — "No user exists
+    # for uid" — and the backup pushes over ssh, so the host's own tables come
+    # in read-only to give this uid a name. `nss_wrapper` would answer the
+    # same question inside the image; this asks nothing of the image.
     volumes:
       - ${TC49_STORE:-~/tc49}:/store
       - keys:/keys
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/group:/etc/group:ro
     command:
       ["tc49", "serve", "--host", "0.0.0.0", "--store", "/store", "--keys", "/keys"]
 
@@ -198,6 +219,10 @@ services:
     restart: "no"
     stdin_open: true
     tty: true
+    # The person, for the same reason the store runs as them (#387): a session
+    # writes the store too, and a file it leaves behind root-owned is one the
+    # person cannot edit afterwards.
+    user: "${TC49_UID:-1000}:${TC49_GID:-1000}"
     volumes:
       - ${TC49_STORE:-~/tc49}:/store
     # An entrypoint and no command: the flags are the same every time and the
