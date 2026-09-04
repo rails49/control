@@ -119,6 +119,11 @@ export class TcStock extends LitElement {
   /** The read waiting to be made again, `null` while none is. */
   private waiting: ReturnType<typeof setTimeout> | null = null;
 
+  /** Whether the roster held edits the store had not been given when this view
+   *  last said so. `null` before it has said anything, so the first answer is
+   *  reported whatever it is. */
+  private told: boolean | null = null;
+
   override disconnectedCallback(): void {
     this.drop();
     super.disconnectedCallback();
@@ -129,8 +134,43 @@ export class TcStock extends LitElement {
     // A try waiting is a try on the railroad that was showing, in the view
     // that was showing: neither is what to read when either changes.
     this.drop();
+    // The app has loaded another railroad, so what is being composed belongs
+    // to the one that was open. It goes now rather than the next time this
+    // view is looked at: the app asked about it before the railroad moved
+    // (#415), and edits kept past that answer would be asked about again.
+    if (changed.has("railroad") && this.railroad !== this.held) this.forget();
     if (!this.current || this.railroad === null || this.railroad === this.held) return;
     void this.load(this.railroad);
+  }
+
+  /** Everything that was about the railroad that was loaded. */
+  private forget(): void {
+    this.stock = null;
+    this.held = null;
+    this.train = null;
+    this.trouble = null;
+  }
+
+  /**
+   * What this view holds that the store has not been given, told to the app.
+   *
+   * The app guards the loaded railroad and this view holds the second document
+   * a person can lose with it, so what would discard the roster asks first the
+   * way it does for the drawing (#101, #415). Told rather than asked, which is
+   * the way the run view says what its session is doing: this view is a Lit
+   * child, and the app holds nothing of its own to read.
+   */
+  override updated(): void {
+    const now = this.stock?.edits ?? false;
+    if (now === this.told) return;
+    this.told = now;
+    this.dispatchEvent(
+      new CustomEvent<boolean>("roster-edits", {
+        detail: now,
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   /**
