@@ -365,6 +365,9 @@ class LayoutInterface:
         # no reason to refuse.
         self._run: Run | None = None
         # The two halves of the power fold, and what was last said about it.
+        # A link is held under the id its publisher calls itself, which is
+        # the topic's and nothing this app holds a list of: an id is learned
+        # by being heard and never waited for (ADR-0058, ADR-0059).
         self._track = OFF
         self._links: dict[str, bool] = {}
         self._power = OFF
@@ -1042,7 +1045,7 @@ class LayoutInterface:
 
     def _on_device(self, topic: str, payload: Payload) -> None:
         """What the hardware reports about itself. Three of the four rows are
-        read: the supply, each translator's link to the system it drives, and
+        read: the supply, each publisher's link to the hardware it drives, and
         each detector's level at the block end it watches.
 
         A `device/point` is a position where hardware reports one and is not
@@ -1227,17 +1230,20 @@ class LayoutInterface:
 
     def _folded(self) -> str:
         """Whether a train may move at all, folded from what the hardware
-        says: the supply's own word, and `off` wherever any link ever seen is
-        down.
+        says: the supply's own word, and `off` for any id ever heard to say
+        its link is down.
 
-        A link that has gone reports a translator that cannot reach its
+        A link that has gone reports a participant that cannot reach its
         hardware, and a railroad half of which is unreachable is not a
         railroad a train may move on — whatever the supply says, since the
-        translator saying it may be the unreachable one. "Ever seen" and not
-        "currently connected", because a link is a retained level: a
-        translator that published `down` and then died leaves the value
-        standing, and forgetting it would turn a broken railroad back on
-        (ADR-0050).
+        participant saying it may be the unreachable one. "Ever seen" and not
+        "currently connected", because a link is a retained level: a publisher
+        that said `down` and then died leaves the value standing, and
+        forgetting it would turn a broken railroad back on (ADR-0050).
+
+        An id nothing has published is an id this app knows nothing of and
+        waits for no word from: nothing must announce itself to come up
+        (ADR-0058), and the ids here are whatever has spoken.
 
         Anything that cannot be read falls the same way. `power` answers
         `off` for a supply it cannot read and `link_up` answers false for a

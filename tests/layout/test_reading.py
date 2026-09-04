@@ -55,7 +55,7 @@ a person's press, the throttle's two gestures, the two placement facts and the
 dispatcher's picture. A frame on one of these that cannot be read leaves the
 app exactly as it was."""
 
-FOLDED = (DEVICE_TRACK, DEVICE_LINK + "/dccex")
+FOLDED = (DEVICE_TRACK, DEVICE_LINK + "/shed")
 """The two device rows the railroad's power is folded from. An unreadable
 frame here is dropped in the same sense — nothing is written and nothing
 raises — but it is not *nothing*: a supply or a link that cannot be read is
@@ -138,7 +138,7 @@ def test_an_unreadable_link_is_not_a_link_that_is_up() -> None:
     energised(bus)
     assert bus.last_values[POWER]["power"] == "on"
 
-    bus.publish(DEVICE_LINK + "/dccex", cast(Payload, {"system": "dccex"}))
+    bus.publish(DEVICE_LINK + "/shed", cast(Payload, {"id": "shed"}))
     bus.drain()
     assert bus.last_values[POWER]["power"] == "off"
 

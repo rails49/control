@@ -164,19 +164,19 @@ def test_an_emergency_stop_is_reported_as_itself() -> None:
 
 
 def test_a_link_going_down_takes_the_power_off_on() -> None:
-    """With no word from the supply at all: a translator that cannot reach
+    """With no word from the supply at all: a participant that cannot reach
     its hardware leaves a railroad no train may move on, whatever the supply
-    says — the translator saying it may be the unreachable one."""
+    says — the participant saying it may be the unreachable one."""
     bus, _app = build()
-    bus.publish(DEVICE_LINK + "/dccex", {"system": "dccex", "link": "up"})
+    bus.publish(DEVICE_LINK + "/shed", {"id": "shed", "link": "up"})
     energised(bus)
     said = heard(bus, POWER)
     bus.drain()
     assert said[-1] == (POWER, {"at": 0.0, "power": "on"})
 
     bus.publish(
-        DEVICE_LINK + "/dccex",
-        {"system": "dccex", "link": "down", "detail": "no route to host"},
+        DEVICE_LINK + "/shed",
+        {"id": "shed", "link": "down", "detail": "no route to host"},
     )
     bus.drain()
     assert said[-1] == (POWER, {"at": 0.0, "power": "off"})
@@ -186,25 +186,32 @@ def test_a_link_going_down_takes_the_power_off_on() -> None:
 
 def test_a_link_that_has_gone_holds_the_railroad_off() -> None:
     """ "Ever seen" and not "currently connected": a link is a retained level,
-    so a translator that published `down` and then died leaves the value
-    standing, and forgetting it would turn a broken railroad back on
-    (ADR-0050)."""
+    so a publisher that said `down` and then died leaves the value standing,
+    and forgetting it would turn a broken railroad back on (ADR-0050)."""
     bus, _app = build()
-    bus.publish(DEVICE_LINK + "/dccex", {"system": "dccex", "link": "down"})
+    bus.publish(DEVICE_LINK + "/shed", {"id": "shed", "link": "down"})
     energised(bus)
     assert bus.last_values[POWER] == {"at": 0.0, "power": "off"}
 
 
-def test_one_system_down_is_the_whole_railroad_down() -> None:
-    """A railroad may be driven by two hardware systems at once (ADR-0043),
-    and every one of them has to be reachable."""
+def test_one_publisher_down_is_the_whole_railroad_down() -> None:
+    """A railroad may have several participants driving hardware at once, and
+    every one of them has to be reachable. Each keeps its own row under the
+    id it calls itself — no drawing and no list of ours names either — so the
+    second's `up` does not erase the first's `down` (ADR-0059)."""
     bus, _app = build()
-    bus.publish(DEVICE_LINK + "/dccex", {"system": "dccex", "link": "up"})
-    bus.publish(DEVICE_LINK + "/jmri", {"system": "jmri", "link": "up"})
+    bus.publish(DEVICE_LINK + "/shed", {"id": "shed", "link": "up"})
+    bus.publish(DEVICE_LINK + "/yard", {"id": "yard", "link": "up"})
     energised(bus)
     assert bus.last_values[POWER] == {"at": 0.0, "power": "on"}
 
-    bus.publish(DEVICE_LINK + "/jmri", {"system": "jmri", "link": "down"})
+    bus.publish(DEVICE_LINK + "/yard", {"id": "yard", "link": "down"})
+    bus.drain()
+    assert bus.last_values[POWER] == {"at": 0.0, "power": "off"}
+
+    # The one that is still up says so again, and the railroad stays off:
+    # the fold reads every id it has heard and not the latest word.
+    bus.publish(DEVICE_LINK + "/shed", {"id": "shed", "link": "up"})
     bus.drain()
     assert bus.last_values[POWER] == {"at": 0.0, "power": "off"}
 
@@ -219,7 +226,7 @@ def test_it_never_writes_off_of_its_own_accord() -> None:
     bus.drain()
 
     bus.publish(DEVICE_TRACK, {"power": "off"})
-    bus.publish(DEVICE_LINK + "/dccex", {"system": "dccex", "link": "down"})
+    bus.publish(DEVICE_LINK + "/shed", {"id": "shed", "link": "down"})
     bus.drain()
 
     assert written == [(WANTED_TRACK, {"at": 0.0, "power": "off"})]
@@ -235,7 +242,7 @@ def test_the_fold_says_nothing_twice() -> None:
 
     energised(bus)
     energised(bus)
-    bus.publish(DEVICE_LINK + "/dccex", {"system": "dccex", "link": "up"})
+    bus.publish(DEVICE_LINK + "/shed", {"id": "shed", "link": "up"})
     bus.drain()
 
     assert said == [
