@@ -147,17 +147,17 @@ def test_a_position_is_one_of_the_two_a_motor_answers_to() -> None:
 
 def test_a_block_end_carries_the_address_of_the_signal_standing_there() -> None:
     doc = minimal_layout()
-    doc["blocks"]["a"]["signals"] = {"A": "dccex/40", "B": "dccex/41"}
+    doc["blocks"]["a"]["signals"] = {"A": "40", "B": "41"}
     assert Layout.from_document(doc).signal_at == {
-        "a.A": "dccex/40",
-        "a.B": "dccex/41",
+        "a.A": "40",
+        "a.B": "41",
     }
 
 
 def test_a_block_signalling_one_end_carries_that_one() -> None:
     doc = minimal_layout()
-    doc["blocks"]["a"]["signals"] = {"B": "dccex/41"}
-    assert Layout.from_document(doc).signal_at == {"a.B": "dccex/41"}
+    doc["blocks"]["a"]["signals"] = {"B": "41"}
+    assert Layout.from_document(doc).signal_at == {"a.B": "41"}
 
 
 def test_a_layout_nothing_signals_holds_no_signal_at_all() -> None:
@@ -166,7 +166,7 @@ def test_a_layout_nothing_signals_holds_no_signal_at_all() -> None:
 
 def test_signals_must_name_an_end_the_block_has() -> None:
     doc = minimal_layout()
-    doc["blocks"]["a"]["signals"] = {"C": "dccex/42"}
+    doc["blocks"]["a"]["signals"] = {"C": "42"}
     with pytest.raises(ValueError, match="block 'a': signals names 'C'"):
         Layout.from_document(doc)
 
@@ -175,11 +175,11 @@ def test_two_ends_may_share_one_signal_address() -> None:
     """Two signals on one address show one aspect together, the way two points
     on one address move together (ADR-0031). A wiring fact, not a fault."""
     doc = minimal_layout()
-    doc["blocks"]["a"]["signals"] = {"A": "dccex/40"}
-    doc["blocks"]["b"]["signals"] = {"B": "dccex/40"}
+    doc["blocks"]["a"]["signals"] = {"A": "40"}
+    doc["blocks"]["b"]["signals"] = {"B": "40"}
     assert Layout.from_document(doc).signal_at == {
-        "a.A": "dccex/40",
-        "b.B": "dccex/40",
+        "a.A": "40",
+        "b.B": "40",
     }
 
 
