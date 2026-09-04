@@ -16,9 +16,10 @@ becomes the addresses that answer for it, no address ever reaching a command
 (#199).
 
 **Everything the bus hands it is read and never trusted** (SYSTEM.md, rule 4).
-Nine topics from six publishers — the detectors joining them with the fold
-(#288), and the throttle's two gestures coming from where a person's press
-already does (#297) — none of which this app answers — it reports
+Ten topics from six publishers — the detectors joining them with the fold
+(#288), the throttle's two gestures coming from where a person's press
+already does (#297), and the run row the guard on a plain `off` reads (#407)
+— none of which this app answers — it reports
 observations — so a frame that cannot be read is **dropped**, silently and to
 the trace, and a command the layout contradicts goes the same way. Raising on
 one would take the app running the railroad down at the whim of whoever
@@ -52,12 +53,27 @@ is not `on` (ADR-0041). That is what makes a restart safe, and it has teeth on
 every one of them now that the app comes up with the railroad off.
 
 **Power is commanded on arrival and observed from below.** A `power_wanted` is
-written straight through to `wanted/track` — there is no beat to quantise it
-against, and an emergency stop that waits is not one (ADR-0051) — and nothing
-is said about `state/power` on the strength of having commanded it. What this
-app publishes there is folded from what the hardware reports: `_folded` is the
+written through to `wanted/track` — there is no beat to quantise it against,
+and an emergency stop that waits is not one (ADR-0051) — and nothing is said
+about `state/power` on the strength of having commanded it. What this app
+publishes there is folded from what the hardware reports: `_folded` is the
 whole rule. It cannot verify that the supply really went and does not try; it
 is the system designer's job to put a device there that does (#232).
+
+**A plain `off` is applied only where nothing is moving.** The one command
+here that is not written through as it came. A topic names the app that
+answers it and never the process that sent the frame, so a raw client, a test
+or a later UI publishing `off` would cut the supply under whatever is
+mid-transit and strand it where no sensor will ever say it stopped — which is
+why the drain-first check is made where the command is answered rather than
+trusted to the sender (ADR-0062). `tc49/dispatch/state/run` is subscribed to
+for it: `off` applies where the run reads `held` with `moving` false, and
+where this app holds no run at all, no dispatcher having stated one. It is
+refused where the run is `running` or `draining`, or where something is
+moving, and a refusal is dropped with its reason rather than kept for later —
+an intention kept would be the panel's stale wait moved server-side. `on` and
+`stopped` are untouched, and so is the `off` this app writes at its own start,
+which is not a gesture.
 
 **On startup the railroad is off, and at rest.** The app comes up having
 written `wanted/track: off` and `state/power: off`, so nothing moves and no
@@ -130,6 +146,7 @@ from dataclasses import dataclass, replace
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import (
+    HELD,
     MANUAL,
     OCCUPIED,
     OFF,
@@ -152,11 +169,13 @@ from tc49.lib.payload import (
     Command,
     Mode,
     Ordering,
+    Run,
     alignment,
     command,
     commanded_power,
     detected,
     kept_facing,
+    kept_run,
     link_up,
     named_train,
     placement,
@@ -178,6 +197,7 @@ THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
+RUN = "tc49/dispatch/state/run"
 FACING = "tc49/schedule/state/facing"
 DEVICE = "tc49/layout/state/device/#"
 
@@ -338,6 +358,12 @@ class LayoutInterface:
         self._occupied: dict[str, bool] = {}
         self._spent: set[str] = set()
         self._crossing: dict[str, _Crossing] = {}
+        # The run the dispatcher last stated, and `None` until it states one.
+        # Held for the one thing that reads it: a plain `off` is applied only
+        # where nothing is moving (ADR-0062, `_on_power_wanted`). `None` is
+        # not a fourth run word — it is this app having no evidence, which is
+        # no reason to refuse.
+        self._run: Run | None = None
         # The two halves of the power fold, and what was last said about it.
         self._track = OFF
         self._links: dict[str, bool] = {}
@@ -395,6 +421,7 @@ class LayoutInterface:
         bus.subscribe(PLACED, self._on_placed)
         bus.subscribe(REMOVED, self._on_removed)
         bus.subscribe(ASPECTS, self._on_aspects)
+        bus.subscribe(RUN, self._on_run)
         bus.subscribe(FACING, self._on_facing)
         bus.subscribe(DEVICE, self._on_device)
 
@@ -915,10 +942,62 @@ class LayoutInterface:
 
     # -- the power ----------------------------------------------------------
 
+    def _on_run(self, topic: str, payload: Payload) -> None:
+        """Where the dispatcher holds the run, and whether anything is moving
+        under it.
+
+        The one thing this app reads it for is the guard below: the check
+        that the supply is not removed under a train in motion is made where
+        the command is answered, rather than trusted to whoever published it
+        (ADR-0062). Nothing else here branches on the run — a `move` is acted
+        on because it was granted, and a held run grants none.
+
+        It is a **retained** state topic, so the last value is handed over on
+        subscribing even with the dispatcher down, and stamp-guarded like
+        every other state topic this app takes (#240): two values delivered
+        backwards would leave this app believing a run the railroad has moved
+        on from, which on this row is a cut refused or allowed on stale
+        evidence.
+
+        A value that cannot be read at all is no value and the run already
+        held stands, which is the same direction as the facing: forgetting
+        what the dispatcher said on one bad frame would leave this app with
+        no evidence, and no evidence applies an `off`.
+        """
+        if not self._ordering.accepts(topic, payload):
+            return
+        held = kept_run(payload)
+        if held is None:
+            return
+        self._run = held
+
+    def _refusal(self) -> str | None:
+        """Why a plain `off` may not be applied now, or None where it may.
+
+        The guard refuses **on evidence that something moves and on nothing
+        else** (ADR-0062). Two things are evidence: a run the dispatcher has
+        not stopped committing over — an `off` on a running railroad would
+        race the next grant by milliseconds — and a train that is moving,
+        which a held run can still have, a move already granted running to
+        its sensor. No `state/run` at all is not evidence: with no dispatcher
+        up nothing has been granted, and a railroad that could not be turned
+        off would be worse than the race.
+        """
+        held = self._run
+        if held is None:
+            return None
+        if held.run != HELD and held.moving:
+            return f"the run reads {held.run} and a train is moving"
+        if held.run != HELD:
+            return f"the run reads {held.run}"
+        if held.moving:
+            return "a train is moving"
+        return None
+
     def _on_power_wanted(self, topic: str, payload: Payload) -> None:
         """A person asked the railroad for power, an emergency stop, or the
-        supply removed: the word is written straight through to the device
-        vocabulary and applied on arrival (ADR-0051).
+        supply removed: the word is written through to the device vocabulary
+        and applied on arrival (ADR-0051), bar the one that is guarded.
 
         Nothing is said about `state/power` here. What this app publishes
         there is what the hardware reports, and a command is not a report: a
@@ -928,10 +1007,37 @@ class LayoutInterface:
         A gesture that cannot be read is dropped rather than taken for `off`,
         which is the other direction from the reading of the same axis: `off`
         is a word this app writes only when it was told to.
+
+        **A plain `off` is applied only where nothing is moving** (ADR-0062).
+        A topic names the app that answers it and never the process that sent
+        the frame, so nothing about `power_wanted` says the panel wrote it and
+        its drain-first sequence stood behind it; a raw client, a test or a
+        later UI publishing `off` would cut the supply under whatever is
+        mid-transit and strand it where no sensor will ever say it stopped
+        (CONTEXT.md, **Power off**). So this one gesture is re-validated
+        against current state on arrival, as every other browser-writable one
+        already is, and `_refusal` is the whole check.
+
+        A refused `off` is **dropped**, in silence and to the trace with the
+        reason, as every gesture this app cannot act on is (ADR-0034). It is
+        not held for later: an intention kept would be the panel's stale wait
+        moved server-side, and this app answers nothing that could clear it.
+        A client that wants the supply removed from a running railroad has the
+        panel's two words — ask for a drain, and cut when it is done.
+
+        `on` and `stopped` are untouched: an emergency stop asks the rails for
+        less and returning to `on` releases nothing (ADR-0041, ADR-0051). Nor
+        is the `off` this app writes at its own start affected — that is not a
+        gesture and never comes through here.
         """
         wanted = commanded_power(payload)
         if wanted is None:
             return
+        if wanted == OFF:
+            refusal = self._refusal()
+            if refusal is not None:
+                _log.info("power off refused: %s", refusal)
+                return
         self._bus.publish(WANTED_TRACK, {"power": wanted})
 
     def _on_device(self, topic: str, payload: Payload) -> None:

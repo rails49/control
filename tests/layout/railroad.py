@@ -25,6 +25,7 @@ THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
+RUN = "tc49/dispatch/state/run"
 FACING = "tc49/schedule/state/facing"
 
 BLOCK_OCCUPIED = "tc49/layout/block_occupied"
@@ -179,6 +180,13 @@ def energised(bus: Bus) -> None:
     """The hardware reporting a live railroad, which is the only thing that
     puts `state/power` on `on`."""
     bus.publish(DEVICE_TRACK, {"power": "on"})
+    bus.drain()
+
+
+def runs(bus: Bus, run: str, moving: bool = False) -> None:
+    """The dispatcher stating where the run stands and whether anything is
+    moving under it — the row `layout` guards a plain `off` against."""
+    bus.publish(RUN, {"run": run, "moving": moving})
     bus.drain()
 
 

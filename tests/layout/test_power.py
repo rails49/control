@@ -4,10 +4,18 @@ below, and off until a person says otherwise (#287, ADR-0051).
 The two halves never meet: what the app writes on `wanted/track` is the word
 it was told to write, and what it says on `state/power` is folded from what
 the hardware reports. Commanding power is not observing it.
+
+One command is not written through as it came. A plain `off` is applied only
+where nothing is moving, because a topic names the app that answers it and
+never the process that sent the frame, so the drain-first check is made here
+rather than trusted to the sender (ADR-0062, #407).
 """
 
+import logging
+from collections.abc import Callable
+
 from tc49.layout import LayoutInterface
-from tc49.lib.bus import Bus
+from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tests.layout.railroad import (
     DEVICE_LINK,
@@ -15,13 +23,75 @@ from tests.layout.railroad import (
     MODE,
     POWER,
     POWER_WANTED,
+    RUN,
     WANTED_TRACK,
     build,
     energised,
     heard,
     railroad,
+    runs,
     stock,
 )
+
+
+class Kept(logging.Handler):
+    """Every line the app logged, which is where a refused gesture says why."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.said: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.said.append(record.getMessage())
+
+
+def refusals(commanding: Callable[[], None]) -> list[str]:
+    """What the app said to a person while `commanding` ran: a gesture it
+    cannot act on is dropped in silence and to the trace with its reason, and
+    the log is where that reason is (ADR-0034)."""
+    kept = Kept()
+    log = logging.getLogger("tc49.layout.interface")
+    log.addHandler(kept)
+    log.setLevel(logging.INFO)
+    try:
+        commanding()
+    finally:
+        log.removeHandler(kept)
+    return kept.said
+
+
+def live(bus: Bus) -> list[tuple[str, Payload]]:
+    """A railroad somebody has turned on, and every `wanted/track` write from
+    there on.
+
+    The `on` leads the list because a state filter is handed the value it is
+    owed on subscribing (ADR-0032), and turning it on first is what makes an
+    `off` that was applied tell itself apart from the one the app came up
+    having written."""
+    bus.publish(POWER_WANTED, {"power": "on"})
+    bus.drain()
+    energised(bus)
+    written = heard(bus, WANTED_TRACK)
+    bus.drain()
+    return written
+
+
+def powers(written: list[tuple[str, Payload]]) -> list[str]:
+    """Those writes as the words they carry, which is what these assert: the
+    stamp is the row's shape rather than this write's news."""
+    return [str(payload["power"]) for _topic, payload in written]
+
+
+def commands(bus: Bus, power: str) -> Callable[[], None]:
+    """Somebody publishing a power gesture — a person's panel, a raw client,
+    a test or a later UI: the topic says which of them it was, which is
+    nothing at all."""
+
+    def press() -> None:
+        bus.publish(POWER_WANTED, {"power": power})
+        bus.drain()
+
+    return press
 
 
 def test_the_railroad_comes_up_off_before_anything_else() -> None:
@@ -172,3 +242,144 @@ def test_the_fold_says_nothing_twice() -> None:
         (POWER, {"at": 0.0, "power": "off"}),
         (POWER, {"at": 0.0, "power": "on"}),
     ]
+
+
+def test_off_applies_where_the_run_is_held_and_nothing_moves() -> None:
+    """The drain is done: the dispatcher commits nothing further and nothing
+    is between blocks, so removing the supply strands nobody."""
+    bus, _app = build()
+    written = live(bus)
+
+    runs(bus, "held", moving=False)
+    said = refusals(commands(bus, "off"))
+
+    assert powers(written) == ["on", "off"]
+    assert said == []
+
+
+def test_off_applies_where_no_run_has_ever_been_stated() -> None:
+    """No `state/run` is not evidence that something moves: with no
+    dispatcher up nothing has been granted, and a railroad that could not be
+    turned off would be worse than the race the guard is for (ADR-0062)."""
+    bus, _app = build()
+    written = live(bus)
+
+    said = refusals(commands(bus, "off"))
+
+    assert powers(written) == ["on", "off"]
+    assert said == []
+
+
+def test_off_is_refused_while_a_train_is_moving_under_a_held_run() -> None:
+    """`held` does not mean nothing is moving: a held run is a brake on
+    committing, and a move already granted runs to its sensor. This is the
+    case the panel's wait used to be satisfied by wrongly — one panel drains,
+    a second holds, the first cuts, and a train strands."""
+    bus, _app = build()
+    written = live(bus)
+
+    runs(bus, "held", moving=True)
+    said = refusals(commands(bus, "off"))
+
+    assert powers(written) == ["on"]
+    assert said == ["power off refused: a train is moving"]
+
+
+def test_off_is_refused_while_the_run_is_running() -> None:
+    """`held` and not merely "not moving": an `off` on a running run with
+    nothing granted would race the dispatcher's next grant by milliseconds."""
+    bus, _app = build()
+    written = live(bus)
+
+    runs(bus, "running", moving=False)
+    said = refusals(commands(bus, "off"))
+
+    assert powers(written) == ["on"]
+    assert said == ["power off refused: the run reads running"]
+
+
+def test_off_is_refused_while_a_drain_is_still_running_out() -> None:
+    """A drain launches nothing more and lets what is under way finish, so
+    the supply is exactly what may not go yet. Both reasons are named: the
+    person reading the trace wants to know which of the two would clear."""
+    bus, _app = build()
+    written = live(bus)
+
+    runs(bus, "draining", moving=True)
+    said = refusals(commands(bus, "off"))
+
+    assert powers(written) == ["on"]
+    assert said == ["power off refused: the run reads draining and a train is moving"]
+
+
+def test_a_refused_off_is_not_held_for_later() -> None:
+    """An intention kept would be the panel's stale wait moved server-side,
+    and this app answers nothing that could clear it. The drain completing is
+    not the press coming back: somebody has to press again."""
+    bus, _app = build()
+    written = live(bus)
+
+    runs(bus, "draining", moving=True)
+    commands(bus, "off")()
+    runs(bus, "held", moving=False)
+
+    assert powers(written) == ["on"]
+
+
+def test_on_and_stopped_write_through_in_every_run_state() -> None:
+    """An emergency stop asks the rails for less and returning to `on`
+    releases nothing, so neither is guarded (ADR-0041, ADR-0051)."""
+    bus, _app = build()
+    written = live(bus)
+
+    for run in ("running", "draining", "held"):
+        for moving in (True, False):
+            runs(bus, run, moving=moving)
+            commands(bus, "stopped")()
+            commands(bus, "on")()
+
+    assert powers(written) == ["on"] + ["stopped", "on"] * 6
+
+
+def test_a_run_row_that_cannot_be_read_leaves_the_evidence_where_it_was() -> None:
+    """Forgetting what the dispatcher said on one bad frame would leave this
+    app with no evidence, and no evidence applies an `off`."""
+    bus, _app = build()
+    written = live(bus)
+
+    runs(bus, "held", moving=True)
+    bus.publish(RUN, {"run": "drained"})
+    bus.publish(RUN, {"run": "held", "moving": "no"})
+    bus.drain()
+    commands(bus, "off")()
+
+    assert powers(written) == ["on"]
+
+
+def test_a_row_without_moving_is_a_dispatcher_saying_nothing_moves() -> None:
+    """An older dispatcher says nothing about what is under way, and an
+    absence is not evidence that a train is in motion (#406)."""
+    bus, _app = build()
+    written = live(bus)
+
+    bus.publish(RUN, {"run": "held"})
+    bus.drain()
+    commands(bus, "off")()
+
+    assert powers(written) == ["on", "off"]
+
+
+def test_the_run_this_app_reads_is_the_last_one_stated() -> None:
+    """The guard is made against current state on arrival, as every other
+    browser-writable gesture is: a run that has moved on since a cut was
+    refused is the run the next one is judged by."""
+    bus, _app = build()
+    written = live(bus)
+
+    runs(bus, "running", moving=True)
+    commands(bus, "off")()
+    assert powers(written) == ["on"]
+
+    runs(bus, "held", moving=False)
+    commands(bus, "off")()
+    assert powers(written) == ["on", "off"]
