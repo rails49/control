@@ -4,43 +4,49 @@
 #
 #   store   http://127.0.0.1:8765   `tc49 serve`, the store's HTTP face
 #   ui      http://localhost:5173   vite, which proxies the store's routes
-#   bridge  ws://127.0.0.1:8766     `tc49 live`, the session the run view joins
+#   broker  ws://127.0.0.1:9001     mosquitto, the bus every app is a client of
 #
-#   scripts/dev.sh                     all three; load a railroad in the band
-#   scripts/dev.sh reversing-loops     and the session comes up on that one
-#   scripts/dev.sh reversing-loops --period 1
-#                                      anything further is the session's
-#   scripts/dev.sh stop                every one of them down again
+#   scripts/dev.sh        all three
+#   scripts/dev.sh stop   every one of them down again
 #
 # `start` is the word for what it does without one, and may be said —
-# `scripts/dev.sh start reversing-loops`. No railroad is named `start` or
-# `stop`, so a first word that is one of those is never a railroad.
+# `scripts/dev.sh start`.
 #
-# The band names the railroad, so the bridge always comes up: a railroad here
-# is the one the session starts on and not the one it is fixed to, and the
-# band may switch it at any time (#148, #171).
+# **No app is started here.** Each of them is its own process with a command
+# line of its own (ADR-0059, decision 5) and comes up alone against an empty
+# broker, so which ones a developer wants is theirs to say. A simulated
+# railroad the run view can drive is one of them:
 #
-# The store is always this script's, never a session's. `tc49 live` carries
-# one, which would find the port taken, so the session is started with
-# --no-store; the app then survives ending a session and starting another,
-# which is the way round that matters.
+#   uv run python -m tc49.simulator --broker 127.0.0.1:1883 \
+#     --railroad reversing-loops --store http://127.0.0.1:8765
 #
-# Both are rooted at this checkout's `bench/`, the benchmark fixtures, and not
-# at the `~/tc49` an installation reads (#320): the railroad named above is one
-# of those fixtures, and a developer working on the app wants them. Export
-# TC49_STORE to work on your own railroads instead, and the two servers agree
-# because one value roots them both.
+# and the scheduler, the dispatcher and the driver take the same three flags.
+# The run view reads which railroad the broker runs off the row the layout
+# interface publishes, so the app follows whichever railroad these are started
+# on and there is nothing to press (ADR-0059, decision 2).
 #
-# All three bind every interface rather than loopback, because the reverse
-# proxy serving `dev.rails49.org` runs in a container and cannot reach a macOS
-# host's loopback (ADR-0042, docs/DEPLOY.md). They are still reached here as
-# loopback, which is one of the interfaces bound; the bridge is a WebSocket,
-# so it is reached as `ws://`.
+# The store is rooted at this checkout's `bench/`, the benchmark fixtures, and
+# not at the `~/tc49` an installation reads (#320): the railroads a developer
+# working on the app wants are those. Export TC49_STORE to work on your own
+# instead, and pass the same store URL to whatever apps you start.
+#
+# The store and vite bind every interface rather than loopback, because the
+# reverse proxy serving `dev.rails49.org` runs in a container and cannot reach
+# a macOS host's loopback (ADR-0042, docs/DEPLOY.md). They are still reached
+# here as loopback, which is one of the interfaces bound. The broker publishes
+# its two ports the same way, and the proxy reaches 9001 as `/mqtt`.
+#
+# The broker is a container and not a process: mosquitto is nobody's Python
+# dependency and the deployment runs the stock image (deploy/compose.yaml). It
+# is started with `docker run` rather than through that file, because compose
+# demands the proxy's Cloudflare token in the environment for any service it is
+# asked for and a developer bringing up a bus has no business with one.
 #
 # Running it twice is running it once: vite holds its port strictly, so a
 # second `pnpm dev` would fail rather than move to 5174, and a tab already open
-# on 5173 would keep talking to the server that went away. All are started
-# detached with their output in out/dev, which is gitignored.
+# on 5173 would keep talking to the server that went away. The two host servers
+# are started detached with their output in out/dev, which is gitignored; the
+# broker's log is `docker logs`.
 
 set -euo pipefail
 
@@ -48,11 +54,13 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 LOGS="$ROOT/out/dev"
 STORE=8765
 UI=5173
-BRIDGE=8766
+MQTT=1883
+BROKER=9001
+BROKER_NAME=tc49-broker
 STORE_URL="http://127.0.0.1:$STORE/drawings"
 STORE_ROOT=${TC49_STORE:-$ROOT/bench}
 UI_URL="http://localhost:$UI/"
-BRIDGE_URL="ws://127.0.0.1:$BRIDGE"
+BROKER_URL="ws://127.0.0.1:$BROKER"
 
 ACTION=start
 case ${1-} in
@@ -62,11 +70,8 @@ case ${1-} in
     ;;
 esac
 
-RAILROAD=${1-}
-[ $# -gt 0 ] && shift # what is left over belongs to `tc49 live`
-
-if [ "$ACTION" = stop ] && [ -n "$RAILROAD" ]; then
-  echo "stop takes nothing further: $RAILROAD" >&2
+if [ $# -gt 0 ]; then
+  echo "takes nothing further: $*" >&2
   exit 2
 fi
 
@@ -77,18 +82,10 @@ report() {
 }
 
 # Whether the server on a port answers as itself, which is the question worth
-# asking: a listening socket says only that the port is taken. The bridge
-# speaks WebSocket and answers a plain GET with 426 Upgrade Required, which is
-# as much itself as the store's 200.
+# asking: a listening socket says only that the port is taken.
 alive() {
-  local url=$1 want=200
-  case $url in
-    ws://*)
-      url="http://${url#ws://}"
-      want=426
-      ;;
-  esac
-  [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "$url")" = "$want" ]
+  local url=$1
+  [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "$url")" = "200" ]
 }
 
 listening() {
@@ -164,11 +161,55 @@ halt() {
   report "$what" "$url" "stopped"
 }
 
+# The broker, as a container. A container this script started is the one
+# wearing its name; anything else on the port is somebody else's and is left
+# alone, which is what the two host servers do too.
+broker_up() {
+  if listening "$BROKER"; then
+    if docker inspect "$BROKER_NAME" >/dev/null 2>&1; then
+      report broker "$BROKER_URL" "already running"
+    else
+      report broker "$BROKER_URL" "left alone, started elsewhere"
+    fi
+    return 0
+  fi
+  docker rm -f "$BROKER_NAME" >/dev/null 2>&1 || true
+  if ! docker run -d --name "$BROKER_NAME" \
+    -p "$MQTT:1883" -p "$BROKER:9001" \
+    -v "$ROOT/deploy/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+    eclipse-mosquitto:2 >"$LOGS/broker.log" 2>&1; then
+    echo "  broker failed to start; see $LOGS/broker.log" >&2
+    return 1
+  fi
+  for _ in $(seq 40); do
+    listening "$BROKER" && break
+    sleep 0.25
+  done
+  if ! listening "$BROKER"; then
+    echo "  broker failed to come up on $BROKER; see: docker logs $BROKER_NAME" >&2
+    return 1
+  fi
+  report broker "$BROKER_URL" "started"
+}
+
+broker_down() {
+  if ! docker inspect "$BROKER_NAME" >/dev/null 2>&1; then
+    if listening "$BROKER"; then
+      report broker "$BROKER_URL" "left alone, started elsewhere"
+    else
+      report broker "$BROKER_URL" "not running"
+    fi
+    return 0
+  fi
+  docker rm -f "$BROKER_NAME" >/dev/null 2>&1 || true
+  report broker "$BROKER_URL" "stopped"
+}
+
 cd "$ROOT"
 
 if [ "$ACTION" = stop ]; then
   echo "servers:"
-  halt bridge "$BRIDGE" "$BRIDGE_URL"
+  broker_down
   halt ui "$UI" "$UI_URL"
   halt store "$STORE" "$STORE_URL"
   exit 0
@@ -180,19 +221,19 @@ echo "servers:"
 serve store "$STORE" "$STORE_URL" \
   uv run tc49 serve --host 0.0.0.0 --store "$STORE_ROOT"
 serve ui "$UI" "$UI_URL" pnpm --dir ui dev
-# An empty railroad is no railroad at all, not the empty string: `tc49 live`
-# takes it as optional, and comes up idle waiting to be told.
-serve bridge "$BRIDGE" "$BRIDGE_URL" \
-  uv run tc49 live ${RAILROAD:+"$RAILROAD"} --port "$BRIDGE" --host 0.0.0.0 \
-  --store "$STORE_ROOT" --no-store "$@"
+broker_up
 
 cat <<EOF
 
   app     http://localhost:$UI/          the run view
           http://localhost:$UI/#edit     the editor
 
-          load a railroad with the band's picker; the session runs whichever
-          one is loaded
+          the run view shows whichever railroad the apps on this broker are
+          running; start one, for example:
 
-logs in out/dev; stop them with: scripts/dev.sh stop
+          uv run python -m tc49.simulator --broker 127.0.0.1:$MQTT \\
+            --railroad reversing-loops --store http://127.0.0.1:$STORE
+
+logs in out/dev, and: docker logs $BROKER_NAME
+stop them with: scripts/dev.sh stop
 EOF
