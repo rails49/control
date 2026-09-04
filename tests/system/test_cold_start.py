@@ -16,25 +16,21 @@ and being handed it is what a browser opened an hour into a run depends on
 broker holds is this app's, and the assertion is on the whole of it — an app
 that leaves a row it does not own behind fails here.
 
-The reload of ADR-0060 — the same app reaching the same state a second time
-on another railroad, having cleared the first one's rows — is not checked
-here: no app follows a change of `tc49/layout/state/railroad` yet, that
-being the work the ADR leaves to the communication issue after this one.
+Loading another railroad while the apps run is the other half of the same
+rule and is `test_reload.py`.
 """
 
 import shutil
-import subprocess
-import sys
 import urllib.request
 from collections.abc import Iterator
-from dataclasses import dataclass
 from json import loads
 from pathlib import Path
 
 import pytest
 
 from tc49.lib.mqtt import MqttBus
-from tests.brokers import Broker, drained, free_port, listening, settle, until
+from tests.apps import APPS, App, Process, Store
+from tests.brokers import Broker, drained, settle, until
 from tests.harness import ASSETS, catalogued
 
 RAILROAD = "crossover-yard"
@@ -49,78 +45,9 @@ app that exits over something missing, and an exit like that is immediate."""
 
 UP_S = 30.0
 """How long an app is given to publish, once it has everything. It covers the
-store client's own backoff, which doubles from half a second (`lib/documents`)
-and is the deployed one here: this is the deployment, so nothing is shortened
-to suit the suite."""
-
-
-@dataclass(frozen=True)
-class Cold:
-    """One app's cold start: how it is started, and what it leaves retained.
-
-    The flags are the app's own — `dccex` takes a station and no railroad
-    (hardware needs no layout, ADR-0059 decision 5), the driver reads no
-    documents and so takes no store. A table rather than six tests, because
-    what is being asserted is one rule and the differences between the apps
-    are the rule's own consequences.
-    """
-
-    app: str
-    rows: tuple[str, ...]
-    railroad: bool = True
-    store: bool = False
-    station: bool = False
-
-
-COLD = (
-    Cold(
-        "scheduler",
-        store=True,
-        rows=("tc49/schedule/state/facing", "tc49/schedule/state/exhausted"),
-    ),
-    Cold(
-        "dispatcher",
-        store=True,
-        rows=(
-            "tc49/dispatch/state/run",
-            "tc49/dispatch/state/allocation",
-            "tc49/dispatch/state/aspects",
-            "tc49/dispatch/state/disputed",
-        ),
-    ),
-    Cold("driver", rows=()),
-    Cold(
-        "layout",
-        store=True,
-        rows=(
-            "tc49/layout/state/railroad",
-            "tc49/layout/state/power",
-            "tc49/layout/state/mode",
-            "tc49/layout/state/wanted/track",
-        ),
-    ),
-    Cold(
-        "simulator",
-        store=True,
-        rows=("tc49/layout/state/railroad", "tc49/layout/state/power"),
-    ),
-    Cold(
-        "dccex",
-        railroad=False,
-        station=True,
-        rows=(
-            "tc49/layout/state/device/track",
-            "tc49/layout/state/device/link/dccex",
-        ),
-    ),
-)
-"""The six apps of ADR-0059, and the rows each opens with.
-
-`driver` opens with none: it holds no state and reads no documents, so
-silence is its cold start. `layout` writes no desired speed here although it
-zeroes one per address it finds: on an empty broker there is nothing to zero,
-which is the difference between this and a restart.
-"""
+store client's own backoff, which doubles from half a second
+(`lib/documents.py`) and is the deployed one here: this is the deployment, so
+nothing is shortened to suit the suite."""
 
 
 @pytest.fixture
@@ -139,84 +66,6 @@ def root(tmp_path: Path) -> Path:
     return root
 
 
-def tc49() -> str:
-    """The `tc49` script, as compose's store service runs it: the one beside
-    the interpreter running this suite, so a checkout with two environments
-    serves the store from the one under test."""
-    beside = Path(sys.executable).with_name("tc49")
-    return str(beside) if beside.exists() else "tc49"
-
-
-class Process:
-    """One process, started and stopped as a container's is.
-
-    Its output goes to a file rather than a pipe: a pipe nobody reads fills
-    and stops the app it was meant to watch, and what these tests want it for
-    is a failure's message.
-    """
-
-    def __init__(self, command: list[str], log: Path) -> None:
-        self._command = command
-        self._log = log
-        self._running: subprocess.Popen[bytes] | None = None
-
-    def start(self) -> None:
-        self._log.touch()
-        with self._log.open("wb") as out:
-            self._running = subprocess.Popen(
-                self._command, stdout=out, stderr=subprocess.STDOUT
-            )
-
-    @property
-    def running(self) -> bool:
-        return self._running is not None and self._running.poll() is None
-
-    def said(self) -> str:
-        """Everything it has printed, for a failure to quote."""
-        return self._log.read_text(errors="replace")
-
-    def stop(self) -> None:
-        """SIGTERM, which is how a container is stopped, and then a wait: an
-        app that does not end on it is a defect of its own."""
-        if self._running is None:
-            return
-        self._running.terminate()
-        self._running.wait(timeout=10)
-        self._running = None
-
-
-class Store:
-    """The store's face, started the same way and startable late: `tc49
-    serve` on a port of its own, over a root this test made."""
-
-    def __init__(self, root: Path, log: Path) -> None:
-        self.port = free_port()
-        self._process = Process(
-            [
-                tc49(),
-                "serve",
-                "--store",
-                str(root),
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(self.port),
-            ],
-            log,
-        )
-
-    @property
-    def url(self) -> str:
-        return f"http://127.0.0.1:{self.port}"
-
-    def start(self) -> None:
-        self._process.start()
-        assert until(lambda: listening(self.port), UP_S), self._process.said()
-
-    def stop(self) -> None:
-        self._process.stop()
-
-
 @pytest.fixture
 def store(root: Path, tmp_path: Path) -> Iterator[Store]:
     serving = Store(root, tmp_path / "store.log")
@@ -226,38 +75,22 @@ def store(root: Path, tmp_path: Path) -> Iterator[Store]:
         serving.stop()
 
 
-def command(cold: Cold, broker: Broker, store: Store) -> list[str]:
-    """What a compose service for this app runs, as it runs it."""
-    args = [sys.executable, "-m", f"tc49.{cold.app}"]
-    args += ["--broker", f"127.0.0.1:{broker.port}"]
-    if cold.railroad:
-        args += ["--railroad", RAILROAD]
-    if cold.store:
-        args += ["--store", store.url]
-    if cold.station:
-        # An address nothing answers on: a translator whose command station
-        # is not there reports the link it cannot make and stays up
-        # (ADR-0050), and no test of ours needs hardware.
-        args += ["--station", f"127.0.0.1:{free_port()}"]
-    return args
-
-
-@pytest.mark.parametrize("cold", COLD, ids=[cold.app for cold in COLD])
+@pytest.mark.parametrize("app", APPS, ids=[app.name for app in APPS])
 def test_an_app_comes_up_alone_and_leaves_its_rows_retained(
-    cold: Cold, broker: Broker, store: Store, tmp_path: Path
+    app: App, broker: Broker, store: Store, tmp_path: Path
 ) -> None:
     """Started against nothing, it waits rather than exits; given what it
     reads, it publishes its own rows and nobody else's, and a client that
     arrives afterwards is handed them."""
-    app = Process(command(cold, broker, store), tmp_path / f"{cold.app}.log")
-    app.start()
+    running: Process = app.process(broker, store, RAILROAD, tmp_path)
+    running.start()
     try:
         # Nothing is up but the broker, and for the two apps that read no
         # documents not even that is missing: either way the app stays.
         assert not until(
-            lambda: not app.running, ALONE_S
-        ), f"'{cold.app}' exited rather than waiting:\n{app.said()}"
-        if cold.store:
+            lambda: not running.running, ALONE_S
+        ), f"'{app.name}' exited rather than waiting:\n{running.said()}"
+        if app.store:
             store.start()
 
         # A client that connects after it published, which is the only way to
@@ -267,20 +100,20 @@ def test_an_app_comes_up_alone_and_leaves_its_rows_retained(
         late.subscribe("tc49/#", lambda topic, payload: None)
         assert drained(
             late,
-            lambda: set(cold.rows) <= set(late.last_values),
+            lambda: set(app.rows) <= set(late.last_values),
             timeout=UP_S,
-        ), f"'{cold.app}' never published {sorted(cold.rows)}:\n{app.said()}"
+        ), f"'{app.name}' never published {sorted(app.rows)}:\n{running.said()}"
 
         # And nothing else: with no other app running, every row the broker
         # holds is this one's (ADR-0035).
         settle(late)
         assert set(late.last_values) == set(
-            cold.rows
-        ), f"'{cold.app}' left a row it does not own"
-        assert app.running, f"'{cold.app}' stopped on its own:\n{app.said()}"
+            app.rows
+        ), f"'{app.name}' left a row it does not own"
+        assert running.running, f"'{app.name}' stopped on its own:\n{running.said()}"
         late.close()
     finally:
-        app.stop()
+        running.stop()
 
 
 def test_the_stores_face_comes_up_on_an_empty_root(tmp_path: Path) -> None:
