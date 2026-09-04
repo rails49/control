@@ -37,6 +37,11 @@ export TC49_UID TC49_GID
 # service and would otherwise keep one from before the pull. The store, the
 # session and the mirror all build from one context now, so a change under
 # `src/` reaches none of them without it (#365).
+# Two profiles: `layout` is the software of a running railroad — the store,
+# the built ui and the four apps — and `hardware` is what this box owns
+# because of what is plugged into it (ADR-0059, decision 5). A box with no
+# command station on it asks for the first alone.
 TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
-  -f deploy/compose.yaml --profile layout up -d --build --remove-orphans
+  -f deploy/compose.yaml --profile layout --profile hardware \
+  up -d --build --remove-orphans
 REMOTE
