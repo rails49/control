@@ -36,8 +36,8 @@ def test_each_signalled_end_is_written_to_the_signal_standing_there() -> None:
 
     assert written == [
         (
-            WANTED_SIGNAL + "/dccex/40",
-            {"at": 0.0, "addr": "dccex/40", "aspect": "clear"},
+            WANTED_SIGNAL + "/40",
+            {"at": 0.0, "addr": "40", "aspect": "clear"},
         )
     ]
 
@@ -65,14 +65,14 @@ def test_the_opening_value_seeds_every_signal_with_stop() -> None:
     LayoutInterface(bus, railroad(), stock(), clock)
     bus.drain()
 
-    assert bus.last_values[WANTED_SIGNAL + "/dccex/40"] == {
+    assert bus.last_values[WANTED_SIGNAL + "/40"] == {
         "at": 0.0,
-        "addr": "dccex/40",
+        "addr": "40",
         "aspect": "stop",
     }
-    assert bus.last_values[WANTED_SIGNAL + "/dccex/41"] == {
+    assert bus.last_values[WANTED_SIGNAL + "/41"] == {
         "at": 0.0,
-        "addr": "dccex/41",
+        "addr": "41",
         "aspect": "stop",
     }
 
@@ -86,7 +86,7 @@ def test_two_ends_on_one_address_show_one_aspect_together() -> None:
     show(bus, {"up_e.A": "clear", "dn_e.A": "caution"})
 
     assert [payload["aspect"] for _topic, payload in written] == ["clear", "caution"]
-    assert bus.last_values[WANTED_SIGNAL + "/dccex/41"]["aspect"] == "caution"
+    assert bus.last_values[WANTED_SIGNAL + "/41"]["aspect"] == "caution"
 
 
 def test_every_end_is_written_again_on_every_picture() -> None:
@@ -119,4 +119,4 @@ def test_a_picture_older_than_the_one_held_is_ignored() -> None:
     bus.drain()
 
     assert len(written) == 1
-    assert bus.last_values[WANTED_SIGNAL + "/dccex/40"]["aspect"] == "clear"
+    assert bus.last_values[WANTED_SIGNAL + "/40"]["aspect"] == "clear"
