@@ -28,6 +28,7 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { live } from "lit/directives/live.js";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 
@@ -274,7 +275,7 @@ export class TcStock extends LitElement {
         <span class="what">
           <input
             class="name"
-            .value=${car.name}
+            .value=${live(car.name)}
             aria-label="car name"
             @change=${(event: Event) =>
               this.did(this.stock?.renameCar(car.name, value(event)))}
@@ -283,7 +284,7 @@ export class TcStock extends LitElement {
         </span>
         <input
           class="addr"
-          .value=${car.addr ?? ""}
+          .value=${live(car.addr ?? "")}
           placeholder="address"
           aria-label="address"
           @change=${(event: Event) =>
@@ -291,7 +292,7 @@ export class TcStock extends LitElement {
         />
         <input
           class="length"
-          .value=${car.own ? String(car.length) : ""}
+          .value=${live(car.own ? String(car.length) : "")}
           placeholder=${car.length === null ? "" : String(car.length)}
           aria-label="length"
           title=${car.held ?? "millimetres over buffers, where this item is not its model's length"}
@@ -359,7 +360,7 @@ export class TcStock extends LitElement {
         <span></span>
         <input
           class="length"
-          .value=${String(model.length)}
+          .value=${live(String(model.length))}
           aria-label="length"
           title=${model.held ?? "millimetres over buffers, on every item of this product"}
           ?disabled=${model.held !== null}
@@ -429,7 +430,7 @@ export class TcStock extends LitElement {
         <header>
           <input
             class="name"
-            .value=${train.train}
+            .value=${live(train.train)}
             aria-label="train name"
             @change=${(event: Event) =>
               this.did(this.stock?.renameTrain(train.train, value(event)))}
@@ -478,7 +479,7 @@ export class TcStock extends LitElement {
         </span>
         <input
           class="addr"
-          .value=${entry.addr ?? ""}
+          .value=${live(entry.addr ?? "")}
           placeholder="address"
           aria-label="address"
           @change=${(event: Event) =>
@@ -588,7 +589,15 @@ export class TcStock extends LitElement {
 
   /** What an edit answered: nothing, or the words to show. Either way the
    *  screen redraws — `Stock` keeps its identity across an edit, so Lit sees
-   *  no changed property. */
+   *  no changed property.
+   *
+   *  A redraw is not by itself the field going back. A refusal changes the
+   *  document by construction not at all, so what a field is bound to is what
+   *  it was last rendered with and Lit's property part skips the write: a car
+   *  renamed to `a/b` was refused and went on showing `a/b`, a value the
+   *  roster has not got. So every field over a document is bound with `live`,
+   *  which compares against the DOM rather than against the last binding and
+   *  writes the document's value back (#416). */
   private did(refused: string | null | undefined): void {
     this.trouble = refused ?? null;
     this.beat++;
