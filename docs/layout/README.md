@@ -32,7 +32,8 @@ this app throws what it is told and holds no table of its own.
 `tc49/layout/power_wanted`, `tc49/layout/mode_wanted`,
 `tc49/layout/throttle_wanted`, `tc49/dispatch/train_placed`,
 `tc49/dispatch/train_removed`, `tc49/dispatch/state/aspects`,
-`tc49/schedule/state/facing` and `tc49/layout/state/device/#`.
+`tc49/dispatch/state/run`, `tc49/schedule/state/facing` and
+`tc49/layout/state/device/#`.
 
 *Publishes* `tc49/layout/block_occupied`, `tc49/layout/block_vacated`,
 `tc49/layout/state/wanted/traction/<addr>`,
@@ -44,6 +45,11 @@ The facing is the one topic here that is nobody's hardware and nobody's
 command: it is the scheduler's state, and this app reads it because the sign of
 a speed cannot be composed without it and there is nowhere else it lives
 ([ADR-0052](../adr/0052-layout-reads-facing-and-composes-the-sign-of-a-speed.md)).
+The run is the second of that kind, and read for one thing only — the guard
+on a plain `off` below
+([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
+Nothing else here branches on the run: a `move` is acted on because it was
+granted, and a held run grants none.
 
 ## The command line
 
@@ -406,13 +412,50 @@ removal as the recourse
 **Commanded on arrival, never buffered.** There is no beat and no time
 quantisation, and an emergency stop that waits is not an emergency stop
 ([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
-A `power_wanted` is written straight through to `wanted/track` with the word it
-was given, and **nothing is said about `state/power` on the strength of having
-commanded it**: a railroad that answered `on` because somebody pressed ON would
+A `power_wanted` is written through to `wanted/track` with the word it was
+given — bar the one word that is guarded, below — and **nothing is said about
+`state/power` on the strength of having commanded it**: a railroad that answered `on` because somebody pressed ON would
 be this app taking its own word for the state of the track. It cannot verify
 that the supply really went and does not try — it assumes the device it
 commanded did what it was asked, and it is the system designer's job to put such
 a device there ([#232](https://github.com/rails49/control/issues/232)).
+
+**A plain `off` is applied only where nothing is moving.** The one command
+this app does not write through as it came
+([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
+A topic names the app that answers it and never the process that sent the
+frame, so nothing about `power_wanted` says the panel wrote it with a drain
+behind it: a raw client, a test or a later UI publishing `off` would cut the
+supply under whatever is mid-transit and strand it where no sensor will ever
+say it stopped (CONTEXT.md, **Power off**). So this gesture is re-validated
+against current state on arrival, as every other browser-writable one already
+is, and the state it is validated against is `tc49/dispatch/state/run`:
+
+| the run reads | a plain `off` |
+| --- | --- |
+| `held`, `moving` false | applied |
+| nothing yet — no dispatcher has stated a run | applied |
+| `held`, `moving` true | refused |
+| `running` or `draining`, either way | refused |
+
+`held` and not merely "not moving", because an `off` on a running run with
+nothing granted would race the dispatcher's next grant by milliseconds. And
+**no run is no reason to refuse**: the guard refuses on evidence that
+something moves and on nothing else — with no dispatcher up nothing has been
+granted, and a railroad that could not be turned off would be worse than the
+race. A row that cannot be read leaves the run this app already held standing,
+and a row with no `moving` at all reads as nothing moving, an older dispatcher
+saying nothing about what is under way being no evidence either.
+
+A refused `off` is **dropped**, in silence and to the trace with the reason,
+as every gesture this app cannot act on is
+([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
+It is not held for later: an intention kept would be the panel's stale wait
+moved server-side, and this app answers nothing that could clear it. A client
+that wants the supply removed from a running railroad has the panel's two
+words — ask for a drain, and cut when it is done. `on` and `stopped` are
+untouched and apply in every run state: an emergency stop asks the rails for
+less, and returning to `on` releases nothing (ADR-0041, ADR-0051).
 
 **`state/power` is folded from what the hardware reports.** The supply's own
 word, `device/track`, wherever every `device/link` that has ever been seen
@@ -434,9 +477,10 @@ other switched back on — while the dispatcher branches on "not `on`" either wa
 
 **On startup the railroad is off.** The app comes up having written
 `wanted/track: off` and `state/power: off`, so nothing moves and no turnout
-throws until a person turns it on, normally from the panel. Thereafter it never
-writes `off` of its own accord: it writes the word it was told to write, and
-the supply going away below it moves `state/power` and never `wanted/track`.
+throws until a person turns it on, normally from the panel. That `off` is not
+a gesture and the guard above does not reach it. Thereafter it never writes
+`off` of its own accord: it writes the word it was told to write, and the
+supply going away below it moves `state/power` and never `wanted/track`.
 
 **And on startup the railroad is at rest.** The app also comes up having
 written `0.0` over every retained `wanted/traction` row it finds. A traction
