@@ -644,7 +644,7 @@ export class TcStock extends LitElement {
     const making = this.making;
     const stock = this.stock;
     if (making === null || stock === null) return;
-    const trouble = this.wrong(making);
+    const trouble = this.wrong(making, stock);
     if (trouble !== null) {
       this.trouble = trouble;
       return;
@@ -670,12 +670,16 @@ export class TcStock extends LitElement {
 
   /** What is wrong with the dialog as it stands, in the words the store would
    *  use, or `null` where nothing is. Asked before the `PUT` so that a name
-   *  with a slash in it is answered where it was typed. */
-  private wrong(making: Draft): string | null {
+   *  with a slash in it is answered where it was typed, and so that a name the
+   *  catalogue already has never reaches a route that replaces a document
+   *  whole (#413). */
+  private wrong(making: Draft, stock: Stock): string | null {
     const name = making.model.trim();
     if (name === "" || name.includes(".") || name.includes("/")) {
       return `'${name}' is not a name a model can have`;
     }
+    const already = stock.stopsMaking(name);
+    if (already !== null) return already;
     const mm = Number(making.length);
     if (!Number.isInteger(mm) || mm <= 0) {
       return "a length is a positive whole number of millimetres";

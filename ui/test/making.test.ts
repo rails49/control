@@ -175,6 +175,31 @@ describe("a fresh box", () => {
     expect(parts(shell, "li.product")).toHaveLength(1);
   });
 
+  /** A dialog labelled New model with a Create button touches nothing that
+   *  exists: `PUT /catalogue/<name>` replaces the document whole, so Create
+   *  under a name in use would rewrite that product for every railroad in the
+   *  installation, and say nothing. Correcting one is done on its row (#413). */
+  it("refuses a name the catalogue already has, and sends no PUT", async () => {
+    const shell = await opened();
+    await product(shell, "hopper", "freight", "100");
+    store.saved.length = 0;
+
+    await product(shell, "hopper", "freight", "95");
+
+    expect(store.saved).toEqual([]);
+    const dialog = screen(shell).renderRoot.querySelector("sl-dialog")!;
+    expect(dialog.querySelector(".trouble")!.textContent!.trim()).toBe(
+      "there is already a model 'hopper'",
+    );
+    expect(
+      (dialog.querySelector("#model") as HTMLInputElement).value,
+    ).toBe("hopper");
+    expect(parts(shell, "li.product")).toHaveLength(1);
+    expect(
+      (parts(shell, "li.product input.length")[0] as HTMLInputElement).value,
+    ).toBe("100");
+  });
+
   it("refuses a length that is not one, where it was typed", async () => {
     const shell = await opened();
     await product(shell, "hopper", "freight", "a hundred");
@@ -313,6 +338,36 @@ describe("the length guard", () => {
       expect((model as HTMLInputElement).disabled).toBe(true);
     }
     expect(parts(shell, ".why")[0]!.textContent).toMatch("take it off to correct a length");
+  });
+
+  /** The dialog stepped around this guard: New model under a name in use
+   *  replaced the product whole, moving a placed train's derived length under
+   *  the dispatcher with nothing said. Refusing the name closes it (#413). */
+  it("refuses a placed train's model in the dialog, and moves no length", async () => {
+    const shell = await opened();
+    await ore(shell);
+    await pressed(shell, "sl-button.save");
+    store.rosterOf = () => ({ ore: { length: 422 } });
+
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { ore: "a" },
+      locks: { a: "ore" },
+      requests: [],
+    });
+    await shows(shell, "stock");
+    store.saved.length = 0;
+
+    await product(shell, "hopper", "freight", "95");
+
+    expect(store.saved).toEqual([]);
+    const dialog = screen(shell).renderRoot.querySelector("sl-dialog")!;
+    expect(dialog.querySelector(".trouble")!.textContent!.trim()).toBe(
+      "there is already a model 'hopper'",
+    );
+    expect(
+      (parts(shell, "li.product input.length")[1] as HTMLInputElement).value,
+    ).toBe("100");
+    expect(parts(shell, ".derived")[0]!.textContent).toMatch("422 mm");
   });
 
   it("leaves length editing alone with nothing placed", async () => {
