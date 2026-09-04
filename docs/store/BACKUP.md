@@ -61,6 +61,17 @@ editing session rather than one per keystroke's worth of work, and a store
 nobody is editing produces no commits at all. Quitting `tc49 serve` or `tc49
 live` commits what is outstanding without waiting the window out.
 
+**Ctrl-C and SIGTERM end `tc49 serve` the same way**, which is what makes that
+last commit a deploy's too
+([#410](https://github.com/rails49/control/issues/410)). On the layout server
+the store is PID 1 in its container, and PID 1 gets no default action for
+SIGTERM: `docker stop` — which every `compose up` that recreates the service
+does, and `scripts/deploy.sh` recreates it on each deploy — waited ten seconds
+and then killed the process, so the commit and push before a deploy were
+skipped and the store was away for those ten seconds. The signal now raises
+the same interrupt Ctrl-C does, so both leave by the one door: the listener
+stops accepting, the watch stops, and the quit commits and pushes.
+
 **The message names the documents that moved**, in the store's own names:
 
 ```
