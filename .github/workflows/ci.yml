@@ -22,6 +22,12 @@ jobs:
         with:
           node-version: 24
       - run: pnpm install --frozen-lockfile --dir ui
+      # The broker the MQTT binding's suite runs against (#369). Those tests
+      # skip where there is no mosquitto, so a package index having a bad day
+      # costs coverage and never a red gate.
+      - name: mosquitto
+        continue-on-error: true
+        run: sudo apt-get update && sudo apt-get install -y mosquitto
       - name: gate
         run: |
           cmd=$(sed -n 's/^ci:[[:space:]]*//p' CLAUDE.md 2>/dev/null | head -1)
