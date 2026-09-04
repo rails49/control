@@ -454,9 +454,10 @@ class LayoutInterface:
         deadline first.
 
         The one thing here that waits, and the only place this app reads the
-        clock (ADR-0009). It is called by whoever owns the loop — this app has
-        no command line yet (README), so today that is the suite, driving the
-        clock rather than sleeping on it. Levels are applied in the order they
+        clock (ADR-0009). It is called by whoever owns the loop — this app's
+        own process (`__main__`), which advances the clock to wall time and
+        calls this once a turn, or the suite, driving the clock rather than
+        sleeping on it. Levels are applied in the order they
         came due so that two ends settling in one call publish in the order the
         steel produced them.
 

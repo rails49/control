@@ -236,11 +236,13 @@ reach is one it was not driving, and `_send` drops rather than queues.
 
 ## The command line
 
-It has none of its own, and that is the milestone and not the app: the bus is a
-Python object inside one process ([SYSTEM.md](../SYSTEM.md#the-bus)), so no
-app that speaks a bus topic has a command line — `layout`, `scheduler`,
-`dispatcher` and `driver` have none either. `dccex-usb` does, and it is the
-one app that speaks no bus topic at all.
+It has none of its own yet, and that is the milestone and not the app: it is
+the last app still constructed inside somebody else's process. `layout`,
+`scheduler`, `dispatcher` and `driver` each have one now, and come up alone
+against a broker
+([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+decision 5); `dccex-usb` has had one all along, and it is the one app that
+speaks no bus topic at all.
 
 The app is constructed on the bus like the rest of them, with where the
 station is served:

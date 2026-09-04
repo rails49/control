@@ -53,11 +53,32 @@ granted, and a held run grants none.
 
 ## The command line
 
-It has none of its own, and that is the milestone and not the app: the bus is a
-Python object inside one process ([SYSTEM.md](../SYSTEM.md#the-bus)), so no
-core app has a command line — `scheduler`, `dispatcher` and `driver` have none
-either. `dccex-usb` does, and it is the one app that speaks no bus topic at
-all.
+```
+python -m tc49.layout --broker <host:port> --railroad <name> --store <url>
+```
+
+Three flags, the ones a compose service passes: where the broker is, which
+railroad it runs, and where the store serves the documents that railroad is
+built from ([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+decision 5). Started against an empty broker with no store and no other app
+running, it reads its two documents — retrying until the store answers — waits
+for the broker, waits out the moment the broker takes to hand back whatever
+traction rows the last process left, publishes its own retained rows and stays
+up. It exits on nothing but a signal.
+
+That last wait is what the constructor's zeroing needs on this binding: a
+traction row is retained, so a broker that outlived the last process hands the
+speed it was left at back verbatim, and the row's one writer is this app
+([#333](https://github.com/rails49/control/issues/333),
+[ADR-0054](../adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
+The in-process bus had those values synchronously; a broker sends them moments
+after the subscription lands.
+
+The settling time is not a flag. What it is worth is a fact about the
+detectors a railroad has
+([ADR-0030](../adr/0030-the-physical-railroad-is-the-normative-binding.md)), so
+it is the constructor's argument and the suite's to drive, not a number a
+person restarts a container to change.
 
 The app is constructed on the bus like the rest of them, with the two
 documents the railroad is — the layout it answers for and the roster of stock
@@ -73,18 +94,18 @@ The clock is required rather than defaulted for the bus's reason: an app given
 none would debounce against a clock that never moves.
 
 **Whoever owns the loop calls `settle()`**, which is what acts on a level that
-has stood long enough. Today that is `tc49 live <railroad> --station
-<host>:<port>`, which brings a session up on this app and the `dccex`
-translator where the simulator would be
-([#314](https://github.com/rails49/control/issues/314)); its loop advances the
-clock to wall time, calls `settle()` and drains the bus, once per `--period`.
-The period bounds the resolution and nothing else: 0.1 s against 300 ms of
-settling has a settled level acted on between 0.3 s and 0.4 s after it stood,
-which is the right order for a detector. Nothing schedules the call — a
-detector publishes a level *change* and nothing else, so a session that never
-made it would sit on a quiet railroad holding an arrival nobody was told
-about. The suite drives the clock rather than sleeping on it and calls
-`settle()` itself.
+has stood long enough. In the deployment that is this app's own process: it
+advances the clock to wall time, calls `settle()` and drains the bus, once per
+period. `tc49 live <railroad> --station <host>:<port>` does the same in one
+process, bringing a session up on this app and the `dccex` translator where the
+simulator would be ([#314](https://github.com/rails49/control/issues/314)), and
+the loop is the same three steps. The period bounds the resolution and nothing
+else: 0.1 s against 300 ms of settling has a settled level acted on between
+0.3 s and 0.4 s after it stood, which is the right order for a detector.
+Nothing schedules the call — a detector publishes a level *change* and nothing
+else, so an owner that never made it would sit on a quiet railroad holding an
+arrival nobody was told about. The suite drives the clock rather than sleeping
+on it and calls `settle()` itself.
 
 **Whose levels those are, on a physical railroad, is a person's.** No camera
 publishes `device/sensor` yet, so the same session reads its own input and
@@ -95,10 +116,7 @@ exactly as a camera's does, which is the whole of what standing in for
 hardware means — and it is the reason the fold is tested against typed levels
 as readily as against a detector's.
 
-It gets a command line, and `deploy/` gets a container for it, the day the
-broker arrives and each app is its own process
-([ADR-0013](../adr/0013-apps-are-deployment-units.md)). A session named no
-station assembles the `simulator` instead
+A session named no station assembles the `simulator` instead
 ([ARCHITECTURE.md](../ARCHITECTURE.md#package-layout)): a run has one binding
 of the interface and neither knows the other exists
 ([ADR-0030](../adr/0030-the-physical-railroad-is-the-normative-binding.md)),
