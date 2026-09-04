@@ -111,7 +111,7 @@ services:
     build: &app
       context: ..
       dockerfile: deploy/app.Dockerfile
-    profiles: [layout]
+    profiles: [hardware]
     restart: unless-stopped
     ports:
       - "2560:2560"
@@ -180,6 +180,94 @@ services:
     command:
       ["tc49", "serve", "--host", "0.0.0.0", "--store", "/store", "--keys", "/keys"]
 
+  # The six apps, one service each (ADR-0059, decision 5). Every one of them
+  # comes up alone: started against nothing, it connects, publishes the rows
+  # it owns and stays up, and one that reads the railroad's documents retries
+  # the store until it answers. **No `depends_on` anywhere** — an order here
+  # would say a container being up is a store answering, which it is not, and
+  # `tests/system/test_compose.py` refuses one.
+  #
+  # Which railroad they come up on is `TC49_RAILROAD`, a box's own answer in
+  # its env file. It is a starting point rather than a binding: a person
+  # loads another railroad from the app while these run, and every one of
+  # them follows the row that says so without a restart (ADR-0060), so
+  # changing it here is not how a railroad is chosen.
+  #
+  # `layout` and `simulator` are two bindings of one interface and never run
+  # together: one writing role (ADR-0035) means the box wired to steel runs
+  # `layout` under the `layout` profile, and a box with none runs `simulator`
+  # under `sim` in its place.
+  scheduler:
+    build: *app
+    profiles: [layout]
+    restart: unless-stopped
+    command:
+      ["python", "-m", "tc49.scheduler",
+       "--broker", "broker:1883",
+       "--railroad", "${TC49_RAILROAD:-gotthard}",
+       "--store", "http://store:8765"]
+
+  dispatcher:
+    build: *app
+    profiles: [layout]
+    restart: unless-stopped
+    command:
+      ["python", "-m", "tc49.dispatcher",
+       "--broker", "broker:1883",
+       "--railroad", "${TC49_RAILROAD:-gotthard}",
+       "--store", "http://store:8765"]
+
+  # No `--store`: the driver reads no documents. The railroad is named all
+  # the same, because a container's log says which railroad it is driving.
+  driver:
+    build: *app
+    profiles: [layout]
+    restart: unless-stopped
+    command:
+      ["python", "-m", "tc49.driver",
+       "--broker", "broker:1883",
+       "--railroad", "${TC49_RAILROAD:-gotthard}"]
+
+  # The layout interface: the one app bound to a railroad, and the writer of
+  # what the hardware is asked to do. On the box wired to steel, so it is in
+  # the `layout` profile with the store it reads.
+  layout:
+    build: *app
+    profiles: [layout]
+    restart: unless-stopped
+    command:
+      ["python", "-m", "tc49.layout",
+       "--broker", "broker:1883",
+       "--railroad", "${TC49_RAILROAD:-gotthard}",
+       "--store", "http://store:8765"]
+
+  # The simulator standing in for the steel, on a box that has none: the
+  # milestone-1 binding of the same interface (ADR-0030). A profile of its
+  # own, because it and `layout` are alternatives.
+  simulator:
+    build: *app
+    profiles: [sim]
+    restart: unless-stopped
+    command:
+      ["python", "-m", "tc49.simulator",
+       "--broker", "broker:1883",
+       "--railroad", "${TC49_RAILROAD:-gotthard}",
+       "--store", "http://store:8765"]
+
+  # The translator: the device vocabulary turned into the command station's
+  # own language, over the mirror rather than the device (ADR-0043). Hardware
+  # by what it talks to, so it comes up with the rest of the hardware and not
+  # with the software — and it takes no railroad and no store, hardware
+  # needing no layout (ADR-0059, decision 5).
+  dccex:
+    build: *app
+    profiles: [hardware]
+    restart: unless-stopped
+    command:
+      ["python", "-m", "tc49.dccex",
+       "--broker", "broker:1883",
+       "--station", "${TC49_STATION:-dccex-usb:2560}"]
+
   # A session: one run of one railroad, and the only thing here that is not
   # infrastructure. It is started deliberately rather than kept up, because a
   # run has an operator and a railroad chosen and `bench` is the harness that
@@ -246,6 +334,7 @@ services:
   # points it at `dccex-usb` persists.
   jmri:
     image: jsa1987/jmri-docker:stable
+    profiles: [hardware]
     # A fresh /tmp on every start. The image's websockify dials
     # `localhost:5901` while its `vncserver` takes the first display that has
     # no socket in /tmp/.X11-unix, and `docker restart` keeps the writable
@@ -255,7 +344,6 @@ services:
     # impossible instead.
     tmpfs:
       - /tmp
-    profiles: [layout]
     restart: unless-stopped
     ports:
       - "6901:6901"
