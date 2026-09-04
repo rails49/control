@@ -54,6 +54,7 @@ import { positionsBySymbol } from "../model/scene.js";
 import {
   readTrains,
   RETRY_MS,
+  said,
   UNREVIEWED,
   type Review,
   type TrainDoc,
@@ -317,12 +318,13 @@ export class TcPanel extends LitElement {
       this.trouble = null;
       this.listen();
       this.beat++;
-    } catch {
-      // A roster read fails only when the store is not answering: a railroad
-      // with no roster file is answered an empty one, and the drawing on
-      // screen came from the same store a moment ago. So the message names
-      // the fix rather than repeating what `fetch` said.
-      this.trouble = "the store is not answering — run `tc49 serve`";
+    } catch (failure) {
+      // Which of the three it was is the store helper's to say (model/store.ts,
+      // #411): a store that is not running, an answer that came from something
+      // else, or the store refusing. A fixed string here named the fix for the
+      // first whichever it was, and sent a person after a store that was up
+      // (#405).
+      this.trouble = said(failure);
       if (mine === this.joins) this.retry();
     }
   }

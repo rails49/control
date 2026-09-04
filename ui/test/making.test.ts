@@ -20,6 +20,7 @@ import "../src/ui/tc-app.js";
 import type { RosterDoc } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcStock } from "../src/ui/tc-stock.js";
+import { RETRY_MS } from "../src/model/store.js";
 import {
   mounted,
   running,
@@ -75,6 +76,20 @@ function screen(shell: TcApp): TcStock {
 
 function parts(shell: TcApp, selector: string): HTMLElement[] {
   return [...screen(shell).renderRoot.querySelectorAll<HTMLElement>(selector)];
+}
+
+/** What the screen is saying went wrong, `null` where it is saying nothing.
+ *  The one beside the trains, which is where a failed read reads; a failed
+ *  write in the dialog says it in the dialog. */
+function trouble(shell: TcApp): string | null {
+  const line = screen(shell).renderRoot.querySelector("section.trains p.trouble");
+  return line === null ? null : line.textContent!.trim();
+}
+
+/** A page from something in front of the store on the paths `which` picks
+ *  out, as a stale route table puts one in front of a store that is up. */
+function between(which: (path: string) => boolean): void {
+  store.intercepted = (path) => (which(path) ? { status: 404, statusText: "" } : null);
 }
 
 /** Type into a control and leave it, which is when an edit is taken. */
@@ -313,5 +328,84 @@ describe("the run view and the screen beside it", () => {
 
     await shows(shell, "run");
     expect(rows()).toHaveLength(1);
+  });
+});
+
+/**
+ * A read or a write that does not come back with a document (#411).
+ *
+ * Three ways to fail and three sets of words, decided in the store helper
+ * (`test/asking.test.ts`); what is under test here is that the screen shows
+ * them rather than a fixed string, and that it reads again after the two a
+ * person can only wait out.
+ */
+describe("a store that does not answer with a document", () => {
+  /** What #405 was: the proxy's route table was stale, so `GET /catalogue`
+   *  came back as its own 404 page while the store was up and answering the
+   *  roster beside it. The screen said `run \`tc49 serve\`` — for a server
+   *  that was running. */
+  it("says what was asked and what came back, and reads again", async () => {
+    vi.useFakeTimers();
+    try {
+      between((path) => path === "/catalogue");
+      store.catalogue = { hopper: { model: "hopper", kind: "freight", length: 100 } };
+      const shell = await opened();
+
+      expect(trouble(shell)).toBe("GET /catalogue answered 404");
+      expect(parts(shell, "li.product")).toHaveLength(0);
+
+      store.intercepted = () => null;
+      await vi.advanceTimersByTimeAsync(RETRY_MS);
+      await settled(shell);
+
+      expect(trouble(shell)).toBeNull();
+      expect(parts(shell, "li.product")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /** Nothing answered at all keeps the words it had: the store is what is
+   *  missing, and starting it is the fix. The store goes away under the
+   *  roster read alone here, the drawing having arrived from it a moment
+   *  earlier — which is what `fetch` rejecting looks like from this screen. */
+  it("names `tc49 serve` where nothing answered, and reads again", async () => {
+    vi.useFakeTimers();
+    try {
+      store.documentOf = () => {
+        throw new TypeError("Failed to fetch");
+      };
+      const shell = await opened();
+
+      expect(trouble(shell)).toBe("the store is not answering — run `tc49 serve`");
+
+      store.documentOf = (railroad) => ({ roster: railroad, trains: {} });
+      store.catalogue = { hopper: { model: "hopper", kind: "freight", length: 100 } };
+      await vi.advanceTimersByTimeAsync(RETRY_MS);
+      await settled(shell);
+
+      expect(trouble(shell)).toBeNull();
+      expect(parts(shell, "li.product")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /** The same 404 met by the Create press. The dialog stays open with the
+   *  message beside the button, so the product is still there to write again
+   *  once the route is back. */
+  it("leaves the dialog open and names the write that did not land", async () => {
+    const shell = await opened();
+    between((path) => path.startsWith("/catalogue/"));
+
+    await product(shell, "hopper", "freight", "100");
+
+    const dialog = screen(shell).renderRoot.querySelector("sl-dialog")!;
+    expect(dialog).not.toBeNull();
+    expect(dialog.querySelector(".trouble")!.textContent!.trim()).toBe(
+      "PUT /catalogue/hopper answered 404",
+    );
+    expect(store.saved).toEqual([]);
+    expect(parts(shell, "li.product")).toHaveLength(0);
   });
 });

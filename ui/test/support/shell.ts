@@ -97,6 +97,13 @@ export interface Answers {
   /** A failure every route rejects with instead of answering, which is what a
    *  store that is not running looks like from here. */
   broken: Error | null;
+  /** Which calls something in front of the store answers instead of it, and
+   *  with what: a status, and a page that does not parse as JSON. What a
+   *  proxy whose route table is stale does to a store that is up and
+   *  answering, which is how #405 reached a person as the JSON parser's own
+   *  words. `null` for a path the store itself answers, which is every path
+   *  by default. */
+  intercepted: (path: string) => { status: number; statusText: string } | null;
 }
 
 /** How often the store has been asked anything. `quiet` watches this instead
@@ -118,11 +125,14 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     review: () => Promise.resolve(CLEAN),
     backup: UNBACKED,
     broken: null,
+    intercepted: () => null,
     ...answers,
   };
   globalThis.fetch = ((path: string, init?: RequestInit) => {
     asked += 1;
     if (store.broken !== null) return Promise.reject(store.broken);
+    const between = store.intercepted(path);
+    if (between !== null) return Promise.resolve(interposed(between));
     if ((init?.method ?? "GET") === "PUT") {
       store.saved.push({
         path,
@@ -139,6 +149,20 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     );
   }) as unknown as typeof fetch;
   return store;
+}
+
+/** What something in front of the store answers with: the status it chose and
+ *  a page of its own, which the helper reads as an answer that is not the
+ *  store's (model/store.ts). The write is not recorded — nothing reached the
+ *  store to write it. */
+function interposed(what: { status: number; statusText: string }): Response {
+  return {
+    ok: what.status < 400,
+    status: what.status,
+    statusText: what.statusText,
+    headers: new Headers({ "content-type": "text/html; charset=utf-8" }),
+    json: () => Promise.reject(new SyntaxError("Unexpected token '<'")),
+  } as unknown as Response;
 }
 
 /** The store's side of one call, over the routes the editor asks

@@ -42,8 +42,11 @@ import {
 import {
   readCatalogue,
   readRoster,
+  RETRY_MS,
+  said,
   saveModel,
   saveRoster,
+  Unanswered,
   type ModelDoc,
   type ModelFn,
 } from "../model/store.js";
@@ -113,8 +116,19 @@ export class TcStock extends LitElement {
    *  rendering is asked for rather than observed. */
   @state() private beat = 0;
 
+  /** The read waiting to be made again, `null` while none is. */
+  private waiting: ReturnType<typeof setTimeout> | null = null;
+
+  override disconnectedCallback(): void {
+    this.drop();
+    super.disconnectedCallback();
+  }
+
   override willUpdate(changed: Map<string, unknown>): void {
     if (!changed.has("railroad") && !changed.has("current")) return;
+    // A try waiting is a try on the railroad that was showing, in the view
+    // that was showing: neither is what to read when either changes.
+    this.drop();
     if (!this.current || this.railroad === null || this.railroad === this.held) return;
     void this.load(this.railroad);
   }
@@ -139,14 +153,46 @@ export class TcStock extends LitElement {
       this.stock = new Stock(roster, catalogue);
       this.train = Object.keys(roster.trains).sort()[0] ?? null;
       this.trouble = null;
-    } catch {
-      // A read fails only when the store is not answering: an installation
-      // with neither document is answered both empty ones. So the message
-      // names the fix rather than repeating what `fetch` said.
+    } catch (failure) {
+      if (this.held !== railroad) return;
+      // Which of the three it was is the store helper's to say
+      // (model/store.ts, #411). A fixed string here named `tc49 serve` for
+      // every one of them, and a proxy answering `GET /catalogue` with its own
+      // 404 page sent a person after a store that was up and answering (#405).
       this.stock = null;
       this.held = null;
-      this.trouble = "the store is not answering — run `tc49 serve`";
+      this.trouble = said(failure);
+      // Nothing came back, so there is something to wait for: the store
+      // starting, or whatever is in front of it learning where it is. A
+      // refusal is the store answering and would be refused again the same.
+      if (failure instanceof Unanswered) this.retry(railroad);
     }
+  }
+
+  /**
+   * Read again in a moment, unless a read is already waiting.
+   *
+   * There is nothing on this screen to press — the railroad is loaded and the
+   * documents are read when it arrives — so a person who kept looking at a
+   * message until they reloaded the page is what the run view's retry already
+   * spares an operator (PANEL.md). What runs is the same `load` the railroad
+   * arriving runs, and a screen that has read by the time it comes round is
+   * one it leaves alone.
+   */
+  private retry(railroad: string): void {
+    if (this.waiting !== null) return;
+    this.waiting = setTimeout(() => {
+      this.waiting = null;
+      if (this.current && this.railroad === railroad && this.stock === null) {
+        void this.load(railroad);
+      }
+    }, RETRY_MS);
+  }
+
+  /** Drop the try that is waiting, where there is one. */
+  private drop(): void {
+    if (this.waiting !== null) clearTimeout(this.waiting);
+    this.waiting = null;
   }
 
   override render() {
@@ -645,12 +691,6 @@ function value(event: Event): string {
 function millimetres(event: Event): number | null {
   const said = value(event).trim();
   return said === "" ? null : Number(said);
-}
-
-/** What a thrown refusal said, which for the store's routes is the
- *  validator's own words (`model/store.ts`). */
-function said(trouble: unknown): string {
-  return trouble instanceof Error ? trouble.message : String(trouble);
 }
 
 declare global {

@@ -447,6 +447,13 @@ export async function adoptRepository(url: string): Promise<BackupDoc> {
  */
 export class Unanswered extends Error {}
 
+/** What a failed call said: the words `ask` decided on, whichever of the three
+ *  it was. Every catch block over a route shows this and nothing of its own,
+ *  which is what keeps the three sets of words in one place (#411). */
+export function said(failure: unknown): string {
+  return failure instanceof Error ? failure.message : String(failure);
+}
+
 /** What a page says when `fetch` itself rejects: connection refused, the
  *  network down, the server gone. Nothing answered, so there is nothing to
  *  report but the fix. */
