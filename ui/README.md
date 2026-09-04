@@ -36,14 +36,16 @@ has gone. The page is reached as `localhost`; every server the script starts
 binds each interface, because the reverse proxy that serves
 `dev.rails49.org` reaches them from a container (../docs/DEPLOY.md).
 
-It also brings up the session the run view joins — a `tc49 live` on
-`ws://127.0.0.1:8766`, reached through the app's own origin at `/live` and
-started `--no-store` because the store is already up and outlives any one
-session. **The band's picker is the only thing that loads a railroad**, and the
-run view joins whatever is loaded: the socket path names it and the session
-builds it (#171). A railroad given to the script — `../scripts/dev.sh
-reversing-loops` — is the one the session comes up on rather than the one it is
-stuck with.
+It also brings up the broker the run view is a client of — mosquitto in a
+container of its own, `1883` for native clients and `9001` for the browser,
+reached through the app's own origin at `/mqtt`. It starts no app: each has a
+command line of its own and comes up alone (ADR-0059, decision 5), so a
+simulated railroad to drive is `python -m tc49.simulator --broker
+127.0.0.1:1883 --railroad reversing-loops --store http://127.0.0.1:8765`.
+**The broker is the only thing that loads a railroad**: the layout interface
+publishes its name on a retained row and the app reads its documents off the
+store, so switching railroads is restarting the apps and the band has no
+picker (ADR-0059, decision 2).
 
 `../scripts/dev.sh stop` puts down everything the script started and leaves
 alone anything it did not.
@@ -70,8 +72,8 @@ src/
     naming.ts    connection names, minted and written into the drawing
     store.ts     the routes, and which of the three ways a call to one
                  failed
-    trace.ts     the bridge's frames read as events, and the gestures written
-                 back
+    trace.ts     the broker's messages read as events, and the gestures
+                 published back
     views.ts     the views the app has of the railroad, and the hash they are
                  bookmarked by
     panel.ts     the run's model: bus payloads in, render state out
