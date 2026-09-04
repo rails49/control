@@ -63,6 +63,16 @@ its own route underneath and never a place you navigate to for its own sake. It
 is written the moment it is made, ahead of the roster, because a roster naming
 a model the installation has not got is refused whole (`store/stock.py`).
 
+**New model makes a product and never changes one.** The dialog refuses a name
+the catalogue already has — *there is already a model 'hopper'* — said beside
+the button as the dialog's other refusals are, and sends no `PUT`.
+`PUT /catalogue/<name>` replaces the document whole, so Create under a name in
+use would rewrite that product's kind, length and functions for every railroad
+in the installation, saying nothing, and would step around the length guard
+below: a placed train's derived length would move under the dispatcher.
+**Changing an existing product is done on its row**, behind that guard
+([#413](https://github.com/rails49/control/issues/413)).
+
 **Composing a train and placing it are two actions**
 ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)): a rake is durable
 and lives in the roster; where it stands belongs to the run. You make it up
@@ -198,8 +208,8 @@ the model with no DOM — promotion and the name it mints, the derived length,
 kind and functions, two locomotives of one product, what holds a car or a
 model, and the length guard. `ui/test/making.test.ts` mounts the app in this
 view against a store with no `catalogue/` and no roster and drives the
-controls: a model written the moment it is made, a train made up of a
-locomotive and three hoppers, the document that reaches
+controls: a model written the moment it is made, the dialog refusing a name the
+catalogue already has, a train made up of a locomotive and three hoppers, the document that reaches
 `PUT /rosters/<railroad>` with one car entry and three model entries, the guard
 killing a field while the run has that train placed, the run view showing a
 train made up here without a reload, and the three ways a call to the store
