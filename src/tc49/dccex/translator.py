@@ -21,11 +21,11 @@ nothing else moves.
 `tc49/layout/state/device/track` and `tc49/layout/state/device/link/dccex`.
 
 **It acts on an address only if it recognises it**, and there is no ownership
-table anywhere: a point or signal address whose first level is `dccex`, and
-any traction or function address, which is bare because a decoder answers to
-the number it was programmed with and traction cannot be split across systems
-(ADR-0045). An address nothing answers to does no harm, as a packet nobody
-picks up does.
+table anywhere: every point and signal address it hears, and every traction
+and function address, an address naming no system (ADR-0059). What this
+station has no packet for — a turnout numbered outside the accessory range,
+say — falls away where the packet is built. An address nothing answers to does
+no harm, as a packet nobody picks up does.
 
 **On connect it applies the retained desired state and does nothing else.**
 The desired values are the whole picture, so there is no handshake and no
@@ -110,8 +110,9 @@ from tc49.lib.payload import (
 _log = logging.getLogger(__name__)
 
 SYSTEM = "dccex"
-"""The first level of a point or signal address this app answers to, and the
-address `device/link` carries: a hardware system names itself once."""
+"""The address `device/link` carries: a hardware system names itself once. No
+address wears it — a point or signal address names no system (ADR-0059) — so
+this is the link row's key and nothing else."""
 
 HOST = "dccex-usb"
 PORT = 2560
@@ -258,12 +259,12 @@ class DccEx:
         recognises its own addresses and everything else is somebody's or
         nobody's, and an address nobody answers to does no harm.
 
-        The two address shapes differ and the difference is physical. Traction
-        and function are **bare** — a decoder answers to its number whoever
-        sends the packet — so every one of them is this app's while it is the
-        only thing driving track. A point or signal names its system first,
-        fixed wiring being splittable across systems, so those are this app's
-        only under `dccex`.
+        An address names no system (ADR-0059), so a point or signal address
+        is **every** one this app hears: it is the string the drawing carries
+        and the hardware answers to, and an address this station has no packet
+        for falls away where the packet is built, not here. Traction is one
+        level and a function two — the decoder and the function number — which
+        is the shape of the row rather than anyone's claim on it.
         """
         levels = address.split("/")
         if row == WANTED_TRACK:
@@ -273,7 +274,7 @@ class DccEx:
         if row == WANTED_FUNCTION:
             return len(levels) == 2 and all(levels)
         if row in (WANTED_POINT, WANTED_SIGNAL):
-            return len(levels) == 2 and levels[0] == SYSTEM and bool(levels[1])
+            return bool(address)
         return False
 
     def _act(self, wanted: Wanted) -> None:
@@ -579,16 +580,9 @@ def _built(wanted: Wanted) -> bytes | None:
         return None if value is None else commands.function(addr, number, value)
     if row == WANTED_POINT:
         position = desired_position(payload)
-        return None if position is None else commands.point(_addr(address), position)
+        return None if position is None else commands.point(address, position)
     if row == WANTED_SIGNAL:
         aspect = desired_aspect(payload)
-        return None if aspect is None else commands.signal(_addr(address), aspect)
+        return None if aspect is None else commands.signal(address, aspect)
     power = commanded_power(payload)
     return None if power is None else commands.track(power)
-
-
-def _addr(address: str) -> str:
-    """What the hardware answers to, out of an address that named its system
-    first. The system level has done its work by getting here — it is what
-    said the address was this app's — and the packet carries the rest."""
-    return address.split("/", 1)[1]

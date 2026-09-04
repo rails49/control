@@ -168,8 +168,8 @@ async def _retained_desired_state_is_applied_on_connect() -> None:
     and no session state to agree first."""
     bus, _ = bus_and_tap()
     wanted(bus, TRACTION, "460", {"addr": "460", "speed": 0.5})
-    wanted(bus, POINT, "dccex/5", {"addr": "dccex/5", "position": "thrown"})
-    wanted(bus, SIGNAL, "dccex/40", {"addr": "dccex/40", "aspect": "clear"})
+    wanted(bus, POINT, "5", {"addr": "5", "position": "thrown"})
+    wanted(bus, SIGNAL, "40", {"addr": "40", "aspect": "clear"})
     port = Port()
     async with running(bus, port):
         station = await port.opened()
@@ -185,7 +185,7 @@ async def _track_is_applied_before_everything_else() -> None:
     """Power reaches the rails before a turnout is asked to throw, whatever
     order the topics were first heard in."""
     bus, _ = bus_and_tap()
-    wanted(bus, POINT, "dccex/5", {"addr": "dccex/5", "position": "closed"})
+    wanted(bus, POINT, "5", {"addr": "5", "position": "closed"})
     wanted(bus, TRACK, "", {"power": "on"})
     port = Port()
     async with running(bus, port):
@@ -220,16 +220,34 @@ async def _value_that_arrives_while_the_link_is_down_waits_for_it() -> None:
 # -- what this app answers for -------------------------------------------
 
 
-def test_a_point_naming_another_system_sends_nothing() -> None:
-    asyncio.run(_point_naming_another_system_sends_nothing())
+def test_every_point_address_is_acted_on() -> None:
+    asyncio.run(_every_point_address_is_acted_on())
 
 
-async def _point_naming_another_system_sends_nothing() -> None:
-    """No ownership table: this app recognises its own addresses and an
-    address nothing answers to does no harm, as a packet nobody picks up
-    does."""
+async def _every_point_address_is_acted_on() -> None:
+    """An address names no system (ADR-0059): it is the string the drawing
+    carries and the hardware answers to, so `5` is a turnout this station
+    throws and there is no level in front of it to look at."""
     bus, _ = bus_and_tap()
-    wanted(bus, POINT, "jmri/LT3", {"addr": "jmri/LT3", "position": "thrown"})
+    wanted(bus, POINT, "5", {"addr": "5", "position": "thrown"})
+    wanted(bus, SIGNAL, "40", {"addr": "40", "aspect": "clear"})
+    port = Port()
+    async with running(bus, port):
+        station = await port.opened()
+        assert await station.heard(2) == [b"<a 2 0 1>", b"<A 40 2>"]
+        await station.heard_nothing_more()
+
+
+def test_an_address_this_station_has_no_packet_for_sends_nothing() -> None:
+    asyncio.run(_address_this_station_has_no_packet_for_sends_nothing())
+
+
+async def _address_this_station_has_no_packet_for_sends_nothing() -> None:
+    """No ownership table: the app acts on every address it hears and the
+    packet is where one it cannot express falls away, so an address nothing
+    answers to does no harm, as a packet nobody picks up does."""
+    bus, _ = bus_and_tap()
+    wanted(bus, POINT, "LT3", {"addr": "LT3", "position": "thrown"})
     port = Port()
     async with running(bus, port):
         station = await port.opened()
@@ -242,11 +260,11 @@ def test_a_traction_address_is_bare_and_is_this_apps() -> None:
 
 async def _traction_address_is_bare_and_is_this_apps() -> None:
     """A decoder answers to the number it was programmed with whoever sends
-    the packet, and traction cannot be split across systems, so every bare
-    address is acted on — and one wearing a system is not a traction
+    the packet, so every bare address is acted on — and one of two levels is
+    a function's, the decoder and the function number, and not a traction
     address at all."""
     bus, _ = bus_and_tap()
-    wanted(bus, TRACTION, "dccex/3", {"addr": "dccex/3", "speed": 1.0})
+    wanted(bus, TRACTION, "3/2", {"addr": "3/2", "speed": 1.0})
     wanted(bus, FUNCTION, "3/2", {"addr": "3", "function": "2", "value": "on"})
     port = Port()
     async with running(bus, port):
@@ -269,7 +287,7 @@ async def _frame_that_cannot_be_read_is_dropped() -> None:
         station = await port.opened()
         wanted(bus, TRACTION, "3", {"addr": "3", "speed": "fast"})
         wanted(bus, TRACTION, "4", {"addr": "4", "speed": True})
-        wanted(bus, POINT, "dccex/5", {"addr": "dccex/5"})
+        wanted(bus, POINT, "5", {"addr": "5"})
         wanted(bus, TRACK, "", {"power": "maybe"})
         bus.drain()
         await station.heard_nothing_more()
@@ -665,7 +683,7 @@ async def _no_position_is_ever_observed() -> None:
     port = Port()
     async with running(bus, port):
         station = await port.opened()
-        wanted(bus, POINT, "dccex/5", {"addr": "dccex/5", "position": "thrown"})
+        wanted(bus, POINT, "5", {"addr": "5", "position": "thrown"})
         bus.drain()
         assert await station.heard(1) == [b"<a 2 0 1>"]
         station.says(b"<H 1 1>", b"<p1>")
