@@ -53,6 +53,16 @@ up.
 rake for. Unmaking a train leaves its cars on the roster — composing a train
 and owning the stock are two things.
 
+**The `+` buttons name one train, and it is always a train there is.** A press
+on the left puts a car or a model at the tail of the **current** train — the
+row drawn as current, which is the one you last made up or clicked. Unmaking
+that train hands the current row to the first train left, the pick reading the
+documents makes; unmaking the last one leaves no target at all, and the `+`
+buttons are dead with *make a train up first*, as they are before any train
+exists. The `×` does not select the row it removes: it used to, and every `+`
+was then left naming a train that was gone, doing nothing and saying nothing
+when pressed ([#416](https://github.com/rails49/control/issues/416)).
+
 **Kind never implies an address.** A powered van is a real thing
 (`layout/interface.py`), so the address field is offered on every entry and
 never assumed from what the model is.
@@ -122,6 +132,12 @@ edits — a `roster-edits` event, the way the run view says what its session is
 doing — and the app asks before the railroad moves. **Switching view changes no
 railroad**, so nothing is read again and the rake comes back as it was left.
 Closing or reloading the browser is not asked about; neither is the drawing.
+
+**A refused edit puts the field back.** A refusal changes the document by
+construction not at all, so the field is written back to what the document
+holds while the words say why: rename a car to `a/b` and the name goes back to
+the one the roster has. It used to keep the typed value, so the screen
+displayed a name, an address or a length nothing had (#416).
 
 **Refusals name what holds a thing.** A car a train is made of cannot be
 removed, and the message says which train. A model's row says what names it —
@@ -245,8 +261,9 @@ catalogue already has, a train made up of a locomotive and three hoppers, the do
 `PUT /rosters/<railroad>` with one car entry and three model entries, the guard
 killing a field while the run has that train placed, the run view showing a
 train made up here without a reload, the row an older roster's train draws and
-the first entry converting it, and the three ways a call to the store fails as
-this screen shows them. The words themselves are
+the first entry converting it, the current train moving when the one it named
+is unmade, the field a refusal puts back, and the three ways a call to the
+store fails as this screen shows them. The words themselves are
 `ui/test/asking.test.ts`'s, at the helper that decides them.
 
 The question over unsaved roster edits is `ui/test/opening.test.ts`'s, beside
