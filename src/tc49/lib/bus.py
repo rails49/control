@@ -118,11 +118,11 @@ class InProcessBus:
         return dict(self._last_values)
 
     def subscribe(self, topic_filter: str, handler: Handler) -> None:
-        _validate_filter(topic_filter)
+        validate_filter(topic_filter)
         subscription = (topic_filter, handler)
         self._subscriptions.append(subscription)
         for topic, payload in self._last_values.items():
-            if _matches(topic_filter, topic):
+            if matches(topic_filter, topic):
                 self._queue.append((topic, payload, subscription))
 
     def publish(self, topic: str, payload: Payload) -> None:
@@ -133,21 +133,12 @@ class InProcessBus:
         self._queue.append((topic, payload, None))
 
     def _stamped(self, payload: Payload) -> Payload:
-        """The value with this instant's stamp on it, leading its fields as
-        the inventory has it. Whatever ``at`` the payload arrived with is
-        gone: the stamp says when this bus published the value, and a caller
-        cannot state that on its behalf.
-
-        A payload that is not an object has no fields to put a stamp among,
-        so it is left exactly as it came — anything at all can arrive on a
-        topic and a retained file can be hand-edited (rule 4), and the value
-        reads as unstamped, which is a case `payload.Ordering` already has.
-        """
-        given = cast(object, payload)
-        if not isinstance(given, dict):
-            return payload
-        fields = cast(Payload, given)
-        return {AT: self._clock.now, **{k: v for k, v in fields.items() if k != AT}}
+        """The value with this instant's stamp on it, read off the run clock.
+        The clock is what this binding stamps from and the other binding's
+        wall time is what it stamps from, which is the whole of the
+        difference: a stamp says when the value was published, and processes
+        on a broker share no run clock (ADR-0059)."""
+        return stamped(payload, self._clock.now)
 
     def _persist(self) -> None:
         """The whole picture on every retained change, which a railroad can
@@ -161,11 +152,31 @@ class InProcessBus:
             topic, payload, target = self._queue.popleft()
             targets = [target] if target is not None else list(self._subscriptions)
             for topic_filter, handler in targets:
-                if _matches(topic_filter, topic):
+                if matches(topic_filter, topic):
                     handler(topic, payload)
 
 
-def _validate_filter(topic_filter: str) -> None:
+def stamped(payload: Payload, at: float) -> Payload:
+    """The value with `at` on it, leading its fields as the inventory has it.
+    Whatever ``at`` the payload arrived with is gone: the stamp says when the
+    binding published the value, and a caller cannot state that on its behalf.
+
+    A payload that is not an object has no fields to put a stamp among, so it
+    is left exactly as it came — anything at all can arrive on a topic and a
+    retained file can be hand-edited (rule 4), and the value reads as
+    unstamped, which is a case `payload.Ordering` already has.
+
+    Here rather than in either binding because both stamp, and only what they
+    read the instant off differs.
+    """
+    given = cast(object, payload)
+    if not isinstance(given, dict):
+        return payload
+    fields = cast(Payload, given)
+    return {AT: at, **{k: v for k, v in fields.items() if k != AT}}
+
+
+def validate_filter(topic_filter: str) -> None:
     # MQTT grammar: '#' only as the whole last level, '+' only as a whole level.
     levels = topic_filter.split("/")
     for i, level in enumerate(levels):
@@ -175,7 +186,7 @@ def _validate_filter(topic_filter: str) -> None:
             raise ValueError(f"invalid filter {topic_filter!r}: misplaced '+'")
 
 
-def _matches(topic_filter: str, topic: str) -> bool:
+def matches(topic_filter: str, topic: str) -> bool:
     filter_levels = topic_filter.split("/")
     topic_levels = topic.split("/")
     for i, level in enumerate(filter_levels):
