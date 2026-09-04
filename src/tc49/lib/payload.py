@@ -100,6 +100,12 @@ the topic it sits on: the two are read side by side here so that neither app
 has its own way of reading its own last value, and the entry-at-a-time rule
 they share is `_named`.
 
+The dispatcher's **run row** is read here beside the aspects, and for the
+same reason one step on (#407): `layout` is handed it so that the guard on a
+plain `off` is made where the command is answered rather than trusted to
+whoever sent it (ADR-0062). The run word and `moving` are one reading,
+because the guard wants the pair.
+
 The **stamp** a state payload carries is read here for the first reason of
 all (#240): it is a field like any other, arriving from another process,
 and a reader that subscripted it would be taken down by whatever wrote it.
@@ -284,6 +290,48 @@ def run_state(payload: object) -> str | None:
     if not isinstance(wanted, str) or wanted not in (HELD, RUNNING, DRAINING):
         return None
     return wanted
+
+
+@dataclass(frozen=True)
+class Run:
+    """The run as its **state** row states it: the word the dispatcher holds
+    it at, and whether anything is moving under it.
+
+    The two are read together because what asks for them wants the pair:
+    `layout`'s guard on a plain `off` refuses on `moving` as well as on the
+    run word, a held run being able to be moving (ADR-0062).
+    """
+
+    run: str
+    moving: bool
+
+
+def kept_run(payload: object) -> Run | None:
+    """The run a retained `tc49/dispatch/state/run` value states, or None
+    where it states none.
+
+    `run_state`'s opposite number on the reading direction of the one axis,
+    as `power` is `commanded_power`'s, and it fails the way a reading of
+    another app's state must: a value that cannot be read is no value, and
+    the caller goes on with whatever it already held.
+
+    **A row with no `moving` reads as nothing moving.** An older dispatcher
+    says nothing about what is under way, and an absence is not evidence that
+    a train is in motion — which is the direction the guard reading this
+    falls in, refusing on evidence and on nothing else (ADR-0062, #406). A
+    `moving` that is there and is not a boolean is another matter: that is a
+    row this build cannot read, and it is dropped whole.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    held = fields.get("run")
+    if not isinstance(held, str) or held not in (HELD, RUNNING, DRAINING):
+        return None
+    moving = fields.get("moving", False)
+    if not isinstance(moving, bool):
+        return None
+    return Run(held, moving)
 
 
 def power(payload: object) -> str:

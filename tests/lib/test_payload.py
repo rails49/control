@@ -21,6 +21,7 @@ from tc49.lib.payload import (
     Ordering,
     Picture,
     Placement,
+    Run,
     Throttle,
     alignment,
     chosen,
@@ -36,6 +37,7 @@ from tc49.lib.payload import (
     granted_aspect,
     kept_allocation,
     kept_facing,
+    kept_run,
     link_up,
     named_train,
     occupancy,
@@ -216,6 +218,41 @@ def test_a_payload_naming_no_run_state_reads_as_none() -> None:
     ]
     for payload in refused:
         assert run_state(payload) is None, payload
+
+
+def test_a_run_row_reads_as_the_word_and_what_moves_under_it() -> None:
+    """The state row's pair, which `layout` reads to guard a plain `off`:
+    `moving` rides beside the run word and is not a fourth value of it, so a
+    held run can be moving and a running one need not be (ADR-0062)."""
+    assert kept_run({"at": 1.0, "run": "held", "moving": False}) == Run(HELD, False)
+    assert kept_run({"at": 1.0, "run": "held", "moving": True}) == Run(HELD, True)
+    assert kept_run({"run": "running", "moving": False}) == Run(RUNNING, False)
+    assert kept_run({"run": "draining", "moving": True}) == Run(DRAINING, True)
+
+
+def test_a_run_row_without_moving_reads_as_nothing_moving() -> None:
+    """An older dispatcher says nothing about what is under way, and an
+    absence is not evidence that a train is in motion — the direction the
+    guard reading this falls in (#406)."""
+    assert kept_run({"run": "held"}) == Run(HELD, False)
+    assert kept_run({"run": "running"}) == Run(RUNNING, False)
+
+
+def test_a_run_row_that_cannot_be_read_reads_as_none() -> None:
+    """A reading of another app's state fails whole: the caller goes on with
+    the value it already held, rather than forgetting the run on one frame.
+    A `moving` that is there and is not a boolean is such a frame — absence
+    is a row an older build wrote, and a number is one nobody did."""
+    refused: list[object] = [
+        "held",  # not an object at all
+        {},  # no run
+        {"run": None},
+        {"run": "drained"},
+        {"run": "held", "moving": 1},  # the int a boolean is not
+        {"run": "held", "moving": "false"},
+    ]
+    for payload in refused:
+        assert kept_run(payload) is None, payload
 
 
 def test_a_power_payload_reads_as_the_value_the_layout_states() -> None:
