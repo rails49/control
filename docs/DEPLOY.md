@@ -91,7 +91,7 @@ to run anything else (#354). Every service below is built from one image,
 | --- | --- | --- |
 | the app, over the certificate | 443 | `https://layout.rails49.org` |
 | the redirect to it | 80 | `layout.rails49.org` typed bare |
-| the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/rosters`, `/catalogue` |
+| the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue` |
 | the broker, native clients | 1883 | the LAN address |
 | the broker, a browser | 9001, and `/mqtt` | plaintext on the LAN, or through the proxy from a TLS page |
 | `dccex-usb`, the command station mirrored | 2560 | the LAN address |
@@ -247,7 +247,7 @@ change reaches the proxy through `scripts/deploy.sh` alone.
 | --- | --- | --- |
 | `/live/<railroad>` | the bridge, `:8766`, prefix stripped | the same |
 | `/mqtt` | — | the broker's websocket listener, `:9001`, prefix stripped |
-| `/backup`, `/drawings`, `/review`, `/rosters`, `/catalogue` | vite's own proxy to the store | the store, `:8765` |
+| `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue` | vite's own proxy to the store | the store, `:8765` |
 | everything else | vite, `:5173` | `ui/dist` through nginx |
 
 `/mqtt` is there for the same reason `/live` is: a page served over TLS cannot
