@@ -386,7 +386,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/dispatch/lock_released` | event | dispatcher | resources released |
 | `tc49/dispatch/train_placed` | event | dispatcher | a placement accepted, the standing lock moved with it |
 | `tc49/dispatch/train_removed` | event | dispatcher | a train taken off the layout |
-| `tc49/dispatch/state/run` | state | dispatcher | held, running or draining ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)) |
+| `tc49/dispatch/state/run` | state | dispatcher | held, running or draining, and whether anything is moving ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md), [ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
 | `tc49/dispatch/state/disputed` | state | dispatcher | where the detectors contradict the placement ([#153](https://github.com/rails49/control/issues/153)) |
@@ -559,6 +559,13 @@ payload is read defensively, and one that fails the read is dropped.
   reader drops an unreadable value (CONTEXT.md). The dispatcher writes
   `draining` when it is asked for and writes `held` itself when the drain
   completes ([#294](https://github.com/rails49/control/issues/294)).
+  `moving`: boolean, true while any train is active or crossing — the same
+  test the drain's completion makes — and false otherwise. It is orthogonal
+  to `run` and not a fourth value of it: a held run can be moving, because a
+  move already granted runs to its sensor, and a running run with nothing
+  granted is not. The row is republished when `moving` changes with the run
+  word standing
+  ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
 - `tc49/dispatch/state/aspects` — `aspects`: map of signalled block end to
   aspect. An end nothing ever leaves does not appear.
 - `tc49/dispatch/state/disputed` — `trains`: sorted list of trains standing
@@ -915,6 +922,18 @@ press that asked for it. `held` published while a drain is in progress
 `running` resumes launching; a drain that a train holds open forever is
 escaped that way, by holding and then removing the train, which drops its
 request ([#294](https://github.com/rails49/control/issues/294)).
+
+**`moving` says whether anything would be stranded**, beside the run word and
+orthogonal to it: true while any train is active or crossing, which is the
+test the drain's completion already makes. `held` alone does not say it — the
+dispatcher writes that word when a drain completes and a person's HOLD writes
+the same word with trains still rolling — so the row carries both, and a
+reader that wants to know the railroad is still reads `held` with `moving`
+false. The row is published whenever either moves: a running run whose last
+train arrives publishes `running` with `moving` false, and a value that
+changes nothing publishes nothing. `layout` reads it before applying a plain
+`off`, and the panel's OFF waits on it before cutting power
+([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
 
 **The layout can hold it too.** A `tc49/layout/state/power` value that is
 anything but `on` sets `run` to `held`, along the path a person's gesture

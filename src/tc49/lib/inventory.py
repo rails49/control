@@ -90,7 +90,7 @@ TOPICS: dict[str, Topic] = {
     "tc49/dispatch/lock_released": Topic(("train", "resources")),
     "tc49/dispatch/train_placed": Topic(("train", "block")),
     "tc49/dispatch/train_removed": Topic(("train",)),
-    "tc49/dispatch/state/run": Topic((AT, "run")),
+    "tc49/dispatch/state/run": Topic((AT, "run", "moving")),
     "tc49/dispatch/state/aspects": Topic((AT, "aspects")),
     "tc49/dispatch/state/disputed": Topic((AT, "trains", "blocks")),
     "tc49/dispatch/state/allocation": Topic(
@@ -207,7 +207,15 @@ completion (ADR-0037).
 
 Not to be read as the ``held`` ``grant_refused`` reason, which says a
 resource is locked by another train and is a different thing on a different
-topic (CONTEXT.md)."""
+topic (CONTEXT.md).
+
+``moving`` rides beside them on the state row and is not a fourth value: a
+boolean, true while any train is **active** or **crossing**, so a power cut
+now would strand it (CONTEXT.md, **Moving**; ADR-0062). It is orthogonal to
+the three — a `held` run can be moving, because a move already granted runs
+to its sensor, and a `running` run with nothing granted is not — and it is
+what says the drain's completion apart from a person's HOLD, which writes the
+same word with trains still rolling (#406)."""
 
 
 AUTOMATIC = "automatic"
