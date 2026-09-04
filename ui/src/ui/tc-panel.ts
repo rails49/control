@@ -1,16 +1,18 @@
 /**
  * The run view (ui/PANEL.md): the drawing with the railroad's state painted on
- * top, fed by a live session over the bridge, and scheduling by drag and
+ * top, fed by the broker it is a client of, and scheduling by drag and
  * turning a train around by right-click.
  *
  * The railroad it is painting is not its own — the app holds it and hands over
  * the drawing and the review
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
- * **The loaded railroad is the session**: a run is built from a railroad and
- * nothing else ([#171](https://github.com/rails49/control/issues/171)), so the
- * band's picker is the only thing that sets which one, and this joins whatever
- * it has loaded. There is no session of its own to pick, and no way for the
- * two to name different railroads.
+ * **The broker says which railroad it is**: one broker runs one railroad and
+ * the layout interface publishes its name on a retained row
+ * ([ADR-0059](../../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+ * decision 2), so this reads that row and the app loads the documents from the
+ * store. There is no picker and no session of its own to choose: switching
+ * railroads is restarting the apps, and the two cannot come to name different
+ * ones.
  *
  * **It draws none of it.** `tc-canvas` in run mode is the surface, the same one
  * the editor draws on, so the viewport, the wires, the symbols and the labels
@@ -25,12 +27,13 @@
  * whether a train is busy all arrive as data.
  *
  * Its one source is the bus (ADR-0038). Reading a recorded trace was how this
- * view was built before `tc49 live` existed; a trace is the harness's now, and
- * a session is the only thing that feeds a picture.
+ * view was built before there was anything live to join; a trace is the
+ * harness's now, and the broker is the only thing that feeds a picture.
  */
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import mqtt, { type MqttClient } from "mqtt";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 
 import {
@@ -70,9 +73,11 @@ import {
   reversal,
   runWanted,
   throttleWanted,
+  type Frame,
   type Mode,
   type Power,
   type Run,
+  type TraceEvent,
 } from "../model/trace.js";
 import { panelStyles } from "./tc-panel.styles.js";
 import "./tc-canvas.js";
@@ -130,31 +135,53 @@ interface Clicked {
  *  handler cannot drift apart. */
 const TURN_AROUND = "turn-around";
 
-/** Where the bridge is, as the page it is asked from says.
+/** Where the broker is, as the page it is asked from says.
  *
- *  One path on the page's own origin, `/live`, which vite proxies in
+ *  One path on the page's own origin, `/mqtt`, which vite proxies in
  *  development and the reverse proxy strips in front of a layout server
  *  (docs/DEPLOY.md), so the URL the panel builds is the same either way. The
  *  scheme follows the page's: a plain `ws://` from a page served over TLS is
  *  mixed content and the browser refuses it, which is what a port of its own
  *  would have forced (ADR-0042).
  *
- *  `?bridge=` overrides it for a session somewhere else, and that is the
- *  whole of the browser's configuration — the railroad is not part of it, the
- *  panel naming that in the socket path (#148).
+ *  `?broker=` overrides it for a broker somewhere else, and that is the whole
+ *  of the browser's configuration — the railroad is not part of it, one
+ *  broker running one railroad and saying which on a retained row (ADR-0059,
+ *  decision 2).
  */
-export function bridgeAt(page: {
+export function brokerAt(page: {
   protocol: string;
   host: string;
   search: string;
 }): string {
-  const named = new URLSearchParams(page.search).get("bridge");
+  const named = new URLSearchParams(page.search).get("broker");
   if (named !== null) return named;
   const scheme = page.protocol === "https:" ? "wss" : "ws";
-  return `${scheme}://${page.host || "localhost:5173"}/live`;
+  return `${scheme}://${page.host || "localhost:5173"}/mqtt`;
 }
 
-const BRIDGE = bridgeAt(location);
+const BROKER = brokerAt(location);
+
+/** Everything of ours, which is the whole of what a page subscribes: the
+ *  retained rows arrive as the subscription lands and the events follow
+ *  (ADR-0032). One filter and not a list — the panel already reads a subset of
+ *  what arrives (model/panel.ts), and a list here would be a second inventory
+ *  to keep in step. */
+const OURS = "tc49/#";
+
+/** The row the layout interface publishes to say which railroad this broker
+ *  runs ([#371](https://github.com/rails49/control/issues/371)). Read here and
+ *  not applied to the model: it is the page's whole choice of railroad, and
+ *  the picture is about the one it names. */
+const RAILROAD = "tc49/layout/state/railroad";
+
+/** How much of the bus is held while a page waits for its documents. The
+ *  broker names the railroad and the store is then asked for the drawing it
+ *  means, and everything published in between — the retained picture at the
+ *  front of it — has nowhere to go until the model those documents build
+ *  exists. A page whose documents never arrive draws nothing whatever it
+ *  holds, so the hold stops here rather than growing without bound. */
+const HELD = 1000;
 
 @customElement("tc-panel")
 export class TcPanel extends LitElement {
@@ -173,13 +200,14 @@ export class TcPanel extends LitElement {
    *  the bus, so nothing publishes a roster change (ADR-0010): a person who
    *  adds a locomotive on the stock screen and switches here must see it, and
    *  the run keeps the roster it joined with until then (ui/STOCK.md). It is
-   *  the roster and not the session — the socket is untouched, and what the
+   *  the roster and not the session — the connection is untouched, and what the
    *  bus says about where the trains are is not re-read, because nothing about
-   *  it went stale. */
+   *  it went stale. The connection is untouched: it is the page's and not a
+   *  view's. */
   @property({ type: Boolean }) current = false;
 
-  /** The railroad a live session is joined on, `null` while none is. It is
-   *  the loaded railroad or nothing (#171). */
+  /** The railroad the broker says it runs, `null` while it has not said —
+   *  before the connection lands, and again after it has gone (#371). */
   @state() private session: string | null = null;
   @state() private connected = false;
   @state() private trouble: string | null = null;
@@ -216,9 +244,21 @@ export class TcPanel extends LitElement {
    *  viewport should be looking. */
   private fitting = false;
   private live: Live | null = null;
-  private socket: WebSocket | null = null;
-  /** Joins started, so an overtaken one can tell that it has been. */
-  private joins = 0;
+  /** The page's one connection to the broker, `null` before the view is on
+   *  screen and after it has gone. It belongs to the page and not to a
+   *  railroad: one broker runs one railroad (ADR-0059, decision 2), so it is
+   *  opened once and kept. */
+  private client: MqttClient | null = null;
+  /** Whether the roster of the railroad the broker named has been read. The
+   *  store is not on the bus, so a read that failed is retried until it
+   *  lands — and a railroad that owns no stock is read, not empty. */
+  private stocked = false;
+  /** What arrived between the broker naming the railroad and the store
+   *  answering for its documents, `null` when there is nothing to wait for.
+   *  Retained values arrive as the subscription lands (ADR-0032) and there is
+   *  no second delivery of them, so a page that dropped them would show an
+   *  empty railroad until something happened to be published. */
+  private held: TraceEvent[] | null = null;
   /** The retry waiting to be made, `null` while none is. */
   private waiting: ReturnType<typeof setTimeout> | null = null;
   private readonly drag = new Drag();
@@ -232,8 +272,18 @@ export class TcPanel extends LitElement {
     onRoster: (screen) => this.overRoster(screen),
   });
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.connect();
+  }
+
   override disconnectedCallback(): void {
     this.leave();
+    this.connected = false;
+    const going = this.client;
+    this.client = null;
+    going?.end(true);
+    this.live = null;
     super.disconnectedCallback();
   }
 
@@ -257,69 +307,126 @@ export class TcPanel extends LitElement {
       if (name !== this.built) this.gone();
       return;
     }
-    if (name === this.built) {
-      // Loaded again with no session on it — the store was not answering when
-      // it first arrived, or the session dropped this client — is how a page
-      // gets back in, there being no picker of this view's own to re-press
-      // (#171). The model is reused, so what the last session left in it that
-      // no retained topic will replace goes first.
-      if (this.session === null) {
-        this.panel?.reset();
-        void this.join(name);
-      }
-      return;
-    }
-    // A railroad swapped under a joined session would paint one railroad's
-    // events on another's picture, which is what naming the session in the
-    // socket path was for (#148).
-    this.leave();
+    if (name === this.built) return;
+    // A railroad swapped under a menu or a drag leaves both about a train on
+    // the one that went.
+    this.drag.cancel();
+    this.menu = null;
+    this.released = null;
     this.panel = new Panel(layout, explain, this.drawing!.wires);
     this.built = name;
     this.fitting = true;
+    for (const event of this.held ?? []) this.panel.apply(event);
+    this.held = null;
+    this.wasRunning = this.panel.run === "running";
     this.beat++;
-    void this.join(name);
   }
 
-  /** The railroad went away, or stopped deriving. There is nothing to paint
-   *  and nothing for a session to be a session of. */
+  /** The railroad went away, or stopped deriving. There is nothing to paint,
+   *  which is a fact about the documents and not about the bus: the broker
+   *  goes on running the railroad it named, and the band says why nothing is
+   *  drawn. */
   private gone(): void {
-    this.leave();
     this.panel = null;
     this.built = null;
     this.beat++;
   }
 
-  // --- joining a live session -----------------------------------------------
+  // --- the broker, and the railroad it runs ---------------------------------
 
   /**
-   * Join the session on the railroad the app has loaded: its roster, then the
-   * bridge on the path that names it.
+   * Open the page's one connection to the broker and subscribe everything of
+   * ours.
    *
-   * The railroad is the whole of the choice (#171): the socket path names it
-   * and the session builds it, so what is rendered and what is fed can never
-   * be two railroads. The roster is read here because it is the railroad's
+   * It is not a railroad's connection. One broker runs one railroad and says
+   * which on a retained row (ADR-0059, decision 2), so this is opened when the
+   * view is mounted and kept for as long as it is on screen; what changes
+   * under it is which railroad the row names.
+   *
+   * **Getting back in is the client's own.** MQTT.js reconnects at `RETRY_MS`
+   * and resubscribes, and a fresh subscription is answered with every retained
+   * row (ADR-0032) — the picture the page had, republished. So there is no
+   * retry of this view's here, and the only one left is the store's, the store
+   * not being on the bus.
+   */
+  private connect(): void {
+    this.live = new Live();
+    const client = mqtt.connect(BROKER, {
+      reconnectPeriod: RETRY_MS,
+      // A page keeps nothing across a reload and wants the retained rows
+      // again, which is what a clean session is.
+      clean: true,
+    });
+    client.on("connect", () => {
+      if (client !== this.client) return;
+      // Every retained row is about to be replayed, so what the last
+      // connection left in the model that no retained row will replace goes
+      // first — an event is reported once and never comes round again.
+      this.panel?.reset();
+      this.connected = true;
+      this.trouble = null;
+      client.subscribe(OURS);
+      this.beat++;
+    });
+    client.on("message", (topic, payload) => {
+      if (client !== this.client) return;
+      this.heard(topic, new TextDecoder().decode(payload));
+    });
+    client.on("close", () => {
+      if (client !== this.client || !this.connected) return;
+      // The broker has gone. What it was saying is no longer being said, so
+      // the page holds no session at all: the roster empties, the drawing
+      // thaws, and the picture the last frame left stays on screen with
+      // nothing to gesture at.
+      this.connected = false;
+      this.leave();
+      this.beat++;
+    });
+    client.on("error", () => {
+      if (client !== this.client) return;
+      this.trouble = `no broker at ${BROKER}`;
+    });
+    this.client = client;
+  }
+
+  /**
+   * Which railroad this broker runs, as the layout interface says on its
+   * retained row (#371).
+   *
+   * It is the whole of the page's choice. The app holds the loaded railroad
+   * and hands the documents down (ADR-0038), so this says which and the app
+   * reads it from the store; there is no picker, switching railroads being
+   * restarting the apps. The roster is read here because it is the railroad's
    * asset and not the run's — what stock there is to place, which no topic
    * carries (ADR-0039). Everything else comes off the bus: placement, locks
    * and live requests off the dispatcher's retained picture, facing off the
    * scheduler's (ADR-0032, ADR-0036).
-   *
-   * **Only the latest join opens a socket.** The picker may be pressed
-   * several times before a store answers, including back onto the railroad
-   * already asked for, and an overtaken join that went on to `listen` would
-   * leave a second socket open on the same run — every frame applied twice,
-   * and its eventual close flipping a live session to disconnected. So each
-   * join takes a number and drops itself if another has been started since;
-   * `leave` takes one too, which is what abandons a join in flight.
    */
-  private async join(railroad: string): Promise<void> {
-    const mine = ++this.joins;
+  private named(railroad: string): void {
+    if (railroad === this.session) return;
+    this.leave();
+    this.session = railroad;
+    this.held = [];
+    this.beat++;
+    this.dispatchEvent(
+      new CustomEvent<string>("railroad", {
+        detail: railroad,
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    void this.read(railroad);
+  }
+
+  /** The railroad's roster, off the store. A read that fails says so and is
+   *  tried again: the store is not on the bus, so nothing will republish it. */
+  private async read(railroad: string): Promise<void> {
     try {
       const stock = await readTrains(railroad);
-      if (mine !== this.joins || this.built !== railroad) return;
+      if (this.session !== railroad) return;
       this.stock = stock.trains;
-      this.session = railroad;
+      this.stocked = true;
       this.trouble = null;
-      this.listen();
       this.beat++;
     } catch (failure) {
       // Which of the three it was is the store helper's to say (model/store.ts,
@@ -327,19 +434,19 @@ export class TcPanel extends LitElement {
       // else, or the store refusing. A fixed string here named the fix for the
       // first whichever it was, and sent a person after a store that was up
       // (#405).
+      if (this.session !== railroad) return;
       this.trouble = said(failure);
-      if (mine === this.joins) this.retry();
+      this.retry();
     }
   }
 
   /**
    * The railroad's roster, read again over a session that is already up.
    *
-   * Only the roster: the session is joined, the socket is open and every
-   * retained topic has been replayed, so re-joining would take a live picture
-   * down to bring back a document. A read that fails leaves what the view
-   * already has — the roster it joined with is a better answer than none, and
-   * the store not answering is already said elsewhere.
+   * Only the roster: the connection is open and every retained topic has been
+   * replayed, so there is nothing else to go back for. A read that fails
+   * leaves what the view already has — the roster it joined with is a better
+   * answer than none, and the store not answering is already said elsewhere.
    */
   private async reread(railroad: string): Promise<void> {
     try {
@@ -350,61 +457,32 @@ export class TcPanel extends LitElement {
     }
   }
 
-  /** Try the loaded railroad again in a moment, unless a try is already
-   *  waiting. What runs it is the same `join` the picker runs, so a session
-   *  reached this way is a session reached any other way. */
+  /** Read the roster again in a moment, unless a read is already waiting. Only
+   *  one is ever waiting, so a second failure inside the interval does not
+   *  start a second run of tries. */
   private retry(): void {
     if (this.waiting !== null) return;
     this.waiting = setTimeout(() => {
       this.waiting = null;
-      if (this.built !== null && this.session === null) void this.join(this.built);
+      const railroad = this.session;
+      if (railroad !== null && !this.stocked) void this.read(railroad);
     }, RETRY_MS);
   }
 
-  /** Open the socket on the railroad's own path: the session runs the
-   *  railroad named there, building it if it is running another, and
-   *  switching is the `leave` and `listen` `willUpdate` already does. */
-  private listen(): void {
-    this.live = new Live();
-    const at = `${BRIDGE}/${this.session}`;
-    const socket = new WebSocket(at);
-    socket.addEventListener("open", () => {
-      this.connected = true;
-      this.trouble = null;
-    });
-    socket.addEventListener("message", (frame) => this.heard(String(frame.data)));
-    socket.addEventListener("close", () => {
-      // Only for the socket still on screen: a swap closes the old one after
-      // the new one is open, and that late close must not take the live
-      // session down with it.
-      if (socket !== this.socket) return;
-      // The session has dropped this client — it switched railroads under one
-      // operator, or the process went. What it was saying is no longer being
-      // said, so the page holds no session at all: the roster empties, the
-      // drawing thaws, and pressing the band's picker is what gets back in
-      // (#171). Exactly what leaving one was, which is why it is that.
-      this.leave();
-      this.beat++;
-      this.retry();
-    });
-    socket.addEventListener("error", () => {
-      this.trouble = `no session at ${at} — run \`tc49 live\``;
-    });
-    this.socket = socket;
-  }
-
-  private heard(message: string): void {
-    if (this.live === null || this.panel === null) return;
-    const heard = this.live.read(message);
-    if (heard === null) return;
-    // The session refusing something — a railroad it does not have, a frame
-    // it will not relay — is shown rather than swallowed: it is the only
-    // answer a gesture or a join ever gets when it goes wrong.
-    if ("error" in heard) {
-      this.trouble = heard.error;
+  private heard(topic: string, payload: string): void {
+    if (this.live === null) return;
+    const event = this.live.read(topic, payload);
+    if (event === null) return;
+    if (topic === RAILROAD) {
+      const name = event["name"];
+      if (typeof name === "string") this.named(name);
       return;
     }
-    this.panel.apply(heard.event);
+    if (this.panel === null) {
+      if (this.held !== null && this.held.length < HELD) this.held.push(event);
+      return;
+    }
+    this.panel.apply(event);
     // An open menu is about one train in one block, and the run can end
     // both. It is taken down rather than hidden: a menu merely filtered out
     // of the render leaves nothing to dismiss and springs back the next time
@@ -422,7 +500,7 @@ export class TcPanel extends LitElement {
     // nothing else: the value standing between the press and the
     // dispatcher's answer is the one the press was made against, so a frame
     // about anything else leaves the wait alone.
-    if (this.draining && heard.event.event === "run") {
+    if (this.draining && event.event === "run") {
       if (this.panel.run === "running") {
         // A drain somebody abandoned — this panel's GO or another's — and the
         // wait goes with it. Left standing, a HOLD hours later would cut the
@@ -442,7 +520,7 @@ export class TcPanel extends LitElement {
 
   /**
    * Hold the run, or release it: one `run_wanted` naming where it should
-   * stand (ADR-0037). The app presses it on the bar, the socket is here, and
+   * stand (ADR-0037). The app presses it on the bar, the client is here, and
    * the dispatcher's answer comes back on `state/run` and redraws the button.
    *
    * Releasing with disputes outstanding is allowed — the person decides, not
@@ -454,18 +532,18 @@ export class TcPanel extends LitElement {
    * running.
    */
   press(run: Run): void {
-    // `connected` and not merely a socket: sending on a closed one is
-    // discarded rather than thrown, and the notice below would then stand
-    // for a release the dispatcher never heard.
-    if (this.socket === null || !this.connected || this.panel === null) return;
+    // `connected` and not merely a client: MQTT.js queues a publish made
+    // while it is reconnecting, and the notice below would then stand for a
+    // release the dispatcher never heard.
+    if (!this.connected || this.panel === null) return;
     this.released = run === "running" ? outstanding(this.panel.disputes()) : null;
-    this.socket.send(runWanted(run));
+    this.send(runWanted(run));
   }
 
   /**
    * ON, STOP or OFF, pressed on the band: what the whole railroad's supply
    * should be doing ([ADR-0051](../../../docs/adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
-   * The socket is this view's, so the press comes here, as HOLD and GO do.
+   * The client is this view's, so the press comes here, as HOLD and GO do.
    *
    * **OFF is the drain trigger and never an immediate cut.** It asks the run
    * to drain — always, a held run included, because a held run can still be
@@ -484,10 +562,10 @@ export class TcPanel extends LitElement {
    * emergency stop asks the rails for less rather than the run for more.
    */
   pressPower(power: Power): void {
-    if (this.socket === null || !this.connected || this.panel === null) return;
+    if (!this.connected || this.panel === null) return;
     if (power === "off") {
       this.draining = true;
-      this.socket.send(runWanted(DRAINING));
+      this.send(runWanted(DRAINING));
       // A run already held with nothing moving has nothing left to drain —
       // which is the whole of what the wait waits for — and the dispatcher
       // answering `held` with `held` publishes no frame for `heard` to see,
@@ -496,7 +574,7 @@ export class TcPanel extends LitElement {
       return;
     }
     this.draining = false;
-    this.socket.send(powerWanted(power));
+    this.send(powerWanted(power));
   }
 
   /**
@@ -506,7 +584,7 @@ export class TcPanel extends LitElement {
    *
    * The throttle view is another view of this app and holds no session, so
    * its gestures come here, exactly as the band's power presses do — one
-   * socket per page, and the topics are ones this view already writes.
+   * client per page, and the topics are ones this view already writes.
    * `layout` answers by publishing `state/mode`, and the view reads who is
    * driving off that rather than off its own press (ADR-0035).
    */
@@ -529,12 +607,12 @@ export class TcPanel extends LitElement {
     this.send(reversal(train));
   }
 
-  /** One frame, over a session that is answering. `connected` and not merely
-   *  a socket: a send on a closed one is discarded rather than thrown, and a
+  /** One frame, published on its own topic. `connected` and not merely a
+   *  client: MQTT.js queues a publish made while it is reconnecting, and a
    *  gesture nobody heard must not look like one that landed. */
-  private send(frame: string): void {
-    if (this.socket === null || !this.connected) return;
-    this.socket.send(frame);
+  private send(frame: Frame): void {
+    if (this.client === null || !this.connected) return;
+    this.client.publish(frame.topic, JSON.stringify(frame.payload));
   }
 
   /** Whether the drain has landed: the run reads `held` and the row says
@@ -556,31 +634,28 @@ export class TcPanel extends LitElement {
   /** The supply removed, once the drain has landed. */
   private cut(): void {
     this.draining = false;
-    if (this.socket !== null && this.connected) this.socket.send(powerWanted("off"));
+    this.send(powerWanted("off"));
   }
 
+  /** The session goes: the broker has stopped answering, or it has named
+   *  another railroad. What the model holds is kept — a page getting back in
+   *  must not flash — and everything the last session put on screen of its own
+   *  goes. */
   private leave(): void {
-    this.joins++; // whatever join is in flight is not this railroad's
     if (this.waiting !== null) clearTimeout(this.waiting);
     this.waiting = null;
     this.drag.cancel();
     this.menu = null;
     this.stock = {};
+    this.stocked = false;
     this.released = null;
     this.wasRunning = false;
+    this.held = null;
     // A session going away takes the wait with it: the run whose drain was
     // being watched is no longer being reported on, and a cut fired at the
     // next session's first `held` would be this one's press arriving late.
     this.draining = false;
-    // Let go of it before closing it, so the `close` that follows is one this
-    // no longer owns: the handler's own guard is what keeps a late close off
-    // a live session, and it reads this field.
-    const going = this.socket;
-    this.socket = null;
-    going?.close();
-    this.live = null;
     this.session = null;
-    this.connected = false;
   }
 
   // --- scheduling by drag ---------------------------------------------------
@@ -609,14 +684,14 @@ export class TcPanel extends LitElement {
    * The drop: one `request_wanted`, filter-free (ui/PANEL.md). The gesture
    * names the train and where to put it, and the scheduler composes the
    * request — the id and the departure end are its (ADR-0036). The
-   * dispatcher's answer comes back over the same socket and renders itself.
+   * dispatcher's answer comes back over the same connection and renders itself.
    *
    * The machine calls it, the canvas having driven the gesture: writing to the
    * bus is this view's and no model's.
    */
   private submit(drop: Drop): void {
     if (this.panel === null) return;
-    this.socket?.send(gesture(this.panel.compose(drop.train, drop.dest)));
+    this.send(gesture(this.panel.compose(drop.train, drop.dest)));
   }
 
   // --- putting a train on the layout, and taking it off ---------------------
@@ -650,7 +725,7 @@ export class TcPanel extends LitElement {
     if (painted === null || at === null || this.panel?.run !== "held") return;
     const block = blockAt(painted.drawing, painted.review, at);
     if (block === null) return;
-    this.socket?.send(placement(train, block));
+    this.send(placement(train, block));
   }
 
   /**
@@ -663,7 +738,7 @@ export class TcPanel extends LitElement {
    */
   private lift(train: string): void {
     if (this.panel?.run !== "held") return;
-    this.socket?.send(placement(train, null));
+    this.send(placement(train, null));
   }
 
   /** Whether a screen point is over the roster pane, which is what makes a
@@ -723,7 +798,7 @@ export class TcPanel extends LitElement {
     const train = this.menu?.train;
     this.menu = null;
     if (train === undefined || event.detail !== TURN_AROUND) return;
-    this.socket?.send(reversal(train));
+    this.send(reversal(train));
   }
 
   // --- painting -------------------------------------------------------------

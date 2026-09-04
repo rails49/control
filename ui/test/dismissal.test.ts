@@ -36,12 +36,12 @@ import type { Point } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import { band, bar, chose, running, settled, surface } from "./support/shell.js";
 import {
-  bridging,
+  brokering,
   joined,
   MIDDLE,
   PAPER,
   said,
-  unbridged,
+  unbrokered,
   written,
 } from "./support/session.js";
 
@@ -51,11 +51,11 @@ const ALLOCATION = "tc49/dispatch/state/allocation";
  *  stands in for the browser's hit test. */
 const NOWHERE = document.elementFromPoint;
 
-beforeEach(bridging);
+beforeEach(brokering);
 
 afterEach(() => {
   document.elementFromPoint = NOWHERE;
-  unbridged();
+  unbrokered();
 });
 
 /** A joined session with a train standing in each block and the run held. Two

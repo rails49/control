@@ -1,12 +1,12 @@
 /**
  * A live session, as a DOM suite stands one up: the toy railroad it runs on,
- * the fake bridge, and the app joined to it.
+ * the broker it runs on, and the app joined to it.
  *
  * It sits beside `shell.ts` for the same reason that one exists (#131): the
  * scaffolding is the flake surface, and a second suite needing a joined
  * session should get the one that is already known to work rather than write
- * another. The bridge is the one thing standing in — a `WebSocket` that
- * records what was sent and lets a test deliver the frames a session would.
+ * another. The broker is the one thing standing in (`broker.ts`), and it is
+ * re-exported here so a suite reaches for one module.
  *
  * Tests only, and it defines no element: a suite's own
  * `import "../src/ui/tc-app.js"` is what registers `tc-app`.
@@ -17,7 +17,14 @@ import { centreOf, type Point } from "../../src/model/geometry.js";
 import type { Explained, Layout, Review } from "../../src/model/store.js";
 import type { ViewId } from "../../src/model/views.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
-import { band, CLEAN, mounted, serving, settled } from "./shell.js";
+import { Broker } from "./broker.js";
+import { CLEAN, mounted, serving, settled } from "./shell.js";
+
+export { Broker } from "./broker.js";
+
+/** The row the layout interface publishes to say which railroad this broker
+ *  runs (#371). It is the whole of the page's choice of railroad. */
+export const RAILROAD = "tc49/layout/state/railroad";
 
 /** The toy railroad's roster: two trains, long enough to be a number on the
  *  pane and short enough for either block. `goods` is the one the suites below
@@ -74,54 +81,11 @@ export const MIDDLE = {
  *  Beside `MIDDLE` for the same reason: a fact about that drawing. */
 export const PAPER: Point = { x: 2, y: 6 };
 
-/** The bridge, as far as the run view uses one: it opens, it is sent frames,
- *  and it delivers them. */
-export class Bridge {
-  static last: Bridge | null = null;
-  /** Every socket the view has opened this test, so a suite can ask how many
-   *  it left open — one live run must be fed by exactly one. */
-  static opened: Bridge[] = [];
-
-  readonly sent: string[] = [];
-  closed = false;
-  private readonly listeners = new Map<string, ((event: unknown) => void)[]>();
-
-  constructor(readonly url: string) {
-    Bridge.last = this;
-    Bridge.opened.push(this);
-  }
-
-  addEventListener(name: string, listener: (event: unknown) => void): void {
-    this.listeners.set(name, [...(this.listeners.get(name) ?? []), listener]);
-  }
-
-  send(frame: string): void {
-    this.sent.push(frame);
-  }
-
-  close(): void {
-    this.closed = true;
-    this.raise("close", {});
-  }
-
-  /** What the session says, in the frames the relay carries. */
-  says(topic: string, payload: Record<string, unknown>): void {
-    this.raise("message", { data: JSON.stringify({ topic, payload }) });
-  }
-
-  raise(name: string, event: Record<string, unknown>): void {
-    for (const listener of this.listeners.get(name) ?? []) listener(event);
-  }
-}
-
-const REAL = globalThis.WebSocket;
-
-/** Put the fake bridge behind `WebSocket` and the toy railroad behind the
- *  store: what a suite about a live session needs before each test. */
-export function bridging(): void {
-  Bridge.last = null;
-  Bridge.opened = [];
-  globalThis.WebSocket = Bridge as unknown as typeof WebSocket;
+/** The broker behind `mqtt` reset, and the toy railroad behind the store:
+ *  what a suite about a live session needs before each test. */
+export function brokering(): void {
+  Broker.last = null;
+  Broker.opened = [];
   serving({
     drawings: ["toy"],
     rosterOf: () => STOCK,
@@ -130,48 +94,54 @@ export function bridging(): void {
   });
 }
 
-/** The real `WebSocket` back, and the page cleared. */
-export function unbridged(): void {
-  globalThis.WebSocket = REAL;
+/** The broker let go of, and the page cleared. Clearing the page is what ends
+ *  the connection: the view holds it for as long as it is on screen. */
+export function unbrokered(): void {
   document.body.replaceChildren();
+  Broker.last = null;
+  Broker.opened = [];
 }
 
-/** The band's picker, pressed. It is the only thing that loads a railroad
- *  (#171), and the run view joins whatever the app holds — so a session is
- *  stood up, and swapped, by loading a railroad and nothing else. */
+/** The railroad this broker runs, on the retained row that says so (#371).
+ *  It is the only thing that loads one — the band has no picker, switching
+ *  railroads being restarting the apps (ADR-0059, decision 2) — so a session
+ *  is stood up, and swapped, by the broker saying which railroad it is and
+ *  nothing else. */
 export async function loads(shell: TcApp, railroad: string): Promise<void> {
-  band(shell).dispatchEvent(
-    new CustomEvent<string>("railroad-wanted", {
-      detail: railroad,
-      bubbles: true,
-      composed: true,
-    }),
-  );
-  await settled(shell);
-  Bridge.last!.raise("open", {});
+  const broker = Broker.last!;
+  if (broker.connected) {
+    broker.says(RAILROAD, { name: railroad });
+  } else {
+    broker.retains(RAILROAD, { name: railroad });
+    broker.opens();
+  }
   await settled(shell);
 }
 
-/** An app with the toy railroad loaded and the bridge open, showing the run
- *  view or another: the session is the run view's whichever is on screen, so
- *  a suite about the throttle joins the same way (ui/THROTTLE.md). */
+/** An app with the toy railroad loaded and the broker answering, showing the
+ *  run view or another: the session is the run view's whichever is on screen,
+ *  so a suite about the throttle joins the same way (ui/THROTTLE.md). */
 export async function joined(view: ViewId = "run"): Promise<TcApp> {
   const shell = await mounted(view);
   await loads(shell, "toy");
   return shell;
 }
 
-/** What the session has published, applied. */
+/** What the railroad has published, applied. */
 export async function said(
   shell: TcApp,
   topic: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  Bridge.last!.says(topic, payload);
+  Broker.last!.says(topic, payload);
   await settled(shell);
 }
 
-/** The payloads the browser has written to the bus. */
+/** The payloads the browser has published to the bus, each with the topic it
+ *  went out on. */
 export function written(): unknown[] {
-  return (Bridge.last?.sent ?? []).map((frame) => JSON.parse(frame));
+  return (Broker.last?.published ?? []).map(({ topic, payload }) => ({
+    topic,
+    payload: JSON.parse(payload) as unknown,
+  }));
 }

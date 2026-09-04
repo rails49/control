@@ -27,12 +27,12 @@ import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { TcProperties } from "../src/ui/tc-properties.js";
 import { band, editing, inside, session, settled, shows } from "./support/shell.js";
 import {
-  bridging,
+  brokering,
   joined,
   loads,
   said,
   stored,
-  unbridged,
+  unbrokered,
 } from "./support/session.js";
 
 const ALLOCATION = "tc49/dispatch/state/allocation";
@@ -48,9 +48,9 @@ const STANDING = {
  *  absence and not a sentinel (ADR-0039). */
 const EMPTY = { trains: {}, locks: {}, requests: [] };
 
-beforeEach(bridging);
+beforeEach(brokering);
 
-afterEach(unbridged);
+afterEach(unbrokered);
 
 /** An app joined to a session, showing the editing view: the band's selector
  *  is how an operator gets there, and it is the view that has anything to

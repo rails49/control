@@ -2,12 +2,12 @@
 
 /**
  * Holding the run and releasing it, end to end through the app: the bar draws
- * the value the dispatcher published, the press goes out on the socket the run
- * view holds, and a release with disputes outstanding says what was accepted
+ * the value the dispatcher published, the press is published on the topic that
+ * names it, and a release with disputes outstanding says what was accepted
  * (ADR-0037, #152, #153).
  *
- * A DOM test because it crosses three components and the bridge. The session
- * itself — the toy railroad, the fake bridge and the app joined to it — is
+ * A DOM test because it crosses three components and the broker. The session
+ * itself — the toy railroad, the broker double and the app joined to it — is
  * `support/session.ts`, shared with the other suites that need one.
  */
 
@@ -18,7 +18,7 @@ import type { Drawing } from "../src/model/drawing.js";
 import { centreOf } from "../src/model/geometry.js";
 import { RETRY_MS, type Explained, type Layout } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { bridgeAt } from "../src/ui/tc-panel.js";
+import { brokerAt } from "../src/ui/tc-panel.js";
 import {
   band,
   bar,
@@ -29,21 +29,22 @@ import {
   settled,
 } from "./support/shell.js";
 import {
-  Bridge,
-  bridging,
+  Broker,
+  brokering,
   DERIVES,
   joined,
   loads,
+  RAILROAD,
   said,
   STOCK,
   stored,
-  unbridged,
+  unbrokered,
   written,
 } from "./support/session.js";
 
-beforeEach(bridging);
+beforeEach(brokering);
 
-afterEach(unbridged);
+afterEach(unbrokered);
 
 /** The HOLD/GO button on the bar. */
 function press(shell: TcApp): HTMLButtonElement {
@@ -64,7 +65,7 @@ function health(shell: TcApp): string | null {
   return said === null ? null : said.textContent!.trim();
 }
 
-/** What the band says about the bridge, `null` while it says nothing. The
+/** What the band says about the broker, `null` while it says nothing. The
  *  badge is drawn only while a session is joined, so a page that has let one
  *  go says nothing here rather than saying it is not connected. */
 function link(shell: TcApp): string | null {
@@ -72,16 +73,16 @@ function link(shell: TcApp): string | null {
   return said === null ? null : said.textContent!.trim();
 }
 
-describe("where the bridge is", () => {
+describe("where the broker is", () => {
   /** A page served over TLS must ask for `wss://`. A plain `ws://` from it is
    *  mixed content, which the browser refuses outright, so the run view would
    *  never connect on the layout server at all (ADR-0042). */
   it("follows the page's own scheme", () => {
-    expect(bridgeAt({ protocol: "https:", host: "layout.rails49.org", search: "" })).toBe(
-      "wss://layout.rails49.org/live",
+    expect(brokerAt({ protocol: "https:", host: "layout.rails49.org", search: "" })).toBe(
+      "wss://layout.rails49.org/mqtt",
     );
-    expect(bridgeAt({ protocol: "http:", host: "localhost:5173", search: "" })).toBe(
-      "ws://localhost:5173/live",
+    expect(brokerAt({ protocol: "http:", host: "localhost:5173", search: "" })).toBe(
+      "ws://localhost:5173/mqtt",
     );
   });
 
@@ -89,125 +90,55 @@ describe("where the bridge is", () => {
    *  development and the reverse proxy strips it in front of a layout server,
    *  so nothing in the panel knows which of the two it is talking to. */
   it("is a path on the page's own origin", () => {
-    expect(bridgeAt({ protocol: "http:", host: "192.168.1.9:5173", search: "" })).toBe(
-      "ws://192.168.1.9:5173/live",
+    expect(brokerAt({ protocol: "http:", host: "192.168.1.9:5173", search: "" })).toBe(
+      "ws://192.168.1.9:5173/mqtt",
     );
   });
 
-  /** `?bridge=` is the whole of the browser's configuration, and it still
-   *  names a session somewhere else outright (#148). */
+  /** `?broker=` is the whole of the browser's configuration, and it names a
+   *  broker somewhere else outright. The railroad is not part of it: one
+   *  broker runs one railroad and says which (ADR-0059, decision 2). */
   it("gives way to the one a query names", () => {
     expect(
-      bridgeAt({
+      brokerAt({
         protocol: "https:",
         host: "layout.rails49.org",
-        search: "?bridge=ws://127.0.0.1:8766",
+        search: "?broker=ws://127.0.0.1:9001",
       }),
-    ).toBe("ws://127.0.0.1:8766");
+    ).toBe("ws://127.0.0.1:9001");
   });
 });
 
-describe("joining a session", () => {
-  /** The loaded railroad is the session (#171): the band's picker loads it,
-   *  the socket path names it, and there is no second choice to disagree
-   *  with. */
-  it("opens the socket on the railroad the band loaded", async () => {
+describe("joining the railroad the broker runs", () => {
+  /** One client per page, subscribing everything of ours, and the retained row
+   *  is the whole of the choice of railroad (#371, ADR-0059 decision 2): the
+   *  app loads what it names and the band shows it. */
+  it("loads the railroad the retained row names", async () => {
     const shell = await joined();
-    expect(Bridge.last!.url).toMatch(/\/toy$/);
+    expect(Broker.opened).toHaveLength(1);
+    expect(Broker.last!.url).toMatch(/\/mqtt$/);
+    expect(Broker.last!.subscriptions).toEqual(["tc49/#"]);
     const named = band(shell).renderRoot.querySelector(".drawing")!;
     expect(named.textContent!.trim()).toBe("toy");
   });
 
-  /** The bridge closes a client when the session switches railroads under one
-   *  operator, and the process can simply go. The view has no session select
-   *  to re-pick any more (#171) and the band says nothing about a railroad it
-   *  is already showing, so the view lets the session go and tries it again
-   *  itself — and a press in between must not pretend to have been heard:
-   *  sending on a closed socket is discarded, not thrown. */
-  it("lets the session go when the bridge closes it, and tries it again", async () => {
-    vi.useFakeTimers();
-    try {
-      const shell = await joined();
-      const dropped = Bridge.last!;
-      await said(shell, "tc49/dispatch/state/run", { run: "held" });
-
-      dropped.close();
-      await settled(shell);
-
-      running(shell).press("running");
-      expect(written()).toEqual([]);
-      expect(notice(shell)).toBeNull();
-
-      await vi.advanceTimersByTimeAsync(RETRY_MS);
-      await settled(shell);
-
-      expect(Bridge.last).not.toBe(dropped);
-      expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(1);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  /** A press away and back while the store is still answering: the join the
-   *  first press started must not go on to open a socket of its own. Two on
-   *  one run applies every frame twice, and the older one's close would flip a
-   *  live session to disconnected.
-   *
-   *  The roster reads are held open so the joins genuinely overlap — released
-   *  one at a time, each press settles before the next and there is never a
-   *  second join in flight to overtake. */
-  it("leaves one socket open when the picker is pressed away and back", async () => {
+  /** Retained values arrive as the subscription lands (ADR-0032), which is
+   *  what the bridge used to send on connect: the rows the apps left on the
+   *  broker before this page existed are the picture it opens with. */
+  it("is fed what was on the broker before it connected", async () => {
     const shell = await mounted("run");
-    const answering = globalThis.fetch;
-    const holding: (() => void)[] = [];
-    globalThis.fetch = ((path: string, init?: RequestInit) => {
-      const answer = answering(path, init);
-      if (!String(path).startsWith("/rosters/")) return answer;
-      return new Promise((resolve) => holding.push(() => resolve(answer)));
-    }) as typeof fetch;
-
-    for (const railroad of ["toy", "other", "toy"]) {
-      band(shell).dispatchEvent(
-        new CustomEvent<string>("railroad-wanted", {
-          detail: railroad,
-          bubbles: true,
-          composed: true,
-        }),
-      );
-      await settled(shell);
-    }
-    expect(holding).toHaveLength(3);
-    for (const release of holding) release();
-    await settled(shell);
-
-    expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(1);
-    expect(Bridge.last!.url).toMatch(/\/toy$/);
-  });
-
-  /** The relay's one frame that is not an event: `{error}`, a gesture it will
-   *  not carry or a socket path naming no railroad (#148). It is the only
-   *  answer a gesture or a join ever gets when it goes wrong, so it is shown
-   *  in the band rather than swallowed — and the session is not a session that
-   *  ended, so the picture stays up and the button stays live. */
-  it("shows what the session refused rather than swallowing it", async () => {
-    const shell = await joined();
-    await said(shell, "tc49/dispatch/state/run", { run: "held" });
-    await said(shell, "tc49/dispatch/state/allocation", {
+    const broker = Broker.last!;
+    broker.retains(RAILROAD, { name: "toy" });
+    broker.retains("tc49/dispatch/state/run", { run: "held" });
+    broker.retains("tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
       locks: { a: "goods" },
       requests: [],
     });
-
-    Bridge.last!.raise("message", {
-      data: JSON.stringify({ error: "cannot publish tc49/dispatch/request" }),
-    });
+    broker.opens();
     await settled(shell);
 
-    expect(health(shell)).toBe("cannot publish tc49/dispatch/request");
-    // Live and not merely labelled: the word and whether it can be pressed are
-    // two bindings, and a refusal must move neither.
     expect(press(shell).textContent!.trim()).toBe("GO");
-    expect(press(shell).disabled).toBe(false);
     expect(
       running(shell)
         .renderRoot.querySelector("tc-canvas")!
@@ -215,27 +146,65 @@ describe("joining a session", () => {
         .textContent!.trim(),
     ).toBe("goods");
   });
+
+  /** The broker going is a container restarting or a network that dropped.
+   *  What it was saying is no longer being said, so the page holds no session:
+   *  the band drops the badge, and a press in between must not pretend to have
+   *  been heard — a publish made while the client is reconnecting is queued
+   *  rather than refused.
+   *
+   *  Getting back in is the client's own. It reconnects and resubscribes, and
+   *  the fresh subscription is answered with every retained row, so the same
+   *  client comes back with the picture on it. */
+  it("lets the session go when the broker goes, and is fed again when it is back", async () => {
+    const shell = await joined();
+    const broker = Broker.last!;
+    await said(shell, "tc49/dispatch/state/run", { run: "held" });
+
+    broker.closes();
+    await settled(shell);
+
+    expect(link(shell)).toBeNull();
+    running(shell).press("running");
+    expect(written()).toEqual([]);
+    expect(notice(shell)).toBeNull();
+
+    broker.opens();
+    await settled(shell);
+
+    expect(Broker.opened).toHaveLength(1);
+    expect(link(shell)).toBe("connected");
+    expect(press(shell).textContent!.trim()).toBe("GO");
+  });
+
+  /** Nothing at the address at all: the band names where it looked, which is
+   *  the only answer a page gets when there is no broker to answer it. */
+  it("says where it looked when nothing is there", async () => {
+    const shell = await mounted("run");
+    Broker.last!.fails();
+    await settled(shell);
+
+    expect(health(shell)).toBe(`no broker at ${brokerAt(location)}`);
+  });
 });
 
 /**
- * The session going away, and the page getting back into it on its own
+ * The store not answering for the roster the railroad arrived with
  * ([#183](https://github.com/rails49/control/issues/183)).
  *
- * The loaded railroad *is* the session (#171), so a page with a railroad on it
- * wants to be joined to that railroad and there is nothing left for a person
- * to press: the view tries the same `join` every `RETRY_MS`, and only ever one
- * try. The interval is read off the module rather than written here, a suite
- * spelling 3000 being one that stops holding what the view does.
+ * Getting back onto the broker is the client's own, so the only retry left
+ * here is the store's: what stock a railroad owns is its asset and no topic
+ * carries it (ADR-0039), so a read that failed is made again every `RETRY_MS`
+ * until it lands. The interval is read off the module rather than written
+ * here, a suite spelling 3000 being one that stops holding what the view does.
  *
  * Fake timers throughout: what is being held is which try happens, not how
  * long a suite is willing to sit.
  */
-describe("trying a session that went away", () => {
+describe("reading a roster the store would not answer for", () => {
   /** The toy railroad with its roster reads counted, and a switch for the
-   *  store going quiet on that one route. One read is one try at the session:
-   *  every way into one runs the same `join`, and the roster is what `join`
-   *  asks the store for first. The other routes keep answering, so what stops
-   *  is the try and not the railroad on screen. */
+   *  store going quiet on that one route. The other routes keep answering, so
+   *  what stops is the read and not the railroad on screen. */
   function counting(): { reads: number; answering: boolean } {
     const store = { reads: 0, answering: true };
     serving({
@@ -251,122 +220,71 @@ describe("trying a session that went away", () => {
     return store;
   }
 
-  /** The band's picker pressed on the railroad already loaded, which is what
-   *  an operator watching a dropped page does. `loads` cannot serve here: it
-   *  opens the socket the press produced, and a press that finds no store
-   *  produces none. */
-  async function picks(shell: TcApp, railroad: string): Promise<void> {
-    band(shell).dispatchEvent(
-      new CustomEvent<string>("railroad-wanted", {
-        detail: railroad,
-        bubbles: true,
-        composed: true,
-      }),
-    );
-    await settled(shell);
+  /** A page joined to a broker whose store is not answering. */
+  async function quiet(store: { answering: boolean }): Promise<TcApp> {
+    store.answering = false;
+    const shell = await mounted("run");
+    await loads(shell, "toy");
+    return shell;
   }
 
-  /** The process going: a browser fails the connection before it closes it,
-   *  so the band has something to say while the session is gone. */
-  function went(socket: Bridge): void {
-    socket.raise("error", {});
-    socket.close();
-  }
-
-  it("makes one try when the interval is up, on the railroad that is loaded", async () => {
+  it("says so, and makes one try when the interval is up", async () => {
     vi.useFakeTimers();
     try {
       const store = counting();
-      const shell = await joined();
-      const dropped = Bridge.last!;
-      store.reads = 0;
-
-      went(dropped);
-      await settled(shell);
-
-      // While it is gone the band drops the badge rather than saying the page
-      // is not connected: the badge belongs to a joined session and the page
-      // holds none. What stands is the trouble line, naming what to run.
-      expect(link(shell)).toBeNull();
-      expect(health(shell)).toBe(`no session at ${dropped.url} — run \`tc49 live\``);
-      expect(store.reads).toBe(0);
-
-      await vi.advanceTimersByTimeAsync(RETRY_MS);
-      await settled(shell);
+      const shell = await quiet(store);
 
       expect(store.reads).toBe(1);
-      expect(Bridge.last).not.toBe(dropped);
-      expect(Bridge.last!.url).toMatch(/\/toy$/);
-
-      Bridge.last!.raise("open", {});
-      await settled(shell);
-      expect(link(shell)).toBe("connected");
-      expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(1);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  /** Two things asking for a try inside one interval — the drop, and an
-   *  operator pressing the picker on the name already showing, which was the
-   *  way back in before this existed (#171). The second finds a try already
-   *  waiting and leaves it there.
-   *
-   *  The store stays quiet throughout, which is what makes a second try
-   *  visible at all: a try that gets in leaves nothing for a later one to do,
-   *  so only a run of failing tries can be counted. The press lands a
-   *  millisecond into the interval, so a try it scheduled of its own would
-   *  come round a millisecond after the waiting one and be seen. */
-  it("keeps one try waiting when a second is asked for inside the interval", async () => {
-    vi.useFakeTimers();
-    try {
-      const store = counting();
-      const shell = await joined();
-      const dropped = Bridge.last!;
-      store.answering = false;
-
-      went(dropped);
-      await settled(shell);
-      await vi.advanceTimersByTimeAsync(1);
-      await picks(shell, "toy");
-
-      // The press is a try of its own, and it failed: the store is what is not
-      // answering now, and the band says so.
       expect(health(shell)).toBe("the store is not answering — run `tc49 serve`");
-      store.reads = 0;
 
+      store.answering = true;
       await vi.advanceTimersByTimeAsync(RETRY_MS);
       await settled(shell);
 
-      // The one waiting try, and no second one behind it.
-      expect(store.reads).toBe(1);
-      expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(0);
+      expect(store.reads).toBe(2);
+      expect(health(shell)).toBeNull();
     } finally {
       vi.useRealTimers();
     }
   });
 
-  /** The picker getting in first. The try that was waiting still comes round,
-   *  and a session joined by then is one it must leave alone: a second join
-   *  would open a second socket on the same run. */
-  it("does not try once a session has been joined another way", async () => {
+  /** One try per interval and never a run of them behind each other: a
+   *  failure while one is already waiting finds it there and leaves it. */
+  it("keeps one try waiting at a time", async () => {
     vi.useFakeTimers();
     try {
       const store = counting();
-      const shell = await joined();
+      const shell = await quiet(store);
       store.reads = 0;
-
-      went(Bridge.last!);
-      await settled(shell);
-      await loads(shell, "toy");
-      expect(store.reads).toBe(1);
-      expect(link(shell)).toBe("connected");
 
       await vi.advanceTimersByTimeAsync(RETRY_MS);
       await settled(shell);
-
       expect(store.reads).toBe(1);
-      expect(Bridge.opened.filter((one) => !one.closed)).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(RETRY_MS);
+      await settled(shell);
+      expect(store.reads).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /** A read that lands is the end of it: nothing will republish a roster, and
+   *  nothing has to. */
+  it("stops trying once the roster has been read", async () => {
+    vi.useFakeTimers();
+    try {
+      const store = counting();
+      const shell = await quiet(store);
+      store.answering = true;
+
+      await vi.advanceTimersByTimeAsync(RETRY_MS);
+      await settled(shell);
+      expect(store.reads).toBe(2);
+
+      await vi.advanceTimersByTimeAsync(RETRY_MS * 3);
+      await settled(shell);
+      expect(store.reads).toBe(2);
     } finally {
       vi.useRealTimers();
     }
