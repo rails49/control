@@ -53,8 +53,12 @@ itself at, and is not code at all.
 ```
 src/tc49/
   lib/          the Python binding of SYSTEM.md's contracts
-    bus.py        the in-process bus — queued FIFO, run-to-completion,
+    bus.py        the bus every app is handed — the interface, and the
+                  in-process binding of it: queued FIFO, run-to-completion,
                   prefix-filter subscriptions (SYSTEM.md#the-bus)
+    mqtt.py       the other binding, over an MQTT broker — retained state
+                  topics, a wall-time stamp, the network thread queueing and
+                  `drain()` delivering (ADR-0059)
     bridge.py     the WebSocket relay of a live session — `tc49/#` out as
                   {topic, payload} frames, `request_submitted` in; deleted
                   with the in-process bus when a real broker arrives
