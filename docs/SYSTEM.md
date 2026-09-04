@@ -719,7 +719,10 @@ LAN is still the trust boundary and a browser is not on it
   ([ADR-0061](adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
   A `PUT` is the whole document, so a roster arriving without a car is that
   car removed and there is no `DELETE`
-  ([#388](https://github.com/rails49/control/issues/388)).
+  ([#388](https://github.com/rails49/control/issues/388)). A train names at least
+  one entry: an empty `cars` list is refused, so a roster the store takes is
+  always one `/rosters/<name>/trains` can answer
+  ([#412](https://github.com/rails49/control/issues/412)).
 - **The catalogue is the installation's, and it is writable over HTTP** — the
   models it knows, one document per model, named for itself and read by every
   railroad on the box: a model is what a product is, and a product does not

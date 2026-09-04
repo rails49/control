@@ -143,6 +143,11 @@ def _train(
     loads for the sake of an older file; stating both would be two ways to
     know one length, which is the field that rots, so it is refused.
 
+    **An empty `cars` list names no cars** and is refused in the same words as
+    a train naming neither key: there is no length to derive for such a train
+    (`lib.roster.Train.length`), so a roster the store took would be one
+    `GET /rosters/<name>/trains` could not answer (#412).
+
     The catalogue is here because an entry may name a model rather than a car
     (ADR-0061), and a model is what such an entry is built from.
     """
@@ -164,6 +169,8 @@ def _train(
 
     if not isinstance(spec["cars"], list):
         raise TypeError(f"{where}: cars must be a list, head first")
+    if not spec["cars"]:
+        raise ValueError(f"{where}: names no cars")
     ordered = [
         _coupled(entry, cars, catalogue, where)
         for entry in cast(list[Any], spec["cars"])

@@ -414,6 +414,22 @@ def test_a_train_states_a_length_only_where_it_names_no_cars() -> None:
         )
 
 
+def test_a_train_with_nothing_in_it_is_refused(tmp_path: Path) -> None:
+    """`cars: []` names no cars, in the same words as a train naming neither
+    key. The screen invites the order of work that writes one — make a train
+    up, then fill it — and a train left empty is one `Train.length` raises
+    for, so a roster the store took would be one the run views could not read
+    (#412)."""
+    with pytest.raises(ValueError, match="train 'ore': names no cars"):
+        roster({}, {"ore": {"cars": []}})
+    store = _catalogued_store(tmp_path)
+    with pytest.raises(ValueError, match="train 'ore': names no cars"):
+        store.put_roster(
+            {"roster": "oval", "cars": {}, "trains": {"ore": {"cars": []}}}, "oval"
+        )
+    assert not (tmp_path / "layouts" / "oval.roster.yaml").exists()
+
+
 def test_the_committed_catalogue_is_what_the_library_railroads_need() -> None:
     """Every length the five rosters use, which is what lets each synthetic
     train be one car and no product be invented (#223)."""
