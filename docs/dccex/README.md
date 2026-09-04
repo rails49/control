@@ -238,8 +238,8 @@ reach is one it was not driving, and `_send` drops rather than queues.
 
 It has none of its own yet, and that is the milestone and not the app: it is
 the last app still constructed inside somebody else's process. `layout`,
-`scheduler`, `dispatcher` and `driver` each have one now, and come up alone
-against a broker
+`scheduler`, `dispatcher`, `driver` and `simulator` each have one now, and
+come up alone against a broker
 ([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
 decision 5); `dccex-usb` has had one all along, and it is the one app that
 speaks no bus topic at all.
