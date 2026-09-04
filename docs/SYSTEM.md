@@ -401,6 +401,11 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Translator | `tc49/layout/state/wanted/#` |
 | Trace tap | `tc49/#` |
 
+Every app but the translator also subscribes `tc49/layout/state/railroad`, and
+acts on one thing only: a name other than the one it is running, which is a
+railroad being loaded under it (ADR-0060, above). The translator does not,
+hardware needing no layout.
+
 Two things the inventory has to keep true:
 
 - **A leaf name is unique across all topics.** The trace records the leaf
@@ -465,6 +470,16 @@ its two names, as each topic states.
   layout's own, and a drawing is filed under the name it declares, so there is
   no second place for it to be told from. A view reads it, loads that railroad
   from the store and subscribes the flat topic tree.
+  **Every app follows it.** A name other than the one an app is running is a
+  railroad being loaded while the apps run: the app built on the last one
+  stops answering, the retained rows it owns are **cleared**, and it is built
+  again on the new one — a cold start that happens without a restart
+  (ADR-0060, `lib/loading.py`). Clearing rather than republishing, because a
+  desired speed for a locomotive the new railroad does not have, or occupancy
+  for a block end it does not have, is a row nothing would ever republish and
+  a page opened afterwards would read as current. A railroad the store cannot
+  give is said on stderr and not taken: the app goes on running the one it
+  has (ADR-0050). `tests/system/test_reload.py` holds this for every app.
 - `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
   block a detector reported on. Anonymous: no train field, because a detector
   cannot name one. A detector reports a **level**, so a repeated reading

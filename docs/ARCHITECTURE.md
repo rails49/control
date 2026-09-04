@@ -291,12 +291,13 @@ live in. Each spec page links the ADRs that bind it.
 
 `tests/` mirrors `src/tc49/`: one package per app, plus `system/` for the
 tests that drive the real assembly over the bus, with `harness.py`,
-`brokers.py` — a real broker, for the apps that come up against one — and
-`generate.py` shared at the top.
+`brokers.py` — a real broker, for the apps that come up against one —
+`apps.py` — the apps as processes, for the suites that start what a compose
+service starts — and `generate.py` shared at the top.
 
 ```
 tests/
-  harness.py  brokers.py  generate.py
+  harness.py  brokers.py  apps.py  generate.py
   lib/         test_layout  test_bus  test_trace
   store/       test_store  test_drawing  test_server  test_symbols
   scheduler/   test_scheduler  test_main
@@ -313,7 +314,8 @@ tests/
   dccex_usb/   test_framing  test_station
   dccex/       test_commands  test_replies  test_translator  test_main
   system/      test_skeleton  test_properties  test_safety_conditions
-               test_app_boundaries  test_cold_start  test_compose
+               test_app_boundaries  test_cold_start  test_reload
+               test_compose
 ```
 
 Every app has a test package. The two bindings of the layout interface each
@@ -328,16 +330,21 @@ silently — one convenient import and two containers are welded together with
 nothing failing — so it is checked rather than reviewed. `bench` is exempt,
 being the code that assembles the apps.
 
-`test_cold_start` and `test_compose` keep the other half of the same shape
-(ADR-0059, decision 5). The first starts each app as `python -m tc49.<app>`
-in a process of its own against a real broker with no store and no other app
-up, leaves it there for a few seconds, and then reads its retained rows off a
-client that connects afterwards — an app that grew an order it has to be
-started in passes its own suite, whose fixtures construct everything first,
-and fails here. The second reads `deploy/compose.yaml` and refuses a
-`depends_on`, which would put that order back in one line. Neither covers the
-reload of [ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md):
-no app follows a change of `tc49/layout/state/railroad` yet.
+`test_cold_start`, `test_reload` and `test_compose` keep the other half of
+the same shape (ADR-0059, decision 5). The first starts each app as `python
+-m tc49.<app>` in a process of its own against a real broker with no store
+and no other app up, leaves it there for a few seconds, and then reads its
+retained rows off a client that connects afterwards — an app that grew an
+order it has to be started in passes its own suite, whose fixtures construct
+everything first, and fails here. The second moves
+`tc49/layout/state/railroad` to another railroad under a running app and
+reads the whole retained picture back: loading a railroad is a cold start
+without a restart ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)),
+so the rows of the railroad that left have to be gone rather than merely
+added to, which is what a page opened afterwards would read. The third reads
+`deploy/compose.yaml`: one service per app, none ordered after another, and
+the hardware a box owns in a profile of its own. `tests/apps.py` is what all
+three start their processes with.
 
 pytest, with Hypothesis for the deadlock hunt. **All four properties drive
 the real assembly over the in-process bus**: each generated case wires
