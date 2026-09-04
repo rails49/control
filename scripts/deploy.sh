@@ -22,6 +22,17 @@ export GIT_TERMINAL_PROMPT=0
 cd ~/control
 git pull
 pnpm --dir ui build
+# The store's directory, made here rather than left to Docker. A bind mount
+# whose source is missing is created by the daemon as root, and the person is
+# then shut out of their own documents: no editing, no `git init`, no putting
+# a catalogue in by hand (#387). The uid and gid are this account's, and
+# compose reads them as the user the store and a session run as — the shell's
+# environment wins over the `--env-file` below, which is what makes exporting
+# them here enough.
+mkdir -p "${TC49_STORE:-$HOME/tc49}"
+TC49_UID=$(id -u)
+TC49_GID=$(id -g)
+export TC49_UID TC49_GID
 # `--build`, because compose builds only when no image is tagged for the
 # service and would otherwise keep one from before the pull. The store, the
 # session and the mirror all build from one context now, so a change under
