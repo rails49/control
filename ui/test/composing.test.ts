@@ -348,6 +348,20 @@ describe("the length guard", () => {
   });
 });
 
+/** A dialog labelled New model with a Create button touches nothing that
+ *  exists: `PUT /catalogue/<name>` replaces the document whole, so a name in
+ *  use would rewrite that product for every railroad in the installation and
+ *  step around the length guard its row keeps (#413). */
+describe("writing a model", () => {
+  it("stops a name the catalogue already has, and names it", () => {
+    expect(stock().stopsMaking("hopper")).toBe("there is already a model 'hopper'");
+  });
+
+  it("stops nothing where the catalogue has no such name", () => {
+    expect(stock().stopsMaking("flat")).toBeNull();
+  });
+});
+
 describe("what the lists draw", () => {
   it("orders cars, models and trains by name", () => {
     const screen = stock({

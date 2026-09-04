@@ -642,6 +642,24 @@ export class Stock {
     this.models = { ...this.models, [model.model]: model };
   }
 
+  /**
+   * What stops a model being made under this name, or `null` where nothing
+   * does.
+   *
+   * A name the catalogue already has is the one thing. `PUT
+   * /catalogue/<name>` replaces the document whole, so Create under a name in
+   * use would rewrite that product's kind, length and functions for every
+   * railroad in the installation — and step around the length guard the
+   * product's own row keeps, a placed train's derived length moving under the
+   * dispatcher with nothing said. A dialog labelled New model touches nothing
+   * that exists, and correcting a product is done on its row (#413).
+   */
+  stopsMaking(name: string): string | null {
+    return this.models[name] === undefined
+      ? null
+      : `there is already a model '${name}'`;
+  }
+
   /** Correcting a product's length changes every item of that product, which
    *  is the whole reason the length lives here as well as on the car. Refused
    *  while a placed train uses one. */
