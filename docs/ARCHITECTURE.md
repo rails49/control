@@ -140,6 +140,12 @@ src/tc49/
                               the traction write, whose sign is the train's
                               facing composed with each car's orientation
                               (docs/layout/README.md)
+                __main__.py   `python -m tc49.layout --broker … --railroad …
+                              --store …`, the command line a container runs:
+                              the railroad's layout and roster off the store,
+                              the broker, the traction rows the last process
+                              left, then a loop that advances the clock,
+                              settles and drains until a signal (ADR-0059)
   dccex_usb/    station.py  Station — the command station's serial device
                             mirrored on a TCP port: every byte fanned out to
                             every client, a client's bytes written whole
@@ -284,6 +290,7 @@ tests/
                test_reading
   layout/      test_align  test_move  test_aspects  test_power  test_reading
                test_occupancy  test_traction  test_mode  test_throttle
+               test_railroad  test_main
   dccex_usb/   test_framing  test_station
   dccex/       test_commands  test_replies  test_translator
   system/      test_skeleton  test_properties  test_safety_conditions
