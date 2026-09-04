@@ -1,9 +1,10 @@
 # The dev box: vite serves the app and proxies the store's own routes, so the
-# only backends here are vite and the bridge. `dev.rails49.org` holds
-# 127.0.0.1 unless `scripts/dns.sh` has been told otherwise.
+# only backends here are vite on the host and the broker beside it.
+# `dev.rails49.org` holds 127.0.0.1 unless `scripts/dns.sh` has been told
+# otherwise.
 #
-# Priority is the rule's length, so the two prefixed routers win over the
-# bare host and none of them needs one stated.
+# Priority is the rule's length, so the prefixed router wins over the bare host
+# and neither of them needs one stated.
 
 http:
   routers:
@@ -14,25 +15,34 @@ http:
       tls:
         certResolver: le
 
-    dev-live:
-      rule: "Host(`dev.rails49.org`) && PathPrefix(`/live`)"
+    # The broker's WebSocket listener, on the app's own origin: a page served
+    # over TLS cannot open a `ws://` socket, and the browser refuses it
+    # outright rather than warning (#174, ADR-0042). The run view is a client
+    # of the broker (ADR-0059, decision 4) and builds this URL out of the
+    # page's own, so development and the layout box are one path. Anything
+    # native goes straight to 1883 and does not come through here.
+    dev-mqtt:
+      rule: "Host(`dev.rails49.org`) && PathPrefix(`/mqtt`)"
       entryPoints: [websecure]
-      service: dev-live
-      middlewares: [dev-strip]
+      service: dev-mqtt
+      middlewares: [dev-mqtt-strip]
       tls:
         certResolver: le
 
   middlewares:
-    dev-strip:
+    dev-mqtt-strip:
       stripPrefix:
-        prefixes: ["/live"]
+        prefixes: ["/mqtt"]
 
   services:
     dev-app:
       loadBalancer:
         servers:
           - url: "http://host.docker.internal:5173"
-    dev-live:
+    # On the host like vite, because `scripts/dev.sh` runs the broker as a
+    # container of its own with its ports published rather than through
+    # `deploy/compose.yaml`.
+    dev-mqtt:
       loadBalancer:
         servers:
-          - url: "http://host.docker.internal:8766"
+          - url: "http://host.docker.internal:9001"

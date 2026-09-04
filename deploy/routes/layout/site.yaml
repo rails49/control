@@ -3,8 +3,7 @@
 # holds the address the router has reserved for this machine.
 #
 # Every service here is a container and none is on the host (#354), so they
-# are named by service and reached over compose's own DNS. `/live` answers 502
-# until somebody starts a session, a session being a run rather than a daemon.
+# are named by service and reached over compose's own DNS.
 
 http:
   routers:
@@ -22,18 +21,11 @@ http:
       tls:
         certResolver: le
 
-    layout-live:
-      rule: "Host(`layout.rails49.org`) && PathPrefix(`/live`)"
-      entryPoints: [websecure]
-      service: layout-live
-      middlewares: [layout-strip]
-      tls:
-        certResolver: le
-
-    # The broker's WebSocket listener, on the app's own origin for the same
-    # reason `/live` is: a page served over TLS cannot open a `ws://` socket,
-    # and the browser refuses it outright rather than warning (#174). Anything
-    # native goes straight to 1883 and does not come through here.
+    # The broker's WebSocket listener, on the app's own origin: a page served
+    # over TLS cannot open a `ws://` socket, and the browser refuses it
+    # outright rather than warning (#174). The run view is a client of the
+    # broker (ADR-0059, decision 4). Anything native goes straight to 1883 and
+    # does not come through here.
     layout-mqtt:
       rule: "Host(`layout.rails49.org`) && PathPrefix(`/mqtt`)"
       entryPoints: [websecure]
@@ -43,10 +35,6 @@ http:
         certResolver: le
 
   middlewares:
-    layout-strip:
-      stripPrefix:
-        prefixes: ["/live"]
-
     layout-mqtt-strip:
       stripPrefix:
         prefixes: ["/mqtt"]
@@ -60,10 +48,6 @@ http:
       loadBalancer:
         servers:
           - url: "http://store:8765"
-    layout-live:
-      loadBalancer:
-        servers:
-          - url: "http://session:8766"
     layout-mqtt:
       loadBalancer:
         servers:
