@@ -7,9 +7,9 @@ bus is a Python object in one process (SYSTEM.md, *the bus*). So a `move` on
 the steel has nothing to complete it, and the first train would cross into a
 block the system never hears about.
 
-For the first train a person supplies the readings. While a session runs on
-the physical binding, a line typed on its input is published as the row the
-detector it stands in for would write:
+For the first train a person supplies the readings. A line typed on the input
+this is given is published as the row the detector it stands in for would
+write:
 
     C3.A occupied
     C3.B clear
@@ -26,15 +26,31 @@ topics a page may publish and a device row is not among them (ADR-0034). This
 stands in for hardware until a camera publishes, and it is meant to be as easy
 to delete as it was to write — one module, one branch of the physical wiring,
 and nothing above the layout interface touched.
+
+**A client of the broker, and not an app** (ADR-0059, decision 5). `serve`
+below is `tc49 readings`: a process that connects to the broker the railroad
+runs on, reads the railroad's layout off the store's HTTP face to know which
+block ends there are, and publishes what a person types — the same rows on the
+same topic, reaching `layout` from another process now rather than from the
+session that used to hold both. It stays in `bench` because what it stands in
+for is hardware: a camera on a box of its own is what replaces it, and an app
+is not (CLAUDE.md, *Apps*).
+
+Where a camera would exit on nothing but a signal, this ends when its input
+does: the whole of its work is that input, so a person pressing Ctrl-D and a
+file of readings running out are both the detector being taken away.
 """
 
 import queue
+import sys
 import threading
+from collections.abc import Callable
 from typing import TextIO
 
 from tc49.lib.bus import Bus
 from tc49.lib.inventory import CLEAR, OCCUPIED, UNKNOWN, device_topic
 from tc49.lib.layout import Layout
+from tc49.lib.mqtt import MqttBus
 
 SENSOR = "tc49/layout/state/device/sensor"
 """The row a reading goes on, which is `DEVICE_TOPICS`' key for it: this
@@ -50,6 +66,23 @@ ENDS = ("A", "B")
 SHAPE = "<block>.<end> <level>"
 """The line, for the banner and for every refusal: one sensor and what it
 reads."""
+
+CLIENT_ID = "tc49-readings"
+"""What `tc49 readings` calls itself to the broker, so a person reading the
+broker's log finds the keyboard rather than a random string. Nothing in the
+contract reads it: a topic has one writing role and no payload says who
+published (SYSTEM.md, rule 4)."""
+
+PERIOD_S = 0.1
+"""Seconds between turns of the loop below: how long a typed line waits in the
+queue the reader thread fills before the thread that publishes takes it. The
+railroad's pacing is elsewhere entirely — a level is settled by `layout`
+(ADR-0030) — so this only has to be short beside a person's typing."""
+
+BROKER_S = 5.0
+"""How long one wait for the broker lasts before it is said again. The wait is
+resumed until the connection lands, so this is only how often a person is told
+that the readings they are about to type have nowhere to go."""
 
 
 class HandFed:
@@ -88,6 +121,12 @@ class HandFed:
         # cannot be read at all is the one thing that thread has to report,
         # and it reports it the way it hands a line over.
         self._unreadable: str | None = None
+        # Set once that thread is finished — the input ended, or could not be
+        # read at all — and every line it took is on the queue. A standalone
+        # `tc49 readings` ends with its input and reads this; a session's loop
+        # is the railroad's and goes on with or without a keyboard, so it does
+        # not.
+        self.ended = threading.Event()
 
     def opens(self) -> None:
         """Start reading, which the loop's owner does once it is running.
@@ -113,6 +152,10 @@ class HandFed:
                 self._typed.put(line)
         except (OSError, ValueError) as unreadable:
             self._unreadable = f"nothing can be read from this session: {unreadable}"
+        finally:
+            # After the last line is on the queue, so a reader of `ended` that
+            # takes one more turn takes everything that was typed.
+            self.ended.set()
 
     def typed(self) -> None:
         """Every line typed since the last turn, published or reported.
@@ -172,3 +215,70 @@ class HandFed:
     def _report(self, what: str) -> None:
         self._out.write(f"  {what}\n")
         self._out.flush()
+
+
+def to_stderr(line: str) -> None:
+    """The log: what is being waited for, and what came up. What a refusal
+    says goes where the person typed it instead (`_report`), and `lib` says
+    its own piece under its own prefix (`documents:`, `mqtt:`)."""
+    print(f"readings: {line}", file=sys.stderr, flush=True)
+
+
+def serve(
+    bus: MqttBus,
+    layout: Layout,
+    lines: TextIO,
+    out: TextIO,
+    stop: threading.Event,
+    period_s: float = PERIOD_S,
+    log: Callable[[str], None] = to_stderr,
+) -> None:
+    """`tc49 readings`: the typed readings as a client of the broker.
+
+    The broker first and blocking, because a publish made to a broker that is
+    not there is dropped rather than queued (ADR-0050) — a reading typed into
+    nothing would be a person watching the railroad ignore them, which is the
+    one thing a stand-in for a detector must not do. The layout is the
+    caller's, read off the store before this is called, and it is here for one
+    reason only: a typo at the keyboard must not look like a detector
+    (ADR-0048), which is what `reads` checks it against.
+
+    Nothing is drained. This publishes and reads nothing — a detector holds a
+    writing role and no reading one (ADR-0035) — so the turn is the queue the
+    reader thread fills and no other.
+
+    `stop` is how a caller that is not a signal ends the loop, which is the
+    suite. A person ends it by typing Ctrl-D, which is the input ending, or
+    Ctrl-C, which raises where the process stands and is let out by the
+    command.
+    """
+    if not _connected(bus, stop, log):
+        return
+    detector = HandFed(bus, layout, lines, out)
+    detector.opens()
+    log(
+        f"up on '{layout.name}': type '{SHAPE}' —"
+        f" {', '.join(LEVELS[:-1])} or {LEVELS[-1]}"
+    )
+    while not stop.is_set() and not detector.ended.is_set():
+        detector.typed()
+        stop.wait(period_s)
+    # One turn after the reader thread finished: the line typed last is on the
+    # queue by the time `ended` is set, and it is as much a reading as any
+    # other. It publishes what a stop found waiting too, which is the same
+    # line typed a moment earlier.
+    detector.typed()
+    if detector.ended.is_set():
+        log("the input ended; nothing more will be typed")
+
+
+def _connected(bus: MqttBus, stop: threading.Event, log: Callable[[str], None]) -> bool:
+    """Wait for the broker, saying so, until it is there or the caller has
+    stopped. A keyboard whose broker is missing has nowhere to publish, and
+    reading the lines meanwhile would only be collecting readings that are
+    stale by the time there is anywhere to put them."""
+    while not stop.is_set():
+        if bus.wait_connected(BROKER_S):
+            return True
+        log("waiting for the broker")
+    return False

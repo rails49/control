@@ -1,5 +1,5 @@
 """`tc49 bench <scenario>`, `tc49 sweep`, `tc49 live [railroad]`,
-`tc49 layout show <layout>`, `tc49 serve`, `tc49 generate`.
+`tc49 layout show <layout>`, `tc49 serve`, `tc49 readings`, `tc49 generate`.
 
 `bench` runs one named scenario under both locking strategies and prints the
 comparison. `live` runs a session an outside client can join: the simulator
@@ -15,12 +15,25 @@ the `dccex` translator, driving a real command station (#314) — and pins the
 session to the railroad named, a station being one physical railroad. That
 session reads its own input, where a person types the detector's levels no
 camera publishes yet (`bench/detector.py`, #315).
+`readings` is that keyboard as **a client of the broker**: with each app in a
+process of its own there is no session holding both, so the person publishing
+the rows a detector will publish connects to the broker like the camera that
+replaces them, and reads the railroad off the store to know which block ends
+there are (ADR-0059, decision 5, #379). It stays here rather than becoming an
+app because what it stands in for is hardware.
 `sweep` takes no arguments: the grid of BENCHMARKS.md is the research design,
 not a knob, and that page is its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
 review that a committed layout file used to give in a diff (ADR-0015).
 `generate` rewrites every TypeScript file the UI is handed rather than
 keeps by hand: the symbol library, and the set of rejection reasons.
+
+**Two things called `--store`, on either side of a process boundary.** `live`
+and `serve` open a store **directory** on this machine, because they are what
+serves it. `readings` is given the store's **URL** instead, as the six app
+containers are: it runs where the keyboard is and the documents are wherever
+they are served from, so it reads the one it needs over HTTP and waits for the
+store to answer (`lib/documents.py`).
 
 **Two roots, and which command reads which.** `bench` and `sweep` run on the
 committed fixtures and find them by searching for the checkout they are in
@@ -52,7 +65,7 @@ from pathlib import Path
 from types import FrameType
 from typing import TextIO
 
-from tc49.bench.detector import LEVELS, SHAPE
+from tc49.bench.detector import CLIENT_ID, LEVELS, SHAPE, serve
 from tc49.bench.metrics import Metrics, Stall, metrics
 from tc49.bench.runner import (
     DEFAULT_K,
@@ -65,7 +78,9 @@ from tc49.bench.runner import (
 from tc49.bench.session import Session
 from tc49.bench.sweep import sweep
 from tc49.lib import rejection
+from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
+from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
 from tc49.lib.roster import Roster
 from tc49.store import DEFAULT_STORE, STORE_ENV, AssetStore, Backup, store_root, symbols
 from tc49.store.backup import IDLE_S, PUSH_S, Watch
@@ -374,6 +389,34 @@ def command_line() -> argparse.ArgumentParser:
         " this machine already has",
     )
 
+    readings_parser = commands.add_parser(
+        "readings",
+        help="publish the block readings a person types, standing in for the"
+        " detector nothing has yet (#315)",
+    )
+    readings_parser.add_argument(
+        "--broker",
+        required=True,
+        metavar="HOST:PORT",
+        help=f"the broker the railroad runs on, e.g. {BROKER_EXAMPLE}",
+    )
+    readings_parser.add_argument(
+        "--railroad",
+        required=True,
+        help="the railroad this broker runs, as the store lists it: a typed"
+        " block end is checked against its layout, a reading for a block"
+        " nothing has being one the dispatcher could not explain",
+    )
+    readings_parser.add_argument(
+        "--store",
+        required=True,
+        metavar="URL",
+        help="where the store serves the documents, e.g. http://127.0.0.1:8765;"
+        " waited for until it answers. A URL and not a directory: this runs"
+        " where the keyboard is, and the documents are served from wherever"
+        " they are",
+    )
+
     generate_parser = commands.add_parser(
         "generate", help="write the UI's generated TypeScript from its Python source"
     )
@@ -673,6 +716,31 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
                 "stood the railroad down: zero to every locomotive commanded,"
                 " then the track off\n"
             )
+        return 0
+
+    if args.command == "readings":
+        # The broker before the store, because a mistyped address is the one
+        # refusal this command can make on its own: everything else it needs is
+        # waited for rather than refused, and a person who cannot publish has
+        # nothing to type at.
+        try:
+            host, port = address(args.broker)
+        except ValueError as refused:
+            out.write(f"{refused}\n")
+            return 2
+        # Connecting from construction, so the connection is being made while
+        # the store is asked for the drawing: neither is ordered by the other
+        # coming up first (ADR-0059, decision 5).
+        bus = MqttBus(host, port, client_id=CLIENT_ID)
+        try:
+            # `serve` here is the detector's loop and not the `serve` command:
+            # what a person types, published until the input ends or Ctrl-C
+            # raises. Refusals go to `out`, beside the line that earned one.
+            with contextlib.suppress(KeyboardInterrupt):
+                layout = Documents(args.store).layout(args.railroad)
+                serve(bus, layout, sys.stdin, out, threading.Event())
+        finally:
+            bus.close()
         return 0
 
     if args.command == "serve":
