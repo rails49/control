@@ -27,7 +27,7 @@ from tc49.dccex import DccEx
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental, LockingStrategy
 from tc49.driver import Driver
 from tc49.layout import LayoutInterface
-from tc49.lib.bus import Bus
+from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout, connected_facing
 from tc49.lib.roster import Roster
@@ -141,7 +141,7 @@ class Assembly:
     the difference, and neither one knows the other exists.
     """
 
-    bus: Bus
+    bus: InProcessBus
     dispatcher: Dispatcher
     simulator: Simulator | None
     layout: Layout
@@ -280,7 +280,7 @@ def assemble(
     k: int = DEFAULT_K,
 ) -> Assembly:
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     out = io.StringIO()
     TraceTap(bus, out, clock)
     stood = placement(scenario.trains)
@@ -365,7 +365,7 @@ def assemble_live(
     document = trains or {}
     stood = placement(document)
     clock = Clock()
-    bus = Bus(clock, state)
+    bus = InProcessBus(clock, state)
     out = io.StringIO()
     TraceTap(bus, out, clock)
     Scheduler(bus, layout, facing(layout, document))

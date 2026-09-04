@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 from tc49.dccex.translator import DccEx
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 
 TIMEOUT_S = 5.0
@@ -103,7 +103,7 @@ class Port:
 class Tap:
     """Everything published, in delivery order: the trace, as a test reads it."""
 
-    def __init__(self, bus: Bus) -> None:
+    def __init__(self, bus: InProcessBus) -> None:
         self.seen: list[tuple[str, Payload]] = []
         bus.subscribe("tc49/#", self._on_anything)
 
@@ -119,7 +119,7 @@ class Tap:
 
 @contextlib.asynccontextmanager
 async def running(
-    bus: Bus,
+    bus: InProcessBus,
     port: Port,
     poll_s: float = NEVER_S,
     backoff_s: float = 0.005,
@@ -145,12 +145,12 @@ async def running(
             await keeping
 
 
-def bus_and_tap() -> tuple[Bus, Tap]:
-    bus = Bus(Clock())
+def bus_and_tap() -> tuple[InProcessBus, Tap]:
+    bus = InProcessBus(Clock())
     return bus, Tap(bus)
 
 
-def wanted(bus: Bus, topic: str, address: str, payload: Payload) -> None:
+def wanted(bus: InProcessBus, topic: str, address: str, payload: Payload) -> None:
     """One desired value, on the topic its address puts it on."""
     bus.publish(f"{topic}/{address}" if address else topic, payload)
 

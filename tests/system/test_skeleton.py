@@ -5,7 +5,7 @@ from typing import cast
 
 from tc49.bench.runner import placement
 from tc49.dispatcher import Dispatcher, FullRoute
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout, block_of, departure_end, end_on
 from tc49.lib.rejection import Reason
@@ -439,7 +439,7 @@ def test_a_level_re_asserted_is_an_at_least_once_no_op() -> None:
     at-least-once delivery needs no counter and no dedup — and the repeat
     grants nothing, releases nothing and completes nothing twice."""
     layout, _roster, scenario = load("crossover-yard/meet")
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen: list[str] = []
     Dispatcher(bus, layout, _roster, placement(scenario.trains), FullRoute(layout, 2))
     bus.subscribe(

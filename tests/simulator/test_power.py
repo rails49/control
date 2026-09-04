@@ -7,7 +7,7 @@ act, and simulating one would be the field or the branch ADR-0030 keeps out
 of every app.
 """
 
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.simulator import Simulator
 from tests.harness import build, events, load
@@ -15,7 +15,7 @@ from tests.harness import build, events, load
 POWER = "tc49/layout/state/power"
 
 
-def heard(bus: Bus) -> list[Payload]:
+def heard(bus: InProcessBus) -> list[Payload]:
     seen: list[Payload] = []
     bus.subscribe(POWER, lambda topic, payload: seen.append(payload))
     return seen
@@ -27,7 +27,7 @@ def test_the_value_is_stated_before_anything_is_asked() -> None:
     every consumer of the layout being built before the layout is."""
     layout, _roster, _scenario = load("crossover-yard/meet")
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     Simulator(bus, layout, clock)
     # With the stamp the bus put on it as it published: a state payload
     # carries the run clock's reading, zero at the constructor (#240).

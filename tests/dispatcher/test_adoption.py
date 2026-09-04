@@ -26,7 +26,7 @@ from typing import Any
 from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.dispatcher.dispatch import ALLOCATION, ASPECTS
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
@@ -50,7 +50,7 @@ def restarted(
     aspects: dict[str, str] | None = None,
     run: str | None = None,
     added: dict[str, str] | None = None,
-) -> tuple[Bus, Dispatcher, list[Payload]]:
+) -> tuple[InProcessBus, Dispatcher, list[Payload]]:
     """A dispatcher on a bus whose file already holds that picture — and the
     aspects and the run state the last session left, where a test wants them —
     with everything published on it collected as it goes.
@@ -92,7 +92,7 @@ def restarted(
                 },
             },
         )
-    bus = Bus(Clock(), path)
+    bus = InProcessBus(Clock(), path)
     dispatcher = Dispatcher(
         bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )

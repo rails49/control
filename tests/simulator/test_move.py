@@ -11,14 +11,14 @@ Driven at the layout interface: a `move` command in, sensor events out.
 """
 
 from tc49.bench.runner import placement
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.simulator import Simulator
 from tests.harness import load
 from tests.simulator.test_placement import move, simulator, tick
 
 
-def sensors(bus: Bus) -> list[tuple[str, Payload]]:
+def sensors(bus: InProcessBus) -> list[tuple[str, Payload]]:
     """The occupancy events alone — not `tc49/layout/+`, which would sweep
     up the boundary each tick publishes."""
     seen: list[tuple[str, Payload]] = []
@@ -27,9 +27,9 @@ def sensors(bus: Bus) -> list[tuple[str, Payload]]:
     return seen
 
 
-def build() -> tuple[Bus, Simulator]:
+def build() -> tuple[InProcessBus, Simulator]:
     layout, _roster, scenario = load("crossover-yard/meet")
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     return bus, simulator(bus, layout, placement(scenario.trains))
 
 

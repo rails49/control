@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 from tc49.bench.runner import placement
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import TOPICS
 from tc49.lib.layout import Layout
@@ -25,14 +25,14 @@ MOVE = "tc49/layout/move"
 
 
 def simulator(
-    bus: Bus, layout: Layout, stood: dict[str, str], path: Path | None = None
+    bus: InProcessBus, layout: Layout, stood: dict[str, str], path: Path | None = None
 ) -> Simulator:
     """The binding under test, with zero delays: a move's two sensor events
     fire on the next tick rather than a simulated minute out."""
     return Simulator(bus, layout, Clock(), stood, path, transit_s=0.0, clear_s=0.0)
 
 
-def sensors(bus: Bus) -> list[tuple[str, Payload]]:
+def sensors(bus: InProcessBus) -> list[tuple[str, Payload]]:
     seen: list[tuple[str, Payload]] = []
     bus.subscribe("tc49/layout/+", lambda topic, payload: seen.append((topic, payload)))
     return seen
@@ -52,7 +52,7 @@ def tick(sim: Simulator) -> None:
     sim.run_live(0.0, sleep=lambda _: None, stop=stop)
 
 
-def move(bus: Bus, train: str, transit: str, into: str) -> None:
+def move(bus: InProcessBus, train: str, transit: str, into: str) -> None:
     connection, _, name = transit.partition(".")
     bus.publish(
         MOVE, {"train": train, "connection": connection, "transit": name, "into": into}
@@ -63,7 +63,7 @@ def move(bus: Bus, train: str, transit: str, into: str) -> None:
 def test_nothing_is_written_without_a_path(tmp_path: Path) -> None:
     """A benchmark run keeps no file, exactly as its bus opens none."""
     layout, _roster, scenario = load("crossover-yard/meet")
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     sim = simulator(bus, layout, placement(scenario.trains))
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
     tick(sim)
@@ -76,7 +76,7 @@ def test_a_moved_train_is_written_where_it_now_stands(tmp_path: Path) -> None:
     is where every train is and not a log of how it got there."""
     layout, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     sim = simulator(bus, layout, placement(scenario.trains), path)
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
     tick(sim)
@@ -91,12 +91,12 @@ def test_a_restarted_simulator_starts_from_the_file(tmp_path: Path) -> None:
     layout, _roster, scenario = load("crossover-yard/meet")
     stood = placement(scenario.trains)
     path = tmp_path / "placement.json"
-    first = Bus(Clock())
+    first = InProcessBus(Clock())
     moved = simulator(first, layout, stood, path)
     move(first, "freight_1", "west_ladder.to_dn", "dn_w")
     tick(moved)
 
-    second = Bus(Clock())
+    second = InProcessBus(Clock())
     restarted = simulator(second, layout, stood, path)
     seen = sensors(second)
     move(second, "freight_1", "crossover.dn_straight", "dn_e")
@@ -114,7 +114,7 @@ def test_a_hand_that_lifts_a_train_moves_the_steel_under_it(tmp_path: Path) -> N
     sensors would describe a railroad nobody is on."""
     layout, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     sim = simulator(bus, layout, placement(scenario.trains), path)
     bus.publish("tc49/dispatch/train_placed", {"train": "freight_1", "block": "up_w"})
     bus.drain()
@@ -136,7 +136,7 @@ def test_a_hand_that_lifts_a_train_off_the_layout_takes_the_steel_with_it(
     when a train crosses, and this train crosses nothing now."""
     layout, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     simulator(bus, layout, placement(scenario.trains), path)
     seen = sensors(bus)
 
@@ -154,7 +154,7 @@ def test_the_file_names_the_steel_no_document_placed(tmp_path: Path) -> None:
     layout, _roster, scenario = load("crossover-yard/meet")
     path = tmp_path / "placement.json"
     path.write_text(json.dumps({"shunter": "up_w"}))
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     sim = simulator(bus, layout, placement(scenario.trains), path)
 
     seen = sensors(bus)

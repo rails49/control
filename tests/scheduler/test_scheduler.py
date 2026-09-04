@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import cast
 
 from tc49.bench.runner import facing as seed
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import RequestSpec, TrainSpec
@@ -48,14 +48,14 @@ def seeded(trains: dict[str, TrainSpec] | None = None) -> dict[str, str]:
     return seed(yard(), TWO_TRAINS if trains is None else trains)
 
 
-def collect(bus: Bus, topic_filter: str) -> list[tuple[str, Payload]]:
+def collect(bus: InProcessBus, topic_filter: str) -> list[tuple[str, Payload]]:
     seen: list[tuple[str, Payload]] = []
     bus.subscribe(topic_filter, lambda topic, payload: seen.append((topic, payload)))
     return seen
 
 
 def test_submits_the_whole_timetable_in_order_with_deterministic_ids() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded(), TIMETABLE)
 
@@ -83,7 +83,7 @@ def test_submits_the_whole_timetable_in_order_with_deterministic_ids() -> None:
 
 
 def test_exhausted_set_when_the_last_request_is_out() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/schedule/state/exhausted")
     Scheduler(bus, yard(), seeded(), TIMETABLE)
 
@@ -96,7 +96,7 @@ def test_exhausted_set_when_the_last_request_is_out() -> None:
 
 
 def test_an_empty_timetable_is_exhausted_at_once() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/schedule/state/exhausted")
     Scheduler(bus, yard(), seeded())
 
@@ -108,7 +108,7 @@ def test_a_run_given_no_timetable_submits_nothing() -> None:
     """Which sources a run has is configuration (ADR-0036): `tc49 live` runs
     the same scheduler with no timetable at all, and the first gesture's id
     is still `<train>-1`."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
 
@@ -123,7 +123,7 @@ def test_the_documents_placement_is_the_first_facing() -> None:
     """A train that has never moved has no other source for a direction
     arrow, which is why the topic survives the scheduler leaving the browser
     (ADR-0036)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
@@ -140,7 +140,7 @@ def test_a_retained_facing_is_adopted_in_place_of_the_placement(
     The document's placement is the cold start's seed and nothing more."""
     path = tmp_path / "session.json"
     path.write_text(json.dumps({FACING: {"facing": {"freight_1": "dn_e.B-to-A"}}}))
-    bus = Bus(Clock(), path)
+    bus = InProcessBus(Clock(), path)
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
@@ -163,7 +163,7 @@ def test_a_facing_the_state_file_spells_the_old_way_is_refused(
     document gives it."""
     path = tmp_path / "session.json"
     path.write_text(json.dumps({FACING: {"facing": {"freight_1": "dn_e.A"}}}))
-    bus = Bus(Clock(), path)
+    bus = InProcessBus(Clock(), path)
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
@@ -194,7 +194,7 @@ def test_a_retained_value_that_states_no_facing_map_is_a_cold_start(
     for retained in unreadable:
         path = tmp_path / "session.json"
         path.write_text(json.dumps({FACING: retained}))
-        bus = Bus(Clock(), path)
+        bus = InProcessBus(Clock(), path)
         seen = collect(bus, FACING)
         Scheduler(bus, yard(), seeded(), TIMETABLE)
         bus.drain()
@@ -216,7 +216,7 @@ def test_a_train_the_retained_map_states_unreadably_loses_only_itself(
     path.write_text(
         json.dumps({FACING: {"facing": {"freight_1": 7, "express_2": "dn_e.A-to-B"}}})
     )
-    bus = Bus(Clock(), path)
+    bus = InProcessBus(Clock(), path)
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
@@ -237,7 +237,7 @@ def test_a_train_only_the_old_spelling_names_comes_up_with_no_facing(
     move."""
     path = tmp_path / "session.json"
     path.write_text(json.dumps({FACING: {"facing": {"shunter": "up_w.B"}}}))
-    bus = Bus(Clock(), path)
+    bus = InProcessBus(Clock(), path)
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     bus.drain()
@@ -253,7 +253,7 @@ def test_a_granted_move_turns_the_train_away_from_the_end_it_entered() -> None:
     end entered through, so the layout is what says which ends the transit
     joins: `to_dn` joins dn_w.A to yard_w.B, so a train granted into dn_w
     comes in through A and faces A-to-B."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.publish(
@@ -276,7 +276,7 @@ def test_a_train_seeded_into_a_terminal_block_faces_its_connected_end() -> None:
     request rejected `unreachable`. A terminal block has one end a train can leave by and the
     document does not get to choose otherwise (#145): a scheduler fed a
     document from anywhere is still right."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(
         bus, yard(), seeded(TWO_TRAINS | {"freight_1": TrainSpec("yard_w", "B-to-A")})
@@ -291,7 +291,7 @@ def test_a_granted_move_into_a_terminal_block_faces_its_connected_end() -> None:
     would face B-to-A, out through the end no connection holds. It faces
     A-to-B, the one end it can leave by, and the physical railroad is what
     settles it (#145)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     bus.publish(
@@ -308,14 +308,14 @@ def test_a_granted_move_into_a_terminal_block_faces_its_connected_end() -> None:
     assert seen[-1][1]["facing"]["express_2"] == "yard_w.A-to-B"
 
 
-def chose(bus: Bus, request: str, route: list[str]) -> None:
+def chose(bus: InProcessBus, request: str, route: list[str]) -> None:
     bus.publish(
         "tc49/dispatch/route_chosen", {"id": request, "route": route, "k_tried": 1}
     )
     bus.drain()
 
 
-def granted(bus: Bus, train: str, transit: str, into: str) -> None:
+def granted(bus: InProcessBus, train: str, transit: str, into: str) -> None:
     bus.publish(
         "tc49/dispatch/move_granted",
         {
@@ -335,7 +335,7 @@ def test_a_route_out_of_the_end_the_train_faces_moves_the_arrow_on_arrival() -> 
     `up_e` facing B-to-A and its request departs by A, the end it faces: the
     arrow stays where it is until the move lands, and the move is what turns
     it away from the end entered."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()  # express_2-1 goes out, so the scheduler knows whose route it is
@@ -356,7 +356,7 @@ def test_a_route_out_of_the_other_end_moves_no_arrow() -> None:
     Recording that departure would say the train turned around while nothing
     touched it, which is a train driven backwards down the track once
     `layout` reads the same value."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
@@ -375,7 +375,7 @@ def test_a_propelled_train_faces_the_end_it_entered_through() -> None:
     propelled out of `up_w.B` over the crossover into `up_e`, entering
     through `up_e.A`. Faced away from that end it would read `up_e.A-to-B`,
     a train that turned around in a strict pass-through (ADR-0001)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded({"shunter": TrainSpec("up_w", "B-to-A")}))
 
@@ -390,7 +390,7 @@ def test_a_propelled_train_keeps_its_nose_direction_across_two_blocks() -> None:
 
     `shunter` is pushed west to east the whole way — `up_w`, `up_e`, then the
     yard — and its nose points at the `A` end of each block it stands in."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded({"shunter": TrainSpec("up_w", "B-to-A")}))
 
@@ -406,7 +406,7 @@ def test_a_propelled_train_into_a_terminal_block_faces_its_connected_end() -> No
     and `yard_w.A` is a wall. Facing the end entered and facing away from it
     are the same answer here, which is what #145 settled — facing never names
     an end that leads nowhere."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded({"shunter": TrainSpec("dn_w", "A-to-B")}))
 
@@ -419,7 +419,7 @@ def test_a_route_out_and_back_through_a_reversing_loop_turns_the_train() -> None
     signature — so a train that runs out of `CW` and back into it comes home
     the other way round. Nose-first both moves, and the pass-through rule
     alone gives the reversal: nothing about #295 touches it."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(
         bus,
@@ -436,7 +436,7 @@ def test_a_route_out_and_back_through_a_reversing_loop_turns_the_train() -> None
 def test_facing_is_published_only_when_it_moves() -> None:
     """Last-value-wins, and every view redraws on it: republishing the same
     map on every dispatch event would be a line in the trace per grant."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
@@ -452,7 +452,7 @@ def test_facing_is_published_only_when_it_moves() -> None:
 WANTED = "tc49/schedule/request_wanted"
 
 
-def gesture(bus: Bus, payload: object) -> None:
+def gesture(bus: InProcessBus, payload: object) -> None:
     bus.publish(WANTED, cast(Payload, payload))
     bus.drain()
 
@@ -460,7 +460,7 @@ def gesture(bus: Bus, payload: object) -> None:
 def test_a_gesture_is_composed_into_the_request_it_asks_for() -> None:
     """The two fields a gesture omits are the two the scheduler owns: the id
     it mints and the departure end it holds as facing (ADR-0036)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
 
@@ -479,7 +479,7 @@ def test_a_drag_out_of_a_terminal_block_departs_by_its_connected_end() -> None:
     """What the whole fix is for: the drag names no departure end, so a train
     facing a wall composed a request rejected `unreachable`, over and over for
     the rest of the session (#145)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(
         bus, yard(), seeded(TWO_TRAINS | {"freight_1": TrainSpec("yard_w", "B-to-A")})
@@ -492,7 +492,7 @@ def test_a_drag_out_of_a_terminal_block_departs_by_its_connected_end() -> None:
 def test_gestures_and_the_timetable_share_one_undivided_counter() -> None:
     """An id that tells you who minted it is a shape, and no consumer reads
     the shape (ADR-0033): a person's drag simply takes the next number."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded(), TIMETABLE)
 
@@ -505,7 +505,7 @@ def test_a_gesture_departs_from_where_facing_has_moved_to() -> None:
     """Facing is not the document's for long: the drag names no departure
     end, so what the scheduler has carried forward is what the request
     states."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
     bus.publish(
@@ -526,7 +526,7 @@ def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
     """Anything at all can be published where a person's page writes, and
     none of it raises out of the handler (ADR-0034): what cannot be composed
     leaves no request behind, and the next honest drag still composes."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
 
@@ -548,7 +548,7 @@ def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
 REVERSAL = "tc49/schedule/reversal_wanted"
 
 
-def reversal(bus: Bus, payload: object) -> None:
+def reversal(bus: InProcessBus, payload: object) -> None:
     bus.publish(REVERSAL, cast(Payload, payload))
     bus.drain()
 
@@ -560,7 +560,7 @@ def test_a_reversal_turns_the_train_around_where_it_stands() -> None:
 
     `express_2` stands in `up_e`, a through block, which is where the flip
     has two ends to choose between at all."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
 
@@ -581,7 +581,7 @@ def test_a_reversal_on_a_terminal_block_leaves_the_arrow_alone() -> None:
     which is the placement the store refuses at load, and the next drag
     departed by the wall and was rejected `unreachable` — the train stuck for
     the rest of the session."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
 
@@ -595,7 +595,7 @@ def test_a_reversal_on_a_terminal_block_leaves_the_arrow_alone() -> None:
 def test_a_reversal_composes_no_request_and_tells_the_dispatcher_nothing() -> None:
     """Nothing moves, so there is nothing to ask for: the dispatcher never
     learns the gesture happened."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
 
@@ -613,7 +613,7 @@ def test_a_reversal_is_dropped_while_the_train_has_a_request_in_flight() -> None
     Asked of `express_2` in the through block `up_e`, where the flip has an
     end to move to: in a terminal block the gesture is a no-op anyway and the
     drop would not be what held the arrow still (#145)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
@@ -631,7 +631,7 @@ def test_a_reversal_lands_once_the_request_is_answered() -> None:
 
     `express_2` again, so the arrow has somewhere to go and the assertion is
     about the rejection rather than about the block (#145)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
@@ -656,7 +656,7 @@ def test_a_cancelled_request_is_dropped_and_never_re_submitted() -> None:
     `request_wanted`. Re-submitting here would put back the very work a
     person's gesture just ended.
     """
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     submitted = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
@@ -675,7 +675,7 @@ def test_a_cancellation_needs_no_facing_case_of_its_own() -> None:
     facing, and `displaced` by `train_placed`, which already recomputes it.
     The cancellation itself moves no arrow: the train is where it was until
     one of those two says otherwise."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
@@ -692,7 +692,7 @@ def test_a_reversal_that_cannot_be_read_is_dropped() -> None:
     """A gesture carries no id, so there is nothing to address an answer to
     and a broadcast refusal would be uncorrelatable (ADR-0034): what cannot
     be read leaves nothing behind, and the trace is its only record."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     bus.drain()  # the placement facing, so what follows is the answer
@@ -712,7 +712,7 @@ PLACED = "tc49/dispatch/train_placed"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 
 
-def placed(bus: Bus, payload: Payload) -> None:
+def placed(bus: InProcessBus, payload: Payload) -> None:
     bus.publish(PLACED, payload)
     bus.drain()
 
@@ -728,7 +728,7 @@ def test_facing_follows_a_train_the_dispatcher_has_accepted_as_placed() -> None:
     from; `reversal_wanted` is the correction where it lands the train the
     wrong way round, which is the shape the eventual roster drag wants
     anyway."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
 
@@ -743,7 +743,7 @@ def test_a_train_placed_into_a_terminal_block_faces_its_connected_end() -> None:
     """`yard_e.B` is the buffer stop. Every facing site goes through
     `connected_facing`, so the run carried over is turned to the one end the
     train can leave by rather than pointing it at the wall (#145)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
 
@@ -757,7 +757,7 @@ def test_the_scheduler_never_reads_the_placement_gesture() -> None:
     publishes and not the gesture — two apps reading one payload would have
     to agree on every precondition, and the picture would split exactly where
     a real operator works."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     bus.drain()
@@ -774,7 +774,7 @@ def test_a_train_nothing_placed_gains_a_facing_when_it_is_placed() -> None:
     dispatcher having accepted the train as known, so the scheduler carries
     nothing across and starts from `B-to-A`, which `reversal_wanted` corrects
     (ADR-0019, ADR-0039)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     bus.drain()
@@ -794,7 +794,7 @@ def test_a_restart_keeps_the_facing_of_a_train_no_document_places(
     nowhere."""
     path = tmp_path / "session.json"
     path.write_text(json.dumps({FACING: {"facing": {"shunter": "up_w.A-to-B"}}}))
-    bus = Bus(Clock(), path)
+    bus = InProcessBus(Clock(), path)
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     bus.drain()
@@ -805,7 +805,7 @@ def test_a_restart_keeps_the_facing_of_a_train_no_document_places(
 def test_a_train_taken_off_the_layout_loses_its_facing() -> None:
     """The other direction of the same gesture: no block, no facing to hold
     (ADR-0039)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     bus.drain()
@@ -819,7 +819,7 @@ def test_a_train_taken_off_the_layout_loses_its_facing() -> None:
 # -- what the dispatcher announces, read and never trusted (#259) -----------
 
 
-def announce(bus: Bus, leaf: str, payload: object) -> None:
+def announce(bus: InProcessBus, leaf: str, payload: object) -> None:
     bus.publish(f"tc49/dispatch/{leaf}", cast(Payload, payload))
     bus.drain()
 
@@ -838,7 +838,7 @@ def test_an_announcement_that_cannot_be_read_leaves_facing_where_it_was() -> Non
     (SYSTEM.md, #276): the layout interface drops the `move` of the same shape
     rather than run a train over track the layout does not have.
     """
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
@@ -886,7 +886,7 @@ def test_a_leaf_the_scheduler_does_not_act_on_is_ignored() -> None:
     follow. Ignoring one is rule 4 doing its ordinary work — including a leaf
     that did not exist when this scheduler was built, which is what leaves the
     inventory open (SYSTEM.md)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
@@ -921,7 +921,7 @@ def test_an_answer_that_cannot_be_read_leaves_the_request_in_flight() -> None:
     """The two answers are what free a train to be turned around at rest: an
     id the scheduler cannot read frees nothing, so the reversal stays dropped
     and the request stays the scheduler's to remember (#124)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()

@@ -28,7 +28,7 @@ from tc49.bench.runner import assemble_live
 from tc49.bench.session import Session
 from tc49.layout import LayoutInterface
 from tc49.layout.interface import SETTLING_S
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import DEVICE_TOPICS
 from tc49.lib.layout import Layout, block_of, opposite_end
@@ -59,15 +59,17 @@ def a_block(layout: Layout) -> str:
     return min(layout.blocks)
 
 
-def hand_fed(layout: Layout, typed: str = "") -> tuple[HandFed, Bus, io.StringIO]:
+def hand_fed(
+    layout: Layout, typed: str = ""
+) -> tuple[HandFed, InProcessBus, io.StringIO]:
     """A detector on a bare bus, what it publishes readable off the bus, and
     where it says a line that is no reading."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     out = io.StringIO()
     return HandFed(bus, layout, io.StringIO(typed), out), bus, out
 
 
-def sensed(bus: Bus) -> list[tuple[str, Payload]]:
+def sensed(bus: InProcessBus) -> list[tuple[str, Payload]]:
     """Every sensor row published from here on, in order. Drained here rather
     than by the detector: publishing is all it does, and the loop that owns
     the run is what carries a row to whoever reads it."""
@@ -205,7 +207,7 @@ def test_a_malformed_line_is_said_where_the_person_typed_it() -> None:
 
 
 def waits_for(
-    detector: HandFed, bus: Bus, published: list[tuple[str, Payload]]
+    detector: HandFed, bus: InProcessBus, published: list[tuple[str, Payload]]
 ) -> bool:
     """Turn after turn of what the pacer does with it — take what was typed,
     then drain — until the reader thread has caught up. The read is on a
@@ -227,7 +229,7 @@ def test_an_input_that_cannot_be_read_is_said_and_the_run_goes_on() -> None:
     layout, _roster = a_railroad()
     lines = io.StringIO()
     lines.close()
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     out = io.StringIO()
     detector = HandFed(bus, layout, lines, out)
 
@@ -333,7 +335,7 @@ def test_a_typed_pair_completes_a_move_the_way_a_detectors_would() -> None:
     layout, roster = a_railroad()
     crossing = a_crossing(layout)
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     app = LayoutInterface(bus, layout, roster, clock)
     detector = HandFed(bus, layout, io.StringIO(), io.StringIO())
     # The railroad as it stands when the move is granted: the rails live, the

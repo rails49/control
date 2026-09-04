@@ -17,7 +17,7 @@ injected, and what it asked for is what is asserted.
 from io import StringIO
 
 from tc49.bench.runner import placement
-from tc49.lib.bus import Bus
+from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import leaf
 from tc49.lib.trace import TraceTap
@@ -36,14 +36,14 @@ event and a turn is exactly "the next thing the railroad does"."""
 SENSORS = ("tc49/layout/block_occupied", "tc49/layout/block_vacated")
 
 
-def build() -> tuple[Bus, Clock, Simulator, StringIO]:
+def build() -> tuple[InProcessBus, Clock, Simulator, StringIO]:
     """The binding under test on a bus of its own, its steel stood where the
     scenario document stands it, with the trace tap in front of it so the
     run's whole record — the power it states from its constructor included —
     is on the stream."""
     layout, _roster, scenario = load("crossover-yard/meet")
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     out = StringIO()
     TraceTap(bus, out, clock)
     simulator = Simulator(
@@ -57,7 +57,7 @@ def build() -> tuple[Bus, Clock, Simulator, StringIO]:
     return bus, clock, simulator, out
 
 
-def stamped(bus: Bus, clock: Clock) -> list[tuple[float, str, str]]:
+def stamped(bus: InProcessBus, clock: Clock) -> list[tuple[float, str, str]]:
     """Every sensor event with the run clock's reading at the moment it was
     published: which detector spoke about which block, and when."""
     seen: list[tuple[float, str, str]] = []
@@ -71,7 +71,7 @@ def stamped(bus: Bus, clock: Clock) -> list[tuple[float, str, str]]:
     return seen
 
 
-def move(bus: Bus, train: str, transit: str, into: str) -> None:
+def move(bus: InProcessBus, train: str, transit: str, into: str) -> None:
     """One command as the driver publishes it, delivered on its own drain."""
     connection, _, name = transit.partition(".")
     bus.publish(
@@ -81,7 +81,7 @@ def move(bus: Bus, train: str, transit: str, into: str) -> None:
     bus.drain()
 
 
-def both_trains_move(bus: Bus) -> None:
+def both_trains_move(bus: InProcessBus) -> None:
     """The two trains the scenario stands, each given a transit the other
     does not touch: freight_1 out of the west yard onto the down line,
     express_2 off the up main into the east yard. Both are accepted at once,
