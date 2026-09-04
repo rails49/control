@@ -76,7 +76,15 @@ export const POWER_WANTED = "tc49/layout/power_wanted";
  *  [#294](https://github.com/rails49/control/issues/294)).
  *  An enum and not a boolean, on the topic and here — which is what let the
  *  drain take a third value rather than invent a state of its own. The same
- *  three a person's `run_wanted` may name. */
+ *  three a person's `run_wanted` may name.
+ *
+ *  `state/run` carries `moving` beside the word, and it is not a fourth value
+ *  of this: a boolean, true while any train is active or crossing, so a power
+ *  cut now would strand it. A held run can be moving, because a move already
+ *  granted runs to its sensor, and a running run with nothing granted is not
+ *  ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
+ *  A `run_wanted` names the word alone: `moving` is what the railroad is
+ *  doing and nothing a person asks for. */
 export type Run = "held" | "running" | "draining";
 
 /** What the layout says about whether a train may move at all: `on`, or one
