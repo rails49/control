@@ -261,7 +261,7 @@ properties: `addr` on a turnout or a slip, and `signals` on a block, keyed by
 the end each signal stands at.
 
 ```yaml
-b_station_a: { kind: block, at: [12, 4], length: 900, signals: { A: 'dccex/40', B: 'dccex/41' } }
+b_station_a: { kind: block, at: [12, 4], length: 900, signals: { A: '40', B: '41' } }
 ```
 
 A **signal** is installed at one end of one block, so the drawing is where its

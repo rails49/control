@@ -231,8 +231,8 @@ trains:
   model field may be overridden on a car; **the merged result is what is
   validated**, so a car is complete however it was written. A car naming no
   model, or one the catalogue has not, is refused.
-- **`addr` is bare** — no system prefix, unlike a point's — and absent where a
-  car has no decoder. Two cars on one railroad sharing one are refused: both
+- **`addr` is the number programmed into the decoder**, naming no system as a
+  point's does not, and absent where a car has no decoder. Two cars on one railroad sharing one are refused: both
   answer the same packet and no run can tell them apart. Written as a string,
   so `460` and `"460"` cannot be one address spelled two ways.
 - **`cars:` holds identified stock**, and a train's entry names **either a car
