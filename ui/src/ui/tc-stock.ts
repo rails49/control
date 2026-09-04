@@ -191,7 +191,7 @@ export class TcStock extends LitElement {
       ]);
       if (this.held !== railroad) return;
       this.stock = new Stock(roster, catalogue);
-      this.train = Object.keys(roster.trains).sort()[0] ?? null;
+      this.train = this.first();
       this.trouble = null;
     } catch (failure) {
       if (this.held !== railroad) return;
@@ -438,7 +438,7 @@ export class TcStock extends LitElement {
           <button
             class="remove"
             title="unmake this train"
-            @click=${() => this.changed((stock) => stock.removeTrain(train.train))}
+            @click=${(event: Event) => this.unmade(event, train.train)}
           >
             ×
           </button>
@@ -515,6 +515,32 @@ export class TcStock extends LitElement {
     this.did(refused);
     if (refused === null) this.train = name;
   };
+
+  /**
+   * Unmake a train, and leave the left pointing at one that is there.
+   *
+   * The press is not a press on the row. `×` sits inside the row and the
+   * row's click is what makes a train current, so unmaking one first made it
+   * the train every `+` named — and then it was gone, `append` returning
+   * silently for a train the roster has not got: every `+` enabled, saying
+   * *add to 'ore'*, doing nothing and saying nothing (#416).
+   *
+   * Whatever was current, a train that is gone is not: the first train left
+   * becomes current, as reading the documents picks one, and `null` where the
+   * roster has none — which is the `+` disabled with no target, as it is
+   * before any train is made up.
+   */
+  private unmade(event: Event, train: string): void {
+    event.stopPropagation();
+    this.changed((stock) => stock.removeTrain(train));
+    if (this.train === train) this.train = this.first();
+  }
+
+  /** The train the left points at when nothing has said which: the first the
+   *  roster has, and `null` where it has none. */
+  private first(): string | null {
+    return Object.keys(this.stock?.roster.trains ?? {}).sort()[0] ?? null;
+  }
 
   /** A car or a model put at the tail of the current train: the whole of
    *  composing right from left. Named for what it does to the train rather

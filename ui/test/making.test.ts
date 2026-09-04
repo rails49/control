@@ -547,3 +547,54 @@ describe("a store that does not answer with a document", () => {
     expect(parts(shell, "li.product")).toHaveLength(0);
   });
 });
+
+/**
+ * The current train: the one the `+` buttons put something at the tail of,
+ * and the row drawn as current.
+ *
+ * Unmaking it used to leave every `+` enabled and naming a train that was
+ * gone — the press then did nothing and said nothing, `append` returning
+ * silently for a train the roster has not got (#416).
+ */
+describe("unmaking the current train", () => {
+  /** Two trains, the second of which is current: making one up makes it the
+   *  one the left points at. They sort `ore` then `shunt`. */
+  async function pair(): Promise<TcApp> {
+    const shell = await opened();
+    await product(shell, "hopper", "freight", "100");
+    await train(shell, "ore");
+    await train(shell, "shunt");
+    return shell;
+  }
+
+  /** The `+` beside the first model row, which is what a press on the left
+   *  is. */
+  function plus(shell: TcApp): HTMLButtonElement {
+    return parts(shell, "li.product button.add")[0] as HTMLButtonElement;
+  }
+
+  it("makes the first train left current, and adds to that one", async () => {
+    const shell = await pair();
+    await pressed(shell, "li.train button.remove", 1);
+
+    expect(parts(shell, "li.train")).toHaveLength(1);
+    expect(
+      (parts(shell, "li.train.current input.name")[0] as HTMLInputElement).value,
+    ).toBe("ore");
+    expect(plus(shell).disabled).toBe(false);
+    expect(plus(shell).title).toBe("add to 'ore'");
+
+    await pressed(shell, "li.product button.add");
+    expect(parts(shell, "li.entry .what")[0]!.textContent).toMatch("hopper");
+  });
+
+  it("leaves the + with no target where the last train goes", async () => {
+    const shell = await pair();
+    await pressed(shell, "li.train button.remove", 1);
+    await pressed(shell, "li.train button.remove");
+
+    expect(parts(shell, "li.train")).toHaveLength(0);
+    expect(plus(shell).disabled).toBe(true);
+    expect(plus(shell).title).toBe("make a train up first");
+  });
+});
