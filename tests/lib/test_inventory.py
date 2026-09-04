@@ -138,8 +138,8 @@ def test_the_observed_rows_state_their_fields_in_order() -> None:
     gives them, past the stamp every state row leads with."""
     assert DEVICE_TOPICS[SENSOR].fields == (AT, "addr", "occupancy", "reason")
     assert DEVICE_TOPICS[OBSERVED_POINT].fields == (AT, "addr", "position")
-    assert DEVICE_TOPICS[OBSERVED_TRACK].fields == (AT, "power")
-    assert DEVICE_TOPICS[LINK].fields == (AT, "system", "link", "detail")
+    assert DEVICE_TOPICS[OBSERVED_TRACK].fields == (AT, "power", "reason")
+    assert DEVICE_TOPICS[LINK].fields == (AT, "id", "link", "detail")
 
 
 def test_a_sensor_is_addressed_by_the_block_end_it_watches() -> None:
@@ -151,14 +151,15 @@ def test_a_sensor_is_addressed_by_the_block_end_it_watches() -> None:
     assert split_device("tc49/layout/state/device/sensor/A1.b") == (SENSOR, "A1.b")
 
 
-def test_a_link_is_addressed_by_the_system_whose_link_it_reports() -> None:
-    """One translator per hardware system, each publishing its own link to
-    the hardware as observed state like any other, so a UI can say the command
-    station is unreachable rather than the railroad merely looking idle
-    (ADR-0050). The address comes back as `system` rather than `addr`: it
-    names a translator's system, not a device the translator drives."""
-    assert split_device(device_topic(LINK, "dccex")) == (LINK, "dccex")
-    assert DEVICE_TOPICS[LINK].address == "system"
+def test_a_link_is_keyed_by_whatever_the_publisher_calls_itself() -> None:
+    """A participant that knows it cannot reach its hardware says so
+    (ADR-0050), and the row is keyed so that a second participant's `up` does
+    not erase the first's `down`. The key is the publisher's own id — it
+    appears in no drawing, no configuration and no list of ours — and comes
+    back as `id` rather than `addr`, there being no device at the far end of
+    it (ADR-0059)."""
+    assert split_device(device_topic(LINK, "the shed")) == (LINK, "the shed")
+    assert DEVICE_TOPICS[LINK].address == "id"
 
 
 def test_the_two_halves_of_the_vocabulary_are_named_apart() -> None:

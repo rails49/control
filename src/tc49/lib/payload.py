@@ -508,8 +508,10 @@ def detected(payload: object) -> str:
 
 
 def reported_reason(payload: object) -> str | None:
-    """Why a detector cannot say what it sees, or None where it gives no
-    reason — free text, optional, and only ever beside `unknown`.
+    """Why the hardware reports what it does, or None where it gives no
+    reason — free text and optional, on the two observed rows that carry one:
+    a detector's `unknown`, and a supply the participant reporting it cannot
+    reach (`{power: off, reason: "…"}`, ADR-0059).
 
     Read so that `layout` can put it in front of a person, which is the whole
     of what it is for: nothing branches on it, and a reason that is not a
@@ -709,7 +711,7 @@ def shown_aspects(payload: object) -> dict[str, str] | None:
 
 
 def link_up(payload: object) -> bool:
-    """Whether a translator states that it can reach the hardware it drives.
+    """Whether a participant states that it can reach the hardware it drives.
 
     A boolean rather than a value, because the fold it feeds asks one
     question: the railroad has power only while every link that has ever been
@@ -717,7 +719,8 @@ def link_up(payload: object) -> bool:
     from outside the pair, a payload that is no object at all — reads as not
     up, which is `power`'s direction on the row beside it and for `power`'s
     reason (#181): a link a consumer cannot read is not a link it may call
-    good.
+    good. The id the row is keyed by is not read here: it is the topic's, and
+    what the fold does with it is `layout`'s (ADR-0059).
     """
     if not isinstance(payload, dict):
         return False

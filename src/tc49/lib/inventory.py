@@ -119,10 +119,8 @@ DEVICE_TOPICS: dict[str, Topic] = {
         (AT, "addr", "occupancy", "reason"), address="addr"
     ),
     "tc49/layout/state/device/point": Topic((AT, "addr", "position"), address="addr"),
-    "tc49/layout/state/device/track": Topic((AT, "power")),
-    "tc49/layout/state/device/link": Topic(
-        (AT, "system", "link", "detail"), address="system"
-    ),
+    "tc49/layout/state/device/track": Topic((AT, "power", "reason")),
+    "tc49/layout/state/device/link": Topic((AT, "id", "link", "detail"), address="id"),
 }
 """The device vocabulary under the layout interface, both halves of it: the
 `wanted/` rows are what the hardware should do and the `device/` rows are what
@@ -132,13 +130,13 @@ row is written by whatever answers for that address, which is exactly one
 thing, so no ownership table is needed anywhere (ADR-0043).
 
 Keyed by the **fixed part** of the topic, the address being trailing levels
-rather than a leaf, and repeated in the payload — as ``addr``, or as ``system``
-on `device/link`, which is addressed by the hardware system whose link it
-reports — so a trace line reads on its own. `wanted/track` and `device/track`
-are the two rows that carry no address: a power district is a hardware-level
-fact that does not reach the bus, so there is one railroad-wide power desired
-and one observed, and a translator maps it onto however many districts it
-drives (#217).
+rather than a leaf, and repeated in the payload — as ``addr``, or as ``id`` on
+`device/link`, which is keyed by whatever the publisher calls itself — so a
+trace line reads on its own. `wanted/track` and `device/track` are the two
+rows that carry no address: a power district is a hardware-level fact that
+does not reach the bus, so there is one railroad-wide power desired and one
+observed, and a translator maps it onto however many districts it drives
+(#217).
 
 A **sensor** is addressed by the block end it watches, ``<block>.<end>``,
 never by a camera's own identifier: the drawing carries the mapping and the
@@ -150,11 +148,19 @@ of every sensor on the railroad, and a second camera could then not join
 
 `device/point` is published only where the hardware actually reports a
 position, and a commanded one is never echoed back as a measured one
-(ADR-0022): on this railroad turnouts have no feedback, so the `dccex`
-translator writes none. `device/link` is where a broken link becomes
-observable, so a UI can say the command station is unreachable rather than the
-railroad merely looking idle — reported at runtime to a person who can act on
-it, which is where verifying a link belongs (ADR-0050, #217).
+(ADR-0022): on this railroad turnouts have no feedback, so the translator
+driving them writes none. `device/link` is where a participant that knows it
+cannot reach its hardware says so, so a UI can say the command station is
+unreachable rather than the railroad merely looking idle — reported at runtime
+to a person who can act on it, which is where verifying a link belongs
+(ADR-0050, #217). Its ``id`` is whatever the publisher calls itself and
+appears in no drawing, no configuration and no list of ours; it is a key
+because two participants publishing on one row would erase each other, and
+`layout` folds the supply to `off` for any id it has heard say `down` without
+ever waiting for one it has not heard (ADR-0058, ADR-0059). `device/track`
+carries the free-text `reason` for the same person: the participant that
+reports the supply and cannot reach it says why on the row itself, rather than
+leaving them a second row to find.
 
 Separate from ``TOPICS`` rather than in it because ``TOPICS`` maps a whole
 topic to its field order, and a device row's whole topic is not knowable until

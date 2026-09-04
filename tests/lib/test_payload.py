@@ -619,8 +619,8 @@ def test_a_value_showing_no_aspects_at_all_reads_as_none() -> None:
 def test_a_link_reads_as_up_only_when_it_says_so() -> None:
     """One question, so a boolean: the railroad has power only while every
     link ever seen is up (#287)."""
-    assert link_up({"system": "dccex", "link": "up"})
-    assert not link_up({"system": "dccex", "link": "down"})
+    assert link_up({"id": "the shed", "link": "up"})
+    assert not link_up({"id": "the shed", "link": "down"})
 
 
 def test_a_link_that_cannot_be_read_is_not_up() -> None:
@@ -631,7 +631,7 @@ def test_a_link_that_cannot_be_read_is_not_up() -> None:
         {},  # no link
         {"link": None},
         {"link": "UP"},  # a word from outside the pair
-        {"system": "dccex"},
+        {"id": "the shed"},
     ]
     for payload in unreadable:
         assert not link_up(payload), payload
