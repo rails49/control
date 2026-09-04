@@ -17,8 +17,10 @@ stock it has without saying where any of it stands
 ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)).
 
 The types live here beside :mod:`tc49.lib.scenario` for the same reason that
-one does: they are the shared vocabulary every app reads, and the store owns
-the binding and the validator that produce them.
+one does: they are the shared vocabulary every app reads. The store owns the
+YAML binding they are kept in; the **validator** is :mod:`tc49.lib.stock`,
+beside them, because an app in its own process reads a roster off the store's
+HTTP face and has no store to import (ADR-0013, ADR-0059 decision 5).
 
 Nothing here is live state and nothing commands a function: a model records
 what a function *means*, and what puts one on the bus is the device

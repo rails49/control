@@ -71,7 +71,7 @@ never assumed from what the model is.
 length over buffers, kind, functions. The catalogue is a real document with
 its own route underneath and never a place you navigate to for its own sake. It
 is written the moment it is made, ahead of the roster, because a roster naming
-a model the installation has not got is refused whole (`store/stock.py`).
+a model the installation has not got is refused whole (`lib/stock.py`).
 
 **New model makes a product and never changes one.** The dialog refuses a name
 the catalogue already has — *there is already a model 'hopper'* — said beside
@@ -98,7 +98,7 @@ screen that caused it.
 Save is the order of work this screen invites, so the screen refuses that save
 itself, before the `PUT`, naming the train: *train 'ore' has nothing in it —
 press + beside a car or a model, or remove it*. The store refuses the same
-document — an empty `cars` list names no cars (`store/stock.py`) — so a roster
+document — an empty `cars` list names no cars (`lib/stock.py`) — so a roster
 it takes is always one `/rosters/<railroad>/trains` can answer, and the roster
 on disk is unchanged either way. Save stays enabled: there is still something
 to give the store once the train is filled
@@ -107,7 +107,7 @@ to give the store once the train is filled
 **A roster written before [#223](https://github.com/rails49/control/issues/223)
 opens here.** Such a file states a train's length and names no cars, and the
 store keeps that shape legal for a person's own older file and answers it as
-written (`store/stock.py`, `_train`). The train is drawn as a row with that
+written (`lib/stock.py`, `_train`). The train is drawn as a row with that
 length, nothing in it, no kind and no functions — the derivations answer for
 what is not there, as `tc49.lib.roster.Train` does for the same document — and
 a note in the row says it states its length and names no cars. **Composing it
