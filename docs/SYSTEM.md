@@ -1545,8 +1545,10 @@ Two of the observed rows are published today, both by a translator:
 and the two `state/power` is folded from. The third is `device/sensor`, whose
 publisher is a detector and lives outside this repository — until one does, a
 person supplies the readings a physical run has no other source of, typing
-them at the session a line at a time on the writing role a detector holds
+them a line at a time on the writing role a detector holds, at a client of the
+broker like the camera that will replace it
 ([#315](https://github.com/rails49/control/issues/315),
+[#379](https://github.com/rails49/control/issues/379),
 [bench/detector.py](../src/tc49/bench/detector.py)); `device/point` is
 declared and written by nobody. Folding a block's two sensors into
 `block_occupied` and `block_vacated` is `layout`'s own work, and so is the

@@ -184,12 +184,15 @@ src/tc49/
                 replay.py   Replay — a scenario played onto a live run as
                             the gestures a person would make (#171)
                 detector.py HandFed — a person's typed readings published as
-                            the detector rows nothing publishes yet, on a
-                            physical run alone (#315)
+                            the detector rows nothing publishes yet (#315),
+                            and `serve`, the same keyboard as a client of the
+                            broker: `tc49 readings` (ADR-0059, #379)
                 cli.py      `tc49 bench <scenario>`; `tc49 sweep` takes no
                             arguments — the grid of BENCHMARKS.md is the
                             fixed research design; `tc49 layout show`;
                             `tc49 serve` runs the store's HTTP face;
+                            `tc49 readings --broker … --railroad … --store …`
+                            publishes what a person types;
                             `tc49 generate` rewrites every TypeScript
                             file the UI is handed rather than keeps by hand
                 sweep.py    the seeded workload generator and the fixed grid
@@ -300,6 +303,7 @@ tests/
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
                test_main
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks
+               test_detector  test_readings
   driver/      test_driver  test_main
   simulator/   test_move  test_power  test_placement  test_pacing  test_live
                test_reading  test_main
