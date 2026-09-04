@@ -59,8 +59,8 @@ layout.
 the bus, so nothing publishes a roster change: a person who makes a train up in
 the [stock view](STOCK.md) and switches here must see it, and until then the run
 keeps the roster it joined with. Only the roster — the session is joined, the
-socket is open and every retained topic has been replayed, so re-joining would
-take a live picture down to bring back a document.
+connection is open and every retained topic has been replayed, so re-joining
+would take a live picture down to bring back a document.
 
 Trains standing nowhere have rows because those rows are what there is to drag
 back onto the railroad. It is also the pane that unfreezes the drawing
@@ -339,9 +339,9 @@ view of their own, [THROTTLE.md](THROTTLE.md)
 ([#207](https://github.com/rails49/control/issues/207),
 [#291](https://github.com/rails49/control/issues/291)). Taking a train in a
 throttle and turning it are a person's actions on a UI like any other, and
-`INBOUND` is this app's write surface. The socket they go out on is this
-view's: there is one session per page and this is what joins it, so the
-throttle asks and the run view writes.
+`INBOUND` is this app's write surface. The client they go out on is this
+view's: there is one connection per page and this is what holds it, so the
+throttle asks and the run view publishes.
 
 **Right-clicking** the block a train stands in opens a menu with one item,
 **Turn around**, which publishes `tc49/schedule/reversal_wanted` (`{train}`). The
@@ -375,8 +375,8 @@ press outside is dismissed by — takes the press, puts the menu down, and hands
 it on to whatever is under the point, so the menu opens on the train that was
 clicked and the browser's own still does not
 ([#180](https://github.com/rails49/control/issues/180),
-`ui/src/ui/dismissal.ts`). It holds for the bar's menus and the band's picker
-too: all three wear the one overlay.
+`ui/src/ui/dismissal.ts`). It holds for the bar's menus too: both wear the one
+overlay.
 
 The menu a forwarded press opens is a menu like any other: it drops a live
 overlay, and a left press outside it takes it down and reaches nothing
@@ -399,9 +399,9 @@ drops such a gesture anyway, a stale page always being able to send one.
 An open menu outlives what it is about: the train it was greyed for can run
 its request to completion and be somewhere else by the time the item ungreys,
 and the session it would write to can go away under it. So the menu is taken
-down when the train leaves the block it was opened over, and when the bridge
-link drops, rather than turning a train around in a block nobody clicked or
-sending into a closed socket.
+down when the train leaves the block it was opened over, and when the broker
+goes, rather than turning a train around in a block nobody clicked or
+publishing into a client that is reconnecting.
 
 The panel is mouse-and-keyboard. Touch works where the browser gives it, iOS
 Safari raising `contextmenu` on a long press, but is not designed for; the one
@@ -418,45 +418,40 @@ what is safe would sit alongside the dispatcher.
 ## Implementation
 
 The asset store already has an HTTP face, built for the editor and belonging
-to the store ([EDITOR.md](EDITOR.md#implementation)). The panel adds the other
-half: a bridge from `tc49/#` to the browser over a WebSocket. That is not a
-store operation and does not live with one. Validation stays in the existing
-Python validator. The MQTT transport switch later changes only what the bridge
-subscribes to. The front end shares the editor's stack and symbol library.
+to the store ([EDITOR.md](EDITOR.md#implementation)). The bus the panel reads
+is the broker, reached over a WebSocket at `/mqtt` on the page's own origin
+with MQTT.js as the client
+([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+decision 4): the browser is a participant like every app, and there is no
+relay of ours in front of it. `?broker=` names one somewhere else and is the
+whole of the page's configuration. Validation stays in the existing Python
+validator, and the front end shares the editor's stack and symbol library.
 
-**The loaded railroad is the session.** A run is built from a railroad and
-nothing else ([#171](https://github.com/rails49/control/issues/171)), so the
-band's picker is the only thing that sets which one, and the run view has no
-session of its own to pick. The loaded railroad rides in the socket path —
-`ws://localhost:5173/live/reversing-loops` — so the one choice says both which
-drawing to render and which railroad feeds it. A socket opened without it would
-render one railroad on another's events, which is what a session whose railroad
-was fixed at launch allowed (#148). Switching is a reconnect, which is what
-joining already was. No inbound topic carries any of it: the set stays exactly
-the browser-writable rows that ADR-0034's broker ACL will grant, and that is
-what keeps ADR-0036's single-minter argument holding.
+**The broker says which railroad it is.** One broker runs one railroad, and
+the layout interface publishes its name on `tc49/layout/state/railroad`
+(ADR-0059, decision 2,
+[#371](https://github.com/rails49/control/issues/371)). The run view reads
+that row and hands the name to the app, which loads the drawing and the review
+off the store — so the picture and what feeds it can never be two railroads,
+and there is nothing for a person to pick: switching railroads is restarting
+the apps, and the band's picker went with the bridge. The page subscribes
+`tc49/#` and publishes only the browser-writable rows. With anonymous clients
+a broker cannot tell a page from an app, so that set is convention rather than
+enforcement, and it is what keeps ADR-0036's single-minter argument holding.
 
-`tc49 live` takes the railroad as an optional argument. With none it comes up
-idle on its port waiting to be told; with one it starts running that railroad
-and the band may still switch it. Naming the running railroad joins it
-mid-run. Naming another tears the assembly down, builds a fresh one for that
-railroad, and closes any client still on the old path — one operator, one
-railroad. **A client the session closes lets go of it entirely**: it holds no
-run, so the roster empties and the drawing thaws rather than freezing on a
-picture nobody is maintaining. Naming a railroad that does not exist gets an
-`{"error": …}` frame and a close, with the running railroad untouched: a typo
-must not take a live session down. A run outlives its clients, so closing the
-browser leaves the railroad running and Ctrl-C ends the session.
+**A page joins in the middle of a cold start.** The retained rows arrive as
+the subscription lands, which may be before the store has answered for the
+documents the model is built from — so what arrives in between is held and
+applied the moment there is a model, rather than dropped for the want of one
+that was seconds away. Nothing republishes a retained row for a late reader.
 
 **A session driving a command station stays on one railroad.** `tc49 live
 <railroad> --station <host>:<port>` brings the run up on the **physical
 binding** — the layout interface and the `dccex` translator where the
 simulator would be ([layout](../layout/README.md),
 [dccex](../dccex/README.md)) — and the railroad is then the station's, a
-station being one physical railroad. The panel joins it the way it joins any
-other and is served the same picture; naming *another* railroad gets the
-`{"error": …}` frame and a close, with the run untouched, which is the shape a
-typo already gets. It is required on the command line for the same reason: the
+station being one physical railroad. It is required on the command line for
+the same reason: the
 railroad is not the first client to connect's to pin. Ctrl-C sends zero to
 every locomotive commanded and switches the track off before the process ends
 ([#314](https://github.com/rails49/control/issues/314)).
@@ -469,9 +464,9 @@ would write, and `layout` folds a typed pair into `block_occupied` and
 `block_vacated` exactly as it folds a camera's
 ([#315](https://github.com/rails49/control/issues/315)). The panel is told
 nothing about who typed it: what it is served is the sensor row, retained like
-any other, and the arrival that follows. **It is not a panel gesture** — the
-bridge enforces the topics a page may publish and a device row is not among
-them (ADR-0034) — and a page grows no control for one: a detector stands in
+any other, and the arrival that follows. **It is not a panel gesture** — a
+device row is not one of the browser-writable rows — and a page grows no
+control for one: a detector stands in
 for hardware, not for a person's hand. Until a camera publishes, an arrival
 nobody types never comes, so a granted move rolls on; the run comes up
 **held** like every other, which is the whole of the safety mechanism, and the
@@ -479,34 +474,31 @@ session's banner says where its readings come from. The banner also counts how
 many of the railroad's trains carry an address and how many do not, because a
 move for a train whose cars carry none writes no traction row at all.
 
-**A session that went is not a reason to reload the page.** There is no choice
-left for a person to make — the loaded railroad *is* the session, and the
-band's picker says nothing about a name it is already showing — so the page
-tries the same railroad again on its own, **every three seconds**, until it is
-joined or another railroad is loaded. Three seconds is long enough not to
-hammer a port nothing is listening on and short enough to land while the
-operator is still looking at the tab: one already open is on a restarted `tc49
-live` about three seconds after its bridge answers, with nothing pressed. Only
-one try is ever waiting, so a picker pressed during the wait does not start a
-second, and a try that comes round to a session joined by then leaves it
-alone. What runs is the same `join` any other way in runs, so a
-session reached this way is a session reached any other way — the roster read
-afresh, the run's retained state drained on connect
+**A broker that went is not a reason to reload the page.** There is no choice
+left for a person to make, so getting back in is nobody's press: MQTT.js
+reconnects on its own, **every three seconds**, and resubscribes — and a fresh
+subscription is answered with every retained row, so the page comes back on
+the dispatcher's own picture rather than on an empty layout
 ([ADR-0032](../adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
-The interval is `RETRY_MS` in `ui/src/model/store.ts`, where it is argued and
-where a test reads it rather than spelling 3000: the stock view waits the same
-before reading again, and both waits begin by asking the store.
+Three seconds is long enough not to hammer a port nothing is listening on and
+short enough to land while the operator is still looking at the tab.
+
+The one retry left of the view's own is the store's. What stock a railroad
+owns is its asset and no topic carries it (ADR-0039), so a roster read that
+failed is made again on the same interval until it lands, and only one try is
+ever waiting. The interval is `RETRY_MS` in `ui/src/model/store.ts`, where it
+is argued and where a test reads it rather than spelling 3000: the stock view
+waits the same before reading again, and both waits begin by asking the
+store.
 
 **The band reports the wait rather than the page looking dead.** The
 *connected* badge belongs to a joined session and goes with it, so while the
-session is gone the band says nothing about the bridge — *not connected* is
-what a joined session whose socket is not answering says, not what a page
-between tries says. What stands there instead is the trouble the last failure
-named: *no session at ws://…/toy — run `tc49 live`* where the bridge went, and
-what the failed roster read said where a try got no roster. A close with
-nothing failing behind it — the session switching railroads under the page —
-names none of that, and the band is quiet until a try lands. The badge is back
-at *connected* when one does.
+broker is gone the band says nothing about it — *not connected* is what a
+joined session that has stopped answering says, not what a page between tries
+says. What stands there instead is the trouble the last failure named: *no
+broker at ws://…/mqtt* where there is nothing at the address, and what the
+failed roster read said where a read got no roster. The badge is back at
+*connected* when the client reconnects and the railroad's row arrives again.
 
 **A call to the store fails in three ways and the words say which**
 ([#411](https://github.com/rails49/control/issues/411)). *Nothing answered* —
@@ -537,7 +529,7 @@ routes and live requests come from the dispatcher's retained picture;
 ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)), comes from the
 scheduler's own retained topic. Both are written by apps that are always
 running, so there is no cold start to seed, and no topic describes the run — a
-topic that did would be the bridge describing itself (#67). The one thing the
+topic that did would be the transport describing itself (#67). The one thing the
 view reads from the store is the loaded railroad's roster
 (`GET /rosters/<railroad>/trains`) — what stock there is and how long each train is,
 an asset rather than a fact about the run, which is the line
@@ -551,18 +543,18 @@ A railroad the session has just built needs no handshake either. Its
 registered, the swap requested, and the new run's opening drain delivers
 placement, facing and aspects as live frames, in order.
 
-A session paces itself on a wall clock: the simulator's transit delays are
-the railroad's tempo, and `tc49 live --period` only sets how often the loop
-polls for commands arriving over the bridge
+A run paces itself on a wall clock: the simulator's transit delays are
+the railroad's tempo, and the period only sets how often the loop
+takes what the broker's network thread left waiting
 ([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 On the physical binding the tempo is the trains, and the period also bounds
 how soon a settled detector level is acted on. The knob is the session's and
 applies to every railroad it runs, so it is not the panel's to turn: a joined
 panel names the railroad and nothing else.
 
-**A panel may join a session already running.** On connect, the path naming
-the railroad that is running, the bridge sends each state topic's last value
-before any live frame, so the page opens on the dispatcher's own picture —
+**A panel may join a run already going.** The broker answers a subscription
+with each state topic's retained value before any event, so the page opens on
+the dispatcher's own picture —
 standing trains, locks, committed routes, live requests off
 `tc49/dispatch/state/allocation`, aspects off `state/aspects`, what the
 detectors dispute off `state/disputed`, facing off
@@ -650,24 +642,26 @@ leaves the block or the session goes. The last of those is the shape both bugs
 [#124](https://github.com/rails49/control/issues/124) found in Chrome took,
 and catching that shape is what the suite is for
 ([#157](https://github.com/rails49/control/issues/157)). It walks the session
-going away as well, on fake timers so nothing waits three seconds: a drop
-makes one try, on the railroad that is loaded and no other; a second ask
-inside the interval leaves the waiting try where it is; and a try that comes
-round to a session joined meanwhile does nothing
+going away as well, on fake timers so nothing waits three seconds: a store
+that would not answer for the roster is asked again when the interval is up,
+one try is ever waiting, and a read that lands ends the tries
 ([#183](https://github.com/rails49/control/issues/183)). The session they run
-against — the toy railroad, the fake bridge, and the app joined to it — is
-`ui/test/support/session.ts`, written once for every suite that needs one.
+against — the toy railroad, the broker double and the app joined to it — is
+`ui/test/support/session.ts`, written once for every suite that needs one. The
+double stands where MQTT.js does, answering a subscription with the rows it
+holds retained, because what a suite about the run view has to drive is the
+broker's side of it.
 
 The railroad it paints is not its own: the app holds it and hands over the
-drawing and the review (ADR-0038). Joining a session names a railroad, so this
-view asks the app for it and opens the socket once it is on screen — which is
-also what keeps a frame from arriving before there is a model to apply it to,
-the drain a join opens with being the whole of the run's picture.
+drawing and the review (ADR-0038). The name comes the other way — this view
+reads it off the broker's retained row and the app loads the documents — and
+the connection is opened once the view is on screen, for as long as it is
+there.
 
 The chrome is two rows the editor also wears (#84,
 [EDITOR.md](EDITOR.md#the-band)). The **band** is the whole system's: the
-railroad the app has loaded and the picker that loads another, the unsaved
-dot, the health area — the store not answering, the bridge, whether the rails
+railroad the app has loaded, the unsaved
+dot, the health area — the store not answering, the broker, whether the rails
 have power, how far the run has got, whether the trains standing here have
 frozen the drawing — the three track-power presses beside that reading, and
 the view selector. The **bar** is this
@@ -685,7 +679,7 @@ The gesture is `tc49/dispatch/run_wanted`, which names where the run should stan
 rather than asking for a change: two presses of the same value are not a race.
 
 **The band says whether the rails have power**, reading
-`tc49/layout/state/power` beside the bridge and the session clock, and it says
+`tc49/layout/state/power` beside the broker and the session clock, and it says
 which of the two ways of standing still it is: *emergency stop* for `stopped`
 and *power off* for `off`. The person recovering clears the one and switches
 the other back on, which are different actions
@@ -697,7 +691,7 @@ power.
 ([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
 They stand in the band beside the reading they act on, because track power is
 the whole railroad's and no document's, and they are drawn only on a joined
-session — a drawing has no rails to power — and are dead while the bridge is
+session — a drawing has no rails to power — and are dead while the broker is
 not answering, a press it would swallow being a press that did nothing. None
 is greyed by the value it would write: like `run_wanted`, the gesture names
 where the supply should stand rather than asking for a change, so a press that
@@ -774,14 +768,14 @@ decision about is running, and a fresh hold is a fresh decision
 ([#153](https://github.com/rails49/control/issues/153)).
 
 **This view has no control of its own.** The session select it used to carry
-is gone: the band's picker is the only thing that says which railroad is on
-screen, and the run view joins whatever is loaded
-([#171](https://github.com/rails49/control/issues/171)). What its header still
+is gone, and so is the band's picker: the broker says which railroad is on
+screen and the app loads it
+([#371](https://github.com/rails49/control/issues/371)). What its header still
 draws is the release notice, and only while there is one.
 
 **The run view's one source is the bus.** It could read a recorded trace and
-step through it, which is how it was built before `tc49 live` and the bridge
-existed and how its colours were looked at afterwards. Both reasons expired,
+step through it, which is how it was built before there was anything live to
+join and how its colours were looked at afterwards. Both reasons expired,
 and the chrome that took — a drawings list, a file opener, a transport and a
 rate in boundaries per second — is most of what made this view's row hard to
 merge into a shell's, all of it meaningless to an operator

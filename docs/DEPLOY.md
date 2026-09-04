@@ -148,7 +148,9 @@ a uid it cannot name.
 ### Running a session
 
 A session is a run of one railroad, with an operator, and not a daemon — so it
-is started deliberately and `/live` answers 502 until it is:
+is started deliberately. The run view no longer joins it: the browser is a
+client of the broker (ADR-0059, decision 4), and what is left here is the
+station and the readings a person types.
 
 ```
 ssh blocks
@@ -260,14 +262,16 @@ change reaches the proxy through `scripts/deploy.sh` alone.
 
 | path | dev | layout |
 | --- | --- | --- |
-| `/live/<railroad>` | the bridge, `:8766`, prefix stripped | the same |
-| `/mqtt` | — | the broker's websocket listener, `:9001`, prefix stripped |
+| `/mqtt` | the broker's websocket listener on the host, `:9001`, prefix stripped | the same, as the `broker` container |
 | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue` | vite's own proxy to the store | the store, `:8765` |
 | everything else | vite, `:5173` | `ui/dist` through nginx |
 
-`/mqtt` is there for the same reason `/live` is: a page served over TLS cannot
-open a `ws://` socket, and the browser refuses it rather than warning. Native
-clients go straight to 1883 and never come through the proxy.
+`/mqtt` is on the app's own origin because a page served over TLS cannot open
+a `ws://` socket, and the browser refuses it rather than warning. The run view
+is a client of the broker like any other app
+([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+decision 4), and native clients go straight to 1883 and never come through the
+proxy.
 
 Traefik proxies and does not read files, which is why the built UI needs
 nginx behind it. Traefik rather than Caddy because its stock image carries
@@ -276,8 +280,8 @@ binary with the Cloudflare module in it.
 
 ## Why the apps bind wider than loopback
 
-`scripts/dev.sh` starts the store and the bridge with `--host 0.0.0.0` and
-vite with `server.host`. A container cannot reach a macOS host's loopback —
+`scripts/dev.sh` starts the store with `--host 0.0.0.0`, vite with
+`server.host`, and publishes the broker container's ports. A container cannot reach a macOS host's loopback —
 Docker Desktop is a virtual machine, and `host.docker.internal` reaches an
 interface nothing was listening on. Both default to `127.0.0.1` and only
 `dev.sh` widens them.
