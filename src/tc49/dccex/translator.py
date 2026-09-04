@@ -18,7 +18,9 @@ station gets a different translator, or reaches the system through JMRI, and
 nothing else moves.
 
 *Subscribes* `tc49/layout/state/wanted/#`. *Publishes*
-`tc49/layout/state/device/track` and `tc49/layout/state/device/link/dccex`.
+`tc49/layout/state/device/track` and `tc49/layout/state/device/link/<id>`,
+where the id is the one this app is started with — the package's name where
+it is given no other, a value and not a contract (ADR-0059).
 
 **It acts on an address only if it recognises it**, and there is no ownership
 table anywhere: every point and signal address it hears, and every traction
@@ -83,7 +85,9 @@ the row stays empty: a faked observation is worse than silence (ADR-0050).
 answered, `down` otherwise, with `detail` carrying what a person would want
 to read. That is where the physical link becomes visible at runtime, which is
 where verifying it belongs — not in a gate that would need a powered layout
-to pass.
+to pass. The same words go on `device/track` as its `reason` while the
+station is unreachable, so a person reading why the railroad is dark reads it
+off the supply itself rather than off a second row (ADR-0059).
 
 The framing and the mapping are pure and live in `replies` and `commands`;
 what is here is the connection and the state that a connection is made of.
@@ -109,10 +113,12 @@ from tc49.lib.payload import (
 
 _log = logging.getLogger(__name__)
 
-SYSTEM = "dccex"
-"""The address `device/link` carries: a hardware system names itself once. No
-address wears it — a point or signal address names no system (ADR-0059) — so
-this is the link row's key and nothing else."""
+ID = "dccex"
+"""What this app calls itself on its link row where it is started with no
+other name: the package's, because a name has to come from somewhere. A
+value and not a contract — the id is whatever the publisher calls itself, it
+appears in no drawing, no configuration and no list of ours, and nothing but
+`layout` reads the row it keys (ADR-0059)."""
 
 HOST = "dccex-usb"
 PORT = 2560
@@ -177,6 +183,7 @@ class DccEx:
         host: str = HOST,
         port: int = PORT,
         *,
+        id: str = ID,
         connect: Connect | None = None,
         startup: Path | None = None,
         poll_s: float = POLL_S,
@@ -184,6 +191,7 @@ class DccEx:
         max_backoff_s: float = MAX_BACKOFF_S,
     ) -> None:
         self._bus = bus
+        self._id = id
         self._where = f"{host}:{port}"
         self._connect: Connect = connect or (
             lambda: asyncio.open_connection(host, port)
@@ -215,8 +223,10 @@ class DccEx:
         # Whether this app has switched this station's track on, which is
         # what makes the startup file a transition rather than a level.
         self._powered_on = False
-        # What was last said on each of the two rows this app writes.
-        self._track = ""
+        # What was last said on each of the two rows this app writes. The
+        # supply carries why it is off where this app cannot reach the
+        # station, so what is held is the pair rather than the word.
+        self._track: tuple[str, str | None] | None = None
         self._link: tuple[bool, str] | None = None
         # The railroad is dark and the station unreached, which is what is
         # true before anything is connected, and a client joining now is
@@ -376,6 +386,7 @@ class DccEx:
                 reader, writer = await self._connect()
             except OSError as away:
                 self._publish_link(False, f"connecting to {self._where}: {away}")
+                self._publish_track()
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, self._max_backoff_s)
                 continue
@@ -540,18 +551,39 @@ class DccEx:
             return OFF
         return STOPPED if self._paused else ON
 
+    def _unreachable(self) -> str | None:
+        """Why the supply reads `off` where this app cannot reach the
+        station, or None where the station is answering and the reading is
+        the station's own.
+
+        It is the link row's own words, said again on the supply, so a person
+        reading why the railroad is dark needs no second row (ADR-0059). A
+        district that has tripped gets none: the station reported that and
+        said nothing about why, and a reason this app invented would be worse
+        than none (ADR-0050).
+        """
+        if self._link is None or self._link[0]:
+            return None
+        return self._link[1]
+
     def _publish_track(self) -> None:
-        """The supply, on a last-value topic and only when the fold moves: a
-        state topic republishing what it already holds is noise on the trace
-        and news to nobody."""
-        observed = self._observed()
-        if observed != self._track:
-            self._track = observed
-            self._bus.publish(DEVICE_TRACK, {"power": observed})
+        """The supply, on a last-value topic and only when the fold moves —
+        the word or the reason beside it: a state topic republishing what it
+        already holds is noise on the trace and news to nobody. Published
+        after the link, so the reason a frame carries is the current one."""
+        said = (self._observed(), self._unreachable())
+        if said == self._track:
+            return
+        self._track = said
+        observed, why = said
+        frame: Payload = {"power": observed}
+        if why is not None:
+            frame["reason"] = why
+        self._bus.publish(DEVICE_TRACK, frame)
 
     def _publish_link(self, up: bool, detail: str) -> None:
-        """This app's link to the station, addressed by the system whose link
-        it is. Republished when the reason changes as well as the word: while
+        """This app's link to the station, keyed by the id it was started
+        with. Republished when the reason changes as well as the word: while
         an outage lasts the row goes on saying so, and *why* is what a person
         reads (ADR-0050)."""
         said = (up, detail)
@@ -559,8 +591,8 @@ class DccEx:
             return
         self._link = said
         self._bus.publish(
-            device_topic(DEVICE_LINK, SYSTEM),
-            {"system": SYSTEM, "link": UP if up else DOWN, "detail": detail},
+            device_topic(DEVICE_LINK, self._id),
+            {"id": self._id, "link": UP if up else DOWN, "detail": detail},
         )
 
 

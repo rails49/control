@@ -545,6 +545,46 @@ def test_the_link_is_down_before_anything_is_connected() -> None:
     assert [value["power"] for value in tap.values(DEVICE_TRACK)] == ["off"]
 
 
+def test_the_link_row_is_keyed_by_the_id_the_app_is_started_with() -> None:
+    """The id is whatever the publisher calls itself and appears in no
+    drawing and no list of ours, so two of these on one railroad each keep
+    their own row and neither erases the other (ADR-0059). The package's name
+    is the default and a value, not a contract."""
+    bus, tap = bus_and_tap()
+    DccEx(bus, id="shed")
+    bus.drain()
+    said = tap.values("tc49/layout/state/device/link/shed")
+    assert [value["link"] for value in said] == ["down"]
+    assert [value["id"] for value in said] == ["shed"]
+    assert not tap.values(DEVICE_LINK)
+
+
+def test_the_supply_says_why_it_is_off_while_the_station_is_unreachable() -> None:
+    asyncio.run(_supply_says_why_it_is_off_while_the_station_is_unreachable())
+
+
+async def _supply_says_why_it_is_off_while_the_station_is_unreachable() -> None:
+    """The link row's own words, said again on the supply, so a person
+    reading why the railroad is dark reads it off the supply itself rather
+    than off a second row (ADR-0059). The reason goes when the station
+    answers: what the row says then is the station's own word."""
+    bus, tap = bus_and_tap()
+    port = Port()
+    async with running(bus, port):
+        bus.drain()
+        dark = tap.values(DEVICE_TRACK)[-1]
+        assert dark["power"] == "off"
+        assert dark["reason"] == tap.values(DEVICE_LINK)[-1]["detail"]
+
+        station = await port.opened()
+        station.says(b"<p1>")
+        await asyncio.sleep(QUIET_S)
+        bus.drain()
+        lit = tap.values(DEVICE_TRACK)[-1]
+        assert lit["power"] == "on"
+        assert "reason" not in lit
+
+
 def test_a_dropped_link_is_published_and_so_is_the_reconnect() -> None:
     asyncio.run(_dropped_link_is_published_and_so_is_the_reconnect())
 
