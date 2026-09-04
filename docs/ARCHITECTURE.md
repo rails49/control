@@ -116,6 +116,12 @@ src/tc49/
                               every arrival end merged, DISPATCH.md's
                               ordering
                 safety.py     safe()
+                __main__.py   `python -m tc49.dispatcher --broker … --railroad
+                              … --store …`, the command line a container
+                              runs: the railroad's layout and roster off the
+                              store, the broker, the picture the last process
+                              left, then a drain loop that ends on a signal
+                              (ADR-0059)
   driver/       Driver — move_granted → move
   simulator/    Simulator — the milestone-1 layout interface: a
                 discrete-event engine that schedules each accepted move's
@@ -266,6 +272,7 @@ tests/
   store/       test_store  test_drawing  test_server  test_symbols
   scheduler/   test_scheduler  test_main
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
+               test_main
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks
   driver/      test_driver
   simulator/   test_move  test_power  test_placement  test_pacing  test_live
