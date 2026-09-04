@@ -1,5 +1,7 @@
 # The panel commands track power, and the operator is the backstop
 
+**Amended by [ADR-0062](0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md), 2026-09-04:** the drain-first guarantee under *The panel gets ON, STOP and OFF* is checked by `layout` against the dispatcher's run state rather than trusted from the panel, the panel's wait reads `moving` rather than `held`, and the sentence "`layout` never subscribes to the dispatcher" is withdrawn.
+
 Resolves [#293](https://github.com/rails49/control/issues/293).
 [ADR-0041](0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)
 parked the command half of track power on the reasoning that there was no
