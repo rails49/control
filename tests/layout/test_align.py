@@ -15,8 +15,9 @@ def points(bus: Bus) -> list[tuple[str, Payload]]:
 
 def test_each_pair_is_written_to_the_point_it_addresses() -> None:
     """One desired value per address, on the topic that address names: the
-    system is the first level of it, so a translator subscribes its own and
-    an address nothing answers to does no harm (ADR-0043)."""
+    address is trailing levels and names no system, so whatever is wired acts
+    on the ones it recognises and an address nothing answers to does no harm
+    (ADR-0059)."""
     bus, _app = build()
     written = points(bus)
     align(bus, "crossover", "to_dn")

@@ -858,13 +858,10 @@ dialog, which holds it as a draft, so that moment is Apply rather than the
 keystroke ([Properties](#properties)).
 
 A refusal is a way, not a sentence. `/review` reports the first `ValueError`
-derivation raises, of thirteen; five are typed-connection-name faults that can
+derivation raises, of twelve; five are typed-connection-name faults that can
 no longer occur ([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)),
-three restate a mark the canvas already carries, two are reachable only from
-hand-written yaml, and one is a point address that names no system
-([DRAWING.md](../store/DRAWING.md#hardware-ids)) — a fault the canvas does not
-mark, the ring being about having no address at all, so it reads in the
-sentence and lights nothing. The two left are both statements about a way: the
+three restate a mark the canvas already carries, and two are reachable only
+from hand-written yaml. The two left are both statements about a way: the
 way out of a block end leads back into that same block, or two transits at one
 connection derive one name. The editor lights that way in red with the
 machinery the netlist pane already uses to light a transit — every leg of it,
