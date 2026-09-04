@@ -25,6 +25,7 @@ from tests.brokers import Broker, drained, free_port, settle, until
 from tests.harness import ASSETS, catalogued
 
 RAILROAD = "crossover-yard"
+OTHER = "single-track-meet"
 EXHAUSTED = "tc49/schedule/state/exhausted"
 PLACED = "tc49/dispatch/train_placed"
 WANTED = "tc49/schedule/request_wanted"
@@ -37,11 +38,14 @@ def root(tmp_path: Path) -> Path:
     box holds one: a drawing, a roster and the catalogue its cars name."""
     catalogued(tmp_path)
     (tmp_path / "layouts").mkdir()
-    for suffix in ("drawing", "roster"):
-        shutil.copy(
-            ASSETS / "layouts" / f"{RAILROAD}.{suffix}.yaml",
-            tmp_path / "layouts" / f"{RAILROAD}.{suffix}.yaml",
-        )
+    # Two railroads, because one is loaded while the apps run (ADR-0060) and
+    # the other is what a person picking from the band picks.
+    for railroad in (RAILROAD, OTHER):
+        for suffix in ("drawing", "roster"):
+            shutil.copy(
+                ASSETS / "layouts" / f"{railroad}.{suffix}.yaml",
+                tmp_path / "layouts" / f"{railroad}.{suffix}.yaml",
+            )
     return tmp_path
 
 
@@ -92,10 +96,14 @@ class App:
             store.url, log=quiet, first_backoff_s=0.01, max_backoff_s=0.05
         )
         self._stop = threading.Event()
+        self.said: list[str] = []
+        """What the app has printed. The suite asserts on the bus, except
+        where what happened is not on it: a railroad refused is a sentence
+        for the person watching the container and no row of anyone's."""
         self._thread = threading.Thread(
             target=serve,
             args=(self.bus, self._documents, RAILROAD, self._stop, 0.01),
-            kwargs={"log": quiet},
+            kwargs={"log": self.said.append},
             daemon=True,
         )
 
@@ -225,5 +233,76 @@ def test_it_answers_a_gesture_it_finds_on_the_broker(
     assert submitted["train"] == "freight_1" and submitted["depart"] == "yard_w.B"
     hand.close()
     witness.close()
+    hand.close()
+    witness.close()
+
+
+RAILROAD_ROW = "tc49/layout/state/railroad"
+
+
+def test_it_rebuilds_on_the_railroad_the_row_names(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """A railroad is loaded while the apps run (ADR-0060): the row moves, the
+    facing this app held for the last railroad is cleared, and it comes up on
+    the new one. The clearing is the point — the facing is adopted at
+    construction (#123), so a rebuild alone would carry a departure end of a
+    railroad that is gone."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, EXHAUSTED) != []), "it never came up"
+
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    hand.publish(FACING, {"facing": {"freight_1": "yard_w.A-to-B"}})
+    assert drained(witness, lambda: rows(heard, FACING)[-1]["facing"] != {})
+    hand.publish(RAILROAD_ROW, {"name": OTHER})
+
+    assert drained(
+        witness, lambda: rows(heard, FACING)[-1]["facing"] == {}, timeout=15.0
+    ), "the facing of the railroad that left was not cleared"
+    assert app.running, "the app stopped on the way over"
+    hand.close()
+    witness.close()
+
+
+def test_a_railroad_the_store_does_not_have_is_said_and_not_taken(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """An app with nothing to run on is worse than one still running the
+    railroad it had, so a name the store answers 404 for is reported and
+    refused (ADR-0050). It rebuilds on the railroad it has and goes on
+    answering gestures about it."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, EXHAUSTED) != []), "it never came up"
+
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    hand.publish(RAILROAD_ROW, {"name": "atlantis"})
+
+    assert until(
+        lambda: any("atlantis" in line for line in app.said), 15.0
+    ), f"it said nothing about a railroad it could not load: {app.said}"
+    assert until(
+        lambda: app.said[-1].startswith(f"up on '{RAILROAD}'"), 15.0
+    ), f"it did not come back up on the railroad it has: {app.said}"
+
+    # And it is answering for that railroad: a train of the one it still has,
+    # placed, is heard and composed — which no app that had given up its
+    # layout could do, and no app still rebuilding would get to.
+    hand.publish(PLACED, {"train": "freight_1", "block": "yard_w"})
+    assert drained(
+        witness, lambda: rows(heard, FACING)[-1]["facing"] != {}, timeout=15.0
+    ), "it stopped answering for the railroad it was running"
+    assert app.running, "it gave up on a railroad it was not asked to leave"
+
+    # The refusal is answered once and not for ever: the row still stands and
+    # the app is not spending its life rebuilding on it.
+    said = len(app.said)
+    settle(witness, 2.0)
+    assert app.said[said:] == [], f"it went on trying: {app.said[said:]}"
     hand.close()
     witness.close()
