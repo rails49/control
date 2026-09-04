@@ -16,7 +16,7 @@ from paho.mqtt import client as paho
 from paho.mqtt.enums import CallbackAPIVersion
 
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.mqtt import MqttBus
+from tc49.lib.mqtt import MqttBus, address
 from tests.brokers import Broker, drained, settle, until
 
 POWER = "tc49/layout/state/power"
@@ -248,3 +248,21 @@ def test_a_lost_connection_is_said_and_retried(
     assert broker.start()
     # Reconnected on the client's own backoff, whose first step is a second.
     assert bus.wait_connected(timeout=30.0)
+
+
+def test_a_broker_address_is_a_host_and_a_port() -> None:
+    assert address("broker:1883") == ("broker", 1883)
+
+
+def test_an_ipv6_broker_address_keeps_its_colons_and_loses_its_brackets() -> None:
+    """What a connection is opened on is the name, not the written form:
+    `getaddrinfo` resolves `::1` and refuses `[::1]`."""
+    assert address("[::1]:1883") == ("::1", 1883)
+
+
+@pytest.mark.parametrize("written", ("broker", "broker:", ":1883", "broker:mqtt"))
+def test_an_address_that_is_not_one_is_refused_in_words(written: str) -> None:
+    """A person mistyping a flag reads what to write instead, which is what
+    the app's command line prints back."""
+    with pytest.raises(ValueError, match="<host>:<port>"):
+        address(written)

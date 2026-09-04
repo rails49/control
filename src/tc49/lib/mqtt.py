@@ -69,6 +69,39 @@ on regardless. A bound and not a promise: a broker that has gone quiet is not
 a reason to stop an app from starting, and the filter goes again on the
 reconnect."""
 
+BROKER_EXAMPLE = "127.0.0.1:1883"
+"""What a broker address looks like, for a command line's help and for its
+refusal. 1883 is the listener the deployed broker serves native clients on
+(`deploy/mosquitto.conf`)."""
+
+
+def address(text: str) -> tuple[str, int]:
+    """`<host>:<port>` as the broker a process is started against.
+
+    Here rather than in an app, because every app has the same flag: each one
+    comes up alone against a broker somebody named on its command line
+    (ADR-0059 decision 5), and a parser per app would be six copies of this.
+
+    One argument and not two, because an address is one thing a person copies
+    or a compose file states. The port is split off the right, so an IPv6 host
+    written in brackets keeps its colons — and the brackets come off again,
+    because they belong to the written address and not to the name a
+    connection is opened on: `getaddrinfo` resolves `::1` and refuses `[::1]`.
+
+    A `ValueError` in words a person can act on, which the command line that
+    asked turns into its own refusal: `argparse` catching this itself would
+    print the value and not the sentence.
+    """
+    host, _, port = text.rpartition(":")
+    if host.startswith("[") and host.endswith("]"):
+        host = host[1:-1]
+    if not host or not port.isdigit():
+        raise ValueError(
+            f"'{text}' is not a broker address — write it <host>:<port>,"
+            f" e.g. {BROKER_EXAMPLE}"
+        )
+    return host, int(port)
+
 
 class MqttBus:
     """Connecting from construction, as the bridge serves from construction.
