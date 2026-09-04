@@ -94,6 +94,18 @@ on disk is unchanged either way. Save stays enabled: there is still something
 to give the store once the train is filled
 ([#412](https://github.com/rails49/control/issues/412)).
 
+**A roster written before [#223](https://github.com/rails49/control/issues/223)
+opens here.** Such a file states a train's length and names no cars, and the
+store keeps that shape legal for a person's own older file and answers it as
+written (`store/stock.py`, `_train`). The train is drawn as a row with that
+length, nothing in it, no kind and no functions — the derivations answer for
+what is not there, as `tc49.lib.roster.Train` does for the same document — and
+a note in the row says it states its length and names no cars. **Composing it
+converts it**: the first thing put in it drops the stated number, and the
+length is the sum of its cars from then on, a train saying one of the two and
+never both. Saving the roster unedited keeps the stated length as it was
+([#414](https://github.com/rails49/control/issues/414)).
+
 **Refusals name what holds a thing.** A car a train is made of cannot be
 removed, and the message says which train. A model's row says what names it —
 the cars that are one, then the trains whose entries do — for the same reason,
@@ -207,11 +219,13 @@ Split the way the app's suites are split. `ui/test/composing.test.ts` drives
 the model with no DOM — promotion and the name it mints, the derived length,
 kind and functions, two locomotives of one product, what holds a car or a
 model, and the length guard. `ui/test/making.test.ts` mounts the app in this
-view against a store with no `catalogue/` and no roster and drives the
+view against a store with no `catalogue/` and no roster — and, for the older
+shape, against one answering a train that states its length — and drives the
 controls: a model written the moment it is made, the dialog refusing a name the
 catalogue already has, a train made up of a locomotive and three hoppers, the document that reaches
 `PUT /rosters/<railroad>` with one car entry and three model entries, the guard
 killing a field while the run has that train placed, the run view showing a
-train made up here without a reload, and the three ways a call to the store
-fails as this screen shows them. The words themselves are
+train made up here without a reload, the row an older roster's train draws and
+the first entry converting it, and the three ways a call to the store fails as
+this screen shows them. The words themselves are
 `ui/test/asking.test.ts`'s, at the helper that decides them.
