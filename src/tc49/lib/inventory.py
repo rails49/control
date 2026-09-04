@@ -62,6 +62,9 @@ is read (SYSTEM.md, ADR-0030)."""
 
 
 TOPICS: dict[str, Topic] = {
+    # Which railroad this broker runs, and so what every row under it is
+    # about: `name` is the railroad as the store lists it (ADR-0059).
+    "tc49/layout/state/railroad": Topic((AT, "name")),
     "tc49/layout/block_occupied": Topic(("block",)),
     "tc49/layout/block_vacated": Topic(("block",)),
     "tc49/layout/power_wanted": Topic(("power",), browser=True),

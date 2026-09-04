@@ -358,6 +358,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 
 | Topic | Kind | Writer | Meaning |
 | --- | --- | --- | --- |
+| `tc49/layout/state/railroad` | state | layout | the railroad this broker runs ([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)) |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
 | `tc49/layout/block_vacated` | event | layout | a block is empty: both its ends read clear, or the move this app carried out named it the block behind a train now fully into the block ahead ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
 | `tc49/layout/power_wanted` | event | any (browser) | give the track power, stop every locomotive, or remove the supply ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)) |
@@ -453,6 +454,17 @@ its two names, as each topic states.
 
 #### `layout`
 
+- `tc49/layout/state/railroad` — `name`: the railroad, as the store lists it.
+  One broker runs one railroad, so every other row here is about that one and
+  a view reads this to know which
+  ([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
+  decision 2, as amended by
+  [ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+  Written by whichever binding of the layout interface is running, from its
+  constructor, that being the one app bound to a railroad: the name is the
+  layout's own, and a drawing is filed under the name it declares, so there is
+  no second place for it to be told from. A view reads it, loads that railroad
+  from the store and subscribes the flat topic tree.
 - `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
   block a detector reported on. Anonymous: no train field, because a detector
   cannot name one. A detector reports a **level**, so a repeated reading
@@ -1174,7 +1186,8 @@ that drives realistically later grows behind the same topic.
 *Reads* the layout and the roster. *Subscribes* `tc49/layout/align`,
 `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` /
 `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/run`,
-`tc49/schedule/state/facing` and `tc49/layout/state/device/#`. *Publishes* the sensor events, `state/power`
+`tc49/schedule/state/facing` and `tc49/layout/state/device/#`. *Publishes*
+`state/railroad`, the sensor events, `state/power`
 and the desired half of the device vocabulary below.
 
 That is the **role's** footprint, and its two bindings meet all of it. The

@@ -216,6 +216,7 @@ export interface Submission {
  *  row and its address rather than by a leaf, and no view reads one
  *  ([ADR-0043](../../../docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)). */
 export const STATE_LEAVES: ReadonlySet<string> = new Set([
+  "railroad",
   "power",
   "mode",
   "exhausted",

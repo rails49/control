@@ -248,6 +248,7 @@ describe("Ordering", () => {
       "facing",
       "mode",
       "power",
+      "railroad",
       "run",
     ]);
   });
