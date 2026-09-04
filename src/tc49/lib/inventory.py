@@ -161,9 +161,11 @@ topic to its field order, and a device row's whole topic is not knowable until
 a railroad is wired. What the two mappings share is the namespace: a name is
 unique across both (tested).
 
-SYSTEM.md, *Layout interface*, carries the values each field takes and the two
-address rules — a traction or function address is bare and a point or signal
-address names its system first."""
+SYSTEM.md, *Layout interface*, carries the values each field takes. An
+address is the string the drawing carries and the hardware answers to, with no
+system level in front of it: whatever is wired subscribes the desired rows and
+acts on the addresses it recognises, and one nobody answers to does no harm
+(ADR-0059)."""
 
 
 def device_topic(prefix: str, *address: str) -> str:
@@ -277,7 +279,7 @@ def is_state_topic(topic: str) -> bool:
 
     The mark is the **third** level and not the second from last, because a
     topic's name may go on past its own: an addressed device row is
-    ``tc49/layout/state/wanted/point/dccex/5``, and reading backwards from
+    ``tc49/layout/state/wanted/point/5``, and reading backwards from
     the leaf would call that an event topic and drop its retained value
     (ADR-0043)."""
     levels = topic.split("/")

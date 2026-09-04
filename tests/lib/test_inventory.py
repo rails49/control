@@ -39,10 +39,10 @@ def test_every_declared_row_keeps_the_answer_it_has_today(topic: str) -> None:
 
 
 def test_an_addressed_device_topic_is_a_state_topic() -> None:
-    """Read backwards it would not be, `dccex` standing where `state` has to
+    """Read backwards it would not be, `point` standing where `state` has to
     stand — and its retained value would be dropped on the way out of the
     state file, which is the whole of what a translator finds on connect."""
-    assert is_state_topic("tc49/layout/state/wanted/point/dccex/5")
+    assert is_state_topic("tc49/layout/state/wanted/point/5")
 
 
 def test_a_command_is_not_a_state_topic() -> None:
@@ -53,14 +53,15 @@ def test_a_command_is_not_a_state_topic() -> None:
 def test_a_device_address_round_trips() -> None:
     """What a translator does with a topic it hears: name the row, then read
     the address off it and see whether it answers to that one (ADR-0043)."""
-    assert split_device(device_topic(POINT, "dccex", "5")) == (POINT, "dccex/5")
+    assert split_device(device_topic(POINT, "5")) == (POINT, "5")
 
 
-def test_a_bare_address_is_one_level_and_still_round_trips() -> None:
-    """Traction takes no system prefix — a decoder answers to the number it
-    was programmed with whoever sends the packet (ADR-0045)."""
-    traction = "tc49/layout/state/wanted/traction"
-    assert split_device(device_topic(traction, "460")) == (traction, "460")
+def test_an_address_of_several_levels_still_round_trips() -> None:
+    """A function is addressed by the decoder and the function number, two
+    levels, and the address is what lies under the row however many levels it
+    runs to (ADR-0043)."""
+    function = "tc49/layout/state/wanted/function"
+    assert split_device(device_topic(function, "460", "2")) == (function, "460/2")
 
 
 def test_the_track_rows_carry_no_address() -> None:
@@ -166,10 +167,7 @@ def test_the_two_halves_of_the_vocabulary_are_named_apart() -> None:
     for two things and neither hides the other (ADR-0043)."""
     assert DEVICE_TOPICS[POINT].fields == DEVICE_TOPICS[OBSERVED_POINT].fields
     assert POINT != OBSERVED_POINT
-    assert split_device(device_topic(OBSERVED_POINT, "dccex", "5")) == (
-        OBSERVED_POINT,
-        "dccex/5",
-    )
+    assert split_device(device_topic(OBSERVED_POINT, "5")) == (OBSERVED_POINT, "5")
 
 
 def test_no_device_row_is_browser_writable() -> None:
