@@ -436,19 +436,86 @@ export async function adoptRepository(url: string): Promise<BackupDoc> {
   return await ask<BackupDoc>("POST", "/backup/repository", { url });
 }
 
+/**
+ * A call that got no document back: `fetch` rejected, or what came back is
+ * not the store's.
+ *
+ * The store's own refusal is not one of these — it arrives as a plain `Error`
+ * carrying the store's words, and there is nothing to wait for. A view reads
+ * again after this one and never after a refusal, which is the whole reason
+ * the two are told apart here rather than at each catch block.
+ */
+export class Unanswered extends Error {}
+
+/** What a page says when `fetch` itself rejects: connection refused, the
+ *  network down, the server gone. Nothing answered, so there is nothing to
+ *  report but the fix. */
+const NOT_ANSWERING = "the store is not answering — run `tc49 serve`";
+
+/**
+ * One call to the store, and which of the three ways it can fail.
+ *
+ * 1. Nothing answered — `fetch` rejects. `NOT_ANSWERING`: the store is what
+ *    is missing, and starting it is the fix.
+ * 2. Something answered and it is not the store — a status with a body that
+ *    is not JSON, which is what a proxy's own 404 page or a 502 from one
+ *    whose upstream is down looks like from here. The words say what was
+ *    asked and what came back and guess at no cause: this side does not know
+ *    there is a proxy, and it was told to run `tc49 serve` for a store that
+ *    was up and answering (#405, #411).
+ * 3. The store refused — a JSON body carrying `error`. Its words, unchanged.
+ *
+ * The status carries the words for the second whatever the status is: a 200
+ * whose body will not parse came from something other than the store just as
+ * a 404 page did.
+ */
 async function ask<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const response = await fetch(path, {
-    method,
-    ...(body === undefined
-      ? {}
-      : {
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        }),
-  });
-  const payload = (await response.json()) as T & { error?: string };
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method,
+      ...(body === undefined
+        ? {}
+        : {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }),
+    });
+  } catch {
+    throw new Unanswered(NOT_ANSWERING);
+  }
+  const payload = await parsed<T>(response);
+  if (payload === null) throw new Unanswered(answered(method, path, response));
   if (!response.ok) {
-    throw new Error(payload.error ?? `${method} ${path}: ${response.status}`);
+    // A status without the store's own words is no more the store's answer
+    // than an unparseable body is: an empty 500 names the request instead.
+    if (payload.error === undefined) {
+      throw new Unanswered(answered(method, path, response));
+    }
+    throw new Error(payload.error);
   }
   return payload;
+}
+
+/** The answer read as the store's, or `null` where it is not one: a content
+ *  type that says it never will be, or a body that does not parse. Both are
+ *  read rather than the content type alone, a proxy being free to label
+ *  anything anything. */
+async function parsed<T>(
+  response: Response,
+): Promise<(T & { error?: string }) | null> {
+  const kind = response.headers?.get("content-type") ?? "";
+  if (kind !== "" && !kind.includes("json")) return null;
+  try {
+    return (await response.json()) as T & { error?: string };
+  } catch {
+    return null;
+  }
+}
+
+/** What was asked and what came back: `GET /catalogue answered 404`, with the
+ *  status text where the browser gives one. */
+function answered(method: string, path: string, response: Response): string {
+  const said = response.statusText ?? "";
+  return `${method} ${path} answered ${response.status}${said === "" ? "" : ` ${said}`}`;
 }
