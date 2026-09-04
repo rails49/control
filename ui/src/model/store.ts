@@ -242,9 +242,9 @@ export interface RosterDoc {
  *  person wants one. */
 export interface CarDoc {
   model: string;
-  /** The number programmed into its decoder, **as a string** and bare — no
-   *  system prefix, unlike a point's. Absent where it has no decoder, and no
-   *  two cars on one railroad may wear the same one. */
+  /** The number programmed into its decoder, **as a string**, naming no
+   *  system as a point's address does not. Absent where it has no decoder,
+   *  and no two cars on one railroad may wear the same one. */
   addr?: string;
   kind?: string;
   length?: number;

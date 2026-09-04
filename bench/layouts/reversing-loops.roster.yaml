@@ -22,9 +22,9 @@
 roster: reversing-loops
 
 cars:
-  # Real, and the only two here that are. `addr` is bare — no system prefix,
-  # unlike a point's (ADR-0045) — and quoted, so one address is not written
-  # two ways.
+  # Real, and the only two here that are. `addr` is the number programmed into
+  # the decoder (ADR-0045), naming no system as a point's does not, and quoted,
+  # so one address is not written two ways.
   ce68_car: { model: arnold-ce68, addr: "11" }
   e10_car: { model: conrad-e10, addr: "10" }
 
