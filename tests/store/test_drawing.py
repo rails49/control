@@ -737,43 +737,43 @@ def test_a_committed_drawing_signals_no_end_and_says_nothing_about_it(
 
 
 def test_a_block_signalling_one_end_derives_the_one_signal() -> None:
-    assert derive(signalled(B="dccex/41"))["blocks"]["west"] == {
+    assert derive(signalled(B="41"))["blocks"]["west"] == {
         "length": 1000,
-        "signals": {"B": "dccex/41"},
+        "signals": {"B": "41"},
     }
 
 
 def test_a_block_signalling_both_ends_derives_both_in_end_order() -> None:
-    derived = derive(signalled(B="dccex/41", A="dccex/40"))["blocks"]["west"]
-    assert derived == {"length": 1000, "signals": {"A": "dccex/40", "B": "dccex/41"}}
+    derived = derive(signalled(B="41", A="40"))["blocks"]["west"]
+    assert derived == {"length": 1000, "signals": {"A": "40", "B": "41"}}
     # Canonical order, so the file's order cannot move a byte of the layout.
     assert list(derived["signals"]) == ["A", "B"]
 
 
 def test_the_derived_signals_reach_the_layout_the_apps_read() -> None:
-    layout = Layout.from_document(derive(signalled(A="dccex/40")))
-    assert layout.signal_at == {"west.A": "dccex/40"}
+    layout = Layout.from_document(derive(signalled(A="40")))
+    assert layout.signal_at == {"west.A": "40"}
 
 
 def test_a_signal_at_an_end_no_block_has_is_refused_naming_the_block() -> None:
     with pytest.raises(ValueError, match="symbol 'west': signals names 'C'"):
-        Drawing.from_document(signalled(C="dccex/42"))
+        Drawing.from_document(signalled(C="42"))
 
 
 def test_a_signal_keyed_by_the_lowercase_end_letter_is_refused() -> None:
     """A block's ends are `A` and `B` everywhere — in the wires, in a facing,
     in every end on the bus — so a second spelling of one is a misspelling."""
     with pytest.raises(ValueError, match="signals names 'a'"):
-        Drawing.from_document(signalled(a="dccex/40"))
+        Drawing.from_document(signalled(a="40"))
 
 
 def test_two_ends_sharing_a_signal_address_load_and_derive() -> None:
     """Two signals on one address show one aspect together, the way two points
     on one address move together. Nothing asks addresses to be unique."""
-    doc = signalled(A="dccex/40", B="dccex/40")
+    doc = signalled(A="40", B="40")
     assert derive(doc)["blocks"]["west"]["signals"] == {
-        "A": "dccex/40",
-        "B": "dccex/40",
+        "A": "40",
+        "B": "40",
     }
 
 
@@ -785,7 +785,7 @@ def test_a_signal_address_is_taken_as_written_and_never_checked() -> None:
 
 
 def test_signalling_an_end_moves_nothing_else_in_the_layout() -> None:
-    signals = derive(signalled(A="dccex/40", B="dccex/41"))
+    signals = derive(signalled(A="40", B="41"))
     plain = derive(spanned())
     assert signals["connections"] == plain["connections"]
     assert signals["blocks"]["east"] == plain["blocks"]["east"]
@@ -820,8 +820,8 @@ def ganged_in_series() -> dict[str, Any]:
     """One way crossing two points on the same address, one lying straight and
     the other diverging. No accessory output can do that."""
     doc = two_blocks(
-        swa={"kind": "turnout", "addr": "dccex/1", "connection": "throat"},
-        swb={"kind": "turnout", "addr": "dccex/1", "connection": "throat"},
+        swa={"kind": "turnout", "addr": "1", "connection": "throat"},
+        swb={"kind": "turnout", "addr": "1", "connection": "throat"},
         swa_stop={"kind": "terminal"},
         swb_stop={"kind": "terminal"},
     )
@@ -837,7 +837,7 @@ def ganged_in_series() -> dict[str, Any]:
 
 def ganged_across_concurrent() -> dict[str, Any]:
     """Two ways that may run at once, each crossing a point on address
-    `dccex/1`, one straight and one diverging."""
+    `1`, one straight and one diverging."""
     doc = crossover()
     for name, pin, leg, spare in (
         ("up", "uw", "straight", "diverging"),
@@ -846,7 +846,7 @@ def ganged_across_concurrent() -> dict[str, Any]:
         points = f"sw{name}"
         doc["symbols"][points] = {
             "kind": "turnout",
-            "addr": "dccex/1",
+            "addr": "1",
             "connection": "crossover",
         }
         doc["symbols"][f"{points}_stop"] = {"kind": "terminal"}
@@ -862,7 +862,7 @@ def ganged_across_concurrent() -> dict[str, Any]:
 def test_points_on_one_address_at_odds_in_one_way_are_a_fault() -> None:
     faults = Drawing.from_document(ganged_in_series()).review()["motor_faults"]
     assert [(f["addr"], f["positions"]) for f in faults] == [
-        ("dccex/1", {"closed": ["swa"], "thrown": ["swb"]})
+        ("1", {"closed": ["swa"], "thrown": ["swb"]})
     ]
     assert len(faults[0]["transits"]) == 1
 
@@ -872,7 +872,7 @@ def test_points_on_one_address_at_odds_across_concurrent_ways_are_a_fault() -> N
     fault. Declared concurrent is a promise two trains may hold it at once."""
     faults = Drawing.from_document(ganged_across_concurrent()).review()["motor_faults"]
     assert [(f["addr"], f["transits"]) for f in faults] == [
-        ("dccex/1", ["dn_straight", "up_straight"])
+        ("1", ["dn_straight", "up_straight"])
     ]
 
 
@@ -1543,8 +1543,8 @@ def test_a_motorised_symbol_takes_the_address_hardware_answers_to(kind: str) -> 
     """`addr` is a plain string neither the schema nor derivation checks: what
     a physical point answers to is knowledge the drawing cannot hold
     (ADR-0022)."""
-    doc = two_blocks(points={"kind": kind, "addr": "dccex/31"})
-    assert Drawing.from_document(doc).symbols["points"].addr == "dccex/31"
+    doc = two_blocks(points={"kind": kind, "addr": "31"})
+    assert Drawing.from_document(doc).symbols["points"].addr == "31"
 
 
 def test_an_address_written_as_digits_is_read_as_the_string_it_names() -> None:
@@ -1573,7 +1573,7 @@ def throat(**spec: Any) -> dict[str, Any]:
 def test_an_address_changes_nothing_in_the_layout_but_the_points() -> None:
     """The derived layout's shape does not depend on an address being there
     (#94) — everything except the `points` key itself (ADR-0031)."""
-    addressed = derive(throat(addr="dccex/31"))
+    addressed = derive(throat(addr="31"))
     bare = derive(throat())
     assert "points" in addressed["connections"]["points"]
     del addressed["connections"]["points"]["points"]
@@ -1583,9 +1583,9 @@ def test_an_address_changes_nothing_in_the_layout_but_the_points() -> None:
 def test_a_way_names_every_point_it_crosses_and_the_position_it_wants() -> None:
     """The layout's whole knowledge of hardware: an address and a position,
     per way, in the position the leg that way takes wants (ADR-0031)."""
-    assert derive(throat(addr="dccex/31"))["connections"]["points"]["points"] == {
-        "east_A__west_B": [{"addr": "dccex/31", "position": "closed"}],
-        "north_A__west_B": [{"addr": "dccex/31", "position": "thrown"}],
+    assert derive(throat(addr="31"))["connections"]["points"]["points"] == {
+        "east_A__west_B": [{"addr": "31", "position": "closed"}],
+        "north_A__west_B": [{"addr": "31", "position": "thrown"}],
     }
 
 
@@ -1656,8 +1656,8 @@ def test_one_address_wanted_in_both_positions_is_emitted_verbatim() -> None:
     (#94), and `motor_faults` is where the fault is reported."""
     assert derive(ganged_in_series())["connections"]["throat"]["points"] == {
         "east_A__west_B": [
-            {"addr": "dccex/1", "position": "closed"},
-            {"addr": "dccex/1", "position": "thrown"},
+            {"addr": "1", "position": "closed"},
+            {"addr": "1", "position": "thrown"},
         ]
     }
 
@@ -1666,20 +1666,19 @@ def test_reversing_loops_ganged_points_come_out_one_entry_each() -> None:
     """The railroad that gangs points, worked through by hand from its wires.
 
     `A1.A` reaches `A4.B` over `sw2` alone, lying straight, and `sw2` shares
-    address `dccex/101` with `sw1`, so one entry is the whole of it. `A2.A`
-    reaches `CE1.B` over five points: `sw1` straight (`dccex/101`), `sw3`
-    diverging (`dccex/102`), then `sw8` and `sw7` both straight — which are two
-    of the four on `dccex/105`, wanting the same position, so they collapse to
-    one — and `sw10` diverging (`dccex/106`). Sorted by address, four entries
-    for five points, and sorting is by the whole address, system and all.
+    address `101` with `sw1`, so one entry is the whole of it. `A2.A` reaches
+    `CE1.B` over five points: `sw1` straight (`101`), `sw3` diverging (`102`),
+    then `sw8` and `sw7` both straight — which are two of the four on `105`,
+    wanting the same position, so they collapse to one — and `sw10` diverging
+    (`106`). Sorted by address, four entries for five points.
     """
     points = committed("reversing-loops").connections["j1"].points
-    assert points["A1_A__A4_B"] == (Point("dccex/101", "closed"),)
+    assert points["A1_A__A4_B"] == (Point("101", "closed"),)
     assert points["A2_A__CE1_B"] == (
-        Point("dccex/101", "closed"),
-        Point("dccex/102", "thrown"),
-        Point("dccex/105", "closed"),
-        Point("dccex/106", "thrown"),
+        Point("101", "closed"),
+        Point("102", "thrown"),
+        Point("105", "closed"),
+        Point("106", "thrown"),
     )
 
 
