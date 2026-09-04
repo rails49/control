@@ -236,25 +236,52 @@ reach is one it was not driving, and `_send` drops rather than queues.
 
 ## The command line
 
-It has none of its own yet, and that is the milestone and not the app: it is
-the last app still constructed inside somebody else's process. `layout`,
-`scheduler`, `dispatcher`, `driver` and `simulator` each have one now, and
-come up alone against a broker
-([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
-decision 5); `dccex-usb` has had one all along, and it is the one app that
-speaks no bus topic at all.
+```
+python -m tc49.dccex --broker <host:port> --station <host:port>
+                     [--startup <file>] [--id <name>]
+```
 
-The app is constructed on the bus like the rest of them, with where the
-station is served:
+The process a container runs, coming up alone against a broker
+([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+decision 5) as `layout`, `scheduler`, `dispatcher`, `driver` and `simulator`
+do, and as `dccex-usb` has all along.
+
+**No railroad and no store.** Hardware needs no layout: this app reads the
+wanted rows and writes what it observes, and there is nothing for a railroad's
+name to select here — no document is read, and an address is the string the
+hardware answers to rather than something looked up. `--station` is where
+`dccex-usb` serves the command station, `--startup` the file of trip currents
+below, and `--id` the name the link row is keyed by, the package's where it is
+given no other. The id names the broker's client too, `tc49-<id>`: this is the
+one app a railroad may run twice, and two clients sharing a client id take
+turns disconnecting each other.
+
+The drain period, the poll and the reconnect backoff are not flags. Nothing
+outside the process has an opinion about them, and what the station is asked
+and how often a lost link is retried are this app's own.
+
+Coming up is the broker, then the desired picture, then the link. The two rows
+the constructor states are publishes, and a publish made to a broker that is
+not there is dropped rather than queued, so the broker is waited for first. The
+desired rows the broker has retained are then waited for **before** the link is
+opened, for a second: what a connection is handed is ordered with the track
+first, where a value arriving over a link that is already up is acted on as it
+arrives, and a speed reaching the station ahead of the power is a locomotive
+that rolls the moment somebody makes the rails live
+([#333](https://github.com/rails49/control/issues/333),
+[ADR-0054](../adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
+
+The app is also constructed on the bus directly, with where the station is
+served:
 
 ```python
 DccEx(bus, "dccex-usb", 2560, startup=Path("/etc/tc49/dccex-startup.txt"))
 ```
 
-What constructs it today is `tc49 live <railroad> --station <host>:<port>`,
-which brings a session up on the physical binding — this app and `layout`
-where the simulator would be — and hands `--startup` straight through as that
-argument ([bench/runner.py](../../src/tc49/bench/runner.py),
+That is what `tc49 live <railroad> --station <host>:<port>` does, bringing a
+session up on the physical binding — this app and `layout` where the simulator
+would be — and handing `--startup` straight through as that argument
+([bench/runner.py](../../src/tc49/bench/runner.py),
 [#314](https://github.com/rails49/control/issues/314)). There is nowhere else
 for the file to go, so `--startup` without `--station` is refused in a sentence
 rather than accepted and dropped
@@ -267,19 +294,20 @@ remembered and applied on the next connect, the way the retained value is at
 startup. **No dependency is added**: the whole of it is `asyncio` streams, and
 the image builds with `uv sync --frozen`.
 
-**asyncio owns that session's process, and only where a station is named.**
-`_send` writes to an `asyncio.StreamWriter` from inside a bus subscriber, so
-whichever thread drains the bus is the thread that writes to the station: with
-the loop owning the process every subscriber already runs on the loop thread
-and that write is where it belongs. Putting this app on a daemon thread under
-a synchronous owner would mean marshalling with `call_soon_threadsafe` — a
-cross-thread write where none exists today. A session on the simulator keeps
-the synchronous loop it has always had; the two share a signature and nothing
-else.
+**asyncio owns this app's process, and the session's only where a station is
+named.** `_send` writes to an `asyncio.StreamWriter` from inside a bus
+subscriber, so whichever thread drains the bus is the thread that writes to the
+station: with the loop owning the process every subscriber already runs on the
+loop thread and that write is where it belongs. Under `python -m tc49.dccex`
+the drain is a coroutine beside `run()`, and the MQTT client's network thread
+only appends to the queue that drain empties. Putting this app on a daemon
+thread under a synchronous owner would mean marshalling with
+`call_soon_threadsafe` — a cross-thread write where none exists today. A
+session on the simulator keeps the synchronous loop it has always had; the two
+share a signature and nothing else.
 
-It gets a command line, and `deploy/` gets a container for it, the day the
-broker arrives and each app is its own process
-([ADR-0013](../adr/0013-apps-are-deployment-units.md)).
+A signal is what ends the process, and the railroad is stood down on the way
+out: the same `shutdown()` a session calls, before the link is let go.
 
 ## Checking it against a real station
 
