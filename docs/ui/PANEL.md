@@ -493,8 +493,9 @@ alone. What runs is the same `join` any other way in runs, so a
 session reached this way is a session reached any other way — the roster read
 afresh, the run's retained state drained on connect
 ([ADR-0032](../adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
-The interval is `RETRY_MS` in `ui/src/ui/tc-panel.ts`, where it is argued and
-where a test reads it rather than spelling 3000.
+The interval is `RETRY_MS` in `ui/src/model/store.ts`, where it is argued and
+where a test reads it rather than spelling 3000: the stock view waits the same
+before reading again, and both waits begin by asking the store.
 
 **The band reports the wait rather than the page looking dead.** The
 *connected* badge belongs to a joined session and goes with it, so while the
