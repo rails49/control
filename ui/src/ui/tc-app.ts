@@ -123,6 +123,12 @@ export class TcApp extends LitElement {
    *  nothing is waiting, which is the ordinary state. */
   @state() private discarding: { wanted: string | null } | null = null;
 
+  /** Whether the stock view holds roster edits the store has not been given,
+   *  as that view last said. The drawing's own are the filing's; the roster is
+   *  the second document a person can lose when the railroad changes, and what
+   *  would discard it asks first the same way (#415). */
+  @state() private rosterEdits = false;
+
   /** Whether the backup dialog is up. The store is asked once when the app
    *  comes up and again whenever the dialog is opened: what a railroad that is
    *  not being backed up needs is to reach the person who never opens this
@@ -227,6 +233,9 @@ export class TcApp extends LitElement {
         .railroad=${name}
         .current=${this.view === "stock"}
         .placed=${this.status.placed}
+        @roster-edits=${(event: CustomEvent<boolean>) => {
+          this.rosterEdits = event.detail;
+        }}
       ></tc-stock>
 
       <tc-editor
@@ -446,8 +455,8 @@ export class TcApp extends LitElement {
     return html`
       <sl-dialog open label="Discard unsaved edits?" @sl-after-hide=${this.kept}>
         <p>
-          ${losing} has edits that have not been saved. ${instead} discards
-          them.
+          ${losing} has edits that have not been saved: ${this.losing}.
+          ${instead} discards them.
         </p>
         <sl-button slot="footer" @click=${this.kept}>Cancel</sl-button>
         <sl-button slot="footer" variant="danger" @click=${this.discarded}>
@@ -455,6 +464,15 @@ export class TcApp extends LitElement {
         </sl-button>
       </sl-dialog>
     `;
+  }
+
+  /** Which document the question is about: the drawing, the roster, or both.
+   *  A person who spent the evening composing a rake is told that is what is
+   *  at stake, rather than reading a sentence about a drawing they have not
+   *  touched (#415). */
+  private get losing(): string {
+    if (!this.rosterEdits) return "the drawing";
+    return this.filing.edits ? "the drawing and the roster" : "the roster";
   }
 
   /** Throw the loaded railroad away for another, or for a new one — the two
@@ -465,9 +483,13 @@ export class TcApp extends LitElement {
    *  started is unsaved and has nothing on it (#136).
    *
    *  It guards the band's picker, which is the one way the loaded railroad
-   *  changes (#171). */
+   *  changes (#171).
+   *
+   *  **Two documents, one question.** The drawing is the filing's and the
+   *  roster is the stock view's, and changing the railroad throws both away —
+   *  so either one being unsaved asks, and the words name which (#415). */
   private discard(wanted: string | null): void {
-    if (this.filing.edits) this.discarding = { wanted };
+    if (this.filing.edits || this.rosterEdits) this.discarding = { wanted };
     else void this.opening(wanted);
   }
 
