@@ -65,6 +65,11 @@ TOPICS: dict[str, Topic] = {
     # Which railroad this broker runs, and so what every row under it is
     # about: `name` is the railroad as the store lists it (ADR-0059).
     "tc49/layout/state/railroad": Topic((AT, "name")),
+    # And the gesture that moves it: a person choosing which railroad the
+    # apps run, while they run (ADR-0060). `railroad` rather than `name`,
+    # because a leaf's fields are read beside its own row and this one names
+    # the thing wanted rather than naming itself.
+    "tc49/layout/railroad_wanted": Topic(("railroad",), browser=True),
     "tc49/layout/block_occupied": Topic(("block",)),
     "tc49/layout/block_vacated": Topic(("block",)),
     "tc49/layout/power_wanted": Topic(("power",), browser=True),
@@ -300,7 +305,7 @@ INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
 ACL will grant it once the bridge is gone (ADR-0034). Named here rather than
 in the bridge because the fact outlives the relay, and read off the rows'
 marks rather than off a prefix — a topic now names the component that
-responds to it, so the eight gestures sit under `schedule`, `dispatch` and
+responds to it, so the nine gestures sit under `schedule`, `dispatch` and
 `layout` beside everything else those three answer, and only the mark says a
 page may send them.
 

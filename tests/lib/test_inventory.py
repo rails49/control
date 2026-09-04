@@ -28,6 +28,8 @@ THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 MODE = "tc49/layout/state/mode"
 POWER_WANTED = "tc49/layout/power_wanted"
 POWER = "tc49/layout/state/power"
+RAILROAD_WANTED = "tc49/layout/railroad_wanted"
+RAILROAD = "tc49/layout/state/railroad"
 
 
 @pytest.mark.parametrize("topic", sorted(TOPICS))
@@ -121,6 +123,19 @@ def test_the_panel_commands_power_on_a_row_of_its_own() -> None:
     assert TOPICS[POWER_WANTED].fields == ("power",)
     assert TOPICS[POWER].fields == (AT, "power")
     assert POWER not in INBOUND
+
+
+def test_the_railroad_a_person_loads_is_a_gesture_of_its_own() -> None:
+    """Which railroad the apps run is chosen while they run (ADR-0060): an
+    event row a page may write, carrying the one field `railroad`. It is
+    `layout`'s because the binding of the layout interface that is running
+    answers it — the one app bound to a railroad — and the state row it
+    settles stays that app's alone, so no page can say which railroad is
+    loaded."""
+    assert RAILROAD_WANTED in INBOUND
+    assert TOPICS[RAILROAD_WANTED].fields == ("railroad",)
+    assert TOPICS[RAILROAD].fields == (AT, "name")
+    assert RAILROAD not in INBOUND
 
 
 def test_no_state_row_is_browser_writable() -> None:
