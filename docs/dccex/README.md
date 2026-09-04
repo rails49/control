@@ -30,7 +30,11 @@ share the same command station. This app is one client of that port beside
 the others, and every client is a peer — nothing in the firmware ranks them.
 
 *Subscribes* `tc49/layout/state/wanted/#`. *Publishes*
-`tc49/layout/state/device/track` and `tc49/layout/state/device/link/dccex`.
+`tc49/layout/state/device/track` and `tc49/layout/state/device/link/<id>`,
+where the id is the one this app is started with — `dccex`, the package's
+name, where it is given no other. The id is whatever the publisher calls
+itself, a value and not a contract: it appears in no drawing, no configuration
+and no list of ours (ADR-0059).
 
 **It acts on every address it hears**, and there is no ownership table
 anywhere. An address names no system — it is the string the drawing carries
@@ -191,12 +195,17 @@ would otherwise stand as an observation nobody made.
 
 **`device/link`** is `up` while the connection is open **and** the station has
 answered, `down` otherwise, with `detail` carrying what a person would want to
-read. An open socket is not a command station — `dccex-usb` accepts a client
+read, on the row the app's id keys. An open socket is not a command station — `dccex-usb` accepts a client
 with the serial cable unplugged — so the link is not called good until
 something has come back on it. It goes on saying `down` for the whole outage,
 which is where a broken link becomes visible: at runtime, to a person who can
 act on it, and not in a gate that would need a powered layout to pass
 ([ADR-0050](../adr/0050-broken-hardware-is-reported-never-worked-around.md)).
+The same words go on `device/track` as its `reason` while the station is
+unreachable, so a person reading why the railroad is dark reads it off the
+supply itself rather than off a second row. A district that has tripped gets
+none: the station reported that and said nothing about why, and an invented
+reason would be worse than none.
 
 **No `device/point`.** This railroad's turnouts have no feedback and the
 station's answer to a throw is one it faked

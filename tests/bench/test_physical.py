@@ -384,7 +384,7 @@ def test_a_session_on_a_station_comes_up_and_the_panel_joins_it() -> None:
         try:
             assert waits_until(lambda: f"running {name}" in log.getvalue())
             with connect(f"ws://{HOST}:{live.bridge.port}/{name}") as client:
-                assert link_frame(client)["system"] == "dccex"
+                assert link_frame(client)["id"] == "dccex"
         finally:
             live.stop()
             thread.join(TIMEOUT_S)

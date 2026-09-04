@@ -459,12 +459,22 @@ less, and returning to `on` releases nothing (ADR-0041, ADR-0051).
 
 **`state/power` is folded from what the hardware reports.** The supply's own
 word, `device/track`, wherever every `device/link` that has ever been seen
-reads `up`; `off` otherwise. A translator that cannot reach its hardware leaves
-a railroad no train may move on whatever the supply says, since the translator
-saying it may be the unreachable one. *Ever seen* and not *currently connected*:
-a link is a retained level, so one that published `down` and then died leaves
-the value standing, and forgetting it would turn a broken railroad back on
+reads `up`; `off` otherwise. A participant that cannot reach its hardware
+leaves a railroad no train may move on whatever the supply says, since the
+participant saying it may be the unreachable one. *Ever seen* and not
+*currently connected*: a link is a retained level, so one that said `down` and
+then died leaves the value standing, and forgetting it would turn a broken
+railroad back on
 ([ADR-0050](../adr/0050-broken-hardware-is-reported-never-worked-around.md)).
+
+Each link row is keyed by the id its publisher calls itself — no drawing and
+no list of ours names one — so several participants each keep their own row
+and the second's `up` does not erase the first's `down`. An id this app has
+not heard is one it waits for no word from: nothing must announce itself for
+the railroad to come up (ADR-0058,
+[ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
+A supply reported `off` may carry a free-text `reason`, which is a person's
+to read and nothing this app branches on.
 
 Anything that cannot be read falls the same way, which is the direction a state
 topic must fail in
