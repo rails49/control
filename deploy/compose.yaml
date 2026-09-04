@@ -16,11 +16,13 @@
 # there would mean building one. Its own settings come from the environment
 # (TRAEFIK_*), so the file below carries no secret and no address.
 #
-# One route file, named by TC49_SITE and `dev` unless it is set. Both were
-# mounted at first, on the theory that a certificate is asked for when a
-# request for that name arrives; it is not. Traefik asks at startup for every
-# router it can see, so a box carrying both files fetches a certificate for a
-# name that is not its own.
+# One route directory, named by TC49_SITE and `dev` unless it is set, holding
+# that site's `site.yaml` and nothing else. Both files were mounted at first,
+# on the theory that a certificate is asked for when a request for that name
+# arrives; it is not. Traefik asks at startup for every router it can see, so
+# a box carrying both files fetches a certificate for a name that is not its
+# own — which is why the directory holds one file rather than the mount
+# picking one out of a directory holding two.
 
 services:
   proxy:
@@ -56,8 +58,14 @@ services:
       # enough that the resolver cannot be left to whatever the network hands
       # the container. These two are asked instead.
       - --certificatesResolvers.le.acme.dnsChallenge.resolvers=1.1.1.1:53,9.9.9.9:53
+    # The directory, not the file inside it. A single-file bind mount binds the
+    # inode, and `git pull` replaces a file rather than writing through it, so
+    # the container kept the table it started with and the file watch above
+    # watched something nothing touched any more (#353). A directory mount
+    # sees the replacement, so a deploy is `git pull` and `up` with no
+    # `--force-recreate` behind it.
     volumes:
-      - ./routes/${TC49_SITE:-dev}.yaml:/etc/traefik/routes/site.yaml:ro
+      - ./routes/${TC49_SITE:-dev}:/etc/traefik/routes:ro
       - acme:/acme
     # How a container reaches an app on the host. Docker Desktop supplies the
     # name already; on Linux this is what supplies it.
