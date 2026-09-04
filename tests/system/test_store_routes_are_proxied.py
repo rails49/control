@@ -30,7 +30,7 @@ def store_prefixes() -> set[str]:
     "path",
     [
         "ui/vite.config.ts",
-        "deploy/routes/layout.yaml",
+        "deploy/routes/layout/site.yaml",
         "docs/DEPLOY.md",
     ],
 )

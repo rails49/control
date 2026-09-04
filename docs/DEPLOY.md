@@ -72,11 +72,6 @@ TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
 
 `scripts/deploy.sh` is that sequence, run over ssh from the dev box.
 
-A route file change needs the proxy recreated, not just recomposed: the file
-is bind-mounted one file deep, so a `git pull` replaces the inode and the
-container keeps the one it started with. That is [#353](https://github.com/rails49/control/issues/353);
-until it lands, `--force-recreate proxy`.
-
 `--remove-orphans` is there because a container whose service was renamed
 keeps running under the old name and keeps its published port. After
 [#299](https://github.com/rails49/control/issues/299) the `station` container
@@ -214,17 +209,25 @@ needs no maintenance when the box changes networks.
 
 ## What the proxy carries
 
-Two entry points and one route file from `deploy/routes/`, named by
-`TC49_SITE` and `dev` unless it is set. The routers all sit on `:443`. `:80`
-carries a redirect to it and holds no router of its own, because a person types
-a bare hostname and the browser tries http first; a box publishing 443 alone
-refuses that connection and reads as down. The certificate comes from a DNS-01
-challenge, so nothing needs `:80` reachable from outside the LAN.
+Two entry points and one route file, `deploy/routes/<site>/site.yaml`. The
+proxy mounts that site's directory, named by `TC49_SITE` and `dev` unless it
+is set. The routers all sit on `:443`. `:80` carries a redirect to it and
+holds no router of its own, because a person types a bare hostname and the
+browser tries http first; a box publishing 443 alone refuses that connection
+and reads as down. The certificate comes from a DNS-01 challenge, so nothing
+needs `:80` reachable from outside the LAN.
 
-A box mounts its own route file and no other:
-Traefik asks for a certificate at startup for every router it can see, rather
-than when a request for that name first arrives, so a box carrying both files
-fetches a certificate for a name that is not its own.
+A box mounts its own site's directory and no other: Traefik asks for a
+certificate at startup for every router it can see, rather than when a request
+for that name first arrives, so a box carrying both files fetches a
+certificate for a name that is not its own.
+
+Each site has a directory of its own so that the mount can be a directory. A
+single-file bind mount binds the inode, and `git pull` replaces a file rather
+than writing through it, so the container went on serving the table it started
+with until somebody recreated it by hand (#353). A directory mount sees the
+replacement, which is what `--providers.file.watch=true` needs, so a route
+change reaches the proxy through `scripts/deploy.sh` alone.
 
 | path | dev | layout |
 | --- | --- | --- |
