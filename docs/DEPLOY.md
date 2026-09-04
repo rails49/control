@@ -69,10 +69,25 @@ pnpm --dir ui build
 mkdir -p ~/tc49
 export TC49_UID=$(id -u) TC49_GID=$(id -g)
 TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
-  -f deploy/compose.yaml --profile layout up -d --remove-orphans
+  -f deploy/compose.yaml --profile layout --profile hardware \
+  up -d --remove-orphans
 ```
 
 `scripts/deploy.sh` is that sequence, run over ssh from the dev box.
+
+**Two profiles, because a box is software plus whatever is wired to it.**
+`layout` is the software of a running railroad: the store, the built ui, and
+the scheduler, dispatcher, driver and layout interface, each its own
+container (ADR-0059, decision 5). `hardware` is what this box owns because of
+what is plugged into it — the command station's mirror, the translator that
+speaks to it, and JMRI. A box with no steel under it asks for `sim` in place
+of `hardware`, which runs the simulator where the layout interface's hardware
+binding would be, and `tests/system/test_compose.py` holds the split.
+
+Which railroad the apps come up on is `TC49_RAILROAD` in that env file. It is
+a starting point and not a binding: a person loads another railroad from the
+app while they run, and every app follows without a restart
+([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
 
 `--remove-orphans` is there because a container whose service was renamed
 keeps running under the old name and keeps its published port. After
