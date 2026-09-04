@@ -396,7 +396,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Scheduler | `tc49/dispatch/#` **and** `tc49/schedule/#` |
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
-| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/schedule/state/facing` **and** `tc49/layout/state/device/#` |
+| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/run`, `tc49/schedule/state/facing` **and** `tc49/layout/state/device/#` |
 | Translator | `tc49/layout/state/wanted/#` |
 | Trace tap | `tc49/#` |
 
@@ -464,7 +464,12 @@ its two names, as each topic states.
   `stopped` or `off`, the same closed set the observation below carries; any
   other value is dropped. `layout` is what answers it, and it answers by
   writing `tc49/layout/state/wanted/track` — never by a page reaching a
-  translator directly (ADR-0051).
+  translator directly (ADR-0051). A plain `off` is **guarded**: it is applied
+  where `tc49/dispatch/state/run` reads `held` with `moving` false, and where
+  `layout` holds no run at all, and it is dropped with its reason to the trace
+  where the run reads `running` or `draining` or something is moving
+  ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
+  `on` and `stopped` are applied in every run state.
 - `tc49/layout/state/power` — `power`: enum `on`, `stopped` or `off`. An
   unreadable payload reads as `off`: dropping it would mean *not* holding the
   run, over track whose state could not be read.
@@ -564,7 +569,7 @@ payload is read defensively, and one that fails the read is dropped.
   to `run` and not a fourth value of it: a held run can be moving, because a
   move already granted runs to its sensor, and a running run with nothing
   granted is not. The row is republished when `moving` changes with the run
-  word standing
+  word standing, and `layout` reads the pair to decide a plain `off`
   ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
 - `tc49/dispatch/state/aspects` — `aspects`: map of signalled block end to
   aspect. An end nothing ever leaves does not appear.
@@ -1144,8 +1149,8 @@ that drives realistically later grows behind the same topic.
 
 *Reads* the layout and the roster. *Subscribes* `tc49/layout/align`,
 `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` /
-`train_removed`, `tc49/dispatch/state/aspects`, `tc49/schedule/state/facing`
-and `tc49/layout/state/device/#`. *Publishes* the sensor events, `state/power`
+`train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/run`,
+`tc49/schedule/state/facing` and `tc49/layout/state/device/#`. *Publishes* the sensor events, `state/power`
 and the desired half of the device vocabulary below.
 
 That is the **role's** footprint, and its two bindings meet all of it. The
@@ -1309,7 +1314,19 @@ A power command is **applied on arrival**: there is no beat to quantise it
 against, and it changes no lock and grants nothing, so it races with nothing
 the dispatcher is deciding. `layout` answers it by writing the desired power
 of the device vocabulary below, and whatever supplies power acts on that; it
-cannot verify that the power really went away and does not try. **The railroad
+cannot verify that the power really went away and does not try.
+
+**A plain `off` is the one command that is re-validated against current
+state.** A topic names the app that answers it and never the process that
+sent the frame, so nothing about `power_wanted` says the panel wrote it with
+its drain behind it, and a bare `off` from any other publisher would remove
+the supply from under whatever is mid-transit. So `layout` subscribes to
+`tc49/dispatch/state/run` and applies `off` only where that row reads `held`
+with `moving` false — or where it holds no row at all, no dispatcher having
+stated one, an absence being no evidence that anything moves. Otherwise the
+gesture is dropped with its reason to the trace and not kept for later; a
+client that wants the supply removed from a running railroad asks for a drain
+and cuts when it is done (ADR-0062). **The railroad
 comes up with power off** — `layout` starts having written `off`, so nothing
 moves and no turnout throws until a person turns it on — and thereafter
 `layout` writes the value it was told to write and never `off` of its own
