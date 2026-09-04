@@ -373,7 +373,11 @@ export class TcStock extends LitElement {
 
   /** One train: its name, what it derives to, and the ordered list it is made
    *  of. Length, kind and functions are shown and never offered for editing
-   *  (ADR-0045). */
+   *  (ADR-0045).
+   *
+   *  A train written before #223 states its length and names no cars: it is
+   *  drawn with that length and a note saying so, and the first thing put in
+   *  it converts it to the ordinary shape (#414). */
   private trainRow(train: TrainRow) {
     return html`
       <li
@@ -406,7 +410,12 @@ export class TcStock extends LitElement {
           </span>
         </header>
         ${train.entries.length === 0
-          ? html`<p class="hint">nothing in it yet</p>`
+          ? html`<p class="hint">
+              ${train.stated
+                ? "states its length and names no cars — press + beside a car" +
+                  " or a model to fill it in"
+                : "nothing in it yet"}
+            </p>`
           : html`<ol>
               ${train.entries.map((entry, at) => this.entry(train.train, entry, at))}
             </ol>`}
