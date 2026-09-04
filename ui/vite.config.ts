@@ -29,6 +29,7 @@ export default defineConfig({
       "/backup": { target: STORE, changeOrigin: false },
       "/drawings": { target: STORE, changeOrigin: false },
       "/review": { target: STORE, changeOrigin: false },
+      "/layouts": { target: STORE, changeOrigin: false },
       "/rosters": { target: STORE, changeOrigin: false },
       "/catalogue": { target: STORE, changeOrigin: false },
       // The bridge under a path of the app's own origin, which is what lets
