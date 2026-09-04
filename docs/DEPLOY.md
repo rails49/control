@@ -66,6 +66,8 @@ ssh there is nothing to ask.
 ssh blocks
 cd ~/control && git pull
 pnpm --dir ui build
+mkdir -p ~/tc49
+export TC49_UID=$(id -u) TC49_GID=$(id -g)
 TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
   -f deploy/compose.yaml --profile layout up -d --remove-orphans
 ```
@@ -104,17 +106,29 @@ moving. It is rooted at `~/tc49` on the box, bind-mounted in, which is a
 directory rather than a docker volume so it stays somewhere to `cd` into and
 push from (#320). `TC49_STORE` moves it.
 
-A fresh box has no `~/tc49` and the bind mount makes one. An empty store is an
-ordinary state and not a fault — nothing seeds it, by decision — so the server
-comes up, answers, and lists nothing until somebody draws. The directory is
-written by the container and so is owned by root on the host; nothing on the
-host needs to write it, and turning the store into a git repository happens
-through the app rather than a terminal (#355): the backup dialog shows the
-key the store made for itself and takes the address of an empty repository
-the person made. That key lives in the `keys` docker volume — outside the
-store, so no commit can carry it, and on no host path — and GitHub's host keys
-are in the image, so the first push is checked against them rather than asked
-about ([store/BACKUP.md](store/BACKUP.md)).
+**The directory and everything in it belong to the person who deployed the
+box.** `scripts/deploy.sh` makes it before it runs compose, because a bind
+mount whose source is missing is created by the Docker daemon as root, and
+that shut the person out of their own documents — no editing, no `git init`,
+no catalogue put in by hand (#387). The store and a session then run as that
+person, `TC49_UID` and `TC49_GID` from `id` on the box and uid 1000 where
+neither is set, so every drawing the editor saves and every object the backup
+commits is theirs on the host too. `cd` into it, edit it, make it a
+repository and push from it: the app's git and yours see the same store,
+owned by the same person.
+
+A fresh box has no `~/tc49`, and an empty store is an ordinary state and not
+a fault — nothing seeds it, by decision — so the server comes up, answers,
+and lists nothing until somebody draws. Turning the store into a git
+repository is offered through the app rather than needing a terminal (#355):
+the backup dialog shows the key the store made for itself and takes the
+address of an empty repository the person made. That key lives in the `keys`
+docker volume — outside the store, so no commit can carry it, and on no host
+path — and GitHub's host keys are in the image, so the first push is checked
+against them rather than asked about ([store/BACKUP.md](store/BACKUP.md)).
+The volume is made writable by that uid in the image, and the host's passwd
+and group tables come into the store read-only, because ssh will not run for
+a uid it cannot name.
 
 ### Running a session
 
