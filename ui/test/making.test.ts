@@ -380,6 +380,61 @@ describe("the length guard", () => {
   });
 });
 
+/** A roster written before #223 states a train's length and names no cars.
+ *  The store keeps that shape legal for an older file and answers it as
+ *  written, so the screen has to draw one: it used to throw on the first
+ *  render and paint nothing, which read as a dead tab (#414). */
+describe("a roster written the old way", () => {
+  /** The screen over such a roster, with a car of one's own to compose from. */
+  async function older(): Promise<TcApp> {
+    store.catalogue = {
+      "arnold-ce68": { model: "arnold-ce68", kind: "locomotive", length: 122 },
+    };
+    store.documentOf = () => ({
+      roster: "toy",
+      cars: { "krokodil-a": { model: "arnold-ce68", addr: "3" } },
+      trains: { goods: { length: 400 } },
+    });
+    return await opened();
+  }
+
+  it("draws the train with its stated length and says what it is", async () => {
+    const shell = await older();
+    expect(trouble(shell)).toBeNull();
+    expect(parts(shell, "li.train")).toHaveLength(1);
+    expect(parts(shell, ".derived")[0]!.textContent).toMatch("400 mm");
+    expect(parts(shell, "li.train p.hint")[0]!.textContent!.trim()).toBe(
+      "states its length and names no cars — press + beside a car or a model" +
+        " to fill it in",
+    );
+  });
+
+  /** Composing it converts it: a train says a stated length or cars and never
+   *  both, and the store refuses one that says both. */
+  it("drops the stated length when the first car is put in it", async () => {
+    const shell = await older();
+    await add(shell, "car", 0);
+    await pressed(shell, "sl-button.save");
+
+    expect(written()!.trains.goods).toEqual({ cars: [{ car: "krokodil-a" }] });
+    expect(parts(shell, ".derived")[0]!.textContent).toMatch("122 mm");
+  });
+
+  /** The document is spread, so nothing is lost: a roster nobody has edited
+   *  has nothing to give the store, and one edited elsewhere keeps the stated
+   *  length as it was. */
+  it("keeps the stated length through a save of the roster", async () => {
+    const shell = await older();
+    await pressed(shell, "sl-button.save");
+    expect(written()).toBeUndefined();
+
+    await typed(shell, parts(shell, "li.car input.name")[0]!, "krokodil");
+    await pressed(shell, "sl-button.save");
+    expect(written()!.trains.goods).toEqual({ length: 400 });
+    expect(written()!.cars).toEqual({ krokodil: { model: "arnold-ce68", addr: "3" } });
+  });
+});
+
 describe("the run view and the screen beside it", () => {
   /** The store is not on the bus, so nothing publishes a roster change: a
    *  person who makes a train up here must see it in Run without a reload. */
