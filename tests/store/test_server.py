@@ -652,7 +652,9 @@ class FakeGit:
         if args[0] == "rev-parse":
             return Said(True, str(root))
         if args[0] == "status":
-            return Said(True, self.porcelain)
+            # Stripped as `git` strips it, so a first line whose status is
+            # ` M` reaches the parser as it really does (#389).
+            return Said(True, self.porcelain.strip())
         if args[0] == "remote":
             return Said(True, "origin")
         if args[0] == "commit":

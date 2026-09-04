@@ -62,7 +62,10 @@ class FakeGit:
             top = self.toplevel if self.toplevel is not None else str(root)
             return Said(self.toplevel != "", top)
         if args[0] == "status":
-            return Said(True, self.porcelain)
+            # Stripped, because `git` strips what it ran before anybody sees
+            # it: a first line whose status is ` M` arrives without its
+            # leading space, and a double that kept it would not be git (#389).
+            return Said(True, self.porcelain.strip())
         if args[0] == "remote":
             return Said(True, "origin")
         if args[0] == "commit":
@@ -541,6 +544,18 @@ def test_it_commits_what_a_person_drew(repository: Path) -> None:
     assert "backup: backup.yaml, reversing-loops" in run_git(
         repository, "log", "--format=%s"
     )
+
+
+def test_a_modified_document_is_named_in_full(repository: Path) -> None:
+    """The whole path from git to the list a person reads before pressing the
+    button: a tracked document that has been edited is ` M` in git's words,
+    and the leading space of that status does not survive `git` (#389)."""
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    backup = Backup(repository, log=lambda _: None)
+    assert backup.commit().ok
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\nsymbols: {}\n")
+
+    assert backup.outstanding() == ["reversing-loops"]
 
 
 def test_the_backups_are_offered_newest_first(repository: Path) -> None:
