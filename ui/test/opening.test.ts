@@ -2,20 +2,34 @@
 
 /**
  * Opening another drawing, and starting one, over edits the store has not been
- * given (#101).
+ * given (#101, #415).
  *
  * A DOM test of the shell: what is thrown away is the shell's own state — the
  * drawing, the flag the band's dot reads, the snapshots undo walks — and the
  * question is a dialog the operator answers. It mounts the shell the way
  * `refusals.test.ts` does.
+ *
+ * The roster is here for the same reason the drawing is: it is the second
+ * document the loaded railroad carries, the stock view holds it, and changing
+ * the railroad throws it away. The question is the app's either way, so it is
+ * asked about here rather than in the stock view's own suites (#415).
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
+import type { ModelDoc, RosterDoc } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { edited, mounted, serving, session, settled } from "./support/shell.js";
+import {
+  edited,
+  mounted,
+  serving,
+  session,
+  settled,
+  shows,
+  stocking,
+} from "./support/shell.js";
 
 /** A drawing a red pin short of nothing, one per name the store has. */
 function stored(name: string): Drawing {
@@ -327,5 +341,149 @@ describe("choosing the drawing already open", () => {
     await picked(shell, "otira");
 
     expect(open(shell)).toBe("otira");
+  });
+});
+
+/**
+ * The roster is the railroad's other document, and the stock view holds it
+ * unsaved the same way the editor holds the drawing (#415).
+ *
+ * What the store answers is a train to compose into and a model to compose
+ * from, so one press of `+` beside the model is an edit nobody has saved.
+ */
+describe("opening a railroad over unsaved roster edits", () => {
+  const HOPPER: ModelDoc = { model: "hopper", kind: "freight", length: 100 };
+
+  /** A railroad that owns one rake of one hopper, whichever name is asked
+   *  for: the count of entries is what says which railroad the screen is
+   *  showing. */
+  function owned(railroad: string): RosterDoc {
+    return {
+      roster: railroad,
+      cars: {},
+      trains: { ore: { cars: [{ model: "hopper" }] } },
+    };
+  }
+
+  /** The app in the stock view with `reversing-loops` loaded and its roster
+   *  read. The drawing is what the store answered, so it is clean. */
+  async function stocked(): Promise<TcApp> {
+    serving({
+      drawings: ["reversing-loops", "otira"],
+      read: stored,
+      catalogue: { hopper: HOPPER },
+      documentOf: owned,
+    });
+    const shell = await mounted("stock");
+    await choose(shell, "reversing-loops");
+    return shell;
+  }
+
+  /** Compose: the `+` beside a model, which appends it to the current train
+   *  and is the whole of composing right from left. */
+  async function composed(shell: TcApp): Promise<void> {
+    stocking(shell)
+      .renderRoot.querySelector<HTMLElement>("li.product button.add")!
+      .click();
+    await settled(shell);
+  }
+
+  /** Press Save beside the trains, which gives the roster to the store. */
+  async function kept(shell: TcApp): Promise<void> {
+    stocking(shell).renderRoot.querySelector<HTMLElement>("sl-button.save")!.click();
+    await settled(shell);
+  }
+
+  /** How many places the current train has, which is what an appended entry
+   *  moves and what a reloaded roster puts back. */
+  function entries(shell: TcApp): number {
+    return stocking(shell).renderRoot.querySelectorAll("li.entry").length;
+  }
+
+  it("asks before the picker changes anything, and names the roster", async () => {
+    const shell = await stocked();
+    await composed(shell);
+    expect(entries(shell)).toBe(2);
+
+    await choose(shell, "otira");
+
+    expect(asked(shell)!.textContent).toContain("has edits that have not been saved");
+    expect(asked(shell)!.textContent).toContain("the roster");
+    expect(asked(shell)!.textContent).not.toContain("the drawing");
+    expect(open(shell)).toBe("reversing-loops");
+  });
+
+  /** Declining costs nothing: the same railroad, and the rake still being
+   *  composed. */
+  it("leaves the rake being composed in place when the edits are kept", async () => {
+    const shell = await stocked();
+    await composed(shell);
+    await choose(shell, "otira");
+
+    await answer(shell, "Cancel");
+
+    expect(asked(shell)).toBeNull();
+    expect(open(shell)).toBe("reversing-loops");
+    expect(entries(shell)).toBe(2);
+  });
+
+  it("opens the railroad chosen once they are given up, and reads its roster", async () => {
+    const shell = await stocked();
+    await composed(shell);
+    await choose(shell, "otira");
+
+    await answer(shell, "Discard");
+
+    expect(asked(shell)).toBeNull();
+    expect(open(shell)).toBe("otira");
+    expect(entries(shell)).toBe(1);
+  });
+
+  /** One question, and it says which of the two documents is at stake — a
+   *  person who has drawn and composed loses both. */
+  it("names both documents where both have edits", async () => {
+    const shell = await stocked();
+    await drawn(shell);
+    await composed(shell);
+
+    await choose(shell, "otira");
+
+    expect(asked(shell)!.textContent).toContain("the drawing and the roster");
+  });
+
+  /** The drawing alone reads as it always did, the roster having nothing to
+   *  lose. */
+  it("names the drawing alone where the roster is clean", async () => {
+    const shell = await stocked();
+    await drawn(shell);
+
+    await choose(shell, "otira");
+
+    expect(asked(shell)!.textContent).toContain("the drawing");
+    expect(asked(shell)!.textContent).not.toContain("the roster");
+  });
+
+  it("asks nothing once the roster has been saved", async () => {
+    const shell = await stocked();
+    await composed(shell);
+    await kept(shell);
+
+    await choose(shell, "otira");
+
+    expect(asked(shell)).toBeNull();
+    expect(open(shell)).toBe("otira");
+  });
+
+  /** Switching view changes no railroad, so nothing is read again and the
+   *  rake comes back as it was left. */
+  it("keeps the rake across a look at another view", async () => {
+    const shell = await stocked();
+    await composed(shell);
+
+    await shows(shell, "run");
+    await shows(shell, "stock");
+
+    expect(asked(shell)).toBeNull();
+    expect(entries(shell)).toBe(2);
   });
 });
