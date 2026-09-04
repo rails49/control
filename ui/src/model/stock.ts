@@ -113,17 +113,25 @@ export function stands(
   return model === undefined ? null : anonymous(model);
 }
 
-/** The sum of a train's parts, `null` where any entry names something the
- *  documents do not have: a length that left one item out would be a wrong
- *  number rather than a missing one. */
+/**
+ * The sum of a train's parts, `null` where any entry names something the
+ * documents do not have: a length that left one item out would be a wrong
+ * number rather than a missing one.
+ *
+ * A train that names no cars answers its **stated length**, which is what a
+ * roster written before #223 has and what `tc49.lib.roster.Train.length`
+ * answers for the same document. `null` where it states none, a train being
+ * made up having no length yet.
+ */
 export function trainLength(
   train: RosterTrain,
   roster: RosterDoc,
   catalogue: Record<string, ModelDoc>,
 ): number | null {
-  if (train.cars.length === 0) return null;
+  const made = train.cars ?? [];
+  if (made.length === 0) return train.length ?? null;
   let total = 0;
-  for (const entry of train.cars) {
+  for (const entry of made) {
     const one = stands(entry, roster, catalogue);
     if (one === null) return null;
     total += one.length;
@@ -138,16 +146,19 @@ export function trainLength(
  * nothing but locomotives is a `light engine` (CONTEXT.md, **Kind**).
  *
  * A train that names nothing the documents have has no kind to derive, the
- * same answer as a train that names nothing at all.
+ * same answer as a train that names nothing at all — and as one that states
+ * its length and names no cars, there being no car to read a kind off
+ * (`tc49.lib.roster.Train.kind`).
  */
 export function trainKind(
   train: RosterTrain,
   roster: RosterDoc,
   catalogue: Record<string, ModelDoc>,
 ): string | null {
-  if (train.cars.length === 0) return null;
+  const made = train.cars ?? [];
+  if (made.length === 0) return null;
   const hauled = new Set<string>();
-  for (const entry of train.cars) {
+  for (const entry of made) {
     const one = stands(entry, roster, catalogue);
     if (one === null) return null;
     if (one.kind !== LOCOMOTIVE) hauled.add(one.kind);
@@ -171,7 +182,7 @@ export function trainFunctions(
   catalogue: Record<string, ModelDoc>,
 ): Fn[] {
   const byName = new Map<string, Fn>();
-  for (const entry of train.cars) {
+  for (const entry of train.cars ?? []) {
     const one = stands(entry, roster, catalogue);
     if (one === null) continue;
     for (const fn of Object.values(one.functions)) {
@@ -211,7 +222,7 @@ export function nameable(name: string): boolean {
  *  nothing holds it. */
 export function carHolders(name: string, roster: RosterDoc): string[] {
   return Object.entries(roster.trains)
-    .filter(([, train]) => train.cars.some((entry) => entry.car === name))
+    .filter(([, train]) => (train.cars ?? []).some((entry) => entry.car === name))
     .map(([train]) => `train '${train}'`);
 }
 
@@ -224,7 +235,7 @@ export function modelHolders(name: string, roster: RosterDoc): string[] {
     .filter(([, car]) => car.model === name)
     .map(([car]) => `car '${car}'`);
   const trains = Object.entries(roster.trains)
-    .filter(([, train]) => train.cars.some((entry) => entry.model === name))
+    .filter(([, train]) => (train.cars ?? []).some((entry) => entry.model === name))
     .map(([train]) => `train '${train}'`);
   return [...cars, ...trains];
 }
@@ -288,7 +299,7 @@ function onLayout(
   names: (entry: Coupled) => boolean,
 ): string | null {
   for (const train of placed) {
-    if (roster.trains[train]?.cars.some(names) === true) {
+    if (roster.trains[train]?.cars?.some(names) === true) {
       return `'${train}' is on the layout — take it off to correct a length`;
     }
   }
@@ -343,6 +354,11 @@ export interface TrainRow {
   kind: string | null;
   functions: Fn[];
   placed: boolean;
+  /** Whether it **states its length and names no cars**, which is the shape a
+   *  roster written before #223 has: the length is that stated number rather
+   *  than a sum, there is no kind and no function to read off a car, and the
+   *  first entry converts it (#414). */
+  stated: boolean;
 }
 
 /**
@@ -403,11 +419,15 @@ export class Stock {
    * Refused here, the words are this screen's own and the saved roster is
    * unchanged. `edits` stays true — there is still something to give the
    * store once the train is filled — so Save stays enabled (#412).
+   *
+   * A train that **states its length and names no cars** is not that train:
+   * it names no `cars` list at all, which is the shape the store keeps legal
+   * for an older file, and saving the roster back keeps it as it was (#414).
    */
   stopsSaving(): string | null {
     const empty = Object.entries(this.doc.trains)
       .sort(([one], [other]) => (one < other ? -1 : 1))
-      .find(([, train]) => train.cars.length === 0);
+      .find(([, train]) => train.cars !== undefined && train.cars.length === 0);
     return empty === undefined
       ? null
       : `train '${empty[0]}' has nothing in it — press + beside a car or a` +
@@ -451,11 +471,12 @@ export class Stock {
       .sort(([one], [other]) => (one < other ? -1 : 1))
       .map(([train, made]) => ({
         train,
-        entries: made.cars.map((entry) => this.entry(entry)),
+        entries: (made.cars ?? []).map((entry) => this.entry(entry)),
         length: trainLength(made, this.doc, this.models),
         kind: trainKind(made, this.doc, this.models),
         functions: trainFunctions(made, this.doc, this.models),
         placed: onLayout.has(train),
+        stated: made.length !== undefined,
       }));
   }
 
@@ -503,8 +524,13 @@ export class Stock {
     this.write({ trains });
   }
 
-  /** Put something at the tail of a train: a car from the list above, or a
-   *  model from the list below, which gives an anonymous item. */
+  /**
+   * Put something at the tail of a train: a car from the list above, or a
+   * model from the list below, which gives an anonymous item.
+   *
+   * The first entry on a train that **states its length** converts it: the
+   * stated number goes and the length is derived from then on (#414).
+   */
   append(train: string, what: { car: string } | { model: string }): void {
     this.inTrain(train, (cars) => [...cars, what]);
   }
@@ -540,7 +566,7 @@ export class Stock {
    * is still legal, and a person who named one meant to.
    */
   address(train: string, index: number, addr: string): string | null {
-    const entry = this.doc.trains[train]?.cars[index];
+    const entry = this.doc.trains[train]?.cars?.[index];
     if (entry === undefined) return null;
     const wanted = addr.trim();
     if (entry.car !== undefined) return this.carAddress(entry.car, wanted);
@@ -556,7 +582,7 @@ export class Stock {
         ...this.doc.trains,
         [train]: {
           ...this.doc.trains[train]!,
-          cars: this.doc.trains[train]!.cars.map((one, at) =>
+          cars: this.doc.trains[train]!.cars!.map((one, at) =>
             at === index ? promoted(one, name) : one,
           ),
         },
@@ -682,23 +708,44 @@ export class Stock {
     this.dirty = true;
   }
 
+  /**
+   * One train's entries, changed.
+   *
+   * A train says **either** a stated length **or** cars and never both, the
+   * store refusing one that says both, so the first entry on a train that
+   * stated its length drops the stated number and the train becomes the
+   * ordinary shape (#414). An edit that leaves such a train with no entries
+   * leaves it as it was: there was nothing in it to change.
+   */
   private inTrain(train: string, change: (cars: Coupled[]) => Coupled[]): void {
     const made = this.doc.trains[train];
     if (made === undefined) return;
-    this.write({
-      trains: { ...this.doc.trains, [train]: { ...made, cars: change(made.cars) } },
-    });
+    const cars = change(made.cars ?? []);
+    if (made.length !== undefined) {
+      if (cars.length === 0) return;
+      const { length: _stated, ...rest } = made;
+      this.write({ trains: { ...this.doc.trains, [train]: { ...rest, cars } } });
+      return;
+    }
+    this.write({ trains: { ...this.doc.trains, [train]: { ...made, cars } } });
   }
 
   /** Every train's entries with one car's name changed, so a rename does not
-   *  leave a train naming a car the railroad has not. */
+   *  leave a train naming a car the railroad has not. A train that names no
+   *  cars is left as written: giving it an empty list would state a length
+   *  beside one, which the store refuses (#414). */
   private renamed(was: string, name: string): Record<string, RosterTrain> {
     const trains: Record<string, RosterTrain> = {};
     for (const [key, train] of Object.entries(this.doc.trains)) {
-      trains[key] = {
-        ...train,
-        cars: train.cars.map((entry) => (entry.car === was ? { ...entry, car: name } : entry)),
-      };
+      trains[key] =
+        train.cars === undefined
+          ? train
+          : {
+              ...train,
+              cars: train.cars.map((entry) =>
+                entry.car === was ? { ...entry, car: name } : entry,
+              ),
+            };
     }
     return trains;
   }
