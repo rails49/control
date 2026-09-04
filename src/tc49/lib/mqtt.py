@@ -208,6 +208,42 @@ class MqttBus:
                 self._last_values[topic] = payload
         self._client.publish(topic, json.dumps(payload), qos=QOS, retain=retain)
 
+    def clear(self, topic: str) -> None:
+        """The retained value dropped, which on a broker is an empty payload
+        published retained: it tells every client the row is gone and takes
+        it out of what the broker hands the next one to subscribe.
+
+        The local last value goes with it rather than waiting for the echo,
+        so a caller clearing a row and reading `last_values` afterwards sees
+        what it did (`lib.bus.Bus.clear`).
+        """
+        if not is_state_topic(topic):
+            raise ValueError(f"nothing is retained on {topic!r}")
+        with self._lock:
+            self._last_values.pop(topic, None)
+        self._client.publish(topic, b"", qos=QOS, retain=True)
+
+    def forget(self) -> None:
+        """Every subscription dropped, at the broker as well as here, and
+        everything the network thread has left waiting.
+
+        The filters go at the broker too because a client that stayed
+        subscribed would be handed messages nothing here matches any more,
+        and because subscribing again is what makes the broker send its
+        retained values a second time — which is how the app that replaces
+        this one finds the rows it has to read (`lib.bus.Bus.forget`).
+
+        `last_values` is kept: it is this client's picture of what the broker
+        holds, and clearing the rows a reload has to clear is exactly what it
+        is read for.
+        """
+        with self._lock:
+            filters = list(dict.fromkeys(one for one, _ in self._subscriptions))
+            self._subscriptions.clear()
+            self._queue.clear()
+        for topic_filter in filters:
+            self._client.unsubscribe(topic_filter)
+
     def drain(self) -> None:
         """Deliver what the network thread has left waiting, on this thread.
 

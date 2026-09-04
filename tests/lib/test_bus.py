@@ -441,3 +441,67 @@ def test_a_retained_value_that_is_not_an_object_is_left_as_it_came(
     path.write_text(json.dumps({EXHAUSTED: "nonsense"}))
 
     assert InProcessBus(Clock(), path).last_values[EXHAUSTED] == "nonsense"
+
+
+def test_a_cleared_row_is_gone_rather_than_empty() -> None:
+    """What a reload does to the rows the railroad that left owned: the row
+    is not there, so a late subscriber is handed nothing and reads the
+    absence rather than a stale value (ADR-0060)."""
+    bus = InProcessBus(Clock())
+    bus.publish(EXHAUSTED, {"exhausted": True})
+    bus.drain()  # what was published is delivered; a clear is not a recall
+
+    bus.clear(EXHAUSTED)
+
+    assert EXHAUSTED not in bus.last_values
+    heard: list[tuple[str, Payload]] = []
+    bus.subscribe(EXHAUSTED, lambda topic, payload: heard.append((topic, payload)))
+    bus.drain()
+    assert heard == [], "a late subscriber was handed a cleared row"
+
+
+def test_clearing_delivers_nothing_to_a_subscriber() -> None:
+    """A handler is never told a row went. There is nothing for it to read —
+    the app that owns the row is about to publish the new railroad's — and a
+    binding that delivered an empty payload would be handing every consumer a
+    shape none of them parses."""
+    bus = InProcessBus(Clock())
+    heard: list[str] = []
+    bus.subscribe("tc49/#", lambda topic, payload: heard.append(topic))
+    bus.publish(EXHAUSTED, {"exhausted": True})
+    bus.drain()
+
+    bus.clear(EXHAUSTED)
+    bus.drain()
+
+    assert heard == [EXHAUSTED], "the clear was delivered as an event"
+
+
+def test_an_event_topic_has_nothing_to_clear() -> None:
+    """Only a state topic keeps a value, so asking for an event topic is a
+    bug in the caller rather than a no-op to absorb."""
+    with pytest.raises(ValueError):
+        InProcessBus(Clock()).clear(OCCUPIED)
+
+
+def test_forgetting_drops_every_subscription_and_what_was_in_flight() -> None:
+    """What makes a reload a cold start: the app built on the railroad that
+    left keeps its handlers until something takes them off, and one still
+    answering beside its replacement would be a second dispatcher on one
+    railroad. What was queued goes with them — it was published to the
+    railroad that is gone (ADR-0054)."""
+    bus = InProcessBus(Clock())
+    heard: list[str] = []
+    bus.subscribe("tc49/#", lambda topic, payload: heard.append(topic))
+    bus.publish(OCCUPIED, {"block": "yard_w"})
+
+    bus.forget()
+    bus.drain()
+    assert heard == [], "a forgotten subscriber was still delivered to"
+
+    # And the values themselves stay: they are the railroad's, not the
+    # subscriber's, and what comes next reads them to know what to clear.
+    bus.publish(EXHAUSTED, {"exhausted": True})
+    assert EXHAUSTED in bus.last_values
+    bus.drain()
+    assert heard == []

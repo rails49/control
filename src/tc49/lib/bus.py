@@ -56,10 +56,15 @@ class Bus(Protocol):
     implement, and the only name an app component writes.
 
     Structural rather than a base class, so a binding is one by having the
-    four members and not by inheriting: the MQTT binding shares no
-    implementation with the in-process one — a broker holds the retained
-    values and a network thread fills the queue — and there is nothing for a
-    common ancestor to carry (ADR-0059).
+    members and not by inheriting: the MQTT binding shares no implementation
+    with the in-process one — a broker holds the retained values and a
+    network thread fills the queue — and there is nothing for a common
+    ancestor to carry (ADR-0059).
+
+    ``clear`` and ``forget`` are the two a **reload** needs and nothing else
+    uses: loading another railroad is a cold start that happens without a
+    restart, so the rows the last one left have to go and the app built on it
+    has to stop answering (ADR-0060, `tc49.lib.loading`).
     """
 
     @property
@@ -70,6 +75,10 @@ class Bus(Protocol):
     def publish(self, topic: str, payload: Payload) -> None: ...
 
     def drain(self) -> None: ...
+
+    def clear(self, topic: str) -> None: ...
+
+    def forget(self) -> None: ...
 
 
 class InProcessBus:
@@ -131,6 +140,35 @@ class InProcessBus:
             self._last_values[topic] = payload
             self._persist()
         self._queue.append((topic, payload, None))
+
+    def clear(self, topic: str) -> None:
+        """The retained value dropped: the row is **gone**, rather than
+        holding a value somebody would read as current.
+
+        Nothing is delivered. A broker clears a row by publishing an empty
+        payload and a subscriber is handed no value, so a handler never sees
+        an absence — the app that owned the row is about to publish the new
+        railroad's, and what reads the topic reads that (ADR-0060). Only a
+        state topic has a value to drop; an event topic never had one, and
+        asking is a bug in the caller rather than a no-op.
+        """
+        if not is_state_topic(topic):
+            raise ValueError(f"nothing is retained on {topic!r}")
+        self._last_values.pop(topic, None)
+        self._persist()
+
+    def forget(self) -> None:
+        """Every subscription dropped, and everything queued with them.
+
+        What makes a reload a cold start: the app built on the railroad that
+        is being left keeps its handlers on this bus until something takes
+        them off, and one that kept answering beside its replacement would be
+        a second dispatcher on one railroad. What is in flight goes for the
+        same reason — it was published to the railroad that is gone
+        (ADR-0054, ADR-0060).
+        """
+        self._subscriptions.clear()
+        self._queue.clear()
 
     def _stamped(self, payload: Payload) -> Payload:
         """The value with this instant's stamp on it, read off the run clock.
