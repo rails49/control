@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
+from tc49.lib.layout import Layout
 from tc49.store import AssetStore, Backup
 from tc49.store.backup import Said
 from tc49.store.server import handle, make_server
@@ -366,6 +367,47 @@ def test_a_model_cannot_be_saved_under_another_name(
     assert status == 400
     assert "re460" in body["error"]
     assert handle(store, backup, "GET", "/catalogue", None)[1] == {"models": {}}
+
+
+def test_the_layout_a_drawing_derives_to_is_served(
+    store: AssetStore, backup: Backup
+) -> None:
+    """What an app in its own process is handed instead of the store it
+    cannot import: the layout, as `Layout.from_document` reads it, and equal
+    to the one `tc49 layout show` prints (ADR-0059 decision 5)."""
+    status, body = handle(store, backup, "GET", "/layouts/crossover-yard", None)
+    assert status == 200
+    assert Layout.from_document(body) == store.get("crossover-yard")
+
+
+def test_a_layout_of_a_railroad_with_no_drawing_is_not_found(
+    store: AssetStore, backup: Backup
+) -> None:
+    status, body = handle(store, backup, "GET", "/layouts/atlantis", None)
+    assert status == 404
+    assert "atlantis" in body["error"]
+
+
+def test_a_drawing_that_does_not_derive_is_unprocessable(
+    store: AssetStore, backup: Backup
+) -> None:
+    """A drawing saved mid-edit is an ordinary state of the store and not a
+    bad request: it is there, it is a drawing, and it describes no layout
+    yet. An app reads the reason and waits for somebody to finish it, where
+    the editor reads the same fault out of `review` and draws it."""
+    doc = store.drawing("crossover-yard")
+    doc["wires"] = doc["wires"][:-1]
+    store.put(doc)
+    status, body = handle(store, backup, "GET", "/layouts/crossover-yard", None)
+    assert status == 422
+    assert body["error"]
+
+
+def test_a_layout_is_read_only(store: AssetStore, backup: Backup) -> None:
+    """Derived and never stored (ADR-0015), so there is nothing to write: the
+    drawing is what an editor puts."""
+    doc = store.drawing("crossover-yard")
+    assert handle(store, backup, "PUT", "/layouts/crossover-yard", doc)[0] == 404
 
 
 def test_a_review_returns_the_layout_and_why_it_is_that(
