@@ -8,6 +8,7 @@ rather than to an app of its own — a `ui` package could not import
     GET  /drawings/<name>       one drawing, as the document it is
     PUT  /drawings/<name>       save it, keeping what the file says
     POST /review                what a drawing means, derived and explained
+    GET  /layouts/<name>        the layout that drawing derives to
     GET  /rosters/<name>        one railroad's roster, as the document it is
     PUT  /rosters/<name>        save it, keeping what the file says
     GET  /rosters/<name>/trains its trains, each with its length and the
@@ -27,6 +28,14 @@ pins, the portal labels that pair with nothing, junction membership, the
 derived layout, and why each pair of transits does or does not run together.
 The front end reimplements none of it, so a second union-find cannot disagree
 with the first inside the tool whose job is to be believed.
+
+`/layouts/<name>` is the other derivation, and it is the apps': the scheduler,
+the dispatcher and the layout interface each take a `Layout` at construction,
+and in its own process none of them can import the store to derive one
+(ADR-0013, ADR-0059 decision 5). Read-only, since a layout is derived and
+never authored (ADR-0015), and a drawing that does not derive yet is a 422
+rather than a refusal inside a 200 — `review`'s caller is drawing the fault
+on the canvas, and this one is an app that has nothing to run on.
 
 **The route is the document, so `GET` and `PUT` on `/rosters/<name>` are
 inverses**: the roster as the file has it, which is what an editing surface
@@ -180,6 +189,10 @@ def _route(
             if method == "PUT":
                 return _put_roster(store, backup, railroad, body)
 
+    railroad = route.removeprefix("/layouts/")
+    if method == "GET" and railroad != route and "/" not in railroad:
+        return _layout(store, railroad)
+
     name = route.removeprefix("/drawings/")
     if name != route and "/" not in name:
         if method == "GET":
@@ -191,6 +204,38 @@ def _route(
             return _put(store, backup, name, body)
 
     return 404, {"error": f"no route {method} {route}"}
+
+
+def _layout(store: AssetStore, name: str) -> Response:
+    """The layout a railroad's drawing derives to, as the document
+    `Layout.from_document` reads.
+
+    Derived and never stored (ADR-0015), so this is the drawing read and
+    derived on the way out and there is no `PUT`: what a person edits is the
+    drawing, and a layout arriving here would be a second description of the
+    same railroad.
+
+    **Three answers, and an app has to tell them apart.** 404 is a railroad
+    with no drawing — the name is wrong, or nothing has been drawn under it
+    yet. 422 is a drawing that is there and does not derive: work in progress,
+    which the editor shows as red pins and unpaired portals (`review`), and
+    which an app can do nothing with but say what is wrong and wait for
+    somebody to finish it. A drawing that will not load at all stays a 400
+    like every other route's, the fault being in the document rather than in
+    what it describes.
+
+    It exists because an app in its own process cannot import the store to
+    derive one (ADR-0013, ADR-0059 decision 5); `lib/documents.py` is what
+    reads it.
+    """
+    try:
+        drawing = Drawing.from_document(store.drawing(name))
+    except FileNotFoundError:
+        return 404, {"error": f"no drawing '{name}'"}
+    try:
+        return 200, drawing.derive()
+    except ValueError as refusal:
+        return 422, {"error": str(refusal)}
 
 
 def _backup(backup: Backup, method: str, route: str, body: Any) -> Response:
