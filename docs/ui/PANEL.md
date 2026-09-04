@@ -503,10 +503,25 @@ session is gone the band says nothing about the bridge — *not connected* is
 what a joined session whose socket is not answering says, not what a page
 between tries says. What stands there instead is the trouble the last failure
 named: *no session at ws://…/toy — run `tc49 live`* where the bridge went, and
-*the store is not answering — run `tc49 serve`* where a try got no roster. A
-close with nothing failing behind it — the session switching railroads under
-the page — names none of that, and the band is quiet until a try lands. The
-badge is back at *connected* when one does.
+what the failed roster read said where a try got no roster. A close with
+nothing failing behind it — the session switching railroads under the page —
+names none of that, and the band is quiet until a try lands. The badge is back
+at *connected* when one does.
+
+**A call to the store fails in three ways and the words say which**
+([#411](https://github.com/rails49/control/issues/411)). *Nothing answered* —
+`fetch` rejects, the connection refused — is *the store is not answering — run
+`tc49 serve`*: the store is what is missing and starting it is the fix. *An
+answer that is not the store's* — a status with a body that is not JSON, which
+is what a proxy's own 404 page or a 502 from one whose upstream is down looks
+like from here — says what was asked and what came back: *GET
+/rosters/toy/trains answered 404*, with the status text where the browser gives
+one. It guesses at no cause; this side does not know there is a proxy. *The
+store's refusal* is the store's own words, passed through. Which of the three
+it was is decided once in `ui/src/model/store.ts` and every screen shows the
+result — the one fixed string that used to stand here sent a person after a
+store that was up and answering, the proxy in front of it having answered with
+its own page ([#405](https://github.com/rails49/control/issues/405)).
 
 **A run comes up with an empty layout and held.** There is nothing on the
 rails until a person puts something there: every train the railroad owns is in

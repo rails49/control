@@ -104,6 +104,35 @@ throttle's cabs take. A second browser editing stock during a run is not
 covered, and closing that properly is the same hole as
 [#390](https://github.com/rails49/control/issues/390).
 
+## When the store does not answer with a document
+
+A read or a write fails in **three ways, and the words say which**
+([#411](https://github.com/rails49/control/issues/411)). *Nothing answered* —
+`fetch` rejects, the connection refused — is *the store is not answering — run
+`tc49 serve`*. *An answer that is not the store's* — a status with a body that
+is not JSON, which is what a proxy's own 404 page or a 502 from one whose
+upstream is down looks like from here — says what was asked and what came back:
+*GET /catalogue answered 404*, with the status text where the browser gives
+one. It guesses at no cause; this screen does not know there is a proxy. *The
+store's refusal* is the validator's own words, as above. Which of the three it
+was is decided once in `ui/src/model/store.ts`, and this screen shows the
+result rather than a message of its own: it used to name `tc49 serve` for all
+three, and told a person to start a store that was up and answering
+([#405](https://github.com/rails49/control/issues/405)).
+
+**The read is made again after the first two**, on the same interval the run
+view retries a lost session on — `RETRY_MS`, argued in `ui/src/model/store.ts`
+— and the message goes when a read lands. Both are things to wait out: the
+store starting, or whatever is in front of it learning where it is. A refusal
+is not, the store having answered, and nothing is read again after one. There
+is nothing on this screen to press, so without the try the message stood until
+somebody reloaded the page. The try is dropped when the app loads another
+railroad and when this view is left.
+
+**A failed Create leaves the dialog open**, with the message beside the button
+— *PUT /catalogue/hopper answered 404* — so the product is still written down
+and there to write again once the store is reachable.
+
 ## The run view beside it
 
 **The run view re-reads the roster when it becomes the current view.** The
@@ -162,5 +191,7 @@ view against a store with no `catalogue/` and no roster and drives the
 controls: a model written the moment it is made, a train made up of a
 locomotive and three hoppers, the document that reaches
 `PUT /rosters/<railroad>` with one car entry and three model entries, the guard
-killing a field while the run has that train placed, and the run view showing
-a train made up here without a reload.
+killing a field while the run has that train placed, the run view showing a
+train made up here without a reload, and the three ways a call to the store
+fails as this screen shows them. The words themselves are
+`ui/test/asking.test.ts`'s, at the helper that decides them.
