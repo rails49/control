@@ -15,7 +15,7 @@ of the system is not holding the geometry of, and which block that facing
 names is not asked, a facing lagging the train it is about.
 """
 
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tests.layout.railroad import (
     THROTTLE_WANTED,
     align,
@@ -32,7 +32,7 @@ from tests.layout.railroad import (
 )
 
 
-def held(train: str, facing: str) -> tuple[Bus, list[tuple[str, Payload]]]:
+def held(train: str, facing: str) -> tuple[InProcessBus, list[tuple[str, Payload]]]:
     """A live railroad with `train` standing in `up_w` facing as stated and a
     person holding its throttle, and every traction write from there on."""
     bus, _app = build()

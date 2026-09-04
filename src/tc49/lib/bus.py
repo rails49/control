@@ -1,6 +1,15 @@
-"""In-process event bus: the milestone-1 binding of the bus contract.
+"""The bus: the interface every app is handed, and the in-process binding.
 
-Single-threaded, queued-FIFO, run-to-completion (SYSTEM.md "The bus",
+``Bus`` is the interface — subscribe, publish, drain, last values — and
+``InProcessBus`` below is one binding of it. The other is `tc49.lib.mqtt`,
+over a broker, which is what the deployed apps run on (ADR-0059).
+An app names the interface and never a binding: which one it was handed is
+the business of whatever assembled it, and `bench`, `sweep` and the property
+suite keep the in-process one because byte-identical replay is what they
+exist for.
+
+The in-process binding is single-threaded, queued-FIFO, run-to-completion
+(SYSTEM.md "The bus",
 ADR-0008): ``publish()`` appends to one queue and returns; ``drain()``
 delivers each queued event to subscribers in subscription order, so
 delivery order is a pure function of publish and subscribe order.
@@ -30,7 +39,7 @@ untouched by construction rather than by a branch.
 from collections import deque
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 from tc49.lib import durable
 from tc49.lib.clock import Clock
@@ -42,7 +51,28 @@ Handler = Callable[[str, Payload], None]
 _Subscription = tuple[str, Handler]
 
 
-class Bus:
+class Bus(Protocol):
+    """What an app is handed, and all of it: the surface both bindings
+    implement, and the only name an app component writes.
+
+    Structural rather than a base class, so a binding is one by having the
+    four members and not by inheriting: the MQTT binding shares no
+    implementation with the in-process one — a broker holds the retained
+    values and a network thread fills the queue — and there is nothing for a
+    common ancestor to carry (ADR-0059).
+    """
+
+    @property
+    def last_values(self) -> dict[str, Payload]: ...
+
+    def subscribe(self, topic_filter: str, handler: Handler) -> None: ...
+
+    def publish(self, topic: str, payload: Payload) -> None: ...
+
+    def drain(self) -> None: ...
+
+
+class InProcessBus:
     def __init__(self, clock: Clock, state: Path | None = None) -> None:
         """`clock`: the run clock, which the binding reads as it publishes.
         Required rather than defaulted, because a bus given none would stamp

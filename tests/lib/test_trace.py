@@ -5,7 +5,7 @@ from typing import cast
 
 import pytest
 
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import TOPICS, leaf
 from tc49.lib.trace import TraceTap
@@ -15,7 +15,7 @@ REVERSAL = "tc49/schedule/reversal_wanted"
 
 
 def test_line_is_flat_with_canonical_key_order() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     out = io.StringIO()
     TraceTap(bus, out, Clock())
 
@@ -38,7 +38,7 @@ def test_a_state_line_shows_the_payloads_stamp_ahead_of_its_fields() -> None:
     tap reads, and the stamp leads the fields because the inventory puts it
     first."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     out = io.StringIO()
     TraceTap(bus, out, clock)
 
@@ -58,7 +58,7 @@ def test_a_device_line_is_named_by_its_row_and_not_by_its_address() -> None:
     The address is in the payload beside it, which is what lets the line read
     on its own."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     out = io.StringIO()
     TraceTap(bus, out, clock)
 
@@ -80,7 +80,7 @@ def test_the_unaddressed_device_rows_are_named_the_same_way() -> None:
     same two levels as every other device row rather than by its leaf, which
     the two halves would share."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     out = io.StringIO()
     TraceTap(bus, out, clock)
 
@@ -96,7 +96,7 @@ def test_the_unaddressed_device_rows_are_named_the_same_way() -> None:
 
 def test_the_time_stamp_reads_the_run_clock_as_it_records() -> None:
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     out = io.StringIO()
     TraceTap(bus, out, clock)
 
@@ -119,7 +119,7 @@ def test_the_time_stamp_reads_the_run_clock_as_it_records() -> None:
 
 def test_scripted_sequence_traced_twice_is_byte_identical() -> None:
     def run() -> bytes:
-        bus = Bus(Clock())
+        bus = InProcessBus(Clock())
         out = io.StringIO()
         TraceTap(bus, out, Clock())
 
@@ -143,7 +143,7 @@ def test_scripted_sequence_traced_twice_is_byte_identical() -> None:
 
 
 def test_payload_field_outside_the_inventory_fails_loudly() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     TraceTap(bus, io.StringIO(), Clock())
     bus.publish("tc49/layout/block_occupied", {"blokc": "a"})
 
@@ -160,7 +160,7 @@ def test_a_client_frame_outside_the_inventory_is_recorded_rather_than_raised() -
     """A browser may publish anything on the inbound topic (ADR-0034), and
     the frame's only record is its trace line — so the tap writes what it was
     given: the fields it knows in canonical order, then the rest."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     out = io.StringIO()
     TraceTap(bus, out, Clock())
     bus.publish(WANTED, {"junk": 1, "train": "t1"})
@@ -174,7 +174,7 @@ def test_a_client_frame_outside_the_inventory_is_recorded_rather_than_raised() -
 def test_every_inbound_topic_is_recorded_as_given() -> None:
     """A client's frame is recorded as-given whichever leaf it came on: both
     inbound topics carry whatever a browser published (#124, ADR-0034)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     out = io.StringIO()
     TraceTap(bus, out, Clock())
     bus.publish(REVERSAL, {"junk": 1, "train": "t1"})
@@ -188,7 +188,7 @@ def test_every_inbound_topic_is_recorded_as_given() -> None:
 def test_a_client_frame_that_is_not_an_object_is_recorded_whole() -> None:
     """Nothing in it can be a field, so all of it is the record — which is
     what makes a dropped gesture verifiable in the trace (#107, ADR-0036)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     out = io.StringIO()
     TraceTap(bus, out, Clock())
     bus.publish(WANTED, cast(Payload, ["yard_e.A"]))

@@ -12,7 +12,7 @@ from typing import Any
 
 from tc49.layout import LayoutInterface
 from tc49.layout.interface import SETTLING_S
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout
 from tc49.lib.roster import FORWARD, REVERSE, Car, Coupled, Roster, Train
@@ -107,7 +107,7 @@ def stock() -> Roster:
     )
 
 
-class Unstamped(Bus):
+class Unstamped(InProcessBus):
     """A bus that stamps nothing, so a value carries the stamp it was handed.
 
     What a binding on the other side of a broker can put on a topic, and what
@@ -121,7 +121,9 @@ class Unstamped(Bus):
         return payload
 
 
-def wired(settling_s: float = SETTLING_S) -> tuple[Bus, LayoutInterface, Clock]:
+def wired(
+    settling_s: float = SETTLING_S,
+) -> tuple[InProcessBus, LayoutInterface, Clock]:
     """A fresh app on a fresh bus with the clock the two of them share, its
     startup cascade delivered: the railroad is up, dark, and has heard nothing
     from the hardware.
@@ -129,19 +131,19 @@ def wired(settling_s: float = SETTLING_S) -> tuple[Bus, LayoutInterface, Clock]:
     The clock comes back because the settling time is measured against it and
     the suite drives it directly — nothing here sleeps (#288)."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     app = LayoutInterface(bus, railroad(), stock(), clock, settling_s)
     bus.drain()
     return bus, app, clock
 
 
-def build() -> tuple[Bus, LayoutInterface]:
+def build() -> tuple[InProcessBus, LayoutInterface]:
     """The same, for a suite with no business with time."""
     bus, app, _clock = wired()
     return bus, app
 
 
-def heard(bus: Bus, topic_filter: str) -> list[tuple[str, Payload]]:
+def heard(bus: InProcessBus, topic_filter: str) -> list[tuple[str, Payload]]:
     """Everything published under `topic_filter` from here on, in order —
     plus whatever retained value a state filter is owed on subscribing."""
     seen: list[tuple[str, Payload]] = []
@@ -149,7 +151,7 @@ def heard(bus: Bus, topic_filter: str) -> list[tuple[str, Payload]]:
     return seen
 
 
-def commanded(bus: Bus) -> list[tuple[str, Payload]]:
+def commanded(bus: InProcessBus) -> list[tuple[str, Payload]]:
     """Every traction write from here on, in order."""
     return heard(bus, WANTED_TRACTION + "/#")
 
@@ -163,7 +165,7 @@ def speeds(written: list[tuple[str, Payload]]) -> list[tuple[str, float]]:
     ]
 
 
-def occupancy(bus: Bus) -> list[tuple[str, Payload]]:
+def occupancy(bus: InProcessBus) -> list[tuple[str, Payload]]:
     """Every occupancy event from here on, in order. Two subscriptions rather
     than one filter: the two leaves sit beside the commands under
     `tc49/layout/`, and an event topic is never replayed, so what this
@@ -176,27 +178,27 @@ def occupancy(bus: Bus) -> list[tuple[str, Payload]]:
     return seen
 
 
-def energised(bus: Bus) -> None:
+def energised(bus: InProcessBus) -> None:
     """The hardware reporting a live railroad, which is the only thing that
     puts `state/power` on `on`."""
     bus.publish(DEVICE_TRACK, {"power": "on"})
     bus.drain()
 
 
-def runs(bus: Bus, run: str, moving: bool = False) -> None:
+def runs(bus: InProcessBus, run: str, moving: bool = False) -> None:
     """The dispatcher stating where the run stands and whether anything is
     moving under it — the row `layout` guards a plain `off` against."""
     bus.publish(RUN, {"run": run, "moving": moving})
     bus.drain()
 
 
-def stand(bus: Bus, train: str, block: str) -> None:
+def stand(bus: InProcessBus, train: str, block: str) -> None:
     """A hand put a train down and the dispatcher accepted it."""
     bus.publish(PLACED, {"train": train, "block": block})
     bus.drain()
 
 
-def faces(bus: Bus, **facing: str) -> None:
+def faces(bus: InProcessBus, **facing: str) -> None:
     """The scheduler saying which way each train points, as it holds it: the
     run each would make across its block (ADR-0019). The whole map, since that
     is what the state topic carries."""
@@ -204,7 +206,7 @@ def faces(bus: Bus, **facing: str) -> None:
     bus.drain()
 
 
-def takes(bus: Bus, train: str | None) -> None:
+def takes(bus: InProcessBus, train: str | None) -> None:
     """A person taking a train in a throttle. The gesture names where the mode
     is to stand rather than asking for a change, and `None` is every train at
     once — what a person does to a railroad rather than to the train they have
@@ -213,21 +215,21 @@ def takes(bus: Bus, train: str | None) -> None:
     bus.drain()
 
 
-def gives(bus: Bus, train: str | None) -> None:
+def gives(bus: InProcessBus, train: str | None) -> None:
     """The same gesture the other way: the train goes back to being driven on
     its grants."""
     bus.publish(MODE_WANTED, {"train": train, "mode": "automatic"})
     bus.drain()
 
 
-def turns(bus: Bus, train: str, speed: float) -> None:
+def turns(bus: InProcessBus, train: str, speed: float) -> None:
     """A person's lever, signed for the train — positive is the way the train
     points, whichever way round its locomotives are wired."""
     bus.publish(THROTTLE_WANTED, {"train": train, "speed": speed})
     bus.drain()
 
 
-def align(bus: Bus, connection: str, transit: str) -> None:
+def align(bus: InProcessBus, connection: str, transit: str) -> None:
     """The command the dispatcher sends before each grant, carrying the points
     the way needs — read off the layout, as the dispatcher reads them."""
     bus.publish(
@@ -242,7 +244,7 @@ def align(bus: Bus, connection: str, transit: str) -> None:
 
 
 def move(
-    bus: Bus,
+    bus: InProcessBus,
     train: str,
     connection: str,
     transit: str,
@@ -265,7 +267,7 @@ def move(
     bus.drain()
 
 
-def reads(bus: Bus, end: str, level: str, reason: str | None = None) -> None:
+def reads(bus: InProcessBus, end: str, level: str, reason: str | None = None) -> None:
     """One detector saying what it sees at the block end it watches. A
     `reason` is free text a person reads and rides only with `unknown`."""
     payload: Payload = {"addr": end, "occupancy": level}
@@ -282,7 +284,7 @@ def elapse(clock: Clock, seconds: float) -> None:
 
 
 def settle(
-    bus: Bus, app: LayoutInterface, clock: Clock, after: float = SETTLING_S
+    bus: InProcessBus, app: LayoutInterface, clock: Clock, after: float = SETTLING_S
 ) -> None:
     """The settling time passing and the loop's owner acting on it, which is
     the whole of what drives the debounce."""

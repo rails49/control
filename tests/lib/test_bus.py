@@ -1,17 +1,17 @@
-"""Tests at the Bus seam: publish/subscribe/drain per SYSTEM.md "The bus"."""
+"""Tests at the InProcessBus seam: publish/subscribe/drain per SYSTEM.md "The bus"."""
 
 import json
 from pathlib import Path
 
 import pytest
 
-from tc49.lib.bus import Bus, Handler, Payload
+from tc49.lib.bus import Handler, InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.payload import Ordering
 
 
 def test_publish_queues_without_delivering() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen: list[str] = []
     bus.subscribe("tc49/layout/boundary", lambda topic, payload: seen.append(topic))
 
@@ -21,7 +21,7 @@ def test_publish_queues_without_delivering() -> None:
 
 
 def test_drain_delivers_in_publish_order() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen: list[str] = []
     bus.subscribe("tc49/#", lambda topic, payload: seen.append(topic))
 
@@ -33,7 +33,7 @@ def test_drain_delivers_in_publish_order() -> None:
 
 
 def test_publish_inside_handler_joins_back_of_queue() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen: list[str] = []
 
     def on_boundary(topic: str, payload: dict[str, object]) -> None:
@@ -57,7 +57,7 @@ def test_publish_inside_handler_joins_back_of_queue() -> None:
 
 
 def test_fan_out_in_subscription_order() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen: list[str] = []
     bus.subscribe("tc49/#", lambda topic, payload: seen.append("first"))
     bus.subscribe("tc49/layout/+", lambda topic, payload: seen.append("second"))
@@ -69,7 +69,7 @@ def test_fan_out_in_subscription_order() -> None:
 
 
 def test_filter_grammar() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen: dict[str, list[str]] = {"exact": [], "plus": [], "hash": []}
     bus.subscribe(
         "tc49/layout/boundary", lambda topic, payload: seen["exact"].append(topic)
@@ -89,7 +89,7 @@ def test_filter_grammar() -> None:
 
 
 def test_state_topic_delivers_last_value_to_late_subscriber() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     bus.publish("tc49/schedule/state/exhausted", {"exhausted": False})
     bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
     bus.drain()
@@ -104,7 +104,7 @@ def test_state_topic_delivers_last_value_to_late_subscriber() -> None:
 
 
 def test_last_value_goes_only_to_the_new_subscriber() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     early: list[str] = []
     bus.subscribe("tc49/#", lambda topic, payload: early.append(topic))
 
@@ -118,7 +118,7 @@ def test_last_value_goes_only_to_the_new_subscriber() -> None:
 
 
 def test_event_topics_never_replay() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     bus.publish("tc49/layout/block_occupied", {"block": "a"})
     bus.drain()
 
@@ -130,7 +130,7 @@ def test_event_topics_never_replay() -> None:
 
 
 def test_plus_matches_exactly_one_level() -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen: list[str] = []
     bus.subscribe("tc49/+", lambda topic, payload: seen.append(topic))
 
@@ -144,14 +144,14 @@ def test_plus_matches_exactly_one_level() -> None:
     "bad", ["tc49/#/boundary", "tc49/lay#", "tc49/ten+", "+tc49/x"]
 )
 def test_mqtt_invalid_filters_are_rejected(bad: str) -> None:
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     with pytest.raises(ValueError):
         bus.subscribe(bad, lambda topic, payload: None)
 
 
 def test_delivery_order_is_a_pure_function_of_publish_and_subscribe_order() -> None:
     def run() -> list[str]:
-        bus = Bus(Clock())
+        bus = InProcessBus(Clock())
         log: list[str] = []
 
         def relay(name: str) -> Handler:
@@ -180,7 +180,7 @@ def test_delivery_order_is_a_pure_function_of_publish_and_subscribe_order() -> N
 def test_no_file_is_opened_without_a_path(tmp_path: Path) -> None:
     """The default bus persists nothing, so `bench` and `sweep` are untouched
     by construction rather than by a branch."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
     bus.drain()
 
@@ -191,14 +191,14 @@ def test_a_retained_value_outlives_the_bus_that_held_it(tmp_path: Path) -> None:
     """What a broker's retained message does: the value is waiting on the
     topic when a process that was not there comes up and subscribes."""
     path = tmp_path / "session.json"
-    first = Bus(Clock(), path)
+    first = InProcessBus(Clock(), path)
     first.publish(
         "tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.A-to-B"}}
     )
     first.drain()
 
     seen: list[tuple[str, Payload]] = []
-    restored = Bus(Clock(), path)
+    restored = InProcessBus(Clock(), path)
     restored.subscribe("tc49/#", lambda topic, payload: seen.append((topic, payload)))
     restored.drain()
 
@@ -214,7 +214,7 @@ def test_an_event_topic_is_not_persisted(tmp_path: Path) -> None:
     """Only what is retained survives: an event topic is never replayed, and
     a file that held one would replay it."""
     path = tmp_path / "session.json"
-    bus = Bus(Clock(), path)
+    bus = InProcessBus(Clock(), path)
     bus.publish("tc49/layout/block_occupied", {"block": "yard_w"})
     bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
     bus.drain()
@@ -228,7 +228,7 @@ def test_every_change_rewrites_the_whole_file(tmp_path: Path) -> None:
     """One value moving rewrites all of them, so the file is always a whole
     picture and never a log to replay."""
     path = tmp_path / "session.json"
-    bus = Bus(Clock(), path)
+    bus = InProcessBus(Clock(), path)
     bus.publish(
         "tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.B-to-A"}}
     )
@@ -251,7 +251,7 @@ def test_a_cut_mid_write_leaves_the_previous_copy_to_load(tmp_path: Path) -> Non
     renamed over the target, so a process cut mid-write leaves a partial file
     the loader never looks at and the last good copy in place."""
     path = tmp_path / "session.json"
-    bus = Bus(Clock(), path)
+    bus = InProcessBus(Clock(), path)
     bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
     good = path.read_text()
     partial = path.with_name(path.name + ".tmp")
@@ -259,7 +259,7 @@ def test_a_cut_mid_write_leaves_the_previous_copy_to_load(tmp_path: Path) -> Non
 
     assert path.read_text() == good
     seen: list[Payload] = []
-    restored = Bus(Clock(), path)
+    restored = InProcessBus(Clock(), path)
     restored.subscribe("tc49/#", lambda topic, payload: seen.append(payload))
     restored.drain()
     assert seen == [{"at": 0.0, "exhausted": True}]
@@ -269,7 +269,7 @@ def test_a_path_with_no_file_yet_starts_empty(tmp_path: Path) -> None:
     """The first session of all: a path names where the picture will go, not
     a file that has to be there."""
     seen: list[Payload] = []
-    bus = Bus(Clock(), tmp_path / "session.json")
+    bus = InProcessBus(Clock(), tmp_path / "session.json")
     bus.subscribe("tc49/#", lambda topic, payload: seen.append(payload))
     bus.drain()
 
@@ -290,7 +290,7 @@ def test_a_file_naming_an_event_topic_replays_nothing(tmp_path: Path) -> None:
         )
     )
     seen: list[str] = []
-    bus = Bus(Clock(), path)
+    bus = InProcessBus(Clock(), path)
     bus.subscribe("tc49/#", lambda topic, payload: seen.append(topic))
     bus.drain()
 
@@ -301,7 +301,7 @@ def test_the_directory_the_session_named_is_made(tmp_path: Path) -> None:
     """`--state runs/today.json` is an ordinary thing to type, and the first
     write is what has to make the directory: dying there would kill a session
     that had already printed its banner."""
-    bus = Bus(Clock(), tmp_path / "runs" / "today" / "session.json")
+    bus = InProcessBus(Clock(), tmp_path / "runs" / "today" / "session.json")
     bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
 
     assert json.loads((tmp_path / "runs" / "today" / "session.json").read_text()) == {
@@ -320,7 +320,7 @@ def test_a_state_value_is_stamped_from_the_run_clock() -> None:
     moment this bus published, so no app component reads a clock of its own
     (ADR-0009)."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     seen: list[Payload] = []
     bus.subscribe("tc49/#", lambda topic, payload: seen.append(payload))
 
@@ -339,7 +339,7 @@ def test_the_stamp_leads_the_value_the_late_subscriber_is_served() -> None:
     """Retained with its stamp on it, which is what a consumer joining later
     compares the next value against."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     clock.advance(12.0)
     bus.publish(EXHAUSTED, {"exhausted": True})
     bus.drain()
@@ -352,7 +352,7 @@ def test_no_event_payload_is_stamped() -> None:
     """The stamp is a state topic's, and the ordering rule it serves is too:
     an event topic is never replayed, and a sensor level repeats."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     clock.advance(5.0)
     seen: list[Payload] = []
     bus.subscribe("tc49/#", lambda topic, payload: seen.append(payload))
@@ -367,7 +367,7 @@ def test_a_stamp_the_caller_supplied_is_replaced() -> None:
     """One place stamps, and it is the one publishing. A caller cannot state
     when this bus published its value, however plausible the number."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     clock.advance(7.0)
     bus.publish(EXHAUSTED, {"at": 900.0, "exhausted": True})
 
@@ -379,7 +379,7 @@ def test_the_file_keeps_the_stamp_beside_the_value(tmp_path: Path) -> None:
     whole value is what is written."""
     path = tmp_path / "session.json"
     clock = Clock()
-    bus = Bus(clock, path)
+    bus = InProcessBus(clock, path)
     clock.advance(41.0)
     bus.publish(EXHAUSTED, {"exhausted": True})
 
@@ -400,12 +400,12 @@ def test_a_restored_value_is_re_stamped_with_this_sessions_clock(
     """
     path = tmp_path / "session.json"
     first = Clock()
-    bus = Bus(first, path)
+    bus = InProcessBus(first, path)
     first.advance(600.0)
     bus.publish(EXHAUSTED, {"exhausted": True})
 
     second = Clock()
-    restored = Bus(second, path)
+    restored = InProcessBus(second, path)
     assert restored.last_values[EXHAUSTED] == {"at": 0.0, "exhausted": True}
     assert json.loads(path.read_text())[EXHAUSTED]["at"] == 600.0
 
@@ -418,12 +418,12 @@ def test_the_first_value_of_the_new_session_beats_the_restored_one(
     and the first thing the layout says now outranks it."""
     path = tmp_path / "session.json"
     first = Clock()
-    was = Bus(first, path)
+    was = InProcessBus(first, path)
     first.advance(600.0)
     was.publish(EXHAUSTED, {"exhausted": True})
 
     clock = Clock()
-    bus = Bus(clock, path)
+    bus = InProcessBus(clock, path)
     ordering = Ordering()
     assert ordering.accepts(EXHAUSTED, bus.last_values[EXHAUSTED])
     clock.advance(2.0)
@@ -440,4 +440,4 @@ def test_a_retained_value_that_is_not_an_object_is_left_as_it_came(
     path = tmp_path / "session.json"
     path.write_text(json.dumps({EXHAUSTED: "nonsense"}))
 
-    assert Bus(Clock(), path).last_values[EXHAUSTED] == "nonsense"
+    assert InProcessBus(Clock(), path).last_values[EXHAUSTED] == "nonsense"

@@ -26,7 +26,7 @@ import pytest
 
 from tc49.bench.runner import DEFAULT_K, Assembly, assemble, placement
 from tc49.dispatcher import Dispatcher, FullRoute
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import HELD, OFF, ON, RUNNING
 from tests.harness import (
@@ -43,7 +43,7 @@ from tests.harness import (
 POWER = "tc49/layout/state/power"
 
 
-class Reordering(Bus):
+class Reordering(InProcessBus):
     """A bus that hands one topic's values to its subscribers backwards.
 
     The milestone-1 binding delivers in one total order, so the reordering
@@ -69,7 +69,7 @@ class Reordering(Bus):
         super().drain()
 
 
-class Unstamped(Bus):
+class Unstamped(InProcessBus):
     """A bus that stamps nothing, and so publishes a state value exactly as
     it was handed one.
 
@@ -83,7 +83,7 @@ class Unstamped(Bus):
         return payload
 
 
-def dispatcher_on(bus: Bus) -> Dispatcher:
+def dispatcher_on(bus: InProcessBus) -> Dispatcher:
     """The dispatcher of the usual railroad, on the bus it is given, with its
     trains stood where the scenario document stands them."""
     layout, roster, scenario = load("crossover-yard/meet")
@@ -109,7 +109,7 @@ def told(payload: object) -> Dispatcher:
     what is under test here.
     """
     layout, _roster, scenario = load("crossover-yard/meet")
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     dispatcher = Dispatcher(
         bus, layout, _roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )
@@ -297,7 +297,7 @@ def test_the_same_pair_in_order_is_the_run_held() -> None:
     refuses is an older value and nothing else.
     """
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     dispatcher = dispatcher_on(bus)
 
     clock.advance(10.0)

@@ -13,7 +13,7 @@ from typing import cast
 
 from tc49.driver import Driver
 from tc49.driver.driver import SPEEDS
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 
 GRANTED = "tc49/dispatch/move_granted"
@@ -41,13 +41,13 @@ COMMANDED: Payload = {
 carried across, and `clear` turned into full speed."""
 
 
-def collect(bus: Bus, topic_filter: str) -> list[Payload]:
+def collect(bus: InProcessBus, topic_filter: str) -> list[Payload]:
     seen: list[Payload] = []
     bus.subscribe(topic_filter, lambda topic, payload: seen.append(payload))
     return seen
 
 
-def grant(bus: Bus, payload: object) -> None:
+def grant(bus: InProcessBus, payload: object) -> None:
     bus.publish(GRANTED, cast(Payload, payload))
     bus.drain()
 
@@ -59,7 +59,7 @@ def test_a_grant_becomes_the_command_with_the_transit_split() -> None:
     speed. No aspect and no id on the command: what the layout interface is
     handed is what moves and how fast, and correlating an answer is not a
     thing the driver does (ADR-0025)."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, MOVE)
     Driver(bus)
 
@@ -83,7 +83,7 @@ def test_a_grant_that_cannot_be_read_commands_nothing() -> None:
     Every one of them shows `clear`, so each is refused for the one reason it
     is here to state; an aspect the driver cannot price is its own test below.
     """
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, MOVE)
     Driver(bus)
 
@@ -114,7 +114,7 @@ def test_the_driver_holds_nothing_across_a_dropped_grant() -> None:
     (SYSTEM.md, driver footprint), so a frame it could not read leaves nothing
     behind for the next one to inherit and every honest grant is commanded,
     including a repeat of one already commanded."""
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, MOVE)
     Driver(bus)
 
@@ -136,7 +136,7 @@ def test_a_caution_grant_commands_the_slower_speed_a_clear_one_does_not() -> Non
     the same move over the same transit, because where the train goes was
     settled before the aspect was shown.
     """
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, MOVE)
     Driver(bus)
 
@@ -155,7 +155,7 @@ def test_a_driver_given_another_mapping_commands_that_mappings_numbers() -> None
     `SPEEDS` is what an unconfigured driver uses, asserted here rather than
     trusted, so the default and the injection are one statement.
     """
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, MOVE)
     Driver(bus, {"clear": 0.75, "caution": 0.1})
 
@@ -179,7 +179,7 @@ def test_an_aspect_the_mapping_does_not_carry_commands_nothing() -> None:
     The honest grant after them still lands, so the drop is a drop and not a
     driver that has stopped listening.
     """
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     seen = collect(bus, MOVE)
     Driver(bus)
 
@@ -213,7 +213,7 @@ def test_the_driver_publishes_the_command_and_nothing_else() -> None:
     command is asserted is `tests/system/test_skeleton.py`, beside the
     dispatcher that sends it.
     """
-    bus = Bus(Clock())
+    bus = InProcessBus(Clock())
     heard: list[str] = []
     bus.subscribe("tc49/#", lambda topic, payload: heard.append(topic))
     Driver(bus)

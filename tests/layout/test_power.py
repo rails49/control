@@ -15,7 +15,7 @@ import logging
 from collections.abc import Callable
 
 from tc49.layout import LayoutInterface
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tests.layout.railroad import (
     DEVICE_LINK,
@@ -60,7 +60,7 @@ def refusals(commanding: Callable[[], None]) -> list[str]:
     return kept.said
 
 
-def live(bus: Bus) -> list[tuple[str, Payload]]:
+def live(bus: InProcessBus) -> list[tuple[str, Payload]]:
     """A railroad somebody has turned on, and every `wanted/track` write from
     there on.
 
@@ -82,7 +82,7 @@ def powers(written: list[tuple[str, Payload]]) -> list[str]:
     return [str(payload["power"]) for _topic, payload in written]
 
 
-def commands(bus: Bus, power: str) -> Callable[[], None]:
+def commands(bus: InProcessBus, power: str) -> Callable[[], None]:
     """Somebody publishing a power gesture — a person's panel, a raw client,
     a test or a later UI: the topic says which of them it was, which is
     nothing at all."""
@@ -101,7 +101,7 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
     what it believes about it, and then that nobody has taken a train — the
     map of who drives is empty and the topic says so (#297)."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     seen = heard(bus, "tc49/#")
     LayoutInterface(bus, railroad(), stock(), clock)
     bus.drain()

@@ -14,7 +14,7 @@ the speed its current grant implies, which is `0.0` where there is none: a
 train handed back does not keep the speed a person left on it.
 """
 
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tests.layout.railroad import (
     DEVICE_TRACK,
     MODE,
@@ -36,7 +36,7 @@ from tests.layout.railroad import (
 )
 
 
-def driving(bus: Bus) -> list[tuple[str, Payload]]:
+def driving(bus: InProcessBus) -> list[tuple[str, Payload]]:
     """Every value `state/mode` carries from here on, in order. The retained
     value the subscription is owed comes first, so the map standing when this
     was asked leads the list."""

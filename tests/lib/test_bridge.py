@@ -19,7 +19,7 @@ from websockets.exceptions import InvalidStatus
 from websockets.sync.client import ClientConnection, connect
 
 from tc49.lib.bridge import Bridge
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import INBOUND, is_state_topic
 
@@ -36,12 +36,12 @@ TIMEOUT = 5.0  # generous: a loaded CI box, not a slow relay
 
 
 @pytest.fixture
-def bus() -> Bus:
-    return Bus(Clock())
+def bus() -> InProcessBus:
+    return InProcessBus(Clock())
 
 
 @pytest.fixture
-def bridge(bus: Bus) -> Iterator[Bridge]:
+def bridge(bus: InProcessBus) -> Iterator[Bridge]:
     bridge = Bridge(bus)  # port 0: the OS picks a free one
     yield bridge
     bridge.close()
@@ -69,7 +69,7 @@ def receive(client: ClientConnection) -> dict[str, Any]:
     return json.loads(client.recv(timeout=TIMEOUT))
 
 
-def drain_until(bus: Bus, done: Callable[[], bool]) -> None:
+def drain_until(bus: InProcessBus, done: Callable[[], bool]) -> None:
     """Drain the bus the way the live loop would, until `done` or timeout."""
     deadline = time.monotonic() + TIMEOUT
     while time.monotonic() < deadline:
@@ -80,7 +80,9 @@ def drain_until(bus: Bus, done: Callable[[], bool]) -> None:
     raise TimeoutError("the frame never reached the bus")
 
 
-def test_every_bus_event_arrives_as_a_frame(bus: Bus, client: ClientConnection) -> None:
+def test_every_bus_event_arrives_as_a_frame(
+    bus: InProcessBus, client: ClientConnection
+) -> None:
     bus.publish("tc49/layout/boundary", {"boundary": 3})
     bus.publish("tc49/dispatch/lock_granted", {"train": "t1", "resources": ["a"]})
     bus.drain()
@@ -95,7 +97,7 @@ def test_every_bus_event_arrives_as_a_frame(bus: Bus, client: ClientConnection) 
 
 
 def test_a_request_wanted_frame_becomes_the_event(
-    bus: Bus, client: ClientConnection
+    bus: InProcessBus, client: ClientConnection
 ) -> None:
     seen: list[Payload] = []
     bus.subscribe(WANTED, lambda topic, payload: seen.append(payload))
@@ -106,7 +108,7 @@ def test_a_request_wanted_frame_becomes_the_event(
 
 
 def test_a_reversal_wanted_frame_becomes_the_event(
-    bus: Bus, client: ClientConnection
+    bus: InProcessBus, client: ClientConnection
 ) -> None:
     """The second leaf a page may write (#124): the relay publishes the topic
     the frame names rather than the one topic it used to know."""
@@ -136,7 +138,7 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
 
 
 def test_the_bridge_refuses_every_topic_outside_the_marked_rows(
-    bus: Bus, client: ClientConnection
+    bus: InProcessBus, client: ClientConnection
 ) -> None:
     """The marked rows are the only inbound path (#67): a client that
     tries to drive a train or fake a sensor gets a refusal frame naming the
@@ -152,7 +154,7 @@ def test_the_bridge_refuses_every_topic_outside_the_marked_rows(
 
 
 def test_a_topic_that_is_not_a_string_is_refused_rather_than_raised(
-    bus: Bus, client: ClientConnection
+    bus: InProcessBus, client: ClientConnection
 ) -> None:
     """A browser may send anything, and a membership test against a set is
     not total: an unhashable topic would raise in the handler thread instead
@@ -166,7 +168,7 @@ def test_a_topic_that_is_not_a_string_is_refused_rather_than_raised(
 
 
 def test_a_request_submitted_frame_is_refused_like_any_other(
-    bus: Bus, client: ClientConnection
+    bus: InProcessBus, client: ClientConnection
 ) -> None:
     """The browser writes gestures and never requests (ADR-0036). A page
     that submitted one directly would be a second minter of ids and a second
@@ -186,14 +188,14 @@ def test_a_request_submitted_frame_is_refused_like_any_other(
 
 
 def test_a_frame_that_is_not_json_gets_an_error_back(
-    bus: Bus, client: ClientConnection
+    bus: InProcessBus, client: ClientConnection
 ) -> None:
     client.send("not json")
     assert "error" in receive(client)
 
 
 def test_a_second_client_hears_the_same_events(
-    bus: Bus, bridge: Bridge, client: ClientConnection
+    bus: InProcessBus, bridge: Bridge, client: ClientConnection
 ) -> None:
     with connect(f"ws://127.0.0.1:{bridge.port}") as second:
         settled(bridge, 2)
@@ -203,7 +205,7 @@ def test_a_second_client_hears_the_same_events(
 
 
 def test_a_client_connecting_late_is_served_each_state_topics_last_value(
-    bus: Bus, bridge: Bridge
+    bus: InProcessBus, bridge: Bridge
 ) -> None:
     """A panel joining a running session sees nothing until something moves,
     unless the relay hands it what a late subscriber is owed (ADR-0032). The
@@ -227,7 +229,9 @@ def test_a_client_connecting_late_is_served_each_state_topics_last_value(
         }
 
 
-def test_the_last_values_come_before_any_live_frame(bus: Bus, bridge: Bridge) -> None:
+def test_the_last_values_come_before_any_live_frame(
+    bus: InProcessBus, bridge: Bridge
+) -> None:
     """Order is the whole point: a picture arriving after the events that
     have already moved on from it would undo them."""
     bus.publish("tc49/dispatch/state/aspects", {"aspects": {"a.B": "clear"}})
@@ -241,7 +245,7 @@ def test_the_last_values_come_before_any_live_frame(bus: Bus, bridge: Bridge) ->
 
 
 def test_an_event_topic_is_not_replayed_to_a_joining_client(
-    bus: Bus, bridge: Bridge
+    bus: InProcessBus, bridge: Bridge
 ) -> None:
     """State topics excepted, there is no replay for a late subscriber
     (SYSTEM.md): the relay forwards frames it would have forwarded had the
@@ -258,7 +262,7 @@ def test_an_event_topic_is_not_replayed_to_a_joining_client(
 
 
 def test_a_client_that_vanishes_leaves_quietly(
-    bus: Bus, bridge: Bridge, caplog: pytest.LogCaptureFixture
+    bus: InProcessBus, bridge: Bridge, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A reloaded or discarded browser tab goes without a close handshake.
     That is a client leaving, and it must not put a traceback in the session's
@@ -281,7 +285,7 @@ def test_a_client_that_vanishes_leaves_quietly(
 
 
 def test_a_departed_client_does_not_take_the_bridge_down(
-    bus: Bus, bridge: Bridge
+    bus: InProcessBus, bridge: Bridge
 ) -> None:
     with connect(f"ws://127.0.0.1:{bridge.port}"):
         settled(bridge, 1)  # connect, say nothing, hang up

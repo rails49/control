@@ -7,7 +7,7 @@ driving by eye, and neither of them wants an address.
 """
 
 from tc49.layout import LayoutInterface
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tests.layout.railroad import (
     ASPECTS,
@@ -20,11 +20,11 @@ from tests.layout.railroad import (
 )
 
 
-def signals(bus: Bus) -> list[tuple[str, Payload]]:
+def signals(bus: InProcessBus) -> list[tuple[str, Payload]]:
     return heard(bus, WANTED_SIGNAL + "/#")
 
 
-def show(bus: Bus, shown: dict[str, str]) -> None:
+def show(bus: InProcessBus, shown: dict[str, str]) -> None:
     bus.publish(ASPECTS, {"aspects": shown})
     bus.drain()
 
@@ -58,7 +58,7 @@ def test_the_opening_value_seeds_every_signal_with_stop() -> None:
     the dispatcher's value names every signalled end, so the retained value
     this app is handed on subscribing is the seed (ADR-0032)."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     bus.publish(ASPECTS, {"aspects": {"up_w.B": "stop", "up_e.A": "stop"}})
     bus.drain()
 

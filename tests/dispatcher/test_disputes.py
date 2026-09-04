@@ -25,7 +25,7 @@ import pytest
 from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.dispatcher.dispatch import ALLOCATION
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import AT
 from tc49.lib.roster import Train
@@ -50,7 +50,7 @@ def restored(
     tmp_path: Path,
     picture: dict[str, Any] | None = None,
     added: dict[str, str] | None = None,
-) -> tuple[Bus, Dispatcher]:
+) -> tuple[InProcessBus, Dispatcher]:
     """A dispatcher on a bus whose file already holds that picture, which is
     the session that comes up held (#154) and so the one the check runs in.
 
@@ -80,7 +80,7 @@ def restored(
                 },
             },
         )
-    bus = Bus(Clock(), path)
+    bus = InProcessBus(Clock(), path)
     dispatcher = Dispatcher(
         bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )
@@ -89,7 +89,7 @@ def restored(
 
 
 def reports(
-    bus: Bus, occupied: tuple[str, ...] = (), clear: tuple[str, ...] = ()
+    bus: InProcessBus, occupied: tuple[str, ...] = (), clear: tuple[str, ...] = ()
 ) -> None:
     """The detectors asserting, as a layout binding that reads them reports:
     a block it says nothing about is in neither list."""
@@ -100,7 +100,7 @@ def reports(
     bus.drain()
 
 
-def disputed(bus: Bus) -> Payload:
+def disputed(bus: InProcessBus) -> Payload:
     """The last value of the topic, which is what a client joining later is
     served — the panel that points a person at the railroad (ADR-0032).
 
@@ -110,7 +110,7 @@ def disputed(bus: Bus) -> Payload:
     return {key: value for key, value in bus.last_values[DISPUTED].items() if key != AT}
 
 
-def press(bus: Bus, topic: str, payload: Payload) -> None:
+def press(bus: InProcessBus, topic: str, payload: Payload) -> None:
     bus.publish(topic, payload)
     bus.drain()
 
@@ -179,7 +179,7 @@ def test_the_opening_statement_carries_the_set(tmp_path: Path) -> None:
     path = tmp_path / "session.json"
     path.write_text(json.dumps({ALLOCATION: MOVED, DISPUTED: stale}))
     layout, roster, scenario = load("crossover-yard/meet")
-    bus = Bus(Clock(), path)
+    bus = InProcessBus(Clock(), path)
     Dispatcher(
         bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )

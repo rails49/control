@@ -13,7 +13,7 @@ movement and not an error.
 """
 
 from tc49.layout import LayoutInterface
-from tc49.lib.bus import Bus
+from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tests.layout.railroad import (
     DEVICE_SENSOR,
@@ -37,7 +37,7 @@ from tests.layout.railroad import (
 )
 
 
-def ready(train: str, facing: str) -> tuple[Bus, LayoutInterface]:
+def ready(train: str, facing: str) -> tuple[InProcessBus, LayoutInterface]:
     """A live railroad with `train` standing in `up_w` facing as stated, and
     the way over the crossover set."""
     bus, app = build()
@@ -275,7 +275,7 @@ def test_the_facing_left_on_the_topic_is_there_at_startup() -> None:
     """A retained state topic, so the last value is handed over on subscribing
     and the scheduler need not be running for a train to move (ADR-0032)."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     bus.publish(FACING, {"facing": {"single": "up_w.A-to-B"}})
     bus.drain()
 
@@ -382,7 +382,7 @@ def test_a_speed_the_last_session_left_is_zeroed_at_startup() -> None:
     So this app opens by wanting zero on every row it finds, the way it
     already opens by wanting the track off (ADR-0054)."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     bus.publish(f"{WANTED_TRACTION}/10", {"addr": "10", "speed": 0.5})
     bus.drain()
 
@@ -403,7 +403,7 @@ def test_the_zero_is_written_for_a_locomotive_this_session_never_hears_of() -> N
     either — it zeroes the addresses it commanded, and a fresh one has
     commanded none."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     bus.publish(f"{WANTED_TRACTION}/10", {"addr": "10", "speed": 0.5})
     bus.publish(f"{WANTED_TRACTION}/11", {"addr": "11", "speed": -1.0})
     bus.drain()
@@ -422,7 +422,7 @@ def test_a_point_the_last_session_left_thrown_replays_untouched() -> None:
     restoring the route picture is the only answer short of throwing every
     point at startup (#333, ADR-0054)."""
     clock = Clock()
-    bus = Bus(clock)
+    bus = InProcessBus(clock)
     bus.publish(f"{WANTED_POINT}/12", {"addr": "12", "position": "thrown"})
     bus.drain()
 

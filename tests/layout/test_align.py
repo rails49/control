@@ -5,11 +5,11 @@ It holds no table of points. The pairs were read off the layout by the
 dispatcher, which is what lets a railroad be rewired by redrawing it.
 """
 
-from tc49.lib.bus import Bus, Payload
+from tc49.lib.bus import InProcessBus, Payload
 from tests.layout.railroad import WANTED_POINT, align, build, heard
 
 
-def points(bus: Bus) -> list[tuple[str, Payload]]:
+def points(bus: InProcessBus) -> list[tuple[str, Payload]]:
     return heard(bus, WANTED_POINT + "/#")
 
 
