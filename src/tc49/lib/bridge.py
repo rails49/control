@@ -5,7 +5,7 @@ to every connected client as one JSON frame, ``{"topic": …, "payload": …}``,
 and a frame on an inbound topic — an inventory row marked browser-writable,
 those being the panel's write surface — is published as the event it names.
 The mark is what the relay reads, not a prefix: a topic names the component
-that responds to it, so the eight gestures sit under ``schedule``,
+that responds to it, so the nine gestures sit under ``schedule``,
 ``dispatch`` and ``layout`` beside everything else those three answer.
 Anything else inbound is refused with an error frame, ``request_submitted``
 included: the browser writes gestures and never requests, so the scheduler
@@ -165,7 +165,7 @@ class Bridge:
         A WebSocket is not subject to the same-origin policy — there is no
         preflight and the browser opens the socket whatever the origin — so
         this check is the whole of what stands between a page somebody's
-        browser visits and the eight gestures the relay publishes (ADR-0056).
+        browser visits and the nine gestures the relay publishes (ADR-0056).
 
         `Origin` is written by the browser and a page cannot forge it. It is
         absent exactly where there is no page — a native throttle, a test

@@ -31,6 +31,7 @@ CANCEL = "tc49/dispatch/cancel_wanted"
 MODE = "tc49/layout/mode_wanted"
 THROTTLE = "tc49/layout/throttle_wanted"
 POWER = "tc49/layout/power_wanted"
+RAILROAD = "tc49/layout/railroad_wanted"
 
 TIMEOUT = 5.0  # generous: a loaded CI box, not a slow relay
 
@@ -133,7 +134,17 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
     state topic, and the bridge relies on it: a client's frame is published
     from that client's own handler thread, and a state topic would write the
     bus's last-value map from there."""
-    assert INBOUND == {WANTED, REVERSAL, RUN, PLACEMENT, CANCEL, MODE, THROTTLE, POWER}
+    assert INBOUND == {
+        WANTED,
+        REVERSAL,
+        RUN,
+        PLACEMENT,
+        CANCEL,
+        MODE,
+        THROTTLE,
+        POWER,
+        RAILROAD,
+    }
     assert not any(is_state_topic(topic) for topic in INBOUND)
 
 

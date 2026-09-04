@@ -344,11 +344,13 @@ written down a second time, so marking a row widens the browser's write
 surface the day the mark lands, and the mark is the same permission a
 broker's ACL will carry once the relay is gone
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
-Today the mark sits on exactly the eight gesture rows. The throttle a person
-drives with ([#207](https://github.com/rails49/control/issues/207)) and the
+Today the mark sits on exactly the nine gesture rows. The throttle a person
+drives with ([#207](https://github.com/rails49/control/issues/207)), the
 track power a person commands
 ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md))
-are three of them, under `layout`, which is the component that responds to
+and the railroad a person loads
+([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md))
+are four of them, under `layout`, which is the component that responds to
 them. Whether a row carries the mark is an ACL decision, made when the row
 lands.
 
@@ -359,6 +361,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Topic | Kind | Writer | Meaning |
 | --- | --- | --- | --- |
 | `tc49/layout/state/railroad` | state | layout | the railroad this broker runs ([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)) |
+| `tc49/layout/railroad_wanted` | event | any (browser) | load this railroad, the apps staying up ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)) |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
 | `tc49/layout/block_vacated` | event | layout | a block is empty: both its ends read clear, or the move this app carried out named it the block behind a train now fully into the block ahead ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
 | `tc49/layout/power_wanted` | event | any (browser) | give the track power, stop every locomotive, or remove the supply ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)) |
@@ -397,14 +400,17 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Scheduler | `tc49/dispatch/#` **and** `tc49/schedule/#` |
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
-| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/run`, `tc49/schedule/state/facing` **and** `tc49/layout/state/device/#` |
+| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/run`, `tc49/schedule/state/facing` **and** `tc49/layout/state/device/#` |
 | Translator | `tc49/layout/state/wanted/#` |
 | Trace tap | `tc49/#` |
 
-Every app but the translator also subscribes `tc49/layout/state/railroad`, and
-acts on one thing only: a name other than the one it is running, which is a
-railroad being loaded under it (ADR-0060, above). The translator does not,
-hardware needing no layout.
+Every app but the translator and the layout interface also subscribes
+`tc49/layout/state/railroad`, and acts on one thing only: a name other than
+the one it is running, which is a railroad being loaded under it (ADR-0060,
+above). The translator does not, hardware needing no layout. The layout
+interface does not either, being the row's writer: it follows
+`tc49/layout/railroad_wanted` instead, which is the gesture it answers, and
+reads back its own `tc49/layout/state/power` for the precondition on it.
 
 Two things the inventory has to keep true:
 
@@ -480,6 +486,30 @@ its two names, as each topic states.
   a page opened afterwards would read as current. A railroad the store cannot
   give is said on stderr and not taken: the app goes on running the one it
   has (ADR-0050). `tests/system/test_reload.py` holds this for every app.
+- `tc49/layout/railroad_wanted` — browser-writable — `railroad`: the railroad
+  to load, as the store lists it. The gesture behind the row above: a person
+  chooses which railroad the apps run **while they run**, so creating one
+  from the app is possible and a box wired to steel can carry more than one
+  track plan over its life
+  ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+  Whichever binding of the layout interface is running answers it, that being
+  the one app bound to a railroad and the writer of the state row; every other
+  app follows the **state** row and never this, as the scheduler follows
+  `train_placed` and never `placement_wanted`. One writing role (ADR-0035),
+  one responder (rule 4).
+  **Track power off is the precondition.** It is answered only where
+  `tc49/layout/state/power` reads `off`, and dropped otherwise — a refusal
+  with nowhere to go, this app answering nothing, and the picker is what says
+  why while the track has power (ADR-0034).
+  With the power off nothing moves and no turnout throws, and the
+  person who turns it back on is the one confirming the rails match the
+  drawing just loaded (ADR-0051, the operator as the backstop). Nothing here
+  orchestrates a shutdown — turning the power off is a gesture a person
+  already has, and the layout interface never writes `off` of its own accord.
+  A railroad the store cannot give is refused the same way and the running
+  one is unchanged. On the simulator the rails are always live, so this is
+  always refused there: a power cut is a physical act and simulating one
+  would be the branch ADR-0030 keeps out of every app.
 - `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
   block a detector reported on. Anonymous: no train field, because a detector
   cannot name one. A detector reports a **level**, so a repeated reading
