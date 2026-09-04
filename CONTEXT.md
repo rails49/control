@@ -483,6 +483,19 @@ _Avoid_: shutdown, wind-down, quiesce, stop admitting (it is launching that
 stops). Not the queue *draining* in the order it accumulated, which is the
 ordinary verb for a queue emptying and says nothing about the run.
 
+**Moving**:
+Of a **run**: some train is **active** or **crossing**, so a power cut now
+would strand it. A boolean beside the run's three values on
+`tc49/dispatch/state/run`, and not a fourth one: a **held** run can be moving,
+because a move already granted runs to its sensor, and a running run with
+nothing granted is not. It is what the panel's OFF waits to see false before
+cutting power, and what the layout checks before applying a plain `off`
+([ADR-0062](docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
+A manual train on its route is active and so moving, whatever its throttle
+reads.
+_Avoid_: busy, in motion, rolling, quiet/still (for the negation — say "not
+moving")
+
 **Cancellation**:
 A request ended without the train arriving, because a person said so: they
 cancelled it outright, or they said where the train actually is and the
