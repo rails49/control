@@ -9,7 +9,7 @@
 # One train and one request, because nothing more is needed to show it. `mover`
 # stands in C4, a terminal track, and asks for A2, so its route crosses both
 # junctions the drawing draws in detail: j2, where sw14 and sw15 must both
-# throw, and then j1, where the four points sharing `dccex/105` throw together,
+# throw, and then j1, where the four points sharing `105` throw together,
 # sw3 throws, and sw1 and sw2 stay closed. Nine of the seventeen addressed
 # turnouts end the run lying somewhere, in both positions, which is the whole
 # of the language in one picture.

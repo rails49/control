@@ -170,7 +170,7 @@ export class TcProperties extends LitElement {
     return html`
       <sl-input
         label="Signal at ${end}"
-        help-text="What the signal at this end answers to, its system first. Empty where no signal stands there."
+        help-text="What the signal at this end answers to. Empty where no signal stands there."
         value=${this.draft.signals?.[end] ?? ""}
         @sl-input=${(event: Event) => {
           this.draft = {

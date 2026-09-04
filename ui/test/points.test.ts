@@ -104,11 +104,11 @@ describe("a point drawn in a position", () => {
  * one piece, with the alignment `reversing-loops/positions` produces.
  */
 
-/** j1 of `reversing-loops` in miniature: sw1 and sw2 share address `dccex/101` and
- *  move together, sw3 wears `dccex/102`, and sw4 wears one the run never
- *  commands. A point's address names the system that answers for it as its
- *  first level (ADR-0043); the panel keys its ledger by the whole of it and
- *  reads none of the levels apart.
+/** j1 of `reversing-loops` in miniature: sw1 and sw2 share address `101` and
+ *  move together, sw3 wears `102`, and sw4 wears one the run never commands.
+ *  An address names no system and is the string the hardware answers to
+ *  (ADR-0059); the panel keys its ledger by the whole of it and reads no part
+ *  of it apart.
  *
  *  A transcription, this and the `align` below both: the four symbols are the
  *  committed drawing's and the command is what `reversing-loops/positions` really
@@ -119,10 +119,10 @@ describe("a point drawn in a position", () => {
 const YARD: Drawing = {
   drawing: "yard",
   symbols: {
-    sw1: { kind: "turnout", at: [15, 4], addr: "dccex/101" },
-    sw2: { kind: "turnout", at: [15, 3], addr: "dccex/101" },
-    sw3: { kind: "turnout", at: [14, 5], addr: "dccex/102" },
-    sw4: { kind: "turnout", at: [24, 4], addr: "dccex/103" },
+    sw1: { kind: "turnout", at: [15, 4], addr: "101" },
+    sw2: { kind: "turnout", at: [15, 3], addr: "101" },
+    sw3: { kind: "turnout", at: [14, 5], addr: "102" },
+    sw4: { kind: "turnout", at: [24, 4], addr: "103" },
   },
   wires: [],
 };
@@ -168,14 +168,13 @@ function against(symbol: string, ...commands: Partial<TraceEvent>[]): string[] {
 
 describe("a point the alignment command has placed", () => {
   it("fades the road it does not offer, on both points on the address", () => {
-    // What crossing j1 to reach A2 commands: `dccex/101` closed and `dccex/102`
-    // thrown.
+    // What crossing j1 to reach A2 commands: `101` closed and `102` thrown.
     // A turnout's legs are named for its positions, so lying closed it offers
     // the straight road and the diverging one is the road set against.
     const j1 = align(
-      ["dccex/105", "thrown"],
-      ["dccex/101", "closed"],
-      ["dccex/102", "thrown"],
+      ["105", "thrown"],
+      ["101", "closed"],
+      ["102", "thrown"],
     );
     expect(against("sw1", j1)).toEqual(["diverging"]);
     expect(against("sw2", j1)).toEqual(["diverging"]);
@@ -183,19 +182,19 @@ describe("a point the alignment command has placed", () => {
   });
 
   it("moves the fade to the other road when the alignment changes", () => {
-    // The other way through the same junction, to A1, which wants `dccex/101`
+    // The other way through the same junction, to A1, which wants `101`
     // thrown instead: the pair swap which of their roads is on offer.
-    // `dccex/102` is thrown for either road, so sw3 does not move and its
+    // `102` is thrown for either road, so sw3 does not move and its
     // straight road stays the faint one.
     const j1 = align(
-      ["dccex/105", "thrown"],
-      ["dccex/101", "closed"],
-      ["dccex/102", "thrown"],
+      ["105", "thrown"],
+      ["101", "closed"],
+      ["102", "thrown"],
     );
     const over = align(
-      ["dccex/105", "thrown"],
-      ["dccex/101", "thrown"],
-      ["dccex/102", "thrown"],
+      ["105", "thrown"],
+      ["101", "thrown"],
+      ["102", "thrown"],
     );
     expect(against("sw1", j1, over)).toEqual(["straight"]);
     expect(against("sw2", j1, over)).toEqual(["straight"]);
@@ -205,7 +204,7 @@ describe("a point the alignment command has placed", () => {
   it("leaves a point no command has named with both roads on offer", () => {
     // sw4 is on the far side of the station and this route never crosses it,
     // so nothing has said which way it lies and the panel says nothing either.
-    expect(against("sw4", align(["dccex/101", "closed"]))).toEqual([]);
+    expect(against("sw4", align(["101", "closed"]))).toEqual([]);
   });
 });
 

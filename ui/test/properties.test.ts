@@ -129,28 +129,28 @@ describe("a block", () => {
     const dialog = await opened("b1", {
       kind: "block",
       length: 1000,
-      signals: { A: "dccex/40", B: "dccex/41" },
+      signals: { A: "40", B: "41" },
     });
-    expect(field(dialog, "Signal at A").value).toBe("dccex/40");
-    expect(field(dialog, "Signal at B").value).toBe("dccex/41");
+    expect(field(dialog, "Signal at A").value).toBe("40");
+    expect(field(dialog, "Signal at B").value).toBe("41");
   });
 
   it("shows nothing at an end no signal stands at", async () => {
     const dialog = await opened("b1", {
       kind: "block",
       length: 1000,
-      signals: { B: "dccex/41" },
+      signals: { B: "41" },
     });
     expect(field(dialog, "Signal at A").value).toBe("");
   });
 
   it("takes a typed signal address back into the drawing", async () => {
     const dialog = await opened("b1", { kind: "block", length: 1000 });
-    await typed(dialog, "Signal at B", "dccex/41");
+    await typed(dialog, "Signal at B", "41");
     expect((await applied(dialog)).spec).toEqual({
       kind: "block",
       length: 1000,
-      signals: { B: "dccex/41" },
+      signals: { B: "41" },
     });
   });
 
@@ -161,7 +161,7 @@ describe("a block", () => {
       kind: "block",
       length: 1000,
       at: [2, 4],
-      signals: { A: "dccex/40", B: "dccex/41" },
+      signals: { A: "40", B: "41" },
     };
     const dialog = await opened("b1", spec);
     expect((await applied(dialog)).spec).toEqual(spec);
@@ -174,7 +174,7 @@ describe("a block", () => {
     const dialog = await opened("b1", {
       kind: "block",
       length: 1000,
-      signals: { A: "dccex/40" },
+      signals: { A: "40" },
     });
     await typed(dialog, "Signal at A", "");
     expect((await applied(dialog)).spec).not.toHaveProperty("signals");
@@ -184,10 +184,10 @@ describe("a block", () => {
     const dialog = await opened("b1", {
       kind: "block",
       length: 1000,
-      signals: { A: "dccex/40", B: "dccex/41" },
+      signals: { A: "40", B: "41" },
     });
     await typed(dialog, "Signal at A", "");
-    expect((await applied(dialog)).spec.signals).toEqual({ B: "dccex/41" });
+    expect((await applied(dialog)).spec.signals).toEqual({ B: "41" });
   });
 });
 

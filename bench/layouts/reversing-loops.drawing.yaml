@@ -31,17 +31,14 @@
 # an order no result depends on, since a way is not crossed until every one of
 # them is set.
 #
-# Every address names the system that answers for it as its first level —
-# `dccex/101` and not `101`, since fixed wiring can be split across systems
-# (ADR-0043). One command station stands behind a fixture, so every one of
-# them is `dccex`.
+# An address names no system: it is the string the hardware answers to, and
+# whatever is wired acts on the ones it recognises (ADR-0059). These are the
+# accessory numbers of the one command station that stands behind a fixture.
 #
-#   dccex/105   sw6, sw7, sw8, sw9   — four, the station-A ladder
-#   dccex/101   sw1, sw2             — two
-#   everything else is one turnout: dccex/102 sw3, dccex/103 sw4,
-#   dccex/104 sw5, dccex/106 sw10, dccex/107 sw11, dccex/108 sw12,
-#   dccex/109 sw13, dccex/110 sw14, dccex/111 sw15, dccex/112 sw16,
-#   dccex/113 sw17
+#   105   sw6, sw7, sw8, sw9   — four, the station-A ladder
+#   101   sw1, sw2             — two
+#   everything else is one turnout: 102 sw3, 103 sw4, 104 sw5, 106 sw10,
+#   107 sw11, 108 sw12, 109 sw13, 110 sw14, 111 sw15, 112 sw16, 113 sw17
 #
 # Seventeen turnouts, one 90-degree crossing, thirteen addresses.
 #
@@ -93,18 +90,18 @@
 #
 drawing: reversing-loops
 symbols:
-  sw1: {kind: turnout, at: [15, 4], connection: j1, addr: 'dccex/101'}
-  sw2: {kind: turnout, at: [15, 3], rot: 180, connection: j1, addr: 'dccex/101'}
-  sw3: {kind: turnout, at: [14, 5], rot: 0, connection: j1, addr: 'dccex/102'}
-  sw4: {kind: turnout, at: [24, 4], rot: 180, flip: false, connection: j1, addr: 'dccex/103'}
-  sw5: {kind: turnout, at: [25, 3], rot: 180, flip: false, connection: j1, addr: 'dccex/104'}
+  sw1: {kind: turnout, at: [15, 4], connection: j1, addr: '101'}
+  sw2: {kind: turnout, at: [15, 3], rot: 180, connection: j1, addr: '101'}
+  sw3: {kind: turnout, at: [14, 5], rot: 0, connection: j1, addr: '102'}
+  sw4: {kind: turnout, at: [24, 4], rot: 180, flip: false, connection: j1, addr: '103'}
+  sw5: {kind: turnout, at: [25, 3], rot: 180, flip: false, connection: j1, addr: '104'}
   n1: {kind: pin, at: [24, 5], rot: 0}
   x90d1: {kind: crossing_90d, at: [3, 3], rot: 180, flip: false, connection: j1}
   end1: {kind: terminal, at: [7, 3], rot: 180, flip: false}
-  sw6: {kind: turnout, at: [5, 1], rot: 180, flip: false, connection: j1, addr: 'dccex/105'}
-  sw7: {kind: turnout, at: [2, 5], rot: 0, flip: false, connection: j1, addr: 'dccex/105'}
-  sw8: {kind: turnout, at: [5, 5], rot: 0, flip: true, connection: j1, addr: 'dccex/105'}
-  sw9: {kind: turnout, at: [2, 1], rot: 180, flip: true, connection: j1, addr: 'dccex/105'}
+  sw6: {kind: turnout, at: [5, 1], rot: 180, flip: false, connection: j1, addr: '105'}
+  sw7: {kind: turnout, at: [2, 5], rot: 0, flip: false, connection: j1, addr: '105'}
+  sw8: {kind: turnout, at: [5, 5], rot: 0, flip: true, connection: j1, addr: '105'}
+  sw9: {kind: turnout, at: [2, 1], rot: 180, flip: true, connection: j1, addr: '105'}
   n2: {kind: pin, at: [26, 1], rot: 0}
   p1: {kind: portal, at: [-1, 5], rot: 0, flip: true, label: p1}
   p2: {kind: portal, at: [-3, 5], rot: 180, flip: true, label: p1}
@@ -112,12 +109,12 @@ symbols:
   n5: {kind: pin, at: [2, 8], rot: 0}
   n6: {kind: pin, at: [0, 1], rot: 0}
   n9: {kind: pin, at: [1, 9], rot: 0}
-  sw10: {kind: turnout, at: [0, 5], rot: 180, flip: false, connection: j1, addr: 'dccex/106'}
+  sw10: {kind: turnout, at: [0, 5], rot: 180, flip: false, connection: j1, addr: '106'}
   n10: {kind: pin, at: [-2, 3], rot: 90}
   n11: {kind: pin, at: [-2, 7], rot: 90}
   n12: {kind: pin, at: [0, 7], rot: 90}
-  sw11: {kind: turnout, at: [-4, 14], rot: 90, connection: j4, addr: 'dccex/107'}
-  sw12: {kind: turnout, at: [-1, 16], rot: 180, flip: true, connection: j4, addr: 'dccex/108'}
+  sw11: {kind: turnout, at: [-4, 14], rot: 90, connection: j4, addr: '107'}
+  sw12: {kind: turnout, at: [-1, 16], rot: 180, flip: true, connection: j4, addr: '108'}
   n14: {kind: pin, at: [-4, 15], rot: 90}
   n15: {kind: pin, at: [-2, 16], rot: 0}
   n16: {kind: pin, at: [1, 18], rot: 0}
@@ -125,9 +122,9 @@ symbols:
   e2: {kind: terminal, at: [2, 21], rot: 180, flip: false}
   e3: {kind: terminal, at: [10, 12], rot: 180, flip: false}
   e4: {kind: terminal, at: [10, 13], rot: 180, flip: false}
-  sw13: {kind: turnout, at: [22, 16], rot: 180, flip: false, connection: j5, addr: 'dccex/109'}
-  sw14: {kind: turnout, at: [22, 15], rot: 0, flip: true, connection: j2, addr: 'dccex/110'}
-  sw15: {kind: turnout, at: [20, 13], rot: 0, flip: true, connection: j2, addr: 'dccex/111'}
+  sw13: {kind: turnout, at: [22, 16], rot: 180, flip: false, connection: j5, addr: '109'}
+  sw14: {kind: turnout, at: [22, 15], rot: 0, flip: true, connection: j2, addr: '110'}
+  sw15: {kind: turnout, at: [20, 13], rot: 0, flip: true, connection: j2, addr: '111'}
   n19: {kind: pin, at: [20, 12], rot: 0}
   n20: {kind: pin, at: [24, 15], rot: 0}
   n21: {kind: pin, at: [25, 14], rot: 0}
@@ -136,8 +133,8 @@ symbols:
   n26: {kind: pin, at: [25, 8], rot: 0}
   n27: {kind: pin, at: [26, 10], rot: 90}
   n29: {kind: pin, at: [21, 18], rot: 0}
-  sw16: {kind: turnout, at: [12, 18], rot: 180, flip: false, connection: j3, addr: 'dccex/112'}
-  sw17: {kind: turnout, at: [10, 20], rot: 180, flip: false, connection: j3, addr: 'dccex/113'}
+  sw16: {kind: turnout, at: [12, 18], rot: 180, flip: false, connection: j3, addr: '112'}
+  sw17: {kind: turnout, at: [10, 20], rot: 180, flip: false, connection: j3, addr: '113'}
   n30: {kind: pin, at: [10, 21], rot: 0}
   n31: {kind: pin, at: [25, 16], rot: 0}
   n32: {kind: pin, at: [26, 15], rot: 90}
