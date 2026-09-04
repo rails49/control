@@ -99,9 +99,15 @@ src/tc49/
                             owned: a commit coalesced on idle, a push on its
                             own timer, a restore refused over a dirty tree
                             (store/BACKUP.md, ADR-0053)
-  scheduler/    Scheduler — composes gestures into requests and submits a
-                timetable whole at the start of a run, mechanical arrival-end
-                expansion, deterministic ids, exhausted state topic
+  scheduler/    scheduler.py  Scheduler — composes gestures into requests
+                              and submits a timetable whole at the start of a
+                              run, mechanical arrival-end expansion,
+                              deterministic ids, exhausted state topic
+                __main__.py   `python -m tc49.scheduler --broker … --railroad
+                              … --store …`, the command line a container
+                              runs: the railroad's documents off the store,
+                              the broker, this app's own rows, then a drain
+                              loop that ends on a signal (ADR-0059)
   dispatcher/   dispatch.py   Dispatcher — admission, queue, lock table,
                               sensor roles, grant sweep, align
                 locking.py    LockingStrategy, FullRoute, Incremental
@@ -249,15 +255,16 @@ live in. Each spec page links the ADRs that bind it.
 ## Tests
 
 `tests/` mirrors `src/tc49/`: one package per app, plus `system/` for the
-tests that drive the real assembly over the bus, with `harness.py` and
+tests that drive the real assembly over the bus, with `harness.py`,
+`brokers.py` — a real broker, for the apps that come up against one — and
 `generate.py` shared at the top.
 
 ```
 tests/
-  harness.py  generate.py
+  harness.py  brokers.py  generate.py
   lib/         test_layout  test_bus  test_trace
   store/       test_store  test_drawing  test_server  test_symbols
-  scheduler/   test_scheduler
+  scheduler/   test_scheduler  test_main
   dispatcher/  test_routing  test_safety  test_incremental  test_aging
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks
   driver/      test_driver
