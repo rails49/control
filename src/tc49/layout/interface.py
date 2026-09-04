@@ -201,6 +201,7 @@ RUN = "tc49/dispatch/state/run"
 FACING = "tc49/schedule/state/facing"
 DEVICE = "tc49/layout/state/device/#"
 
+RAILROAD = "tc49/layout/state/railroad"
 BLOCK_OCCUPIED = "tc49/layout/block_occupied"
 BLOCK_VACATED = "tc49/layout/block_vacated"
 POWER = "tc49/layout/state/power"
@@ -378,9 +379,18 @@ class LayoutInterface:
         # railroad has moved on from, or the supply reading dead while it is
         # live, with nothing to notice (#240).
         self._ordering = Ordering()
+        # Which railroad this is, said before anything is said about it. One
+        # broker runs one railroad and a view needs to know which, so the
+        # binding of the layout interface that is running publishes it — it
+        # is the one app bound to a railroad (ADR-0059 decision 2, as amended
+        # by ADR-0060). The name is the layout's own, which is the name the
+        # store lists it under: a drawing is filed under the name it declares
+        # and derives to a layout wearing it, so there is no second place for
+        # this to be told and no way for the two to disagree.
+        bus.publish(RAILROAD, {"name": layout.name})
         # The railroad comes up dark, and this is the first thing said about
-        # it: a person turns it on (ADR-0051). Before the subscriptions, so
-        # that a retained value handed back by a bus that outlived the app
+        # its supply: a person turns it on (ADR-0051). Before the
+        # subscriptions, so that a retained value handed back by a bus that outlived the app
         # supersedes it rather than being overwritten by it — what the
         # hardware is saying now outranks what the last session was left
         # believing (ADR-0030).

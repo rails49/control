@@ -125,6 +125,13 @@ class Simulator:
         self._events: list[_Event] = []
         self._seq = 0
         self._rolling: set[str] = set()  # trains between blocks, mid-move
+        # Which railroad this binding stands in for, stated from the
+        # constructor like the supply below: one broker runs one railroad and
+        # a view needs to know which, and the binding of the layout interface
+        # that is running is the one app bound to one (ADR-0059 decision 2,
+        # as amended by ADR-0060). The name is the layout's own, which is the
+        # name the store lists it under.
+        bus.publish("tc49/layout/state/railroad", {"name": layout.name})
         # Whether a train may move at all, stated from the constructor so a
         # joining client is served a value rather than left to read one out
         # of an absence (ADR-0032, ADR-0041). Simulated track is always live

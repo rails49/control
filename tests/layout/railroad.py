@@ -30,6 +30,7 @@ FACING = "tc49/schedule/state/facing"
 
 BLOCK_OCCUPIED = "tc49/layout/block_occupied"
 BLOCK_VACATED = "tc49/layout/block_vacated"
+RAILROAD = "tc49/layout/state/railroad"
 POWER = "tc49/layout/state/power"
 MODE = "tc49/layout/state/mode"
 DEVICE_SENSOR = "tc49/layout/state/device/sensor"
