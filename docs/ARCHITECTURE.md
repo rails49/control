@@ -21,8 +21,10 @@ one loaded railroad and a list of views of it
 hardware hangs under
 ([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md),
 docs/layout/README.md). The `simulator` is the other binding of the same
-contract and neither knows about the other, so a run has one of them: the bench
-harness assembles the simulator, and a railroad with steel on it runs `layout`.
+contract and neither knows about the other, so a run has one of them: a
+railroad with steel on it runs `layout`, a box with no hardware runs the
+`simulator` container in its place, and the bench harness assembles the
+simulator inside one process.
 
 `dccex-usb` and `dccex` hang under `layout`. `dccex-usb` owns the command
 station's serial device and serves it on a TCP port; it is an app by the same
@@ -128,10 +130,16 @@ src/tc49/
                               broker, the translator on it, then a drain
                               loop that ends on a signal. No store — this
                               app reads no documents (ADR-0059)
-  simulator/    Simulator — the milestone-1 layout interface: a
-                discrete-event engine that schedules each accepted move's
-                sensors on fixed delays, owns the run clock, pacing and
-                termination
+  simulator/    sim.py        Simulator — the milestone-1 layout interface:
+                              a discrete-event engine that schedules each
+                              accepted move's sensors on fixed delays, owns
+                              the run clock, pacing and termination
+                __main__.py   `python -m tc49.simulator --broker … --railroad
+                              … --store …`, the command line a box with no
+                              hardware runs in place of `layout`'s: the
+                              railroad's drawing off the store, the broker,
+                              then the live loop this app already owns, which
+                              ends on a signal (ADR-0030, ADR-0059)
   layout/       interface.py  LayoutInterface — the physical layout
                               interface: align before move, the near-end
                               check, nothing while the rails are dead, the
@@ -287,7 +295,7 @@ tests/
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks
   driver/      test_driver  test_main
   simulator/   test_move  test_power  test_placement  test_pacing  test_live
-               test_reading
+               test_reading  test_main
   layout/      test_align  test_move  test_aspects  test_power  test_reading
                test_occupancy  test_traction  test_mode  test_throttle
                test_railroad  test_main
