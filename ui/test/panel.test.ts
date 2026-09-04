@@ -1268,6 +1268,45 @@ describe("whether the run is held", () => {
   });
 });
 
+/** Whether anything the dispatcher granted is under way, beside the run word
+ *  and orthogonal to it (ADR-0062, #406). `held` alone does not say the
+ *  railroad is still: the dispatcher writes that word when a drain completes,
+ *  and a person's HOLD writes the same word with trains still rolling. What
+ *  waits on it before cutting power is #408; here it is parsed. */
+describe("whether anything is moving", () => {
+  it("says nothing is before the dispatcher has said", () => {
+    expect(panel().moving).toBe(false);
+  });
+
+  it("takes the boolean the row carries, beside the word", () => {
+    const model = panel();
+    feed(model, { event: "run", run: "held", moving: true });
+    expect(model.run).toBe("held");
+    expect(model.moving).toBe(true);
+    feed(model, { event: "run", run: "held", moving: false });
+    expect(model.run).toBe("held");
+    expect(model.moving).toBe(false);
+  });
+
+  it("reads a row without the field as nothing moving", () => {
+    // An older dispatcher publishes the word alone. Absence is not evidence
+    // that a train is in motion, and the reader that acts on this acts on
+    // evidence and on nothing else.
+    const model = panel();
+    feed(model, { event: "run", run: "running", moving: true });
+    feed(model, { event: "run", run: "held" });
+    expect(model.run).toBe("held");
+    expect(model.moving).toBe(false);
+  });
+
+  it("is forgotten when the model starts over", () => {
+    const model = panel();
+    feed(model, { event: "run", run: "running", moving: true });
+    model.reset();
+    expect(model.moving).toBe(false);
+  });
+});
+
 /** The stamp every state payload carries (#240): a page is a consumer of
  *  state topics like any other, and two values of one topic can come off the
  *  wire in the order they were not published in. */
