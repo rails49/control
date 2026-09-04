@@ -7,10 +7,12 @@
  *
  * The one press that is not a single frame is OFF. It is the drain trigger
  * and never an immediate cut: it asks the run to drain, watches
- * `tc49/dispatch/state/run` reach `held`, and removes the supply only then.
- * An abrupt `off` would leave no point position trustworthy and strand
- * whatever was mid-transit; after a completed drain nothing is crossing,
- * nothing is committed, and every grant re-aligns.
+ * `tc49/dispatch/state/run` reach `held` with `moving` false, and removes the
+ * supply only then (ADR-0062, #408). An abrupt `off` would leave no point
+ * position trustworthy and strand whatever was mid-transit; after a completed
+ * drain nothing is crossing, nothing is committed, and every grant re-aligns.
+ * A row reading `running` while the wait stands is a drain somebody
+ * abandoned, and drops it.
  *
  * A DOM test because it crosses the band, the app and the run view's socket.
  * The session itself is `support/session.ts`, shared with the other suites.
@@ -77,12 +79,19 @@ describe("OFF is the drain trigger", () => {
     expect(off(shell)).toBe("DRAINING…");
   });
 
-  it("removes the supply once the run reads held", async () => {
+  /** The word alone is not the wait's answer. A held run can be moving — a
+   *  move already granted runs to its sensor — and cutting there strands it
+   *  where no sensor will ever say it stopped (ADR-0062). */
+  it("removes the supply once the run reads held with nothing moving", async () => {
     const shell = await joined();
-    await said(shell, STATE_RUN, { run: "running" });
+    await said(shell, STATE_RUN, { run: "running", moving: true });
     await press(shell, 2);
 
-    await said(shell, STATE_RUN, { run: "held" });
+    await said(shell, STATE_RUN, { run: "held", moving: true });
+    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
+    expect(off(shell)).toBe("DRAINING…");
+
+    await said(shell, STATE_RUN, { run: "held", moving: false });
 
     expect(written()).toEqual([
       { topic: RUN_WANTED, payload: { run: "draining" } },
@@ -91,15 +100,48 @@ describe("OFF is the drain trigger", () => {
     expect(off(shell)).toBe("OFF");
   });
 
-  /** The dispatcher answering a held run with `held` publishes no frame, so
-   *  the wait would never end — and there is nothing left to drain anyway:
-   *  nothing is crossing and nothing is committed, which is the whole of what
-   *  the wait waits for. */
-  it("removes it at once where the run already reads held", async () => {
+  /** OFF asks for a drain from a held run too: it is the moving that decides,
+   *  and a person's HOLD writes `held` with trains still rolling. */
+  it("asks a held run to drain and waits while it is moving", async () => {
     const shell = await joined();
-    await said(shell, STATE_RUN, { run: "held" });
+    await said(shell, STATE_RUN, { run: "held", moving: true });
 
     await press(shell, 2);
+    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
+
+    await said(shell, STATE_RUN, { run: "held", moving: false });
+
+    expect(written()).toEqual([
+      { topic: RUN_WANTED, payload: { run: "draining" } },
+      { topic: POWER_WANTED, payload: { power: "off" } },
+    ]);
+  });
+
+  /** The dispatcher answering a held run with `held` publishes no frame, so
+   *  the wait would never end — and there is nothing left to drain anyway:
+   *  the run is held and nothing is moving, which is the whole of what the
+   *  wait waits for. */
+  it("removes it at once where the run is held and nothing moves", async () => {
+    const shell = await joined();
+    await said(shell, STATE_RUN, { run: "held", moving: false });
+
+    await press(shell, 2);
+
+    expect(written()).toEqual([
+      { topic: RUN_WANTED, payload: { run: "draining" } },
+      { topic: POWER_WANTED, payload: { power: "off" } },
+    ]);
+  });
+
+  /** An older dispatcher says nothing about what is under way, and nothing is
+   *  not evidence that a train is in motion: the row reads as nothing moving,
+   *  the way round `layout`'s own guard falls (#406). */
+  it("reads a row without moving as nothing moving", async () => {
+    const shell = await joined();
+    await said(shell, STATE_RUN, { run: "running" });
+    await press(shell, 2);
+
+    await said(shell, STATE_RUN, { run: "held" });
 
     expect(written()).toEqual([
       { topic: RUN_WANTED, payload: { run: "draining" } },
@@ -112,14 +154,30 @@ describe("OFF is the drain trigger", () => {
    *  hidden. */
   it("leaves the railroad powered while the run never settles", async () => {
     const shell = await joined();
-    await said(shell, STATE_RUN, { run: "running" });
+    await said(shell, STATE_RUN, { run: "running", moving: true });
     await press(shell, 2);
 
     await said(shell, "tc49/dispatch/state/aspects", { aspects: {} });
-    await said(shell, STATE_RUN, { run: "running" });
+    await said(shell, STATE_RUN, { run: "draining", moving: true });
 
     expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
     expect(off(shell)).toBe("DRAINING…");
+  });
+
+  /** A run reading `running` while the wait stands is a drain somebody
+   *  abandoned — a GO on this panel or on another — and the wait goes with
+   *  it. Left standing, the HOLD that came hours later would cut the power
+   *  out of a press the person had moved on from (ADR-0062). */
+  it("drops the wait when the run is released", async () => {
+    const shell = await joined();
+    await said(shell, STATE_RUN, { run: "running", moving: true });
+    await press(shell, 2);
+
+    await said(shell, STATE_RUN, { run: "running", moving: true });
+    await said(shell, STATE_RUN, { run: "held", moving: false });
+
+    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
+    expect(off(shell)).toBe("OFF");
   });
 
   /** The person has said what they want the supply to do, so the cut the
@@ -132,7 +190,7 @@ describe("OFF is the drain trigger", () => {
     await press(shell, 2);
 
     await press(shell, 0);
-    await said(shell, STATE_RUN, { run: "held" });
+    await said(shell, STATE_RUN, { run: "held", moving: false });
 
     expect(written()).toEqual([
       { topic: RUN_WANTED, payload: { run: "draining" } },

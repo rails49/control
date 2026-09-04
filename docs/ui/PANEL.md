@@ -712,16 +712,37 @@ on `run_wanted`: returning to `on` releases nothing on its own (ADR-0041), so
 an explicit GO still follows.
 
 **OFF is the drain trigger, never an immediate cut.** The press publishes
-`tc49/dispatch/run_wanted: draining`, watches `tc49/dispatch/state/run` reach
-`held`, and publishes `power_wanted: off` only then; both are topics this view
-already writes, so `layout` never subscribes to the dispatcher. A run that
-already reads `held` has nothing left to drain, so the supply goes at once.
+`tc49/dispatch/run_wanted: draining` — always, a run already reading `held`
+included — and starts a wait; both topics are ones this view already writes.
+**The wait ends on two conditions together**: `tc49/dispatch/state/run` reads
+`run: held` *and* `moving: false`, and the view then publishes `power_wanted:
+off` once
+([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
+The word alone will not do: a held run can be moving, a move already granted
+running to its sensor, so a HOLD from another panel writes `held` with trains
+still rolling. Where the run is already held with nothing moving there is
+nothing left to drain, and the supply goes at once — the dispatcher answering
+`held` with `held` publishes no frame for the wait to see. A row that says
+nothing about `moving` reads as nothing moving, the way round `layout`'s own
+guard falls: a cut is refused on evidence that something moves, and an absence
+is none ([#406](https://github.com/rails49/control/issues/406)).
+
+**Three things drop the wait, and none of them cuts.** A `state/run` row
+reading `running` while it stands is a drain somebody abandoned — a GO on this
+panel or on another — and the wait goes with it, rather than standing until a
+HOLD hours later cuts the power out of a press the person had moved on from.
+ON and STOP drop it as they write their own frame, and a session that goes
+away takes it with it. **ON is the way out of a wait**, a supply going away
+out of a press the person has moved on from being the surprise this button
+exists to avoid.
+
 While the wait is outstanding the button reads *DRAINING…* and is dead, and a
 run that never settles leaves the railroad powered and the button still saying
-so — the case an abrupt cut would have hidden. **ON is the way out of a wait**:
-it abandons the outstanding cut as well as writing its own frame, a supply
-going away out of a press the person has moved on from being the surprise this
-button exists to avoid. A session that goes away takes the wait with it. The
+so — the case an abrupt cut would have hidden. **The wait is the person's view
+of the drain and not the only guard**: `layout` refuses an `off` it should not
+apply (ADR-0062), which is why the sentence that this view's sequencing is
+what makes OFF safe, and that `layout` never subscribes to the dispatcher, no
+longer holds. The panel still does not send `off` blindly. The
 `draining` value itself, and the dispatcher's launch gate, are the
 dispatcher's half of the same decision
 ([#294](https://github.com/rails49/control/issues/294)): it launches nothing
