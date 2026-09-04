@@ -82,7 +82,7 @@ def test_the_run_leaves_points_lying_where_the_panel_can_draw_them() -> None:
 def test_it_shows_both_positions_at_once() -> None:
     # A road set against is only legible beside one that is not, so the picture
     # worth watching has points lying each way when the run ends: sw1 and sw2
-    # closed, the four sharing `dccex/105` thrown along with sw3, sw14 and sw15.
+    # closed, the four sharing `105` thrown along with sw3, sw14 and sw15.
     assert set(commanded(trace()).values()) == {"closed", "thrown"}
 
 
@@ -113,13 +113,13 @@ class Miniature:
 
 MINIATURE = Miniature(
     aligned={
-        "j1": [{"dccex/105": "thrown", "dccex/101": "closed", "dccex/102": "thrown"}]
+        "j1": [{"105": "thrown", "101": "closed", "102": "thrown"}]
     },
     points={
-        "sw1": ("turnout", "dccex/101"),
-        "sw2": ("turnout", "dccex/101"),
-        "sw3": ("turnout", "dccex/102"),
-        "sw4": ("turnout", "dccex/103"),
+        "sw1": ("turnout", "101"),
+        "sw2": ("turnout", "101"),
+        "sw3": ("turnout", "102"),
+        "sw4": ("turnout", "103"),
     },
     uncommanded=["sw4"],
 )
