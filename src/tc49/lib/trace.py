@@ -60,7 +60,7 @@ def _row(topic: str) -> tuple[str, tuple[str, ...]]:
 
     A device row is named by two levels where every other row is named by one
     (ADR-0043): the address is trailing levels a railroad's wiring decides, so
-    the leaf of `tc49/layout/state/wanted/point/dccex/5` is `5` and says
+    the leaf of `tc49/layout/state/wanted/point/5` is `5` and says
     nothing, while the key past `tc49/layout/state/` is `wanted/point` and
     says which half of the vocabulary the line records. The two namespaces are
     one, so a name still tells one row from every other (`lib.inventory`).

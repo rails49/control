@@ -63,14 +63,14 @@ def test_a_device_line_is_named_by_its_row_and_not_by_its_address() -> None:
     TraceTap(bus, out, clock)
 
     bus.publish(
-        "tc49/layout/state/wanted/point/dccex/5",
-        {"addr": "dccex/5", "position": "thrown"},
+        "tc49/layout/state/wanted/point/5",
+        {"addr": "5", "position": "thrown"},
     )
     bus.drain()
 
     assert out.getvalue() == (
         '{"time":0.0,"event":"wanted/point","at":0.0,'
-        '"addr":"dccex/5","position":"thrown"}\n'
+        '"addr":"5","position":"thrown"}\n'
     )
 
 

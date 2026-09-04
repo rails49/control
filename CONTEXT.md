@@ -125,10 +125,12 @@ _Avoid_: switch, turnout (a turnout is one kind of point, not the category)
 
 **Address**:
 The string a point's motor answers to on the hardware, written `addr` and typed
-by whoever wired it. An address that is written names the system that answers
-for it as its first level, `<system>/<addr>` — `dccex/5`, never `5` — and the
-drawing refuses one that names no system when it derives
-([ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
+by whoever wired it. An address that is written **names no system**: it is any
+non-empty string, `5` as readily as anything else, and whatever is wired acts
+on the addresses it recognises
+([ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+withdrawing the system level of
+[ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 An address that is absent derives: a railroad wearing none runs under the
 simulator, which has no addresses.
 Nothing checks whether anything answers to it — a DCC accessory number is a
@@ -223,12 +225,11 @@ hangs here and not on a train.
 _Avoid_: vehicle, item, wagon, rolling stock (the mass noun, which is *stock*)
 
 **Address** (of a car):
-The number programmed into a car's decoder — bare, taking **no system prefix**,
-unlike a point's. It is programmed once and generally kept, and it is the same
-number whoever sends the packet: turnout wiring can be split across systems and
-traction cannot, so a railroad changing command station rewrites nothing
-(ADR-0045, refining
-[ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
+The number programmed into a car's decoder. It is programmed once and generally
+kept, and it is the same number whoever sends the packet, so a railroad changing
+command station rewrites nothing (ADR-0045). It names no system, as a point's
+does not
+([ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
 _Avoid_: id, cab, loco address
 
 **Catalogue**:
@@ -620,7 +621,8 @@ The retained state topics naming one device each, in two halves. What the
 device **should do**, under `tc49/layout/state/wanted/` — a locomotive's speed
 and functions, a point's position, a signal's aspect, the track's power —
 written by `layout`, with a **translator**, one app per hardware system,
-acting on every address it recognises. What it is **observed to do**, under
+subscribing all of them and acting on every address it recognises — one nobody
+answers to does no harm (ADR-0059). What it is **observed to do**, under
 `tc49/layout/state/device/` — a sensor's occupancy, a point's position where
 the hardware reports one, the track's power, and a translator's **link** —
 written by whatever watches or drives the thing addressed, of which there is
@@ -631,14 +633,16 @@ Both halves are `tc49.lib.inventory.DEVICE_TOPICS`.
 _Avoid_: device layer, hardware topics, driver (which names an app)
 
 **Address** (on a device topic):
-The trailing levels of a device topic, repeated in the payload as `addr`. Two
-shapes, and which one a row takes is physical: a **traction** or function
-address is bare, and a **point** or signal address names its system first,
-`<system>/<addr>` — fixed wiring can be split across systems and traction
-cannot (ADR-0043, refined by
-[ADR-0045](docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
-A **sensor** takes a third shape of its own, the block end it watches. Not a
-leaf: the row is the topic above the address, which is what `split_device`
+The trailing levels of a device topic, repeated in the payload as `addr`, and
+**naming no system**: it is the string the drawing carries and the hardware
+answers to, so a **point** or signal address is a bare one as a **traction**
+address is (ADR-0043 and
+[ADR-0045](docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md),
+the system level withdrawn by
+[ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
+A **function** takes two levels, the decoder and the function number, and a
+**sensor** a shape of its own, the block end it watches. Not a leaf: the row is
+the topic above the address, which is what `split_device`
 takes apart. The two `track` rows carry none, there being one railroad-wide
 power desired and one observed; a **link** carries one and repeats it as
 `system` rather than as `addr`, naming no device.

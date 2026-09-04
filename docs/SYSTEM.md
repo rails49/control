@@ -193,7 +193,7 @@ first real report supersede it (ADR-0030).
    rather than where the name ends, because a name may go on past it: a device
    row carries its address as trailing levels
    ([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)),
-   and `tc49/layout/state/wanted/point/<system>/<addr>` is a state topic like
+   and `tc49/layout/state/wanted/point/<addr>` is a state topic like
    any other.
 3. **Prefix-filter consumption.** Each consumer subscribes with a small fixed
    set of prefix filters under `tc49/`, written with `+` and `#`, rather than
@@ -1401,8 +1401,8 @@ addresses it recognises and holds no table of the ones it does not
 | --- | --- | --- |
 | `tc49/layout/state/wanted/traction/<addr>` | `addr`, `speed` | `speed` a number in −1.0 … 1.0 |
 | `tc49/layout/state/wanted/function/<addr>/<number>` | `addr`, `function`, `value` | `function` the function number as a string; `value` whatever the model's catalogue entry allows |
-| `tc49/layout/state/wanted/point/<system>/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
-| `tc49/layout/state/wanted/signal/<system>/<addr>` | `addr`, `aspect` | `aspect` `stop`, `caution` or `clear` |
+| `tc49/layout/state/wanted/point/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
+| `tc49/layout/state/wanted/signal/<addr>` | `addr`, `aspect` | `aspect` `stop`, `caution` or `clear` |
 | `tc49/layout/state/wanted/track` | `power` | `power` `on`, `stopped` or `off` |
 
 The address is **trailing levels rather than a leaf**, so a row is named by the
@@ -1413,15 +1413,17 @@ where every other row's name is one, because the observed half of the
 vocabulary answers for the same devices and `point` alone would not say which
 half a line records.
 
-**The two address rules differ, and the difference is physical.** A traction or
-function address is **bare** — a decoder answers to the number it was
-programmed with whoever sends the packet, and traction cannot be split across
-systems
-([ADR-0045](adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
-A point or signal address names **its system as its first level**, because
-fixed wiring can be split across systems and two systems name the same turnout
-differently (ADR-0043). So those two topics carry one level more than the
-others, and a translator subscribes its own system.
+**An address names no system.** It is the string the drawing carries and the
+hardware answers to, and the topic carries it as trailing levels with nothing
+in front of them — a decoder answers to the number it was programmed with
+whoever sends the packet, and a turnout answers to the accessory number it is
+wired to
+([ADR-0045](adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md),
+[ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
+Whatever is wired subscribes these rows and acts on the addresses it
+recognises, holding no table of the ones it does not, and an address nobody
+answers to does no harm. Two systems that number a point alike both act, and
+that is the deployer's addressing to fix and not a topic level.
 
 **`track` carries no address.** Power districts are a hardware-level fact and
 do not reach the bus: there is one railroad-wide desired power, and a
@@ -1438,13 +1440,13 @@ stop. Steps, speed tables and every wire protocol stay inside a translator
 
 **What the hardware reports back.** The observed half, written by whatever
 watches or drives the thing addressed — a detector for a sensor, a translator
-for its own system — and never by `layout`, which reads these rows rather than
-writing them.
+for the addresses it drives — and never by `layout`, which reads these rows
+rather than writing them.
 
 | Topic | Payload | Values |
 | --- | --- | --- |
 | `tc49/layout/state/device/sensor/<block>.<end>` | `addr`, `occupancy`, `reason` | `occupancy` `occupied`, `clear` or `unknown`; `reason` *optional*, free text, only with `unknown` |
-| `tc49/layout/state/device/point/<system>/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
+| `tc49/layout/state/device/point/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
 | `tc49/layout/state/device/track` | `power` | `power` `on`, `stopped` or `off` |
 | `tc49/layout/state/device/link/<system>` | `system`, `link`, `detail` | `link` `up` or `down`; `detail` *optional*, free text |
 
