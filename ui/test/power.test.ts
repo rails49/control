@@ -12,7 +12,8 @@
  * position trustworthy and strand whatever was mid-transit; after a completed
  * drain nothing is crossing, nothing is committed, and every grant re-aligns.
  * A row reading `running` while the wait stands is a drain somebody
- * abandoned, and drops it.
+ * abandoned, and drops it; a row that says nothing about `moving` at all
+ * never ends it, an older dispatcher's silence being no licence to cut.
  *
  * A DOM test because it crosses the band, the app and the run view's socket.
  * The session itself is `support/session.ts`, shared with the other suites.
@@ -133,20 +134,32 @@ describe("OFF is the drain trigger", () => {
     ]);
   });
 
-  /** An older dispatcher says nothing about what is under way, and nothing is
-   *  not evidence that a train is in motion: the row reads as nothing moving,
-   *  the way round `layout`'s own guard falls (#406). */
-  it("reads a row without moving as nothing moving", async () => {
+  /** An older dispatcher publishes the word alone, and a row that says
+   *  nothing about what is under way never lets this button cut: the wait
+   *  goes on standing, which costs a word on a button, where cutting on it
+   *  would cost a train stranded where no sensor will ever say it stopped. */
+  it("never cuts on a row that says nothing about moving", async () => {
     const shell = await joined();
-    await said(shell, STATE_RUN, { run: "running" });
+    await said(shell, STATE_RUN, { run: "running", moving: true });
     await press(shell, 2);
 
     await said(shell, STATE_RUN, { run: "held" });
 
-    expect(written()).toEqual([
-      { topic: RUN_WANTED, payload: { run: "draining" } },
-      { topic: POWER_WANTED, payload: { power: "off" } },
-    ]);
+    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
+    expect(off(shell)).toBe("DRAINING…");
+  });
+
+  /** The same silence at the press: a run held by a dispatcher that says
+   *  nothing about moving is asked to drain like any other, and the supply
+   *  stays until a row says `moving: false`. */
+  it("waits where a held run says nothing about moving", async () => {
+    const shell = await joined();
+    await said(shell, STATE_RUN, { run: "held" });
+
+    await press(shell, 2);
+
+    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
+    expect(off(shell)).toBe("DRAINING…");
   });
 
   /** The railroad stays powered, and the button says why it is still there.
@@ -186,7 +199,7 @@ describe("OFF is the drain trigger", () => {
    *  exists to avoid. */
   it("abandons the wait when ON is pressed instead", async () => {
     const shell = await joined();
-    await said(shell, STATE_RUN, { run: "running" });
+    await said(shell, STATE_RUN, { run: "running", moving: true });
     await press(shell, 2);
 
     await press(shell, 0);

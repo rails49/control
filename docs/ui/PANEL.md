@@ -722,10 +722,15 @@ The word alone will not do: a held run can be moving, a move already granted
 running to its sensor, so a HOLD from another panel writes `held` with trains
 still rolling. Where the run is already held with nothing moving there is
 nothing left to drain, and the supply goes at once — the dispatcher answering
-`held` with `held` publishes no frame for the wait to see. A row that says
-nothing about `moving` reads as nothing moving, the way round `layout`'s own
-guard falls: a cut is refused on evidence that something moves, and an absence
-is none ([#406](https://github.com/rails49/control/issues/406)).
+`held` with `held` publishes no frame for the wait to see. **A row that says
+nothing about `moving` never ends the wait**: an older dispatcher publishes
+the word alone, and this button treats that silence as a railroad that may
+still be moving. `layout`'s guard falls the other way, applying such an `off`
+because a guard refuses on evidence and an absence is none
+([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md));
+the two differ because what the wait risks is a train stranded where no sensor
+will ever say it stopped, and all its caution costs is a button that goes on
+saying *DRAINING…* against a dispatcher too old to answer it.
 
 **Three things drop the wait, and none of them cuts.** A `state/run` row
 reading `running` while it stands is a drain somebody abandoned — a GO on this

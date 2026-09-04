@@ -537,15 +537,20 @@ export class TcPanel extends LitElement {
     this.socket.send(frame);
   }
 
-  /** Whether the drain has landed: the run reads `held` and nothing is
-   *  moving. Both conditions and not the word alone — a held run can be
-   *  moving, a move already granted running to its sensor, and a person's
-   *  HOLD writes `held` with trains still rolling (ADR-0062). A row that says
-   *  nothing about `moving` reads as nothing moving, the way round `layout`'s
-   *  own guard falls: a cut is refused on evidence that something moves, and
-   *  an absence is none ([#406](https://github.com/rails49/control/issues/406)). */
+  /** Whether the drain has landed: the run reads `held` and the row says
+   *  nothing is moving. Both conditions and not the word alone — a held run
+   *  can be moving, a move already granted running to its sensor, and a
+   *  person's HOLD writes `held` with trains still rolling (ADR-0062).
+   *
+   *  `moving === false` and not merely a falsy one: a row without the field
+   *  is an older dispatcher saying nothing about what is under way, and it
+   *  never lets this button cut. `layout`'s guard applies such an `off`
+   *  because a guard refuses on evidence and an absence is none; the wait is
+   *  the other way round, because what it risks is a train stranded where no
+   *  sensor will ever say it stopped, and all it costs is a button that goes
+   *  on saying *DRAINING…* against a dispatcher too old to answer it. */
   private get drained(): boolean {
-    return this.panel !== null && this.panel.run === "held" && !this.panel.moving;
+    return this.panel !== null && this.panel.run === "held" && this.panel.moving === false;
   }
 
   /** The supply removed, once the drain has landed. */
