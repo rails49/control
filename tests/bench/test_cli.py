@@ -1,10 +1,14 @@
 """`tc49 bench`: the comparison table, the k flag, the trace dump (#30),
 `tc49 layout show` (#45), `tc49 generate` (#52, #126), and what `tc49 live`
-takes and refuses (#179)."""
+takes and refuses (#179), and how `tc49 serve` ends (#410)."""
 
 import io
 import json
+import os
+import signal
 import socket
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -13,6 +17,7 @@ from tc49.bench.cli import (
     GENERATORS,
     backing,
     command_line,
+    ending_as_ctrl_c_does,
     holding,
     main,
     restart_note,
@@ -362,3 +367,84 @@ def test_a_session_that_serves_no_store_leaves_backup_to_the_one_that_does(
     other's half-finished editing session."""
     assert "left to the `tc49 serve` already running" in backing(None)
     assert "backup" in backing(Backup(tmp_path, log=lambda _: None))
+
+
+# --- how `tc49 serve` ends (#410) ---------------------------------------------
+
+
+def run_git(root: Path, *args: str) -> str:
+    done = subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, text=True, check=True
+    )
+    return done.stdout
+
+
+@pytest.fixture
+def backed_up_store(tmp_path: Path) -> Path:
+    """A store the way the layout server's is: a repository with backup on, a
+    remote to push to — here on disk, so nothing reaches the network — and a
+    drawing that has not been committed yet, which is what the exit has left
+    to do."""
+    remote = tmp_path / "somebody-railroad.git"
+    run_git(tmp_path, "init", "-q", "--bare", "-b", "main", str(remote))
+    root = tmp_path / "tc49"
+    (root / "layouts").mkdir(parents=True)
+    run_git(tmp_path, "init", "-q", "-b", "main", str(root))
+    run_git(root, "config", "user.email", "suite@example.invalid")
+    run_git(root, "config", "user.name", "The Suite")
+    run_git(root, "config", "commit.gpgsign", "false")
+    run_git(root, "config", "push.autoSetupRemote", "true")
+    run_git(root, "remote", "add", "origin", str(remote))
+    (root / "layouts" / "reversing-loops.drawing.yaml").write_text(
+        "drawing: reversing-loops\n"
+    )
+    Backup(root, log=lambda _: None).switch(True)
+    return root
+
+
+def test_a_deploy_stopping_the_server_lands_the_last_backup(
+    backed_up_store: Path,
+) -> None:
+    """The store is PID 1 in its container, which gets no default action for
+    SIGTERM: `docker stop` — which every deploy does, recreating the service —
+    waited ten seconds, killed it, and the commit on quit was never made
+    (#410). Here it ends within two seconds and the drawing is in the remote,
+    which is the whole of what the quit was for."""
+    served = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "tc49.bench.cli",
+            "serve",
+            "--store",
+            str(backed_up_store),
+            "--port",
+            str(free_port()),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        assert served.stdout is not None
+        assert served.stdout.readline().startswith("serving ")  # it is up
+        served.send_signal(signal.SIGTERM)
+        said = served.communicate(timeout=2)[0]
+    finally:
+        served.kill()
+
+    assert served.returncode == 0
+    assert "reversing-loops" in said  # the commit the quit made, named
+    remote = backed_up_store.parent / "somebody-railroad.git"
+    assert "reversing-loops" in run_git(remote, "log", "--oneline")
+
+
+def test_ctrl_c_and_a_deploy_leave_by_the_same_door() -> None:
+    """SIGTERM raises the interrupt the Ctrl-C path already handles, rather
+    than a second way out to keep in step with the first. Outside the block
+    the process's own handling is back, so a `serve` run inside another
+    process does not take that process's SIGTERM away from it."""
+    was = signal.getsignal(signal.SIGTERM)
+    with ending_as_ctrl_c_does(), pytest.raises(KeyboardInterrupt):
+        os.kill(os.getpid(), signal.SIGTERM)
+    assert signal.getsignal(signal.SIGTERM) is was
