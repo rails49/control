@@ -25,6 +25,7 @@ from tests.layout.railroad import (
     PLACED,
     POWER,
     POWER_WANTED,
+    RAILROAD,
     REMOVED,
     THROTTLE_WANTED,
     WANTED_TRACK,
@@ -182,11 +183,11 @@ def test_an_unreadable_reading_is_no_information_about_that_end() -> None:
     assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
 
 
-def test_a_fresh_app_has_said_three_things_and_no_more() -> None:
+def test_a_fresh_app_has_said_four_things_and_no_more() -> None:
     """It subscribes the observed half of the device vocabulary and writes
     the desired half, so nothing it publishes reaches its own handlers and
-    there is no cascade to come up out of: a fresh railroad is the supply
-    commanded off, the app saying it believes it is, and nobody driving
-    anything."""
+    there is no cascade to come up out of: a fresh railroad is which railroad
+    it is (#371), the supply commanded off, the app saying it believes it is,
+    and nobody driving anything."""
     bus, _app = build()
-    assert set(bus.last_values) == {WANTED_TRACK, POWER, MODE}
+    assert set(bus.last_values) == {RAILROAD, WANTED_TRACK, POWER, MODE}

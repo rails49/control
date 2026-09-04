@@ -9,6 +9,7 @@
 {"time":0.0,"event":"aspects","at":0.0,"aspects":{"dn_e.A":"stop","dn_e.B":"stop","dn_w.A":"stop","dn_w.B":"stop","up_e.A":"stop","up_e.B":"stop","up_w.A":"stop","up_w.B":"stop","yard_e.A":"stop","yard_w.B":"stop"}}
 {"time":0.0,"event":"allocation","at":0.0,"trains":{"express_2":"up_e","freight_1":"yard_w"},"crossing":{},"locks":{"up_e":"express_2","yard_w":"freight_1"},"requests":[]}
 {"time":0.0,"event":"disputed","at":0.0,"trains":[],"blocks":[]}
+{"time":0.0,"event":"railroad","at":0.0,"name":"crossover-yard"}
 {"time":0.0,"event":"power","at":0.0,"power":"on"}
 {"time":0.0,"event":"request_admitted","id":"freight_1-1","dest":["yard_e.A"],"pruned":[{"end":"yard_e.B","reason":"no_entry"}]}
 {"time":0.0,"event":"route_chosen","id":"freight_1-1","route":["yard_w","west_ladder.to_dn","dn_w","crossover.dn_straight","dn_e","east_ladder.from_dn","yard_e"],"k_tried":1}

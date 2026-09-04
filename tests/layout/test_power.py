@@ -23,6 +23,7 @@ from tests.layout.railroad import (
     MODE,
     POWER,
     POWER_WANTED,
+    RAILROAD,
     RUN,
     WANTED_TRACK,
     build,
@@ -96,10 +97,11 @@ def commands(bus: InProcessBus, power: str) -> Callable[[], None]:
 
 def test_the_railroad_comes_up_off_before_anything_else() -> None:
     """Nothing moves and no turnout throws until a person turns it on
-    (ADR-0051). The three values are the first things the app says, and the
-    order is the honest one: the supply is commanded off, then the app states
-    what it believes about it, and then that nobody has taken a train — the
-    map of who drives is empty and the topic says so (#297)."""
+    (ADR-0051). The four values are the first things the app says, and the
+    order is the honest one: which railroad this is (#371), then the supply
+    commanded off, then what the app believes about it, and then that nobody
+    has taken a train — the map of who drives is empty and the topic says so
+    (#297)."""
     clock = Clock()
     bus = InProcessBus(clock)
     seen = heard(bus, "tc49/#")
@@ -107,6 +109,7 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
     bus.drain()
 
     assert seen == [
+        (RAILROAD, {"at": 0.0, "name": "bench"}),
         (WANTED_TRACK, {"at": 0.0, "power": "off"}),
         (POWER, {"at": 0.0, "power": "off"}),
         (MODE, {"at": 0.0, "modes": {}}),
