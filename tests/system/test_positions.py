@@ -112,9 +112,7 @@ class Miniature:
 
 
 MINIATURE = Miniature(
-    aligned={
-        "j1": [{"105": "thrown", "101": "closed", "102": "thrown"}]
-    },
+    aligned={"j1": [{"105": "thrown", "101": "closed", "102": "thrown"}]},
     points={
         "sw1": ("turnout", "101"),
         "sw2": ("turnout", "101"),
