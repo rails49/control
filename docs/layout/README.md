@@ -108,9 +108,12 @@ arrival nobody was told about. The suite drives the clock rather than sleeping
 on it and calls `settle()` itself.
 
 **Whose levels those are, on a physical railroad, is a person's.** No camera
-publishes `device/sensor` yet, so the same session reads its own input and
-publishes what somebody types there as the row a detector would write
-([#315](https://github.com/rails49/control/issues/315)). This app is told
+publishes `device/sensor` yet, so somebody types them a line at a time and
+what they type is published as the row a detector would write — by the session
+that reads its own input, or by `tc49 readings`, which is that keyboard as a
+client of the broker beside this app rather than in one process with it
+([#315](https://github.com/rails49/control/issues/315),
+[#379](https://github.com/rails49/control/issues/379)). This app is told
 nothing about it: a typed level settles, folds and completes a crossing
 exactly as a camera's does, which is the whole of what standing in for
 hardware means — and it is the reason the fold is tested against typed levels
