@@ -59,7 +59,10 @@ from collections.abc import Callable
 from tc49.layout.interface import WANTED_TRACTION, LayoutInterface
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
+from tc49.lib.layout import Layout
+from tc49.lib.loading import Loaded, dropped
 from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
+from tc49.lib.roster import Roster
 
 CLIENT_ID = "tc49-layout"
 """What this app calls itself to the broker, so its log names an app rather
@@ -82,6 +85,24 @@ RETAINED_S = 1.0
 """How long the rows this app owns are waited for on the way up. A bound and
 not a promise: the broker sends a retained value as the subscription lands,
 and a broker holding none would otherwise be waited for forever."""
+
+OWNED = (
+    "tc49/layout/state/railroad",
+    "tc49/layout/state/power",
+    "tc49/layout/state/mode",
+    "tc49/layout/state/wanted/#",
+)
+"""The retained rows this app writes: which railroad is loaded, the supply as
+it observes it, who drives, and every desired row under `wanted/` — one per
+address a railroad's wiring decides. The observed rows under `device/` are
+**not** here: they belong to whatever answers for that address, which is
+hardware and not this app (ADR-0043, ADR-0058), and a reload leaves them to
+be cleared by the thing that wrote them.
+
+A filter rather than a list, because the rows that matter on a reload are the
+ones keyed by an address the new railroad does not have — a list of topics
+would be a list of the addresses this railroad has, which is exactly the
+wrong railroad's (ADR-0060)."""
 
 TRACTION = f"{WANTED_TRACTION}/#"
 """Every traction row, which is what has to be on the broker's way here before
@@ -114,22 +135,63 @@ def serve(
     is. Seconds since this process started, which is what a settling time is
     measured in and the only thing that reads it; nothing on the bus carries
     it, so a restart resetting it is news to nobody (ADR-0009).
+
+    The outer loop is one railroad each time round. This app is the one that
+    publishes which railroad that is, and it follows its own row: a person
+    loads a railroad while the apps run (ADR-0060), and what the row says is
+    what the railroad is. The desired rows go with the old one — a speed for
+    a locomotive the new railroad does not have, a position for a point it
+    does not have, and nothing would ever republish either.
     """
-    layout = documents.layout(railroad)
-    roster = documents.roster(railroad)
-    log(f"'{railroad}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
+    loaded = Loaded(railroad)
+    layout, roster = _documents(documents, loaded.name)
+    log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
     if not _connected(bus, stop, log):
         return
-    _retained(bus, stop)
-    clock = Clock()
-    app = LayoutInterface(bus, layout, roster, clock)
-    log(f"up on '{railroad}', draining every {period_s}s")
-    started = time.monotonic()
     while not stop.is_set():
-        clock.advance(time.monotonic() - started)
-        app.settle()
-        bus.drain()
-        stop.wait(period_s)
+        _retained(bus, stop)
+        clock = Clock()
+        app = LayoutInterface(bus, layout, roster, clock)
+        # After the app is built and not before: the row is retained, so
+        # subscribing here is handed whatever it holds, and nothing this app
+        # does on the way up moves — a gesture published in the instant
+        # between an app's opening rows and its own subscriptions is lost,
+        # and that instant is not one to lengthen (ADR-0059, decision 5).
+        loaded.follow(bus)
+        built = loaded.name
+        log(f"up on '{built}', draining every {period_s}s")
+        started = time.monotonic()
+        while not stop.is_set() and not loaded.moved:
+            clock.advance(time.monotonic() - started)
+            app.settle()
+            bus.drain()
+            stop.wait(period_s)
+        if not loaded.moved:
+            return
+        layout, roster = _loading(documents, loaded, built, log)
+        gone = dropped(bus, OWNED, stop, RETAINED_S)
+        log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
+
+
+def _documents(documents: Documents, railroad: str) -> tuple[Layout, Roster]:
+    """The pair the interface is built from: the railroad's topology and the
+    stock that runs on it."""
+    return documents.layout(railroad), documents.roster(railroad)
+
+
+def _loading(
+    documents: Documents, loaded: Loaded, built: str, log: Callable[[str], None]
+) -> tuple[Layout, Roster]:
+    """The railroad just named, or the one still running where the store has
+    no such railroad or its documents do not load. A store that is not
+    answering is waited for rather than refused, which is `lib/documents.py`'s
+    own retry and not a case here (ADR-0050)."""
+    try:
+        return _documents(documents, loaded.name)
+    except (OSError, ValueError, TypeError) as refused:
+        log(f"'{loaded.name}': {refused} — staying on '{built}'")
+        loaded.keep(built)
+        return _documents(documents, built)
 
 
 def _connected(bus: MqttBus, stop: threading.Event, log: Callable[[str], None]) -> bool:

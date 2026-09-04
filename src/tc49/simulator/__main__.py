@@ -72,6 +72,8 @@ from collections.abc import Callable
 
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
+from tc49.lib.layout import Layout
+from tc49.lib.loading import Loaded, dropped
 from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
 from tc49.simulator.sim import Simulator
 
@@ -97,6 +99,19 @@ flagged for ADR-0030's reason — a delay this binding chose is not a distance
 divided by a speed, and the railroad it stands in for is the one thing that
 could say otherwise. The suite shortens them, a test that waited out a real
 transit spending half a minute on one move."""
+
+RETAINED_S = 1.0
+"""How long the broker is given to hand over the rows this app owns when a
+railroad is loaded, before they are cleared. A bound and not a promise: the
+values arrive as the subscription lands, and a broker holding none would
+otherwise be waited for forever. Nothing waits on it at startup — a cold
+start has nothing to clear (ADR-0059, decision 5)."""
+
+OWNED = ("tc49/layout/state/railroad", "tc49/layout/state/power")
+"""The retained rows this binding of the layout interface writes: which
+railroad it is standing in for, and a supply that is live because simulated
+rails always are. The block events it publishes as trains move are events and
+carry no retained value to drop (ADR-0060)."""
 
 BROKER_S = 5.0
 """How long one wait for the broker lasts before it is said again. The wait is
@@ -134,14 +149,50 @@ def serve(
     wire come off wall time in the binding (ADR-0059, decision 1) — so a
     restart resetting it is news to nobody (ADR-0009).
     """
-    layout = documents.layout(railroad)
-    log(f"'{railroad}': {len(layout.blocks)} blocks")
+    loaded = Loaded(railroad)
+    layout = documents.layout(loaded.name)
+    log(f"'{loaded.name}': {len(layout.blocks)} blocks")
     if not _connected(bus, stop, log):
         return
-    clock = Clock()
-    simulator = Simulator(bus, layout, clock, transit_s=transit_s, clear_s=clear_s)
-    log(f"up on '{railroad}', waiting at most {period_s}s a turn")
-    simulator.run_live(period_s, sleep=_waiting(stop), stop=stop.is_set)
+    while not stop.is_set():
+        clock = Clock()
+        simulator = Simulator(bus, layout, clock, transit_s=transit_s, clear_s=clear_s)
+        # After the app is built and not before: the row is retained, so
+        # subscribing here is handed whatever it holds, and nothing this app
+        # does on the way up moves — a command published in the instant
+        # between an app's opening rows and its own subscriptions is lost,
+        # and that instant is not one to lengthen (ADR-0059, decision 5).
+        loaded.follow(bus)
+        built = loaded.name
+        log(f"up on '{built}', waiting at most {period_s}s a turn")
+        # The loop the app already owns, ended by a signal or by the railroad
+        # moving under it — this binding's steel is the drawing it was built
+        # from, so another railroad is another simulator (ADR-0030).
+        simulator.run_live(
+            period_s,
+            sleep=_waiting(stop),
+            stop=lambda: stop.is_set() or loaded.moved,
+        )
+        if not loaded.moved:
+            return
+        layout = _loading(documents, loaded, built, log)
+        gone = dropped(bus, OWNED, stop, RETAINED_S)
+        log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
+
+
+def _loading(
+    documents: Documents, loaded: Loaded, built: str, log: Callable[[str], None]
+) -> Layout:
+    """The railroad just named, or the one still running where the store has
+    no such railroad or its drawing does not derive. A store that is not
+    answering is waited for rather than refused, which is `lib/documents.py`'s
+    own retry and not a case here (ADR-0050)."""
+    try:
+        return documents.layout(loaded.name)
+    except (OSError, ValueError, TypeError) as refused:
+        log(f"'{loaded.name}': {refused} — staying on '{built}'")
+        loaded.keep(built)
+        return documents.layout(built)
 
 
 def _connected(bus: MqttBus, stop: threading.Event, log: Callable[[str], None]) -> bool:

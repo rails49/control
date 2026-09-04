@@ -51,6 +51,7 @@ import threading
 from collections.abc import Callable
 
 from tc49.driver.driver import Driver
+from tc49.lib.loading import Loaded
 from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
 
 CLIENT_ID = "tc49-driver"
@@ -93,14 +94,34 @@ def serve(
     The line saying it is up is the only announcement there is. This app owns
     no row, so nothing on the bus says it has arrived, and a person reading
     the container's log is who the sentence is for.
+
+    The outer loop is one railroad each time round. A railroad is loaded
+    while the apps run (ADR-0060), so the row naming another one ends the
+    inner loop and the driver is built again — with **nothing to clear**,
+    this being the one app of the five that owns no retained row, and nothing
+    to read either. What a rebuild drops is the transit it was in the middle
+    of, which belongs to the railroad that is gone (ADR-0054).
     """
     if not _connected(bus, stop, log):
         return
-    Driver(bus)
-    log(f"up on '{railroad}', draining every {period_s}s")
+    loaded = Loaded(railroad)
     while not stop.is_set():
-        bus.drain()
-        stop.wait(period_s)
+        Driver(bus)
+        # After the app is built and not before: the row is retained, so
+        # subscribing here is handed whatever it holds, and nothing this app
+        # does on the way up moves — a grant published in the instant between
+        # an app coming up and its own subscriptions is lost, and that
+        # instant is not one to lengthen (ADR-0059, decision 5).
+        loaded.follow(bus)
+        built = loaded.name
+        log(f"up on '{built}', draining every {period_s}s")
+        while not stop.is_set() and not loaded.moved:
+            bus.drain()
+            stop.wait(period_s)
+        if not loaded.moved:
+            return
+        bus.forget()
+        log(f"loading '{loaded.name}': nothing of '{built}' to clear")
 
 
 def _connected(bus: MqttBus, stop: threading.Event, log: Callable[[str], None]) -> bool:

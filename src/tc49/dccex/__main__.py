@@ -41,6 +41,13 @@ twice — two stations, two translators, decision 7 — and two clients sharing
 one client id take turns disconnecting each other on the broker for as long as
 both are up.
 
+**A railroad loaded under it changes nothing here.** The other five apps
+follow `tc49/layout/state/railroad` and rebuild on the railroad it names
+(ADR-0060); this one takes no `--railroad` and owns no row keyed by a
+railroad — the link it has and the supply it reports are the command
+station's, and the station is still the same station. So it stands, and its
+rows stand with it (`tests/system/test_reload.py`).
+
 The startup order is what a cold start needs, and it has no store in it:
 
 1. **No documents.** An app that reads nothing cannot be brought up in the
