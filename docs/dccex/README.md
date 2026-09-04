@@ -32,13 +32,17 @@ the others, and every client is a peer — nothing in the firmware ranks them.
 *Subscribes* `tc49/layout/state/wanted/#`. *Publishes*
 `tc49/layout/state/device/track` and `tc49/layout/state/device/link/dccex`.
 
-**It acts on an address only if it recognises it**, and there is no ownership
-table anywhere. A point or signal address whose first level is `dccex`, and
-any traction or function address, which is bare because a decoder answers to
-the number it was programmed with whoever sends the packet and traction
-cannot be split across systems
+**It acts on every address it hears**, and there is no ownership table
+anywhere. An address names no system — it is the string the drawing carries
+and the hardware answers to
+([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md))
+— so every point and signal address is this app's, as every traction and
+function address is, a decoder answering to the number it was programmed with
+whoever sends the packet
 ([ADR-0045](../adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
-An address nothing answers to does no harm, as a packet nobody picks up does.
+What this station has no packet for — a turnout numbered outside the accessory
+range — falls away in the mapping below. An address nothing answers to does no
+harm, as a packet nobody picks up does.
 
 **On connect it applies the retained desired state and does nothing else.**
 The desired values are the whole picture, so there is no handshake and no
@@ -108,8 +112,8 @@ on every output, and a missing file leaves the wiring behind that.
 | desired | sent |
 | --- | --- |
 | `wanted/traction/<addr>` `speed` | `<t addr step dir>` — the fraction scaled to 0–126 and the sign taken as the direction; `speed 0.0` sends step 0 |
-| `wanted/point/dccex/<addr>` `position` | `<a addr sub act>`, a stateless accessory packet; `thrown` writes `1` |
-| `wanted/signal/dccex/<addr>` `aspect` | `<A addr aspect>`, the extended accessory packet the head's wiring expects |
+| `wanted/point/<addr>` `position` | `<a addr sub act>`, a stateless accessory packet; `thrown` writes `1` |
+| `wanted/signal/<addr>` `aspect` | `<A addr aspect>`, the extended accessory packet the head's wiring expects |
 | `wanted/track` `on` | `<1>`, which reaches every track the station has |
 | `wanted/track` `off` | `<0>` |
 | `wanted/track` `stopped` | `<!P>`, the station's emergency-stop **lock** |
