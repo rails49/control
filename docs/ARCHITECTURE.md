@@ -168,6 +168,13 @@ src/tc49/
                                bytes out, pure
                 replies.py     the framing, and the two facts this app reads
                                out of what the station says
+                __main__.py    `python -m tc49.dccex --broker … --station …
+                               [--startup …] [--id …]`, the command line a
+                               container runs: the broker, the desired rows it
+                               has retained, then asyncio owning the link and
+                               the drain until a signal, which stands the
+                               railroad down. No railroad and no store —
+                               hardware needs no layout (ADR-0059)
 
   bench/        runner.py   assemble the apps on one bus and run a scenario
                             to quiescence — the one wiring, shared by the
@@ -300,7 +307,7 @@ tests/
                test_occupancy  test_traction  test_mode  test_throttle
                test_railroad  test_main
   dccex_usb/   test_framing  test_station
-  dccex/       test_commands  test_replies  test_translator
+  dccex/       test_commands  test_replies  test_translator  test_main
   system/      test_skeleton  test_properties  test_safety_conditions
                test_app_boundaries
 ```
