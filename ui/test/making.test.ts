@@ -598,3 +598,40 @@ describe("unmaking the current train", () => {
     expect(plus(shell).title).toBe("make a train up first");
   });
 });
+/**
+ * A refusal changes nothing by construction, so the value bound to a field is
+ * the one it was last rendered with: Lit skips the write and the field goes on
+ * showing what was typed, which is a value the document has not got (#416).
+ */
+describe("a refused edit", () => {
+  it("puts the car's name back to the one the roster holds", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const field = () => parts(shell, "li.car input.name")[0] as HTMLInputElement;
+
+    await typed(shell, field(), "a/b");
+
+    expect(trouble(shell)).toBe("'a/b' is not a name a car can have");
+    expect(field().value).toBe("arnold-ce68-1");
+  });
+
+  it("puts a length the run has placed back to the document's", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const field = () => parts(shell, "li.car input.length")[0] as HTMLInputElement;
+    await typed(shell, field(), "150");
+    await pressed(shell, "sl-button.save");
+    store.rosterOf = () => ({ ore: { length: 450 } });
+
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { ore: "a" },
+      locks: { a: "ore" },
+      requests: [],
+    });
+    await shows(shell, "stock");
+    await typed(shell, field(), "200");
+
+    expect(trouble(shell)).toMatch("'ore' is on the layout");
+    expect(field().value).toBe("150");
+  });
+});
