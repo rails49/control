@@ -106,6 +106,23 @@ length is the sum of its cars from then on, a train saying one of the two and
 never both. Saving the roster unedited keeps the stated length as it was
 ([#414](https://github.com/rails49/control/issues/414)).
 
+**Unsaved roster edits are asked about before the app discards them.** The
+railroad is the app's and both its documents go with it, so changing railroad
+in the band's picker, or pressing New railroad, asks the same question the
+drawing has been guarded by since
+[#101](https://github.com/rails49/control/issues/101) — and the words name
+which document is at stake: *the drawing*, *the roster*, or *the drawing and
+the roster*. Cancel leaves everything as it was, the rake being composed
+included; Discard opens what was asked for and this view reads that railroad's
+roster. A rake composed and not saved used to go with no trace, the question
+never firing because the drawing was clean
+([#415](https://github.com/rails49/control/issues/415)). The question is
+`tc-app.ts`'s, as the railroad is: this view says whether its `Stock` holds
+edits — a `roster-edits` event, the way the run view says what its session is
+doing — and the app asks before the railroad moves. **Switching view changes no
+railroad**, so nothing is read again and the rake comes back as it was left.
+Closing or reloading the browser is not asked about; neither is the drawing.
+
 **Refusals name what holds a thing.** A car a train is made of cannot be
 removed, and the message says which train. A model's row says what names it —
 the cars that are one, then the trains whose entries do — for the same reason,
@@ -159,7 +176,9 @@ store starting, or whatever is in front of it learning where it is. A refusal
 is not, the store having answered, and nothing is read again after one. There
 is nothing on this screen to press, so without the try the message stood until
 somebody reloaded the page. The try is dropped when the app loads another
-railroad and when this view is left.
+railroad and when this view is left. So is what was being composed: a roster
+edited for the railroad that was open goes when another is loaded, the app
+having asked about it first (#415).
 
 **A failed Create leaves the dialog open**, with the message beside the button
 — *PUT /catalogue/hopper answered 404* — so the product is still written down
@@ -229,3 +248,7 @@ train made up here without a reload, the row an older roster's train draws and
 the first entry converting it, and the three ways a call to the store fails as
 this screen shows them. The words themselves are
 `ui/test/asking.test.ts`'s, at the helper that decides them.
+
+The question over unsaved roster edits is `ui/test/opening.test.ts`'s, beside
+the drawing's: it is the app's question about the app's railroad, and what the
+two documents have to say about it belongs in one place (#415).

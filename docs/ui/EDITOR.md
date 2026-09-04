@@ -737,7 +737,12 @@ it is reviewable.
 starting a new one both throw away whatever has been drawn since the last
 Save, so where there is something to lose they ask first (#101). It is a
 dialog of the editor's own, rather than a native `confirm` the page cannot
-style. Declining leaves the editor exactly as it was — the same drawing, the
+style. **Both of the railroad's documents are asked about**: the drawing here
+and the roster the [stock view](STOCK.md) is composing, either one unsaved
+raising the question and the words naming which — *the drawing*, *the roster*,
+or *the drawing and the roster*
+([#415](https://github.com/rails49/control/issues/415)). Declining leaves the
+editor exactly as it was — the same drawing, the
 same edits, the same dot, the same undo history — because the question comes
 before anything is read or reset, `New…` asking for its name only once the
 edits have been given up. Accepting opens what was asked for. With nothing to
