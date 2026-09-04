@@ -24,7 +24,7 @@ alone and the length comes back on the :class:`~tc49.lib.roster.Roster`.
 The **catalogue** is the installation's and belongs to no railroad, a model
 being what a product is (ADR-0045); a roster is read against it, since a car
 names a model and is complete only once merged onto one. Both stock documents
-are validated in :mod:`tc49.store.stock`.
+are validated in :mod:`tc49.lib.stock`.
 """
 
 from pathlib import Path
@@ -32,6 +32,7 @@ from typing import Any, cast
 
 import yaml
 
+from tc49.lib import stock
 from tc49.lib.layout import (
     FACINGS,
     Layout,
@@ -44,7 +45,7 @@ from tc49.lib.layout import (
 )
 from tc49.lib.roster import Model, Roster
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
-from tc49.store import stock, yamlfile
+from tc49.store import yamlfile
 from tc49.store.drawing import Drawing
 
 
@@ -143,7 +144,7 @@ class AssetStore:
 
         As written, the way `drawing` is: the catalogue screen edits this
         file, and a model's document is the one place a field nothing reads
-        — the shelf a locomotive lives on — survives a save (`store.stock`).
+        — the shelf a locomotive lives on — survives a save (`lib/stock.py`).
         Checked all the same, so what comes back is a model.
         """
         doc = cast(dict[str, Any], self._read(self._model_path(name)))

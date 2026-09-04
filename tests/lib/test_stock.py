@@ -15,8 +15,8 @@ import pytest
 import yaml
 
 from tc49.lib.roster import Model, Train
+from tc49.lib.stock import validate_model, validate_roster
 from tc49.store import AssetStore
-from tc49.store.stock import validate_model, validate_roster
 from tests.harness import ASSETS
 
 

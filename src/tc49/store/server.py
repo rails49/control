@@ -58,7 +58,7 @@ model is what a product is and a car names one (ADR-0045). They answer
 documents rather than the merged models a roster is read against, because what
 reads them is the screen that edits them — and because a model document keeps
 fields nothing here will ever branch on, the shelf a locomotive lives on among
-them (`store.stock`). One file per model, which is what keeps two entries
+them (`lib/stock.py`). One file per model, which is what keeps two entries
 independently editable and a backup's `git diff` readable.
 
 `PUT /catalogue/<name>` is the first write on this face that is not a

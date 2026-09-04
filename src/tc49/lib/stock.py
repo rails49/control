@@ -19,6 +19,12 @@ A car's fields are merged onto its model's here rather than by whatever reads
 one, so **the merged result is what is validated** and every consumer sees a
 complete car however it was written.
 
+**In `lib` and not in the store**, though the store is what keeps the files:
+what validates a document is what reads one, and an app in its own process
+reads its railroad's roster off the store's HTTP face and cannot import the
+store to make sense of it (ADR-0013, ADR-0059 decision 5). The same place
+`Layout.from_document` already was, and for the same reason.
+
 An **entry in a train names either a car or a model**
 ([ADR-0061](../../../docs/adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)):
 `cars` holds identified stock — an item with an address, or with a field
