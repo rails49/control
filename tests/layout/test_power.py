@@ -444,9 +444,9 @@ def test_the_run_this_app_reads_is_the_last_one_stated() -> None:
 
 
 def test_an_applied_off_writes_zero_over_a_standing_traction_row() -> None:
-    """ "The railroad comes up at rest" is a promise about a power cycle as
-    well as about a process start (#435, ADR-0054). Nothing else writes this
-    row down: the arrival zero reaches only a train this app drives, so a
+    """ "The railroad comes up at rest" is a promise about a **power off** and
+    the `on` after it as well as about a process start (#435, ADR-0054).
+    Nothing else writes this row down: the arrival zero reaches only a train this app drives, so a
     plain `off` would otherwise leave a person's lever standing in the row
     and the next `on` would bring current back over it."""
     bus, _app = build()
