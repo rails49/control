@@ -198,12 +198,11 @@ export interface TrainDoc {
 }
 
 /** One thing a person can switch on a train, by the name the catalogue gives
- *  it: `headlights`, `vacuum`. `values` is what it can be in, **first entry
- *  first** — that is the one it is in when nothing has been commanded, which
- *  is why it is a list and not a set (`tc49.lib.roster.Function`). */
+ *  it: `headlights`, `vacuum`. The name is the whole of it — a function is one
+ *  bit, so there is no value list to carry (`tc49.lib.roster.Function`,
+ *  ADR-0063). */
 export interface Fn {
   name: string;
-  values: string[];
 }
 
 export async function readTrains(railroad: string): Promise<TrainsDoc> {
@@ -324,11 +323,12 @@ export interface ModelDoc {
   functions?: Record<string, ModelFn>;
 }
 
-/** One function on a model: what it is called, and what it can be in. Absent
- *  `values` is the plain switch, `["off", "on"]`, off to begin with. */
+/** One function on a model: what it is called, and nothing else. A function
+ *  is one bit, so a value list would be describing something no throttle can
+ *  ask for; a `values` an older file states is ignored at both ends
+ *  (ADR-0063). */
 export interface ModelFn {
   name: string;
-  values?: string[];
 }
 
 /**

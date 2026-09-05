@@ -250,10 +250,7 @@ describe("what a person can switch", () => {
     const stock = {
       t1: {
         length: 400,
-        functions: [
-          { name: "headlights", values: ["off", "on"] },
-          { name: "vacuum", values: ["off", "low", "high"] },
-        ],
+        functions: [{ name: "headlights" }, { name: "vacuum" }],
       },
     };
     expect(drive(model, stock)[0]!.functions).toEqual(stock.t1.functions);
