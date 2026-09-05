@@ -116,6 +116,14 @@ length is the sum of its cars from then on, a train saying one of the two and
 never both. Saving the roster unedited keeps the stated length as it was
 ([#414](https://github.com/rails49/control/issues/414)).
 
+The note says what that costs before the press: it names the stated number and
+says that filling the train in takes it. Emptying the train again does not
+bring it back — the train is the ordinary shape by then, and an empty one is
+refused at Save ([#412](https://github.com/rails49/control/issues/412)). The
+stated length is a property of the older shape that the conversion consumes,
+so the screen owes the price before the press rather than the number
+afterwards ([#448](https://github.com/rails49/control/issues/448)).
+
 **Unsaved roster edits are asked about before the app discards them.** The
 railroad is the app's and both its documents go with it, so pressing New
 railroad asks the same question the drawing has been guarded by since
