@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 import yaml
 
-from tc49.lib.roster import Model, Train
+from tc49.lib.roster import Function, Model, Train
 from tc49.lib.stock import validate_model, validate_roster
 from tc49.store import AssetStore
 from tests.harness import ASSETS
@@ -60,10 +60,11 @@ def _catalogued_store(root: Path) -> AssetStore:
 def test_a_model_is_a_length_a_kind_and_what_each_function_does() -> None:
     model = CATALOGUE["sbb-re460"]
     assert (model.kind, model.length) == ("locomotive", 220)
-    assert model.functions["0"].name == "headlights"
-    # Absent `values` is the plain switch, off to begin with.
-    assert model.functions["0"].values == ("off", "on")
-    assert model.functions["5"].values == ("off", "low", "high")
+    assert model.functions["0"] == Function("headlights")
+    # A function is a name on a number and nothing else, so the `values` an
+    # older file states is an unknown key like any other and is ignored
+    # (ADR-0063).
+    assert model.functions["5"] == Function("vacuum")
 
 
 def test_a_model_may_say_who_made_it_what_scale_and_what_it_is() -> None:
@@ -300,7 +301,6 @@ def test_a_trains_functions_are_its_cars_by_name_and_each_name_once() -> None:
     )
     functions = stock.trains["top_and_tail"].functions
     assert [function.name for function in functions] == ["headlights", "vacuum"]
-    assert functions[1].values == ("off", "low", "high")
     # A train whose cars declare none has none, and so has one made of no cars.
     assert stock.trains["ic_721"].functions == ()
     assert Train(stated_length=400).functions == ()

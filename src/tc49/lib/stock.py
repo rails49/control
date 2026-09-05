@@ -39,7 +39,6 @@ from typing import Any, cast
 from tc49.lib.layout import as_mapping, check_length, check_name, check_required
 from tc49.lib.roster import (
     KINDS,
-    OFF_ON,
     ORIENTATIONS,
     Car,
     Coupled,
@@ -297,9 +296,13 @@ def _functions(spec: Any, where: str) -> dict[str, Function]:
     """What each function number does on this product.
 
     The key is the number **written as a string**, because YAML integer keys
-    and JSON object keys do not agree, and a value is a string for the same
-    reason one level down: YAML reads a bare `off` as a boolean, so the words
-    are quoted and a boolean is refused rather than silently renamed.
+    and JSON object keys do not agree.
+
+    The name is the whole of the entry: a function is one bit, so there is
+    nothing a value list could say that a translator could send (ADR-0063).
+    A `values` an older file still states is an unknown key like any other
+    here and is ignored, which is what `check_required` is lenient for — no
+    catalogue has to be rewritten to be read.
     """
     functions: dict[str, Function] = {}
     for number, entry in as_mapping(spec or {}, f"{where}: functions").items():
@@ -310,23 +313,5 @@ def _functions(spec: Any, where: str) -> dict[str, Function]:
         name = held["name"]
         if not isinstance(name, str) or not name:
             raise ValueError(f"{at}: name must be a non-empty string, got {name!r}")
-        functions[number] = Function(name, _values(held.get("values"), at))
+        functions[number] = Function(name)
     return functions
-
-
-def _values(spec: Any, where: str) -> tuple[str, ...]:
-    """What a function can be in, first entry first: that is what it is in
-    when nothing has been commanded. Absent is the plain switch."""
-    if spec is None:
-        return OFF_ON
-    if not isinstance(spec, list) or not spec:
-        raise ValueError(f"{where}: values must be a non-empty list, got {spec!r}")
-    values: list[str] = []
-    for value in cast(list[Any], spec):
-        if not isinstance(value, str) or not value:
-            raise ValueError(
-                f"{where}: value must be a non-empty string — quote it, as"
-                f' `["off", "on"]` — got {value!r}'
-            )
-        values.append(value)
-    return tuple(values)

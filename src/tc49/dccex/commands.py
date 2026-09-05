@@ -24,7 +24,6 @@ what is in it.
 """
 
 from tc49.lib.inventory import OFF, ON, STOPPED
-from tc49.lib.roster import OFF_ON
 
 STEPS = 126
 """What a speed's magnitude is scaled to. The station takes `0..126` and
@@ -93,19 +92,18 @@ def traction(addr: str, speed: float) -> bytes:
     return f"<t {addr} {round(magnitude * STEPS)} {direction}>".encode()
 
 
-def function(addr: str, number: str, value: str) -> bytes | None:
+def function(addr: str, number: str, value: bool) -> bytes:
     """A locomotive's function: `<F addr n 0|1>`.
 
-    The station's function is a **switch**, so the two values a model may
-    leave unstated are the two that reach the wire (`tc49.lib.roster.OFF_ON`)
-    and any other — the `low` and `high` of a three-position vacuum — names a
-    state this hardware has no packet for and sends nothing. A model states
-    what its functions mean and a decoder answers to numbers; which of them a
-    railroad can actually drive is the translator's answer, given here.
+    The station's function is a **switch** and so is the row that reaches it:
+    a function is one bit here as it was everywhere else it was checked
+    (ADR-0063). So every value the row can carry is one this station can be
+    told, and this is **never `None`** for the reason `traction` is not —
+    there is nothing left to refuse. What people mean by a range is decoder
+    configuration, which is a different capability and no packet of this
+    shape.
     """
-    if value not in OFF_ON:
-        return None
-    return f"<F {addr} {number} {OFF_ON.index(value)}>".encode()
+    return f"<F {addr} {number} {int(value)}>".encode()
 
 
 def point(addr: str, position: str) -> bytes | None:

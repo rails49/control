@@ -39,15 +39,10 @@ def test_a_fraction_past_the_maximum_is_the_maximum() -> None:
 
 
 def test_a_function_is_the_switch_the_station_has() -> None:
-    assert commands.function("3", "2", "on") == b"<F 3 2 1>"
-    assert commands.function("3", "2", "off") == b"<F 3 2 0>"
-
-
-def test_a_function_value_this_hardware_cannot_express_sends_nothing() -> None:
-    """A model's functions are fully configurable and the station's are
-    switches, so a three-position vacuum names a state there is no packet
-    for and nothing is sent rather than something near it."""
-    assert commands.function("3", "5", "high") is None
+    """The bit the row carries, and the same bytes the words `on` and `off`
+    reached the wire as before the row carried a boolean (ADR-0063)."""
+    assert commands.function("3", "2", True) == b"<F 3 2 1>"
+    assert commands.function("3", "2", False) == b"<F 3 2 0>"
 
 
 def test_a_point_is_a_stateless_accessory_packet() -> None:

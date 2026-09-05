@@ -709,13 +709,12 @@ def test_a_desired_value_that_cannot_be_read_reads_as_none() -> None:
         assert desired_speed(payload) is None, payload
 
 
-def test_the_three_named_desired_values_read_as_the_names_they_carry() -> None:
-    """A position, an aspect and a function's value are read as names and
-    nothing more: which names mean anything is the contract's for a position,
-    a head's wiring for an aspect, and the model's for a function."""
+def test_the_two_named_desired_values_read_as_the_names_they_carry() -> None:
+    """A position and an aspect are read as names and nothing more: which
+    names mean anything is the contract's for a position and a head's wiring
+    for an aspect."""
     assert desired_position({"addr": "dccex/5", "position": "thrown"}) == "thrown"
     assert desired_aspect({"addr": "dccex/40", "aspect": "caution"}) == "caution"
-    assert desired_function({"addr": "3", "function": "2", "value": "on"}) == "on"
 
 
 def test_a_named_desired_value_that_is_no_name_reads_as_none() -> None:
@@ -723,7 +722,24 @@ def test_a_named_desired_value_that_is_no_name_reads_as_none() -> None:
     for payload in unreadable:
         assert desired_position(payload) is None, payload
     assert desired_aspect({"addr": "dccex/40"}) is None
-    assert desired_function({"addr": "3", "value": 1}) is None
+
+
+def test_a_desired_function_is_a_boolean_and_a_word_is_no_value() -> None:
+    """A function is one bit on the wire wherever it was checked, so the row
+    carries the bit (ADR-0063). The strings `off` and `on` it once carried
+    are read as nothing at all, here rather than at each translator."""
+    assert desired_function({"addr": "3", "function": "2", "value": True}) is True
+    assert desired_function({"addr": "3", "function": "2", "value": False}) is False
+    unreadable: list[object] = [
+        True,  # not an object at all
+        {"addr": "3", "function": "2"},
+        {"addr": "3", "function": "2", "value": "on"},
+        {"addr": "3", "function": "2", "value": "off"},
+        {"addr": "3", "function": "2", "value": 1},
+        {"addr": "3", "function": "2", "value": None},
+    ]
+    for payload in unreadable:
+        assert desired_function(payload) is None, payload
 
 
 def test_a_retained_facing_reads_as_the_map_it_states() -> None:

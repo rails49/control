@@ -265,7 +265,7 @@ async def _traction_address_is_bare_and_is_this_apps() -> None:
     address at all."""
     bus, _ = bus_and_tap()
     wanted(bus, TRACTION, "3/2", {"addr": "3/2", "speed": 1.0})
-    wanted(bus, FUNCTION, "3/2", {"addr": "3", "function": "2", "value": "on"})
+    wanted(bus, FUNCTION, "3/2", {"addr": "3", "function": "2", "value": True})
     port = Port()
     async with running(bus, port):
         station = await port.opened()
