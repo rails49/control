@@ -321,9 +321,13 @@ cuts track power
 It is read at the end of every sweep, a sweep being what runs wherever a
 train can have stopped being active, so a drain over a railroad with nothing
 under way ends in the press that asked for it. Manual trains count by the
-same rule and need no rule of their own: every train moves on a route the
-dispatcher allocated, and *manual* names only who turns the throttle
-([#207](https://github.com/rails49/control/issues/207)).
+same rule and need no rule of their own: a train this app has granted moves on
+a route it allocated whoever turns the throttle
+([#207](https://github.com/rails49/control/issues/207)). A train taken in a
+throttle with no request behind it is another matter — it is not active, holds
+no drain open and does not read as **moving**, and the layout writes its
+wheels without asking for a grant. A cut under that train is not refused, and
+that is a user error the app does not guard (CONTEXT.md, **Moving**).
 
 `held` published while a drain is in progress **abandons** it, at once and
 without waiting for a train to finish, and `stopped` power is always honoured

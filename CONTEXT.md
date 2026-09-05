@@ -493,7 +493,10 @@ nothing granted is not. It is what the panel's OFF waits to see false before
 cutting power, and what the layout checks before applying a plain `off`
 ([ADR-0062](docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
 A manual train on its route is active and so moving, whatever its throttle
-reads.
+reads. A manual train **off** its route is neither, since only the
+dispatcher's own grants populate the two, so `moving` reads false and an
+`off` is applied while a person drives it: asking for **power off** with a
+train in hand is a user error the app does not guard.
 _Avoid_: busy, in motion, rolling, quiet/still (for the negation — say "not
 moving")
 
