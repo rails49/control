@@ -13,25 +13,13 @@ nothing outside this process has an opinion about how often it takes what the
 broker's network thread left waiting, or about how many candidates a launch
 tries, and `bench` is where a budget is a number somebody varies.
 
-The startup order is what a cold start needs:
-
-1. **The documents**, first and blocking, because an app with no layout has
-   nothing to do and the store is the thing most likely not to be up yet. Two
-   of them here, the layout and the roster: the roster is the whole of what
-   the dispatcher knows about stock, and being on it is what makes a train
-   **known** (ADR-0039). The retry and what it says on stderr are
-   `lib/documents.py`'s.
-2. **The broker**, waited for the same way, because a publish made to a broker
-   that is not there is dropped rather than queued (ADR-0050) — and the rows
-   below are this app's opening ones.
-3. **The picture this app already owns**, if the broker is holding one. On the
-   in-process binding a retained value is there synchronously and the
-   dispatcher reads it as it is constructed (#123); on a broker it arrives
-   moments after the subscription does, so the wait is here, in the thing that
-   assembles the app, and no app code learns which binding it got. It is
-   `lib/startup.py`'s wait, ended by the row landing or by a stop. Missing it
-   would lose the hold that picture imposes — a restored session comes up held
-   whatever the steel has been doing meanwhile.
+The startup order is `lib/startup.py`'s, and this app runs all three of its
+steps. **Two documents**, the layout and the roster: the roster is the whole
+of what the dispatcher knows about stock, and being on it is what makes a
+train **known** (ADR-0039). **One row of its own to adopt**, the picture it
+already holds (`tc49/dispatch/state/allocation`) — missing it would lose the
+hold that picture imposes, and a restored session comes up held whatever the
+steel has been doing meanwhile.
 
 What the layout says about the supply is *not* waited for: `state/power`
 arrives on the dispatcher's own filter at the first drain, and the run comes
