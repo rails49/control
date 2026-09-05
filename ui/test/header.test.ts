@@ -34,6 +34,43 @@ function views(header: TcHeader): HTMLButtonElement[] {
   return [...header.renderRoot.querySelectorAll<HTMLButtonElement>("button.view")];
 }
 
+/** Put the picker's list down, which is where a railroad is chosen. */
+async function listing(header: TcHeader): Promise<TcHeader> {
+  (header.renderRoot.querySelector("button.chosen") as HTMLElement).click();
+  await header.updateComplete;
+  return header;
+}
+
+/** Click one of the railroads the picker lists. */
+async function choose(header: TcHeader, name: string): Promise<TcHeader> {
+  const entries = [...header.renderRoot.querySelectorAll("menu.drawings li button")];
+  const entry = entries.find(
+    (one) => one.querySelector(".label")!.textContent!.trim() === name,
+  ) as HTMLElement;
+  entry.click();
+  await header.updateComplete;
+  return header;
+}
+
+/** The railroads the picker was asked for while `act` ran. */
+async function asked(header: TcHeader, act: () => Promise<void>): Promise<string[]> {
+  const heard: string[] = [];
+  header.addEventListener("railroad-wanted", (event) => {
+    heard.push((event as CustomEvent<string>).detail);
+  });
+  await act();
+  return heard;
+}
+
+/** A band with three railroads to pick from, one of them loaded, and the
+ *  rails dead — which is the whole of the precondition on picking one
+ *  (ADR-0060). */
+const LOADED = {
+  drawing: "reversing-loops",
+  drawings: ["crossover-yard", "reversing-loops", "otira"],
+  power: "off" as const,
+};
+
 /** Which railroad is loaded is the whole system's, both views being of it, so
  *  the name reads in the band and not on a view's bar (#167, ADR-0038). */
 describe("what the band names", () => {
@@ -46,16 +83,104 @@ describe("what the band names", () => {
   it("says plainly when none is", async () => {
     expect(reads(await band(), ".drawing")).toBe("no railroad");
   });
+});
 
-  /** A reading and not a choice. One broker runs one railroad and the layout
-   *  interface says which on a retained row (ADR-0059, decision 2), so there
-   *  is nothing here to press: the picker that stood here went with the
-   *  bridge, and #394 is where a railroad becomes choosable again. */
-  it("offers nothing to press, the railroad not being the band's to change", async () => {
-    const header = await band({ drawing: "reversing-loops" });
-    expect(header.renderRoot.querySelector("button.chosen")).toBeNull();
+/** Which railroad is loaded is the whole system's, so the control that asks
+ *  for another is the band's and not a menu on one view's bar (#167,
+ *  ADR-0038). It asks and does not load: the gesture goes on the bus and the
+ *  layout interface answers it (ADR-0060). */
+describe("the railroad picker", () => {
+  it("lists what the store has and ticks the one that is loaded", async () => {
+    const header = await listing(await band(LOADED));
+    const listed = [...header.renderRoot.querySelectorAll("menu.drawings li")].map(
+      (one) => [
+        one.querySelector(".label")!.textContent!.trim(),
+        one.querySelector(".tick")!.textContent!.trim(),
+      ],
+    );
+    expect(listed).toEqual([
+      ["crossover-yard", ""],
+      ["reversing-loops", "✓"],
+      ["otira", ""],
+    ]);
+  });
+
+  it("says which railroad was chosen, and puts the list up", async () => {
+    const header = await listing(await band(LOADED));
+    const heard = await asked(header, async () => {
+      await choose(header, "otira");
+    });
+    expect(heard).toEqual(["otira"]);
     expect(header.renderRoot.querySelector("menu.drawings")).toBeNull();
-    expect(header.renderRoot.querySelector(".dismiss")).toBeNull();
+  });
+
+  /** The name goes on being the row the layout interface answered with: the
+   *  band asks, and the app is told what is loaded by the bus (ADR-0035). */
+  it("goes on naming the railroad that is loaded after a choice", async () => {
+    const header = await listing(await band(LOADED));
+    await choose(header, "otira");
+    expect(reads(header, ".drawing")).toBe("reversing-loops");
+  });
+
+  /** The tick says which railroad is loaded, and that is all it says:
+   *  re-reading it would throw away whatever has been drawn since (#101). The
+   *  rule moves here whole from `File ▸ Open`. */
+  it("asks for nothing when the loaded railroad is chosen", async () => {
+    const header = await listing(await band(LOADED));
+    const heard = await asked(header, async () => {
+      await choose(header, "reversing-loops");
+    });
+    expect(heard).toEqual([]);
+    expect(header.renderRoot.querySelector("menu.drawings")).toBeNull();
+  });
+
+  /** A list of nothing is an empty box that looks broken — the lesson the
+   *  right-click menu already learnt (tc-menu). */
+  it("is dead where the store has nothing to list", async () => {
+    const header = await band({ ...LOADED, drawings: [] });
+    const button = header.renderRoot.querySelector<HTMLButtonElement>("button.chosen")!;
+    expect(button.disabled).toBe(true);
+    expect(button.title).toBe("the store lists no railroad");
+  });
+
+  /** Track power off is the precondition (ADR-0060): a train already under a
+   *  committed route keeps rolling whatever the software forgets, so nothing
+   *  is loaded under live rails. Dead and saying why, because a control that
+   *  is dead and silent reads as an app that is broken — and dead rather than
+   *  turning the power off for you, which is the panel's OFF, drains the run
+   *  first, and is already a gesture a person has (ADR-0051). */
+  it.each(["on", "stopped"] as const)(
+    "is dead while the track reads %s, and offers no way past it",
+    async (power) => {
+      const header = await band({ ...LOADED, power });
+      const button =
+        header.renderRoot.querySelector<HTMLButtonElement>("button.chosen")!;
+      expect(button.disabled).toBe(true);
+      expect(button.title).toBe(
+        "the track has power: switch it off to load another railroad",
+      );
+
+      button.click();
+      await header.updateComplete;
+
+      expect(header.renderRoot.querySelector("menu.drawings")).toBeNull();
+    },
+  );
+
+  /** With no session joined there is nothing on the other end of the gesture:
+   *  the client is the run view's, and a press would go nowhere. */
+  it("is dead where the layout has said nothing about the supply", async () => {
+    const header = await band({ ...LOADED, power: null });
+    const button = header.renderRoot.querySelector<HTMLButtonElement>("button.chosen")!;
+    expect(button.disabled).toBe(true);
+    expect(button.title).toBe("no railroad is running to ask");
+  });
+
+  it("puts the list up when the press lands outside it", async () => {
+    const header = await listing(await band(LOADED));
+    header.renderRoot.querySelector(".dismiss")!.dispatchEvent(new Event("pointerdown"));
+    await header.updateComplete;
+    expect(header.renderRoot.querySelector("menu.drawings")).toBeNull();
   });
 });
 

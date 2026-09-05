@@ -432,9 +432,13 @@ the layout interface publishes its name on `tc49/layout/state/railroad`
 (ADR-0059, decision 2,
 [#371](https://github.com/rails49/control/issues/371)). The run view reads
 that row and hands the name to the app, which loads the drawing and the review
-off the store — so the picture and what feeds it can never be two railroads,
-and there is nothing for a person to pick: switching railroads is restarting
-the apps, and the band's picker went with the bridge. The page subscribes
+off the store — so the picture and what feeds it can never be two railroads.
+Which railroad that is, is a person's choice made while the apps run: the
+band's picker publishes `tc49/layout/railroad_wanted` and this view carries the
+press, the layout interface answers it and the row moves
+([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+The press loads nothing by itself, so a gesture the rails' power refuses leaves
+the page where it was. The page subscribes
 `tc49/#` and publishes only the browser-writable rows. With anonymous clients
 a broker cannot tell a page from an app, so that set is convention rather than
 enforcement, and it is what keeps ADR-0036's single-minter argument holding.
@@ -768,10 +772,11 @@ decision about is running, and a fresh hold is a fresh decision
 ([#153](https://github.com/rails49/control/issues/153)).
 
 **This view has no control of its own.** The session select it used to carry
-is gone, and so is the band's picker: the broker says which railroad is on
-screen and the app loads it
-([#371](https://github.com/rails49/control/issues/371)). What its header still
-draws is the release notice, and only while there is one.
+is gone: the broker says which railroad is on screen and the app loads it
+([#371](https://github.com/rails49/control/issues/371)), and the one control
+that asks for another is the band's, both views being of one railroad
+(ADR-0038, ADR-0060). What its header still draws is the release notice, and
+only while there is one.
 
 **The run view's one source is the bus.** It could read a recorded trace and
 step through it, which is how it was built before there was anything live to

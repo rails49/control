@@ -70,6 +70,7 @@ export const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
 export const RUN_WANTED = "tc49/dispatch/run_wanted";
 export const PLACEMENT_WANTED = "tc49/dispatch/placement_wanted";
 export const POWER_WANTED = "tc49/layout/power_wanted";
+export const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
 
 /** How a run stands: the dispatcher will commit nothing while it is `held`,
  *  it commits everything while it is `running`, and while it is `draining` it
@@ -160,6 +161,27 @@ export function runWanted(run: Run): Frame {
  *  hardware itself. */
 export function powerWanted(power: Power): Frame {
   return { topic: POWER_WANTED, payload: { power } };
+}
+
+/** A `railroad_wanted` frame: load this railroad, the apps staying up. The
+ *  gesture behind `tc49/layout/state/railroad`: which railroad the apps run is
+ *  a person's choice made **while they run**, so a railroad can be created
+ *  from the app and a box wired to steel can carry more than one track plan
+ *  over its life
+ *  ([ADR-0060](../../../docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+ *
+ *  The name is the railroad as the store lists it. Whichever binding of the
+ *  layout interface is running answers it and publishes the row; the page goes
+ *  on reading which railroad is loaded off that row and never off its own
+ *  press (ADR-0035), so a gesture that is refused leaves the page showing the
+ *  railroad that is still running.
+ *
+ *  **Track power off is the precondition**, and the band is what says so: the
+ *  picker is inert while the rails have power, because with the power off
+ *  nothing moves and no turnout throws, and the person who turns it back on is
+ *  the one confirming the rails match the drawing just loaded (ADR-0051). */
+export function railroadWanted(railroad: string): Frame {
+  return { topic: RAILROAD_WANTED, payload: { railroad } };
 }
 
 /** Who turns a train's throttle: `automatic` at rest, `manual` while a person

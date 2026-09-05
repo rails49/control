@@ -18,7 +18,8 @@
  * guard is (ui/STOCK.md).
  *
  * It also holds everything the two rows need. The band is the system's, so the
- * toggle that switches view reports here; the bar is the current view's
+ * picker that asks for a railroad and the toggle that switches view report
+ * here; the bar is the current view's
  * document's, so a command comes here and is either run against the document
  * this holds or passed to the view that owns the surface. The keyboard is the same single path — `model/commands.ts`
  * decides what is dead, and an item and the key printed beside it cannot come
@@ -29,9 +30,12 @@
  * railroad and the layout interface says which on a retained row
  * ([ADR-0059](../../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
  * decision 2), so the run view reads that row and hands the name up here; this
- * reads the documents off the store. There is no picker, switching railroads
- * being restarting the apps, and the run view and this cannot come to name
- * different ones.
+ * reads the documents off the store. The band's picker does not load one
+ * either: it asks on `tc49/layout/railroad_wanted` and this carries the press
+ * out the way the band's power presses go
+ * ([ADR-0060](../../../docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)),
+ * so what is loaded is still whatever the row says and the run view and this
+ * cannot come to name different ones.
  */
 
 import { LitElement, html, nothing } from "lit";
@@ -174,6 +178,7 @@ export class TcApp extends LitElement {
     return html`
       <tc-header
         .drawing=${name}
+        .drawings=${this.filing.drawings}
         .unsaved=${!this.filing.saved}
         .derives=${this.filing.derives}
         .trouble=${this.filing.trouble ?? this.status.trouble}
@@ -184,7 +189,11 @@ export class TcApp extends LitElement {
         .frozen=${still}
         .view=${this.view}
         @power-wanted=${(event: CustomEvent<Power>) => this.supplying(event.detail)}
+        @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}
         @view-wanted=${(event: CustomEvent<ViewId>) => this.showing(event.detail)}
+        @picker-open=${(event: CustomEvent<boolean>) => {
+          if (event.detail) this.renderRoot.querySelector<TcMenubar>("tc-menubar")?.close();
+        }}
       ></tc-header>
 
       <tc-menubar
@@ -311,6 +320,17 @@ export class TcApp extends LitElement {
    *  nothing about the railroad it is naming (ADR-0051). */
   private supplying(power: Power): void {
     this.running?.pressPower(power);
+  }
+
+  /** A railroad chosen in the band's picker. The same path again, and it
+   *  loads nothing here: the gesture goes out on the bus, the binding of the
+   *  layout interface that is running answers it, and what arrives back is
+   *  the row that says which railroad is loaded — which is the one thing this
+   *  app opens a railroad on (ADR-0060). A gesture nothing answered, because
+   *  the rails have power or the store has no such railroad, leaves the app
+   *  exactly where it was. */
+  private wanting(railroad: string): void {
+    this.running?.pressRailroad(railroad);
   }
 
   // --- the bar and the keyboard --------------------------------------------

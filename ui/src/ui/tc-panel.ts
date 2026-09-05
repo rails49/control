@@ -10,9 +10,12 @@
  * the layout interface publishes its name on a retained row
  * ([ADR-0059](../../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
  * decision 2), so this reads that row and the app loads the documents from the
- * store. There is no picker and no session of its own to choose: switching
- * railroads is restarting the apps, and the two cannot come to name different
- * ones.
+ * store. It has no session of its own to choose: the band's picker asks for a
+ * railroad on the bus and this carries the press, exactly as it carries the
+ * band's power presses
+ * ([ADR-0060](../../../docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)),
+ * and what the page then shows is the row coming back — so the two cannot come
+ * to name different ones.
  *
  * **It draws none of it.** `tc-canvas` in run mode is the surface, the same one
  * the editor draws on, so the viewport, the wires, the symbols and the labels
@@ -70,6 +73,7 @@ import {
   modeWanted,
   placement,
   powerWanted,
+  railroadWanted,
   reversal,
   runWanted,
   throttleWanted,
@@ -240,8 +244,8 @@ export class TcPanel extends LitElement {
    *  another and kept when anything else changes. */
   private built: string | null = null;
   /** Whether the canvas wants fitting once it has drawn: a railroad arrives
-   *  here when the band's picker loads one, and there is nowhere else the
-   *  viewport should be looking. */
+   *  here when the row the layout interface writes names another one, and
+   *  there is nowhere else the viewport should be looking. */
   private fitting = false;
   private live: Live | null = null;
   /** The page's one connection to the broker, `null` before the view is on
@@ -395,8 +399,9 @@ export class TcPanel extends LitElement {
    *
    * It is the whole of the page's choice. The app holds the loaded railroad
    * and hands the documents down (ADR-0038), so this says which and the app
-   * reads it from the store; there is no picker, switching railroads being
-   * restarting the apps. The roster is read here because it is the railroad's
+   * reads it from the store. The picker asks on `railroad_wanted` and is
+   * answered here or not at all: what a person pressed never loads anything
+   * by itself (ADR-0060). The roster is read here because it is the railroad's
    * asset and not the run's — what stock there is to place, which no topic
    * carries (ADR-0039). Everything else comes off the bus: placement, locks
    * and live requests off the dispatcher's retained picture, facing off the
@@ -575,6 +580,23 @@ export class TcPanel extends LitElement {
     }
     this.draining = false;
     this.send(powerWanted(power));
+  }
+
+  /**
+   * A railroad chosen in the band: one `railroad_wanted` naming it
+   * ([ADR-0060](../../../docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+   * The client is this view's, so the press comes here, as the band's power
+   * presses do.
+   *
+   * It asks and does not load. Whichever binding of the layout interface is
+   * running answers it and publishes `tc49/layout/state/railroad`, and what
+   * the page shows is that row coming back — so a gesture refused because the
+   * rails have power, or because the store has no such railroad, leaves the
+   * page on the railroad that is still running rather than on the one nobody
+   * loaded (ADR-0035).
+   */
+  pressRailroad(railroad: string): void {
+    this.send(railroadWanted(railroad));
   }
 
   /**
