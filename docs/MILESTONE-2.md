@@ -106,12 +106,17 @@ this slice changed about the earlier one:
   ([#210](https://github.com/rails49/control/issues/210)). Keeping trains
   moving unattended is what those two do here; inventing continual arrivals
   from block roles is later work.
-- **The bus is still in-process.** The contract is the MQTT-safe intersection
-  and nothing relies on what MQTT cannot give, so bringing a broker up is a
-  deployment step rather than a redesign. It is gated on the first train
-  ([#173](https://github.com/rails49/control/issues/173)), because whether the
-  translator wants its own process, and what latency turns out to matter, are
-  things running experience answers and guesswork does not.
+- **The bus is a broker, and each app is its own container.** Milestone 1's
+  in-process bus stays, for the bench harness alone: byte-identical replay is
+  what it is for, and determinism was always a property of that binding rather
+  than of the system. The deployed apps are clients of Mosquitto, one broker
+  to a railroad, and the browser is a client of it too, over the broker's own
+  WebSocket listener, so nothing of ours stands between a page and the bus
+  ([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
+  This was gated on the first train, and the gate was lifted before one ran:
+  the hardware that has to speak the bus cannot be attached to a Python queue,
+  so waiting could not answer what it was waiting for
+  ([#173](https://github.com/rails49/control/issues/173)).
 
 ## Settled by running
 
@@ -133,9 +138,11 @@ from here:
   detector for a hand-placed locomotive.
   [ADR-0048](adr/0048-an-unexplained-reading-holds-the-run.md) holds the run
   on one; whether that is enough is what a running railroad answers.
-- **What survives the in-process binding**
-  ([#173](https://github.com/rails49/control/issues/173)), gated there for the
-  same reason.
+- **What the broker costs on the control path.** The transport is in and the
+  contract did not move, so what is open is measurement rather than design:
+  which latencies turn out to matter between a detector reading and the move
+  it completes, and whether anything wants a QoS or a keepalive it does not
+  have today ([#173](https://github.com/rails49/control/issues/173)).
 
 **No crash is planned for.** A driver can go through a stop signal exactly as
 a car can run a red light, and in either case a crash can happen. The system
@@ -156,7 +163,6 @@ Each ruled out deliberately, and each binds unless its row says otherwise:
 | The patched command-station firmware — per-district trip currents and a way to flash it | a separate project against the station's own source. What this repository does is send a file of raw station commands when power comes on ([#205](https://github.com/rails49/control/issues/205)) |
 | Linking a running instance from a public page | the UI is deployed and is not linkable: a private address, no authentication on purpose, and a store, a broker and a layout server needed beside it ([#231](https://github.com/rails49/control/issues/231)) |
 | Decoder programming | DecoderPro reaches the station on 2560 and the app never knows |
-| Containers for the apps | a compose file once MQTT lands ([#173](https://github.com/rails49/control/issues/173)) |
 | A train standing across two blocks | real and common, and capacity the model declines rather than a way it is wrong: `no_fit` keeps a long train off a short track and the railroad runs without it. **Milestone 3**, and the version wanted is the dispatcher *routing to* such a stand ([#201](https://github.com/rails49/control/issues/201)) |
 | A second binding of the layout interface, for a different command station | the same shape as the first, with every difference inside the binding, so the station this railroad has was built first. The other vendor's software coexists on the station's TCP port as an operator tool, which needs no code here ([#196](https://github.com/rails49/control/issues/196)) |
 | Everything milestone 1 rules out and this milestone does not cross | mechanized proof, mid-route rerouting, an aging rule |
