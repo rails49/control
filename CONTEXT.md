@@ -601,7 +601,7 @@ _Avoid_: retained message (the MQTT mechanism, not the model concept)
 
 **Stamp**:
 The `at` every state payload carries and no event payload does: the run
-clock's reading when the value was published, in seconds since the session
+clock's reading when the value was published, in seconds since the run
 started. It is what keeps the later of two values of one state topic when the
 wire hands them over backwards — later wins, equal replaces, earlier is
 ignored, and an unstamped value is taken and clears the held stamp
@@ -762,9 +762,9 @@ The two hardware controls below are a fourth thing again: the apps stay up
 throughout, so nothing is lost and nothing is recovered.
 
 **Rejoin**:
-A client reconnecting to a session that never stopped. Nothing was lost: the
+A client reconnecting to a run that never stopped. Nothing was lost: the
 dispatcher is running and holds the truth, and the client is a late subscriber
-that catches up from the run's retained state.
+that catches up from the retained state the broker holds.
 _Avoid_: reconnect (the socket, not the catching up), recovery
 
 **Restart**:
@@ -848,8 +848,11 @@ _Avoid_: implementation, adapter, backend. Not *driver*, which names an app.
 
 **Milestone binding**:
 A binding that supersedes: exactly one exists at a time, and the next
-milestone deletes it. The in-process bus gives way to MQTT, the YAML store to
-REST. Nothing to drift from.
+milestone deletes it. The YAML store gives way to REST. Nothing to drift
+from. The in-process bus was one of these and is not: the broker arrived and
+it stayed, for the harness alone, so the two bus bindings coexist and neither
+is the milestone's
+([ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
 _Avoid_: provisional binding, stub
 
 **Language binding**:

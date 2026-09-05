@@ -103,13 +103,19 @@ The trace tap watches all of it.
 ## The bus
 
 Components talk to each other by publishing JSON events on named topics and
-subscribing to the topics they care about. In milestone 1 the bus is a Python
-object inside one process. MQTT replaces it later.
+subscribing to the topics they care about. The bus has **two bindings and
+neither supersedes the other**: a deployed app is a client of an MQTT broker,
+one broker to a railroad, and the bench harness wires its apps on a Python
+object inside one process. Each exists for one use — the broker because an app
+is its own container and hardware speaks the bus from off the box, the
+in-process object because byte-identical replay is what the harness is for
+([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
+decision 1).
 
-That swap only works if nothing depends on behaviour MQTT does not have, so
-the bus promises only what MQTT also promises, even where the in-process
-version could easily do more
-([ADR-0008](adr/0008-bus-contract-is-the-mqtt-safe-intersection.md)).
+That both are one bus rests on the contract promising only what MQTT also
+promises, even where the in-process binding could easily do more
+([ADR-0008](adr/0008-bus-contract-is-the-mqtt-safe-intersection.md)). Nothing
+below distinguishes the two; where a binding shows through, it is named.
 
 The bus promises:
 
@@ -225,7 +231,7 @@ published rather than when a request wants its train to run. An added
 field still changes the trace, so recorded fixtures regenerate — a cost each
 addition pays, not breakage.
 
-**How milestone 1 implements the bus.** One thread and one queue. `publish()`
+**How the in-process binding works.** One thread and one queue. `publish()`
 adds the event to the queue and returns. A loop takes events off the front and
 delivers each one to its subscribers, in the order they subscribed. An event
 published inside a handler goes to the back of the queue, so it is delivered
@@ -628,7 +634,7 @@ submissions owns that timing itself, inside the `simulator` app
 start of a run, and the queue does the staggering.
 
 **No event payload carries a timestamp.** Time on the record is observation:
-the trace tap stamps each line with `time`, seconds since the session started
+the trace tap stamps each line with `time`, seconds since the run started
 — simulated in batch, wall live — and no event, request or grant carries one,
 so no app can read one or come to depend on it. A **state** payload carries
 `at`, and does not breach that rule: it is stamped by the binding that
@@ -1103,8 +1109,8 @@ is in the trace already because it was published
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 
 The rule covers what the **layout** publishes too, for a second reason. No
-page writes those topics, but the binding is another process, and a bug in it
-must not take the dispatcher down once the bus is no longer in one process.
+page writes those topics, but the binding is another process on the broker,
+and a bug in it must not take the dispatcher down.
 The two observations fail in opposite directions. A `state/power` payload that
 cannot be read counts as one of the "not `on`" cases and holds the run;
 dropping it would mean *not* holding, over track whose state could not be
@@ -1251,8 +1257,8 @@ upstream can guarantee the route is set before the train moves. Starting a
 train onto points that have not thrown is a collision, so the duty has to sit
 somewhere, and this is the only component that sees both commands.
 
-How the obligation is met is the binding's own business: under the
-milestone-1 bus the `align` is delivered first, and a hardware adapter pairs
+How the obligation is met is the binding's own business: on the harness's
+in-process bus the `align` is delivered first, and a hardware adapter pairs
 them.
 
 A second obligation guards against a stale command: the layout interface
@@ -1631,9 +1637,10 @@ strategy behind the seam of
 
 The trace is a **tap on the bus**: a subscriber to `tc49/#` that writes one
 JSONL line for each event delivered, in delivery order, which is deterministic
-under the milestone-1 bus. There is no separate channel for tracing. The
-events the trace records are the events the components exchange, so a UI later
-subscribes to exactly what the trace has already shown to be enough.
+on the in-process binding the harness wires it on. There is no separate
+channel for tracing. The events the trace records are the events the
+components exchange, so a UI later subscribes to exactly what the trace has
+already shown to be enough.
 
 Each line is flat: `{"time": …, "event": …, …payload}`. `event` is the
 topic's leaf, which the inventory keeps unique — except on a **device row**,
@@ -1643,11 +1650,10 @@ there would be an accessory number and would lose the row it belongs to
 ([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 The two namings share one namespace, so a name still names one row. `time` is
 stamped by the tap from the run clock as it records: float seconds since the
-session started, simulated in batch and wall live (ADR-0047). It is the tap's
-own observation,
-and not the `at` a state payload carries: the two are read off one clock and
-a line shows both, `time` saying when the event was delivered and `at` when
-the value was published. The keys are always in the same order — `time`,
+run started, simulated in batch and wall live (ADR-0047). It is the tap's own
+observation, and not the `at` a state payload carries: the two are read off
+one clock and a line shows both, `time` saying when the event was delivered
+and `at` when the value was published. The keys are always in the same order — `time`,
 `event`, then the event's fields in inventory order — which is what lets two
 runs be compared byte for byte
 ([ARCHITECTURE.md](ARCHITECTURE.md#tests)).
@@ -1655,12 +1661,18 @@ runs be compared byte for byte
 A payload field the inventory does not list raises, which is a promise about
 what the **apps** write. That strictness is the harness checking app
 discipline against the inventory, not consumer behaviour — a consumer ignores
-an unknown field (the openness rule) — and it holds while everything deploys
-in lockstep. The tap becomes tolerant when apps deploy independently, or a
-newer publisher would take an older tap down. On the topics a client writes, the tap records what
-it was given: the inventory's fields in order, then anything else, and a
-payload that is not an object under `payload`. That line is the whole record
-of a frame the dispatcher drops
+an unknown field (the openness rule). Apps deploy independently now
+([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
+decision 5) and the tap does not deploy with them: it lives in `bench`, on the
+in-process bus the harness wires, so the tap and every app it records are one
+build of this repository and there is no older tap for a newer publisher to
+take down. It therefore **stays strict**. A row or a field it raises on is one
+the inventory is missing, and the fix is to add it to `lib/inventory.py`.
+
+On the topics a client writes, the tap records what it was given: the
+inventory's fields in order, then anything else, and a payload that is not an
+object under `payload`. That line is the whole record of a frame the
+dispatcher drops
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 
 `metrics(trace)` depends on nothing but the trace, and **every metric is
