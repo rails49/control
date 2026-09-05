@@ -10,6 +10,8 @@ from tc49.lib.scenario import RequestSpec, TrainSpec
 from tc49.scheduler import Scheduler
 from tests.harness import Recording, load, retaining, subscribed_before_publishing
 
+NONCE = "n0nce"  # what this suite's schedulers mint drag ids from
+
 
 def yard() -> Layout:
     """crossover-yard, the railroad the trains below stand on: the
@@ -439,12 +441,12 @@ def test_a_gesture_is_composed_into_the_request_it_asks_for() -> None:
     it mints and the departure end it holds as facing (ADR-0036)."""
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
-    scheduler = Scheduler(bus, yard(), seeded())
+    Scheduler(bus, yard(), seeded(), nonce=NONCE)
 
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A", "dn_e.B"]})
     assert [p for _, p in seen] == [
         {
-            "id": f"freight_1-{scheduler.nonce}-1",
+            "id": f"freight_1-{NONCE}-1",
             "train": "freight_1",
             "depart": "yard_w.B",
             "dest": ["dn_e.A", "dn_e.B"],
@@ -472,13 +474,13 @@ def test_gestures_and_the_timetable_share_one_undivided_counter() -> None:
     own rather than which source minted it."""
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
-    scheduler = Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), TIMETABLE, nonce=NONCE)
 
     bus.drain()  # the whole timetable goes out
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
     ordinal = seen[-1][1]["id"].rsplit("-", 1)[-1]
     assert ordinal == "3"  # -2 is the timetable's return working
-    assert seen[-1][1]["id"] == f"freight_1-{scheduler.nonce}-3"
+    assert seen[-1][1]["id"] == f"freight_1-{NONCE}-3"
 
 
 def test_two_schedulers_mint_the_same_ids_for_one_timetable() -> None:
@@ -519,16 +521,16 @@ def test_a_drags_id_carries_the_nonce_between_the_train_and_the_ordinal() -> Non
     undivided one the timetable draws from."""
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
-    scheduler = Scheduler(bus, yard(), seeded())
+    Scheduler(bus, yard(), seeded(), nonce=NONCE)
 
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.B"]})
 
     assert [p["id"] for _, p in seen] == [
-        f"freight_1-{scheduler.nonce}-1",
-        f"freight_1-{scheduler.nonce}-2",
+        f"freight_1-{NONCE}-1",
+        f"freight_1-{NONCE}-2",
     ]
-    assert seen[-1][1]["id"].split("-") == ["freight_1", scheduler.nonce, "2"]
+    assert seen[-1][1]["id"].split("-") == ["freight_1", NONCE, "2"]
 
 
 def test_a_gesture_departs_from_where_facing_has_moved_to() -> None:
@@ -558,7 +560,7 @@ def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
     leaves no request behind, and the next honest drag still composes."""
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
-    scheduler = Scheduler(bus, yard(), seeded())
+    Scheduler(bus, yard(), seeded(), nonce=NONCE)
 
     for payload in [
         "freight_1 to dn_e",  # not an object at all
@@ -572,7 +574,7 @@ def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
     assert seen == []
 
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
-    assert [p["id"] for _, p in seen] == [f"freight_1-{scheduler.nonce}-1"]
+    assert [p["id"] for _, p in seen] == [f"freight_1-{NONCE}-1"]
 
 
 REVERSAL = "tc49/schedule/reversal_wanted"

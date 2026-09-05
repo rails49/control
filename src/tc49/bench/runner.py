@@ -37,6 +37,18 @@ from tc49.scheduler import Scheduler
 from tc49.simulator import Simulator
 from tc49.store import AssetStore
 
+NONCE = "bench"
+"""The nonce the harness's scheduler mints drag ids from.
+
+A replay feeds its document as drags (`bench/replay.py`), and a drag's id
+carries the minting process's nonce (ADR-0033). Left to `secrets` that would
+make two runs of one document differ in every id, which is the one thing a
+replay is for. Stated here instead, so a replayed run is reproducible the way
+a timetable's was. Nothing is protected by its being unguessable: the
+collision the nonce prevents needs a second scheduler process, and a bench run
+has one.
+"""
+
 StrategyFactory = Callable[[Layout, int], LockingStrategy]
 
 DEFAULT_K = 2  # BENCHMARKS.md records its golden numbers at this budget
@@ -284,7 +296,9 @@ def assemble(
     out = io.StringIO()
     TraceTap(bus, out, clock)
     stood = placement(scenario.trains)
-    Scheduler(bus, layout, facing(layout, scenario.trains), scenario.requests)
+    Scheduler(
+        bus, layout, facing(layout, scenario.trains), scenario.requests, nonce=NONCE
+    )
     dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
     return Assembly(
@@ -373,7 +387,7 @@ def assemble_live(
     bus.drain()
     out = io.StringIO()
     TraceTap(bus, out, clock)
-    Scheduler(bus, layout, facing(layout, document))
+    Scheduler(bus, layout, facing(layout, document), nonce=NONCE)
     dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
     simulator: Simulator | None = None

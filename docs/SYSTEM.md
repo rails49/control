@@ -869,14 +869,16 @@ ends, `to: [yard_e]` becoming `yard_e.A, yard_e.B`, which is *syntax* and
 needs no layout. From a **gesture** it supplies the two fields the gesture
 leaves out, the id and the departure end. It makes each request's **id** from
 a single counter, in the timetable's order (`<train>-1`, `<train>-2`), which
-is what byte-identical replay requires. The id means nothing to a consumer and
+is what a document's own order requires. The id means nothing to a consumer and
 only has to be unique
 ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)). A run
-carrying gestures makes no claim about that order, and a benchmark run
-receives no gestures — so a gesture's id takes that same counter with a nonce
-the scheduler process mints once in between, `<train>-<nonce>-<n>`, which is
-what keeps a restart of the scheduler alone from re-minting an id the
-dispatcher is still holding. The id is never derived from a clock.
+carrying gestures makes no claim about that order — so a gesture's id takes
+that same counter with a nonce the scheduler process mints once in between,
+`<train>-<nonce>-<n>`, which is what keeps a restart of the scheduler alone
+from re-minting an id the dispatcher is still holding. A benchmark run is one
+of those: it replays its document as drags, and states the nonce rather than
+minting one, which is what leaves its ids reproducible. The id is never
+derived from a clock.
 
 It **holds facing**, which is scheduler state
 ([ADR-0019](adr/0019-facing-is-scheduler-state.md)). A train's facing starts
