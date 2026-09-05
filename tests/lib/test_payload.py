@@ -47,6 +47,7 @@ from tc49.lib.payload import (
     run_state,
     shown_aspects,
     stamp,
+    supply,
     wanted_mode,
     wanted_throttle,
 )
@@ -282,6 +283,41 @@ def test_a_power_payload_that_cannot_be_read_reads_as_off() -> None:
     ]
     for payload in unreadable:
         assert power(payload) == OFF, payload
+
+
+def test_the_supply_reads_the_two_values_the_hardware_can_report() -> None:
+    """The observed row is `on` or `off` and nothing else: an emergency stop
+    leaves the rails live, so a publisher under one reports `on`, and that is
+    the truth about the supply rather than a gap in what it can see
+    (ADR-0063)."""
+    assert supply({"power": "on"}) == ON
+    assert supply({"power": "off"}) == OFF
+    assert supply({"power": "off", "reason": "no route to host"}) == OFF
+
+
+def test_the_supply_refuses_an_emergency_stop() -> None:
+    """`stopped` is a word the desired half carries and this row does not, so
+    a frame stating it states something no hardware can observe, and it is
+    refused like any other value outside the closed set. It falls to `off`
+    with them, which is the direction a supply that cannot be read must fail
+    in (#181)."""
+    assert supply({"power": "stopped"}) == OFF
+
+
+def test_a_supply_payload_that_cannot_be_read_reads_as_off() -> None:
+    """The same direction as `power`, and for the same reason: dropping the
+    reading would leave the run committing over track whose state could not
+    be read."""
+    unreadable: list[object] = [
+        "off",  # not an object at all
+        ["off"],  # nor a list of its fields
+        {},  # no power
+        {"power": None},
+        {"power": 42},  # not a string
+        {"power": "sideways"},  # a value outside the closed set
+    ]
+    for payload in unreadable:
+        assert supply(payload) == OFF, payload
 
 
 def test_a_power_gesture_reads_as_the_value_it_asks_for() -> None:

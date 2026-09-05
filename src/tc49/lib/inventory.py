@@ -264,7 +264,28 @@ direction of the one axis: the closed set goes wherever the field goes, as
 ``run`` does on its own gesture. A power command is applied on arrival —
 there is no beat to quantise it against (#243) — and it changes no lock and
 grants nothing, so it races with nothing the dispatcher is deciding
-(ADR-0051)."""
+(ADR-0051).
+
+The row the fold below reads is not one of them. ``SUPPLY`` is its own set of
+two, and the middle value here is the one thing no publisher can report
+(ADR-0063)."""
+
+
+SUPPLY = (ON, OFF)
+"""The two values of ``tc49/layout/state/device/track``: what the hardware
+reports about the supply, and two where the row it folds into carries three.
+
+An emergency stop leaves the rails live — that is what tells it apart from
+cutting the supply, and the distinction is physical rather than a modelling
+choice — so the supply reads `on` under one and there is nothing else it
+could truthfully read. That is not a gap in what a publisher can observe, it
+is the truth about the supply, and the row says so by having no third value
+at all (ADR-0063).
+
+The asymmetry with ``wanted/track``, which keeps all three, is the
+vocabulary's own: what the railroad may be **asked** for is not bounded by
+what a sensor can answer. ``tc49.lib.payload.supply`` is the reader, and a
+frame outside this set falls the way every unreadable state frame falls."""
 
 
 OCCUPIED = "occupied"
