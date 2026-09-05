@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 from tc49.bench.metrics import Stall, metrics, parse
+from tc49.bench.runner import NONCE
 from tc49.dispatcher import Incremental
 from tests.harness import events, live, load, press, run, ticks
 
@@ -327,8 +328,7 @@ def test_metrics_over_a_run_that_cancelled_read_it_as_a_cancellation() -> None:
     ticks(assembly, 6)
 
     m = metrics(assembly.trace)
-    # The drag's id, minted with this scheduler process's nonce (ADR-0033).
-    assert m.cancelled == (events(assembly.trace, "request_submitted")[-1]["id"],)
+    assert m.cancelled == (f"freight_1-{NONCE}-1",)
     assert m.stalls == ()
     assert m.status == "cancelled"
     assert m.completed == ()

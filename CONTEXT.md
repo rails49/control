@@ -751,12 +751,14 @@ move events — and **opaque to both**, so uniqueness is the whole contract and
 no consumer reads the shape
 ([ADR-0033](docs/adr/0033-a-request-id-is-unique-not-meaningful.md)). The
 scheduler mints a timetable's `<train>-1`, `<train>-2`, … from one undivided
-counter in the order the file states, which replay needs — and a run carrying
-gestures does not, no benchmark run receiving any. A **gesture**'s takes the
-same counter with a nonce the scheduler process mints once in between,
-`<train>-<nonce>-<n>`, so that a restart of the scheduler alone cannot
-re-mint an id the dispatcher is still holding. Never clock-derived, and never
-minted by a page.
+counter in the order the file states, so a document's requests read in the
+document's order. A **gesture**'s takes the same counter with a nonce the
+scheduler process mints once in between, `<train>-<nonce>-<n>`, so that a
+restart of the scheduler alone cannot re-mint an id the dispatcher is still
+holding. A benchmark run receives gestures and nothing else — a replay feeds
+its document as drags — and states the nonce rather than minting one, which is
+what makes two runs of one document agree id for id. Never clock-derived, and
+never minted by a page.
 _Avoid_: event id (there is no universal envelope id)
 
 ### Interruptions

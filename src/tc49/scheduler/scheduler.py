@@ -12,10 +12,12 @@ where to put it, and the id and the departure end are what the scheduler
 adds. A timetable's ids are minted deterministically in its order
 (`<train>-1`, `<train>-2`, ...) from one undivided counter and a drag's carry
 a **per-process nonce** in between (`<train>-<nonce>-<n>`), which is
-ADR-0033's split moved inside this app: replay needs the one, and a restart
-of this process alone — ordinary now the apps are separate ones (ADR-0059) —
-would otherwise re-mint a drag's id the dispatcher already holds and has
-dropped unanswered. The arrival-end expansion is purely mechanical (a bare
+ADR-0033's split moved inside this app: a document's requests read in the
+document's order, and a restart of this process alone — ordinary now the apps
+are separate ones (ADR-0059) — would otherwise re-mint a drag's id the
+dispatcher already holds and has dropped unanswered. The harness states the
+nonce rather than taking the minted one, which is what keeps a replayed run
+reproducible now that a replay feeds its document as drags. The arrival-end expansion is purely mechanical (a bare
 block becomes both of its ends), and `exhausted` is set as soon as the last
 timetable request is out.
 
@@ -81,6 +83,7 @@ class Scheduler:
         layout: Layout,
         facing: dict[str, str] | None = None,
         timetable: Sequence[RequestSpec] = (),
+        nonce: str | None = None,
     ) -> None:
         """`facing` is where a run built from a document says its trains point,
         train to the run it would make across its block, and `timetable` is
@@ -111,7 +114,14 @@ class Scheduler:
         # still holding and drops before any check runs (ADR-0033). Four
         # bytes of `secrets`, not the clock, which SYSTEM.md forbids of the
         # bus.
-        self._nonce = secrets.token_hex(4)
+        #
+        # `nonce` is the harness's, and the only caller that passes one: the
+        # bench replays a document as drags, so without a stated nonce two
+        # runs of one document mint different ids and the run stops being
+        # reproducible, which is what the harness is for. It costs nothing
+        # to let it say one — the collision the nonce prevents needs two
+        # scheduler processes, and a bench run is one from start to finish.
+        self._nonce = secrets.token_hex(4) if nonce is None else nonce
         self._published: Payload = {}  # the facing last sent, so only changes go
         # Before the opening rows and not after. Over a broker a publish is
         # asynchronous where a subscribe waits for the broker to acknowledge,
@@ -135,13 +145,6 @@ class Scheduler:
                 }
             )
         self._bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
-
-    @property
-    def nonce(self) -> str:
-        """The nonce this process mints a drag's ids from, minted once at
-        construction and never read by any consumer: a request id is opaque
-        (ADR-0033), and this is here to be asserted against."""
-        return self._nonce
 
     def _submit(self, event: Payload) -> None:
         self._train_of[event["id"]] = event["train"]
@@ -183,9 +186,9 @@ class Scheduler:
         end that run comes out at, said as an end (#241).
 
         The id carries this process's nonce, `<train>-<nonce>-<n>`, where the
-        timetable's is `<train>-<n>`: nothing a person drags was ever
-        reproducible, and a restart that re-minted `<train>-1` for a drag
-        would have it dropped as a duplicate and never answered (ADR-0033).
+        timetable's is `<train>-<n>`: nothing a person drags is reproducible,
+        and a restart that re-minted `<train>-1` for a drag would have it
+        dropped as a duplicate and never answered (ADR-0033).
 
         Read and **not corrected**: the end the facing names is the end the
         request states, wall or not. Every site that settles a facing has

@@ -8,9 +8,25 @@ mints anything — [ADR-0036](0036-the-scheduler-is-an-app-the-panel-is-a-view.m
 made the scheduler the one writer of requests and inherited both jobs into its
 counter — so where the text below names the panel as the nonce-minter, read
 the scheduler's gestures. A timetable keeps `<train>-N`, minted
-deterministically in the file's order, for exactly the reason it always did:
-byte-identical replay. A gesture is minted `<train>-<nonce>-<n>` from a nonce
-the scheduler process makes once at construction. What forced the move is that
+deterministically in the file's order — for a person reading a trace against
+the document they wrote, and for the unattended runs GOALS.md wants, rather
+than for replay: **the harness does not take that path.** `bench/replay.py`
+feeds a document's requests as drags, deliberately, so that no app is given a
+scenario and every app keeps one placement path (#171, ADR-0030) — so a
+replayed request is minted like any other gesture, `<train>-<nonce>-<n>` from
+a nonce the scheduler process makes once at construction.
+
+So byte-identical replay rests on two things, neither of them the timetable's
+numbering. **Two runs of one document agree id for id** because the harness
+**states** its nonce (`bench/runner.py`) instead of letting `secrets` mint
+one, which costs nothing: the collision a nonce prevents needs a second
+scheduler process, and a bench run is one from start to finish. **A run fed as
+drags and the same run fed as a timetable** cannot agree on ids at all — one
+shape carries a nonce and the other does not — so the test that compares those
+two compares ids with the nonce taken out (`stable_ids`,
+`tests/bench/test_replay.py`), the way it already drops the departure end a
+gesture cannot state. Where the text below says the file scheduler's
+determinism is what leaves replay untouched, read this. What forced the move is that
 the scheduler and the dispatcher are separate processes now, so a supervisor
 restarting the minter alone is ordinary: its counter starts at zero again
 while the dispatcher still holds every id it has seen, and the next drag is
