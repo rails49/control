@@ -55,11 +55,23 @@ editor is one view of the app and the run view is the other
 
 **The railroad the app has loaded is named here, and picked here.** It is not
 the editor's `File ▸ Open` with the run view guessing separately: both views
-are of one railroad, so one control loads it. The picker lists what the store
-has and ticks the one that is loaded, and the tick is all that entry is —
-choosing it closes the list and changes nothing (#101). Re-reading the loaded
+are of one railroad, so one control asks for it. The picker lists what the
+store has and ticks the one that is loaded, and the tick is all that entry is —
+choosing it closes the list and asks for nothing (#101). Re-reading the loaded
 railroad would throw away whatever has been drawn since, which is a lot to ask
 of a click that looks like it does nothing.
+
+**It asks and does not load.** Which railroad the apps run is a choice made
+while they run, so the picker publishes `tc49/layout/railroad_wanted` and stops
+there; whichever binding of the layout interface is running answers it and
+publishes `tc49/layout/state/railroad`, and that row is the one thing the app
+opens a railroad on
+([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
+ADR-0035). **Track power off is the precondition**: while the rails have power
+the picker is dead and says why, a train already under a committed route
+keeping its motion whatever the software forgets. Nothing here turns the power
+off — that is the panel's OFF, which drains the run first
+([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
 
 The name is marked with a dot while the railroad holds edits the store has not
 been given. That state had no indicator at all before: it was inferrable only

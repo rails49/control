@@ -1,8 +1,10 @@
 import { css } from "lit";
 
+import { dismiss, menuBox, menuRow, menuRowChosen } from "./shared.styles.js";
+
 /**
  * The band across the top (`tc-header`): what is true of the whole system, and
- * the controls that act on it — the railroad's name at the left, the three
+ * the controls that act on it — the railroad picker at the left, the three
  * track-power presses beside the reading they act on, and the view selector
  * at the right. The spacer parts what is loaded from what is going on, and the
  * rest is text.
@@ -16,10 +18,66 @@ export const headerStyles = css`
     border-bottom: 1px solid var(--rule);
   }
 
-  /* The name sits where the picker that loaded a railroad used to: it is a
-     reading now, the broker saying which railroad it runs (ADR-0059). */
+  ${dismiss}
+
+  /* The picker's list hangs off the name, so the name is what it is
+     positioned against, and both sit above the overlay that dismisses it. */
   .picker {
+    position: relative;
+    z-index: 12;
+  }
+
+  .chosen {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
     padding: 0.15rem 0.4rem;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .chosen:hover:not(:disabled) {
+    background: #f0eeea;
+  }
+
+  /* Nothing to pick — the rails have power, or the store lists nothing — so
+     the name is text again and reads as text. The button says why when it is
+     hovered (ADR-0060). */
+  .chosen:disabled {
+    cursor: default;
+  }
+
+  menu.drawings {
+    position: absolute;
+    top: calc(100% + 0.2rem);
+    left: 0;
+    z-index: 13;
+    min-width: 10rem;
+    ${menuBox}
+  }
+
+  menu.drawings li button {
+    ${menuRow}
+  }
+
+  ${menuRowChosen}
+
+  /* A name is one word however long it is, and never wraps. */
+  .label {
+    flex: 1;
+    white-space: nowrap;
+  }
+
+  .tick {
+    width: 16px;
+  }
+
+  .more {
+    color: var(--hint);
   }
 
   .drawing {

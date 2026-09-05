@@ -117,14 +117,15 @@ never both. Saving the roster unedited keeps the stated length as it was
 ([#414](https://github.com/rails49/control/issues/414)).
 
 **Unsaved roster edits are asked about before the app discards them.** The
-railroad is the app's and both its documents go with it, so changing railroad
-in the band's picker, or pressing New railroad, asks the same question the
-drawing has been guarded by since
+railroad is the app's and both its documents go with it, so pressing New
+railroad asks the same question the drawing has been guarded by since
 [#101](https://github.com/rails49/control/issues/101) — and the words name
 which document is at stake: *the drawing*, *the roster*, or *the drawing and
 the roster*. Cancel leaves everything as it was, the rake being composed
 included; Discard opens what was asked for and this view reads that railroad's
-roster. A rake composed and not saved used to go with no trace, the question
+roster. A railroad arriving on `tc49/layout/state/railroad` is **not** asked
+about: it is what the apps are running, not a press of this page's, and the
+page follows it (#371, ADR-0060). A rake composed and not saved used to go with no trace, the question
 never firing because the drawing was clean
 ([#415](https://github.com/rails49/control/issues/415)). The question is
 `tc-app.ts`'s, as the railroad is: this view says whether its `Stock` holds

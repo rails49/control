@@ -2,9 +2,9 @@
  * The band across the top: what is true of the whole system
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
  *
- * Which railroad is loaded, whether it holds unsaved edits, whether what the
- * app talks to is answering, and which view is current. The bar below carries
- * what acts on that view's document.
+ * Which railroad is loaded and the way to another, whether it holds unsaved
+ * edits, whether what the app talks to is answering, and which view is
+ * current. The bar below carries what acts on that view's document.
  *
  * The line is *what it is about*, not *whether it is pressable*. The rule this
  * carried — "it shows status and nothing else. Everything a person presses
@@ -29,6 +29,7 @@ import { customElement, property, state } from "lit/decorators.js";
 
 import type { Power } from "../model/trace.js";
 import { VIEWS, type ViewId } from "../model/views.js";
+import { dismissal } from "./dismissal.js";
 import { ICONS } from "./icons.js";
 import { headerStyles } from "./tc-header.styles.js";
 
@@ -57,6 +58,9 @@ export class TcHeader extends LitElement {
 
   /** The railroad the app has loaded, `null` while none is. */
   @property() drawing: string | null = null;
+
+  /** The railroads there are to load, as the store lists them. */
+  @property({ attribute: false }) drawings: readonly string[] = [];
 
   /** Whether the loaded railroad holds edits the store has not been given. */
   @property({ type: Boolean }) unsaved = false;
@@ -112,6 +116,9 @@ export class TcHeader extends LitElement {
    *  button says it is still waiting rather than pretending it is done. */
   @property({ type: Boolean }) draining = false;
 
+  /** Whether the picker's list is down. */
+  @state() private picking = false;
+
   override updated(changed: PropertyValues<this>): void {
     if (!changed.has("joined")) return;
     if (this.joined && this.sessionTimer === undefined) {
@@ -135,7 +142,7 @@ export class TcHeader extends LitElement {
 
   override render() {
     return html`
-      ${this.named()}
+      ${this.picker()}
       ${this.unsaved
         ? html`<span class="unsaved" role="img" title="unsaved" aria-label="unsaved">
             ●
@@ -289,22 +296,111 @@ export class TcHeader extends LitElement {
   }
 
   /**
-   * Which railroad is loaded (#167). It is the band's because it is the whole
-   * system's: both views are of it, and neither owns it.
+   * Which railroad is loaded, and the way to another (#167). It is the band's
+   * because it is the whole system's: both views are of it, and a menu on one
+   * view's bar would be the editor deciding what the run view is looking at.
    *
-   * **A reading and not a choice.** One broker runs one railroad and the
-   * layout interface says which on a retained row
+   * **It asks and does not load.** One broker runs one railroad and the layout
+   * interface says which on a retained row
    * ([ADR-0059](../../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
-   * decision 2), so the app is told which railroad it is looking at and
-   * switching is restarting the apps. The picker that stood here went with the
-   * bridge.
+   * decision 2), and which one that is is a person's choice made **while the
+   * apps run**
+   * ([ADR-0060](../../../docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+   * So choosing one publishes `railroad_wanted` and stops there; the name
+   * above goes on being the row the layout interface answered with, and a
+   * gesture nothing answered leaves it alone.
+   *
+   * The railroad that is loaded is ticked, and the tick is all that entry is:
+   * choosing it asks for nothing (#101), because the app would throw away
+   * whatever has been drawn since when the row came back — a lot to ask of a
+   * click that looks like it does nothing.
+   *
+   * **Track power off is the precondition.** While the rails have power the
+   * picker is dead and says why: a train already under a committed route keeps
+   * rolling whatever the software forgets, and with the power off nothing
+   * moves and no turnout throws. Nothing here turns it off — that is the
+   * panel's OFF, which drains the run first and is already a gesture a person
+   * has (ADR-0051, ADR-0060). Power reads `null` with no session joined, which
+   * is a page with nothing to ask at all, so the one condition covers both.
    */
-  private named() {
+  private picker() {
+    const name = this.drawing ?? "no railroad";
+    const why = this.reason;
     return html`
+      ${this.picking ? dismissal(() => this.pick(false)) : nothing}
       <div class="picker">
-        <span class="drawing">${this.drawing ?? "no railroad"}</span>
+        <button
+          class="chosen"
+          aria-haspopup="true"
+          aria-expanded=${this.picking}
+          title=${why ?? "load another railroad"}
+          ?disabled=${why !== null}
+          @click=${() => this.pick(!this.picking)}
+        >
+          <span class="drawing">${name}</span>
+          <span class="more">▾</span>
+        </button>
+        ${this.picking
+          ? html`
+              <menu class="drawings">
+                ${this.drawings.map(
+                  (one) => html`
+                    <li>
+                      <button @click=${() => this.wanting(one)}>
+                        <span class="tick">${one === this.drawing ? "✓" : ""}</span>
+                        <span class="label">${one}</span>
+                      </button>
+                    </li>
+                  `,
+                )}
+              </menu>
+            `
+          : nothing}
       </div>
     `;
+  }
+
+  /** Why the picker is dead, `null` while it is live. The words are what the
+   *  button says when it is hovered, because a control that is dead and
+   *  silent reads as an app that is broken. */
+  private get reason(): string | null {
+    if (this.power === null) return "no railroad is running to ask";
+    if (this.power !== "off") {
+      return "the track has power: switch it off to load another railroad";
+    }
+    if (this.drawings.length === 0) return "the store lists no railroad";
+    return null;
+  }
+
+  /** Put the list down, or take it up. The app is told either way: the band
+   *  sits above the bar, so a press here lands on the picker rather than on
+   *  the overlay a menu on the bar is waiting for, and the menu would be left
+   *  down with the keyboard still its. */
+  private pick(down: boolean): void {
+    if (this.picking === down) return;
+    this.picking = down;
+    this.dispatchEvent(
+      new CustomEvent<boolean>("picker-open", {
+        detail: down,
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  /** One of the railroads was chosen. The band says which is wanted and stops
+   *  there — the bus is what loads it, and the app is what carries the press
+   *  (ADR-0060). */
+  private wanting(name: string): void {
+    this.pick(false);
+    if (name === this.drawing) return;
+    this.dispatchEvent(
+      new CustomEvent<string>("railroad-wanted", {
+        detail: name,
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 }
 
