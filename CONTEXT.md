@@ -758,8 +758,10 @@ _Avoid_: event id (there is no universal envelope id)
 Three failures look alike and differ in who still holds the truth. Naming
 them apart is what keeps a page reload from being sized like a power cut
 ([ADR-0032](docs/adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
-The two hardware controls below are a fourth thing again: the apps stay up
-throughout, so nothing is lost and nothing is recovered.
+A **cold start** sits among them without being one of them: it is what an app
+does about the loss rather than a way of losing, and it also happens with
+nothing lost at all. The two hardware controls below are a fourth thing again:
+the apps stay up throughout, so nothing is lost and nothing is recovered.
 
 **Rejoin**:
 A client reconnecting to a run that never stopped. Nothing was lost: the
@@ -771,8 +773,22 @@ _Avoid_: reconnect (the socket, not the catching up), recovery
 The apps coming back up while the rails stayed as they were. What was lost is
 the dispatcher's lock table, which no sensor can return — sensors are
 anonymous — so placement must be seeded before the first sensor event, from
-something persisted or by a person placing every train again.
-_Avoid_: reboot, cold start (which is a restart with nothing to restore)
+something persisted or by a person placing every train again. The process
+coming back is what makes it one, and it contains a **cold start**: a restart
+is the process returning, a cold start is the state being rebuilt, and the
+rebuilding also happens on its own with no process going anywhere.
+_Avoid_: reboot
+
+**Cold start**:
+An app clearing the retained rows it owns and building them again from
+nothing, **without the process restarting**. It happens on the way up, and
+again every time a person loads another railroad while the apps run
+([ADR-0060](docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)):
+the broker keeps the last railroad's retained rows for as long as it runs and
+only their owner can drop them, so an app that hears another name on
+`tc49/layout/state/railroad` clears its own and rebuilds. Every **restart**
+contains one; not every cold start is a restart.
+_Avoid_: reset, reload (a page reload is a **rejoin**), reboot, restart
 
 **Recovery**:
 Coming back after the layout lost power. Everything a restart lost, and what
