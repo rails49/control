@@ -109,9 +109,9 @@ on it and calls `settle()` itself.
 
 **Whose levels those are, on a physical railroad, is a person's.** No camera
 publishes `device/sensor` yet, so somebody types them a line at a time and
-what they type is published as the row a detector would write — by the session
-that reads its own input, or by `tc49 readings`, which is that keyboard as a
-client of the broker beside this app rather than in one process with it
+what they type is published as the row a detector would write, by
+`tc49 readings` — that keyboard as a client of the broker beside this app
+rather than in one process with it
 ([#315](https://github.com/rails49/control/issues/315),
 [#379](https://github.com/rails49/control/issues/379)). This app is told
 nothing about it: a typed level settles, folds and completes a crossing
@@ -119,8 +119,9 @@ exactly as a camera's does, which is the whole of what standing in for
 hardware means — and it is the reason the fold is tested against typed levels
 as readily as against a detector's.
 
-A session named no station assembles the `simulator` instead
-([ARCHITECTURE.md](../ARCHITECTURE.md#package-layout)): a run has one binding
+A box runs `python -m tc49.simulator` where it does not run
+`python -m tc49.layout`, which is what makes it a simulation rather than steel
+([DEPLOY.md](../DEPLOY.md)): a run has one binding
 of the interface and neither knows the other exists
 ([ADR-0030](../adr/0030-the-physical-railroad-is-the-normative-binding.md)),
 and the benchmarks measure a railroad nobody has to power on.

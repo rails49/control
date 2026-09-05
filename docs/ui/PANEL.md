@@ -461,7 +461,7 @@ every locomotive commanded and switches the track off before the process ends
 
 **That run sees only what somebody types.** No camera publishes a detector's
 level on a physical railroad yet, so for the first train a person supplies the
-readings: a line typed at the session — `<block>.<end> <level>`, the levels
+readings: a line typed at `tc49 readings` — `<block>.<end> <level>`, the levels
 being `occupied`, `clear` and `unknown` — is published as the row a detector
 would write, and `layout` folds a typed pair into `block_occupied` and
 `block_vacated` exactly as it folds a camera's
@@ -473,7 +473,7 @@ control for one: a detector stands in
 for hardware, not for a person's hand. Until a camera publishes, an arrival
 nobody types never comes, so a granted move rolls on; the run comes up
 **held** like every other, which is the whole of the safety mechanism, and the
-session's banner says where its readings come from. The banner also counts how
+banner says where the railroad's readings come from. The banner also counts how
 many of the railroad's trains carry an address and how many do not, because a
 move for a train whose cars carry none writes no traction row at all.
 
@@ -541,19 +541,20 @@ already draws. Everything else is derived from the bus: the state topics carry
 the whole picture, facing included, so the model is fed by `apply` and by
 nothing else.
 
-A railroad the session has just built needs no handshake either. Its
-`last_values` are empty, so there is nothing to seed: the client is
-registered, the swap requested, and the new run's opening drain delivers
-placement, facing and aspects as live frames, in order.
+A railroad just loaded needs no handshake either. Every app cleared the rows
+it owned and republished them (ADR-0060), so the broker holds the new
+railroad's retained picture and hands it over on subscribe like any other —
+placement, facing and aspects among it. There is no registration and no swap
+to request: those were the bridge's, and it is gone
+([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
 
 A run paces itself on a wall clock: the simulator's transit delays are
 the railroad's tempo, and the period only sets how often the loop
 takes what the broker's network thread left waiting
 ([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 On the physical binding the tempo is the trains, and the period also bounds
-how soon a settled detector level is acted on. The knob is the session's and
-applies to every railroad it runs, so it is not the panel's to turn: a joined
-panel names the railroad and nothing else.
+how soon a settled detector level is acted on. The knob is each app's own
+`--period`, set where the app is started, so it is not the panel's to turn.
 
 **A panel may join a run already going.** The broker answers a subscription
 with each state topic's retained value before any event, so the page opens on
