@@ -115,14 +115,21 @@ describe("a fixed crossing", () => {
   });
 });
 
-/** A sensor is addressed by the block end it watches, so there is no id to
- *  type for one (ADR-0043). A signal is not: it is fixed wiring standing at
- *  one end, and the address it answers to is typed here the way a turnout's
- *  is (ADR-0022, #286). */
+/** A signal is fixed wiring standing at one end, and the address it answers to
+ *  is typed here the way a turnout's is (ADR-0022, #286). A sensor is
+ *  addressed by the block end it watches, so what is typed for one is not that
+ *  address but the name its own hardware knows it by (ADR-0063). */
 describe("a block", () => {
-  it("is asked for its name, its length and a signal at each end", async () => {
+  it("is asked for its name, its length and a signal and a sensor at each end", async () => {
     const dialog = await opened("b1", { kind: "block", length: 1000 });
-    expect(fields(dialog)).toEqual(["Name", "Length", "Signal at A", "Signal at B"]);
+    expect(fields(dialog)).toEqual([
+      "Name",
+      "Length",
+      "Signal at A",
+      "Signal at B",
+      "Sensor at A",
+      "Sensor at B",
+    ]);
   });
 
   it("keeps the signal addresses it already carries", async () => {
@@ -188,6 +195,71 @@ describe("a block", () => {
     });
     await typed(dialog, "Signal at A", "");
     expect((await applied(dialog)).spec.signals).toEqual({ B: "41" });
+  });
+
+  /** The default, shown rather than typed: an end says nothing and is watched
+   *  under `<block>.<end>`, so an empty field is a watched end and not an
+   *  unwatched one. It follows the name as that is typed, the default being
+   *  the key's. */
+  it("offers the block end's own name as the sensor to be expected", async () => {
+    const dialog = await opened("b1", { kind: "block", length: 1000 });
+    expect(field(dialog, "Sensor at A").value).toBe("");
+    expect(field(dialog, "Sensor at A").placeholder).toBe("b1.A");
+    expect(field(dialog, "Sensor at B").placeholder).toBe("b1.B");
+  });
+
+  it("keeps the sensor names it already carries", async () => {
+    const dialog = await opened("b1", {
+      kind: "block",
+      length: 1000,
+      sensors: { A: "jmri/LS3" },
+    });
+    expect(field(dialog, "Sensor at A").value).toBe("jmri/LS3");
+    expect(field(dialog, "Sensor at B").value).toBe("");
+  });
+
+  it("takes a typed sensor name back into the drawing", async () => {
+    const dialog = await opened("b1", { kind: "block", length: 1000 });
+    await typed(dialog, "Sensor at B", "jmri/LS4");
+    expect((await applied(dialog)).spec).toEqual({
+      kind: "block",
+      length: 1000,
+      sensors: { B: "jmri/LS4" },
+    });
+  });
+
+  it("round-trips the sensors it was opened on", async () => {
+    const spec: SymbolSpec = {
+      kind: "block",
+      length: 1000,
+      at: [2, 4],
+      sensors: { A: "jmri/LS3", B: "jmri/LS4" },
+    };
+    const dialog = await opened("b1", spec);
+    expect((await applied(dialog)).spec).toEqual(spec);
+  });
+
+  /** A cleared field is the default rather than an empty name, the way a
+   *  cleared signal address is no signal: the drawing carries only the ends
+   *  the hardware names something else. */
+  it("writes no sensor at all where the field was cleared", async () => {
+    const dialog = await opened("b1", {
+      kind: "block",
+      length: 1000,
+      sensors: { A: "jmri/LS3" },
+    });
+    await typed(dialog, "Sensor at A", "");
+    expect((await applied(dialog)).spec).not.toHaveProperty("sensors");
+  });
+
+  it("keeps the other end's sensor when one is cleared", async () => {
+    const dialog = await opened("b1", {
+      kind: "block",
+      length: 1000,
+      sensors: { A: "jmri/LS3", B: "jmri/LS4" },
+    });
+    await typed(dialog, "Sensor at A", "");
+    expect((await applied(dialog)).spec.sensors).toEqual({ B: "jmri/LS4" });
   });
 });
 
