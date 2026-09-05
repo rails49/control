@@ -44,8 +44,10 @@ simulated railroad to drive is `python -m tc49.simulator --broker
 127.0.0.1:1883 --railroad reversing-loops --store http://127.0.0.1:8765`.
 **The broker is the only thing that loads a railroad**: the layout interface
 publishes its name on a retained row and the app reads its documents off the
-store, so switching railroads is restarting the apps and the band has no
-picker (ADR-0059, decision 2).
+store. The band's picker does not load one itself — it asks, on
+`tc49/layout/railroad_wanted`, and the layout interface answers by publishing
+the row (ADR-0060). The picker is live only while `tc49/layout/state/power`
+reads `off`, and says why when it is not.
 
 `../scripts/dev.sh stop` puts down everything the script started and leaves
 alone anything it did not.
