@@ -9,10 +9,15 @@ a milestone-2 feature nothing needs yet (ADR-0047); the queue does the
 staggering, there never being enough tracks to satisfy every request at
 once. A gesture is not a request — it names a train and
 where to put it, and the id and the departure end are what the scheduler
-adds. Ids are minted deterministically in the timetable's order
-(`<train>-1`, `<train>-2`, ...) from one undivided counter, the arrival-end
-expansion is purely mechanical (a bare block becomes both of its ends), and
-`exhausted` is set as soon as the last timetable request is out.
+adds. A timetable's ids are minted deterministically in its order
+(`<train>-1`, `<train>-2`, ...) from one undivided counter and a drag's carry
+a **per-process nonce** in between (`<train>-<nonce>-<n>`), which is
+ADR-0033's split moved inside this app: replay needs the one, and a restart
+of this process alone — ordinary now the apps are separate ones (ADR-0059) —
+would otherwise re-mint a drag's id the dispatcher already holds and has
+dropped unanswered. The arrival-end expansion is purely mechanical (a bare
+block becomes both of its ends), and `exhausted` is set as soon as the last
+timetable request is out.
 
 It **holds facing** (ADR-0019), seeded where a run was built from a document
 and carried forward from the bus: a train that left nose-first faces away from
@@ -39,6 +44,7 @@ Deliberate reversal at rest is the one change routes do not account for, and
 it arrives as its own gesture on `tc49/schedule/reversal_wanted` (#124).
 """
 
+import secrets
 from collections import Counter
 from collections.abc import Sequence
 
@@ -99,6 +105,13 @@ class Scheduler:
         self._facing: dict[str, str] = dict(sorted((facing or {}).items())) | restored
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
         self._counters: Counter[str] = Counter()  # one undivided minter
+        # What makes a drag's id unique across a restart of this process
+        # alone: the counter above starts empty in every process, so without
+        # it the first drag after a restart mints an id the dispatcher is
+        # still holding and drops before any check runs (ADR-0033). Four
+        # bytes of `secrets`, not the clock, which SYSTEM.md forbids of the
+        # bus.
+        self._nonce = secrets.token_hex(4)
         self._published: Payload = {}  # the facing last sent, so only changes go
         # Before the opening rows and not after. Over a broker a publish is
         # asynchronous where a subscribe waits for the broker to acknowledge,
@@ -122,6 +135,13 @@ class Scheduler:
                 }
             )
         self._bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
+
+    @property
+    def nonce(self) -> str:
+        """The nonce this process mints a drag's ids from, minted once at
+        construction and never read by any consumer: a request id is opaque
+        (ADR-0033), and this is here to be asserted against."""
+        return self._nonce
 
     def _submit(self, event: Payload) -> None:
         self._train_of[event["id"]] = event["train"]
@@ -162,6 +182,11 @@ class Scheduler:
         the train would make across its block, so the departure end is the
         end that run comes out at, said as an end (#241).
 
+        The id carries this process's nonce, `<train>-<nonce>-<n>`, where the
+        timetable's is `<train>-<n>`: nothing a person drags was ever
+        reproducible, and a restart that re-minted `<train>-1` for a drag
+        would have it dropped as a duplicate and never answered (ADR-0033).
+
         Read and **not corrected**: the end the facing names is the end the
         request states, wall or not. Every site that settles a facing has
         already turned it off a terminal block's wall (#145), so correcting
@@ -185,7 +210,7 @@ class Scheduler:
         self._counters[wanted.train] += 1
         self._submit(
             {
-                "id": f"{wanted.train}-{self._counters[wanted.train]}",
+                "id": f"{wanted.train}-{self._nonce}-{self._counters[wanted.train]}",
                 "train": wanted.train,
                 "depart": depart,
                 "dest": list(wanted.arrivals),
