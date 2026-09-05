@@ -8,7 +8,10 @@ the hardware reports. Commanding power is not observing it.
 One command is not written through as it came. A plain `off` is applied only
 where nothing is moving, because a topic names the app that answers it and
 never the process that sent the frame, so the drain-first check is made here
-rather than trusted to the sender (ADR-0062, #407).
+rather than trusted to the sender (ADR-0062, #407). And an `off` that is
+applied leaves the railroad **at rest**: the traction rows go to zero ahead of
+the cut, so the supply coming back does not come back over a standing speed
+(#435).
 """
 
 import logging
@@ -26,13 +29,24 @@ from tests.layout.railroad import (
     RAILROAD,
     RUN,
     WANTED_TRACK,
+    WANTED_TRACTION,
     build,
+    commanded,
     energised,
+    faces,
     heard,
     railroad,
     runs,
+    speeds,
+    stand,
     stock,
+    takes,
+    turns,
 )
+
+WANTED = "tc49/layout/state/wanted/#"
+"""Every desired row at once, which is where the order two of them go out in
+is visible: a translator acts on each as it arrives."""
 
 
 class Kept(logging.Handler):
@@ -93,6 +107,37 @@ def commands(bus: InProcessBus, power: str) -> Callable[[], None]:
         bus.drain()
 
     return press
+
+
+def desired(bus: InProcessBus) -> list[tuple[str, Payload]]:
+    """Every desired row written from here on, in order, whichever row it is.
+
+    The values a subscription is owed arrive first and are dropped: what a
+    gesture writes is the news, and what stood on the topics before it is the
+    railroad the gesture arrived at."""
+    written = heard(bus, WANTED)
+    bus.drain()
+    written.clear()
+    return written
+
+
+def topics(written: list[tuple[str, Payload]]) -> list[str]:
+    """Those writes as the topics they went out on: which row, in what order.
+    Ordering is load-bearing between the two of them and the payloads are
+    asserted elsewhere."""
+    return [topic for topic, _payload in written]
+
+
+def hand_driven(bus: InProcessBus) -> None:
+    """A person holding `single` in a throttle with the lever off zero.
+
+    The row nothing else zeroes: the arrival zero is written for a train this
+    app is driving, and a train in a person's hand arrives nowhere (#435)."""
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    takes(bus, "single")
+    turns(bus, "single", 0.5)
+    bus.drain()
 
 
 def test_the_railroad_comes_up_off_before_anything_else() -> None:
@@ -393,3 +438,84 @@ def test_the_run_this_app_reads_is_the_last_one_stated() -> None:
     runs(bus, "held", moving=False)
     commands(bus, "off")()
     assert powers(written) == ["on", "off"]
+
+
+# -- a cut leaves the railroad at rest ---------------------------------------
+
+
+def test_an_applied_off_writes_zero_over_a_standing_traction_row() -> None:
+    """ "The railroad comes up at rest" is a promise about a power cycle as
+    well as about a process start (#435, ADR-0054). Nothing else writes this
+    row down: the arrival zero reaches only a train this app drives, so a
+    plain `off` would otherwise leave a person's lever standing in the row
+    and the next `on` would bring current back over it."""
+    bus, _app = build()
+    live(bus)
+    written = commanded(bus)
+    hand_driven(bus)
+    runs(bus, "held", moving=False)
+
+    commands(bus, "off")()
+
+    assert speeds(written) == [("3", 0.5), ("3", 0.0)]
+
+
+def test_the_zero_goes_out_before_the_supply_is_cut() -> None:
+    """Ordering is load-bearing. The translator acts on desired rows as they
+    arrive, so zeros first means the last thing the station is told before the
+    supply goes is a stop."""
+    bus, _app = build()
+    live(bus)
+    hand_driven(bus)
+    runs(bus, "held", moving=False)
+    written = desired(bus)
+
+    commands(bus, "off")()
+
+    assert topics(written) == [f"{WANTED_TRACTION}/3", WANTED_TRACK]
+
+
+def test_an_emergency_stop_leaves_the_rows_where_they_stand() -> None:
+    """Not on `stopped`. STOP asks the rails for less and the run is meant to
+    resume from it, so zeroing the rows there would turn an emergency stop
+    into a re-drive (ADR-0041)."""
+    bus, _app = build()
+    live(bus)
+    written = commanded(bus)
+    hand_driven(bus)
+    runs(bus, "held", moving=False)
+
+    commands(bus, "stopped")()
+
+    assert speeds(written) == [("3", 0.5)]
+
+
+def test_an_off_refused_for_a_moving_train_leaves_the_rows_alone() -> None:
+    """A refused gesture changes nothing (ADR-0062): nothing was cut, so
+    nothing is at rest, and a train running to its sensor is the last one to
+    take a zero."""
+    bus, _app = build()
+    track = live(bus)
+    written = commanded(bus)
+    hand_driven(bus)
+    runs(bus, "held", moving=True)
+
+    commands(bus, "off")()
+
+    assert speeds(written) == [("3", 0.5)]
+    assert powers(track) == ["on"]
+
+
+def test_an_off_refused_for_a_running_run_leaves_the_rows_alone() -> None:
+    """The other refusal, and the same answer: the zeros ride with the cut
+    and there was no cut."""
+    bus, _app = build()
+    track = live(bus)
+    written = commanded(bus)
+    hand_driven(bus)
+    runs(bus, "running", moving=False)
+
+    commands(bus, "off")()
+
+    assert speeds(written) == [("3", 0.5)]
+    assert powers(track) == ["on"]
