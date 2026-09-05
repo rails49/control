@@ -98,6 +98,13 @@ async function typed(shell: TcApp, field: HTMLElement, value: string): Promise<v
   await settled(shell);
 }
 
+/** Type into a control and leave it standing there: no `change` has fired, so
+ *  nothing is committed and what the field holds is a person mid-word. */
+async function typing(shell: TcApp, field: HTMLElement, value: string): Promise<void> {
+  (field as HTMLInputElement).value = value;
+  await settled(shell);
+}
+
 async function pressed(shell: TcApp, selector: string, at = 0): Promise<void> {
   parts(shell, selector)[at]!.click();
   await settled(shell);
@@ -656,5 +663,62 @@ describe("a refused edit", () => {
 
     expect(trouble(shell)).toMatch("'ore' is on the layout");
     expect(field().value).toBe("150");
+  });
+});
+
+/**
+ * A frame about the railroad is not news about what somebody is typing (#444).
+ *
+ * `tc-app` hands this view `.placed` off the run state, and every `run-status`
+ * event replaces that state whole — so a power change re-renders the stock
+ * screen while a person is halfway through a length or a name. The render is
+ * real; taking the half-typed word back is not what it asks for.
+ */
+describe("an uncommitted edit", () => {
+  it("survives a power change while a model's length is being corrected", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const field = () => parts(shell, "li.product input.length")[0] as HTMLInputElement;
+
+    await typing(shell, field(), "12");
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+
+    expect(field().value).toBe("12");
+  });
+
+  /** The free-text fields, where what is lost is a person's words rather than
+   *  a number — and where a car of its own has nothing in the document to put
+   *  back, so the words go for an empty field. */
+  it("survives a power change in a car's name, its address and a train's", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const name = () => parts(shell, "li.car input.name")[0] as HTMLInputElement;
+    const addr = () => parts(shell, "li.car input.addr")[0] as HTMLInputElement;
+    const train = () => parts(shell, "li.train input.name")[0] as HTMLInputElement;
+
+    await typing(shell, name(), "krokod");
+    await typing(shell, addr(), "31");
+    await typing(shell, train(), "ore tr");
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+
+    expect(name().value).toBe("krokod");
+    expect(addr().value).toBe("31");
+    expect(train().value).toBe("ore tr");
+  });
+
+  /** The write-back is about the field that was refused, and a refusal
+   *  elsewhere is one more render this field has no part in. */
+  it("stands while a refusal is answered on another field", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const length = () => parts(shell, "li.product input.length")[0] as HTMLInputElement;
+    const name = () => parts(shell, "li.car input.name")[0] as HTMLInputElement;
+
+    await typing(shell, length(), "12");
+    await typed(shell, name(), "a/b");
+
+    expect(trouble(shell)).toBe("'a/b' is not a name a car can have");
+    expect(name().value).toBe("arnold-ce68-1");
+    expect(length().value).toBe("12");
   });
 });

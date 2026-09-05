@@ -21,30 +21,24 @@ opinion about how often it takes what the broker's network thread left
 waiting, and what a transit costs is this binding's own stand-in for travel
 time rather than a number a person restarts a container to change (ADR-0030).
 
-The startup order is what a cold start needs:
+The startup order is `lib/startup.py`'s, stated there with its reason: the one
+document, then the broker, and the two rows the constructor states — which
+railroad this is and that the track is live — are this app's opening ones.
 
-1. **The document**, first and blocking, because an app with no layout has
-   nothing to do and the store is the thing most likely not to be up yet. The
-   retry and what it says on stderr are `lib/documents.py`'s.
-2. **The broker**, waited for the same way, because a publish made to a broker
-   that is not there is dropped rather than queued (ADR-0050) — and the two
-   rows the constructor states, which railroad this is and that the track is
-   live, are this app's opening ones.
-3. **No rows of a previous process to adopt, and no steel standing before it.**
-   Retained state lives in the broker and nowhere else (ADR-0059, decision 3),
-   which leaves this binding's placement file — the steel's own memory, on no
-   topic and in no inventory (ADR-0030) — with nowhere to live in a container,
-   so the process is given none. A simulator restarted under a running
-   railroad therefore comes up with an empty layout while the dispatcher comes
-   up with the picture it left on the broker, and the two disagree until a
-   hand places the trains again: `train_placed` is an event, so the broker
-   holds none to replay. What that costs is a `move` for a train this process
-   is not holding, which is dropped for the same reason a stale one is — the
-   train is not standing at the transit's near end (ADR-0047) — and never a
-   train invented under a command. Decision 3 answers #123 for every row the
-   broker holds; this one is on no topic by ADR-0030, so where the steel's
-   memory lives in a container is open, and not this command line's to
-   invent.
+Where it ends early is the last step. **No rows of a previous process to
+adopt, and no steel standing before it.** Retained state lives in the broker
+and nowhere else (ADR-0059, decision 3), which leaves this binding's placement
+file — the steel's own memory, on no topic and in no inventory (ADR-0030) —
+with nowhere to live in a container, so the process is given none. A simulator
+restarted under a running railroad therefore comes up with an empty layout
+while the dispatcher comes up with the picture it left on the broker, and the
+two disagree until a hand places the trains again: `train_placed` is an event,
+so the broker holds none to replay. What that costs is a `move` for a train
+this process is not holding, which is dropped for the same reason a stale one
+is — the train is not standing at the transit's near end (ADR-0047) — and
+never a train invented under a command. Decision 3 answers #123 for every row
+the broker holds; this one is on no topic by ADR-0030, so where the steel's
+memory lives in a container is open, and not this command line's to invent.
 
 Then the loop, which is this app's own and older than its command line: the
 discrete-event queue slept on a wall clock (`run_live`). Where every other

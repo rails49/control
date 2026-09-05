@@ -158,6 +158,41 @@ The volume is made writable by that uid in the image, and the host's passwd
 and group tables come into the store read-only, because ssh will not run for
 a uid it cannot name.
 
+**A box that made a key before #387 is migrated once.** Docker seeds a named
+volume from the image only while the volume is empty, so a `keys` volume that
+already held `id_ed25519` when #387 landed still holds it `0600 root:root`,
+and no deploy changes that. The store runs as the deploying person, reads the
+world-readable public half and cannot read the private one, so the backup
+dialog showed a key while every push was refused (#443). Remove that volume
+once, with the stack down:
+
+```
+docker compose --env-file /etc/tc49/deploy.env -f deploy/compose.yaml \
+  rm -sf store
+docker volume rm tc49_keys
+docker compose --env-file /etc/tc49/deploy.env -f deploy/compose.yaml \
+  up -d --no-deps store
+```
+
+Only the store mounts it, so nothing else comes down. The volume is named for
+the compose project: `tc49_keys` since #451, `deploy_keys` on a box that has
+not been deployed since, and `docker volume ls` says which is there. Crossing
+#451 renamed the project, so such a box already got a fresh volume seeded from
+the image and what is left of the old one is an orphan to remove. The store
+then makes itself a new key the next time the dialog asks for one. Add that
+public half to the backup repository under **Settings ▸ Deploy keys** with
+write access and remove the old one if there is one. The key is the box's
+identity and nothing else, so losing it costs that re-registration and nothing
+more.
+
+**Deploy keys have to be enabled for the organization** that owns the backup
+repository. `deploy_keys_enabled_for_repositories` was `false` on `rails49`,
+which forbids the mechanism for every repository in it, so a box rebuilt into
+an org with the policy off gets a key the store can read and GitHub will not
+accept: the same symptom as the volume above and a different fault. `gh api -X
+PATCH /orgs/<org> -F deploy_keys_enabled_for_repositories=true` sets it, and a
+repository owned by a person rather than an org has no such switch.
+
 ### Typing the block readings
 
 No camera publishes `tc49/layout/state/device/sensor` yet, so on a physical

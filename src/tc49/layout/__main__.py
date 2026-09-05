@@ -14,26 +14,18 @@ broker's network thread left waiting, and what a settling time is worth is a
 fact about the detectors a railroad has, which is `LayoutInterface`'s argument
 and the suite's to drive (ADR-0030).
 
-The startup order is what a cold start needs:
+The startup order is `lib/startup.py`'s, stated there with its reason. Two
+documents here, the layout and the roster: the transits a `move` may name and
+the signal at each block end come off the one, and the addresses that answer
+for a train off the other, no address ever reaching a command (#199). This app's opening rows are the railroad coming up dark and
+at rest, and the rows it adopts are the traction rows a previous process left.
 
-1. **The documents**, first and blocking, because an app with no layout has
-   nothing to do and the store is the thing most likely not to be up yet. Two
-   of them here, the layout and the roster: the transits a `move` may name and
-   the signal at each block end come off the one, and the addresses that
-   answer for a train off the other, no address ever reaching a command
-   (#199). The retry and what it says on stderr are `lib/documents.py`'s.
-2. **The broker**, waited for the same way, because a publish made to a broker
-   that is not there is dropped rather than queued (ADR-0050) — and this app's
-   opening rows are the railroad coming up dark and at rest.
-3. **The picker**, subscribed before a word is published. What it carries is
-   a gesture, and an event is not retained, so a press landing before the
-   subscription is gone; the supply the gesture is conditional on comes with
-   it (ADR-0060, `lib/loading.py`).
-4. **The traction rows a previous process left**, if the broker is holding
-   any. On the in-process binding they were in `last_values` synchronously and
-   the constructor zeroed them as it ran; on a broker they arrive moments after
-   the subscription does, so the wait is here, in the thing that assembles the
-   app, and no app code learns which binding it got.
+One step is this app's alone: **the picker**, subscribed after the broker and
+before a word is published. This is the app that says which railroad is
+loaded, so it **answers** `railroad_wanted` where the five others follow the
+state row (ADR-0060, `lib/loading.py`). What it carries is a gesture, and an
+event is not retained, so a press landing before the subscription is gone; the
+supply the gesture is conditional on comes with it.
 
 Then the loop, which is this app's own and not the drain the other apps run:
 advance the clock to wall time, `settle()`, drain, once per period. It moves

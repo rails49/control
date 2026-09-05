@@ -53,6 +53,16 @@ deploy keys. A store with nowhere to keep a key — `tc49 serve` on a
 workstation without `--keys` — pushes with whatever ssh key that machine
 already has, and the dialog says so.
 
+**A key the store cannot use is not one it has.** The public half is
+world-readable and the private half need not be, so a `keys` directory the
+store did not make — a docker volume left over from an older deploy, owned by
+root — leaves it able to show a key and unable to push with it. The dialog
+names that rather than showing the key, and the push is refused here instead
+of by GitHub, which answers `Permission denied (publickey)` for this and for a
+key nobody registered alike (#443). What repairs it is on the box:
+[DEPLOY.md](../DEPLOY.md) has the one-time removal of the volume, and the new
+key is registered like the first one.
+
 ## What it does while you draw
 
 **A commit some seconds after the last save**, `IDLE_S` of them. Each save

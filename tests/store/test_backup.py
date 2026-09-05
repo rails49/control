@@ -14,6 +14,7 @@ not there — which is what a laptop off the wifi looks like to `git push`,
 minus the wait.
 """
 
+import os
 import shutil
 import subprocess
 import threading
@@ -747,6 +748,78 @@ def test_a_store_makes_a_key_of_its_own_on_first_ask(tmp_path: Path) -> None:
 def test_a_store_given_nowhere_to_keep_a_key_has_none(tmp_path: Path) -> None:
     """A workstation: git pushes with whatever the person's ssh already has."""
     assert Backup(tmp_path, run=FakeGit(toplevel="")).key() is None
+
+
+@keygen
+def test_a_key_the_store_cannot_use_does_not_read_as_a_working_one(
+    tmp_path: Path,
+) -> None:
+    """A `keys` volume made before the image seeded it belongs to root, and
+    the store runs as the person who deployed the box: it reads the public
+    half, which is world-readable, and not the private one (#443). That showed
+    a key that looked right in the dialog while every push was refused, so a
+    private half that is not there is said in words a person can act on, no
+    key is quietly made over the top of it, and the push is not attempted.
+    """
+    keys = tmp_path / "keys"
+    keys.mkdir()
+    (keys / "id_ed25519.pub").write_text("ssh-ed25519 AAAAC3Nz tc49 backup\n")
+    root = tmp_path / "tc49"
+    root.mkdir()
+    run = FakeGit(toplevel=str(root))
+    backup = Backup(root, run=run, keys=keys, log=lambda _: None)
+
+    assert backup.key() is None
+    assert backup.status()["key"] is None
+    assert not (keys / "id_ed25519").exists()
+
+    said = backup.push()
+
+    assert not said.ok and str(keys / "id_ed25519") in said.words
+    assert ("push",) not in run.calls
+    assert [word for word in backup.needs() if "can push with" in word]
+    assert backup.status()["copy"]["ok"] is False
+
+
+@keygen
+@pytest.mark.skipif(os.geteuid() == 0, reason="root opens a file whatever its mode")
+def test_a_private_half_the_store_cannot_open_reads_as_unusable(
+    tmp_path: Path,
+) -> None:
+    """The state found on the box: both halves are there and the private one
+    belongs to somebody else, so it is asked by opening it rather than of the
+    mode bits — the answer depends on who this process is."""
+    keys = tmp_path / "keys"
+    backup = Backup(tmp_path / "tc49", run=FakeGit(toplevel=""), keys=keys)
+    assert backup.key() is not None
+
+    (keys / "id_ed25519").chmod(0o000)
+
+    assert backup.key() is None
+    assert [word for word in backup.needs() if "can push with" in word]
+
+
+@keygen
+def test_a_key_the_store_can_read_both_halves_of_is_shown_and_pushed_with(
+    tmp_path: Path,
+) -> None:
+    """The ordinary case, unchanged: a key is still made unasked the first
+    time it is asked for, the public half is what the dialog shows, and
+    nothing about the check on the private half stands in the way of a
+    push."""
+    keys = tmp_path / "keys"
+    root = tmp_path / "tc49"
+    root.mkdir()
+    run = FakeGit(toplevel=str(root))
+    backup = Backup(root, run=run, keys=keys, log=lambda _: None)
+
+    shown = backup.key()
+
+    assert shown is not None and shown.startswith("ssh-ed25519 ")
+    assert backup.status()["key"] == shown
+    assert not [word for word in backup.needs() if "can push with" in word]
+    assert backup.push().ok
+    assert ("push",) in run.calls
 
 
 @keygen

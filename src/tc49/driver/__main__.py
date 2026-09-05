@@ -17,24 +17,22 @@ nothing outside this process has an opinion about how often it takes what the
 broker's network thread left waiting, and it is short enough that a grant is
 commanded in the same tenth of a second whoever started the container.
 
-The startup order is what a cold start needs, and it is shorter than the other
-apps':
+The startup order is `lib/startup.py`'s, and it is shorter here at both ends.
+**No documents**, so nothing to wait for from the store: an app that reads
+nothing cannot be brought up in the wrong order with respect to one that
+serves documents. **No rows of its own** either, so nothing retained is
+published or waited for — the driver publishes exactly one topic and only ever
+in answer to a grant, so a cold start is silent and the first thing anything
+hears from this process is a `move`.
 
-1. **No documents**, so nothing to wait for from the store. There is no first
-   step here at all: an app that reads nothing cannot be brought up in the
-   wrong order with respect to one that serves documents.
-2. **The broker**, waited for, and then `Driver` on it. Subscribing while
-   connected is acknowledged before the call comes back, so the app is live on
-   `move_granted` by the time it says it is up, where a subscription made
-   while disconnected would only go again with the reconnect. A grant is an
-   **event** and the broker holds none, so what arrives in that gap is gone
-   rather than delivered late — which is the same thing that happens to a
-   grant made while this container is being restarted, and why the dispatcher
-   re-grants rather than the driver remembering.
-3. **No rows of its own**, so nothing retained is published or waited for. The
-   driver publishes exactly one topic and only ever in answer to a grant, so a
-   cold start is silent and the first thing anything hears from this process
-   is a `move`.
+What is left is the broker, and `Driver` on it. Subscribing while connected is
+acknowledged before the call comes back, so the app is live on `move_granted`
+by the time it says it is up, where a subscription made while disconnected
+would only go again with the reconnect. A grant is an **event** and the broker
+holds none, so what arrives in that gap is gone rather than delivered late —
+which is the same thing that happens to a grant made while this container is
+being restarted, and why the dispatcher re-grants rather than the driver
+remembering.
 
 Then the loop, which is a drain and a sleep. `Driver` is handed a `Bus` and
 nothing else in the package changes: which binding it got is this file's
