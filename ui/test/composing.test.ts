@@ -241,6 +241,23 @@ describe("making up a train", () => {
     expect(screen.stopsSaving()).toBeNull();
   });
 
+  /** The same rule from a **hand-edited file**, which is a supported way to
+   *  work: a train naming neither `cars` nor a length is the same train with
+   *  nothing in it, and the store refuses it in the same words as an empty
+   *  `cars` list (`lib/stock.py`, *names no cars*). Composing cannot make it
+   *  — `addTrain` writes an empty list — so the guard reads the shape rather
+   *  than the key, and the words stay the screen's about the row (#447). */
+  it("stops the save for a train naming neither cars nor a length", () => {
+    const words =
+      "train 'goods' has nothing in it — press + beside a car or a model, or remove it";
+    expect(stock({ roster: "oval", trains: { goods: {} } }).stopsSaving()).toBe(words);
+    expect(stock({ roster: "oval", trains: { goods: { cars: [] } } }).stopsSaving()).toBe(
+      words,
+    );
+    // The older shape states its length and names no cars, and goes on saving.
+    expect(stock(OLDER).stopsSaving()).toBeNull();
+  });
+
   it("stops nothing where every train has something in it", () => {
     expect(stock().stopsSaving()).toBeNull();
     expect(stock(EMPTY).stopsSaving()).toBeNull();

@@ -423,11 +423,19 @@ export class Stock {
    * A train that **states its length and names no cars** is not that train:
    * it names no `cars` list at all, which is the shape the store keeps legal
    * for an older file, and saving the roster back keeps it as it was (#414).
+   *
+   * A train naming **neither** key is that train again, said another way: the
+   * store refuses it in the same words as the empty list (`lib/stock.py`,
+   * *names no cars*). Composing cannot write it — `addTrain` makes an empty
+   * list — but a hand-edited roster file can, and is answered as written, so
+   * the guard reads the shape rather than the key (#447).
    */
   stopsSaving(): string | null {
     const empty = Object.entries(this.doc.trains)
       .sort(([one], [other]) => (one < other ? -1 : 1))
-      .find(([, train]) => train.cars !== undefined && train.cars.length === 0);
+      .find(
+        ([, train]) => train.length === undefined && (train.cars ?? []).length === 0,
+      );
     return empty === undefined
       ? null
       : `train '${empty[0]}' has nothing in it — press + beside a car or a` +

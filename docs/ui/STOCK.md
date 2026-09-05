@@ -111,7 +111,11 @@ document — an empty `cars` list names no cars (`lib/stock.py`) — so a roster
 it takes is always one `/rosters/<railroad>/trains` can answer, and the roster
 on disk is unchanged either way. Save stays enabled: there is still something
 to give the store once the train is filled
-([#412](https://github.com/rails49/control/issues/412)).
+([#412](https://github.com/rails49/control/issues/412)). A hand-edited file can
+say the same train the other way — naming neither `cars` nor a length — and the
+store refuses that in the same words, so the screen catches it in the same
+sentence: the guard reads a train with nothing in it rather than the key it is
+written with ([#447](https://github.com/rails49/control/issues/447)).
 
 **A roster written before [#223](https://github.com/rails49/control/issues/223)
 opens here.** Such a file states a train's length and names no cars, and the
