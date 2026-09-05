@@ -28,7 +28,10 @@ The startup order is what a cold start needs:
    in-process binding a retained value is there synchronously and the
    dispatcher reads it as it is constructed (#123); on a broker it arrives
    moments after the subscription does, so the wait is here, in the thing that
-   assembles the app, and no app code learns which binding it got.
+   assembles the app, and no app code learns which binding it got. It is
+   `lib/startup.py`'s wait, ended by the row landing or by a stop. Missing it
+   would lose the hold that picture imposes — a restored session comes up held
+   whatever the steel has been doing meanwhile.
 
 What the layout says about the supply is *not* waited for: `state/power`
 arrives on the dispatcher's own filter at the first drain, and the run comes
@@ -47,7 +50,6 @@ import contextlib
 import signal
 import sys
 import threading
-import time
 from collections.abc import Callable
 
 from tc49.dispatcher.dispatch import ALLOCATION, Dispatcher
@@ -57,7 +59,13 @@ from tc49.lib.layout import Layout
 from tc49.lib.loading import Loaded, dropped
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
-from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
+from tc49.lib.startup import (
+    PERIOD_S,
+    RETAINED_S,
+    command_line,
+    connected,
+    retained,
+)
 
 CLIENT_ID = "tc49-dispatcher"
 """What this app calls itself to the broker, so its log names an app rather
@@ -90,6 +98,7 @@ def serve(
     railroad: str,
     stop: threading.Event,
     period_s: float = PERIOD_S,
+    retained_s: float = RETAINED_S,
     log: Callable[[str], None] = to_stderr,
 ) -> None:
     """The app: its documents, its rows, its loop, and the railroad it runs.
@@ -97,7 +106,9 @@ def serve(
     `stop` is how a caller that is not a signal ends the loop, which is the
     suite. The deployment sets it never: a signal raises where the process
     happens to be — in the loop, or in either wait above it — and `main`
-    lets that out.
+    lets that out. It ends the waits too: `retained_s` is a moment given to
+    the broker and not one to sit through, so a stop set inside it is acted
+    on where it lands (`lib/startup.py`).
 
     The outer loop is one railroad each time round. A railroad is loaded
     while the apps run (ADR-0060), so the row naming another one ends the
@@ -112,7 +123,7 @@ def serve(
     if not connected(bus, stop, log):
         return
     while not stop.is_set():
-        _retained(bus, ALLOCATION)
+        retained(bus, ALLOCATION, stop, retained_s)
         # No placement: a run an operator drives comes up with an empty layout
         # and held, and every train arrives as a gesture (ADR-0039). Locking is
         # **incremental**, which is what the panel's two colours mean — green
@@ -135,7 +146,7 @@ def serve(
         if not loaded.moved:
             return
         layout, roster = _loading(documents, loaded, built, log)
-        gone = dropped(bus, OWNED, stop, RETAINED_S)
+        gone = dropped(bus, OWNED, stop, retained_s)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
 
 
@@ -158,27 +169,6 @@ def _loading(
         log(f"'{loaded.name}': {refused} — staying on '{built}'")
         loaded.keep(built)
         return _documents(documents, built)
-
-
-def _retained(bus: MqttBus, topic: str, timeout_s: float = RETAINED_S) -> None:
-    """Subscribe, and come back once the broker has handed over what it holds
-    on `topic` — or once it is clear it holds nothing.
-
-    What `Dispatcher` reads out of `last_values` as it is constructed: the
-    picture a process of its own left behind, which is where a restarted
-    dispatcher finds its trains standing and what it was crossing, rather
-    than coming up over a railroad it believes to be empty (#123). Missing it
-    would also lose the hold that same picture imposes — a restored session
-    comes up held whatever the steel has been doing meanwhile.
-
-    The value is read here only in the sense of being waited for; reading it
-    is the app's, through `restored` like every payload, and this handler
-    does nothing with what it is given.
-    """
-    bus.subscribe(topic, lambda _topic, _payload: None)
-    deadline = time.monotonic() + timeout_s
-    while topic not in bus.last_values and time.monotonic() < deadline:
-        time.sleep(0.01)
 
 
 def main() -> None:
