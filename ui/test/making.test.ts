@@ -98,6 +98,12 @@ async function typed(shell: TcApp, field: HTMLElement, value: string): Promise<v
   await settled(shell);
 }
 
+/** Type into a control and leave the edit standing: no `change`, so nothing
+ *  is committed and the field is still a person's to finish (#444). */
+function typing(field: HTMLElement, value: string): void {
+  (field as HTMLInputElement).value = value;
+}
+
 async function pressed(shell: TcApp, selector: string, at = 0): Promise<void> {
   parts(shell, selector)[at]!.click();
   await settled(shell);
@@ -656,5 +662,75 @@ describe("a refused edit", () => {
 
     expect(trouble(shell)).toMatch("'ore' is on the layout");
     expect(field().value).toBe("150");
+  });
+});
+
+/**
+ * An edit standing in a field: text typed and the field not left, so no
+ * `change` has fired and nothing has been committed. A frame about the
+ * railroad is not news about what somebody is typing (#444).
+ *
+ * The stock view redraws for reasons that have nothing to do with the field
+ * being typed in — the app hands it `placed`, and every `run-status` event
+ * the run view fires replaces the run state whole — so power going off is a
+ * render, and the person correcting a length is halfway through the number.
+ */
+describe("an edit standing in a field", () => {
+  /** A frame every one of these publishes: power going off is a real change
+   *  and hands the app a fresh run state, which redraws this view. */
+  async function power(shell: TcApp): Promise<void> {
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+  }
+
+  it("keeps a half-typed length on a model's row", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const field = () => parts(shell, "li.product input.length")[0] as HTMLInputElement;
+    typing(field(), "12");
+
+    await power(shell);
+
+    expect(field().value).toBe("12");
+  });
+
+  it("keeps a car's name and its address", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const name = () => parts(shell, "li.car input.name")[0] as HTMLInputElement;
+    const addr = () => parts(shell, "li.car input.addr")[0] as HTMLInputElement;
+    typing(name(), "krokodil-");
+    typing(addr(), "37");
+
+    await power(shell);
+
+    expect(name().value).toBe("krokodil-");
+    expect(addr().value).toBe("37");
+  });
+
+  it("keeps a train's name", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const field = () => parts(shell, "li.train input.name")[0] as HTMLInputElement;
+    typing(field(), "ore up");
+
+    await power(shell);
+
+    expect(field().value).toBe("ore up");
+  });
+
+  /** A refusal is about the field it was typed in. What stands in another
+   *  field was not refused and is nobody's to take back. */
+  it("is left alone where another field's edit is refused", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const name = () => parts(shell, "li.car input.name")[0] as HTMLInputElement;
+    const length = () => parts(shell, "li.product input.length")[0] as HTMLInputElement;
+    typing(length(), "12");
+
+    await typed(shell, name(), "a/b");
+
+    expect(trouble(shell)).toBe("'a/b' is not a name a car can have");
+    expect(name().value).toBe("arnold-ce68-1");
+    expect(length().value).toBe("12");
   });
 });
