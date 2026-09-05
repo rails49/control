@@ -11,7 +11,13 @@ A cold agent, with no access to the author, can finish the issue and leave
 
 - every decision made, including names, payload shapes and contract changes;
 - targets named by path, verified against a stated commit;
-- acceptance criteria that can be checked rather than judged;
+- acceptance criteria that can be checked rather than judged — and that check
+  the thing rather than its name: a `grep` for a retired word proves the word
+  is gone and nothing more, so #382's `grep -ri "bridge\|tc49 live"` came back
+  clean while six passages describing the deleted session survived by calling
+  it "the session". A criterion mechanical enough to run unattended is easy to
+  satisfy without doing the work, and #372 passed the same way, recording that
+  two of its four boxes could not be met as written;
 - out-of-scope stated, so neighbouring work is not swept in.
 
 An issue can be correct, wanted and well written and still fail this. The
