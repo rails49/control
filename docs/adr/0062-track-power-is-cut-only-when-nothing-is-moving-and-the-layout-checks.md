@@ -5,6 +5,39 @@ Resolves [#390](https://github.com/rails49/control/issues/390). Amends
 its "OFF is the drain trigger" section, and its claim that `layout` never
 subscribes to the dispatcher.
 
+**Amended for [#438](https://github.com/rails49/control/issues/438):** the
+guard reads the **observed** power and so does the dispatcher's, which leaves
+a window this decision does not cover. Both gates that stop work over dead
+rails read `tc49/layout/state/power`: the dispatcher refuses to leave `held`
+while its folded copy is not `on` (`_set_run`, the copy folded in `_on_power`,
+`src/tc49/dispatcher/dispatch.py`), and `layout` acts on no `move` while the
+rails read dead (`_cross`, `src/tc49/layout/interface.py`). That row is
+written on what the hardware reports and deliberately not on the strength of
+having commanded anything (ADR-0051). So between `layout` publishing
+`wanted/track: off` and the station reporting `device/track: off` — a network
+round trip plus the hardware's, since
+[ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
+made each app its own process — there is a window in which a
+`run_wanted: running` from a second panel is accepted, the sweep grants, and
+`_cross` writes a speed onto rails that are going dark.
+
+The outcome is a train holding locks for a move no sensor will answer, which
+is not a new failure mode:
+[ADR-0040](0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md), as
+amended by
+[ADR-0049](0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md),
+already calls "safe but wedged" the deliberate outcome for a train whose
+detector never fires, and names the recourse — hold plus a placement, which
+cancels the train's request and releases what it held. So neither gate
+changes. Having the dispatcher read the commanded `wanted/track` instead
+would have it read a desired row `layout` owns as output, across the layer
+[ADR-0043](0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)
+draws; a "cut in flight" flag held in `layout` is a second piece of state in
+the app, the shape decision 2 below refuses when it drops a guarded `off`
+rather than keeping it. The **simulator** does not exercise any of this:
+`src/tc49/simulator/sim.py` publishes `state/power: on` once at construction
+and never again (ADR-0030, deliberate), so a simulated run never sees a cut.
+
 ADR-0051 made OFF a two-step gesture: the panel asks the dispatcher to drain,
 watches `tc49/dispatch/state/run` reach `held`, and only then publishes
 `power_wanted: off`. The guarantee — that the supply is never removed under a
