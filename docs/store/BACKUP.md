@@ -53,6 +53,18 @@ deploy keys. A store with nowhere to keep a key — `tc49 serve` on a
 workstation without `--keys` — pushes with whatever ssh key that machine
 already has, and the dialog says so.
 
+**A key is both halves, and the dialog shows one only where it holds the
+other.** The public half is world-readable and the private half is not, so a
+store can print a key it cannot push with — which is what a `keys` volume made
+before the store ran as the person leaves behind, the volume being seeded from
+the image only while it is empty
+([#387](https://github.com/rails49/control/issues/387)). The dialog shows no
+key there rather than one that looks fine, and what backup needs names the
+file and the one removal that cures it
+([../DEPLOY.md](../DEPLOY.md), [#443](https://github.com/rails49/control/issues/443)).
+Nothing pushes or adopts under such a key: it is refused here, in those words,
+rather than at the far end as `Permission denied (publickey)`.
+
 ## What it does while you draw
 
 **A commit some seconds after the last save**, `IDLE_S` of them. Each save

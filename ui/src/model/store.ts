@@ -384,11 +384,14 @@ export interface BackupDoc {
   remote: string | null;
   /** The public half of the store's own deploy key, for the person to paste
    *  into the repository's deploy keys; `null` where the store has none
-   *  (#355). */
+   *  (#355), and where the private half beside it cannot be read, which is a
+   *  key nothing can push with rather than a key. `needs` is where those two
+   *  are told apart (#443). */
   key: string | null;
   automatic: boolean;
   /** What backup has not got, in the words of the command that would give it
-   *  — no repository, or no remote. Empty where nothing is missing. */
+   *  — no repository, no remote, or a key this store cannot push with. Empty
+   *  where nothing is missing. */
   needs: string[];
   /** The documents that have moved since the last backup, by the names the
    *  store gives them. */
