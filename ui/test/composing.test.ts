@@ -38,7 +38,7 @@ const CATALOGUE: Record<string, ModelDoc> = {
     model: "van",
     kind: "freight",
     length: 90,
-    functions: { "3": { name: "vacuum", values: ["off", "half", "full"] } },
+    functions: { "3": { name: "vacuum" } },
   },
 };
 
@@ -123,8 +123,8 @@ describe("what a train derives to", () => {
       },
     };
     expect(trainFunctions(roster.trains.topped!, roster, CATALOGUE)).toEqual([
-      { name: "headlights", values: ["off", "on"] },
-      { name: "vacuum", values: ["off", "half", "full"] },
+      { name: "headlights" },
+      { name: "vacuum" },
     ]);
   });
 });

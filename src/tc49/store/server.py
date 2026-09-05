@@ -324,10 +324,7 @@ def _trains(roster: Roster) -> dict[str, Any]:
         "trains": {
             name: {
                 "length": train.length,
-                "functions": [
-                    {"name": function.name, "values": list(function.values)}
-                    for function in train.functions
-                ],
+                "functions": [{"name": function.name} for function in train.functions],
             }
             for name, train in sorted(roster.trains.items())
         },

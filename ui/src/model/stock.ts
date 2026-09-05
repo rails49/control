@@ -49,10 +49,6 @@ export const LIGHT_ENGINE = "light engine";
 export const FORWARD = "forward";
 export const REVERSE = "reverse";
 
-/** What a function is in where the model states no values: a plain switch,
- *  off to begin with (`tc49.lib.roster.OFF_ON`). */
-export const OFF_ON = ["off", "on"];
-
 /**
  * One item as it stands in a train: its model's every field, with anything
  * the car said instead.
@@ -187,7 +183,7 @@ export function trainFunctions(
     if (one === null) continue;
     for (const fn of Object.values(one.functions)) {
       if (!byName.has(fn.name)) {
-        byName.set(fn.name, { name: fn.name, values: fn.values ?? OFF_ON });
+        byName.set(fn.name, { name: fn.name });
       }
     }
   }

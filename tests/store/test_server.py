@@ -120,7 +120,7 @@ def test_a_roster_is_written_and_read_back(tmp_path: Path, backup: Backup) -> No
         "trains": {
             "ore": {
                 "length": 722,
-                "functions": [{"name": "lights", "values": ["off", "on"]}],
+                "functions": [{"name": "lights"}],
             }
         },
     }
@@ -251,10 +251,7 @@ def test_a_trains_functions_are_served_with_it(tmp_path: Path, backup: Backup) -
     assert status == 200
     assert body["trains"]["light_1"] == {
         "length": 220,
-        "functions": [
-            {"name": "headlights", "values": ["off", "on"]},
-            {"name": "vacuum", "values": ["off", "low", "high"]},
-        ],
+        "functions": [{"name": "headlights"}, {"name": "vacuum"}],
     }
 
 
