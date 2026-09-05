@@ -1,11 +1,29 @@
-"""The shape every app's process comes up in: its waits, and its numbers.
+"""The shape every app's process comes up in: its order, its waits, and its
+numbers.
 
 Every app comes up alone (ADR-0059, decision 5), and coming up is the same
-few steps whichever app it is — wait for the broker, because a publish made
-to a broker that is not there is dropped rather than queued (ADR-0050); give
-that broker its moment to hand back the row this app already owns; then the
-loop. Six command lines written one after another said all of that six times
-over, byte for byte, and two of them had already drifted (#430).
+three steps whichever app it is. Six command lines written one after another
+said all of that six times over, byte for byte, and two of them had already
+drifted (#430); six docstrings then stated the order again in their own
+words, so a reader had no one place to learn it and a change to it had six
+places to miss (#440). **The order is stated here.** It is settled, and it is
+what the code does (#432):
+
+1. **The documents, first and blocking.** An app with no layout has nothing
+   to do, and the store is the thing most likely not to be up yet. The retry
+   and what it says on stderr are `lib/documents.py`'s.
+2. **The broker**, waited for the same way (`connected` below), because a
+   publish made to a broker that is not there is dropped rather than queued
+   (ADR-0050) — and what an app publishes first are its opening rows, so the
+   wait comes before them.
+3. **The rows this app already owns**, if the broker is holding any
+   (`retained` below), and then the loop. A row a process of its own left
+   behind is what an app restarted under a running railroad adopts rather
+   than coming up as if the railroad were new (#123).
+
+An app's `__main__` says only where it differs from this: `driver` and
+`dccex` read no documents, `layout` answers the picker rather than following
+the row, and `simulator` has no rows of a previous process to adopt.
 
 Here rather than in an app, for the reason `lib.mqtt.address` is here: an app
 imports `lib` and itself and never another app (ADR-0013), so `lib` is the
