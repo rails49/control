@@ -10,17 +10,24 @@ translator is a layer everything passes through. Neither holds.
 
 ## What ADR-0043 already settles, and this does not touch
 
-An address names its system as its first level — `dccex/12`, `jmri/LT3` — and
-the topic carries the system as a level, so **whatever answers for a system
-subscribes that system and an address nothing answers to does no harm**, as a
-DCC packet nobody picks up does. No ownership table exists anywhere. Zero, one
-or several answer, per what is wired. State rather than command, so something
-coming up finds positions to set rather than a history to replay. Any detector
-meets the same door through a republisher.
+**Whatever answers for an address acts on it, and an address nothing answers
+to does no harm**, as a DCC packet nobody picks up does. No ownership table
+exists anywhere. Zero, one or several answer, per what is wired. State rather
+than command, so something coming up finds positions to set rather than a
+history to replay. Any detector meets the same door through a republisher.
 
 That is already a design in which the hardware is somebody else's business.
-The code agrees: a point's address is checked for shape and never against a
-list of known systems, so `mine/7` derives today.
+The code agrees: an address is any non-empty string, checked against no list
+of known systems, so `mine/7` and `5` both derive today.
+
+*Amended by [#367](https://github.com/rails49/control/issues/367),
+2026-09-04:* this section used to say an address names its system as its first
+level — `dccex/12`, `jmri/LT3` — and that the topic carries the system as a
+level. Both are withdrawn. An address is the string the drawing carries and
+the hardware answers to, the topic carries it as trailing levels with no
+system in front, and a translator acts on every address it recognises. Two
+systems that number a point alike both act, which is the deployer's addressing
+to fix and not a topic level.
 
 ## The bus is the interface, and a translator is not a layer
 

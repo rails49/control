@@ -8,7 +8,7 @@ from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import RequestSpec, TrainSpec
 from tc49.scheduler import Scheduler
-from tests.harness import load, retaining
+from tests.harness import Recording, load, retaining, subscribed_before_publishing
 
 
 def yard() -> Layout:
@@ -910,22 +910,6 @@ def test_an_answer_that_cannot_be_read_leaves_the_request_in_flight() -> None:
     assert facing(seen)["express_2"] == "up_e.A-to-B"
 
 
-class Recording(InProcessBus):
-    """An in-process bus that remembers the order it was called in."""
-
-    def __init__(self) -> None:
-        super().__init__(Clock())
-        self.calls: list[str] = []
-
-    def subscribe(self, topic_filter: str, handler: object) -> None:  # type: ignore[override]
-        self.calls.append(f"subscribe {topic_filter}")
-        super().subscribe(topic_filter, cast(object, handler))  # type: ignore[arg-type]
-
-    def publish(self, topic: str, payload: Payload) -> None:
-        self.calls.append(f"publish {topic}")
-        super().publish(topic, payload)
-
-
 def test_it_subscribes_before_it_publishes_anything() -> None:
     """The opening rows go out with the subscriptions already live.
 
@@ -939,11 +923,4 @@ def test_it_subscribes_before_it_publishes_anything() -> None:
     """
     bus = Recording()
     Scheduler(bus, yard(), seeded(), TIMETABLE)
-
-    published = [i for i, call in enumerate(bus.calls) if call.startswith("publish")]
-    subscribed = [i for i, call in enumerate(bus.calls) if call.startswith("subscribe")]
-    assert subscribed, "the scheduler subscribed to nothing"
-    assert published, "the scheduler published nothing"
-    assert max(subscribed) < min(
-        published
-    ), f"a row went out before the subscriptions were live: {bus.calls}"
+    subscribed_before_publishing(bus)

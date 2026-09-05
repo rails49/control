@@ -8,7 +8,7 @@ convenience the tests want.
 import json
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -225,3 +225,38 @@ def run_rows(assembly: Assembly) -> list[tuple[str, bool]]:
     return [
         (str(line["run"]), bool(line.get("moving"))) for line in leaves(assembly, "run")
     ]
+
+
+class Recording(InProcessBus):
+    """An in-process bus that remembers the order it was called in.
+
+    For the one thing a functional test cannot see: an app must subscribe
+    before it publishes its opening rows. Over a broker a publish is
+    asynchronous where a subscribe waits to be acknowledged, so publishing
+    first drops any gesture arriving in the gap, and an event is not retained.
+    In one process the gap has no width, so the order is asserted here rather
+    than waited for.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(Clock())
+        self.calls: list[str] = []
+
+    def subscribe(self, topic_filter: str, handler: object) -> None:  # type: ignore[override]
+        self.calls.append(f"subscribe {topic_filter}")
+        super().subscribe(topic_filter, cast(object, handler))  # type: ignore[arg-type]
+
+    def publish(self, topic: str, payload: Payload) -> None:
+        self.calls.append(f"publish {topic}")
+        super().publish(topic, payload)
+
+
+def subscribed_before_publishing(bus: Recording) -> None:
+    """Assert it of whatever was just built on `bus`."""
+    published = [i for i, call in enumerate(bus.calls) if call.startswith("publish")]
+    subscribed = [i for i, call in enumerate(bus.calls) if call.startswith("subscribe")]
+    assert subscribed, "it subscribed to nothing"
+    assert published, "it published nothing"
+    assert max(subscribed) < min(
+        published
+    ), f"a row went out before the subscriptions were live: {bus.calls}"
