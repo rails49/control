@@ -76,7 +76,7 @@ transits.
 
 | Symbol | Kind | Pins | Transits | Concurrent | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length; a signal address per signalled end |
+| Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length; a signal address per signalled end, a sensor name per end named otherwise |
 | Terminal | `terminal` | 1 (`P`) | none | n/a | marks a deliberate track end |
 | Turnout | `turnout` | 3 (`toe`, `straight`, `diverging`) | `straight`, `diverging` | none | |
 | Crossing | `crossing` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | a grade crossing: one train at a time |
@@ -104,7 +104,10 @@ can make, and is worth hiding once the rest is settled.)
 What *is* a field is the address of the signal installed at an end, under
 `signals` ([Hardware ids](#hardware-ids)): a signal is fixed wiring like a
 turnout motor, so its address is typed on the drawing, and an end with no
-address on it is an end no signal stands at.
+address on it is an end no signal stands at. Beside it, under `sensors`, is
+the name the hardware watching an end knows its sensor by — an end saying
+nothing is watched under `<block>.<end>`, which is what most ends want
+([Hardware ids](#hardware-ids)).
 
 Everything about these symbols is fixed, so a drawing writes only `kind` and
 the names it wants (below). In particular none of them declares anything
@@ -188,7 +191,8 @@ symbols:
 ```
 
 - **Symbols are a mapping from name to `kind` and its properties.** A block
-  takes a `length` and optional `signals` keyed by its ends; a portal a
+  takes a `length` and optional `signals` and `sensors`, each keyed by its
+  ends; a portal a
   `label`; a turnout
   or a slip an optional `addr` ([Hardware ids](#hardware-ids)); a terminal and a
   free-standing pin (`kind: pin`) nothing.
@@ -257,8 +261,9 @@ auto-layout.
 ## Hardware ids
 
 The drawing holds the identities of the fixed wiring, as optional symbol
-properties: `addr` on a turnout or a slip, and `signals` on a block, keyed by
-the end each signal stands at.
+properties: `addr` on a turnout or a slip, and `signals` and `sensors` on a
+block, keyed by the end each signal stands at and the end each sensor
+watches.
 
 ```yaml
 b_station_a: { kind: block, at: [12, 4], length: 900, signals: { A: '40', B: '41' } }
@@ -295,11 +300,36 @@ wearing no address is left out rather than stopping derivation: the drawing is
 where an unaddressed point is reported. A drawing with no hardware ids is
 valid; the simulator needs none.
 
-A sensor, unlike the signal beside it, has no id here. It is addressed by the
-block end it watches,
-`<block>.<end>`, which are the drawing's own names rather than anything the
-drawing records
-([ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
+A sensor, unlike the signal beside it, is not addressed by what the drawing
+says about it. It is addressed by the block end it watches, `<block>.<end>`, on
+every railroad
+([ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)),
+so a trace is comparable between installations and nothing above the layout
+interface learns detector geometry.
+
+What the drawing carries instead is the name *the hardware* knows that sensor
+by, under `sensors`, keyed by the end as `signals` is:
+
+```yaml
+  yard_w: {kind: block, length: 1400, sensors: {B: jmri/LS3}}
+```
+
+A system that names its own sensors, and whose protocol requires the system's
+name, cannot be told what to call itself the way a camera can, so the drawing
+is where the two names meet
+([ADR-0063](../adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
+**An end that says nothing is watched under `<block>.<end>`** — the same string
+the topic uses, so the ordinary railroad writes nothing and the two cannot
+drift. A key that is no end of the block is refused at load, naming the block.
+The address is a plain string and nothing checks it, exactly as a point's is
+not checked; what the hardware answers to is knowledge the drawing cannot hold.
+
+It reaches no layout: this is a hardware address, and the derived document
+carries none of them but the ones a transit needs
+([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)). Whoever
+publishes `device/sensor` reads it from the drawing
+([DEVICES.md](../layout/DEVICES.md)), which is why a translator that publishes
+sensors has a railroad to be told about.
 
 **A point's address names no system**, the rule its signal wears above and
 [ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)'s:
