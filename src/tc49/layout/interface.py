@@ -1132,15 +1132,21 @@ class LayoutInterface:
         self._bus.publish(WANTED_TRACK, {"power": wanted})
 
     def _on_device(self, topic: str, payload: Payload) -> None:
-        """What the hardware reports about itself. Three of the four rows are
+        """What the hardware reports about itself. Three of the five rows are
         read: the supply, each publisher's link to the hardware it drives, and
         each detector's level at the block end it watches.
 
-        A `device/point` is a position where hardware reports one and is not
-        acted on: it passes by unread rather than being taken for something
-        else. The row and the address come from the **topic**, which is where
-        a device topic states them; the payload repeats the address so a trace
-        line reads on its own, and a repetition is not a second authority.
+        Two pass by unread rather than being taken for something else. A
+        `device/point` is a position where hardware reports one, and this app
+        acts on none. A `device/refused` is the publisher's report that the
+        hardware refused a command or could not parse it, keyed by whatever
+        that publisher calls itself: it is for a UI, for a person to read, and
+        nothing here branches on it — a refusal that is published happened,
+        and one that is not published is no evidence that none occurred
+        (ADR-0063). The row and the address come from the **topic**, which is
+        where a device topic states them; the payload repeats the address so a
+        trace line reads on its own, and a repetition is not a second
+        authority.
 
         Every row is stamp-guarded for one reason (#240): two values of one
         topic delivered backwards would leave the older standing, which on a
