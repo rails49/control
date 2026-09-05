@@ -190,9 +190,10 @@ def _waiting(stop: threading.Event) -> Callable[[float], None]:
     """The loop's wait: a sleep a stop cuts short, which is what the other
     apps get from `stop.wait(period_s)` at the foot of their own loops.
 
-    The deployment sets `stop` never, so this is `time.sleep` there; the suite
-    sets it, and a turn waiting out a transit would otherwise hold the process
-    open for the rest of that transit after the test had finished with it.
+    The deployment sets `stop` never, so a wait here runs its whole length
+    there; the suite sets it, and a turn waiting out a transit would otherwise
+    hold the process open for the rest of that transit after the test had
+    finished with it.
     """
 
     def wait(seconds: float) -> None:

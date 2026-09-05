@@ -25,7 +25,8 @@ The startup order is what a cold start needs:
    in-process binding a retained value is there synchronously and the
    scheduler reads it as it is constructed (#123); on a broker it arrives
    moments after the subscription does, so the wait is here, in the thing that
-   assembles the app, and no app code learns which binding it got.
+   assembles the app, and no app code learns which binding it got. It is
+   `lib/startup.py`'s wait, ended by the row landing or by a stop.
 
 Then the loop, which is a drain and a sleep. `Scheduler` is handed a `Bus` and
 nothing else changes in the package: what a run an operator drives has is a
@@ -37,14 +38,19 @@ import contextlib
 import signal
 import sys
 import threading
-import time
 from collections.abc import Callable
 
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
 from tc49.lib.loading import Loaded, dropped
 from tc49.lib.mqtt import MqttBus, address
-from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
+from tc49.lib.startup import (
+    PERIOD_S,
+    RETAINED_S,
+    command_line,
+    connected,
+    retained,
+)
 from tc49.scheduler.scheduler import FACING, Scheduler
 
 CLIENT_ID = "tc49-scheduler"
@@ -72,6 +78,7 @@ def serve(
     railroad: str,
     stop: threading.Event,
     period_s: float = PERIOD_S,
+    retained_s: float = RETAINED_S,
     log: Callable[[str], None] = to_stderr,
 ) -> None:
     """The app: its documents, its rows, its loop, and the railroad it runs.
@@ -79,7 +86,9 @@ def serve(
     `stop` is how a caller that is not a signal ends the loop, which is the
     suite. The deployment sets it never: a signal raises where the process
     happens to be — in the loop, or in either wait above it — and `main`
-    lets that out.
+    lets that out. It ends the waits too: `retained_s` is a moment given to
+    the broker and not one to sit through, so a stop set inside it is acted
+    on where it lands (`lib/startup.py`).
 
     The outer loop is one railroad each time round. A railroad is loaded
     while the apps run (ADR-0060), so the row naming another one ends the
@@ -95,7 +104,7 @@ def serve(
     if not connected(bus, stop, log):
         return
     while not stop.is_set():
-        _retained(bus, FACING)
+        retained(bus, FACING, stop, retained_s)
         Scheduler(bus, layout)
         # After the app is built and not before: the row is retained, so
         # subscribing here is handed whatever it holds, and nothing this app
@@ -111,7 +120,7 @@ def serve(
         if not loaded.moved:
             return
         layout = _loading(documents, loaded, built, log)
-        gone = dropped(bus, OWNED, stop, RETAINED_S)
+        gone = dropped(bus, OWNED, stop, retained_s)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
 
 
@@ -128,23 +137,6 @@ def _loading(
         log(f"'{loaded.name}': {refused} — staying on '{built}'")
         loaded.keep(built)
         return documents.layout(built)
-
-
-def _retained(bus: MqttBus, topic: str, timeout_s: float = RETAINED_S) -> None:
-    """Subscribe, and come back once the broker has handed over what it holds
-    on `topic` — or once it is clear it holds nothing.
-
-    What `Scheduler` reads out of `last_values` as it is constructed: the
-    facing a process of its own left behind, which is what a scheduler
-    restarted under a running railroad adopts rather than dropping every
-    train's direction arrow (#123). The value is read here only in the sense
-    of being waited for; reading it is the app's, through `lib.payload` like
-    every payload, and this handler does nothing with what it is given.
-    """
-    bus.subscribe(topic, lambda _topic, _payload: None)
-    deadline = time.monotonic() + timeout_s
-    while topic not in bus.last_values and time.monotonic() < deadline:
-        time.sleep(0.01)
 
 
 def main() -> None:
