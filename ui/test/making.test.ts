@@ -581,11 +581,15 @@ describe("a store that does not answer with a document", () => {
  * The current train: the one the `+` buttons put something at the tail of,
  * and the row drawn as current.
  *
- * Unmaking it used to leave every `+` enabled and naming a train that was
- * gone — the press then did nothing and said nothing, `append` returning
- * silently for a train the roster has not got (#416).
+ * Every `+` names one train, and it is always a train there is
+ * (ui/STOCK.md). It used to be left naming one that was gone — every `+`
+ * enabled, saying *add to \'ore\'*, doing nothing and saying nothing when
+ * pressed, `append` returning silently for a train the roster has not got.
+ * Unmaking the current train was one road into that (#416); renaming it was
+ * the other, the current train being a name and the rename writing the roster
+ * under a new key (#445).
  */
-describe("unmaking the current train", () => {
+describe("the current train", () => {
   /** Two trains, the second of which is current: making one up makes it the
    *  one the left points at. They sort `ore` then `shunt`. */
   async function pair(): Promise<TcApp> {
@@ -625,6 +629,76 @@ describe("unmaking the current train", () => {
     expect(parts(shell, "li.train")).toHaveLength(0);
     expect(plus(shell).disabled).toBe(true);
     expect(plus(shell).title).toBe("make a train up first");
+  });
+
+  /** The name field on one of the two rows. They sort, so `ore` is the first
+   *  and `shunt` — the current one — the second. */
+  function named(shell: TcApp, at: number): HTMLInputElement {
+    return parts(shell, "li.train input.name")[at] as HTMLInputElement;
+  }
+
+  /** What the current row is called, which is the train every `+` names. */
+  function current(shell: TcApp): string | null {
+    const row = parts(shell, "li.train.current input.name")[0];
+    return row === undefined ? null : (row as HTMLInputElement).value;
+  }
+
+  /** `shunt` is current and sorts second, so a fallback to the first train
+   *  the roster has would answer `ore`: the rename has to carry the current
+   *  train rather than pick one again. */
+  it("goes on naming the train it named when that train is renamed", async () => {
+    const shell = await pair();
+
+    await typed(shell, named(shell, 1), "shunt-2");
+
+    expect(current(shell)).toBe("shunt-2");
+    expect(plus(shell).disabled).toBe(false);
+    expect(plus(shell).title).toBe("add to 'shunt-2'");
+
+    await pressed(shell, "li.product button.add");
+    expect(
+      parts(shell, "li.train.current li.entry .what")[0]!.textContent,
+    ).toMatch("hopper");
+  });
+
+  /** A refusal changes the document by construction not at all, so there is
+   *  nothing to carry: the roster still has `shunt` and the `+` still names
+   *  it. */
+  it("is left as it was where a rename is refused for the name in use", async () => {
+    const shell = await pair();
+
+    await typed(shell, named(shell, 1), "ore");
+
+    expect(trouble(shell)).toBe("there is already a train 'ore'");
+    expect(current(shell)).toBe("shunt");
+    expect(plus(shell).title).toBe("add to 'shunt'");
+
+    await pressed(shell, "li.product button.add");
+    expect(
+      parts(shell, "li.train.current li.entry .what")[0]!.textContent,
+    ).toMatch("hopper");
+  });
+
+  it("is left as it was where a rename is refused for the name itself", async () => {
+    const shell = await pair();
+
+    await typed(shell, named(shell, 1), "a/b");
+
+    expect(trouble(shell)).toBe("'a/b' is not a name a train can have");
+    expect(current(shell)).toBe("shunt");
+    expect(plus(shell).title).toBe("add to 'shunt'");
+  });
+
+  it("does not move when another train is renamed", async () => {
+    const shell = await pair();
+
+    await typed(shell, named(shell, 0), "ore-2");
+
+    expect(parts(shell, "li.train input.name").map((one) => (one as HTMLInputElement).value)).toEqual(
+      ["ore-2", "shunt"],
+    );
+    expect(current(shell)).toBe("shunt");
+    expect(plus(shell).title).toBe("add to 'shunt'");
   });
 });
 /**
