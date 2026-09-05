@@ -1,5 +1,7 @@
 # The scheduler is an app, the panel is a view
 
+**Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** two mentions of the bridge below are stale. "A benchmark run wires no bridge" holds for a better reason — the harness wires no browser at all — and "nothing retained says which railroad a session runs" is reversed: `tc49/layout/state/railroad` says so, published by the running binding of the layout interface, which is not a bridge describing the run. Everything else stands.
+
 The scheduler becomes an app in the sense of
 [ADR-0013](0013-apps-are-deployment-units.md), running beside the dispatcher
 rather than inside a page. It holds facing and mints request ids. The panel

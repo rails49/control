@@ -1,5 +1,7 @@
 # The browser's way onto the bus refuses a foreign origin
 
+**Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** the face this rule is stated for is no longer the bridge, which is deleted, but the broker's own WebSocket listener reached as `/mqtt`. The rule is unchanged and outlived its file exactly as it was written to: Mosquitto has no `Origin` setting, so it is enforced in front of the broker as a proxy middleware (`deploy/routes/*/site.yaml`), and `?bridge=` is `?broker=`, still the whole of the browser's configuration and still refused by whichever deployment it names.
+
 Resolves [#342](https://github.com/rails49/control/issues/342).
 [ADR-0055](0055-a-browser-is-not-on-the-lan-and-the-store-refuses-it.md) made
 the store's HTTP face refuse a page on another origin, and scoped itself

@@ -1,5 +1,7 @@
 # A bad request is answered, not raised
 
+**Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** the bridge below is deleted and a page is a client of the broker, so "the bridge relays the bus and describes nothing" is now the broker's plain fan-out. The ruling — a readable bad request is answered, an unreadable one dropped to the trace — is untouched, and so is the reason for it, a browser being able to be stale.
+
 A request may state the block it departs from, and the dispatcher checks that
 against where the train stands
 ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)). It used to raise on a
