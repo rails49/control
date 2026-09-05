@@ -179,8 +179,6 @@ src/tc49/
   bench/        runner.py   assemble the apps on one bus and run a scenario
                             to quiescence — the one wiring, shared by the
                             CLI and the tests
-                session.py  the live session: one railroad at a time behind
-                            the bridge, swapped by whoever joins
                 replay.py   Replay — a scenario played onto a live run as
                             the gestures a person would make (#171)
                 detector.py HandFed — a person's typed readings published as
@@ -215,7 +213,7 @@ ui/                         the layout editor: TypeScript, pnpm, Lit
 
 bench/                      the harness's inputs, the store `tc49 bench`,
                             `tc49 sweep` and `tc49 layout show` root
-                            themselves at. A session and the server read an
+                            themselves at. The store server reads an
                             installation's own store instead (#320)
   layouts/                  <layout>.drawing.yaml — the drawn railroads,
                             the only committed topology; the store derives

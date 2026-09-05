@@ -2,8 +2,8 @@
 (#315).
 
 Nothing publishes `tc49/layout/state/device/sensor` on a physical railroad, so
-a `move` on the steel has nothing to complete it. A line typed at a session
-running on the physical binding is published as the row a detector would write
+a `move` on the steel has nothing to complete it. A line typed at a run on the
+physical binding is published as the row a detector would write
 — and what these assert is that it is *that* row, indistinguishable downstream:
 `layout` folds a typed pair into `block_occupied` and `block_vacated` exactly
 as it folds a camera's, debounce and all.
@@ -14,18 +14,13 @@ go red for a reason that is not this suite's.
 """
 
 import io
-import json
-import threading
 import time
 from dataclasses import dataclass
-from typing import Any
 
 import pytest
-from websockets.sync.client import ClientConnection, connect
 
 from tc49.bench.detector import ENDS, LEVELS, SENSOR, SHAPE, HandFed
 from tc49.bench.runner import assemble_live
-from tc49.bench.session import Session
 from tc49.layout import LayoutInterface
 from tc49.layout.interface import SETTLING_S
 from tc49.lib.bus import InProcessBus, Payload
@@ -35,14 +30,10 @@ from tc49.lib.layout import Layout, block_of, opposite_end
 from tests.bench.physical import (
     HOST,
     PERIOD_S,
-    TIMEOUT_S,
-    Station,
     a_railroad,
     closed_port,
     until,
-    waits_until,
 )
-from tests.harness import ASSETS, railroads
 
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
@@ -397,45 +388,3 @@ def test_the_loop_publishes_what_was_typed_at_a_run_that_is_up() -> None:
     driven.run(PERIOD_S, stop=until(lambda: row in driven.bus.last_values))
 
     assert driven.bus.last_values[row]["occupancy"] == "occupied"
-
-
-def sensor_frame(client: ClientConnection, end: str) -> dict[str, Any]:
-    """The first frame that says what that block end reads, off the picture a
-    joining client is served: a sensor row is retained state like any other, so
-    a level typed before the panel joined is waiting for it (ADR-0032)."""
-    deadline = time.monotonic() + TIMEOUT_S
-    while time.monotonic() < deadline:
-        frame = json.loads(client.recv(timeout=TIMEOUT_S))
-        if frame.get("topic") == f"{SENSOR}/{end}":
-            payload: dict[str, Any] = frame["payload"]
-            return payload
-    raise AssertionError(f"the session never said what {end} reads")
-
-
-def test_a_reading_typed_at_a_session_reaches_a_panel_as_the_row_it_is() -> None:
-    """The whole way through: a session on the physical binding reads its own
-    input, and what a person types there is relayed to a joined panel as the
-    detector row it stands in for — the panel being told nothing about who
-    typed it."""
-    name = railroads()[0]
-    layout, _roster = a_railroad()
-    end = f"{a_block(layout)}.A"
-    with Station() as station:
-        live = Session(
-            ASSETS,
-            PERIOD_S,
-            station=(HOST, station.port),
-            readings=io.StringIO(f"{end} occupied\n"),
-        )
-        assert live.wants(name) is None
-        log = io.StringIO()
-        thread = threading.Thread(target=live.run, args=(log,), daemon=True)
-        thread.start()
-        try:
-            assert waits_until(lambda: f"running {name}" in log.getvalue())
-            with connect(f"ws://{HOST}:{live.bridge.port}/{name}") as client:
-                assert sensor_frame(client, end)["occupancy"] == "occupied"
-        finally:
-            live.stop()
-            thread.join(TIMEOUT_S)
-            live.bridge.close()
