@@ -11,8 +11,16 @@ What cures it for good is three lines in three files that have nothing to do
 with each other — the directory made ahead of compose, the uid the services
 run as, and what an image has to carry for a uid it does not know — so they
 are checked together here rather than each being remembered on its own.
+
+Making the *wrong* directory is the same fault (#442), so the answer the
+deploy makes is checked here too, against the one compose reads: the shell's
+value first, then the env file's, then `~/tc49`. That one is run rather than
+read, `scripts/store-root.sh` being the only part of the deploy a test can
+ask a question of without a box to ssh to and a daemon to start.
 """
 
+import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +32,12 @@ ROOT = Path(__file__).resolve().parents[2]
 COMPOSE: dict[str, Any] = yaml.safe_load((ROOT / "deploy/compose.yaml").read_text())
 DEPLOY = (ROOT / "scripts/deploy.sh").read_text()
 DOCKERFILE = (ROOT / "deploy/app.Dockerfile").read_text()
+STORE_ROOT = ROOT / "scripts/store-root.sh"
+
+HOME = "/home/nobody"
+"""A home the box does not have. The default is read off `HOME`, and a test
+that let the runner's own through would pass on a machine that happens to
+have `~/tc49` and say nothing about which of the two values was used."""
 
 PERSONS = ["store"]
 """The services that write the store, and so run as the person. One, since
@@ -89,8 +103,73 @@ def test_the_image_carries_the_directory_the_keys_volume_lands_on() -> None:
 
 def test_the_deploy_makes_the_store_directory_before_compose() -> None:
     """Made by something that knows whose it is, rather than by the daemon."""
-    made = DEPLOY.index('mkdir -p "${TC49_STORE:-$HOME/tc49}"')
+    made = DEPLOY.index('mkdir -p "$(scripts/store-root.sh "$DEPLOY_ENV")"')
     assert made < DEPLOY.index("docker compose")
+
+
+def test_the_deploy_asks_the_env_file_compose_is_given() -> None:
+    """One name for the file, so the directory made and the directory mounted
+    cannot be resolved out of two different places (#442)."""
+    assert "DEPLOY_ENV=/etc/tc49/deploy.env" in DEPLOY
+    assert '--env-file "$DEPLOY_ENV"' in DEPLOY
+
+
+def store_root(env_file: Path, store: str | None = None) -> str:
+    """What the deploy would make, for a shell holding `store` and a box whose
+    env file is `env_file`."""
+    environment = {"HOME": HOME, "PATH": os.environ["PATH"]}
+    if store is not None:
+        environment["TC49_STORE"] = store
+    done = subprocess.run(
+        [str(STORE_ROOT), str(env_file)],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return done.stdout.strip()
+
+
+def env_file(tmp_path: Path, text: str) -> Path:
+    written = tmp_path / "deploy.env"
+    written.write_text(text)
+    return written
+
+
+def test_the_env_files_store_is_the_one_made(tmp_path: Path) -> None:
+    """A box moves its store by putting `TC49_STORE` in the env file, which is
+    where compose reads it and where the deploy shell does not."""
+    moved = env_file(tmp_path, "CF_DNS_API_TOKEN=secret\nTC49_STORE=/srv/tc49\n")
+    assert store_root(moved) == "/srv/tc49"
+
+
+def test_the_shells_store_wins_over_the_env_files(tmp_path: Path) -> None:
+    """Compose looks a variable up in its own environment before the file it
+    is given, so an exported value is the one mounted and has to be the one
+    made."""
+    moved = env_file(tmp_path, "TC49_STORE=/srv/tc49\n")
+    assert store_root(moved, store="/opt/mine") == "/opt/mine"
+
+
+def test_neither_leaves_the_store_where_it_has_always_been(tmp_path: Path) -> None:
+    """`~/tc49`, the default `deploy/compose.yaml` carries."""
+    assert store_root(env_file(tmp_path, "CF_DNS_API_TOKEN=secret\n")) == f"{HOME}/tc49"
+
+
+def test_no_env_file_does_not_stop_the_deploy(tmp_path: Path) -> None:
+    """The file is root-owned and mode 640, and a box may have none at all.
+    Either way the deploy goes on, at today's directory."""
+    assert store_root(tmp_path / "absent.env") == f"{HOME}/tc49"
+    assert store_root(tmp_path / "absent.env", store="/opt/mine") == "/opt/mine"
+
+
+def test_the_env_file_is_read_and_not_sourced(tmp_path: Path) -> None:
+    """It is the one place a secret sits on disk (docs/DEPLOY.md). Reading a
+    line out of it cannot run what a later line says."""
+    ran = tmp_path / "ran"
+    hostile = env_file(tmp_path, f"TC49_STORE=/srv/tc49\nTOKEN=$(touch {ran})\n")
+    assert store_root(hostile) == "/srv/tc49"
+    assert not ran.exists()
 
 
 def test_the_deploy_says_who_the_person_is() -> None:
