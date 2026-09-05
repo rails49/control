@@ -439,12 +439,12 @@ def test_a_gesture_is_composed_into_the_request_it_asks_for() -> None:
     it mints and the departure end it holds as facing (ADR-0036)."""
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
-    Scheduler(bus, yard(), seeded())
+    scheduler = Scheduler(bus, yard(), seeded())
 
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A", "dn_e.B"]})
     assert [p for _, p in seen] == [
         {
-            "id": "freight_1-1",
+            "id": f"freight_1-{scheduler.nonce}-1",
             "train": "freight_1",
             "depart": "yard_w.B",
             "dest": ["dn_e.A", "dn_e.B"],
@@ -467,15 +467,68 @@ def test_a_drag_out_of_a_terminal_block_departs_by_its_connected_end() -> None:
 
 
 def test_gestures_and_the_timetable_share_one_undivided_counter() -> None:
-    """An id that tells you who minted it is a shape, and no consumer reads
-    the shape (ADR-0033): a person's drag simply takes the next number."""
+    """One counter for both sources (ADR-0036): a person's drag simply takes
+    the next number, and the nonce beside it is what makes the drag's id its
+    own rather than which source minted it."""
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    scheduler = Scheduler(bus, yard(), seeded(), TIMETABLE)
 
     bus.drain()  # the whole timetable goes out
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
-    assert seen[-1][1]["id"] == "freight_1-3"  # -2 is the timetable's return working
+    ordinal = seen[-1][1]["id"].rsplit("-", 1)[-1]
+    assert ordinal == "3"  # -2 is the timetable's return working
+    assert seen[-1][1]["id"] == f"freight_1-{scheduler.nonce}-3"
+
+
+def test_two_schedulers_mint_the_same_ids_for_one_timetable() -> None:
+    """The timetable path is untouched by the nonce, which is the whole of
+    what replay rests on (ADR-0033): the same document, minted twice, gives
+    the same ids in the same order."""
+    minted: list[list[str]] = []
+    for _ in range(2):
+        bus = InProcessBus(Clock())
+        seen = collect(bus, "tc49/dispatch/request_submitted")
+        Scheduler(bus, yard(), seeded(), TIMETABLE)
+        bus.drain()
+        minted.append([p["id"] for _, p in seen])
+
+    assert minted[0] == minted[1] == ["freight_1-1", "express_2-1", "freight_1-2"]
+
+
+def test_two_schedulers_mint_different_ids_for_the_same_drag() -> None:
+    """What the nonce is for: restart the scheduler with the dispatcher still
+    up, and the first drag must not mint an id the dispatcher is still
+    holding — it drops a duplicate at the top of admission, before any check
+    runs, and answers nothing (#73, ADR-0033)."""
+    minted: list[str] = []
+    for _ in range(2):
+        bus = InProcessBus(Clock())
+        seen = collect(bus, "tc49/dispatch/request_submitted")
+        Scheduler(bus, yard(), seeded(), TIMETABLE)
+        bus.drain()
+        gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+        minted.append(seen[-1][1]["id"])
+
+    assert minted[0] != minted[1]
+
+
+def test_a_drags_id_carries_the_nonce_between_the_train_and_the_ordinal() -> None:
+    """Three parts, and the middle one is the process's nonce rather than the
+    ordinal: the ordinal is still the last part, so the counter is the same
+    undivided one the timetable draws from."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, "tc49/dispatch/request_submitted")
+    scheduler = Scheduler(bus, yard(), seeded())
+
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.B"]})
+
+    assert [p["id"] for _, p in seen] == [
+        f"freight_1-{scheduler.nonce}-1",
+        f"freight_1-{scheduler.nonce}-2",
+    ]
+    assert seen[-1][1]["id"].split("-") == ["freight_1", scheduler.nonce, "2"]
 
 
 def test_a_gesture_departs_from_where_facing_has_moved_to() -> None:
@@ -505,7 +558,7 @@ def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
     leaves no request behind, and the next honest drag still composes."""
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
-    Scheduler(bus, yard(), seeded())
+    scheduler = Scheduler(bus, yard(), seeded())
 
     for payload in [
         "freight_1 to dn_e",  # not an object at all
@@ -519,7 +572,7 @@ def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
     assert seen == []
 
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
-    assert [p["id"] for _, p in seen] == ["freight_1-1"]
+    assert [p["id"] for _, p in seen] == [f"freight_1-{scheduler.nonce}-1"]
 
 
 REVERSAL = "tc49/schedule/reversal_wanted"
@@ -610,11 +663,14 @@ def test_a_reversal_lands_once_the_request_is_answered() -> None:
     about the rejection rather than about the block (#145)."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
+    submitted = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
     gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
     bus.publish(
         "tc49/dispatch/request_rejected",
-        {"id": "express_2-1", "reason": "no_entry"},
+        # The id the drag was minted with: it carries this process's nonce,
+        # so nothing outside the scheduler can spell it out (ADR-0033).
+        {"id": submitted[-1][1]["id"], "reason": "no_entry"},
     )
     bus.drain()
 
@@ -640,7 +696,11 @@ def test_a_cancelled_request_is_dropped_and_never_re_submitted() -> None:
     gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
     assert len(submitted) == 1
 
-    announce(bus, "request_cancelled", {"id": "express_2-1", "reason": "revoked"})
+    announce(
+        bus,
+        "request_cancelled",
+        {"id": submitted[-1][1]["id"], "reason": "revoked"},
+    )
 
     assert len(submitted) == 1
     reversal(bus, {"train": "express_2"})
@@ -654,11 +714,16 @@ def test_a_cancellation_needs_no_facing_case_of_its_own() -> None:
     one of those two says otherwise."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
+    submitted = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
     gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
     published = len(seen)
 
-    announce(bus, "request_cancelled", {"id": "express_2-1", "reason": "removed"})
+    announce(
+        bus,
+        "request_cancelled",
+        {"id": submitted[-1][1]["id"], "reason": "removed"},
+    )
     assert len(seen) == published
 
     announce(bus, "train_removed", {"train": "express_2"})
