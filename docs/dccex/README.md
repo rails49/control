@@ -121,7 +121,7 @@ on every output, and a missing file leaves the wiring behind that.
 | `wanted/track` `on` | `<1>`, which reaches every track the station has |
 | `wanted/track` `off` | `<0>` |
 | `wanted/track` `stopped` | `<!>`, the one-shot emergency stop |
-| `wanted/function/<addr>/<n>` `value` | `<F addr n 0\|1>` |
+| `wanted/function/<addr>/<n>` `value` | `<F addr n 0\|1>`, the boolean as the bit — every value the row carries is one the station can be told |
 
 Every row is a pure function in `commands.py`, asserted as "this value in,
 these bytes out" with no socket and no hardware.

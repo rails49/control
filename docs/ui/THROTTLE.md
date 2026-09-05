@@ -107,8 +107,10 @@ working in the train's frame.
 
 **The functions** of the train's own cars, by the names the catalogue gives
 them and by no number, from `GET /rosters/<railroad>/trains` — a train's functions
-are derived from its cars, name by name, the first car declaring one settling
-what its values are (ADR-0045). A train whose cars declare none shows none,
+are derived from its cars, name by name, the first car declaring one being the
+one that stands (ADR-0045). A name is the whole of what a function is: it is
+one bit on the wire, so there is no value list to draw a chooser from
+([ADR-0063](../adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)). A train whose cars declare none shows none,
 which is most of the stock a railroad owns.
 
 They are **drawn and not yet live**. A function reaches a decoder through the
