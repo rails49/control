@@ -73,7 +73,7 @@ from collections.abc import Callable
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
-from tc49.lib.loading import Loaded, dropped
+from tc49.lib.loading import Answering, dropped
 from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
 from tc49.simulator.sim import Simulator
 
@@ -149,20 +149,25 @@ def serve(
     wire come off wall time in the binding (ADR-0059, decision 1) — so a
     restart resetting it is news to nobody (ADR-0009).
     """
-    loaded = Loaded(railroad)
+    loaded = Answering(railroad)
     layout = documents.layout(loaded.name)
     log(f"'{loaded.name}': {len(layout.blocks)} blocks")
     if not _connected(bus, stop, log):
         return
     while not stop.is_set():
+        # Before the app's opening rows and not after, where the five apps
+        # that follow the state row subscribe afterwards: what this one
+        # watches is a **gesture**, and an event is not retained, so a press
+        # landing in the instant between the rows and the subscription would
+        # simply be gone (ADR-0059, decision 5). It also picks up the supply
+        # this app is about to state, which is the precondition on the
+        # gesture — and simulated rails are always live, so what this
+        # binding hears is `on` and the gesture is refused. A power cut is a
+        # physical act, and simulating one would be the branch ADR-0030
+        # keeps out of every app (ADR-0060).
+        loaded.follow(bus)
         clock = Clock()
         simulator = Simulator(bus, layout, clock, transit_s=transit_s, clear_s=clear_s)
-        # After the app is built and not before: the row is retained, so
-        # subscribing here is handed whatever it holds, and nothing this app
-        # does on the way up moves — a command published in the instant
-        # between an app's opening rows and its own subscriptions is lost,
-        # and that instant is not one to lengthen (ADR-0059, decision 5).
-        loaded.follow(bus)
         built = loaded.name
         log(f"up on '{built}', waiting at most {period_s}s a turn")
         # The loop the app already owns, ended by a signal or by the railroad
@@ -181,7 +186,7 @@ def serve(
 
 
 def _loading(
-    documents: Documents, loaded: Loaded, built: str, log: Callable[[str], None]
+    documents: Documents, loaded: Answering, built: str, log: Callable[[str], None]
 ) -> Layout:
     """The railroad just named, or the one still running where the store has
     no such railroad or its drawing does not derive. A store that is not

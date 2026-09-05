@@ -15,22 +15,36 @@ subscribes next, keyed to addresses and blocks the new railroad may not have,
 and nothing republishes a row for a block that no longer exists. One writing
 role (ADR-0035) is what lets each app say exactly which rows are its own.
 
-This module is the seam the six apps share: the row's name, the follower that
-watches it, and the clearing. An app's `__main__` names the filters it owns
-and nothing else here knows them — what a row is about is the app's business,
-and the rule is only that it is the row's owner who drops it.
+This module is the seam the six apps share: the two topics, the follower that
+watches the row, the **answerer** that watches the gesture behind it, and the
+clearing. An app's `__main__` names the filters it owns and nothing else here
+knows them — what a row is about is the app's business, and the rule is only
+that it is the row's owner who drops it.
 """
 
 import threading
 from collections.abc import Sequence
 
 from tc49.lib.bus import Bus, Payload, matches
-from tc49.lib.inventory import AT
+from tc49.lib.inventory import AT, OFF
 
 RAILROAD = "tc49/layout/state/railroad"
 """The row every app follows: the railroad this broker runs, as the store
 lists it. Published by whichever binding of the layout interface is running
 (SYSTEM.md, the inventory), which is the one app bound to a railroad."""
+
+RAILROAD_WANTED = "tc49/layout/railroad_wanted"
+"""The gesture behind that row: a person choosing which railroad the apps
+run, while they run (ADR-0060). One responder — the binding of the layout
+interface that is running, which is the row's writer — and every other app
+follows the state row and never this, as the scheduler follows `train_placed`
+and never `placement_wanted`."""
+
+POWER = "tc49/layout/state/power"
+"""The precondition, read as the one retained row it is. Nothing here
+commands the supply: turning the power off is a gesture a person already has
+and is already two steps, and the layout interface "never writes `off` of its
+own accord" (ADR-0060, ADR-0051)."""
 
 
 class Loaded:
@@ -87,7 +101,12 @@ class Loaded:
         name = payload.get("name")
         if not isinstance(name, str) or not name or name == self._name:
             return
-        row = (name, payload.get(AT))
+        self._take(name, (name, payload.get(AT)))
+
+    def _take(self, name: str, row: tuple[str, object]) -> None:
+        """Load `name` next: the row that named it is remembered so that a
+        refusal has something to be about, and the loop that owns this reads
+        `moved` between two of its turns."""
         if row == self._refused:
             return
         self._took = row
@@ -100,6 +119,87 @@ class Loaded:
         and an app with nothing to run on is worse than one still running the
         railroad it had (ADR-0050)."""
         self._refused = self._took
+        self._name = name
+        self._moved = False
+
+
+class Answering(Loaded):
+    """The railroad the app that **answers** the picker is running: the
+    binding of the layout interface, which is the one app bound to a railroad
+    and the writer of the state row (ADR-0060).
+
+    It follows `tc49/layout/railroad_wanted` where the five other apps follow
+    the state row. Loading is the same cold start either way — the rows this
+    app owns go and it is built again — so everything below `moved` is
+    `Loaded`'s and only what moves it differs.
+
+    **Track power off is the precondition.** The gesture is answered where
+    `tc49/layout/state/power` reads `off` and dropped otherwise: with the
+    power off nothing moves and no turnout throws, and the person who turns
+    it back on is the one confirming the rails match the drawing just loaded
+    (ADR-0051, the operator as the backstop). It is a precondition and not a
+    sequence — nothing here commands a shutdown, and this app never writes
+    `off` of its own accord.
+
+    The row is read off the bus rather than out of the app, so the two
+    bindings apply one rule to their own observation: the layout interface
+    folds the supply from the hardware, and the simulator's rails are always
+    live, a power cut being a physical act that ADR-0030 keeps out of the
+    simulation.
+    """
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        # What the supply was last observed to be, and `None` until it says.
+        # Not `off`: an app that has heard nothing has no evidence that the
+        # rails are dead, and the gesture waits rather than being answered on
+        # a guess.
+        self._power: str | None = None
+
+    def follow(self, bus: Bus) -> None:
+        """Watch the gesture and the supply it is conditional on.
+
+        **Before this app's opening rows**, unlike the followers': a state
+        row is retained and a subscription made after it was published is
+        handed it anyway, but a gesture is an event and there is no second
+        delivery of one. A press landing between the rows and the
+        subscription would simply be gone (ADR-0059, decision 5).
+        """
+        self._moved = False
+        bus.subscribe(POWER, self._powered)
+        bus.subscribe(RAILROAD_WANTED, self._wanted)
+
+    def _powered(self, topic: str, payload: Payload) -> None:
+        """What the supply is doing, as this app publishes it. A payload
+        naming nothing readable leaves the last observation standing: rule 4
+        is that anything at all can arrive on a topic, and an unreadable
+        frame is not news about the rails."""
+        power = payload.get("power")
+        if isinstance(power, str) and power:
+            self._power = power
+
+    def _wanted(self, topic: str, payload: Payload) -> None:
+        """A railroad asked for. Dropped where the payload names nothing
+        readable, where it names the railroad already running, or where the
+        supply does not read `off` — a refusal with nowhere to go, this app
+        answering nothing (ADR-0034), and the picker is what says why while
+        the track has power."""
+        railroad = payload.get("railroad")
+        if not isinstance(railroad, str) or not railroad or railroad == self._name:
+            return
+        if self._power != OFF:
+            return
+        self._take(railroad, (railroad, None))
+
+    def keep(self, name: str) -> None:
+        """Go back to running `name`, and remember nothing.
+
+        A gesture is an event: nothing hands it over a second time, so there
+        is no row standing that would be attempted, refused and attempted
+        again. A person who fixes the drawing and picks it again is picking
+        again, and it is tried again — which is what `Loaded` gets from the
+        later stamp on a republished row and this gets for free.
+        """
         self._name = name
         self._moved = False
 
