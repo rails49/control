@@ -88,6 +88,83 @@ def test_a_null_train_hands_over_every_train_the_app_holds() -> None:
     assert modes(said) == [{}, {"single": "manual", "topped": "manual"}]
 
 
+def test_a_null_train_skips_the_trains_this_app_is_driving() -> None:
+    """A gesture about the railroad rather than about a train somebody looked
+    at: it would otherwise take a train under way on a grant, and the arrival
+    that was going to stop it would stop going out. It is applied in part
+    rather than refused whole — one automatic train under way does not stop a
+    person taking any train — and `state/mode` is what reports where each
+    train's mode stands, the skipped ones going only to the trace (#436)."""
+    bus, _app = build()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    stand(bus, "topped", "up_e")
+    faces(bus, single="up_w.A-to-B")
+    align(bus, "crossover", "to_dn")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
+    said = driving(bus)
+    takes(bus, None)
+
+    assert modes(said) == [{}, {"topped": "manual"}]
+
+
+def test_a_train_the_null_take_skipped_is_still_stopped_on_arrival() -> None:
+    """Which is the whole point of skipping it: the crossing is still this
+    app's to stop, so the `0.0` goes out where the train was sent and it does
+    not run on past it until somebody finds it."""
+    bus, app, clock = wired()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    stand(bus, "topped", "up_e")
+    faces(bus, single="up_w.A-to-B")
+    align(bus, "crossover", "to_dn")
+    written = commanded(bus)
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
+    takes(bus, None)
+
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+
+    assert speeds(written) == [("3", 0.6), ("3", 0.0)]
+
+
+def test_a_null_train_gives_back_the_train_this_app_is_driving_too() -> None:
+    """The other direction is unguarded: giving every train back is harmless,
+    and the train under way is automatic before and after."""
+    bus, _app = build()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    stand(bus, "topped", "up_e")
+    faces(bus, single="up_w.A-to-B")
+    takes(bus, "topped")
+    align(bus, "crossover", "to_dn")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
+    said = driving(bus)
+    gives(bus, None)
+
+    assert modes(said) == [{"topped": "manual"}, {}]
+
+
+def test_a_gesture_naming_the_driven_train_still_takes_it() -> None:
+    """A person who names a train has looked at it, so the take stands and the
+    arrival stops being this app's to write, as it does for any named train."""
+    bus, app, clock = wired()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    align(bus, "crossover", "to_dn")
+    written = commanded(bus)
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
+    said = driving(bus)
+    takes(bus, "single")
+
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+
+    assert modes(said) == [{}, {"single": "manual"}]
+    assert speeds(written) == [("3", 0.6)]
+
+
 def test_a_null_train_takes_the_whole_railroad_back() -> None:
     bus, _app = build()
     stand(bus, "single", "up_w")
