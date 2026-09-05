@@ -587,9 +587,9 @@ portal-label questions that rare layout editing does not justify.
 
 ### Properties
 
-The right-click dialog edits, per kind: a block's name, its length and the
-address of the signal at each of its ends, a portal's label, and a turnout's or
-a slip's address.
+The right-click dialog edits, per kind: a block's name, its length, the address
+of the signal at each of its ends and the name each end's sensor is known by, a
+portal's label, and a turnout's or a slip's address.
 
 **A name is typed only where a person has to say it out loud**
 ([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)). That is a
@@ -613,6 +613,16 @@ the way a turnout's address is
 [DRAWING.md](../store/DRAWING.md#hardware-ids)). An end left empty is an end no
 signal stands at, and the field is written out of the document rather than
 saved holding nothing, the way a cleared turnout address is.
+
+`Sensor at A` and `Sensor at B` are the name the hardware watching that end
+knows its sensor by, for a system that names its own sensors and whose
+protocol requires that name
+([ADR-0063](../adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md),
+[DRAWING.md](../store/DRAWING.md#hardware-ids)). An empty field is the default,
+`<block>.<end>`, which the placeholder shows and the block's name follows as it
+is typed: an end is watched either way, so an empty field is not an unwatched
+end. Left empty it is written out of the document, so the ordinary railroad
+carries none of these and cannot drift from the topic.
 
 A block's key is its only name: the one drawn in the block, read in the
 netlist, and prefixed to every transit id in a trace. That is why it is minted

@@ -59,6 +59,14 @@ export interface SymbolSpec {
    * ([ADR-0022](../../../docs/adr/0022-a-symbol-carries-its-hardware-address.md)).
    */
   signals?: Record<string, string>;
+  /**
+   * The name the hardware watching a block end knows that sensor by, keyed by
+   * the end. An end saying nothing is watched under `<block>.<end>`, which is
+   * the string the topic uses everywhere, so only an end whose hardware names
+   * its own sensors is written here
+   * ([ADR-0063](../../../docs/adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
+   */
+  sensors?: Record<string, string>;
   /** A portal's pairing label: two portals wearing one label join. */
   label?: string;
   /** What the hardware behind a motorised symbol answers to. */

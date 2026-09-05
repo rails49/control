@@ -19,11 +19,12 @@
  * A block's key is the name it is known by everywhere: on the canvas, in the
  * netlist, and as the prefix of every transit id in a trace. Renaming one is a
  * real change and every wire that names its pins is rewritten with it, which
- * is why they are minted short. A block is asked for one thing more: the
- * address of the signal standing at each of its ends, where one stands there.
- * That is fixed wiring like a turnout motor, typed where the person who knows
- * the address is (ADR-0022), and an end left empty carries no signal rather
- * than one with an empty address.
+ * is why they are minted short. A block is asked for two things more, per end:
+ * the address of the signal standing there, where one stands there, and the
+ * name the hardware watching that end knows its sensor by. Both are typed
+ * where the person who knows them is (ADR-0022, ADR-0063). An end left empty
+ * carries no signal rather than one with an empty address, and is watched
+ * under `<block>.<end>` rather than under nothing.
  *
  * **Transit names are not edited here.** A drawing can still write one on a
  * symbol's leg and derivation honours it, but the dialog does not offer it: a
@@ -160,6 +161,7 @@ export class TcProperties extends LitElement {
         }}
       ></sl-input>
       ${PINS.block.map((end) => this.signal(end))}
+      ${PINS.block.map((end) => this.sensor(end))}
     `;
   }
 
@@ -177,6 +179,30 @@ export class TcProperties extends LitElement {
             ...this.draft,
             signals: {
               ...this.draft.signals,
+              [end]: (event.target as HTMLInputElement).value,
+            },
+          };
+        }}
+      ></sl-input>
+    `;
+  }
+
+  /** The name the hardware watching one end knows its sensor by. Empty is the
+   *  default, `<block>.<end>`, shown as the placeholder so the end reads as
+   *  watched rather than as unwatched, and following the name as it is typed:
+   *  the drawing writes nothing where the two agree (ADR-0063). */
+  private sensor(end: string) {
+    return html`
+      <sl-input
+        label="Sensor at ${end}"
+        help-text="What the hardware watching this end calls its sensor. Empty where it is called after the block end."
+        placeholder=${`${this.name}.${end}`}
+        value=${this.draft.sensors?.[end] ?? ""}
+        @sl-input=${(event: Event) => {
+          this.draft = {
+            ...this.draft,
+            sensors: {
+              ...this.draft.sensors,
               [end]: (event.target as HTMLInputElement).value,
             },
           };
@@ -225,8 +251,9 @@ export function editable(kind: AnyKind): boolean {
 
 /** Drop what the drawing schema would refuse: an empty label is not a name,
  *  and an empty mapping is a key the file does not need. A cleared address is
- *  no address rather than an empty one — a drawing with none is valid, and an
- *  end whose signal field was left empty carries no signal. */
+ *  no address rather than an empty one — a drawing with none is valid, an
+ *  end whose signal field was left empty carries no signal, and an end whose
+ *  sensor field was left empty is watched under the default. */
 function tidy(spec: SymbolSpec): SymbolSpec {
   const tidied: SymbolSpec = { ...spec };
   if (!tidied.label) delete tidied.label;
@@ -234,12 +261,14 @@ function tidy(spec: SymbolSpec): SymbolSpec {
   if (tidied.names && Object.keys(tidied.names).length === 0) {
     delete tidied.names;
   }
-  if (tidied.signals) {
-    const signals = Object.fromEntries(
-      Object.entries(tidied.signals).filter(([, addr]) => addr !== ""),
+  for (const key of ["signals", "sensors"] as const) {
+    const written = tidied[key];
+    if (!written) continue;
+    const kept = Object.fromEntries(
+      Object.entries(written).filter(([, addr]) => addr !== ""),
     );
-    if (Object.keys(signals).length === 0) delete tidied.signals;
-    else tidied.signals = signals;
+    if (Object.keys(kept).length === 0) delete tidied[key];
+    else tidied[key] = kept;
   }
   return tidied;
 }
