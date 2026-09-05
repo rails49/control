@@ -51,6 +51,7 @@ from tc49.lib.bus import Bus
 from tc49.lib.inventory import CLEAR, OCCUPIED, UNKNOWN, device_topic
 from tc49.lib.layout import Layout
 from tc49.lib.mqtt import MqttBus
+from tc49.lib.startup import PERIOD_S, connected
 
 SENSOR = "tc49/layout/state/device/sensor"
 """The row a reading goes on, which is `DEVICE_TOPICS`' key for it: this
@@ -72,17 +73,6 @@ CLIENT_ID = "tc49-readings"
 broker's log finds the keyboard rather than a random string. Nothing in the
 contract reads it: a topic has one writing role and no payload says who
 published (SYSTEM.md, rule 4)."""
-
-PERIOD_S = 0.1
-"""Seconds between turns of the loop below: how long a typed line waits in the
-queue the reader thread fills before the thread that publishes takes it. The
-railroad's pacing is elsewhere entirely — a level is settled by `layout`
-(ADR-0030) — so this only has to be short beside a person's typing."""
-
-BROKER_S = 5.0
-"""How long one wait for the broker lasts before it is said again. The wait is
-resumed until the connection lands, so this is only how often a person is told
-that the readings they are about to type have nowhere to go."""
 
 
 class HandFed:
@@ -252,7 +242,7 @@ def serve(
     Ctrl-C, which raises where the process stands and is let out by the
     command.
     """
-    if not _connected(bus, stop, log):
+    if not connected(bus, stop, log):
         return
     detector = HandFed(bus, layout, lines, out)
     detector.opens()
@@ -270,15 +260,3 @@ def serve(
     detector.typed()
     if detector.ended.is_set():
         log("the input ended; nothing more will be typed")
-
-
-def _connected(bus: MqttBus, stop: threading.Event, log: Callable[[str], None]) -> bool:
-    """Wait for the broker, saying so, until it is there or the caller has
-    stopped. A keyboard whose broker is missing has nowhere to publish, and
-    reading the lines meanwhile would only be collecting readings that are
-    stale by the time there is anywhere to put them."""
-    while not stop.is_set():
-        if bus.wait_connected(BROKER_S):
-            return True
-        log("waiting for the broker")
-    return False

@@ -63,7 +63,6 @@ whoever published it is another container, and a bug there must not take the
 thing that watches the railroad down with it.
 """
 
-import argparse
 import contextlib
 import signal
 import sys
@@ -74,20 +73,14 @@ from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
 from tc49.lib.loading import Answering, dropped
-from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
+from tc49.lib.mqtt import MqttBus, address
+from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
 from tc49.simulator.sim import Simulator
 
 CLIENT_ID = "tc49-simulator"
 """What this app calls itself to the broker, so its log names an app rather
 than a random string. Nothing in the contract reads it: a topic has one
 writing role and no payload says who published (SYSTEM.md, rule 4)."""
-
-PERIOD_S = 0.1
-"""Seconds a wait lasts when nothing is scheduled. It bounds how long a
-command sits in the queue the client's network thread fills before this thread
-delivers it, and nothing else: a wait with an event ahead of it is cut to that
-event instead, so the railroad's own pacing is the queue's and not this
-number's."""
 
 TRANSIT_S = 30.0
 CLEAR_S = 30.0
@@ -100,24 +93,11 @@ divided by a speed, and the railroad it stands in for is the one thing that
 could say otherwise. The suite shortens them, a test that waited out a real
 transit spending half a minute on one move."""
 
-RETAINED_S = 1.0
-"""How long the broker is given to hand over the rows this app owns when a
-railroad is loaded, before they are cleared. A bound and not a promise: the
-values arrive as the subscription lands, and a broker holding none would
-otherwise be waited for forever. Nothing waits on it at startup — a cold
-start has nothing to clear (ADR-0059, decision 5)."""
-
 OWNED = ("tc49/layout/state/railroad", "tc49/layout/state/power")
 """The retained rows this binding of the layout interface writes: which
 railroad it is standing in for, and a supply that is live because simulated
 rails always are. The block events it publishes as trains move are events and
 carry no retained value to drop (ADR-0060)."""
-
-BROKER_S = 5.0
-"""How long one wait for the broker lasts before it is said again. The wait is
-resumed until the connection lands, so this is only how often a person
-watching the container is told, and how long a signal takes to be noticed
-while the broker is missing."""
 
 
 def to_stderr(line: str) -> None:
@@ -158,7 +138,7 @@ def serve(
     loaded = Answering(railroad, precondition=None)
     layout = documents.layout(loaded.name)
     log(f"'{loaded.name}': {len(layout.blocks)} blocks")
-    if not _connected(bus, stop, log):
+    if not connected(bus, stop, log):
         return
     while not stop.is_set():
         # Before the app's opening rows and not after, where the five apps
@@ -206,17 +186,6 @@ def _loading(
         return documents.layout(built)
 
 
-def _connected(bus: MqttBus, stop: threading.Event, log: Callable[[str], None]) -> bool:
-    """Wait for the broker, saying so, until it is there or the caller has
-    stopped. An app whose broker is missing has nowhere to publish and nothing
-    to read, so there is nothing else for it to be doing meanwhile."""
-    while not stop.is_set():
-        if bus.wait_connected(BROKER_S):
-            return True
-        log("waiting for the broker")
-    return False
-
-
 def _waiting(stop: threading.Event) -> Callable[[float], None]:
     """The loop's wait: a sleep a stop cuts short, which is what the other
     apps get from `stop.wait(period_s)` at the foot of their own loops.
@@ -233,28 +202,10 @@ def _waiting(stop: threading.Event) -> Callable[[float], None]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
+    parser = command_line(
         prog="python -m tc49.simulator",
         description="Run the simulator against a broker: the milestone-1"
         " binding of the layout interface, standing in for the steel.",
-    )
-    parser.add_argument(
-        "--broker",
-        required=True,
-        metavar="HOST:PORT",
-        help=f"the broker to run on, e.g. {BROKER_EXAMPLE}",
-    )
-    parser.add_argument(
-        "--railroad",
-        required=True,
-        help="the railroad this broker runs, as the store lists it",
-    )
-    parser.add_argument(
-        "--store",
-        required=True,
-        metavar="URL",
-        help="where the store serves the documents, e.g. http://127.0.0.1:8765;"
-        " waited for until it answers",
     )
     args = parser.parse_args()
     try:

@@ -110,6 +110,7 @@ from tc49.dccex.translator import (
     DccEx,
 )
 from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
+from tc49.lib.startup import PERIOD_S, RETAINED_S, connected
 
 CLIENT_PREFIX = "tc49-"
 """What this app calls itself to the broker, in front of its id, so the log
@@ -121,29 +122,6 @@ STATION_EXAMPLE = "dccex-usb:2560"
 """What a station address looks like, for the help and for a refusal. The
 `dccex-usb` mirror serves the command station on 2560 (docs/dccex_usb), and
 the compose service of a box with a station plugged into it names that."""
-
-PERIOD_S = 0.1
-"""Seconds between drains. The railroad's own pacing is elsewhere entirely —
-this only bounds how long a desired value sits in the queue the client's
-network thread fills before the loop thread delivers it, and writes it to the
-station — so it stays small."""
-
-BROKER_S = 5.0
-"""How long one wait for the broker lasts before it is said again. The wait is
-resumed until the connection lands, so this is only how often a person
-watching the container is told, and how long a signal takes to be noticed
-while the broker is missing."""
-
-RETAINED_S = 1.0
-"""How long the desired rows are waited for before the link is opened. A bound
-and not a promise: the broker sends a retained value as the subscription lands,
-and a broker holding none would otherwise be waited for forever.
-
-Waited out **whole**, where an app waiting for one named row comes back the
-instant it lands. There is nothing to key on: a row exists for each address
-`layout` has written to and this app holds no list of which, so an empty broker
-and a broker still sending look alike from here. A second on the way up, once,
-against a locomotive commanded ahead of the power it needs."""
 
 
 def to_stderr(line: str) -> None:
@@ -177,7 +155,7 @@ def serve(
     which has a station appear on a port seconds after the app went looking
     for it and no reason to wait out a deployed retry to see it.
     """
-    if not _connected(bus, stop, log):
+    if not connected(bus, stop, log):
         return
     host, port = station
     app = DccEx(
@@ -194,22 +172,16 @@ def serve(
     asyncio.run(_driving(app, bus, stop, period_s))
 
 
-def _connected(bus: MqttBus, stop: threading.Event, log: Callable[[str], None]) -> bool:
-    """Wait for the broker, saying so, until it is there or the caller has
-    stopped. An app whose broker is missing has nowhere to publish and nothing
-    to read, so there is nothing else for it to be doing meanwhile — the
-    station is somewhere to write to and not somewhere to be told what to
-    write."""
-    while not stop.is_set():
-        if bus.wait_connected(BROKER_S):
-            return True
-        log("waiting for the broker")
-    return False
-
-
 def _retained(bus: MqttBus, stop: threading.Event, timeout_s: float) -> None:
     """Give the broker its moment to hand over the desired rows it holds, and
     deliver them, before anything opens a link they could go out over.
+
+    The window is waited out **whole**, where an app waiting for one named row
+    comes back the instant it lands (`lib/startup.py`). There is nothing to key
+    on: a row exists for each address `layout` has written to and this app
+    holds no list of which, so an empty broker and a broker still sending look
+    alike from here. A second on the way up, once, against a locomotive
+    commanded ahead of the power it needs.
 
     Delivered here on this thread, which is the one thread there is until
     `asyncio.run` starts: `DccEx` remembers a desired value and acts on it
