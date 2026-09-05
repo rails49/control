@@ -512,7 +512,7 @@ its two names, as each topic states.
   next block before the tail clears the last
   ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 - `tc49/layout/power_wanted` — browser-writable — `power`: enum `on`,
-  `stopped` or `off`, the same closed set the observation below carries; any
+  `stopped` or `off`, the same closed set `state/power` below carries; any
   other value is dropped. `layout` is what answers it, and it answers by
   writing `tc49/layout/state/wanted/track` — never by a page reaching a
   translator directly (ADR-0051). A plain `off` is **guarded**: it is applied
@@ -1534,7 +1534,7 @@ rather than writing them.
 | --- | --- | --- |
 | `tc49/layout/state/device/sensor/<block>.<end>` | `addr`, `occupancy`, `reason` | `occupancy` `occupied`, `clear` or `unknown`; `reason` *optional*, free text, only with `unknown` |
 | `tc49/layout/state/device/point/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
-| `tc49/layout/state/device/track` | `power`, `reason` | `power` `on`, `stopped` or `off`; `reason` *optional*, free text |
+| `tc49/layout/state/device/track` | `power`, `reason` | `power` `on` or `off`; `reason` *optional*, free text |
 | `tc49/layout/state/device/link/<id>` | `id`, `link`, `detail` | `link` `up` or `down`; `detail` *optional*, free text |
 
 The address rules are the desired half's, and `link` is the one row whose
@@ -1553,6 +1553,19 @@ the railroad to come up
 A publisher may set an MQTT last will of `down` on its own row, which
 [ADR-0040](adr/0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md)
 permits as a faster signal no safety property depends on (ADR-0059).
+
+**The supply is `on` or `off`.** The observed row carries no emergency stop
+where the desired one does, and that asymmetry is the vocabulary's own: what
+the railroad may be **asked** for is not bounded by what a sensor can answer.
+An emergency stop leaves the rails live — which is what tells it apart from
+cutting the supply, and is physical rather than a modelling choice — so under
+one the supply reads `on`, and that is the truth about the supply rather than
+a gap in what a publisher can report
+([ADR-0063](adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
+Whether the railroad is standing under an emergency stop is
+`tc49/layout/state/power`, which keeps all three values. A `device/track`
+frame stating a third value is refused like any other value outside the closed
+set, and reads `off` with them.
 
 **`reason` on the supply is for the participant that cannot reach it**:
 `{power: off, reason: "…"}`, so a person reads why the railroad is dark
