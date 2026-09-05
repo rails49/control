@@ -36,15 +36,15 @@ The agent was not careless — the body is what it was given, and following it i
 the right thing for a cold agent to do.
 
 So a stale body out-argues a fresh ruling unless something else carries the
-ruling. `/batch-implement` does: it hands every issue that runs after a ruling
+ruling. `/implement-loop` does: it hands every issue that runs after a ruling
 the ruling itself, and tells the agent that a stated ruling beats a word in its
-own body (`~/.claude/skills/batch-implement/SKILL.md`). Triage may still rewrite
+own body (`~/.claude/skills/implement-loop/SKILL.md`). Triage may still rewrite
 a stale body by hand, and should where it can; the handoff exists because that
 will sometimes not have been done.
 
 ## An open blocker is not a reason to remove the label
 
-`/batch-implement` reads `blocked_by` and sorts so a blocker runs first, so a
+`/implement-loop` reads `blocked_by` and sorts so a blocker runs first, so a
 blocked issue may keep the label. Record the edge as a native GitHub
 dependency (see [issue-tracker.md](issue-tracker.md#wayfinding-operations)).
 
