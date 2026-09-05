@@ -791,6 +791,74 @@ def test_signalling_an_end_moves_nothing_else_in_the_layout() -> None:
     assert signals["blocks"]["east"] == plain["blocks"]["east"]
 
 
+# --- a block end carries the name its sensor's hardware knows it by --------
+
+
+def watched(**sensors: str) -> dict[str, Any]:
+    """`spanned`, with the sensor addresses the test puts on `west`."""
+    doc = spanned()
+    doc["symbols"]["west"] = {**block(), "sensors": sensors}
+    return doc
+
+
+def sensors(doc: dict[str, Any], symbol: str = "west") -> dict[str, str]:
+    return Drawing.from_document(doc).symbols[symbol].sensors
+
+
+def test_a_block_saying_nothing_is_watched_at_both_ends_by_the_topic_s_name() -> None:
+    """The default, and the whole of the compatibility claim: a drawing
+    written before a sensor could be named reads as the string the topic uses
+    (ADR-0063)."""
+    assert sensors(spanned()) == {"A": "west.A", "B": "west.B"}
+
+
+@pytest.mark.parametrize("name", RAILROADS)
+def test_a_committed_drawing_names_no_sensor_and_derives_what_it_did(
+    name: str,
+) -> None:
+    doc = read(f"{name}.drawing.yaml")
+    blocks = {
+        symbol
+        for symbol, spec in cast(dict[str, Any], doc["symbols"]).items()
+        if spec.get("kind") == "block"
+    }
+    assert blocks
+    assert all(
+        sensors(doc, symbol) == {end: f"{symbol}.{end}" for end in ("A", "B")}
+        for symbol in blocks
+    )
+
+
+def test_a_named_sensor_is_answered_for_and_the_other_end_keeps_the_default() -> None:
+    """A system that names its own sensors names one end and not the other as
+    readily as both, and the end it does not name is not thereby unwatched."""
+    assert sensors(watched(A="LS12")) == {"A": "LS12", "B": "west.B"}
+
+
+def test_a_sensor_address_is_taken_as_written_and_never_checked() -> None:
+    """What the hardware knows a sensor by is knowledge the drawing cannot
+    hold, so it is a plain string here as a point's address is (ADR-0022)."""
+    assert sensors(watched(A="jmri/LS3", B="17"))["A"] == "jmri/LS3"
+
+
+def test_a_sensor_at_an_end_no_block_has_is_refused_naming_the_block() -> None:
+    with pytest.raises(ValueError, match="symbol 'west': sensors names 'C'"):
+        Drawing.from_document(watched(C="LS12"))
+
+
+def test_a_sensor_keyed_by_the_lowercase_end_letter_is_refused() -> None:
+    """A block's ends are `A` and `B` everywhere, so a second spelling of one
+    is a misspelling, as it is for a signal."""
+    with pytest.raises(ValueError, match="sensors names 'a'"):
+        Drawing.from_document(watched(a="LS12"))
+
+
+def test_naming_a_sensor_moves_nothing_in_the_layout() -> None:
+    """A hardware address does not reach the derived layout, exactly as a
+    point's does not: what publishes `device/sensor` reads the drawing."""
+    assert derive(watched(A="LS12", B="LS13")) == derive(spanned())
+
+
 # --- review: everything the editor draws that is not in the document ------
 
 
@@ -1498,12 +1566,6 @@ _SCHEMA_ERRORS: list[tuple[Mutate, str]] = [
     ),
     (lambda d: d["symbols"]["west"].update(length=0), "positive integer"),
     (lambda d: d["symbols"].update(here={"kind": "portal"}), "missing key"),
-    # A sensor is addressed by the block end it watches, so a block holds no
-    # id for one (ADR-0043) and the key is unknown like any other.
-    (
-        lambda d: d["symbols"]["west"].update(sensors={"A": "s1"}),
-        "unknown key",
-    ),
     (lambda d: d["symbols"]["west"].update(at=[1, 2, 3]), "at must be two integers"),
     (lambda d: d["symbols"]["west"].update(at=["a", "b"]), "at must be two integers"),
     (lambda d: d["symbols"]["west"].update(rot=45), "rot must be one of"),

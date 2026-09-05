@@ -10,6 +10,7 @@ from ruamel.yaml.representer import RepresenterError
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore, yamlfile
+from tc49.store.drawing import Drawing
 from tests.harness import ASSETS, catalogued
 from tests.store.railroads import RAILROADS
 
@@ -130,6 +131,22 @@ def test_placing_every_symbol_keeps_the_prose(
 def test_a_saved_drawing_derives_what_it_did(drawings: AssetStore, name: str) -> None:
     drawings.put(drawings.drawing(name))
     assert drawings.get(name) == AssetStore(ASSETS).get(name)
+
+
+def test_a_sensor_name_round_trips_through_save_and_load(
+    drawings: AssetStore,
+) -> None:
+    """The name a system knows a block end's sensor by is edited in the UI and
+    saved with the drawing, so it has to come back off disk as it was typed
+    (ADR-0063). The other end says nothing and is watched by the default."""
+    doc = drawings.drawing("crossover-yard")
+    doc["symbols"]["yard_w"]["sensors"] = {"B": "jmri/LS3"}
+    drawings.put(doc)
+
+    read_back = drawings.drawing("crossover-yard")
+    assert read_back["symbols"]["yard_w"]["sensors"] == {"B": "jmri/LS3"}
+    watched = Drawing.from_document(read_back).symbols["yard_w"].sensors
+    assert watched == {"A": "yard_w.A", "B": "jmri/LS3"}
 
 
 def test_a_placement_lands_above_the_next_symbol_s_comment(
