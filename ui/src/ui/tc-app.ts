@@ -511,10 +511,11 @@ export class TcApp extends LitElement {
    * the layout interface owns
    * ([#371](https://github.com/rails49/control/issues/371)).
    *
-   * One broker runs one railroad and switching is restarting the apps
-   * (ADR-0059, decision 2), so this arrives once — as the run view's
-   * subscription lands — and it is not a person's press: nothing is asked,
-   * because there is nobody at the keyboard to have meant it.
+   * One broker runs one railroad at a time. The row arrives as the run view's
+   * subscription lands, and again whenever another railroad is loaded while
+   * the apps run (ADR-0060). Either way it is not a person's press: the
+   * picker asks on the bus and the load comes back here as a fact the layout
+   * interface reports, so nothing is asked at this point.
    */
   private loaded(railroad: string): void {
     if (railroad === this.filing.opened) return;

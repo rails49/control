@@ -23,7 +23,10 @@
 # and the scheduler, the dispatcher and the driver take the same three flags.
 # The run view reads which railroad the broker runs off the row the layout
 # interface publishes, so the app follows whichever railroad these are started
-# on and there is nothing to press (ADR-0059, decision 2).
+# on. The band's picker can ask for another (ADR-0060), but only while
+# `tc49/layout/state/power` reads `off` — and the simulator pins its power to
+# `on` (ADR-0030), so in front of the simulator started above the picker is
+# inert. Whether the simulated binding should be exempt is open on #394.
 #
 # The store is rooted at this checkout's `bench/`, the benchmark fixtures, and
 # not at the `~/tc49` an installation reads (#320): the railroads a developer
