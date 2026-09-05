@@ -21,6 +21,7 @@ from tests.harness import (
     RUN_WANTED,
     leaves,
     live,
+    minted,
     press,
     run_rows,
     run_wanted,
@@ -83,9 +84,9 @@ def test_admissions_keep_their_order_while_held() -> None:
     honour."""
     assembly = held_with_three_requests()
     assert ids(assembly, "request_admitted") == [
-        "freight_1-1",
-        "express_2-1",
-        "freight_1-2",
+        minted(assembly, "freight_1"),
+        minted(assembly, "express_2"),
+        minted(assembly, "freight_1", 2),
     ]
 
 
@@ -97,16 +98,13 @@ def test_a_released_queue_drains_in_the_order_it_accumulated() -> None:
     ticks(assembly, 40)
 
     assert runs(assembly) == ["running", "held", "running"]
-    assert ids(assembly, "route_chosen") == [
-        "freight_1-1",
-        "express_2-1",
-        "freight_1-2",
+    queued = [
+        minted(assembly, "freight_1"),
+        minted(assembly, "express_2"),
+        minted(assembly, "freight_1", 2),
     ]
-    assert set(ids(assembly, "request_completed")) == {
-        "freight_1-1",
-        "express_2-1",
-        "freight_1-2",
-    }
+    assert ids(assembly, "route_chosen") == queued
+    assert set(ids(assembly, "request_completed")) == set(queued)
 
 
 def test_release_grants_on_the_press_itself() -> None:
@@ -119,7 +117,7 @@ def test_release_grants_on_the_press_itself() -> None:
     assert leaves(assembly, "route_chosen") == []
 
     press(assembly, RUN_WANTED, {"run": "running"})
-    assert ids(assembly, "route_chosen") == ["freight_1-1"]
+    assert ids(assembly, "route_chosen") == [minted(assembly, "freight_1")]
 
 
 def test_a_value_that_is_no_run_state_leaves_the_run_alone(
@@ -161,7 +159,7 @@ def test_a_request_wanted_is_still_admitted_while_held() -> None:
     press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
     ticks(assembly, 3)
 
-    assert ids(assembly, "request_admitted") == ["freight_1-1"]
+    assert ids(assembly, "request_admitted") == [minted(assembly, "freight_1")]
     assert leaves(assembly, "route_chosen") == []
 
 
@@ -194,9 +192,9 @@ def test_a_degenerate_request_waits_for_the_release_too() -> None:
     press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_w.B"]})
     ticks(assembly, 3)
 
-    assert ids(assembly, "request_admitted") == ["freight_1-1"]
+    assert ids(assembly, "request_admitted") == [minted(assembly, "freight_1")]
     assert leaves(assembly, "route_chosen") == []
 
     press(assembly, RUN_WANTED, {"run": "running"})
     assert leaves(assembly, "route_chosen")[0]["route"] == ["yard_w"]
-    assert ids(assembly, "request_completed") == ["freight_1-1"]
+    assert ids(assembly, "request_completed") == [minted(assembly, "freight_1")]
