@@ -129,6 +129,7 @@ from tc49.lib.inventory import (
     ON,
     RUNNING,
     STOPPED,
+    SUPPLY,
     UNKNOWN,
     is_state_topic,
 )
@@ -334,6 +335,29 @@ def kept_run(payload: object) -> Run | None:
     return Run(held, moving)
 
 
+def supply(payload: object) -> str:
+    """What the hardware states about the supply on ``device/track``, for a
+    payload that can be read as one; `off` for a payload that cannot.
+
+    `power`'s opposite number on the observed half, and it fails the same way
+    for the same reason: a supply that cannot be read is not one a train may
+    move over, so there is no `None` here either.
+
+    Its closed set is the two of ``SUPPLY`` and not the three `power` reads.
+    An emergency stop leaves the rails live, so a publisher reporting one
+    reports `on` (ADR-0063); a frame that says otherwise says something no
+    hardware can observe, and this refuses it as it refuses any other value
+    outside the set. Whether the railroad is standing under an emergency stop
+    is `state/power`'s to carry and never this row's.
+    """
+    if not isinstance(payload, dict):
+        return OFF
+    stated = cast(dict[str, object], payload).get("power")
+    if not isinstance(stated, str) or stated not in SUPPLY:
+        return OFF
+    return stated
+
+
 def power(payload: object) -> str:
     """The value the layout states about its supply, for a payload that can be
     read as one; `off` for a payload that cannot.
@@ -350,6 +374,9 @@ def power(payload: object) -> str:
     branches on "not `on`" alone (ADR-0041), and `stopped` and `off` differ
     only for the person recovering — who has an unreadable payload to recover
     from, not an emergency stop.
+
+    This is `tc49/layout/state/power` alone. The observed row that folds into
+    it is `supply`'s, and reads two values where this reads three.
     """
     if not isinstance(payload, dict):
         return OFF
