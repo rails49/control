@@ -125,7 +125,7 @@ push from (#320). `TC49_STORE` moves it.
 box.** `scripts/deploy.sh` makes it before it runs compose, because a bind
 mount whose source is missing is created by the Docker daemon as root, and
 that shut the person out of their own documents — no editing, no `git init`,
-no catalogue put in by hand (#387). The store and a session then run as that
+no catalogue put in by hand (#387). The store then runs as that
 person, `TC49_UID` and `TC49_GID` from `id` on the box and uid 1000 where
 neither is set, so every drawing the editor saves and every object the backup
 commits is theirs on the host too. `cd` into it, edit it, make it a
@@ -145,29 +145,25 @@ The volume is made writable by that uid in the image, and the host's passwd
 and group tables come into the store read-only, because ssh will not run for
 a uid it cannot name.
 
-### Running a session
+### Typing the block readings
 
-A session is a run of one railroad, with an operator, and not a daemon — so it
-is started deliberately. The run view no longer joins it: the browser is a
-client of the broker (ADR-0059, decision 4), and what is left here is the
-station and the readings a person types.
+No camera publishes `tc49/layout/state/device/sensor` yet, so on a physical
+railroad the levels that complete a move are typed by a person. That keyboard
+is a client of the broker like any app, and runs from a checkout rather than
+from compose — it is one process reading one terminal's input, and nothing
+about it wants restarting (ADR-0059, decision 5, #379):
 
 ```
 ssh blocks
 cd ~/control
-TC49_RAILROAD=gotthard docker compose --env-file /etc/tc49/deploy.env \
-  -f deploy/compose.yaml --profile session up -d session
-docker attach deploy-session-1
+uv run tc49 readings --broker 127.0.0.1:1883 \
+  --railroad gotthard --store http://127.0.0.1:8765
 ```
 
-Attaching is not optional housekeeping: a session driving the command station
-reads its own input, which is where a person types the block readings no
-detector publishes yet (#315). Detach with `ctrl-p ctrl-q`, which leaves it
-running; `ctrl-c` stands the railroad down and ends the run.
-
-It reaches the command station through `dccex-usb:2560` rather than the device
-— which is what lets JMRI and a hand-held throttle share one station
-(ADR-0043) — and reads the same `~/tc49` the store serves.
+Type `<block>.<end> <level>` a line at a time; `ctrl-c` ends it, and the
+railroad goes on running without it. The apps themselves are the compose
+services above and are already up; which of `layout` and `simulator` a box
+runs is what makes it steel or a simulation, and neither is started by hand.
 
 ### The command station
 
@@ -324,7 +320,7 @@ the token can answer a challenge.
 **Compose stops on an unset variable** — it was run without `op run`, which is
 what supplies them. The message names the variable it wanted.
 
-**The internet is down mid-session** — a `hosts` line covers the operating
+**The internet is down mid-run** — a `hosts` line covers the operating
 console, and a phone cannot have one, so hand-held throttles are off the
 layout until the name resolves again. The long TTL on `layout` is the whole
 mitigation.

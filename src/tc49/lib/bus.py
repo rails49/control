@@ -26,22 +26,19 @@ rather than the app, which is what keeps a clock out of every app component
 thing that publishes. An ``at`` a caller already put on a state payload is
 replaced: one place stamps, and it is the one publishing.
 
-Given a file, the binding makes those retained values **durable** (#123): it
-loads them at startup and rewrites the whole file on every retained change,
-so a process that comes back up finds them waiting on their topics exactly
-as a broker that outlived it would have held them. Durability belongs here
-rather than to an app because that is where MQTT already puts it, so the
-broker that replaces this binding in milestone 2 keeps the behaviour. Without
-a file the bus opens none, which is what leaves ``bench`` and ``sweep``
-untouched by construction rather than by a branch.
+The retained values live in memory and go with the process. Outliving one is
+the **broker's** job and nowhere else's: the deployed apps run on the MQTT
+binding, where a restarted app finds its own last value waiting on its own
+topic and a restarted broker holds nothing at all, which is the railroad
+coming up at rest (ADR-0059 decision 3, ADR-0054, #123). This binding is the
+harness's, and a benchmark that read a file from the run before it would not
+be a benchmark.
 """
 
 from collections import deque
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any, Protocol, cast
 
-from tc49.lib import durable
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import AT, is_state_topic
 
@@ -82,39 +79,15 @@ class Bus(Protocol):
 
 
 class InProcessBus:
-    def __init__(self, clock: Clock, state: Path | None = None) -> None:
+    def __init__(self, clock: Clock) -> None:
         """`clock`: the run clock, which the binding reads as it publishes.
         Required rather than defaulted, because a bus given none would stamp
         every state value alike and the ordering the stamp is for would
-        quietly stop working wherever one was constructed (#240).
-
-        `state`: where the retained values live between sessions, or None
-        to keep them in memory alone. A path naming no file yet is the first
-        session of all, and starts empty."""
+        quietly stop working wherever one was constructed (#240)."""
         self._clock = clock
         self._subscriptions: list[_Subscription] = []
         self._queue: deque[tuple[str, Payload, _Subscription | None]] = deque()
-        self._state = state
-        # Filtered on the way out as `publish` filters on the way in: a file
-        # naming an event topic would replay it to every subscriber, and
-        # event topics are never replayed (SYSTEM.md, the bus). The promise
-        # is the bus's to keep, whatever wrote the file.
-        kept = durable.read(state) if state is not None else {}
-        self._last_values: dict[str, Payload] = {
-            # Re-stamped with this session's clock, which is reading zero
-            # here. The stamp is seconds since the session started, so one
-            # carried verbatim out of the last run sits on another timeline
-            # and — being the larger number, for as long as that run was
-            # long — would beat every genuine report this one makes. The
-            # restored picture is instead the oldest thing known, and the
-            # first real report supersedes it: what the railroad is saying
-            # now outranks what it was left believing (ADR-0030, #240). The
-            # file still carries the stamp it was written with; it is the
-            # read that re-stamps.
-            topic: self._stamped(value)
-            for topic, value in kept.items()
-            if is_state_topic(topic)
-        }
+        self._last_values: dict[str, Payload] = {}
 
     @property
     def last_values(self) -> dict[str, Payload]:
@@ -137,7 +110,6 @@ class InProcessBus:
         if is_state_topic(topic):
             payload = self._stamped(payload)
             self._last_values[topic] = payload
-            self._persist()
         self._queue.append((topic, payload, None))
 
     def clear(self, topic: str) -> None:
@@ -154,7 +126,6 @@ class InProcessBus:
         if not is_state_topic(topic):
             raise ValueError(f"nothing is retained on {topic!r}")
         self._last_values.pop(topic, None)
-        self._persist()
 
     def forget(self) -> None:
         """Every subscription dropped, and everything queued with them.
@@ -176,13 +147,6 @@ class InProcessBus:
         difference: a stamp says when the value was published, and processes
         on a broker share no run clock (ADR-0059)."""
         return stamped(payload, self._clock.now)
-
-    def _persist(self) -> None:
-        """The whole picture on every retained change, which a railroad can
-        afford: it is slow, and a state topic only republishes when it moves.
-        `durable` is where the cut mid-write is answered."""
-        if self._state is not None:
-            durable.write(self._state, self._last_values)
 
     def drain(self) -> None:
         while self._queue:

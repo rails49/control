@@ -3,10 +3,9 @@
 A restart loses the lock table and no sensor can return it, sensors being
 anonymous, so placement has to be seeded before the first sensor event. The
 seed used to be the scenario document, which says where the railroad
-*started*. Now the bus binding holds the last picture across the process
+*started*. Now the broker holds the last picture across the process
 (SYSTEM.md, the bus), and the dispatcher finds it waiting on its own state
-topic and adopts it — which is literally what happens against a broker that
-outlived the app.
+topic and adopts it.
 
 Adoption is **selective** (#123): placement and the crossing hint are taken,
 `locks` and `requests` are not. The lock table is rebuilt one block per train
@@ -18,7 +17,6 @@ others, and what it protects — one train to a block, and no train standing in
 a block nothing holds — holds train by train.
 """
 
-import json
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -27,10 +25,9 @@ from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.dispatcher.dispatch import ALLOCATION, ASPECTS
 from tc49.lib.bus import InProcessBus, Payload
-from tc49.lib.clock import Clock
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
-from tests.harness import load
+from tests.harness import load, retaining
 
 RUN = "tc49/dispatch/state/run"
 REQUESTS = "tc49/dispatch/request_submitted"
@@ -64,13 +61,11 @@ def restarted(
     train to starting block: a train no picture can name, which is where a
     collision comes from (#164).
     """
-    path = tmp_path / "session.json"
     kept: dict[str, Any] = {} if picture is None else {ALLOCATION: picture}
     if aspects is not None:
         kept[ASPECTS] = {"aspects": aspects}
     if run is not None:
         kept[RUN] = {"run": run}
-    path.write_text(json.dumps(kept))
     layout, roster, scenario = load("crossover-yard/meet")
     if added is not None:
         # Stock the scenario gained, which the railroad owns: on the roster,
@@ -92,7 +87,7 @@ def restarted(
                 },
             },
         )
-    bus = InProcessBus(Clock(), path)
+    bus = retaining(kept)
     dispatcher = Dispatcher(
         bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )

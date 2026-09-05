@@ -67,8 +67,7 @@ def words(service: dict[str, Any]) -> list[str]:
 
 def app_of(service: dict[str, Any]) -> str | None:
     """The app a service runs, or `None` where it runs something else — a
-    stock image, or a `tc49` subcommand that is not an app, `live` being the
-    harness assembling several in one process (CLAUDE.md)."""
+    stock image, or a `tc49` subcommand that is not an app."""
     run = words(service)
     for before, word in pairwise(run):
         if before == "-m" and word.startswith(MODULE):

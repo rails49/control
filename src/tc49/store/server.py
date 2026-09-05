@@ -57,11 +57,11 @@ withholds the cars, the addresses and the function numbers an editing surface
 has to have, so one route could not serve both.
 
 A **scenario is not served at all**. It is the harness's file format, read off
-disk by `tc49 bench` and by `tc49 live --scenario`, and never
-browser-reachable (#171).
+disk by `tc49 bench` and by `bench/replay.py`, and never browser-reachable
+(#171).
 
 Either way the roster is the railroad's and not the run's: which trains it owns
-does not change while a session is up, and what the bus says is where they are.
+does not change while a run is up, and what the bus says is where they are.
 
 The **catalogue** routes are the installation's rather than any railroad's: a
 model is what a product is and a car names one (ADR-0045). They answer
@@ -384,9 +384,9 @@ def make_server(
     reach this, and the proxy that now does runs in a container, which cannot
     reach a macOS host's loopback (ADR-0042, docs/DEPLOY.md).
 
-    The backup is taken rather than made where the caller has one — a session
-    holds it so that its watch thread and its own quit commit drive the same
-    timers this server's saves arm (`tc49 live`, #321)."""
+    The backup is taken rather than made where the caller has one — `tc49
+    serve` holds it so that its watch thread and its own quit commit drive
+    the same timers this server's saves arm (#321)."""
     store = AssetStore(root)
     backing = backup if backup is not None else Backup(root)
 

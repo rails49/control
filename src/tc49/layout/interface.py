@@ -80,9 +80,9 @@ written `wanted/track: off` and `state/power: off`, so nothing moves and no
 turnout throws until a person turns it on, normally from the panel. It never
 writes `off` of its own accord thereafter: it writes the word it was told to
 write. It also comes up having written `0.0` over every retained
-`wanted/traction` row it finds, so a speed the last session left on a durable
-bus is not sent to a station at the first connect and the locomotive does not
-roll on the power-on (ADR-0054). `wanted/point` replays instead: a point has
+`wanted/traction` row it finds, so a speed the last run left on the broker is
+not sent to a station at the first connect and the locomotive does not roll on
+the power-on (ADR-0054). `wanted/point` replays instead: a point has
 no resting value to write.
 
 **Levels in, edges out.** A detector reports presence at one block end, and

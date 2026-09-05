@@ -577,30 +577,23 @@ consumer of state topics like any other, and a pair the wire handed over
 backwards would leave a person looking at aspects the railroad has moved on
 from, or at rails the page says are dead over live track. Events pass
 straight through: a repeated sensor reading re-asserts a level. The stamps go
-when the model starts over, a rejoined page meeting a session whose clock
-starts where that session did.
+when the model starts over.
 
-**A session may outlive its process**, `tc49 live --state <path>`. The bus
-keeps its retained values there and each app adopts its own coming up, so a
-restart opens on the placement and facing the last session left rather than
-on an empty layout (SYSTEM.md, the bus). `<path>` itself is never written.
-Each railroad gets `<stem>.<railroad><suffix>` beside it, **one file per
-railroad**, because a session keeps the one path while the panel may switch
-railroads all evening, and train names do not tell two layouts apart. The
-panel reads nothing new for it: placement arrives on `state/allocation` and
-facing on `state/facing` exactly as they do on a rejoin. What the picture
-gains is `crossing`, train → the transit it was crossing when everything
-stopped: a placement hint with no route behind it, drawn on the connection as
-above, and the one train the session cannot place on its own. A restored
-session comes up **held**, so nothing moves before the placement has been
-checked
+**A run outlives any one app's process.** The broker holds the retained rows
+and each app adopts its own coming up, so a restarted app opens on the
+placement and facing the last one left rather than on an empty layout
+(SYSTEM.md, the bus;
+[ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
+decision 3). The page reads nothing new for it: placement arrives on
+`state/allocation` and facing on `state/facing` exactly as they do on a
+rejoin. What the picture gains is `crossing`, train → the transit it was
+crossing when everything stopped: a placement hint with no route behind it,
+drawn on the connection as above, and the one train the dispatcher cannot
+place on its own. It comes up **held**, so nothing moves before the placement
+has been checked
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 Restart is not rejoin and neither is recovery
 ([CONTEXT.md](../../CONTEXT.md#interruptions)).
-
-The relay's `{"error": …}` frames reach the band as trouble rather than being
-dropped: a refused inbound frame and a path naming no railroad are the only
-answers a page ever gets when a session says no.
 
 `wrong_origin` still stands
 ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)) — a drag

@@ -15,9 +15,7 @@ which is what keeps a binding that reports nothing from disputing the whole
 railroad.
 """
 
-import json
 from dataclasses import replace
-from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -26,11 +24,10 @@ from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.dispatcher.dispatch import ALLOCATION
 from tc49.lib.bus import InProcessBus, Payload
-from tc49.lib.clock import Clock
 from tc49.lib.inventory import AT
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
-from tests.harness import RUN_WANTED, load
+from tests.harness import RUN_WANTED, load, retaining
 
 DISPUTED = "tc49/dispatch/state/disputed"
 OCCUPIED = "tc49/layout/block_occupied"
@@ -43,22 +40,20 @@ MOVED: dict[str, Any] = {
     "locks": {},
     "requests": [],
 }
-"""Where the last session believed the two trains were standing."""
+"""Where the last run believed the two trains were standing."""
 
 
 def restored(
-    tmp_path: Path,
     picture: dict[str, Any] | None = None,
     added: dict[str, str] | None = None,
 ) -> tuple[InProcessBus, Dispatcher]:
-    """A dispatcher on a bus whose file already holds that picture, which is
-    the session that comes up held (#154) and so the one the check runs in.
+    """A dispatcher on a bus already holding that picture, which is the run
+    that comes up held (#154) and so the one the check runs in.
 
     `added` is stock the scenario has gained since the picture was taken,
     train to starting block: the trains a collision is made of (#164).
     """
-    path = tmp_path / "session.json"
-    path.write_text(json.dumps({} if picture is None else {ALLOCATION: picture}))
+    kept = {} if picture is None else {ALLOCATION: picture}
     layout, roster, scenario = load("crossover-yard/meet")
     if added is not None:
         # Stock the scenario gained, which the railroad owns: on the roster,
@@ -80,7 +75,7 @@ def restored(
                 },
             },
         )
-    bus = InProcessBus(Clock(), path)
+    bus = retaining(kept)
     dispatcher = Dispatcher(
         bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )
@@ -115,54 +110,54 @@ def press(bus: InProcessBus, topic: str, payload: Payload) -> None:
     bus.drain()
 
 
-def test_a_train_moved_by_hand_disputes_the_two_blocks(tmp_path: Path) -> None:
+def test_a_train_moved_by_hand_disputes_the_two_blocks() -> None:
     """The case the check exists for: the picture says `freight_1` is in
     `dn_e` and it is standing in `dn_w`. Exactly two entries — the block it
     left, now reading clear, and the block it sits in, now reading occupied
     with nothing claiming it."""
-    bus, _ = restored(tmp_path, MOVED)
+    bus, _ = restored(MOVED)
 
     reports(bus, occupied=("dn_w",), clear=("dn_e",))
 
     assert disputed(bus) == {"trains": ["freight_1"], "blocks": ["dn_w"]}
 
 
-def test_a_picture_the_detectors_agree_with_disputes_nothing(tmp_path: Path) -> None:
+def test_a_picture_the_detectors_agree_with_disputes_nothing() -> None:
     """The ordinary restart: nothing moved while the apps were down, and the
     person has a railroad to look at rather than a list."""
-    bus, _ = restored(tmp_path, MOVED)
+    bus, _ = restored(MOVED)
 
     reports(bus, occupied=("up_w", "dn_e"), clear=("up_e", "dn_w", "yard_w", "yard_e"))
 
     assert disputed(bus) == {"trains": [], "blocks": []}
 
 
-def test_a_layout_reporting_no_occupancy_disputes_nothing(tmp_path: Path) -> None:
+def test_a_layout_reporting_no_occupancy_disputes_nothing() -> None:
     """**Silence is not a clear reading.** The milestone-1 simulator publishes
     sensors for moves alone and reports nothing at startup (SYSTEM.md), and
     reading every unreported block as clear would make the whole railroad a
     dispute on every restore."""
-    bus, _ = restored(tmp_path, MOVED)
+    bus, _ = restored(MOVED)
 
     assert disputed(bus) == {"trains": [], "blocks": []}
 
 
-def test_a_block_the_layout_has_not_reported_takes_no_part(tmp_path: Path) -> None:
+def test_a_block_the_layout_has_not_reported_takes_no_part() -> None:
     """The same rule, one detector at a time: a layout that watches part of
     its railroad disputes only what it watches. `express_2` stands in `up_w`
     and nothing has said whether `up_w` is occupied."""
-    bus, _ = restored(tmp_path, MOVED)
+    bus, _ = restored(MOVED)
 
     reports(bus, occupied=("dn_e",))
 
     assert disputed(bus) == {"trains": [], "blocks": []}
 
 
-def test_placing_the_train_resolves_both_entries(tmp_path: Path) -> None:
+def test_placing_the_train_resolves_both_entries() -> None:
     """The set empties as the railroad is walked: a person who has looked
     says where the train stands, and both halves of its dispute go — the
     block it now stands in is the block that reads occupied."""
-    bus, _ = restored(tmp_path, MOVED)
+    bus, _ = restored(MOVED)
     reports(bus, occupied=("dn_w",), clear=("dn_e",))
 
     press(bus, PLACEMENT_WANTED, {"train": "freight_1", "block": "dn_w"})
@@ -170,16 +165,14 @@ def test_placing_the_train_resolves_both_entries(tmp_path: Path) -> None:
     assert disputed(bus) == {"trains": [], "blocks": []}
 
 
-def test_the_opening_statement_carries_the_set(tmp_path: Path) -> None:
+def test_the_opening_statement_carries_the_set() -> None:
     """Stated from the constructor as `state/run` and `state/allocation` are:
     a joining client is served the set rather than left to read one out of an
     absence, and a value the last session left is cleared rather than
     standing over this one's railroad (ADR-0032)."""
     stale = {"trains": ["freight_1"], "blocks": ["dn_w"]}
-    path = tmp_path / "session.json"
-    path.write_text(json.dumps({ALLOCATION: MOVED, DISPUTED: stale}))
     layout, roster, scenario = load("crossover-yard/meet")
-    bus = InProcessBus(Clock(), path)
+    bus = retaining({ALLOCATION: MOVED, DISPUTED: stale})
     Dispatcher(
         bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )
@@ -188,12 +181,12 @@ def test_the_opening_statement_carries_the_set(tmp_path: Path) -> None:
     assert disputed(bus) == {"trains": [], "blocks": []}
 
 
-def test_releasing_the_hold_is_allowed_and_empties_the_set(tmp_path: Path) -> None:
+def test_releasing_the_hold_is_allowed_and_empties_the_set() -> None:
     """The person decides, not the check: a dispute never blocks the release.
     What it does end is the comparison — a running dispatcher's placement
     follows the sensors move by move, and the picture the check was made
     against is one the operator has accepted."""
-    bus, dispatcher = restored(tmp_path, MOVED)
+    bus, dispatcher = restored(MOVED)
     reports(bus, occupied=("dn_w",), clear=("dn_e",))
 
     press(bus, RUN_WANTED, {"run": "running"})
@@ -202,10 +195,10 @@ def test_releasing_the_hold_is_allowed_and_empties_the_set(tmp_path: Path) -> No
     assert disputed(bus) == {"trains": [], "blocks": []}
 
 
-def test_holding_the_run_again_asks_the_detectors_again(tmp_path: Path) -> None:
+def test_holding_the_run_again_asks_the_detectors_again() -> None:
     """The check belongs to a held run rather than to a restart: a person who
     holds the railroad mid-evening is looking at it for the same reason."""
-    bus, _ = restored(tmp_path, MOVED)
+    bus, _ = restored(MOVED)
     reports(bus, occupied=("dn_w",), clear=("dn_e",))
     press(bus, RUN_WANTED, {"run": "running"})
 
@@ -214,23 +207,21 @@ def test_holding_the_run_again_asks_the_detectors_again(tmp_path: Path) -> None:
     assert disputed(bus) == {"trains": ["freight_1"], "blocks": ["dn_w"]}
 
 
-def test_a_crossing_train_leaves_no_dispute_behind_it(tmp_path: Path) -> None:
+def test_a_crossing_train_leaves_no_dispute_behind_it() -> None:
     """A train the picture says is between two blocks stands in none: the
     block `trains` still names is one it has left, so a clear reading there
     agrees with the picture rather than contradicting it. That train is
     already the one a person is sent to — the panel draws it on the
     connection (#154) — and saying it twice would say it wrongly."""
     crossing = {**MOVED, "crossing": {"freight_1": "crossover.dn_straight"}}
-    bus, _ = restored(tmp_path, crossing)
+    bus, _ = restored(crossing)
 
     reports(bus, clear=("dn_e",))
 
     assert disputed(bus) == {"trains": [], "blocks": []}
 
 
-def test_a_train_adoption_placed_nowhere_is_disputed_as_a_block(
-    tmp_path: Path,
-) -> None:
+def test_a_train_adoption_placed_nowhere_is_disputed_as_a_block() -> None:
     """The other side of the per-train adoption of #164.
 
     `freight_1` had both its answers taken, so it is placed nowhere and the
@@ -240,7 +231,7 @@ def test_a_train_adoption_placed_nowhere_is_disputed_as_a_block(
     out as the stray *block* it is, which is exactly where a person is sent.
     """
     parked = {**MOVED, "trains": {"express_2": "yard_w", "freight_1": "dn_e"}}
-    bus, dispatcher = restored(tmp_path, parked, added={"local_3": "dn_e"})
+    bus, dispatcher = restored(parked, added={"local_3": "dn_e"})
     assert "freight_1" not in dispatcher.state.block_of
 
     reports(bus, occupied=("dn_e", "dn_w"), clear=("up_e", "up_w"))
@@ -260,9 +251,7 @@ def test_a_train_adoption_placed_nowhere_is_disputed_as_a_block(
         "a list of fields",
     ],
 )
-def test_an_occupancy_frame_that_cannot_be_read_is_dropped(
-    payload: object, tmp_path: Path
-) -> None:
+def test_an_occupancy_frame_that_cannot_be_read_is_dropped(payload: object) -> None:
     """Nothing the layout role publishes takes the dispatcher down, which is
     what SYSTEM.md already promises of every bus payload (#181).
 
@@ -273,7 +262,7 @@ def test_an_occupancy_frame_that_cannot_be_read_is_dropped(
     about — what such a block is worth to the check is CONTEXT.md,
     *disputed* (#153).
     """
-    bus, dispatcher = restored(tmp_path, MOVED)
+    bus, dispatcher = restored(MOVED)
     reported = dict(dispatcher.state.reported)
 
     press(bus, OCCUPIED, cast(Payload, payload))
@@ -282,11 +271,11 @@ def test_an_occupancy_frame_that_cannot_be_read_is_dropped(
     assert disputed(bus) == {"trains": [], "blocks": []}
 
 
-def test_a_dropped_frame_leaves_the_next_reading_readable(tmp_path: Path) -> None:
+def test_a_dropped_frame_leaves_the_next_reading_readable() -> None:
     """The drop is one frame's and not the topic's: the detector that speaks
     again is heard, and the dispute it makes is the one it would have made
     had the bad frame never arrived."""
-    bus, _ = restored(tmp_path, MOVED)
+    bus, _ = restored(MOVED)
 
     press(bus, OCCUPIED, cast(Payload, {"block": 42}))
     reports(bus, occupied=("dn_w",), clear=("dn_e",))

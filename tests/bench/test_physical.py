@@ -13,10 +13,8 @@ and moved under #319, so a name spelled here would go red for a reason that is
 not this suite's.
 """
 
-import json
 import signal
 from collections.abc import Callable
-from pathlib import Path
 
 import pytest
 
@@ -244,26 +242,22 @@ def test_a_bracketed_address_opens_the_station_listening_on_it() -> None:
         assert station.waits_for(TRACK_OFF)
 
 
-def test_a_speed_the_last_session_left_does_not_roll_a_locomotive(
-    tmp_path: Path,
-) -> None:
-    """`--state` with `--station` is the combination hardware improves, the
-    trains really being where the last session left them (#314) — and the
-    desired picture it keeps is retained, so the last session's speed would
-    otherwise be replayed to the station and the locomotive would roll the
+def test_a_speed_the_last_run_left_does_not_roll_a_locomotive() -> None:
+    """A traction row is retained, so the speed the last run left is still on
+    the broker when `layout` comes back up (ADR-0059, decision 3) — and it
+    would otherwise be replayed to the station, rolling the locomotive the
     instant the operator presses power-on, with no grant and the run still
     held (#333).
 
     `layout` comes up having written zero over the row, so what the station
     hears is a stop and never the speed."""
-    state = tmp_path / "kept.json"
-    state.write_text(
-        json.dumps({f"{WANTED_TRACTION}/10": {"addr": "10", "speed": 0.5}})
-    )
     layout, roster = a_railroad()
     with Station() as station:
         driven = assemble_live(
-            layout, roster, state=state, station=(HOST, station.port)
+            layout,
+            roster,
+            retained={f"{WANTED_TRACTION}/10": {"addr": "10", "speed": 0.5}},
+            station=(HOST, station.port),
         )
         driven.bus.publish(POWER_WANTED, {"power": "on"})
         driven.run(PERIOD_S, stop=until(lambda: station.waits_for(TRACK_ON, 0.0)))

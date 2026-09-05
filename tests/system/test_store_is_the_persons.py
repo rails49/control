@@ -25,8 +25,11 @@ COMPOSE: dict[str, Any] = yaml.safe_load((ROOT / "deploy/compose.yaml").read_tex
 DEPLOY = (ROOT / "scripts/deploy.sh").read_text()
 DOCKERFILE = (ROOT / "deploy/app.Dockerfile").read_text()
 
-PERSONS = ["store", "session"]
-"""The services that write the store, and so run as the person."""
+PERSONS = ["store"]
+"""The services that write the store, and so run as the person. One, since
+the session that also wrote it went with `tc49 live` (ADR-0059, decision 5):
+a list rather than a name, because the next thing to write the store is a
+service and not a special case."""
 
 
 def service(name: str) -> dict[str, Any]:

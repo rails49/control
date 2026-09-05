@@ -1,7 +1,5 @@
 """The scheduler seam: submission, ids, expansion, exhaustion, facing, gestures."""
 
-import json
-from pathlib import Path
 from typing import cast
 
 from tc49.bench.runner import facing as seed
@@ -10,7 +8,7 @@ from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import RequestSpec, TrainSpec
 from tc49.scheduler import Scheduler
-from tests.harness import load
+from tests.harness import load, retaining
 
 
 def yard() -> Layout:
@@ -132,38 +130,31 @@ def test_the_documents_placement_is_the_first_facing() -> None:
     ]
 
 
-def test_a_retained_facing_is_adopted_in_place_of_the_placement(
-    tmp_path: Path,
-) -> None:
+def test_a_retained_facing_is_adopted_in_place_of_the_placement() -> None:
     """A restart: the scheduler finds its own state topic already carrying
-    facing, kept across the process by the bus binding, and takes it (#123).
-    The document's placement is the cold start's seed and nothing more."""
-    path = tmp_path / "session.json"
-    path.write_text(json.dumps({FACING: {"facing": {"freight_1": "dn_e.B-to-A"}}}))
-    bus = InProcessBus(Clock(), path)
+    facing, held for it by the broker, and takes it (#123). The document's
+    placement is the cold start's seed and nothing more."""
+    bus = retaining({FACING: {"facing": {"freight_1": "dn_e.B-to-A"}}})
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
 
-    # `express_2` is not in the file, so it falls back to its placement: a
-    # train added to the document since the last run is a cold start of one.
+    # `express_2` is not in the retained map, so it falls back to its
+    # placement: a train added to the document since the last run is a cold
+    # start of one.
     assert seen[-1][1]["facing"] == {
         "express_2": "up_e.B-to-A",
         "freight_1": "dn_e.B-to-A",
     }
 
 
-def test_a_facing_the_state_file_spells_the_old_way_is_refused(
-    tmp_path: Path,
-) -> None:
-    """A durable state file written by a build from before #241 carries
+def test_a_facing_spelled_the_old_way_is_refused() -> None:
+    """A retained row written by a build from before #241 carries
     `dn_e.A`, which meant the end the train departs by and reads as no run at
     all. It is dropped rather than guessed at — reading it as `A-to-B` would
     turn the train round — and `freight_1` falls back to the placement the
     document gives it."""
-    path = tmp_path / "session.json"
-    path.write_text(json.dumps({FACING: {"facing": {"freight_1": "dn_e.A"}}}))
-    bus = InProcessBus(Clock(), path)
+    bus = retaining({FACING: {"facing": {"freight_1": "dn_e.A"}}})
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
@@ -174,9 +165,7 @@ def test_a_facing_the_state_file_spells_the_old_way_is_refused(
     }
 
 
-def test_a_retained_value_that_states_no_facing_map_is_a_cold_start(
-    tmp_path: Path,
-) -> None:
+def test_a_retained_value_that_states_no_facing_map_is_a_cold_start() -> None:
     """A retained value is a payload like any other, and rule 4 exempts no
     payload for having once been the scheduler's own: what is waiting on a
     broker that outlived the app can be hand-edited or written by an older
@@ -192,9 +181,7 @@ def test_a_retained_value_that_states_no_facing_map_is_a_cold_start(
         {},  # nothing said about facing
     ]
     for retained in unreadable:
-        path = tmp_path / "session.json"
-        path.write_text(json.dumps({FACING: retained}))
-        bus = InProcessBus(Clock(), path)
+        bus = retaining({FACING: cast(Payload, retained)})
         seen = collect(bus, FACING)
         Scheduler(bus, yard(), seeded(), TIMETABLE)
         bus.drain()
@@ -205,18 +192,12 @@ def test_a_retained_value_that_states_no_facing_map_is_a_cold_start(
         }, retained
 
 
-def test_a_train_the_retained_map_states_unreadably_loses_only_itself(
-    tmp_path: Path,
-) -> None:
-    """The map is read one train at a time: the whole session's facing is in
+def test_a_train_the_retained_map_states_unreadably_loses_only_itself() -> None:
+    """The map is read one train at a time: the whole run's facing is in
     this one value, so dropping all of it for one entry would cold-start
     every train the good entries name (#277). `freight_1` falls back to its
     placement, and `express_2` is adopted as it always was."""
-    path = tmp_path / "session.json"
-    path.write_text(
-        json.dumps({FACING: {"facing": {"freight_1": 7, "express_2": "dn_e.A-to-B"}}})
-    )
-    bus = InProcessBus(Clock(), path)
+    bus = retaining({FACING: {"facing": {"freight_1": 7, "express_2": "dn_e.A-to-B"}}})
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
@@ -227,17 +208,13 @@ def test_a_train_the_retained_map_states_unreadably_loses_only_itself(
     }
 
 
-def test_a_train_only_the_old_spelling_names_comes_up_with_no_facing(
-    tmp_path: Path,
-) -> None:
+def test_a_train_only_the_old_spelling_names_comes_up_with_no_facing() -> None:
     """The same refusal where there is no placement under it: a train a hand
-    put on the rails last session is not held at all this one, and its drags
+    put on the rails last run is not held at all this one, and its drags
     are uncomposable until it is placed again (SYSTEM.md, ADR-0039). A
     guessed facing would send it the wrong way the first time it is asked to
     move."""
-    path = tmp_path / "session.json"
-    path.write_text(json.dumps({FACING: {"facing": {"shunter": "up_w.B"}}}))
-    bus = InProcessBus(Clock(), path)
+    bus = retaining({FACING: {"facing": {"shunter": "up_w.B"}}})
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     bus.drain()
@@ -784,17 +761,13 @@ def test_a_train_nothing_placed_gains_a_facing_when_it_is_placed() -> None:
     assert facing(seen)["shunter"] == "up_w.B-to-A"
 
 
-def test_a_restart_keeps_the_facing_of_a_train_no_document_places(
-    tmp_path: Path,
-) -> None:
+def test_a_restart_keeps_the_facing_of_a_train_no_document_places() -> None:
     """A train a hand put on the rails has a facing and no placement in any
     document (ADR-0039). Dropping it on a restart would leave every drag of
     that train uncomposable — the departure end is read off facing — and the
     operator would find one train on the railroad that can be sent
     nowhere."""
-    path = tmp_path / "session.json"
-    path.write_text(json.dumps({FACING: {"facing": {"shunter": "up_w.A-to-B"}}}))
-    bus = InProcessBus(Clock(), path)
+    bus = retaining({FACING: {"facing": {"shunter": "up_w.A-to-B"}}})
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
     bus.drain()

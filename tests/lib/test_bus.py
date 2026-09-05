@@ -1,13 +1,11 @@
 """Tests at the InProcessBus seam: publish/subscribe/drain per SYSTEM.md "The bus"."""
 
-import json
-from pathlib import Path
+from typing import cast
 
 import pytest
 
 from tc49.lib.bus import Handler, InProcessBus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.payload import Ordering
 
 
 def test_publish_queues_without_delivering() -> None:
@@ -174,141 +172,6 @@ def test_delivery_order_is_a_pure_function_of_publish_and_subscribe_order() -> N
     assert run() == run()
 
 
-# --- durability: the retained values outlive the process (#151) --------------
-
-
-def test_no_file_is_opened_without_a_path(tmp_path: Path) -> None:
-    """The default bus persists nothing, so `bench` and `sweep` are untouched
-    by construction rather than by a branch."""
-    bus = InProcessBus(Clock())
-    bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
-    bus.drain()
-
-    assert list(tmp_path.iterdir()) == []
-
-
-def test_a_retained_value_outlives_the_bus_that_held_it(tmp_path: Path) -> None:
-    """What a broker's retained message does: the value is waiting on the
-    topic when a process that was not there comes up and subscribes."""
-    path = tmp_path / "session.json"
-    first = InProcessBus(Clock(), path)
-    first.publish(
-        "tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.A-to-B"}}
-    )
-    first.drain()
-
-    seen: list[tuple[str, Payload]] = []
-    restored = InProcessBus(Clock(), path)
-    restored.subscribe("tc49/#", lambda topic, payload: seen.append((topic, payload)))
-    restored.drain()
-
-    assert seen == [
-        (
-            "tc49/schedule/state/facing",
-            {"at": 0.0, "facing": {"freight_1": "yard_w.A-to-B"}},
-        )
-    ]
-
-
-def test_an_event_topic_is_not_persisted(tmp_path: Path) -> None:
-    """Only what is retained survives: an event topic is never replayed, and
-    a file that held one would replay it."""
-    path = tmp_path / "session.json"
-    bus = InProcessBus(Clock(), path)
-    bus.publish("tc49/layout/block_occupied", {"block": "yard_w"})
-    bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
-    bus.drain()
-
-    assert json.loads(path.read_text()) == {
-        "tc49/schedule/state/exhausted": {"at": 0.0, "exhausted": True}
-    }
-
-
-def test_every_change_rewrites_the_whole_file(tmp_path: Path) -> None:
-    """One value moving rewrites all of them, so the file is always a whole
-    picture and never a log to replay."""
-    path = tmp_path / "session.json"
-    bus = InProcessBus(Clock(), path)
-    bus.publish(
-        "tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.B-to-A"}}
-    )
-    bus.publish("tc49/schedule/state/exhausted", {"exhausted": False})
-    bus.publish(
-        "tc49/schedule/state/facing", {"facing": {"freight_1": "yard_w.A-to-B"}}
-    )
-
-    assert json.loads(path.read_text()) == {
-        "tc49/schedule/state/facing": {
-            "at": 0.0,
-            "facing": {"freight_1": "yard_w.A-to-B"},
-        },
-        "tc49/schedule/state/exhausted": {"at": 0.0, "exhausted": False},
-    }
-
-
-def test_a_cut_mid_write_leaves_the_previous_copy_to_load(tmp_path: Path) -> None:
-    """The write goes to a temporary file in the same directory and is
-    renamed over the target, so a process cut mid-write leaves a partial file
-    the loader never looks at and the last good copy in place."""
-    path = tmp_path / "session.json"
-    bus = InProcessBus(Clock(), path)
-    bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
-    good = path.read_text()
-    partial = path.with_name(path.name + ".tmp")
-    partial.write_text('{"tc49/schedule/state/exha')
-
-    assert path.read_text() == good
-    seen: list[Payload] = []
-    restored = InProcessBus(Clock(), path)
-    restored.subscribe("tc49/#", lambda topic, payload: seen.append(payload))
-    restored.drain()
-    assert seen == [{"at": 0.0, "exhausted": True}]
-
-
-def test_a_path_with_no_file_yet_starts_empty(tmp_path: Path) -> None:
-    """The first session of all: a path names where the picture will go, not
-    a file that has to be there."""
-    seen: list[Payload] = []
-    bus = InProcessBus(Clock(), tmp_path / "session.json")
-    bus.subscribe("tc49/#", lambda topic, payload: seen.append(payload))
-    bus.drain()
-
-    assert seen == []
-
-
-def test_a_file_naming_an_event_topic_replays_nothing(tmp_path: Path) -> None:
-    """Filtered on the way out as `publish` filters on the way in: whatever
-    wrote the file, an event topic is never replayed and keeping that promise
-    is the bus's own business."""
-    path = tmp_path / "session.json"
-    path.write_text(
-        json.dumps(
-            {
-                "tc49/layout/block_occupied": {"block": "yard_w"},
-                "tc49/schedule/state/exhausted": {"exhausted": True},
-            }
-        )
-    )
-    seen: list[str] = []
-    bus = InProcessBus(Clock(), path)
-    bus.subscribe("tc49/#", lambda topic, payload: seen.append(topic))
-    bus.drain()
-
-    assert seen == ["tc49/schedule/state/exhausted"]
-
-
-def test_the_directory_the_session_named_is_made(tmp_path: Path) -> None:
-    """`--state runs/today.json` is an ordinary thing to type, and the first
-    write is what has to make the directory: dying there would kill a session
-    that had already printed its banner."""
-    bus = InProcessBus(Clock(), tmp_path / "runs" / "today" / "session.json")
-    bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
-
-    assert json.loads((tmp_path / "runs" / "today" / "session.json").read_text()) == {
-        "tc49/schedule/state/exhausted": {"at": 0.0, "exhausted": True}
-    }
-
-
 # --- the stamp the binding puts on a state value (#240) ----------------------
 
 EXHAUSTED = "tc49/schedule/state/exhausted"
@@ -363,6 +226,16 @@ def test_no_event_payload_is_stamped() -> None:
     assert seen == [{"block": "yard_w"}]
 
 
+def test_a_retained_value_that_is_not_an_object_is_left_as_it_came() -> None:
+    """Nothing in it can be a field, so there is nowhere to put a stamp — and
+    anything at all can arrive on a topic (rule 4). It is kept as it came and
+    reads as unstamped, which is a case the comparison already has."""
+    bus = InProcessBus(Clock())
+    bus.publish(EXHAUSTED, cast(Payload, "nonsense"))
+
+    assert bus.last_values[EXHAUSTED] == "nonsense"
+
+
 def test_a_stamp_the_caller_supplied_is_replaced() -> None:
     """One place stamps, and it is the one publishing. A caller cannot state
     when this bus published its value, however plausible the number."""
@@ -372,75 +245,6 @@ def test_a_stamp_the_caller_supplied_is_replaced() -> None:
     bus.publish(EXHAUSTED, {"at": 900.0, "exhausted": True})
 
     assert bus.last_values[EXHAUSTED] == {"at": 7.0, "exhausted": True}
-
-
-def test_the_file_keeps_the_stamp_beside_the_value(tmp_path: Path) -> None:
-    """The durable file round-trips `at`: it is a field of the value, and the
-    whole value is what is written."""
-    path = tmp_path / "session.json"
-    clock = Clock()
-    bus = InProcessBus(clock, path)
-    clock.advance(41.0)
-    bus.publish(EXHAUSTED, {"exhausted": True})
-
-    assert json.loads(path.read_text()) == {EXHAUSTED: {"at": 41.0, "exhausted": True}}
-
-
-def test_a_restored_value_is_re_stamped_with_this_sessions_clock(
-    tmp_path: Path,
-) -> None:
-    """The stamp is seconds since the session started, so one carried out of
-    the last run sits on another timeline — and, being the larger number for
-    as long as that run was long, would beat every genuine report this one
-    makes. The restored value is the oldest thing known instead, and the
-    first report of the new session supersedes it (ADR-0030).
-
-    The file still holds the stamp it was written with; it is the read that
-    re-stamps.
-    """
-    path = tmp_path / "session.json"
-    first = Clock()
-    bus = InProcessBus(first, path)
-    first.advance(600.0)
-    bus.publish(EXHAUSTED, {"exhausted": True})
-
-    second = Clock()
-    restored = InProcessBus(second, path)
-    assert restored.last_values[EXHAUSTED] == {"at": 0.0, "exhausted": True}
-    assert json.loads(path.read_text())[EXHAUSTED]["at"] == 600.0
-
-
-def test_the_first_value_of_the_new_session_beats_the_restored_one(
-    tmp_path: Path,
-) -> None:
-    """What the re-stamping is for, seen through the comparison a consumer
-    makes: the picture a restart comes up holding is a starting assumption,
-    and the first thing the layout says now outranks it."""
-    path = tmp_path / "session.json"
-    first = Clock()
-    was = InProcessBus(first, path)
-    first.advance(600.0)
-    was.publish(EXHAUSTED, {"exhausted": True})
-
-    clock = Clock()
-    bus = InProcessBus(clock, path)
-    ordering = Ordering()
-    assert ordering.accepts(EXHAUSTED, bus.last_values[EXHAUSTED])
-    clock.advance(2.0)
-    bus.publish(EXHAUSTED, {"exhausted": False})
-    assert ordering.accepts(EXHAUSTED, bus.last_values[EXHAUSTED])
-
-
-def test_a_retained_value_that_is_not_an_object_is_left_as_it_came(
-    tmp_path: Path,
-) -> None:
-    """Nothing in it can be a field, so there is nowhere to put a stamp — and
-    a file can be hand-edited (rule 4). It is served as it was written and
-    reads as unstamped, which is a case the comparison already has."""
-    path = tmp_path / "session.json"
-    path.write_text(json.dumps({EXHAUSTED: "nonsense"}))
-
-    assert InProcessBus(Clock(), path).last_values[EXHAUSTED] == "nonsense"
 
 
 def test_a_cleared_row_is_gone_rather_than_empty() -> None:

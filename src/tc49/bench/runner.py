@@ -27,14 +27,14 @@ from tc49.dccex import DccEx
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental, LockingStrategy
 from tc49.driver import Driver
 from tc49.layout import LayoutInterface
-from tc49.lib.bus import InProcessBus
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout, connected_facing
 from tc49.lib.roster import Roster
 from tc49.lib.scenario import Scenario, TrainSpec
 from tc49.lib.trace import TraceTap
 from tc49.scheduler import Scheduler
-from tc49.simulator import Simulator, placement_file
+from tc49.simulator import Simulator
 from tc49.store import AssetStore
 
 StrategyFactory = Callable[[Layout, int], LockingStrategy]
@@ -305,7 +305,7 @@ def assemble_live(
     trains: dict[str, TrainSpec] | None = None,
     make_strategy: StrategyFactory = Incremental,
     k: int = DEFAULT_K,
-    state: Path | None = None,
+    retained: dict[str, Payload] | None = None,
     station: tuple[str, int] | None = None,
     startup: Path | None = None,
     readings: TextIO | None = None,
@@ -319,11 +319,10 @@ def assemble_live(
     a live run is given no timetable at all: a scenario is the harness's file
     format, and `bench/replay.py` replays one as gestures instead.
 
-    `trains` stands them before anything runs instead, and is the
-    harness's own: the suite's runs, and the baseline `tc49 live --scenario`'s
-    replay is measured against. `tc49 live` itself passes none — a run an
-    operator drives comes up with an empty layout and held, and the trains
-    arrive as gestures (ADR-0039).
+    `trains` stands them before anything runs instead, and is the harness's
+    own: the suite's runs, and the baseline a replay is measured against. A
+    run an operator drives is passed none — it comes up with an empty layout
+    and held, and the trains arrive as gestures (ADR-0039).
 
     Locking is **incremental** here, where `assemble` keeps the `FullRoute`
     baseline (#165). It is what the panel's two colours mean: an increment
@@ -332,11 +331,11 @@ def assemble_live(
     Claiming a whole route up front is a measurement baseline, not the
     behaviour to hand an operator on a shared railroad.
 
-    `state` makes the session outlive the process (#123): the bus keeps its
-    retained values there and each app adopts its own coming up, so placement
-    and facing are the last session's rather than the seed's. The simulator
-    keeps the steel's own memory beside it, which is its business and on no
-    topic (ADR-0030).
+    `retained` is what a broker was already holding when these apps came up
+    (#123): each row is on its topic before anything subscribes, so an app
+    adopts its own the way a restarted one adopts what the broker kept for it
+    (ADR-0059 decision 3). Placement and facing are then that picture's rather
+    than the seed's.
 
     `station` is where a command station is served, `host` and `port`, and its
     presence is what puts the **physical binding** where the simulator would
@@ -364,7 +363,14 @@ def assemble_live(
     document = trains or {}
     stood = placement(document)
     clock = Clock()
-    bus = InProcessBus(clock, state)
+    bus = InProcessBus(clock)
+    # On their topics before anything subscribes, and drained with nothing
+    # listening: what is left is the last-value map, which is what a late
+    # subscriber is handed — an app adopting its own row reads it at
+    # construction exactly as it reads the broker's retained one.
+    for topic, value in (retained or {}).items():
+        bus.publish(topic, value)
+    bus.drain()
     out = io.StringIO()
     TraceTap(bus, out, clock)
     Scheduler(bus, layout, facing(layout, document))
@@ -375,10 +381,7 @@ def assemble_live(
     dccex: DccEx | None = None
     detector: HandFed | None = None
     if station is None:
-        # The steel's own memory, which the physical branch has no use for:
-        # there the trains really are still standing where they were left.
-        steel = None if state is None else placement_file(state)
-        simulator = Simulator(bus, layout, clock, stood, steel)
+        simulator = Simulator(bus, layout, clock, stood)
     else:
         # The interface first, so the dark railroad it opens by wanting is
         # already retained when the translator subscribes and is the first

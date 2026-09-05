@@ -268,64 +268,6 @@ services:
        "--broker", "broker:1883",
        "--station", "${TC49_STATION:-dccex-usb:2560}"]
 
-  # A session: one run of one railroad, and the only thing here that is not
-  # infrastructure. It is started deliberately rather than kept up, because a
-  # run has an operator and a railroad chosen and `bench` is the harness that
-  # wires the apps together rather than an app (CLAUDE.md, #354) — so `/live`
-  # answers 502 until somebody starts one, which is the truth.
-  #
-  #   docker compose -f deploy/compose.yaml --profile session \
-  #     run -d --use-aliases --name session session gotthard
-  #   docker attach session                 to type the readings
-  #
-  # `run` rather than `up`, because the railroad is named when the session is
-  # started and not in this file: a station drives one physical railroad, so
-  # `tc49 live --station` refuses to come up without it, and a compose variable
-  # that has no default would have to be set for every other invocation of this
-  # file too. `--use-aliases` is what puts the container on the network under
-  # its service name, which is how the proxy's `/live` route finds it.
-  #
-  # It reaches the command station through the mirror rather than the device,
-  # which is what lets JMRI and a hand-held throttle share it (ADR-0043), and
-  # it reads the same store the face above serves. `TC49_STATION` moves it:
-  # the default is this box's mirror, and a station reachable some other way
-  # is an address like any other. What it speaks is DCC-EX either way — a
-  # railroad JMRI drives wants the `jmri` translator ADR-0043 designs and
-  # nothing implements (#357).
-  #
-  # No `depends_on`: the store and the mirror belong to the `layout` profile
-  # and are already up, and naming them here would drag that profile into
-  # every invocation of this one.
-  #
-  # `stdin_open` because a session driving a station reads this process's own
-  # input, which is where a person types the readings no detector publishes
-  # yet (#315). It also keeps stdin from closing when nobody is attached,
-  # which would otherwise end the session moments after it started.
-  session:
-    build: *app
-    profiles: [session]
-    restart: "no"
-    stdin_open: true
-    tty: true
-    # The person, for the same reason the store runs as them (#387): a session
-    # writes the store too, and a file it leaves behind root-owned is one the
-    # person cannot edit afterwards.
-    user: "${TC49_UID:-1000}:${TC49_GID:-1000}"
-    volumes:
-      - ${TC49_STORE:-~/tc49}:/store
-    # An entrypoint and no command: the flags are the same every time and the
-    # railroad is what `run` appends, so `run … session gotthard` is the whole
-    # of what an operator types.
-    entrypoint:
-      - "tc49"
-      - "live"
-      - "--store"
-      - "/store"
-      - "--host"
-      - "0.0.0.0"
-      - "--station"
-      - "${TC49_STATION:-dccex-usb:2560}"
-
   # JMRI, a third-party GUI appliance and none of this app's business: an
   # operator's DecoderPro and panel tool, reaching the same command station as a
   # plain client of 2560 (#196). Nothing of ours is in it and it owns no device.

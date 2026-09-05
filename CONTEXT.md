@@ -329,7 +329,7 @@ facing.
 _Avoid_: direction (ambiguous with travel direction), heading, orientation.
 The bare end letter the value once was is retired
 ([#241](https://github.com/rails49/control/issues/241)): it is refused at
-load and refused in a state file, never read as a run.
+load and refused in a retained row, never read as a run.
 
 **Propelled**:
 A movement out of the end a train's nose points *away* from: pushed rather
@@ -608,9 +608,9 @@ ignored, and an unstamped value is taken and clears the held stamp
 ([#240](https://github.com/rails49/control/issues/240)). Written by the
 binding that publishes and never by an app, so no app component reads a clock
 ([ADR-0009](docs/adr/0009-layout-interface-owns-time.md)). It orders within
-one session and says nothing across a restart: the clock starts at zero every
-run, so the bus re-stamps what it loads from the durable file and the restored
-picture is the oldest thing known
+one run and says nothing across a restart: the in-process clock starts at zero
+every run and the broker stamps from wall time, so what a restart adopts is the
+oldest thing known
 ([ADR-0030](docs/adr/0030-the-physical-railroad-is-the-normative-binding.md)).
 _Avoid_: timestamp or clock time (it is neither wall time nor comparable
 across sessions), sequence number or counter (nothing is minted, and no

@@ -8,16 +8,17 @@ directory is the wrong promise for it, being where a system keeps what it may
 throw away and rebuild ([#320](https://github.com/rails49/control/issues/320)).
 
 **Nothing seeds it.** A fresh installation has no railroad, and an empty store
-is an ordinary state rather than a fault: the store lists nothing, the server
-comes up and answers, and `tc49 live <name>` refuses the name in words. A
+is an ordinary state rather than a fault: the store lists nothing, and the
+server comes up and answers with a 404 for every railroad asked of it. A
 fixture copied in on first run would be a document the person did not make and
 cannot tell from one they did.
 
 The benchmark's fixtures are somewhere else and stay there:
 :func:`tc49.bench.runner.find_assets` roots a store at the checkout's `bench/`,
 and `tc49 bench` and `tc49 sweep` read that whatever this says. Which is why
-a developer's `tc49 live reversing-loops` needs the override — the railroad
-they want is a fixture, and their own store does not hold it.
+a developer serving `reversing-loops` to the apps needs the override
+(`scripts/dev.sh`) — the railroad they want is a fixture, and their own store
+does not hold it.
 """
 
 import os
