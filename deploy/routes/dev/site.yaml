@@ -29,10 +29,46 @@ http:
       tls:
         certResolver: le
 
+    # A handshake from a page on another origin, refused before the upgrade.
+    # A WebSocket has no preflight — the browser opens the socket whatever
+    # the origin — so this is the whole of what stands between a page
+    # somebody's browser visits and the gestures a client may publish
+    # (ADR-0056, ADR-0059 decision 4). Mosquitto has no `Origin` setting, so
+    # the rule is stated here rather than in an app; `lib/origin.py` is the
+    # same rule at the store's face.
+    #
+    # `Origin` is written by the browser and a page cannot forge it. Matching
+    # it at all is what selects this router, so a handshake carrying none —
+    # a native client, `mosquitto_sub`, the suite — does not match and falls
+    # through to the one above, which is the rule's other half: no header, no
+    # page. The rule is longer than that one, and Traefik's default priority
+    # is the rule's length, so this wins wherever both match.
+    #
+    # Scheme and port are loose because the router's own host is the whole
+    # comparison, as it is at the store's face: TLS terminates here, and a
+    # page on the app's own origin is the app (ADR-0042, ADR-0055).
+    dev-mqtt-foreign:
+      rule: 'Host(`dev.rails49.org`) && PathPrefix(`/mqtt`) && HeaderRegexp(`Origin`, `.`) && !HeaderRegexp(`Origin`, `^https?://dev\.rails49\.org(:[0-9]+)?$`)'
+      entryPoints: [websecure]
+      service: dev-mqtt
+      middlewares: [dev-mqtt-refused]
+      tls:
+        certResolver: le
+
   middlewares:
     dev-mqtt-strip:
       stripPrefix:
         prefixes: ["/mqtt"]
+
+    # 403, and no socket at all. Traefik has no middleware whose job is to
+    # refuse, and this is the one that answers 403 without reaching the
+    # service behind it: no source address is `255.255.255.255`, the limited
+    # broadcast address, so every request routed here is refused. Refused
+    # rather than served and then told: handing a foreign page a socket to
+    # say it may not have one would be the decision undone.
+    dev-mqtt-refused:
+      ipAllowList:
+        sourceRange: ["255.255.255.255/32"]
 
   services:
     dev-app:
