@@ -22,9 +22,10 @@ jobs:
         with:
           node-version: 24
       - run: pnpm install --frozen-lockfile --dir ui
-      # The broker the MQTT binding's suite runs against (#369). Those tests
-      # skip where there is no mosquitto, so a package index having a bad day
-      # costs coverage and never a red gate.
+      # The broker the MQTT binding's suite runs against (#369). The install
+      # may still fail, but the absence is loud: `CI` is set above, and under
+      # it the `broker` fixture fails rather than skips (tests/brokers.py), so
+      # a package index having a bad day reddens the gate here (#423).
       - name: mosquitto
         continue-on-error: true
         run: sudo apt-get update && sudo apt-get install -y mosquitto
