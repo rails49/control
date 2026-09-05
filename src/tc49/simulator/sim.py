@@ -125,6 +125,22 @@ class Simulator:
         self._events: list[_Event] = []
         self._seq = 0
         self._rolling: set[str] = set()  # trains between blocks, mid-move
+        # The commands, subscribed **before** a word is published. A publish
+        # is asynchronous where a subscribe waits to be acknowledged, so an
+        # app that published first would be deaf for as long as its own
+        # subscriptions took to land, and every one of these is an event that
+        # nothing hands over a second time: a granted move, a hand's
+        # placement (ADR-0059, decision 5).
+        #
+        # Simulated points are always aligned; `align` is subscribed because
+        # the layout interface declares the command, and the ordering
+        # obligation is met by the bus delivering it before the `move` that
+        # follows. Nothing is read off it, so nothing on it can fail to be
+        # read: the command whose payload this binding does act on is `move`.
+        bus.subscribe("tc49/layout/align", lambda topic, payload: None)
+        bus.subscribe("tc49/layout/move", self._on_move)
+        bus.subscribe("tc49/dispatch/train_placed", self._on_placed)
+        bus.subscribe("tc49/dispatch/train_removed", self._on_removed)
         # Which railroad this binding stands in for, stated from the
         # constructor like the supply below: one broker runs one railroad and
         # a view needs to know which, and the binding of the layout interface
@@ -140,15 +156,6 @@ class Simulator:
         # keeps out of every app. What exercises the dispatcher's side of it
         # is the topic, published by a test.
         bus.publish("tc49/layout/state/power", {"power": ON})
-        # Simulated points are always aligned; subscribed because the layout
-        # interface declares the command, and the ordering obligation is met
-        # by the bus delivering `align` before the `move` that follows it.
-        # Nothing is read off it, so nothing on it can fail to be read: the
-        # command whose payload this binding does act on is `move`.
-        bus.subscribe("tc49/layout/align", lambda topic, payload: None)
-        bus.subscribe("tc49/layout/move", self._on_move)
-        bus.subscribe("tc49/dispatch/train_placed", self._on_placed)
-        bus.subscribe("tc49/dispatch/train_removed", self._on_removed)
 
     def _on_placed(self, topic: str, payload: Payload) -> None:
         """A hand lifted a locomotive and put it somewhere else (#152).
