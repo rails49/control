@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from tc49.store.backup import (
+    KEY,
     PUSH_TIMEOUT_S,
     Backup,
     Said,
@@ -760,6 +761,100 @@ def test_no_key_is_made_for_a_store_inside_another_repository(
     )
     assert backup.key() is None
     assert not (tmp_path / "k").exists()
+
+
+def unreadable(path: Path) -> bool:
+    """Take every mode bit off `path` and say whether that hid it from this
+    process. Root reads a file with no bits at all, and a suite run as root
+    would otherwise assert the opposite of what it means."""
+    path.chmod(0o000)
+    try:
+        path.read_bytes()
+    except OSError:
+        return True
+    return False
+
+
+@keygen
+def test_a_key_the_store_cannot_read_is_not_a_working_key(tmp_path: Path) -> None:
+    """The fault a box carries across #387: the `keys` volume was made before
+    the store ran as the person, so it and the key in it are root's, and the
+    store — uid 1000 — sees a public half it can read beside a private half it
+    cannot. The public half is what the dialog used to show, so the dialog
+    said the key was fine while every push under it was refused by the far end
+    (#443). It is no key at all here, and what backup needs says why."""
+    keys = tmp_path / "keys"
+    run = FakeGit()
+    backup = Backup(tmp_path / "tc49", run=run, keys=keys)
+    assert backup.key() is not None  # made on first ask, both halves ours
+    if not unreadable(keys / KEY):
+        pytest.skip("this process reads a file with no mode bits of its own")
+
+    assert backup.key() is None
+    assert backup.status()["key"] is None
+    said = backup.push()
+    assert not said.ok
+    assert str(keys / KEY) in said.words
+    assert "push" not in [call[0] for call in run.calls]
+    assert [need for need in backup.needs() if str(keys / KEY) in need]
+    # The one place a copy that keeps failing is said out loud (#321).
+    assert backup.copy()["ok"] is False
+
+
+@keygen
+def test_a_key_whose_private_half_is_gone_is_not_a_working_key(
+    tmp_path: Path,
+) -> None:
+    """The same defect with the file removed rather than made unreadable: the
+    store reports on a credential it can use, not on a file it can see."""
+    keys = tmp_path / "keys"
+    run = FakeGit()
+    backup = Backup(tmp_path / "tc49", run=run, keys=keys)
+    assert backup.key() is not None
+    (keys / KEY).unlink()
+
+    assert backup.key() is None
+    assert not backup.push().ok
+    assert "push" not in [call[0] for call in run.calls]
+
+
+@keygen
+def test_a_repository_is_not_adopted_under_a_key_that_cannot_be_used(
+    tmp_path: Path,
+) -> None:
+    """`adopt` clones over ssh under the same key, so it is refused in the
+    same words rather than reaching the network to be told `Permission
+    denied` — or quietly cloning under whatever else the machine has."""
+    keys = tmp_path / "keys"
+    run = FakeGit(toplevel="")
+    backup = Backup(tmp_path / "tc49", run=run, keys=keys)
+    assert backup.key() is not None
+    (keys / KEY).unlink()
+
+    said = backup.adopt("git@github.com:somebody/railroad.git")
+    assert not said.ok
+    assert str(keys / KEY) in said.words
+    assert "clone" not in [call[0] for call in run.calls]
+
+
+@keygen
+def test_a_key_the_store_can_read_is_pushed_with_as_it_always_was(
+    tmp_path: Path,
+) -> None:
+    """The ordinary case, unchanged: a key made unasked the first time it is
+    asked for, the same key every time after, the public half shown, nothing
+    missing, and the push attempted."""
+    keys = tmp_path / "keys"
+    run = FakeGit()
+    backup = Backup(tmp_path / "tc49", run=run, keys=keys)
+
+    shown = backup.key()
+    assert shown is not None and shown.startswith("ssh-ed25519 ")
+    assert backup.key() == shown
+    assert backup.status()["key"] == shown
+    assert backup.needs() == []
+    assert backup.push().ok
+    assert ("push",) in run.calls
 
 
 def empty_remote(tmp_path: Path) -> str:
