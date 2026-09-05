@@ -27,7 +27,7 @@ from tc49.dispatcher.dispatch import ALLOCATION, ASPECTS
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
-from tests.harness import load, retaining
+from tests.harness import Recording, load, retaining, subscribed_before_publishing
 
 RUN = "tc49/dispatch/state/run"
 REQUESTS = "tc49/dispatch/request_submitted"
@@ -472,3 +472,22 @@ def test_a_train_the_picture_names_unreadably_loses_only_itself(
     assert dispatcher.state.block_of == {"express_2": "up_w", "freight_1": "yard_w"}
     assert dispatcher.state.crossing == {"express_2": "crossover.up_straight"}
     coherent(dispatcher)
+
+
+def test_it_subscribes_before_it_publishes_anything() -> None:
+    """The opening rows go out with the subscriptions already live.
+
+    `state/run` is what a client waits for to learn the dispatcher is up, so a
+    gesture — a request, a hold, a placement — can arrive the instant after
+    it. Over a broker a publish is asynchronous where a subscribe waits to be
+    acknowledged, so publishing first opens a window a round trip wide in
+    which that gesture is dropped, and an event is not retained so nothing
+    replays it. In one process the window has no width, which is why the
+    order went unnoticed until the apps ran against a real broker.
+    """
+    layout, roster, scenario = load("crossover-yard/meet")
+    bus = Recording()
+    Dispatcher(
+        bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
+    )
+    subscribed_before_publishing(bus)

@@ -556,6 +556,17 @@ class Dispatcher:
             # a fault that looks like a hang (ADR-0037).
             run=HELD if picture or not adopted.standing else RUNNING,
         )
+        # Before the opening rows and not after. Over a broker a publish is
+        # asynchronous where a subscribe waits for the broker to acknowledge,
+        # so publishing first opens a window a round trip wide in which a
+        # gesture addressed to this app is lost — `state/run` is what a client
+        # waits for to know the dispatcher is up, and a gesture is an event
+        # that nothing replays. In one process the window had no width and the
+        # order did not show. Safe here because `_on_dispatch` already ignores
+        # this app's own announcements coming back past it, and nothing on
+        # `tc49/layout/#` is published from this constructor at all.
+        bus.subscribe("tc49/layout/#", self._on_layout)
+        bus.subscribe("tc49/dispatch/#", self._on_dispatch)
         for train, at in adopted.standing.items():
             self._state.locks[at] = train
             self._state.block_of[train] = at
@@ -594,8 +605,6 @@ class Dispatcher:
         self._publish_aspects()
         self._publish_allocation()
         self._publish_disputed()
-        bus.subscribe("tc49/layout/#", self._on_layout)
-        bus.subscribe("tc49/dispatch/#", self._on_dispatch)
 
     # -- live state, for the property tests' oracles ------------------------
 
