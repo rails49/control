@@ -379,6 +379,23 @@ class LayoutInterface:
         # railroad has moved on from, or the supply reading dead while it is
         # live, with nothing to notice (#240).
         self._ordering = Ordering()
+        # The commands and the gestures, subscribed **before** a word is
+        # published. A publish is asynchronous where a subscribe waits to be
+        # acknowledged, so an app that published first would be deaf for as
+        # long as its own subscriptions took to land — and what would be lost
+        # in that gap is an event, which nothing hands over a second time: a
+        # person's press on the power, a drag, a grant. The three state rows
+        # this app reads are not here for the opposite reason: a retained
+        # value is handed over whenever the subscription lands, so when it
+        # lands does not matter, and the device rows below want to land
+        # *after* the supply this app states (ADR-0059, decision 5).
+        bus.subscribe(ALIGN, self._on_align)
+        bus.subscribe(MOVE, self._on_move)
+        bus.subscribe(POWER_WANTED, self._on_power_wanted)
+        bus.subscribe(MODE_WANTED, self._on_mode_wanted)
+        bus.subscribe(THROTTLE_WANTED, self._on_throttle_wanted)
+        bus.subscribe(PLACED, self._on_placed)
+        bus.subscribe(REMOVED, self._on_removed)
         # Which railroad this is, said before anything is said about it. One
         # broker runs one railroad and a view needs to know which, so the
         # binding of the layout interface that is running publishes it — it
@@ -389,11 +406,11 @@ class LayoutInterface:
         # this to be told and no way for the two to disagree.
         bus.publish(RAILROAD, {"name": layout.name})
         # The railroad comes up dark, and this is the first thing said about
-        # its supply: a person turns it on (ADR-0051). Before the
-        # subscriptions, so that a retained value handed back by a bus that outlived the app
-        # supersedes it rather than being overwritten by it — what the
-        # hardware is saying now outranks what the last session was left
-        # believing (ADR-0030).
+        # its supply: a person turns it on (ADR-0051). Before the **device**
+        # subscription, so that a retained value handed back by a bus that
+        # outlived the app supersedes it rather than being overwritten by it —
+        # what the hardware is saying now outranks what the last session was
+        # left believing (ADR-0030).
         bus.publish(WANTED_TRACK, {"power": OFF})
         bus.publish(POWER, {"power": OFF})
         # And it comes up **at rest**, which is the same ruling one level
@@ -426,13 +443,6 @@ class LayoutInterface:
         # previous session is superseded rather than adopted — the mode is a
         # person's hand on a throttle, and a restart is not a hand.
         bus.publish(MODE, {"modes": {}})
-        bus.subscribe(ALIGN, self._on_align)
-        bus.subscribe(MOVE, self._on_move)
-        bus.subscribe(POWER_WANTED, self._on_power_wanted)
-        bus.subscribe(MODE_WANTED, self._on_mode_wanted)
-        bus.subscribe(THROTTLE_WANTED, self._on_throttle_wanted)
-        bus.subscribe(PLACED, self._on_placed)
-        bus.subscribe(REMOVED, self._on_removed)
         bus.subscribe(ASPECTS, self._on_aspects)
         bus.subscribe(RUN, self._on_run)
         bus.subscribe(FACING, self._on_facing)
