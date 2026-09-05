@@ -537,7 +537,10 @@ its two names, as each topic states.
 - `tc49/layout/mode_wanted` — browser-writable — `train`: the train to hand
   over or take back, or `null` for **every** train; `mode`: enum `automatic`
   or `manual`; any other value is dropped, and so is the whole gesture, the
-  train's mode staying where it was.
+  train's mode staying where it was. `null` with `manual` skips the trains
+  `layout` is driving — one mid-transit under a grant would otherwise run on
+  past the block it was sent to — and takes the rest
+  ([#436](https://github.com/rails49/control/issues/436)).
 - `tc49/layout/throttle_wanted` — browser-writable — `train`; `speed`: a
   number in −1.0 … 1.0, the fraction of that train's maximum, `0.0` being
   stop, signed for which way the train runs along its own length — positive
@@ -1312,8 +1315,8 @@ that one and nothing on it can fail to be read.
 throttle makes it manual and releasing it puts it back
 ([#207](https://github.com/rails49/control/issues/207)). Both gestures are
 this component's — `mode_wanted` hands a train over or takes it back,
-`train: null` handing over every train at once, and `throttle_wanted` is the
-throttle being turned — because the device row a throttle ends at has one
+`train: null` handing over every train at once bar the ones `layout` is
+driving, and `throttle_wanted` is the throttle being turned — because the device row a throttle ends at has one
 writer and that writer is `layout` (rule 1), while a throttle is any number
 of writers, two tabs being two of them. The layout interface applies a
 `throttle_wanted` only while that train is manual and drops it otherwise, and
