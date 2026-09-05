@@ -807,12 +807,16 @@ _Avoid_: restart, resync
 
 **Emergency stop**:
 Every locomotive told to stand, with the track still live. The locos stop;
-points hold their positions and the decoders keep their state. A control on
-the command station, reported to the app as `stopped` on
+points hold their positions and the decoders keep their state. Asked for on
+`tc49/layout/power_wanted` and read as `stopped` on
 `tc49/layout/state/power`, and the run **holds** on it
 ([ADR-0041](docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
-It ends with a person clearing the stop and pressing GO; power returning
-releases nothing by itself.
+The track stays live under one, so no hardware can report it: the value is
+**held** by `layout` from the command it wrote rather than observed
+([ADR-0063](docs/adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
+It ends with a person clearing the stop — `power_wanted: on`, the same control
+that asks for the rails to be live — and pressing GO; power returning releases
+nothing by itself.
 _Avoid_: e-stop, stop (the aspect), hold (the run's own state, which a person
 moves)
 

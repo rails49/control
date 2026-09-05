@@ -523,7 +523,11 @@ its two names, as each topic states.
   `on` and `stopped` are applied in every run state.
 - `tc49/layout/state/power` — `power`: enum `on`, `stopped` or `off`. An
   unreadable payload reads as `off`: dropping it would mean *not* holding the
-  run, over track whose state could not be read.
+  run, over track whose state could not be read. `on` and `off` are folded
+  from `device/track` and the links; `stopped` is `layout`'s own, published on
+  writing `wanted/track: stopped` and held over the fold until a
+  `power_wanted: on` clears it, no hardware being able to report an emergency
+  stop (ADR-0063).
 - `tc49/layout/align` — `connection`; `transit`: bare name within the
   connection; `points`: list of `{addr, position}`, `position` enum `closed`
   or `thrown`; `[]` where nothing needs throwing.
@@ -1391,6 +1395,9 @@ value rather than left to read one out of an absence
 matters to the person recovering and not to the dispatcher, which holds the
 run on either
 ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
+It is also the one word here that is not an observation: no hardware can
+report an emergency stop, so `layout` holds `stopped` from the command it
+wrote and a person clears it with `power_wanted: on` (ADR-0063, below).
 The milestone-1 **simulator** publishes `on` and never changes it, simulated
 track being always live (ADR-0030).
 
@@ -1422,13 +1429,20 @@ over every retained `wanted/traction` row, so a speed a previous run left on
 the broker is not replayed to a station and no locomotive rolls on the
 power-on
 ([ADR-0054](adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
-`wanted/point` replays instead — a point has no resting value to write. **`state/power` is folded from what the hardware reports**, never from
-having commanded it: the supply's own word wherever every id ever heard reads
-its link `up`, and `off` otherwise, which is where an unreadable frame on
-either row falls
-([layout/README.md](layout/README.md#power)). The simulator answers none of
-this — simulated track is always live, and a power cut is a physical act
-(ADR-0030).
+`wanted/point` replays instead — a point has no resting value to write.
+**`state/power` is folded from what the hardware reports, bar the emergency
+stop, which `layout` holds from the command it wrote**: the supply's own word
+wherever every id ever heard reads its link `up`, and `off` otherwise, which
+is where an unreadable frame on either row falls. `stopped` cannot come from
+there at all — a stop leaves the rails live, so the supply reads `on` under
+one — so `layout` publishes it on writing `wanted/track: stopped` and keeps
+it, over any fold, until a person asks for the power back with
+`power_wanted: on`
+([ADR-0063](adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md),
+[layout/README.md](layout/README.md#power)). It is the one value on the row
+not read off hardware, and it is held because no hardware can hold it. The
+simulator answers none of this — simulated track is always live, and a power
+cut is a physical act (ADR-0030).
 
 `train_placed` is the one thing besides a `move` that moves a train, and what
 a binding does with it is its own business. The simulator stands in for a
@@ -1568,9 +1582,10 @@ one the supply reads `on`, and that is the truth about the supply rather than
 a gap in what a publisher can report
 ([ADR-0063](adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
 Whether the railroad is standing under an emergency stop is
-`tc49/layout/state/power`, which keeps all three values. A `device/track`
-frame stating a third value is refused like any other value outside the closed
-set, and reads `off` with them.
+`tc49/layout/state/power`, which keeps all three values and gets that one from
+`layout`'s own command rather than from this row. A `device/track` frame
+stating a third value is refused like any other value outside the closed set,
+and reads `off` with them.
 
 **`reason` on the supply is for the participant that cannot reach it**:
 `{power: off, reason: "…"}`, so a person reads why the railroad is dark
