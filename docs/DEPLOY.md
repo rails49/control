@@ -94,6 +94,13 @@ keeps running under the old name and keeps its published port. After
 [#299](https://github.com/rails49/control/issues/299) the `station` container
 held 2560, and `dccex-usb` could not start until it was gone.
 
+**The containers are `tc49-…`.** The compose file names its own project
+([#451](https://github.com/rails49/control/issues/451)) rather than letting
+compose take the name from the `deploy/` directory, so `docker logs
+tc49-store-1` is the same container on every clone. Addressing a service
+rather than a container — `docker compose --env-file /etc/tc49/deploy.env -f
+deploy/compose.yaml logs scheduler` — needs no name at all.
+
 Nothing starts this at boot but Docker itself: every service is
 `restart: unless-stopped` and the daemon is enabled, so a power cut comes back
 on its own. There is no systemd unit to forget.
