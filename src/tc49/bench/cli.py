@@ -1,22 +1,10 @@
-"""`tc49 bench <scenario>`, `tc49 sweep`, `tc49 live [railroad]`,
-`tc49 layout show <layout>`, `tc49 serve`, `tc49 readings`, `tc49 generate`.
+"""`tc49 bench <scenario>`, `tc49 sweep`, `tc49 layout show <layout>`,
+`tc49 serve`, `tc49 readings`, `tc49 generate`.
 
 `bench` runs one named scenario under both locking strategies and prints the
-comparison. `live` runs a session an outside client can join: the simulator
-pacing its delays on a wall clock, the bridge relaying `tc49/#` out and
-gestures in, the store served over HTTP, and no timetable (ADR-0036). It is
-built from a **railroad** — a drawing, its roster, and a person who places the
-trains (#171) — and the railroad it comes up on is an argument the panel may
-override, the socket path naming the one a client wants (#148). `--scenario`
-is the harness's own test run: it comes up on the railroad the scenario names
-and replays the document as gestures (`bench/replay.py`). `--station` puts the
-**physical binding** where the simulator would be — the layout interface and
-the `dccex` translator, driving a real command station (#314) — and pins the
-session to the railroad named, a station being one physical railroad. That
-session reads its own input, where a person types the detector's levels no
-camera publishes yet (`bench/detector.py`, #315).
-`readings` is that keyboard as **a client of the broker**: with each app in a
-process of its own there is no session holding both, so the person publishing
+comparison.
+`readings` is a person's keyboard as **a client of the broker**: with each app
+in a process of its own there is nothing holding both, so the person publishing
 the rows a detector will publish connects to the broker like the camera that
 replaces them, and reads the railroad off the store to know which block ends
 there are (ADR-0059, decision 5, #379). It stays here rather than becoming an
@@ -28,31 +16,29 @@ review that a committed layout file used to give in a diff (ADR-0015).
 `generate` rewrites every TypeScript file the UI is handed rather than
 keeps by hand: the symbol library, and the set of rejection reasons.
 
-**Two things called `--store`, on either side of a process boundary.** `live`
-and `serve` open a store **directory** on this machine, because they are what
-serves it. `readings` is given the store's **URL** instead, as the six app
-containers are: it runs where the keyboard is and the documents are wherever
-they are served from, so it reads the one it needs over HTTP and waits for the
-store to answer (`lib/documents.py`).
+**Two things called `--store`, on either side of a process boundary.** `serve`
+opens a store **directory** on this machine, because it is what serves it.
+`readings` is given the store's **URL** instead, as the app containers are: it
+runs where the keyboard is and the documents are wherever they are served
+from, so it reads the one it needs over HTTP and waits for the store to answer
+(`lib/documents.py`).
 
 **Two roots, and which command reads which.** `bench` and `sweep` run on the
 committed fixtures and find them by searching for the checkout they are in
 (`find_root`, `find_assets`), so what a person has in their own store cannot
-move a number in BENCHMARKS.md. `live` and `serve` open the **installation's**
-store instead — `~/tc49/` unless `--store` or `TC49_STORE` says otherwise
-(`tc49.store.root`, #320) — and never look for a checkout at all, which is
-what lets them run from an installed wheel. `layout show` is the topology
+move a number in BENCHMARKS.md. `serve` opens the **installation's** store
+instead — `~/tc49/` unless `--store` or `TC49_STORE` says otherwise
+(`tc49.store.root`, #320) — and never looks for a checkout at all, which is
+what lets it run from an installed wheel. `layout show` is the topology
 review of a committed drawing and stays with the fixtures; `generate` writes
 into a checkout, which is what it is for.
 
-**Whichever of the two serves the store backs it up**, git being what keeps a
+**Whichever process serves the store backs it up**, git being what keeps a
 copy of documents that are on one disk (ADR-0053, store/BACKUP.md). The saves
 that arrive over the HTTP face arm an idle timer that a watch thread lets
 fire, and quitting commits what it had not reached yet — Ctrl-C, or the
 SIGTERM a deploy stops the container with, which end `serve` the same way
-(#410); `live --no-store`
-leaves both to the `tc49 serve` it is beside, because two processes committing
-one store would each commit the other's half-finished editing session.
+(#410).
 """
 
 import argparse
@@ -65,7 +51,7 @@ from pathlib import Path
 from types import FrameType
 from typing import TextIO
 
-from tc49.bench.detector import CLIENT_ID, LEVELS, SHAPE, serve
+from tc49.bench.detector import CLIENT_ID, serve
 from tc49.bench.metrics import Metrics, Stall, metrics
 from tc49.bench.runner import (
     DEFAULT_K,
@@ -75,70 +61,14 @@ from tc49.bench.runner import (
     load,
     run_scenario,
 )
-from tc49.bench.session import Session
 from tc49.bench.sweep import sweep
 from tc49.lib import rejection
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
 from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
-from tc49.lib.roster import Roster
 from tc49.store import DEFAULT_STORE, STORE_ENV, AssetStore, Backup, store_root, symbols
 from tc49.store.backup import IDLE_S, PUSH_S, Watch
 from tc49.store.server import make_server
-
-LIVE_PERIOD_S = 0.1
-"""Seconds a live session waits between polls for commands arriving over the
-bridge, unless `--period` says otherwise. The railroad's own pacing is the
-simulator's transit delays (ADR-0047); this only bounds how long a gesture
-sits in the queue before it is drained, so it stays small."""
-
-STATION_EXAMPLE = "dccex-usb:2560"
-"""What a station address looks like, for the help and for a refusal. The
-`dccex-usb` mirror serves the command station on 2560 (docs/dccex_usb), and a
-person running the two on one machine types this."""
-
-
-def station(text: str) -> tuple[str, int]:
-    """`<host>:<port>` as the address a connection is opened to.
-
-    One argument and not two, because an address is one thing a person copies
-    off a running `dccex-usb`. The port is split off the right, so an IPv6
-    host written in brackets keeps its colons — and the brackets come off
-    again, because they belong to the written address and not to the name a
-    connection is opened on: `getaddrinfo` resolves `::1` and refuses
-    `[::1]` (#335).
-    """
-    host, _, port = text.rpartition(":")
-    if host.startswith("[") and host.endswith("]"):
-        host = host[1:-1]
-    if not host or not port.isdigit():
-        raise argparse.ArgumentTypeError(
-            f"'{text}' is not a station address — write it <host>:<port>,"
-            f" e.g. {STATION_EXAMPLE}"
-        )
-    return host, int(port)
-
-
-def addressed(roster: Roster) -> tuple[int, int]:
-    """How many of a railroad's trains have at least one addressed car, and
-    how many have none.
-
-    The one count a physical run's banner adds. A `move` for a train whose
-    cars carry no address writes no traction row at all, so this is what turns
-    "my train did nothing" into a one-line diagnosis.
-
-    A count and not a refusal: a railroad whose stock is only partly addressed
-    is an ordinary state rather than a fault. It reads what the roster in
-    front of it says and assumes nothing about where that roster came from —
-    the ones committed here are benchmark fixtures, and the stock somebody
-    actually owns belongs in an installation's own documents (#318).
-    """
-    driveable = sum(
-        any(coupled.car.addr is not None for coupled in train.cars)
-        for train in roster.trains.values()
-    )
-    return driveable, len(roster.trains) - driveable
-
 
 GENERATORS: dict[str, Callable[[], str]] = {
     symbols.GENERATED_PATH: symbols.render,
@@ -242,10 +172,9 @@ def _ratio(value: float | None) -> str:
 
 
 LOOPBACK = "127.0.0.1"
-"""What the store and the bridge bind unless told otherwise. Loopback was the
-whole of the authorization until a reverse proxy stood in front of them, and
-that proxy runs in a container, which cannot reach a macOS host's loopback
-(ADR-0042)."""
+"""What the store binds unless told otherwise. Loopback was the whole of the
+authorization until a reverse proxy stood in front of it, and that proxy runs
+in a container, which cannot reach a macOS host's loopback (ADR-0042)."""
 
 
 def reachable(host: str) -> str:
@@ -256,15 +185,12 @@ def reachable(host: str) -> str:
 
 
 def store_flag(parser: argparse.ArgumentParser) -> None:
-    """`--store`, on each of the two commands that open the installation's
-    store.
+    """`--store`, on the one command that opens the installation's store.
 
-    One function rather than two copies of the help, because the two are the
-    same question — which store this is — and a person reading `tc49 live
-    --help` beside `tc49 serve --help` must not find two answers. The
-    environment is named in it: a session and the server that outlives it are
-    usually started separately (scripts/dev.sh), and pointing both at one
-    store is what `TC49_STORE` is for.
+    A function rather than the argument written inline, because the
+    environment belongs in the help beside it: `scripts/dev.sh` serves the
+    checkout's fixtures rather than an installation, and pointing this and
+    whatever apps a developer starts at one store is what `TC49_STORE` is for.
     """
     parser.add_argument(
         "--store",
@@ -272,8 +198,8 @@ def store_flag(parser: argparse.ArgumentParser) -> None:
         metavar="PATH",
         help=f"the installation's store to read and serve (default"
         f" {DEFAULT_STORE}, or ${STORE_ENV} where it is set; this flag wins)."
-        " The benchmark fixtures are not in it — name bench/ to run a live"
-        " session on one of them",
+        " The benchmark fixtures are not in it — name bench/ to serve one"
+        " of them",
     )
 
 
@@ -299,77 +225,6 @@ def command_line() -> argparse.ArgumentParser:
     )
 
     commands.add_parser("sweep", help="run the fixed grid of docs/bench/BENCHMARKS.md")
-
-    live_parser = commands.add_parser(
-        "live", help="run a live session an outside client can join (ui/PANEL.md)"
-    )
-    # One or the other, never both: a scenario names the railroad it is over,
-    # so giving one alongside it could only agree or contradict.
-    coming_up = live_parser.add_mutually_exclusive_group()
-    coming_up.add_argument(
-        "railroad",
-        nargs="?",
-        help="the railroad to come up on, e.g. reversing-loops; with none the session"
-        " waits to be told, and either way the panel may switch it",
-    )
-    coming_up.add_argument(
-        "--scenario",
-        help="run a scenario as a test run, e.g. reversing-loops/meet: the session"
-        " comes up on the railroad it names and replays it as gestures —"
-        " a placement per train, then its requests in order."
-        " Not with --state, which comes up on the last session's placement",
-    )
-    live_parser.add_argument(
-        "--period",
-        type=float,
-        default=LIVE_PERIOD_S,
-        help=f"seconds between command polls (default {LIVE_PERIOD_S}; the"
-        " railroad's pacing is the simulator's own transit delays)",
-    )
-    live_parser.add_argument(
-        "--station",
-        type=station,
-        metavar="HOST:PORT",
-        help="drive a real command station at that address, e.g."
-        f" {STATION_EXAMPLE}: the layout interface and the dccex translator"
-        " come up where the simulator would, and no simulator is built."
-        " Requires the railroad, a station being one physical railroad, and"
-        " is not for use with --scenario. Such a session reads its own input,"
-        f" a typed '{SHAPE}' standing in for the detector nothing has yet",
-    )
-    live_parser.add_argument(
-        "--startup",
-        type=Path,
-        help="a file of raw station commands sent when the rails are powered,"
-        " where each of this railroad's power districts states the trip"
-        " current it really takes (docs/dccex/README.md). Needs --station",
-    )
-    live_parser.add_argument(
-        "--port", type=int, default=8766, help="the bridge's WebSocket port"
-    )
-    live_parser.add_argument(
-        "--host",
-        default=LOOPBACK,
-        help=f"the address the bridge and the store bind (default {LOOPBACK};"
-        " scripts/dev.sh binds every interface, which is what lets the proxy"
-        " in front of them reach them — docs/DEPLOY.md)",
-    )
-    live_parser.add_argument(
-        "--state",
-        type=Path,
-        help="keep the runs' pictures beside this path, one file per railroad,"
-        " so a restart comes up where each railroad stopped rather than with an"
-        " empty layout",
-    )
-    live_parser.add_argument(
-        "--store-port", type=int, default=8765, help="the store's HTTP port"
-    )
-    store_flag(live_parser)
-    live_parser.add_argument(
-        "--no-store",
-        action="store_true",
-        help="leave the store to a `tc49 serve` already running (scripts/dev.sh)",
-    )
 
     serve_parser = commands.add_parser(
         "serve", help="serve the asset store over HTTP, for the layout editor"
@@ -435,32 +290,6 @@ def command_line() -> argparse.ArgumentParser:
     return parser
 
 
-def station_note(where: tuple[str, int], name: str, roster: Roster) -> str:
-    """What a physical run says about itself that a simulated one does not:
-    which station it drives and that it stays on this railroad, how much of
-    the stock it can move, and who its detectors are.
-
-    **The session sees only what is typed, and says so.** No camera publishes
-    `tc49/layout/state/device/sensor` yet, so the levels that complete a move
-    are a person's, typed a line at a time on this session's own input
-    (`bench/detector.py`, #315). It is said here rather than refused: a live
-    run comes up **held**, and held admits and commits nothing, so lifting it
-    is already a deliberate gesture. A second lock that existed only until a
-    camera published would be a mechanism somebody has to remember to delete.
-    """
-    driveable, unaddressed = addressed(roster)
-    trains = driveable + unaddressed
-    return (
-        f"  station {where[0]}:{where[1]}, driving {name} — one physical"
-        " railroad, so this session switches to no other\n"
-        f"  {driveable} of {trains} trains carry an address; a move for one of"
-        f" the other {unaddressed} writes nothing\n"
-        "this session sees what you type: no camera publishes yet, so type"
-        f" '{SHAPE}' — {', '.join(LEVELS[:-1])} or {LEVELS[-1]} — and a move"
-        " finishes on the pair a crossing trips\n"
-    )
-
-
 def holding(store: AssetStore) -> str:
     """What the store a command opened has in it, for the banner beside the
     root it was opened at.
@@ -492,17 +321,14 @@ def noting(out: TextIO) -> Callable[[str], None]:
     return note
 
 
-def backing(backup: Backup | None) -> str:
+def backing(backup: Backup) -> str:
     """The banner's line about backup: whether the store is being copied
     anywhere, and what stands in the way where something does.
 
-    `None` is a session that left the store to a server already running
-    (`--no-store`), and backup with it: the saves it would coalesce arrive at
-    that server, and two processes committing one store would each be
-    committing the other's half-finished work (#321).
+    Whichever process serves the store backs it up, and one process serves it:
+    a save is what arms the idle timer, and two committing one store would
+    each be committing the other's half-finished work (#321).
     """
-    if backup is None:
-        return "  backup  left to the `tc49 serve` already running\n"
     missing = backup.needs()
     if not backup.automatic:
         stands = "off" + (f": {missing[0]}" if missing else "")
@@ -513,26 +339,6 @@ def backing(backup: Backup | None) -> str:
             f"on: a commit after {IDLE_S:.0f}s of quiet, and a push every {PUSH_S:.0f}s"
         )
     return f"  backup  {stands}\n"
-
-
-def picking(pinned: bool) -> str:
-    """What the banner promises about the railroad. A session ordinarily runs
-    whichever railroad a client names and switches when another does (#148);
-    one driving a command station stays where it is, and the banner must not
-    go on offering the other thing."""
-    if pinned:
-        return "the panel joins this railroad and may not switch it"
-    return "the panel names the railroad and may switch it"
-
-
-def restart_note(state: Path | None) -> str:
-    """What the live banner promises about coming back up. With no file the
-    session forgets the railroad when the process ends, and the banner has
-    said so since #71; with one it comes up where the railroad stopped, and
-    the banner must stop promising the other thing (#151)."""
-    if state is None:
-        return "a restart comes up with an empty layout"
-    return f"a restart adopts the placement and facing kept beside {state}"
 
 
 @contextlib.contextmanager
@@ -573,149 +379,6 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
         out.write(format_comparison(args.scenario, args.k, results))
         if args.trace:
             out.write(results[args.trace][0])
-        return 0
-
-    if args.command == "live":
-        # Two sources for one placement, and no reason to choose between
-        # them: `--state` comes up standing the trains where the last session
-        # left them, and a replay's placements would then be refused one by
-        # one for the blocks those trains hold — a run silently unlike the
-        # document, with no diagnostic (#171). Before the session, because a
-        # session serves from construction and a refusal that came after it
-        # would leave the bridge port bound (#179).
-        if args.scenario is not None and args.state is not None:
-            out.write(
-                "--scenario replays a document onto an empty layout and"
-                " --state comes up on the last session's placement; name one\n"
-            )
-            return 2
-        # A scenario is a document replayed onto an empty layout, and a
-        # station is steel standing where somebody left it: replaying
-        # placements onto it would command a railroad into a picture the
-        # trains are not in. `--state` is the one combination hardware
-        # improves, and is allowed (#314).
-        if args.scenario is not None and args.station is not None:
-            out.write(
-                "--scenario replays a document as gestures and --station"
-                " drives real trains standing where they were left; name one\n"
-            )
-            return 2
-        # The station is one physical railroad, so the railroad is not the
-        # first client's to pin. Both refusals come before the session,
-        # because a session serves from construction and one decided after it
-        # would leave the bridge port bound (#179).
-        if args.station is not None and args.railroad is None:
-            out.write(
-                "--station drives one physical railroad; name the railroad it"
-                " is under\n"
-            )
-            return 2
-        # The trip currents are what a command station is sent on powering
-        # the rails, so they are the station's to carry and a simulated
-        # session has nothing to send them to (#315). The other three
-        # combinations are refused, and this one alone used to be taken and
-        # the file dropped without a word (#334). Before the session for the
-        # same reason as the three above (#179).
-        if args.startup is not None and args.station is None:
-            out.write(
-                "--startup is the trip currents a command station is sent"
-                " when the rails are powered; name the --station it goes to\n"
-            )
-            return 2
-        # The installation's store and never the checkout's: a session runs
-        # the railroads somebody drew, and the fixtures are the benchmark's
-        # (#320). `--store bench` is what runs a session on one of those, and
-        # is the developer flow scripts/dev.sh takes.
-        root = store_root(args.store)
-        # A physical session reads this process's own input, which is where a
-        # person types the readings nothing else on a real railroad publishes
-        # yet (#315). A simulated one is handed none: the simulator has its
-        # own sensors, and a `tc49 live` in a pipeline reads nothing it was
-        # not asked to.
-        session = Session(
-            root,
-            args.period,
-            args.port,
-            args.state,
-            args.host,
-            args.station,
-            args.startup,
-            sys.stdin if args.station is not None else None,
-        )
-        # What the session comes up on, and the refusal if it cannot: a
-        # scenario names its own railroad and replays onto it, a railroad
-        # comes up empty, and with neither the session waits to be told.
-        opening: str | None = None
-        if args.scenario is not None:
-            opening = session.plays(args.scenario)
-        elif args.railroad is not None:
-            opening = session.wants(args.railroad)
-        if opening is not None:
-            # This one needs the session — only a session can say whether the
-            # store opens a railroad — so the port it took is given back here
-            # instead (#179).
-            session.bridge.close()
-            out.write(f"{opening}\n")
-            return 2
-        # What a physical run says about itself. The roster is read here and
-        # not held from the argument check above, because the session has
-        # already opened the railroad by now: this is the stock it is running
-        # and not a second opinion about whether the railroad is there.
-        physical = ""
-        if args.station is not None:
-            named = args.railroad
-            assert isinstance(named, str)  # named, by the refusal above
-            physical = station_note(args.station, named, AssetStore(root).roster(named))
-        # A session carries a store so that one command is all a browser
-        # needs. Where one is already serving — scripts/dev.sh, whose store
-        # outlives any session — a second would only fail to bind the port.
-        store_line = ""
-        # Backup belongs to whichever process serves the store, because a save
-        # is what arms its idle timer and both would otherwise commit the
-        # other's half-finished editing session (#321).
-        backup: Backup | None = None
-        watch: Watch | None = None
-        if not args.no_store:
-            backup = Backup(root, log=noting(out))
-            store_server = make_server(root, args.store_port, args.host, backup)
-            threading.Thread(
-                target=store_server.serve_forever, name="store", daemon=True
-            ).start()
-            watch = Watch(backup)
-            watch.start()
-            store_line = f"  store   http://{reachable(args.host)}:{args.store_port}\n"
-        out.write(
-            f"live: polling commands every {args.period}s\n"
-            f"  bridge  ws://{reachable(args.host)}:{session.bridge.port}/<railroad>\n"
-            f"{store_line}"
-            f"  rooted  {root}: {holding(AssetStore(root))}\n"
-            f"{backing(backup)}"
-            f"{physical}"
-            f"{picking(args.station is not None)}; there is no timetable;"
-            f" Ctrl-C ends the session, and {restart_note(args.state)}\n"
-        )
-        out.flush()
-        try:
-            session.run(out)
-        except KeyboardInterrupt:
-            pass
-        # The commit on quit, before anything else is said about the way out:
-        # what a person drew in the last seconds of the session is the most
-        # likely thing to be lost, and it is the one the idle timer had not
-        # reached (ADR-0053).
-        if watch is not None and backup is not None:
-            watch.stop()
-            backup.quit()
-        # The zeros and the track off have gone by here, the assembly having
-        # stood its railroad down before letting the loop go (#314). Said
-        # rather than assumed: leaving a live railroad behind is what this
-        # prevents, and a person watching the process end wants to read that
-        # it did not.
-        if args.station is not None:
-            out.write(
-                "stood the railroad down: zero to every locomotive commanded,"
-                " then the track off\n"
-            )
         return 0
 
     if args.command == "readings":

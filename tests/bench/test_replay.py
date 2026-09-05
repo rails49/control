@@ -1,4 +1,4 @@
-"""`tc49 live --scenario`: a scenario run as a replay, not as a seed (#171).
+"""A scenario run as a replay, not as a seed (#171).
 
 A run is built from a railroad and a person places its trains, so the harness
 keeps its file format by standing where the person stands: it publishes one
@@ -12,20 +12,17 @@ replay produces is the run the same scenario produced when the apps were
 handed the document.
 """
 
-import io
 from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 
 import pytest
 
-from tc49.bench.cli import main
 from tc49.bench.replay import Replay, arrival_ends
 from tc49.bench.runner import Assembly, assemble, assemble_live
-from tc49.bench.session import Session
 from tc49.dispatcher import Incremental
 from tc49.lib.scenario import TrainSpec
-from tests.harness import ASSETS, events, load
+from tests.harness import events, load
 
 SCENARIO = "crossover-yard/meet"
 
@@ -169,25 +166,3 @@ def test_a_placement_the_dispatcher_refuses_stops_the_replay() -> None:
 
     with pytest.raises(ValueError, match="would not stand"):
         Replay(assembly.bus, layout, doubled)
-
-
-def test_a_replay_and_a_kept_picture_are_two_placements_and_the_cli_refuses() -> None:
-    """`--state` comes up standing the trains where the last session left
-    them, and the replay's placements would then be refused one by one for the
-    blocks those trains hold. Two sources for one placement, and no reason to
-    choose between them."""
-    out = io.StringIO()
-    assert main(["live", "--scenario", SCENARIO, "--state", "run.json"], out) == 2
-    assert "name one" in out.getvalue()
-
-
-def test_a_scenario_is_the_only_thing_the_cli_may_replay() -> None:
-    """CLI-only and never browser-reachable (#171): `plays` is the harness's
-    way in, and it refuses anything that is not a scenario the store has."""
-    session = Session(ASSETS, 0.0)
-    try:
-        assert session.plays("crossover-yard/nonesuch") is not None
-        assert session.plays("crossover-yard") is not None  # a railroad, not one
-        assert session.plays(SCENARIO) is None
-    finally:
-        session.bridge.close()
