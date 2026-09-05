@@ -22,14 +22,21 @@ export GIT_TERMINAL_PROMPT=0
 cd ~/control
 git pull
 pnpm --dir ui build
+# Where the deploy settings of this box sit, read by compose below and by the
+# script above it, so the two cannot come to different answers about the same
+# variable (#442).
+DEPLOY_ENV=/etc/tc49/deploy.env
 # The store's directory, made here rather than left to Docker. A bind mount
 # whose source is missing is created by the daemon as root, and the person is
 # then shut out of their own documents: no editing, no `git init`, no putting
-# a catalogue in by hand (#387). The uid and gid are this account's, and
-# compose reads them as the user the store and a session run as — the shell's
-# environment wins over the `--env-file` below, which is what makes exporting
-# them here enough.
-mkdir -p "${TC49_STORE:-$HOME/tc49}"
+# a catalogue in by hand (#387). Which directory that is, compose decides —
+# `TC49_STORE` moves the store and a box that moves it says so in the env
+# file, which this shell knows nothing about — so the path is resolved the
+# way compose resolves it rather than expanded here.
+mkdir -p "$(scripts/store-root.sh "$DEPLOY_ENV")"
+# The uid and gid are this account's, and compose reads them as the user the
+# store and a session run as — the shell's environment wins over the
+# `--env-file` below, which is what makes exporting them here enough.
 TC49_UID=$(id -u)
 TC49_GID=$(id -g)
 export TC49_UID TC49_GID
@@ -41,7 +48,7 @@ export TC49_UID TC49_GID
 # the built ui and the four apps — and `hardware` is what this box owns
 # because of what is plugged into it (ADR-0059, decision 5). A box with no
 # command station on it asks for the first alone.
-TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
+TC49_SITE=layout docker compose --env-file "$DEPLOY_ENV" \
   -f deploy/compose.yaml --profile layout --profile hardware \
   up -d --build --remove-orphans
 REMOTE
