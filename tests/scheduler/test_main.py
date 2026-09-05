@@ -9,6 +9,7 @@ main thread and a signal ends it.
 
 import shutil
 import threading
+import time
 from collections.abc import Iterator
 from http.server import HTTPServer
 from pathlib import Path
@@ -18,6 +19,7 @@ import pytest
 from tc49.lib.bus import Payload
 from tc49.lib.documents import Documents
 from tc49.lib.mqtt import MqttBus
+from tc49.lib.startup import RETAINED_S
 from tc49.scheduler.__main__ import serve
 from tc49.scheduler.scheduler import FACING
 from tc49.store.server import make_server
@@ -90,7 +92,9 @@ class App:
     """The scheduler running as `python -m tc49.scheduler` runs it, on a
     thread so the test can watch the bus while it is up."""
 
-    def __init__(self, broker: Broker, store: Store) -> None:
+    def __init__(
+        self, broker: Broker, store: Store, retained_s: float = RETAINED_S
+    ) -> None:
         self.bus = MqttBus(port=broker.port)
         self._documents = Documents(
             store.url, log=quiet, first_backoff_s=0.01, max_backoff_s=0.05
@@ -102,7 +106,7 @@ class App:
         for the person watching the container and no row of anyone's."""
         self._thread = threading.Thread(
             target=serve,
-            args=(self.bus, self._documents, RAILROAD, self._stop, 0.01),
+            args=(self.bus, self._documents, RAILROAD, self._stop, 0.01, retained_s),
             kwargs={"log": self.said.append},
             daemon=True,
         )
@@ -305,4 +309,51 @@ def test_a_railroad_the_store_does_not_have_is_said_and_not_taken(
     settle(witness, 2.0)
     assert app.said[said:] == [], f"it went on trying: {app.said[said:]}"
     hand.close()
+    witness.close()
+
+
+WINDOW_S = 30.0
+"""A retained window long enough for a test to be sure the app is inside one.
+The deployed number is `RETAINED_S`; what is under test is that a stop is
+acted on wherever inside a window it lands, which no length may change."""
+
+
+@pytest.fixture
+def waiting(broker: Broker, store: Store) -> Iterator[App]:
+    """The same app on a window nothing will end early: the broker holds no
+    `facing` row, so it waits the whole of `WINDOW_S` for one."""
+    running = App(broker, store, retained_s=WINDOW_S)
+    try:
+        yield running
+    finally:
+        running.stop()
+
+
+def test_a_stop_inside_the_retained_window_is_acted_on_there(
+    broker: Broker, store: Store, waiting: App
+) -> None:
+    """`retained_s` is a moment given to the broker, "waited on `stop` so a
+    signal arriving in it ends the process rather than being sat on"
+    (`lib/loading.py`). This app polled instead and took no `stop` at all, so
+    a SIGTERM landing in the window was honoured a window late — a second in
+    the deployment, and however long the window is here (#430).
+    """
+    store.start()
+    witness, _heard = watching(broker)
+    waiting.start()
+    assert until(lambda: waiting.said != []), "it never read its documents"
+    # Past the store and past the broker, and nothing but the window left to
+    # be in: the row it is waiting for is one nothing on this broker writes.
+    settle(witness)
+    assert waiting.bus.connected, "it never reached the broker"
+    assert not any(
+        line.startswith("up on") for line in waiting.said
+    ), f"it came up, so the stop below would not land in the window: {waiting.said}"
+
+    began = time.monotonic()
+    waiting.stop()
+    took = time.monotonic() - began
+
+    assert not waiting.running, f"a stop in the window did not end it: {waiting.said}"
+    assert took < RETAINED_S, f"the stop was sat on for {took}s of a {WINDOW_S}s window"
     witness.close()
