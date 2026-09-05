@@ -1480,14 +1480,18 @@ on each `move` it acts on and again on the arrival, its sign composed from the
 train's facing and the way round each car is coupled
 ([#296](https://github.com/rails49/control/issues/296)). `wanted/function` has
 no writer: a function press has no gesture to arrive on and is nobody's until a
-throttle asks. All five are **subscribed** by a translator, which acts on the
+throttle asks. Its `value` is a **boolean** and not a word out of a catalogue:
+a function is one bit on the wire wherever it was checked, and setting a
+volume or a brightness is decoder configuration, a different capability that
+would be a different row
+([ADR-0063](adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)). All five are **subscribed** by a translator, which acts on the
 addresses it recognises and holds no table of the ones it does not
 ([#289](https://github.com/rails49/control/issues/289)).
 
 | Topic | Payload | Values |
 | --- | --- | --- |
 | `tc49/layout/state/wanted/traction/<addr>` | `addr`, `speed` | `speed` a number in −1.0 … 1.0 |
-| `tc49/layout/state/wanted/function/<addr>/<number>` | `addr`, `function`, `value` | `function` the function number as a string; `value` whatever the model's catalogue entry allows |
+| `tc49/layout/state/wanted/function/<addr>/<number>` | `addr`, `function`, `value` | `function` the function number as a string; `value` a **boolean** |
 | `tc49/layout/state/wanted/point/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
 | `tc49/layout/state/wanted/signal/<addr>` | `addr`, `aspect` | `aspect` `stop`, `caution` or `clear` |
 | `tc49/layout/state/wanted/track` | `power` | `power` `on`, `stopped` or `off` |

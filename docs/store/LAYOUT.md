@@ -174,8 +174,8 @@ kind: locomotive          # locomotive | passenger | freight | special
 length: 220               # mm, the same units as a block
 functions:                # function number -> what it does on this product
   "0": { name: headlights }
-  "2": { name: horn, values: ["off", "on"] }
-  "5": { name: vacuum, values: ["off", "low", "high"] }
+  "2": { name: horn }
+  "5": { name: vacuum }
 ```
 
 - **One file per model, and the catalogue is the installation's**, not the
@@ -184,17 +184,22 @@ functions:                # function number -> what it does on this product
   rarely ([CONTEXT.md](../../CONTEXT.md#stock), **Catalogue**). The file names
   itself, and that name is what every car refers to it by, so a `model:` that
   disagrees with the path is refused.
-- **`functions` is fully configurable**, name and values both. What model
-  trains implement varies enormously and cars have functions too — a
-  track-cleaning car's vacuum, coach lighting. `values` is optional and
-  defaults to `["off", "on"]`; the **first entry** is what the function is in
-  when nothing has been commanded, which is why it is a list and not a set.
-  Nothing commands one: a model records what a function *means* (ADR-0045).
-- **The function number and its values are written as strings.** The number
-  because YAML integer keys and JSON object keys do not agree; the values
-  because YAML reads a bare `off` as a boolean, and a `values: [off, on]`
-  would load as `[False, True]`. Both are refused with that message rather
-  than silently renamed.
+- **`functions` is a name on a number**, and the names are the installation's
+  own. What model trains implement varies enormously and cars have functions
+  too — a track-cleaning car's vacuum, coach lighting — so what a number is
+  called is written per model. Nothing commands one: a model records what a
+  function *means* (ADR-0045).
+- **No value list.** A function is one bit on the wire wherever it was
+  checked, so the desired row carries a boolean and a model naming `low` and
+  `high` would be naming states no translator could send
+  ([ADR-0063](../adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
+  What people mean by a range is decoder configuration, a different capability
+  that would be a different row. A `values:` an older file still states is an
+  unknown key like any other here and is ignored, so no catalogue has to be
+  rewritten to be read.
+- **The function number is written as a string**, because YAML integer keys
+  and JSON object keys do not agree. It is refused with that message rather
+  than silently coerced.
 - **An installation with no `catalogue/` knows no models**, which is a
   railroad whose stock is still written the old way and not a fault.
 
