@@ -54,11 +54,18 @@ every one of them now that the app comes up with the railroad off.
 
 **Power is commanded on arrival and observed from below.** A `power_wanted` is
 written through to `wanted/track` — there is no beat to quantise it against,
-and an emergency stop that waits is not one (ADR-0051) — and nothing is said
-about `state/power` on the strength of having commanded it. What this app
-publishes there is folded from what the hardware reports: `_folded` is the
-whole rule. It cannot verify that the supply really went and does not try; it
-is the system designer's job to put a device there that does (#232).
+and an emergency stop that waits is not one (ADR-0051) — and what this app
+publishes on `state/power` is folded from what the hardware reports: `_folded`
+is the rule for `on` and `off`. It cannot verify that the supply really went
+and does not try; it is the system designer's job to put a device there that
+does (#232).
+
+**The emergency stop is the one value held rather than folded.** A stop leaves
+the rails live, so the supply reads `on` under one and no hardware can report
+it (ADR-0063). This app wrote the word, so this app holds it: `state/power`
+reads `stopped` from the command until a person asks for the power back with
+`power_wanted: on`, which is what leaves ADR-0041's *clear it before driving*
+with a source. `on` and `off` are still nobody's to command onto this row.
 
 **A plain `off` is applied only where nothing is moving.** The one command
 here that is not written through as it came. A topic names the app that
@@ -151,6 +158,7 @@ from tc49.lib.inventory import (
     OCCUPIED,
     OFF,
     ON,
+    STOPPED,
     UNKNOWN,
     device_topic,
     split_device,
@@ -372,6 +380,13 @@ class LayoutInterface:
         self._track = OFF
         self._links: dict[str, bool] = {}
         self._power = OFF
+        # And the one value on that row this app holds rather than folds:
+        # whether the railroad stands under an emergency stop it commanded.
+        # No hardware can report one — a stop leaves the rails live, so the
+        # supply reads `on` under it (ADR-0063) — so the app that wrote the
+        # word is the only thing that knows, and it holds it until a person
+        # asks for the power back (`_on_power_wanted`, `_publish_power`).
+        self._stopped = False
         # The stamps held against the state topics this app consumes: the
         # aspects, the facing and every device row. Two values of one topic
         # delivered
@@ -1072,10 +1087,34 @@ class LayoutInterface:
         supply removed: the word is written through to the device vocabulary
         and applied on arrival (ADR-0051), bar the one that is guarded.
 
-        Nothing is said about `state/power` here. What this app publishes
-        there is what the hardware reports, and a command is not a report: a
-        railroad that answered `on` because somebody pressed ON would be this
-        app taking its own word for the state of the track.
+        Nothing is said about `state/power` here bar the one word no
+        hardware can report. What this app publishes there is otherwise what
+        the hardware reports, and a command is not a report: a railroad that
+        answered `on` because somebody pressed ON would be this app taking
+        its own word for the state of the track.
+
+        **The emergency stop is held from the command that asked for it.** A
+        stop leaves the rails live, so the supply reads `on` under one and
+        the fold would call the railroad good again a second after the press
+        (ADR-0063). This app wrote `stopped`, so it knows, and it holds it —
+        which is what leaves ADR-0041's *clear it before driving* with a
+        source, and what stops a move while it stands. **Clearing it is
+        `power_wanted: on`**, the railroad's own power control and what a
+        person reaches for to resume: no second topic, no fourth value and no
+        new button.
+
+        **`on` alone clears it**, and an `off` does not. A cut is commanded
+        and not observed, so clearing on the press would publish `on` here —
+        the fold's answer while the hardware still reports the supply it has
+        not yet lost — in the moment this app is asking for the supply to go,
+        which is the one direction this row must never fail in. So the stop
+        stands over a dark railroad until somebody asks for the power back:
+        both words hold the run either way (ADR-0041), and a person loading a
+        drawing over a held stop clears it first, the press that clears it
+        being the one they need to make the rails live again anyway.
+
+        A gesture that is dropped commanded nothing and moves nothing here,
+        an unreadable one and an `off` the guard refuses alike (ADR-0062).
 
         A gesture that cannot be read is dropped rather than taken for `off`,
         which is the other direction from the reading of the same axis: `off`
@@ -1129,7 +1168,12 @@ class LayoutInterface:
                 _log.info("power off refused: %s", refusal)
                 return
             self._traction_rest()
+        if wanted == STOPPED:
+            self._stopped = True
+        elif wanted == ON:
+            self._stopped = False
         self._bus.publish(WANTED_TRACK, {"power": wanted})
+        self._publish_power()
 
     def _on_device(self, topic: str, payload: Payload) -> None:
         """What the hardware reports about itself. Three of the five rows are
@@ -1348,11 +1392,11 @@ class LayoutInterface:
         The supply's own word is `on` or `off` and never an emergency stop:
         a stop leaves the rails live, so the row reads `on` under one, and a
         frame claiming otherwise claims something no hardware can observe and
-        is refused with everything else this cannot read (ADR-0063). The fold
-        therefore answers `on` while the railroad stands under a stop. Saying
-        that a person has yet to clear one is not a fold from hardware and
-        never can be: it is this app's to hold, from the command it wrote
-        (ADR-0063, CONTEXT.md **Emergency stop**), and is not here yet (#470).
+        is refused with everything else this cannot read (ADR-0063). So this
+        answers `on` while the railroad stands under a stop, and that is the
+        truth about the hardware: whether a person has yet to clear one is
+        not a fold from hardware and never can be. It is held instead, and
+        `_publish_power` is where the two meet.
         """
         if not all(self._links.values()):
             return OFF
@@ -1360,12 +1404,26 @@ class LayoutInterface:
 
     def _publish_power(self) -> None:
         """Whether a train may move at all, on a last-value topic, and only
-        when the fold moves: a state topic republishing the value it already
+        when the value moves: a state topic republishing the value it already
         holds is noise on the trace and news to nobody. The opening `off` is
         the constructor's, so a client that joins before the hardware has said
         anything is served a value rather than left to read one out of an
-        absence (ADR-0032)."""
-        folded = self._folded()
-        if folded != self._power:
-            self._power = folded
-            self._bus.publish(POWER, {"power": folded})
+        absence (ADR-0032).
+
+        **A held emergency stop outranks the fold**, and is the one value on
+        this row not read from hardware. It is held because no hardware can
+        hold it: the supply is live under a stop and goes on saying so, so a
+        row folded from `device/track` alone would clear the stop nobody has
+        cleared and leave the person who pressed it with nothing saying the
+        railroad is waiting for them (ADR-0063, ADR-0041). It outranks a fold
+        of `off` as well as one of `on`: both are "not `on`" to every reader
+        (ADR-0041), and the held word is the one that says a person has
+        something to clear. Everything else is the fold's, unchanged, and the
+        fold answers again the moment the stop is cleared — what the hardware
+        said meanwhile is what the row then reads, rather than an `on` this
+        app has taken its own word for.
+        """
+        stated = STOPPED if self._stopped else self._folded()
+        if stated != self._power:
+            self._power = stated
+            self._bus.publish(POWER, {"power": stated})
