@@ -86,16 +86,24 @@ def test_the_track_takes_the_word_the_whole_railroad_shares() -> None:
     assert commands.track("off") == b"<0>"
 
 
-def test_a_stop_is_the_lock_and_not_the_one_shot() -> None:
-    """`<!P>` latches until it is released; `<!>` would be a one-shot any
-    throttle on the same port could drive away from."""
-    assert commands.track("stopped") == b"<!P>"
-    assert commands.RELEASE == b"<!R>"
+def test_a_stop_is_the_one_shot() -> None:
+    """Every decoder told to stand over live rails, and nothing held
+    afterwards: any throttle on the shared port may drive away from it, which
+    is the operator's call and not this app's (#463)."""
+    assert commands.track("stopped") == b"<!>"
 
 
-def test_a_poll_asks_for_the_status_and_for_the_lock() -> None:
+def test_a_poll_asks_for_the_status_and_nothing_else() -> None:
+    """A poll runs for as long as the link, so anything in it a station acts
+    on rather than answers is acted on for as long as the railroad is up. The
+    lock query this once held was an emergency stop on a station whose `!`
+    takes no suffix, once a second, for ever (#463)."""
     assert commands.STATUS == b"<s>"
-    assert commands.LOCK_QUERY == b"<!Q>"
+    assert not [
+        name
+        for name, value in vars(commands).items()
+        if isinstance(value, bytes) and value.startswith(b"<!") and value != b"<!>"
+    ]
 
 
 def test_a_startup_file_is_handed_over_line_by_line() -> None:

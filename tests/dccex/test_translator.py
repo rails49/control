@@ -296,16 +296,15 @@ async def _frame_that_cannot_be_read_is_dropped() -> None:
 # -- the stop, and clearing it -------------------------------------------
 
 
-def test_clearing_a_stop_zeroes_every_locomotive_before_the_release() -> None:
-    asyncio.run(_clearing_a_stop_zeroes_every_locomotive_before_the_release())
+def test_a_stop_is_one_message_and_an_on_after_it_is_another() -> None:
+    asyncio.run(_stop_is_one_message_and_an_on_after_it_is_another())
 
 
-async def _clearing_a_stop_zeroes_every_locomotive_before_the_release() -> None:
-    """The named test: under the lock the station keeps every locomotive's
-    pre-lock speed and resumes it on release, so a bare release restarts
-    every train at the speed it was doing when somebody hit stop. Nothing in
-    the software is in the path of those packets, which is what makes the
-    byte order the assertion.
+async def _stop_is_one_message_and_an_on_after_it_is_another() -> None:
+    """The one-shot holds nothing, so there is nothing to undo: the stop is
+    the broadcast alone and the `on` behind it is the track-on alone. No
+    zeros and no release — every locomotive is already standing at its slot's
+    stop, and what moves one again is the next thing that commands it (#463).
     """
     bus, _ = bus_and_tap()
     port = Port()
@@ -318,59 +317,37 @@ async def _clearing_a_stop_zeroes_every_locomotive_before_the_release() -> None:
 
         wanted(bus, TRACK, "", {"power": "stopped"})
         bus.drain()
-        assert await station.heard(1) == [b"<!P>"]
-        station.says(b"<!PAUSED>")
-        await asyncio.sleep(QUIET_S)
+        assert await station.heard(1) == [b"<!>"]
 
         wanted(bus, TRACK, "", {"power": "on"})
         bus.drain()
-        assert await station.heard(4) == [
-            b"<t 3 0 1>",
-            b"<t 7 0 1>",
-            b"<!R>",
-            b"<1>",
-        ]
+        assert await station.heard(1) == [b"<1>"]
+        await station.heard_nothing_more()
 
 
-def test_an_on_with_no_stop_behind_it_releases_nothing() -> None:
-    asyncio.run(_an_on_with_no_stop_behind_it_releases_nothing())
+def test_an_on_does_not_lift_a_lock_the_station_reports() -> None:
+    asyncio.run(_an_on_does_not_lift_a_lock_the_station_reports())
 
 
-async def _an_on_with_no_stop_behind_it_releases_nothing() -> None:
+async def _an_on_does_not_lift_a_lock_the_station_reports() -> None:
+    """A station with a lock of its own, put under it by somebody's hand-held
+    throttle: this app commands no lock and so lifts none. The stop is theirs
+    to clear, and the `on` is the track-on and nothing more."""
     bus, _ = bus_and_tap()
     port = Port()
     async with running(bus, port):
         station = await port.opened()
         wanted(bus, TRACTION, "3", {"addr": "3", "speed": 0.5})
+        bus.drain()
+        assert await station.heard(1) == [b"<t 3 63 1>"]
+
+        station.says(b"<!PAUSED>")
+        await asyncio.sleep(QUIET_S)
+
         wanted(bus, TRACK, "", {"power": "on"})
         bus.drain()
-        assert await station.heard(2) == [b"<t 3 63 1>", b"<1>"]
-
-
-def test_a_stop_this_app_commanded_is_released_before_the_station_answers() -> None:
-    asyncio.run(_stop_this_app_commanded_is_released_before_the_station_answers())
-
-
-async def _stop_this_app_commanded_is_released_before_the_station_answers() -> None:
-    """The lock and its broadcast are a round trip apart, and an `on` inside
-    that window must still send the zeros: releasing without them is the
-    failure that matters, and an extra set of zeros stops trains that were
-    already standing."""
-    bus, _ = bus_and_tap()
-    port = Port()
-    async with running(bus, port):
-        station = await port.opened()
-        wanted(bus, TRACTION, "3", {"addr": "3", "speed": 1.0})
-        wanted(bus, TRACK, "", {"power": "stopped"})
-        wanted(bus, TRACK, "", {"power": "on"})
-        bus.drain()
-        assert await station.heard(5) == [
-            b"<t 3 126 1>",
-            b"<!P>",
-            b"<t 3 0 1>",
-            b"<!R>",
-            b"<1>",
-        ]
+        assert await station.heard(1) == [b"<1>"]
+        await station.heard_nothing_more()
 
 
 # -- the startup file ----------------------------------------------------
@@ -444,10 +421,9 @@ def test_clearing_a_stop_powers_on_and_sends_the_file(tmp_path: Path) -> None:
 
 async def _clearing_a_stop_powers_on_and_sends_the_file(startup: Path) -> None:
     """`stopped` is not `on`, so the `on` that clears it is a transition into
-    `on` like any other and the file follows the track-on command — behind
-    the zeros and the release, which come first whatever else the transition
-    carries. The rails stayed live under the lock and the station has the
-    values already; sending them twice sets them to what they were."""
+    `on` like any other and the file follows the track-on command. The rails
+    stayed live under the stop and the station has the values already;
+    sending them twice sets them to what they were."""
     bus, _ = bus_and_tap()
     port = Port()
     async with running(bus, port, startup=startup):
@@ -460,8 +436,8 @@ async def _clearing_a_stop_powers_on_and_sends_the_file(startup: Path) -> None:
         wanted(bus, TRACK, "", {"power": "stopped"})
         wanted(bus, TRACK, "", {"power": "on"})
         bus.drain()
-        cleared = [b"<!P>", b"<t 3 0 1>", b"<!R>", b"<1>"]
-        assert await station.heard(7) == cleared + SENT
+        cleared = [b"<!>", b"<1>"]
+        assert await station.heard(5) == cleared + SENT
 
 
 def test_a_new_link_powers_on_from_the_beginning(tmp_path: Path) -> None:
@@ -663,10 +639,14 @@ def test_the_lock_the_station_reports_reads_stopped() -> None:
 
 
 async def _lock_the_station_reports_reads_stopped() -> None:
-    """`stopped` is every locomotive told to stand with the track still live,
-    and it reaches the bus from what the station says rather than from having
-    commanded it: a railroad that read back its own command would be an echo
-    and not an observation."""
+    """`stopped` reaches the bus from what the station says and never from
+    having commanded it: a railroad that read back its own command would be
+    an echo and not an observation.
+
+    So a stop this app sends leaves the supply reading `on`, the one-shot
+    holding nothing for a station to report, and the only `stopped` there is
+    is a lock some other throttle set on a station that has one (#463, #464).
+    """
     bus, tap = bus_and_tap()
     port = Port()
     async with running(bus, port):
@@ -678,7 +658,8 @@ async def _lock_the_station_reports_reads_stopped() -> None:
 
         wanted(bus, TRACK, "", {"power": "stopped"})
         bus.drain()
-        assert await station.heard(1) == [b"<!P>"]
+        assert await station.heard(1) == [b"<!>"]
+        await asyncio.sleep(QUIET_S)
         bus.drain()
         assert [value["power"] for value in tap.values(DEVICE_TRACK)] == ["off", "on"]
 
@@ -736,20 +717,33 @@ async def _no_position_is_ever_observed() -> None:
 # -- the poll -------------------------------------------------------------
 
 
-def test_the_poll_asks_for_the_status_and_the_lock() -> None:
-    asyncio.run(_poll_asks_for_the_status_and_the_lock())
+def test_the_poll_asks_for_the_status_and_asks_for_nothing_else() -> None:
+    asyncio.run(_poll_asks_for_the_status_and_asks_for_nothing_else())
 
 
-async def _poll_asks_for_the_status_and_the_lock() -> None:
-    """The status because an overload is not broadcast, and the lock because
-    it is queryable — which is what lets a restart read a latched stop back
-    rather than remember it."""
+async def _poll_asks_for_the_status_and_asks_for_nothing_else() -> None:
+    """The status because an overload is not broadcast, and **nothing more**.
+
+    A poll runs for as long as the link does, so a command in it that a
+    station acts on rather than answers is acted on for as long as the
+    railroad is up. That is what a lock query was here: on a station whose
+    `!` opcode takes no suffix it read as the emergency stop itself, and a
+    train driven from any throttle moved for one poll interval and stood
+    (#463).
+
+    So the assertion is the whole of what a poll sends and not its first
+    line. What this cannot check is what a station makes of those bytes —
+    the fake below answers the documents, and the firmware is what read them
+    differently — which is why the drive-and-wait step in
+    `docs/dccex/README.md` is the check that catches the next one of these.
+    """
     bus, _ = bus_and_tap()
     port = Port()
     async with running(bus, port, poll_s=0.01):
         station = await port.opened()
-        assert await station.heard(2) == [b"<s>", b"<!Q>"]
-        assert await station.heard(2) == [b"<s>", b"<!Q>"]
+        assert await station.heard(1) == [b"<s>"]
+        assert await station.heard(1) == [b"<s>"]
+        assert await station.heard(1) == [b"<s>"]
 
 
 # -- standing the railroad down -------------------------------------------

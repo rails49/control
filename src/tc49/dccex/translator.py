@@ -47,22 +47,17 @@ is logged and powers on anyway: a railroad coming up at the firmware's low
 default trips early, which is safe and visible, where refusing to power on
 over a missing file is neither (ADR-0050).
 
-Three rules are not a row of the mapping table, and each is a way a train
-could otherwise move on its own:
+Two rules are not a row of the mapping table:
 
-**The stop must latch.** `stopped` is the station's emergency-stop **lock**
-and not its one-shot stop. A one-shot that any throttle on the same port can
-drive away from would make the observed power an echo of a command rather
-than an observation, and a lie the moment somebody picks up a hand-held
-throttle. The lock is also queryable, which is why a restart reads it back
-instead of remembering it.
-
-**Clearing a stop is zero-then-release.** Under the lock the station keeps
-every locomotive's pre-lock speed and resumes it on release, so a bare
-release restarts every train at the speed it was doing when somebody hit
-stop. Every locomotive this app has ever commanded is sent zero **first**.
-Nothing in the software is in the path of those resumed packets, which makes
-this the one remaining way a train moves without being asked.
+**The stop is the one-shot, and it is not a state.** `stopped` tells every
+decoder to stand with the track still live and holds nothing afterwards, so
+any throttle on the shared port may drive away from it. That is the operator's
+call to make — they are the one holding the layout — and it is why the
+observed power goes back to `on` as soon as the broadcast is out rather than
+reading `stopped` until somebody clears it. A station's emergency-stop *lock*
+would make it a state, which is the better answer where a station has one; it
+is one product's firmware-branch command and belongs behind a question this
+app cannot yet ask (#463, #464).
 
 **An overload is polled for.** A district that trips is not broadcast on TCP
 — the station cuts it and says so on its USB diagnostics only — so this app
@@ -205,7 +200,7 @@ class DccEx:
         # was first heard: what a connection is handed.
         self._wanted: dict[str, Wanted] = {}
         # Every locomotive this app has commanded, in that order — what a
-        # release sends zero to. The link does not outlive it: the station
+        # clean exit sends zero to. The link does not outlive it: the station
         # keeps a slot per locomotive and resumes it, so one commanded before
         # an outage is one that resumes after it.
         self._commanded: dict[str, None] = {}
@@ -216,10 +211,6 @@ class DccEx:
         self._tracks: dict[str, bool] = {}
         self._every: bool | None = None
         self._paused = False
-        # Our own stop, which the link *does* outlive: forgetting it would
-        # release a lock without sending the zeros first, and an extra set of
-        # zeros costs nothing (ADR-0050).
-        self._latched = False
         # Whether this app has switched this station's track on, which is
         # what makes the startup file a transition rather than a level.
         self._powered_on = False
@@ -300,22 +291,23 @@ class DccEx:
         self._send(message)
 
     def _act_track(self, payload: Payload) -> None:
-        """The power, the release that has to come before it, and the startup
-        file that follows it.
+        """The power, and the startup file that follows it.
 
-        `on` while a stop may be latched is the dangerous transition and the
-        only one with a rule: the station resumes every locomotive at the
-        speed it held when the lock went on, so each is sent zero and only
-        then is the lock released. "May be latched" is either the lock this
-        app commanded or the lock the station has reported, because the two
-        can disagree for one round trip and releasing without the zeros is
-        the failure that matters. An unnecessary set of zeros stops trains
-        that were already standing.
+        The word is sent and nothing is composed around it. An `on` after a
+        `stopped` needs no undoing: the one-shot leaves every locomotive at
+        its slot's stop and holds nothing, so what moves a train again is the
+        next thing that commands one — a grant, or the hand of whoever
+        stopped it (#463).
+
+        Nor does an `on` clear a lock a station of its own reports. This app
+        commands none, so it releases none: a stop somebody set from a
+        hand-held throttle is theirs to lift, and `_observed` goes on saying
+        `stopped` for as long as the station says it.
 
         The startup file goes **after** the track-on command and on every
         transition into `on` rather than at every `on`: a second `on` over
         rails that are already live asks the station for nothing new, and any
-        other word — `off` or the lock — arms the next one. A link that goes
+        other word — `off` or the stop — arms the next one. A link that goes
         takes the memory with it too, because the station on the far end of
         the next one may have restarted, and one that has forgotten its trip
         currents runs at the firmware's default until somebody notices.
@@ -323,17 +315,10 @@ class DccEx:
         power = commanded_power(payload)
         if power is None:
             return
-        if power == ON and (self._latched or self._paused):
-            for addr in self._commanded:
-                self._send(commands.traction(addr, 0.0))
-            self._send(commands.RELEASE)
-            self._latched = False
         self._send(commands.track(power))
         if power == ON and not self._powered_on:
             self._send_startup()
         self._powered_on = power == ON
-        if power == STOPPED:
-            self._latched = True
 
     def _send_startup(self) -> None:
         """The startup file, read now and sent line by line.
@@ -468,11 +453,18 @@ class DccEx:
         desired state: a connect applies that and nothing else, and a status
         the station volunteers on being commanded arrives sooner than a poll
         would anyway.
+
+        One question and not two. A poll runs for as long as the link does, so
+        anything sent here that a station acts on rather than answers is acted
+        on for as long as the railroad is up — which is what a lock query was,
+        on a station whose `!` opcode takes no suffix: an emergency stop every
+        second, and a train that moved a few centimetres and stood (#463).
+        `<s>` asks and changes nothing, which is the property a polled command
+        has to have.
         """
         while True:
             await asyncio.sleep(self._poll_s)
             self._send(commands.STATUS)
-            self._send(commands.LOCK_QUERY)
 
     def _heard(self, message: bytes) -> None:
         """One whole message from the station: the link is up, and the two
@@ -491,11 +483,11 @@ class DccEx:
                 self._every = told.on
                 self._tracks = {name: told.on for name in self._tracks}
         elif isinstance(told, replies.Lock):
+            # A lock this app never sets and never lifts. It is read all the
+            # same, because a station that has one and is put under it by
+            # somebody's hand-held throttle is a railroad no train may move
+            # over, and that is a fact about the supply whoever caused it.
             self._paused = told.locked
-            if not told.locked:
-                # The station says the lock is off, so ours is discharged and
-                # the next `on` needs no release.
-                self._latched = False
         self._publish_track()
 
     def _forget(self) -> None:
@@ -536,10 +528,14 @@ class DccEx:
         the direction a state topic must fail in (#181) — a supply that
         cannot be read is not one a train may move over.
 
-        `stopped` is the station's own report of its lock and never this
-        app's memory of having commanded one, which is what keeps the row an
-        observation. It reaches here only over live rails, an emergency stop
-        being every locomotive told to stand with the track still on.
+        `stopped` is the station's own report of a lock, which this app does
+        not command and so never reads back from a stop of its own: the
+        one-shot it sends leaves nothing standing to observe, so a `stopped`
+        this app was asked for shows here as `on` the moment the broadcast is
+        out (#463). What is left is a station that has a lock and has been put
+        under it by another throttle, which is a supply no train may move over
+        whoever caused it. It reaches here only over live rails, an emergency
+        stop being every locomotive told to stand with the track still on.
         """
         if not self._answered:
             return OFF

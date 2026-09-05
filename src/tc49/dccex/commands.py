@@ -15,8 +15,8 @@ would move a turnout the layout did not ask for, and a faked action is worse
 than silence, which is the same rule that keeps a commanded position from
 being echoed back as a measured one (ADR-0022, ADR-0050).
 
-The two words that are not a table row are here too, `RELEASE` and the two a
-poll is made of, because they are bytes on the same wire and belong beside
+The one word that is not a table row is here too, `STATUS`, the whole of what
+a poll is made of, because it is bytes on the same wire and belongs beside
 the rest of the protocol. So is `startup`, which is the one function that
 maps nothing: it hands over what a person wrote, because a file of raw
 station commands exists precisely so that this app needs no vocabulary for
@@ -64,20 +64,16 @@ being eleven bits. A signal is addressed in that space and not in the linear
 one: it takes an aspect rather than a pair of positions, so nothing is split
 off it."""
 
-RELEASE = b"<!R>"
-"""Clearing the station's emergency-stop lock. Never sent on its own — under
-the lock the station keeps every locomotive's pre-lock speed and resumes it
-here, so the release follows a `traction` of `0.0` to every locomotive this
-app has commanded (translator.py)."""
-
 STATUS = b"<s>"
-LOCK_QUERY = b"<!Q>"
-"""What a poll is made of. An overload trip is **not broadcast**: the station
-cuts the district and says so only on its USB diagnostics, so `device/track`
-telling the truth would otherwise wait for a person to notice. `<s>` makes it
-restate every track's power, and `<!Q>` makes it restate the stop lock, which
-is what lets this app read the lock back after a restart rather than
-remembering it."""
+"""What a poll is made of, and the whole of it. An overload trip is **not
+broadcast**: the station cuts the district and says so only on its USB
+diagnostics, so `device/track` telling the truth would otherwise wait for a
+person to notice. `<s>` makes it restate every track's power.
+
+Nothing else is asked, because a station is polled only for what it can
+answer. A question this one does not know is not passed over: the `!` opcode
+takes no suffix here, so a lock query reads as the emergency stop itself and
+every locomotive on the railroad stands once a second (#463)."""
 
 
 def traction(addr: str, speed: float) -> bytes:
@@ -159,17 +155,23 @@ def track(power: str) -> bytes:
     desired power and a translator maps it onto however many districts its
     hardware drives (SYSTEM.md, *Device vocabulary*).
 
-    `stopped` is the station's emergency-stop **lock** and not its one-shot
-    stop. A one-shot that any throttle on the same port can drive away from
-    would make the power an echo of a command rather than an observation, and
-    a lie the moment a hand-held throttle moves a locomotive; the lock blocks
-    every throttle packet until it is released, and it can be asked about,
-    which is what `LOCK_QUERY` is for.
+    `stopped` is the **one-shot** emergency stop: every decoder told to stand
+    with the track still live, and nothing afterwards. Any throttle on the
+    shared port may drive away from it, this app's own included, and that is
+    the intended reading rather than a defect in it — who may move a train is
+    the operator's to decide, and the operator is the one holding the layout
+    (#463).
+
+    A station's emergency-stop *lock* would make `stopped` a state rather than
+    an act, which is the better answer where a station has one and is not
+    asked for here: it is one product's firmware-branch command, and a
+    `stopped` that meant "under a lock" would put a station's private
+    vocabulary inside a bus word every railroad shares (ADR-0043, #464).
     """
     if power == ON:
         return b"<1>"
     if power == STOPPED:
-        return b"<!P>"
+        return b"<!>"
     assert power == OFF, power
     return b"<0>"
 
