@@ -14,6 +14,7 @@ whole of what the near-end check is made of.
 from tests.layout.railroad import (
     DEVICE_TRACK,
     MOVE,
+    POWER_WANTED,
     REMOVED,
     WANTED_POINT,
     align,
@@ -124,6 +125,22 @@ def test_no_move_while_the_rails_are_dead() -> None:
         move(bus, "freight_1", "crossover", "to_dn", "dn_e")
 
         assert app.position == {"freight_1": "up_w"}, reported
+
+
+def test_no_move_under_an_emergency_stop_this_app_holds() -> None:
+    """The rails are live under a stop and the supply says so, so this is the
+    one dead-railroad case no fold could catch: `state/power` reads `stopped`
+    from the command this app wrote, and the guard has teeth on it exactly as
+    on an `off` (ADR-0041, ADR-0063)."""
+    bus, app = build()
+    energised(bus)
+    bus.publish(POWER_WANTED, {"power": "stopped"})
+    bus.drain()
+    stand(bus, "freight_1", "up_w")
+    align(bus, "crossover", "to_dn")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+
+    assert app.position == {"freight_1": "up_w"}
 
 
 def test_a_move_that_arrived_dead_is_not_held_for_its_align() -> None:
