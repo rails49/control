@@ -21,20 +21,30 @@ Processes again rather than threads, for the reason `test_cold_start.py`
 gives: what a container does when the row moves is what is under test, and
 the sentence each app prints when it is up on the new railroad is how a test
 knows the reload has finished.
+
+The one thing here that is not a process is the publisher of `device/sensor`:
+there is none to start, and what it stands in for is the rule ADR-0063 states
+— the names it publishes its sensors under are the drawing's, so it follows
+the row like every other app that reads the store, while a translator that
+reads nothing does not.
 """
 
 import json
 import shutil
+import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
+import yaml
 
 from tc49.lib.bus import Payload
 from tc49.lib.inventory import OFF, ON
+from tc49.lib.loading import Loaded
 from tc49.lib.mqtt import MqttBus
 from tests.apps import APPS, App, Process, Store
-from tests.brokers import Broker, settle, until
+from tests.brokers import Broker, drained, settle, until
 from tests.harness import ASSETS, catalogued
 
 WAS = "crossover-yard"
@@ -58,6 +68,19 @@ a stale row in it."""
 
 WAS_TRAIN = "freight_1"
 NOW_TRAIN = "runner"
+
+WATCHED = "loop_up"
+"""A block of the railroad that arrives, whose sensor at one end the hardware
+knows by a name of its own."""
+
+KNOWN_AS = "LS322"
+"""What that hardware calls that sensor: a string of the system's making,
+which is why the drawing carries it and the topic does not (ADR-0063)."""
+
+ENDS = ("A", "B")
+"""A block's two ends. Written out here rather than read off the drawing: a
+publisher subscribes a sensor per end whatever the document says, the document
+naming only the ends the hardware calls something else."""
 
 UP_S = 30.0
 """How long a reload is given: the app reads two documents off the store,
@@ -208,6 +231,76 @@ def no_trace_of_the_old_railroad(held: dict[str, Payload]) -> None:
         if f'"{block}' in written or f"/{block}" in written
     )
     assert not left, f"the picture still names {left} of '{WAS}':\n{written}"
+
+
+def knows(root: Path, railroad: str, block: str, end: str, name: str) -> None:
+    """The drawing says what the hardware calls the sensor at one block end
+    (ADR-0063), written into the installation this test made.
+
+    The committed fixtures say nothing, every end of them being watched under
+    the string the topic uses, and a default is not enough to catch a
+    publisher that computes the names instead of reading them.
+    """
+    path = root / "layouts" / f"{railroad}.drawing.yaml"
+    doc = cast(dict[str, Any], yaml.safe_load(path.read_text()))
+    doc["symbols"][block]["sensors"] = {end: name}
+    path.write_text(yaml.safe_dump(doc, sort_keys=False))
+
+
+class Watching:
+    """A publisher of `device/sensor`: the name the hardware knows each block
+    end's sensor by, read off the drawing in the store, and the follower every
+    app that reads the store has (ADR-0063, ADR-0060).
+
+    On this thread rather than in a process, unlike every app in this file:
+    no such app exists to start, ADR-0063 stating the rule one will be built
+    to. The two pieces that carry the rule are the deployed ones —
+    `lib/loading.py`'s follower, and a read over the same CRUD contract every
+    other app reads the store through — so what stands in is the publishing
+    and not the following.
+    """
+
+    def __init__(self, url: str, railroad: str) -> None:
+        self._url = url.rstrip("/")
+        self._loaded = Loaded(railroad)
+        self.names: dict[str, str] = {}
+
+    def build(self, bus: MqttBus) -> None:
+        """Up on the railroad named: the follower subscribed afresh and the
+        names read again. A cold start and a reload are the same thing here,
+        which is what makes the names right on either."""
+        self._loaded.follow(bus)
+        self.names = self._read(self._loaded.name)
+
+    def turn(self, bus: MqttBus) -> bool:
+        """One turn of the loop such an app runs, and whether it rebuilt on
+        this one. The row is read between two turns rather than inside the
+        handler, for the reason `lib/loading.py` gives."""
+        if not self._loaded.moved:
+            return False
+        self.build(bus)
+        return True
+
+    def _read(self, railroad: str) -> dict[str, str]:
+        """Every block end of `railroad` and the name to subscribe its sensor
+        under, `<block>.<end>` unless the drawing says otherwise.
+
+        `GET /drawings/<name>`, the document itself: the name is the
+        drawing's and reaches no derived layout. Read here as a translator
+        must read it, which is over the store's face and importing no app
+        (ADR-0013).
+        """
+        where = f"{self._url}/drawings/{railroad}"
+        with urllib.request.urlopen(where, timeout=5) as answer:
+            doc = cast(dict[str, Any], json.load(answer))
+        names: dict[str, str] = {}
+        for block, spec in cast(dict[str, Any], doc["symbols"]).items():
+            if spec.get("kind") != "block":
+                continue
+            written = cast(dict[str, Any], spec.get("sensors") or {})
+            for end in ENDS:
+                names[f"{block}.{end}"] = str(written.get(end, f"{block}.{end}"))
+        return names
 
 
 def test_the_scheduler_clears_the_facing_it_held_and_rebuilds(
@@ -460,14 +553,52 @@ def test_the_driver_rebuilds_and_still_owns_no_row(
         running.stop()
 
 
-def test_the_translator_is_not_a_railroads_and_does_not_reload(
+def test_a_publisher_that_reads_the_store_builds_its_sensor_names_again(
+    broker: Broker, root: Path, store: Store
+) -> None:
+    """The names a sensor publisher subscribes its hardware under are a
+    railroad's, so it follows `state/railroad` like every other app that reads
+    the store: on a reload it reads the new railroad's drawing and holds no
+    name of the old one (ADR-0063, ADR-0060).
+
+    The topic it would publish on does not move — `<block>.<end>` on every
+    railroad — so what a reload changes is which ends there are and what the
+    hardware calls the sensor at each, and both are read from the store rather
+    than computed. The name written into the drawing below is what tells the
+    two apart.
+    """
+    knows(root, NOW, WATCHED, "A", KNOWN_AS)
+    writing = hand(broker)
+    watching = Watching(store.url, WAS)
+    watching.build(writing)
+    assert watching.names["yard_w.A"] == "yard_w.A", "it read the wrong railroad"
+
+    load(writing, NOW)
+    assert drained(
+        writing, lambda: watching.turn(writing), UP_S
+    ), "it never followed the row"
+
+    assert watching.names[f"{WATCHED}.A"] == KNOWN_AS, "it did not read the drawing"
+    assert watching.names[f"{WATCHED}.B"] == f"{WATCHED}.B"
+    left = sorted(name for name in watching.names if name.split(".")[0] in WAS_BLOCKS)
+    assert not left, f"it still watches {left} of '{WAS}'"
+    writing.close()
+
+
+def test_a_translator_that_reads_nothing_is_not_a_railroads_and_does_not_reload(
     broker: Broker, store: Store, tmp_path: Path
 ) -> None:
-    """Hardware needs no layout (ADR-0059, decision 5): this app takes no
-    `--railroad`, reads no documents, and its two rows are the command
-    station's rather than a railroad's — the link it has and the supply it
-    reports. A railroad loaded under it changes nothing it could publish, so
-    it stands, and its rows stand with it."""
+    """What decides is whether the app reads the store, not that it is
+    hardware's: this one takes no `--railroad` and reads no documents, and its
+    two rows are the command station's rather than a railroad's — the link it
+    has and the supply it reports. A railroad loaded under it changes nothing
+    it could publish, so it stands, and its rows stand with it (ADR-0059,
+    decision 5).
+
+    A translator that published `device/sensor` would read the drawing for the
+    names the hardware knows those sensors by and would follow the row, which
+    is the test above (ADR-0063). The rule narrows to the apps that read the
+    store rather than gaining an exception."""
     running = named("dccex").process(broker, store, WAS, tmp_path)
     running.start()
     assert until(lambda: "up as" in running.said(), UP_S), running.said()
