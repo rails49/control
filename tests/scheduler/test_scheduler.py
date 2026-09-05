@@ -678,6 +678,104 @@ def test_a_reversal_lands_once_the_request_is_answered() -> None:
     assert seen[-1][1]["facing"]["express_2"] == "up_e.A-to-B"
 
 
+def test_a_reversal_is_dropped_under_a_request_somebody_else_submitted() -> None:
+    """A request topic has one responder and any number of writers (SYSTEM.md,
+    rule 1), so a page may submit for a train this scheduler holds the facing
+    of. The guard is the same guard: the queued request departs the end the
+    facing named when it was composed, and whose request it is changes
+    nothing about the lie flipping the arrow under it would tell (#439).
+
+    The scheduler minted nothing here — the id is not one of its — and read
+    against its own memory the gesture would have landed."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+    bus.drain()
+    published = len(seen)
+
+    announce(
+        bus,
+        "request_submitted",
+        {
+            "id": "panel-7",
+            "train": "express_2",
+            "depart": "up_e.A",
+            "dest": ["dn_e.A"],
+        },
+    )
+    reversal(bus, {"train": "express_2"})
+    assert len(seen) == published
+    assert seen[-1][1]["facing"]["express_2"] == "up_e.B-to-A"
+
+
+def test_a_reversal_lands_once_the_foreign_request_is_answered() -> None:
+    """The entry goes by **id** on the dispatcher's answer, exactly as one
+    this scheduler minted does: what the bus branch adds is remembered the
+    same way and freed the same way, whoever asked for it (#439)."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+    announce(
+        bus,
+        "request_submitted",
+        {
+            "id": "panel-7",
+            "train": "express_2",
+            "depart": "up_e.A",
+            "dest": ["dn_e.A"],
+        },
+    )
+
+    announce(bus, "request_completed", {"id": "panel-7"})
+    reversal(bus, {"train": "express_2"})
+    assert seen[-1][1]["facing"]["express_2"] == "up_e.A-to-B"
+
+
+def test_a_submission_that_cannot_be_read_is_dropped() -> None:
+    """A frame with no readable id could never be answered and so never
+    dropped again, and one naming no train says nothing about the train the
+    guard asks about. Either half missing and the frame leaves nothing
+    behind, silently and to the trace, as everything else on this filter does
+    (SYSTEM.md, rule 4)."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+
+    for payload in [
+        "express_2 to dn_e.A",  # not an object at all
+        {"train": "express_2", "depart": "up_e.A", "dest": ["dn_e.A"]},  # no id
+        {"id": 7, "train": "express_2"},  # an id that is not a name
+        {"id": "panel-7", "depart": "up_e.A", "dest": ["dn_e.A"]},  # no train
+        {"id": "panel-7", "train": 7},  # a train that is not a name
+    ]:
+        announce(bus, "request_submitted", payload)
+    reversal(bus, {"train": "express_2"})
+    assert seen[-1][1]["facing"]["express_2"] == "up_e.A-to-B"
+
+
+def test_the_guard_holds_before_the_scheduler_own_frame_comes_back() -> None:
+    """`_submit` records the request as it sends it, and that write is what
+    covers this app's own requests until the frame returns. Over a broker it
+    returns a round trip later, and a reversal arriving inside that window
+    would otherwise slip past a guard that is about to be correct — so the
+    bus branch adds every other submitter and takes nothing away (#439).
+
+    Both gestures are published before either is delivered, which is that
+    window said in one process: the reversal is handled while the scheduler's
+    own `request_submitted` is still queued behind it."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+    bus.drain()
+    published = len(seen)
+
+    bus.publish(WANTED, {"train": "express_2", "dest": ["dn_e.A"]})
+    bus.publish(REVERSAL, {"train": "express_2"})
+    bus.drain()
+    assert len(seen) == published
+    assert seen[-1][1]["facing"]["express_2"] == "up_e.B-to-A"
+
+
 def test_a_cancelled_request_is_dropped_and_never_re_submitted() -> None:
     """A request ends by arrival, by rejection, or by cancellation
     (ADR-0049), and the scheduler treats the third like the other two: the
@@ -919,27 +1017,17 @@ def test_an_announcement_that_cannot_be_read_leaves_facing_where_it_was() -> Non
 
 
 def test_a_leaf_the_scheduler_does_not_act_on_is_ignored() -> None:
-    """Rule 3 hands the scheduler the whole of `dispatch`, so its own
-    submissions come back past it beside every announcement it does not
-    follow. Ignoring one is rule 4 doing its ordinary work — including a leaf
-    that did not exist when this scheduler was built, which is what leaves the
-    inventory open (SYSTEM.md)."""
+    """Rule 3 hands the scheduler the whole of `dispatch`, so every
+    announcement it does not follow comes back past it. Ignoring one is rule
+    4 doing its ordinary work — including a leaf that did not exist when this
+    scheduler was built, which is what leaves the inventory open
+    (SYSTEM.md)."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
     bus.drain()
     published, settled = len(seen), facing(seen)
 
-    announce(
-        bus,
-        "request_submitted",  # the scheduler's own, on its own filter
-        {
-            "id": "freight_1-1",
-            "train": "freight_1",
-            "depart": "yard_w.B",
-            "dest": ["yard_e.A"],
-        },
-    )
     announce(  # a plan, and facing is a fact about the stock (#295)
         bus,
         "route_chosen",
