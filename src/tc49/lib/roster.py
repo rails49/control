@@ -1,7 +1,7 @@
 """The stock documents: the models a catalogue holds, and the cars and trains
 a railroad owns.
 
-A **model** is what a product is — a length, a **kind**, and what each DCC
+A **model** is what a product is — a length, a **kind**, and what each
 function does on it — and it is a fact about the product rather than about any
 railroad, so two railroads owning the same item read one entry (CONTEXT.md,
 **Model**). A **car** is one item a railroad owns: that model with zero or
@@ -48,7 +48,7 @@ off to begin with."""
 
 @dataclass(frozen=True)
 class Function:
-    """What one DCC function number does on a product.
+    """What one function number does on a product.
 
     `values` is what the function can be in, **first entry first**: that is
     the one it is in when nothing has been commanded, which is why the list
@@ -194,7 +194,7 @@ class Train:
         does for a speed. So the name is the whole of the key, and the first
         car declaring one settles what its values are.
 
-        No number: which DCC function a name sits on is what a model records
+        No number: which function number a name sits on is what a model records
         for the translator to use, and it is a decoder detail no view shows
         (ADR-0045).
         """

@@ -1,16 +1,22 @@
-"""Hardware protocol names stay in hardware docs (#255).
+"""Hardware protocol names stay in hardware docs and hardware apps (#255, #466).
 
 Components meet over the bus and the store's contract, and hardware exists
 only behind the layout interface (ADR-0030, ADR-0043). Stated in prose the
 rule kept being broken, so like the import rule it is a test: a protocol
 name on a page about anything else is a leak, reported with file, line and
 word so the fix is legible to whoever tripped it.
+
+The rule reads `src/` on the same terms as `docs/`. A docstring is prose and
+leaks exactly as a page does, and the leaks it found were in prose: `lib`
+naming the protocol a function number belongs to, where the number said it.
 """
 
 import re
 from pathlib import Path
 
-DOCS = Path(__file__).resolve().parents[2] / "docs"
+ROOT = Path(__file__).resolve().parents[2]
+DOCS = ROOT / "docs"
+SRC = ROOT / "src" / "tc49"
 
 PROTOCOLS = re.compile(r"\b(dcc(?:-?ex)?|jmri)\b", re.IGNORECASE)
 
@@ -33,15 +39,19 @@ ALLOWED_FILES = frozenset(
     }
 )
 
-PACKAGES = frozenset({"dccex", "jmri"})
-"""Package names, and never a leak wherever they appear. A translator is
-named for the system it speaks to (ADR-0043), so a page cannot say which app
-does the work without spelling the directory. `DCC-EX`, `DCC` and `JMRI` —
-the product and protocol names the rule exists to keep out — still leak
-everywhere they leak today. The difference is naming a directory versus
-writing about hardware, and it does not depend on which page you are on:
-listing the pages that may name a package was a per-file allowlist that
-every new mention had to be added to, for no gain."""
+PACKAGES = frozenset({"dccex", "jmri", "DccEx", "Jmri"})
+"""Package and class names, and never a leak wherever they appear. A
+translator is named for the system it speaks to (ADR-0043), so neither a page
+nor an import can say which app does the work without spelling it. `DCC-EX`,
+`DCC` and `JMRI` — the product and protocol names the rule exists to keep out
+— still leak everywhere they leak today. The difference is naming a directory
+or a class versus writing about hardware, and it does not depend on which
+file you are in: listing the pages that may name a package was a per-file
+allowlist that every new mention had to be added to, for no gain."""
+
+ALLOWED_PACKAGES = frozenset({"dccex", "dccex_usb", "jmri"})
+"""The hardware apps' own packages under `src/tc49/`. A translator's own code
+is about hardware, on the same terms as its own docs directory."""
 
 
 def test_hardware_protocols_stay_in_hardware_docs() -> None:
@@ -57,6 +67,23 @@ def test_hardware_protocols_stay_in_hardware_docs() -> None:
                 leaks.append(f"docs/{rel}:{number}: {found.group(0)}")
                 break
     assert not leaks, "hardware protocol names outside hardware docs:\n" + "\n".join(
+        leaks
+    )
+
+
+def test_hardware_protocols_stay_in_hardware_apps() -> None:
+    leaks: list[str] = []
+    for module in sorted(SRC.rglob("*.py")):
+        rel = module.relative_to(SRC)
+        if rel.parts[0] in ALLOWED_PACKAGES:
+            continue
+        for number, line in enumerate(module.read_text().splitlines(), 1):
+            for found in PROTOCOLS.finditer(line):
+                if found.group(0) in PACKAGES:
+                    continue
+                leaks.append(f"src/tc49/{rel}:{number}: {found.group(0)}")
+                break
+    assert not leaks, "hardware protocol names outside hardware apps:\n" + "\n".join(
         leaks
     )
 

@@ -65,7 +65,7 @@ LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
 
 # What each leg of a motorised kind wants the motor set to (ADR-0022). Every
 # motorised kind has one motor and two positions, `closed` and `thrown`, the
-# pair a DCC accessory decoder answers to: a turnout lies one way or the other,
+# pair an accessory decoder answers to: a turnout lies one way or the other,
 # a slip both roads together. No kind's legs are named for the positions, so
 # the table says it once, here, rather than in every reader of a way.
 #
