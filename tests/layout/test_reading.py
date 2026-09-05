@@ -144,7 +144,7 @@ def test_an_unreadable_link_is_not_a_link_that_is_up() -> None:
     assert bus.last_values[POWER]["power"] == "off"
 
 
-def test_the_row_this_app_does_not_act_on_passes_by_unread() -> None:
+def test_a_row_this_app_does_not_act_on_passes_by_unread() -> None:
     """A `device/point` is a position where hardware reports one, and this app
     acts on none: it goes past without being taken for something else."""
     bus, app = build()
@@ -162,6 +162,28 @@ def test_the_row_this_app_does_not_act_on_passes_by_unread() -> None:
     assert len(written) == standing
     assert bus.last_values[POWER]["power"] == "on"
     assert app.position == {}
+
+
+def test_a_refusal_passes_by_unread_and_is_for_a_person() -> None:
+    """The other row this app does not act on. A `device/refused` is the
+    publisher's report that the hardware refused a command or could not parse
+    it, keyed by whatever that publisher calls itself — it is not a link going
+    down and it is not the supply, so nothing here branches on it and the
+    railroad reads exactly as it did (ADR-0063). A UI is what reads it."""
+    bus, _app = build()
+    energised(bus)
+    written = heard(bus, "tc49/layout/state/wanted/#")
+    bus.drain()
+    standing = len(written)
+
+    bus.publish(
+        "tc49/layout/state/device/refused/the shed",
+        {"id": "the shed", "addr": "5", "detail": "no such accessory"},
+    )
+    bus.drain()
+
+    assert len(written) == standing
+    assert bus.last_values[POWER]["power"] == "on"
 
 
 def test_an_unreadable_reading_is_no_information_about_that_end() -> None:
