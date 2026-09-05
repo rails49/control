@@ -232,13 +232,15 @@ export class TcPanel extends LitElement {
 
   private panel: Panel | null = null;
   /** Whether the run was running when the last frame was applied, which is
-   *  what says a fresh hold has begun. */
+   *  what says a fresh hold has begun — and, read the other way round, what
+   *  says a run has been released. */
   private wasRunning = false;
   /** Whether an OFF is waiting on the drain (ADR-0051, ADR-0062). The press
    *  asks the run to drain and stops there; the supply is removed when
    *  `state/run` reads `held` with nothing moving, and the wait is dropped
-   *  when a row reads `running` instead, that being a drain somebody
-   *  abandoned. */
+   *  when the run word *changes* to `running`, that being a drain somebody
+   *  abandoned. A row repeating the word the press was made against is the
+   *  drain still outstanding, whatever `moving` now says (#441). */
   @state() private draining = false;
   /** The railroad the model was built for, so it is rebuilt when the app loads
    *  another and kept when anything else changes. */
@@ -513,18 +515,26 @@ export class TcPanel extends LitElement {
     // about goes with it. The transition and not the value: the run is still
     // `held` between the press and the dispatcher's answer, and clearing on
     // the value would take the notice down before it was read.
+    const was = this.wasRunning;
     const running = this.panel.run === "running";
-    if (this.wasRunning && !running) this.released = null;
+    if (was && !running) this.released = null;
     this.wasRunning = running;
     // The wait the OFF press started is decided by the run's own row and by
     // nothing else: the value standing between the press and the
     // dispatcher's answer is the one the press was made against, so a frame
     // about anything else leaves the wait alone.
     if (this.draining && event.event === "run") {
-      if (this.panel.run === "running") {
+      if (running && !was) {
         // A drain somebody abandoned — this panel's GO or another's — and the
         // wait goes with it. Left standing, a HOLD hours later would cut the
         // power out of a press the person had moved on from (ADR-0062).
+        //
+        // The word changing and not the word: the dispatcher republishes the
+        // row whenever `moving` moves under a standing run word, so a running
+        // run whose last train arrives says `running` again (#406) — the drain
+        // still outstanding, not one released. Reading the value there dropped
+        // the wait, the later `held` did nothing, and the supply stayed on with
+        // the button back to *OFF* (#441).
         this.draining = false;
       } else if (this.drained) {
         // The drain has landed, so the supply goes now and not before:

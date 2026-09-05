@@ -11,9 +11,12 @@
  * supply only then (ADR-0062, #408). An abrupt `off` would leave no point
  * position trustworthy and strand whatever was mid-transit; after a completed
  * drain nothing is crossing, nothing is committed, and every grant re-aligns.
- * A row reading `running` while the wait stands is a drain somebody
- * abandoned, and drops it; a row that says nothing about `moving` at all
- * never ends it, an older dispatcher's silence being no licence to cut.
+ * The wait is dropped by news about the run word and not by news about
+ * `moving`: a row whose word has *changed* to `running` is a drain somebody
+ * abandoned, where one repeating the word the press was made against is the
+ * drain still outstanding, whatever `moving` now says (#441). A row that says
+ * nothing about `moving` at all never ends the wait, an older dispatcher's
+ * silence being no licence to cut.
  *
  * A DOM test because it crosses the band, the app and the run view's socket.
  * The session itself is `support/session.ts`, shared with the other suites.
@@ -177,20 +180,64 @@ describe("OFF is the drain trigger", () => {
     expect(off(shell)).toBe("DRAINING…");
   });
 
-  /** A run reading `running` while the wait stands is a drain somebody
-   *  abandoned — a GO on this panel or on another — and the wait goes with
-   *  it. Left standing, the HOLD that came hours later would cut the power
-   *  out of a press the person had moved on from (ADR-0062). */
+  /** The run word changing back to `running` while the wait stands is a drain
+   *  somebody abandoned — a GO on this panel or on another — and the wait goes
+   *  with it. Left standing, the HOLD that came hours later would cut the
+   *  power out of a press the person had moved on from (ADR-0062). The
+   *  dispatcher answers the drain before anybody can release it, so the word
+   *  leaves `running` on the way: a `running` row twice over is a sequence no
+   *  dispatcher publishes, it comparing the whole row before it writes. */
   it("drops the wait when the run is released", async () => {
     const shell = await joined();
     await said(shell, STATE_RUN, { run: "running", moving: true });
     await press(shell, 2);
 
+    await said(shell, STATE_RUN, { run: "draining", moving: true });
     await said(shell, STATE_RUN, { run: "running", moving: true });
+    expect(off(shell)).toBe("OFF");
+
     await said(shell, STATE_RUN, { run: "held", moving: false });
 
     expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
     expect(off(shell)).toBe("OFF");
+  });
+
+  /** The last train arriving republishes the run word the press was made
+   *  against, `moving` having moved under it (#406): the drain is still
+   *  outstanding, and reading the value rather than the change would drop the
+   *  wait here and leave the railroad powered with nothing on screen saying
+   *  so. */
+  it("keeps the wait where the last train arrives under a running run", async () => {
+    const shell = await joined();
+    await said(shell, STATE_RUN, { run: "running", moving: true });
+    await press(shell, 2);
+
+    await said(shell, STATE_RUN, { run: "running", moving: false });
+    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
+    expect(off(shell)).toBe("DRAINING…");
+
+    await said(shell, STATE_RUN, { run: "held", moving: false });
+
+    expect(written()).toEqual([
+      { topic: RUN_WANTED, payload: { run: "draining" } },
+      { topic: POWER_WANTED, payload: { power: "off" } },
+    ]);
+    expect(off(shell)).toBe("OFF");
+  });
+
+  /** `draining` with nothing moving is the drain answered and not the drain
+   *  landed: the dispatcher writes the `held` this button waits for itself, at
+   *  the first moment no train is left, and until it does there is a run word
+   *  that still commits nothing of its own. */
+  it("keeps the wait where the drain is answered with nothing moving", async () => {
+    const shell = await joined();
+    await said(shell, STATE_RUN, { run: "running", moving: true });
+    await press(shell, 2);
+
+    await said(shell, STATE_RUN, { run: "draining", moving: false });
+
+    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
+    expect(off(shell)).toBe("DRAINING…");
   });
 
   /** The person has said what they want the supply to do, so the cut the
