@@ -716,12 +716,15 @@ class LayoutInterface:
         )
 
     def _traction_rest(self) -> None:
-        """Zero over every retained `wanted/traction` row the bus holds.
+        """Zero over every retained `wanted/traction` row the bus holds: the
+        railroad at rest, which this app writes when it comes up and again
+        when a cut is applied (ADR-0054, #435).
 
         Every row and not the ones this app has commanded: a row a session
-        that is gone left behind is exactly the one nothing else can reach,
-        and a translator standing down zeroes only the addresses it sent to
-        itself (ADR-0054).
+        that is gone left behind, or one a person's throttle wrote, is
+        exactly the one nothing else can reach, and a translator standing
+        down zeroes only the addresses it sent to itself. Whose the row is
+        goes unasked either way — a cut takes the whole supply.
 
         `wanted/point` is left to replay on purpose. Traction has a resting
         value and a point has none — there is no neutral position to write
@@ -1062,6 +1065,22 @@ class LayoutInterface:
         less and returning to `on` releases nothing (ADR-0041, ADR-0051). Nor
         is the `off` this app writes at its own start affected — that is not a
         gesture and never comes through here.
+
+        **An `off` that is applied leaves the railroad at rest**, the traction
+        rows zeroed the way they are at startup (#435, ADR-0054). "The
+        railroad comes up at rest" is a promise about a power cycle as well as
+        about a process start, and a power cycle is not a process restart, so
+        the startup rule does not reach it: an arrival zeroes the row of a
+        train this app drives and nothing zeroes the row of one a person holds
+        in a throttle, so a plain `off` would otherwise leave a speed standing
+        and the next `on` would bring current back over it.
+
+        The zeros go out **before** the word, and the order is load-bearing:
+        a translator acts on desired rows as they arrive, so zeros first means
+        the last thing the station is told before the supply goes is a stop.
+        Only on the `off` that is applied — a refused gesture changes nothing
+        (ADR-0062), and `stopped` is a run that is meant to resume, which
+        zeroed rows would turn into a re-drive.
         """
         wanted = commanded_power(payload)
         if wanted is None:
@@ -1071,6 +1090,7 @@ class LayoutInterface:
             if refusal is not None:
                 _log.info("power off refused: %s", refusal)
                 return
+            self._traction_rest()
         self._bus.publish(WANTED_TRACK, {"power": wanted})
 
     def _on_device(self, topic: str, payload: Payload) -> None:
