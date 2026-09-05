@@ -392,14 +392,17 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
 | Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/run`, `tc49/schedule/state/facing` **and** `tc49/layout/state/device/#` |
-| Translator | `tc49/layout/state/wanted/#` |
+| Translator | `tc49/layout/state/wanted/#`, **and** `tc49/layout/state/railroad` where it publishes sensors |
 | Trace tap | `tc49/#` |
 
-Every app but the translator and the layout interface also subscribes
+Every app but the layout interface also subscribes
 `tc49/layout/state/railroad`, and acts on one thing only: a name other than
 the one it is running, which is a railroad being loaded under it (ADR-0060,
-above). The translator does not, hardware needing no layout. The layout
-interface does not either, being the row's writer: it follows
+above). A translator does so where it reads the store: one publishing
+`device/sensor` reads the names the hardware knows those sensors by out of
+the drawing, and those are a railroad's (ADR-0063, below). One that reads
+nothing does not, hardware needing no layout. The layout interface does not
+either, being the row's writer: it follows
 `tc49/layout/railroad_wanted` instead, which is the gesture it answers. The
 binding of it that drives hardware reads back its own
 `tc49/layout/state/power` for the precondition on that gesture; a binding that
@@ -1595,14 +1598,36 @@ reason is no less `off`.
 
 **A sensor is addressed by the block end it watches**, `<block>.<end>`, one
 topic per sensor, and never by a camera's own identifier
-([#194](https://github.com/rails49/control/issues/194)). The drawing carries
-the mapping and the detector is configured with the names it must publish, so
-nothing above the layout interface learns detector geometry (ADR-0043). Never
-a whole-railroad map either: a map would make one camera the single writer of
+([#194](https://github.com/rails49/control/issues/194)). The topic is that on
+every railroad, so a trace is comparable between installations. **The drawing
+carries the name the hardware knows each sensor by**, one per block end and
+defaulting to `<block>.<end>`, and whoever publishes the row reads it from the
+store: a camera can be told what to call itself, and a system whose sensors
+are named by that system and whose protocol requires the name cannot be
+([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md),
+[ADR-0063](adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
+The name stays out of the payload: the row is retained, so a name published
+before a drawing edit would sit on the broker contradicting the drawing, and
+one place for it is what keeps it from drifting. Nothing above the layout
+interface learns detector geometry either way (ADR-0043). Never a
+whole-railroad map either: a map would make one camera the single writer of
 every sensor on the railroad, and a second camera could then not join without
 overwriting the first one's view, which is the reason
 [ADR-0035](adr/0035-a-topic-has-one-writing-role.md) gives for one writing
 role per state topic.
+
+**A publisher that reads the store follows the railroad.** The names are a
+railroad's, so it subscribes `tc49/layout/state/railroad` and builds them
+again when another railroad is named, like every other app that reads the
+store
+([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+It remains a translator — no ownership table, acting on the addresses it
+recognises, importing no app but `tc49.lib` and itself — and it now has a
+railroad identity, where a translator was configured by its command line
+alone. One that reads nothing still does not follow the row, hardware needing
+no layout
+([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+decision 5): the rule narrows rather than gaining an exception.
 
 **A detector publishes a level change and nothing else** — no heartbeat, no
 periodic restatement, no map on a timer. Retention is what a late subscriber
