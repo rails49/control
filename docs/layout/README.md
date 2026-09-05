@@ -469,6 +469,21 @@ race. A row that cannot be read leaves the run this app already held standing,
 and a row with no `moving` at all reads as nothing moving, an older dispatcher
 saying nothing about what is under way being no evidence either.
 
+**An `off` that is applied leaves the railroad at rest.** Before the word goes
+out, `0.0` is written over every retained `wanted/traction` row, exactly as at
+startup below. "The railroad comes up at rest" is a promise about a power cycle
+as well as about a process start, and a power cycle is not a process restart,
+so the startup rule does not reach it: an arrival zeroes the row of a train
+this app drives and nothing zeroes the row of one a person holds in a throttle,
+so a plain `off` would otherwise leave a speed standing and the next `on` would
+bring current back over it
+([#435](https://github.com/rails49/control/issues/435)). The order is
+load-bearing — a translator acts on desired rows as they arrive, so zeros first
+means the last thing the station is told before the supply goes is a stop — and
+it is only this `off`: a refused gesture changes nothing, and `stopped` is a run
+that is meant to resume from it, which zeroed rows would turn into a re-drive.
+`wanted/point` is left alone here for the reason it is left alone at startup.
+
 A refused `off` is **dropped**, in silence and to the trace with the reason,
 as every gesture this app cannot act on is
 ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
