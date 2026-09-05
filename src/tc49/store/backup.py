@@ -32,7 +32,11 @@ given somewhere to keep one (`keys`). The public half is shown by
 :meth:`Backup.status` for the person to paste into that repository's deploy
 keys — a key scoped to one repository, so a box on a wireless anybody can
 join reaches nothing else of theirs. The private half never leaves the
-machine and lives outside the store, so it cannot be committed.
+machine and lives outside the store, so it cannot be committed. **A key it
+can see and cannot open is not a key it has**: the public half is
+world-readable and the private half need not be, so reporting on the file
+rather than on the credential showed a working key while every push was
+refused, and :meth:`Backup.unusable` says so instead (#443).
 
 **Commit on idle.** :meth:`Backup.saved` arms a deadline that each further
 save pushes out, and :meth:`Backup.due` — the watch thread's tick — commits
@@ -211,6 +215,21 @@ def documents(porcelain: str) -> list[str]:
     return sorted(names)
 
 
+def readable(path: Path) -> bool:
+    """Whether this process can open `path`.
+
+    Asked by opening it rather than of the mode bits, because the answer
+    depends on who this process is: the store runs as the person who deployed
+    the box, and a private half left behind by root is there, is a key, and is
+    not one this can offer ssh (#443).
+    """
+    try:
+        with path.open("rb"):
+            return True
+    except OSError:
+        return False
+
+
 class Backup:
     """Git over one store root: the timers, the refusals, and what to say.
 
@@ -341,17 +360,21 @@ class Backup:
         what to make and where to enter it (:meth:`adopt`), with git's own
         words after it, because git itself may be what is missing and those
         words are the only way to tell.
+
+        A key that cannot be pushed with (:meth:`unusable`) comes last and on
+        its own line, because it is missing whatever the repository is: a
+        store already backing up to github has everything but the one thing
+        the push needs (#443).
         """
+        missing: list[str] = []
         top = self._inside()
         if top is not None and top != self.root.resolve():
-            return [
-                (
-                    f"{self.root} is inside the git repository at {top} rather"
-                    " than being one, so backing it up would commit into that"
-                    " repository — back up a store of its own instead"
-                )
-            ]
-        if top is None:
+            missing.append(
+                f"{self.root} is inside the git repository at {top} rather"
+                " than being one, so backing it up would commit into that"
+                " repository — back up a store of its own instead"
+            )
+        elif top is None:
             said = self._run(self.root, "rev-parse", "--show-toplevel")
             key = (
                 " add the key below to it under Settings ▸ Deploy keys, with"
@@ -359,21 +382,20 @@ class Backup:
                 if self.key() is not None
                 else ""
             )
-            return [
-                (
-                    f"{self.root} is not a git repository — create an empty"
-                    f" private repository on github.com,{key} enter its address"
-                    f" below. git said: {said.words}"
-                )
-            ]
-        if not self._run(self.root, "remote").words:
-            return [
-                (
-                    "no remote, so a backup stays on this machine — `git"
-                    f" remote add origin <url>` in {self.root}"
-                )
-            ]
-        return []
+            missing.append(
+                f"{self.root} is not a git repository — create an empty"
+                f" private repository on github.com,{key} enter its address"
+                f" below. git said: {said.words}"
+            )
+        elif not self._run(self.root, "remote").words:
+            missing.append(
+                "no remote, so a backup stays on this machine — `git"
+                f" remote add origin <url>` in {self.root}"
+            )
+        unusable = self.unusable()
+        if unusable is not None:
+            missing.append(unusable)
+        return missing
 
     def outstanding(self) -> list[str]:
         """The documents that have moved since the last backup.
@@ -438,19 +460,64 @@ class Backup:
         said = self._run(self.root, "remote", "get-url", "origin")
         return said.words if said.ok and said.words else None
 
+    def unusable(self) -> str | None:
+        """Why the key kept under `keys` is not one this store can push with,
+        `None` where there is nothing wrong with it or where there is no key
+        yet.
+
+        A key the store cannot use is not a store with no key, and the two
+        must not read the same. Docker seeds a named volume from the image
+        only while the volume is empty, so a box that made a key before the
+        image gave `keys` its mode still has one owned by root, and the store
+        — running as the person who deployed the box — reads the public half,
+        which is world-readable, and not the private one. What that left was a
+        dialog showing a key that looked right and a push github refused, for
+        as long as nobody looked (#443). The words name the one thing that
+        repairs it, because the person reading them is at the dialog and not
+        at a terminal.
+        """
+        if self._keys is None:
+            return None
+        private = self._keys / KEY
+        public = self._keys / f"{KEY}.pub"
+        if not private.exists() and not public.exists():
+            return None  # no key yet, which is :meth:`key`'s to make
+        for half in (private, public):
+            if not half.exists():
+                why = f"{half} is not there"
+            elif not readable(half):
+                why = f"{half} cannot be read by the user the store runs as"
+            else:
+                continue
+            return (
+                f"the key this store keeps is not one it can push with"
+                f" — {why}. Empty {self._keys} and the store makes itself a"
+                " new one; on a layout box that is `docker volume rm"
+                " deploy_keys` with the stack down. Then add the new public"
+                " half to the repository under Settings ▸ Deploy keys, with"
+                " write access, and remove the old one"
+            )
+        return None
+
     def key(self) -> str | None:
         """The public half of this store's own deploy key, made the first
         time it is asked for.
 
         `None` where the store was given nowhere to keep one, and for a store
-        inside another repository, which is nobody's to adopt into. Made
-        unasked because it is not a document: it is the box's own identity,
-        like the host key sshd makes on first start, and a person cannot
-        paste it into a repository's deploy keys before it exists. The
+        inside another repository, which is nobody's to adopt into. `None`
+        too where there is a key this cannot push with, which
+        :meth:`unusable` tells apart from those in words: showing the public
+        half of a key whose private half cannot be opened is reporting on a
+        file the store can see rather than on a credential it can use (#443).
+        Made unasked because it is not a document: it is the box's own
+        identity, like the host key sshd makes on first start, and a person
+        cannot paste it into a repository's deploy keys before it exists. The
         private half is written beside it and read by nothing here — git's
         ssh is told where it is (:meth:`adopt`) and that is all.
         """
         if self._keys is None:
+            return None
+        if self.unusable() is not None:
             return None
         public = self._keys / f"{KEY}.pub"
         try:
@@ -601,6 +668,12 @@ class Backup:
             url = url.strip()
             if not url:
                 return Said(False, "no address was given")
+            unusable = self.unusable()
+            if unusable is not None:
+                # The clone is the first thing to go out under the key, so a
+                # key that cannot be opened is said here rather than left to
+                # ssh (#443).
+                return Said(False, unusable)
             self.root.mkdir(parents=True, exist_ok=True)
             into = Path(tempfile.mkdtemp(prefix=".adopting-", dir=self.root))
             try:
@@ -660,10 +733,21 @@ class Backup:
 
         **Called with no lock held**, and given a deadline, because this is
         the one thing here that waits on another machine.
+
+        A key the store cannot push with is answered here rather than handed
+        to git: ssh would fail on a file it cannot open, and what came back
+        would be `Permission denied (publickey)` — github's words for a key it
+        does not know, which is a different fault with the same look (#443).
+        The refusal is kept like any other push's, so the dialog says it.
         """
         if not self.repository():
             return Said(False, self.needs()[0])
-        said = self._run(self.root, "push", timeout=self._push_timeout_s)
+        unusable = self.unusable()
+        said = (
+            Said(False, unusable)
+            if unusable is not None
+            else self._run(self.root, "push", timeout=self._push_timeout_s)
+        )
         with self._lock:
             self._pushed_at = self._now()
             self._push_said = said
