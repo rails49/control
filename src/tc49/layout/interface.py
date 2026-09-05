@@ -745,8 +745,9 @@ class LayoutInterface:
         for a change, so a second `manual` on a train already taken is not a
         race and changes nothing. `train: null` names every train at once,
         which is a thing a person does to a railroad rather than to the train
-        they have picked: every train this app holds becomes manual, or the map
-        empties, `automatic` being the resting value.
+        they have picked: every train this app holds becomes manual — bar the
+        ones it is driving, which `_modes` skips (#436) — or the map empties,
+        `automatic` being the resting value.
 
         The map is published before a wheel is written, and the two writes go
         out in that order for a reason: `state/mode` is what says whose the
@@ -778,17 +779,53 @@ class LayoutInterface:
         in it: a train the map does not name is automatic, so giving one back
         is dropping it and handing the railroad over is naming every train it
         holds — which is every train it has a position for, since a train that
-        stands nowhere is one nobody is driving."""
+        stands nowhere is one nobody is driving.
+
+        **Handing the railroad over skips the trains this app is driving**
+        (#436). `train: null` is a gesture about the railroad rather than
+        about a train somebody looked at, and it would otherwise take one
+        under way on a grant: `_took` stops the arrival being this app's to
+        write, so the train would keep its commanded speed past the block it
+        was sent to and stand only when a person found it. A train somebody
+        **names** is untouched in either direction — a person who names a
+        train has looked at it — and so is `automatic` for every train at
+        once, which is giving trains back and asks nothing of a moving one.
+
+        The gesture is applied in part rather than refused whole: one
+        automatic train under way does not stop a person taking any train.
+        The skipped ones are **dropped to the trace** and nothing is published
+        to say which they were, `state/mode` being the level that says where
+        every train's mode now stands (ADR-0034, ADR-0062).
+        """
         if wanted.train is None:
-            return (
-                dict.fromkeys(self._position, MANUAL) if wanted.mode == MANUAL else {}
-            )
+            if wanted.mode != MANUAL:
+                return {}
+            after = {
+                train: MANUAL for train in self._position if not self._driven(train)
+            }
+            skipped = [train for train in self._position if train not in after]
+            if skipped:
+                _log.info(
+                    "hand-over skipped, this app is driving: %s", ", ".join(skipped)
+                )
+            return after
         after = dict(self._mode)
         if wanted.mode == MANUAL:
             after[wanted.train] = MANUAL
         else:
             after.pop(wanted.train, None)
         return after
+
+    def _driven(self, train: str) -> bool:
+        """Whether the wheels of this train are this app's right now: it is in
+        the middle of a move and the crossing says the driving is this app's.
+
+        The same flag `_took` reads, and read off the same crossing — the one
+        move a train is in the middle of — so what a hand-over skips is
+        exactly what taking the train would have quietly turned off.
+        """
+        flight = self._flight(train)
+        return flight is not None and flight[1].driving
 
     def _took(self, train: str) -> None:
         """A train taken over: **nothing is written**. It keeps whatever speed
