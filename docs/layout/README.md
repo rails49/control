@@ -451,11 +451,14 @@ quantisation, and an emergency stop that waits is not an emergency stop
 ([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
 A `power_wanted` is written through to `wanted/track` with the word it was
 given — bar the one word that is guarded, below — and **nothing is said about
-`state/power` on the strength of having commanded it**: a railroad that answered `on` because somebody pressed ON would
-be this app taking its own word for the state of the track. It cannot verify
-that the supply really went and does not try — it assumes the device it
+`state/power` on the strength of having commanded it, bar the one word no
+hardware can report**: a railroad that answered `on` because somebody pressed
+ON would be this app taking its own word for the state of the track. It cannot
+verify that the supply really went and does not try — it assumes the device it
 commanded did what it was asked, and it is the system designer's job to put such
-a device there ([#232](https://github.com/rails49/control/issues/232)).
+a device there ([#232](https://github.com/rails49/control/issues/232)). The
+emergency stop is the exception, and *the emergency stop is held* below is
+where it is.
 
 **A plain `off` is applied only where nothing is moving.** The one command
 this app does not write through as it came
@@ -516,11 +519,13 @@ words — ask for a drain, and cut when it is done. `on` and `stopped` are
 untouched and apply in every run state: an emergency stop asks the rails for
 less, and returning to `on` releases nothing (ADR-0041, ADR-0051).
 
-**`state/power` is folded from what the hardware reports.** The supply's own
-word, `device/track`, wherever every `device/link` that has ever been seen
-reads `up`; `off` otherwise. A participant that cannot reach its hardware
-leaves a railroad no train may move on whatever the supply says, since the
-participant saying it may be the unreachable one. *Ever seen* and not
+**`state/power` is otherwise folded from what the hardware reports.** The
+supply's own word, `device/track`, wherever every `device/link` that has ever
+been seen reads `up`; `off` otherwise, and it answers again the moment a held
+stop is cleared — *the emergency stop is held*, below — what the hardware said
+meanwhile being what the row then reads. A participant that cannot reach its
+hardware leaves a railroad no train may move on whatever the supply says,
+since the participant saying it may be the unreachable one. *Ever seen* and not
 *currently connected*: a link is a retained level, so one that said `down` and
 then died leaves the value standing, and forgetting it would turn a broken
 railroad back on
@@ -547,8 +552,28 @@ observed row reads `on` under one and has no third value to say it with
 A frame that says it anyway says what no hardware can observe, and is refused
 with everything else this app cannot read. So the fold answers `on` while the
 railroad stands under a stop: saying that a person has yet to clear one is not
-a fold from hardware and never can be — it is this app's to hold, from the
-command it wrote ([#470](https://github.com/rails49/control/issues/470)).
+a fold from hardware and never can be.
+
+**The emergency stop is held, and it is the one value on this row not read
+off hardware.** This app wrote `stopped`, so this app knows: on writing
+`wanted/track: stopped` it publishes `state/power: stopped` and keeps it, over
+whatever the fold says, until a person asks for the power back. Without it the
+board is green a second after the press and *emergency stop — clear it before
+driving* has no source (ADR-0041), the supply being live under a stop and
+going on saying so. It is held because no hardware can hold it, and for no other
+reason: this is the one piece of state the app keeps about the power, and
+ADR-0062 refused a "cut in flight" flag for being a second one.
+
+**Clearing it is `power_wanted: on`** — the railroad's own power control, and
+what a person reaches for to resume. No new topic, no fourth value and no new
+button, and the press that clears the stop is the same press that asks for the
+rails to be live. A dropped gesture clears nothing, an unreadable one and an
+`off` the guard refuses alike, and neither does an `off` that is applied: a cut
+is commanded and not observed, so clearing there would publish `on` — the
+fold's answer while the hardware still reports the supply it has not yet lost —
+in the moment this app is asking for that supply to go. The stop stands over a
+dark railroad instead, which is a word the dispatcher and every UI already hold
+the run on, and the person clears it with the press they need anyway.
 
 **On startup the railroad is off.** The app comes up having written
 `wanted/track: off` and `state/power: off`, so nothing moves and no turnout
