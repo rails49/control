@@ -96,10 +96,10 @@ none would debounce against a clock that never moves.
 **Whoever owns the loop calls `settle()`**, which is what acts on a level that
 has stood long enough. In the deployment that is this app's own process: it
 advances the clock to wall time, calls `settle()` and drains the bus, once per
-period. `tc49 live <railroad> --station <host>:<port>` does the same in one
-process, bringing a session up on this app and the `dccex` translator where the
-simulator would be ([#314](https://github.com/rails49/control/issues/314)), and
-the loop is the same three steps. The period bounds the resolution and nothing
+period. The harness does the same in one process, standing this app and the
+`dccex` translator where the simulator would be
+([#314](https://github.com/rails49/control/issues/314)), and the loop is the
+same three steps. The period bounds the resolution and nothing
 else: 0.1 s against 300 ms of settling has a settled level acted on between
 0.3 s and 0.4 s after it stood, which is the right order for a detector.
 Nothing schedules the call — a detector publishes a level *change* and nothing

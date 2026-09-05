@@ -14,7 +14,7 @@ different product on another layout, so every railroad reads the same ones
 ([ADR-0045](../adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
 A **scenario** file names a layout and adds where its trains stand and a fixed
 request list: it is the **harness's** document, read off disk by `tc49 bench`
-and `tc49 live --scenario` and served on no route. The split is what lets one railroad carry
+and `bench/replay.py` and served on no route. The split is what lets one railroad carry
 many benchmark runs, and it makes the benchmark CLI's argument a single
 scenario path.
 
@@ -36,7 +36,7 @@ An **installation's store is `~/tc49/`**, and holds the documents somebody's
 own railroad is made of. Visible and stable rather than an XDG data directory:
 it is a repository a person clones, pushes and looks at, not a cache a system
 may throw away and rebuild. `--store <path>` and `TC49_STORE` override it, the
-flag winning, and `tc49 live` and `tc49 serve` read no other root
+flag winning, and `tc49 serve` reads no other root
 ([#320](https://github.com/rails49/control/issues/320)).
 
 The **fixtures are the harness's**, under this checkout's `bench/`: what the
@@ -44,13 +44,13 @@ benchmark runs on and not an installation's data
 ([#319](https://github.com/rails49/control/issues/319)). `tc49 bench`, `tc49
 sweep` and `tc49 layout show` find them by searching for the checkout they are
 running in, so no store of anybody's can move a number in
-[BENCHMARKS.md](../bench/BENCHMARKS.md). Running a live session on one is
-`tc49 live <railroad> --store bench`, which is what `scripts/dev.sh` does.
+[BENCHMARKS.md](../bench/BENCHMARKS.md). Serving them to the apps is
+`tc49 serve --store bench`, which is what `scripts/dev.sh` does.
 
 **Nothing seeds a store and an empty one is an ordinary state.** A fresh
 installation has drawn no railroad: the store lists nothing, catalogues
 nothing and answers an empty roster, the server comes up and answers `[]`, and
-`tc49 live <name>` refuses that name in words. The directories under the root
+a railroad asked of it by name is a 404. The directories under the root
 are made by the `put` that needs them, so the first drawing somebody saves is
 what fills the store. A fixture copied in on first run would be a document the
 person did not make and cannot tell from one they did.
@@ -293,7 +293,7 @@ requests:
   `layouts/<id>.drawing.yaml`, so a scenario can move between directories
   without rewriting.
 - **A scenario reaches a run two ways, and both are the harness's**:
-  `tc49 bench` builds a batch run from it, and `tc49 live --scenario` replays
+  `tc49 bench` builds a batch run from it, and `bench/replay.py` replays
   it as the gestures a person would make — a placement per train, then the
   requests in the file's order
   ([#171](https://github.com/rails49/control/issues/171)). A gesture carries no

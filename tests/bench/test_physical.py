@@ -87,7 +87,7 @@ def test_a_station_puts_the_physical_binding_where_the_simulator_would_be() -> N
 
 def test_a_run_with_no_station_is_exactly_what_it_was() -> None:
     """The simulator branch is untouched: with no station named, the run is
-    the one `tc49 live` has always built, and nothing physical is
+    the one the harness has always built, and nothing physical is
     constructed."""
     layout, roster = a_railroad()
     simulated = assemble_live(layout, roster)
@@ -109,8 +109,8 @@ def test_the_railroad_comes_up_dark_and_unreached_before_anything_runs() -> None
 
 
 def test_the_run_reaches_the_station_and_says_the_link_is_up() -> None:
-    """`tc49 live <railroad> --station <host>:<port>` comes up: the loop opens
-    the connection, the station answers, and `device/link/dccex` says so."""
+    """A run named a station comes up: the loop opens the connection, the
+    station answers, and `device/link/dccex` says so."""
     layout, roster = a_railroad()
     with Station() as station:
         driven = assemble_live(layout, roster, station=(HOST, station.port))
@@ -188,7 +188,8 @@ def test_an_interrupt_stands_the_railroad_down_before_the_run_leaves() -> None:
     so what is asserted after it is a zero over a speed that was really
     running, and the `off` after that zero. A run that never leaves ends at
     the waiting limit instead and fails there: `KeyboardInterrupt` is what
-    `tc49 live` catches, and its absence is the stand-down not happening.
+    a process running this loop catches, and its absence is the stand-down
+    not happening.
     """
     layout, roster = a_railroad()
     with Station() as station:

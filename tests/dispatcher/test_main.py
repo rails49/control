@@ -188,8 +188,9 @@ def test_the_picture_a_previous_process_left_is_adopted(
     broker: Broker, store: Store, app: App
 ) -> None:
     """A dispatcher restarted under a running railroad finds its own picture
-    on the broker and comes up with its trains where they stood, exactly as
-    the durable file did in one process (#123). Without it the railroad comes
+    on the broker and comes up with its trains where they stood, which is
+    the whole of what #123 asks for now that the broker holds them. Without
+    it the railroad comes
     up empty and every standing train is a placement somebody has to make
     again."""
     store.start()

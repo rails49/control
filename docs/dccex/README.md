@@ -278,9 +278,9 @@ served:
 DccEx(bus, "dccex-usb", 2560, startup=Path("/etc/tc49/dccex-startup.txt"))
 ```
 
-That is what `tc49 live <railroad> --station <host>:<port>` does, bringing a
-session up on the physical binding — this app and `layout` where the simulator
-would be — and handing `--startup` straight through as that argument
+That is what `--startup` on this app's own command line does, and what the
+harness's physical wiring does when it brings a run up on the physical
+binding — this app and `layout` where the simulator would be
 ([bench/runner.py](../../src/tc49/bench/runner.py),
 [#314](https://github.com/rails49/control/issues/314)). There is nowhere else
 for the file to go, so `--startup` without `--station` is refused in a sentence
