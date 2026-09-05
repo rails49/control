@@ -145,6 +145,10 @@ class Symbol:
     # A block's signals, by the end each stands at: the address of the signal
     # installed there, absent where an end carries none.
     signals: dict[str, str] = field(default_factory=dict[str, str])
+    # A block's sensors, by the end each watches: the address the hardware
+    # knows that sensor by. One per end, always, the drawing writing only the
+    # ends whose address is not the default (ADR-0063).
+    sensors: dict[str, str] = field(default_factory=dict[str, str])
 
 
 @dataclass(frozen=True)
@@ -832,10 +836,11 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
     placement = set(_PLACEMENT)
     _check_geometry(spec, where)
     if kind == "block":
-        check_keys(spec, where, {"kind", "length"}, {"signals"} | placement)
-        # A sensor is addressed by the block end it watches, so a block carries
-        # no id for one; the signal at an end is fixed wiring like a turnout
-        # motor and carries the address it answers to (ADR-0022, ADR-0043). A
+        check_keys(spec, where, {"kind", "length"}, {"signals", "sensors"} | placement)
+        # The signal at an end is fixed wiring like a turnout motor and carries
+        # the address it answers to; the sensor watching that end carries the
+        # name its own hardware knows it by, which is the block end's string
+        # unless the drawing says otherwise (ADR-0022, ADR-0043, ADR-0063). A
         # block has no name but its key, which is what the canvas draws and
         # what prefixes every transit id; `label` belongs to a portal, where it
         # pairs two mouths.
@@ -845,6 +850,7 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
             PINS[kind],
             length=check_length(spec["length"], where),
             signals=_signals(where, spec.get("signals"), PINS[kind]),
+            sensors=_sensors(where, name, spec.get("sensors"), PINS[kind]),
         )
     if kind in ("terminal", "pin"):
         check_keys(spec, where, {"kind"}, placement)
@@ -885,6 +891,35 @@ def _signals(where: str, spec: Any, ends: tuple[str, ...]) -> dict[str, str]:
             )
         signals[str(end)] = str(addr)
     return signals
+
+
+def _sensors(
+    where: str, block: str, spec: Any, ends: tuple[str, ...]
+) -> dict[str, str]:
+    """The name the hardware knows each of this block's sensors by, by end.
+
+    A block end is watched, always, so every end is here: this answers for
+    both ends whatever the drawing wrote. What the drawing writes is only an
+    end whose hardware names its sensor something else — a system that names
+    its own sensors and whose protocol requires that name (ADR-0063). The
+    default is `<block>.<end>`, which is the string the topic uses, so the
+    common railroad says nothing and the two cannot drift apart.
+
+    Neither the address nor its shape is checked, for the reason a point's is
+    not: what the hardware answers to is knowledge the drawing cannot hold. A
+    key that is no end of the block is refused, as it is for `signals` — a
+    misspelt end would silently address nothing.
+    """
+    written = as_mapping(spec or {}, f"{where}: sensors")
+    for end in written:
+        if end not in ends:
+            raise ValueError(
+                f"{where}: sensors names '{end}', which is no end of this"
+                f" block — a block has the ends {list(ends)}"
+            )
+    return {
+        end: str(written[end]) if end in written else f"{block}.{end}" for end in ends
+    }
 
 
 def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
