@@ -369,6 +369,13 @@ export class TcPanel extends LitElement {
       this.panel?.reset();
       this.connected = true;
       this.trouble = null;
+      // Armed here and not where the railroad is named: the broker replays
+      // every retained row under this filter, in an order the contract does
+      // not fix, so rows land before the one that says which railroad they
+      // are about. Anything arriving before the buffer exists is dropped, and
+      // an event is never replayed, so parts of the picture would stay wrong
+      // for the life of the page (ADR-0032).
+      this.held = [];
       client.subscribe(OURS);
       this.beat++;
     });
@@ -409,9 +416,17 @@ export class TcPanel extends LitElement {
    */
   private named(railroad: string): void {
     if (railroad === this.session) return;
+    // What arrived before this row did, which is this railroad's and not the
+    // last one's: on a fresh connection the panel is still null and the rows
+    // buffered since `connect` are the retained picture being replayed around
+    // us. `leave()` below drops the buffer, so it is carried over rather than
+    // started again. A railroad swapped while a panel is up is the other
+    // case — there rows are applied directly, the buffer is already null, and
+    // there is nothing to carry.
+    const early = this.panel === null ? this.held : null;
     this.leave();
     this.session = railroad;
-    this.held = [];
+    this.held = early ?? [];
     this.beat++;
     this.dispatchEvent(
       new CustomEvent<string>("railroad", {

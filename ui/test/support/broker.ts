@@ -65,10 +65,30 @@ export class Broker {
 
   subscribe(filter: string): this {
     this.subscriptions.push(filter);
-    for (const [topic, payload] of this.retained) {
+    for (const [topic, payload] of this.answering()) {
       if (matches(filter, topic)) this.delivers(topic, payload);
     }
     return this;
+  }
+
+  /** The retained rows in the order a subscription is answered with them.
+   *
+   *  **The railroad row goes last, deliberately.** The contract fixes no
+   *  order (SYSTEM.md rule 2), and a view that treats that row as the one
+   *  that starts everything will drop whatever the broker handed over before
+   *  it. Every suite here used to retain the railroad row first, so the
+   *  ordering was fixed in the friendly direction and a whole class of bug
+   *  was invisible — a page opening on a held run over an empty picture,
+   *  which no event ever repairs (#380).
+   *
+   *  Fixed and not shuffled: a random order trades an invisible bug for an
+   *  irreproducible failure. `sort` is stable, so every other row keeps the
+   *  order it was retained in. */
+  private answering(): [string, string][] {
+    const railroad = "tc49/layout/state/railroad";
+    return [...this.retained].sort(
+      ([a], [b]) => Number(a === railroad) - Number(b === railroad),
+    );
   }
 
   publish(topic: string, payload: string): this {
