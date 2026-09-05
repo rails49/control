@@ -120,7 +120,7 @@ on every output, and a missing file leaves the wiring behind that.
 | `wanted/signal/<addr>` `aspect` | `<A addr aspect>`, the extended accessory packet the head's wiring expects |
 | `wanted/track` `on` | `<1>`, which reaches every track the station has |
 | `wanted/track` `off` | `<0>` |
-| `wanted/track` `stopped` | `<!P>`, the station's emergency-stop **lock** |
+| `wanted/track` `stopped` | `<!>`, the one-shot emergency stop |
 | `wanted/function/<addr>/<n>` `value` | `<F addr n 0\|1>` |
 
 Every row is a pure function in `commands.py`, asserted as "this value in,
@@ -151,34 +151,38 @@ values a model may leave unstated are the two that reach the wire; a value
 from a longer list — the `low` and `high` of a three-position vacuum — names a
 state this hardware has no packet for, and nothing is sent.
 
-Three rules are not a row of the table, and each is a way a train could
-otherwise move on its own.
+Two rules are not a row of the table.
 
-**The stop must latch.** `stopped` is `<!P>` and not `<!>`. The one-shot
-`<!>` broadcasts an emergency stop and changes nothing afterwards, so any
-throttle on the same port can drive away from it — which would make
-`state/power` an echo of a command rather than an observation, and a lie the
-moment somebody picks up a hand-held throttle. `<!P>` blocks every throttle
-packet until `<!R>`, and `<!Q>` asks whether it is on, so a restart reads the
-state back rather than remembering it.
+**The stop is `<!>` and holds nothing.** It broadcasts an emergency stop to
+every decoder with the track still live, and changes nothing afterwards, so
+any throttle on the port can drive away from it. That is deliberate: who may
+move a train is the operator's decision, and the operator is the one holding
+the layout. It also means `state/power` never reads `stopped` from a stop this
+app sent — there is nothing left for the station to report — so the row goes
+back to `on` as soon as the broadcast is out.
 
-**Clearing a stop is zero-then-release.** Under the lock the station keeps
-every locomotive's pre-lock speed and resumes it on release, so a bare `<!R>`
-restarts every train at the speed it was doing when somebody hit stop. Every
-locomotive this app has ever commanded is sent step 0 **first**, and only then
-`<!R>`. Nothing in the software is in the path of those resumed packets, which
-makes this the one remaining way a train moves without being asked, and it has
-a named test asserting the byte order. The release fires on an `on` following
-either a lock this app commanded or one the station has reported, because the
-two are a round trip apart and releasing without the zeros is the failure that
-matters; an unnecessary set of zeros stops trains that were already standing.
+The station has an emergency-stop **lock** in later firmware, `<!P>` until
+`<!R>` with `<!Q>` to ask, which would make `stopped` a state rather than an
+act. It is not used, for two reasons
+([#463](https://github.com/rails49/control/issues/463),
+[#464](https://github.com/rails49/control/issues/464)). It is a
+firmware-branch command of one product, so a `stopped` that meant "under a
+lock" would put a station's private vocabulary inside a bus word every
+railroad shares. And the station on the layout is older than it: below the
+version that has the lock, the `!` opcode takes no suffix, so `<!P>`, `<!R>`
+and `<!Q>` are all read as `<!>` and none of them says so. That is what made a
+`<!Q>` in the poll an emergency stop once a second, and every train move a few
+centimetres and stand.
 
-**An overload is polled for.** A district that trips is not broadcast on TCP:
-the firmware cuts the output directly and prints the diagnostic to USB serial
-only, so no client sees a `<p…>` line for it. Once a second this app sends
-`<s>`, which makes the station restate every track's power, and `<!Q>`, which
-makes it restate the lock. `device/track` telling the truth does not depend on
-a person noticing.
+**An overload is polled for, with `<s>` and with nothing else.** A district
+that trips is not broadcast on TCP: the firmware cuts the output directly and
+prints the diagnostic to USB serial only, so no client sees a `<p…>` line for
+it. Once a second this app sends `<s>`, which makes the station restate every
+track's power, so `device/track` telling the truth does not depend on a person
+noticing. Nothing else goes in the poll. A poll runs for as long as the link
+does, so a command in it that a station acts on rather than answers is acted
+on for as long as the railroad is up, and a station says nothing about a
+command it does not know.
 
 ## What it publishes back
 
@@ -227,9 +231,9 @@ the app calls it before letting the loop go.
 The process ending is not by itself an instruction to the railroad. The
 station goes on running whatever it was last told, so a session that exits
 over a rolling locomotive leaves it rolling, and that is not recoverable the
-way switching the power back on is. The zeros come first for the same reason a
-release's do: the station keeps a speed per locomotive and resumes it, so
-cutting the supply over a held speed only postpones the motion.
+way switching the power back on is. The zeros come first because the station
+keeps a speed per locomotive and resumes it, so cutting the supply over a held
+speed only postpones the motion.
 
 A link that was never open sends nothing at all. A railroad this app could not
 reach is one it was not driving, and `_send` drops rather than queues.
@@ -321,27 +325,36 @@ With the railroad powered and a locomotive on address 3 standing on the main:
 ```
 $ nc blocks49.local 2560
 <s>
-<iDCC-EX V-5.6.3 / ESP32 / EXCSB1_WITH_EX8874 G-0ad3080>
-<p0>
-<1>
+<iDCC-EX V-5.4.16 / ESP32 / EXCSB1_WITH_EX8874 G-devel-202504182148Z>
 <p1 A>
 <p1 B>
 <p1>
 <t 3 63 1>
-<l 3 0 191 0>
-<!P>
-<!PAUSED>
+<l 3 1 191 0>
 ```
 
 The banner naming the firmware, the board and the motor shield is the station
 answering through the mirror, which is what `device/link: up` is made of; the
-`<p…>` lines are what `device/track` is folded from; and the locomotive should
-stop on `<!P>` and **stay** stopped when you send `<t 3 63 1>` again, which is
-the lock doing what the one-shot would not.
+`<p…>` lines are what `device/track` is folded from; and the `<l>` line is the
+station saying what the locomotive is now doing, speed byte 191 being the
+forward bit over step 63.
 
-To get it back, send `<t 3 0 1>` and then `<!R>`, in that order — the app's
-rule, done by hand — and the locomotive should still be standing after the
-release. Doing it in the other order is the failure the rule exists for: the
-station is holding the speed it had when the lock went on, and a bare `<!R>`
-resumes it. Nothing in the software is in the path of those packets, so do not
-send one to find out.
+**Then wait, and watch the locomotive.** It should still be running ten
+seconds later, and no further `<l 3 …>` should appear on the port. This is the
+step that matters and the one the suite cannot take: every check above passes
+against a station that is quietly stopping the train a second later, which is
+exactly what a `<!Q>` in the poll did
+([#463](https://github.com/rails49/control/issues/463)). A speed byte of 129 —
+the direction bit over step 1 — is the emergency stop, and seeing one arrive
+that nobody sent means something on this port is commanding the station rather
+than asking it.
+
+Send `<t 3 0 1>` to stop it again. `<!>` stops every locomotive at once and any
+throttle may drive away from it afterwards, which is what `stopped` means here;
+sending it is safe and leaves nothing to clear.
+
+The version in the banner is worth reading. This station is older than the
+firmware the mapping was researched against, and the difference is silent: an
+unknown command draws no `<X>` and no reply at all, so a command this station
+does not have does something else or does nothing, with nothing said either
+way.
