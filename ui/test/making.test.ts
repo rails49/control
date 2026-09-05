@@ -85,6 +85,18 @@ function trouble(shell: TcApp): string | null {
   return line === null ? null : line.textContent!.trim();
 }
 
+/** The New-model dialog, `null` while it is shut. */
+function dialog(shell: TcApp): Element | null {
+  return screen(shell).renderRoot.querySelector("sl-dialog");
+}
+
+/** What the dialog is saying went wrong, beside its Create button, `null`
+ *  where it is saying nothing. The dialog's own and not the screen's (#446). */
+function beside(shell: TcApp): string | null {
+  const line = dialog(shell)?.querySelector("p.trouble") ?? null;
+  return line === null ? null : line.textContent!.trim();
+}
+
 /** A page from something in front of the store on the paths `which` picks
  *  out, as a stale route table puts one in front of a store that is up. */
 function between(which: (path: string) => boolean): void {
@@ -123,6 +135,14 @@ async function product(
   await typed(shell, dialog.querySelector("#kind")!, kind);
   await typed(shell, dialog.querySelector("#length")!, length);
   (dialog.querySelector(".create") as HTMLElement).click();
+  await settled(shell);
+}
+
+/** Put the dialog away the way a person does, by the button in its footer. */
+async function cancelled(shell: TcApp): Promise<void> {
+  const buttons = [...dialog(shell)!.querySelectorAll("sl-button")];
+  const cancel = buttons.find((one) => one.textContent!.trim() === "Cancel");
+  (cancel as HTMLElement).click();
   await settled(shell);
 }
 
@@ -211,6 +231,54 @@ describe("a fresh box", () => {
     expect(store.saved).toEqual([]);
     const dialog = screen(shell).renderRoot.querySelector("sl-dialog")!;
     expect(dialog.querySelector(".trouble")!.textContent).toMatch("positive whole number");
+  });
+});
+
+/**
+ * The dialog's refusal is the dialog's, and the line under the Trains heading
+ * is the screen's.
+ *
+ * They were one state, so one refusal did two things: *there is already a
+ * model 'hopper'* was said twice at once — in the dialog a person is looking
+ * at and under a list the sentence is not about — and it stood under the
+ * trains after the dialog it was about had been dismissed (#446).
+ */
+describe("a refusal in the dialog", () => {
+  it("is said in the dialog and not under the trains", async () => {
+    const shell = await opened();
+    await product(shell, "hopper", "freight", "100");
+
+    await product(shell, "hopper", "freight", "95");
+
+    expect(beside(shell)).toBe("there is already a model 'hopper'");
+    expect(trouble(shell)).toBeNull();
+  });
+
+  it("goes when the dialog it is about is dismissed", async () => {
+    const shell = await opened();
+    await product(shell, "hopper", "freight", "100");
+    await product(shell, "hopper", "freight", "95");
+
+    await cancelled(shell);
+
+    expect(dialog(shell)).toBeNull();
+    expect(trouble(shell)).toBeNull();
+  });
+
+  /** The name is corrected and Create pressed again, which is what a person
+   *  does with the refusal in front of them. */
+  it("leaves nothing standing when the model is written after it", async () => {
+    const shell = await opened();
+    await product(shell, "hopper", "freight", "100");
+    await product(shell, "hopper", "freight", "95");
+
+    await typed(shell, dialog(shell)!.querySelector("#model")!, "van");
+    (dialog(shell)!.querySelector(".create") as HTMLElement).click();
+    await settled(shell);
+
+    expect(dialog(shell)).toBeNull();
+    expect(screen(shell).renderRoot.querySelector("p.trouble")).toBeNull();
+    expect(parts(shell, "li.product")).toHaveLength(2);
   });
 });
 
