@@ -237,88 +237,58 @@ subscribes, which is what makes a replayed run produce a byte-identical trace
 while another is being handled is never delivered before that handling has
 finished: MQTT would never deliver it any sooner.
 
-**The last value of a state topic survives a restart.** Given a file, the bus
-loads it at startup and rewrites it whenever any `tc49/*/state/*` value
-changes. It writes a temporary file in the same directory and renames it over
-the target, so an interrupted write leaves the previous file intact. What it
-loads is re-stamped with the new session's clock, per the stamp above: the
-file keeps the `at` it was written with, and the read is what puts the
-restored value on this session's timeline.
+**The last value of a state topic survives one app's restart.** It is the
+broker that holds it: a state topic is published retained, so an app coming
+back up finds its own last value waiting on its own topic. Whether to use it
+is each app's own decision, and they differ: the dispatcher takes back its
+train placement and the scheduler its facing, the dispatcher's queue is not
+restored, and no request id ever resumes
+([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)).
 
-This belongs to the bus rather than to any app, because it is what an MQTT
-broker does with retained messages. An app that restarts finds its own last
-value waiting on its own state topic, exactly as it will from the broker in
-milestone 2. Whether to use that value is each app's own decision, and they
-differ: the dispatcher takes back its train placement and the scheduler its
-facing, the dispatcher's queue is not restored, and no request id ever
-resumes ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)). Given
-no file the bus keeps no values, so `bench` and `sweep` are unaffected.
+Nothing survives the **broker's** own restart. `persistence false`
+(`deploy/mosquitto.conf`) is deliberate: a retained speed that outlived a
+power cut is a train that moves when the broker comes back, and the railroad
+comes up at rest instead
+([ADR-0054](adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md),
+[ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
+decision 3). The in-process binding keeps its retained values in memory and
+loses them with the process, which is what leaves `bench` and `sweep`
+unaffected.
 
-**Reaching the bus from a browser.** Until the bus is a real broker, a browser
-connects to a WebSocket relay ([ui/PANEL.md](ui/PANEL.md#implementation)).
-Every `tc49/#` event is sent to every client as one JSON frame,
-`{"topic": …, "payload": …}`.
-
-A client may publish only on the eight browser-writable topics —
-`tc49/schedule/request_wanted`, `tc49/schedule/reversal_wanted`,
-`tc49/dispatch/run_wanted`, `tc49/dispatch/placement_wanted`,
-`tc49/dispatch/cancel_wanted`, `tc49/layout/mode_wanted`,
-`tc49/layout/throttle_wanted` and `tc49/layout/power_wanted` — and each
-frame it sends is published as the event its topic names. That list is not
-written down twice: it is every row of the inventory below that carries the
-browser mark, which is also what a broker will grant a page once the relay is
-gone.
-
-**A client names the railroad it wants in the socket path**,
-`ws://host:port/<railroad>`. A browser reaches it as `/live/<railroad>`, and
-the proxy in front removes the `/live` prefix ([DEPLOY.md](DEPLOY.md)). A
-client hears that one railroad and no other. The relay outlives the railroad
-it relays. Naming one it is not currently running starts that one, and closes
-any client still connected to the previous one. Naming one that does not exist
-returns an error frame and closes the connection, leaving the running railroad
-alone. The path is not a topic, so none of this changes what a client may
-publish.
-
-**A browser cannot publish a request.** `tc49/dispatch/request_submitted` is
-refused like any other topic that is not one of the eight above. A browser
-publishes gestures and the scheduler turns them into requests, so "only the
-scheduler writes requests" is something the relay checks rather than an
-intention
-([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). Any
-other frame — a topic not on the list, or JSON that is not
-`{topic, payload}` — is answered with an `{"error": …}` frame and never
-reaches the bus.
-
-The relay adds no topics and no payload fields. A frame is exactly the event
-it carries, so the inventory below is its whole schema. When MQTT arrives the
-browser speaks MQTT over WebSocket to the broker and the relay is deleted.
-
-**On connect the relay sends the last value of every state topic**, before any
-new event and in the same frame format. These are the frames the client would
-have received had it been connected earlier. This is the last-value delivery
-the bus already promises a late subscriber, and what a broker gives a client
-as soon as it subscribes; a relay that left it out would promise less than the
-bus it stands in for. The relay is not composing a description of the run
-([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
+**Reaching the bus from a browser.** A page is a client of the broker like
+any other, over the broker's own WebSocket listener, reached on the app's own
+origin as `/mqtt` through the proxy in front of it
+([ui/PANEL.md](ui/PANEL.md#implementation), [DEPLOY.md](DEPLOY.md)). It
+subscribes `tc49/#` and publishes the browser-writable rows. There is no
+relay, no frame format of its own and no railroad in a path: one broker runs
+one railroad, and a view reads which from `tc49/layout/state/railroad`
+([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
+decision 4).
 
 **A socket from a page on another origin is refused.** A handshake carrying an
 `Origin` header is answered 403 before the upgrade, and no socket exists,
-unless the origin's host is the handshake's own `Host` or its hostname is
-loopback — the app on its own origin, and a page served from the machine the
-bridge runs on, which is what `?bridge=` names. A handshake with no `Origin`
-is a native client and goes through, as it does at the store's face. A
-WebSocket has no preflight, so this check is the whole of what stands between
-a page and the gestures above. The rule belongs to the browser's way onto the
-bus rather than to this relay: the broker that replaces it satisfies the rule
-at the proxy
+unless the origin's host is the router's own host. A handshake with no
+`Origin` is a native client and goes through, as it does at the store's face,
+and a native client on 1883 does not pass this way at all. A WebSocket has no
+preflight, so this check is the whole of what stands between a page somebody's
+browser visits and the gestures above. Mosquitto has no `Origin` setting, so
+the rule is stated in front of it as a proxy middleware on `/mqtt`
+(`deploy/routes/*/site.yaml`) rather than in an app
 ([ADR-0056](adr/0056-the-browsers-way-onto-the-bus-refuses-a-foreign-origin.md),
 [ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)).
 
-**The relay checks the topic and never the payload.** A broker enforces which
-topics a client may publish on, so that check survives the relay's deletion. A
-broker does not check payloads, so payload checking belongs where it will
-still be after the relay is gone: the dispatcher, when it admits a request.
-The dispatcher never raises an exception on anything that arrives from the bus
+**Which topics a page publishes on is convention, not enforcement.** With
+anonymous clients a broker cannot tell a page from an app, and the LAN is
+already the trust boundary, so nothing checks the topic of an inbound publish.
+What a page may write is the inventory's browser mark, and what a page must
+not write it does not: `tc49/dispatch/request_submitted` is the scheduler's,
+so "only the scheduler writes requests" rests on the app boundary rather than
+on a check
+([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md),
+[ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
+decision 4). Payload checking is unchanged and belongs where it always did:
+the dispatcher, when it admits a request, which never raises on anything that
+arrives from the bus
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 
 ## Event inventory
@@ -341,9 +311,11 @@ sends each — a fact the names no longer carry (rule 4,
 **A row marked `browser` is one any page may publish on.** The list of
 topics a client may publish on is read off this table's mark rather than
 written down a second time, so marking a row widens the browser's write
-surface the day the mark lands, and the mark is the same permission a
-broker's ACL will carry once the relay is gone
-([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
+surface the day the mark lands, and the mark is the permission a broker's ACL
+would carry were one built
+([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md),
+[ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
+decision 4).
 Today the mark sits on exactly the nine gesture rows. The throttle a person
 drives with ([#207](https://github.com/rails49/control/issues/207)), the
 track power a person commands
@@ -1119,8 +1091,8 @@ what its sensors have just told it
 ([#153](https://github.com/rails49/control/issues/153)).
 
 It is also the **only component that checks a payload**. A browser can publish
-anything on a topic it may write, and once the relay is deleted nothing stands
-in front of it, so the dispatcher never raises on a bus payload. A request
+anything at all, nothing standing between it and the broker, so the dispatcher
+never raises on a bus payload. A request
 naming a train or a block that does not exist is answered `unknown_train` or
 `unknown_block`. One naming a train that is on the roster but stands on no
 block is answered `no_origin`, off the layout being a place a train can be

@@ -122,9 +122,9 @@ describe("joining the railroad the broker runs", () => {
     expect(named.textContent!.trim()).toBe("toy");
   });
 
-  /** Retained values arrive as the subscription lands (ADR-0032), which is
-   *  what the bridge used to send on connect: the rows the apps left on the
-   *  broker before this page existed are the picture it opens with. */
+  /** Retained values arrive as the subscription lands (ADR-0032): the rows
+   *  the apps left on the broker before this page existed are the picture it
+   *  opens with. */
   it("is fed what was on the broker before it connected", async () => {
     const shell = await mounted("run");
     const broker = Broker.last!;

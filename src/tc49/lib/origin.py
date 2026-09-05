@@ -1,9 +1,11 @@
 """Whether a browser request came from the page the server is part of.
 
-One rule and two faces: the store's HTTP routes and the bridge's WebSocket
-handshake. Both are reachable from a browser, both are refused to a page on
-another origin, and the check is here rather than in either app so the two
-cannot drift (ADR-0055, ADR-0056).
+One rule, read at the store's HTTP routes: the face a browser reaches that is
+ours to check. The browser's other way in is the broker's WebSocket listener,
+where the same rule is stated as a proxy middleware on `/mqtt` rather than in
+an app — Mosquitto has no `Origin` setting (ADR-0056, ADR-0059 decision 4) —
+so the rule stays here, written once, however many faces read it (ADR-0055,
+ADR-0057).
 
 `Origin` is written by the browser and a page cannot forge it, which is what
 makes this a check rather than a convention. It is absent exactly where there
@@ -29,10 +31,11 @@ def is_own_page(origin: str | None, host: str | None) -> bool:
 
     A loopback origin is admitted whatever the `Host`, because a page served
     from this machine reaches a face on another port of it, and the ports are
-    not one origin: `?bridge=` names the bridge that way, and vite's proxy
-    rewrites `Host` to the target for the store's routes. Anyone who can serve
-    a page from here can reach either face with no browser at all, so the
-    clause gives away nothing the machine did not already have.
+    not one origin: a proxy that rewrites `Host` to the target — which vite
+    did for the store's routes until #351 — leaves the two disagreeing.
+    Anyone who can serve a page from here can reach the face with no browser
+    at all, so the clause gives away nothing the machine did not already have
+    (ADR-0057).
     """
     if origin is None:
         return True

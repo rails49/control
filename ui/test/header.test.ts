@@ -209,7 +209,7 @@ describe("what the band marks as unsaved", () => {
 
 describe("the status the band takes over", () => {
   /** A region with room in it rather than a string: per-container and
-   *  hardware reachability belong beside the store and the bridge, and the
+   *  hardware reachability belong beside the store and the broker, and the
    *  slot is where `2a-docker` puts them (#167). */
   it("gathers what is answering into one area with room in it", async () => {
     const header = await band({
@@ -241,7 +241,7 @@ describe("the status the band takes over", () => {
     expect(reads(await band(), ".trouble")).toBeNull();
   });
 
-  it("says whether the bridge is answering a joined session", async () => {
+  it("says whether the broker is answering a joined session", async () => {
     expect(reads(await band({ joined: true, linked: true }), ".link")).toBe(
       "connected",
     );
@@ -250,8 +250,8 @@ describe("the status the band takes over", () => {
     );
   });
 
-  /** With no session joined there is no bridge to be answering. */
-  it("says nothing about a bridge off a joined session", async () => {
+  /** With no session joined there is no broker to be answering. */
+  it("says nothing about a broker off a joined session", async () => {
     expect(reads(await band({ linked: true }), ".link")).toBeNull();
   });
 
@@ -345,7 +345,7 @@ describe("commanding the supply", () => {
     return heard;
   }
 
-  /** A band on a joined session with the bridge answering. */
+  /** A band on a joined session with the broker answering. */
   const LIVE = { joined: true, linked: true };
 
   it("offers ON, STOP and OFF on a joined session", async () => {
@@ -362,10 +362,10 @@ describe("commanding the supply", () => {
     expect(presses(await band()).length).toBe(0);
   });
 
-  /** A bridge that is not answering would swallow the press, so the button
+  /** A broker that is not answering would swallow the press, so the button
    *  is dead rather than pretending it landed. Dead and not hidden: the row
    *  must not move under the hand. */
-  it("is dead while the bridge is not answering", async () => {
+  it("is dead while the broker is not answering", async () => {
     const header = await band({ joined: true, linked: false });
     expect(presses(header).map((one) => one.disabled)).toEqual([true, true, true]);
   });

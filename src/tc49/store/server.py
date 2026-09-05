@@ -47,8 +47,9 @@ and a roster is not. A roster arriving without a car is that car removed, so
 removing one needs no verb.
 
 `/rosters/<name>/trains` is the run views': a run is built from a railroad, and
-its stock is the railroad's roster (ui/PANEL.md, ADR-0039), the bridge relaying
-the bus rather than describing the run. The panel reads a train's length off it
+its stock is the railroad's roster (ui/PANEL.md, ADR-0039); what the run is
+doing is the bus's to say and never this face's. The run view reads a train's
+length off it
 and the throttle reads what a person driving that train can switch
 (ui/THROTTLE.md), both of them derived from the cars the train is made of. It
 is a path of its own because it is a *derived* answer and deliberately
@@ -104,8 +105,9 @@ is the trust boundary" ever meant (ADR-0055, ADR-0042). A request with no
 `Origin` at all is a native client and goes through: the LAN boundary is
 unchanged.
 
-The panel later adds a WebSocket bridge from `tc49/#` alongside this
-(ui/PANEL.md). That is not a store operation and does not live here.
+The run view reads `tc49/#` from the broker alongside this, over its own
+WebSocket listener (ui/PANEL.md, ADR-0059 decision 4). That is not a store
+operation and does not live here.
 """
 
 import json
@@ -419,9 +421,9 @@ def make_server(
             """Whether this request comes from the page this server is part
             of, which is the only browser it serves (ADR-0055).
 
-            The rule itself is `lib/origin.py`, shared with the bridge's
-            handshake so the two faces a browser can reach cannot drift
-            (ADR-0057).
+            The rule itself is `lib/origin.py`, written once so that this
+            face and the proxy middleware in front of the broker's cannot
+            drift (ADR-0057, ADR-0059 decision 4).
             """
             return is_own_page(self.headers.get("Origin"), self.headers.get("Host"))
 

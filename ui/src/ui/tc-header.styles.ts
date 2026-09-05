@@ -142,8 +142,8 @@ export const headerStyles = css`
     color: var(--wrong);
   }
 
-  /* Whether the bridge is answering: the one thing a live session's band says
-     that a replay's does not. */
+  /* Whether the broker is answering: the one thing a live band says that a
+     replay's does not. */
   .link.joined {
     color: var(--lit);
   }

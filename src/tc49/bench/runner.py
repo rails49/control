@@ -311,14 +311,13 @@ def assemble_live(
     readings: TextIO | None = None,
     reports: TextIO | None = None,
 ) -> Assembly:
-    """The live-session wiring (#71): **a railroad and its roster**, and no
-    timetable. That is the whole of what `tc49 live` builds a run from (#171)
-    — a drawing, the trains the railroad owns, and a person who places them.
-    The bridge a caller attaches to the bus is the only inbound path.
+    """The live wiring (#71): **a railroad and its roster**, and no timetable.
+    That is the whole of what a run an operator drives is built from (#171) —
+    a drawing, the trains the railroad owns, and a person who places them.
 
     Which sources a run has is configuration rather than a rule (ADR-0036), and
     a live run is given no timetable at all: a scenario is the harness's file
-    format, and `tc49 live --scenario` replays one as gestures instead.
+    format, and `bench/replay.py` replays one as gestures instead.
 
     `trains` stands them before anything runs instead, and is the
     harness's own: the suite's runs, and the baseline `tc49 live --scenario`'s

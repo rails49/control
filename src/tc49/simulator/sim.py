@@ -279,10 +279,10 @@ class Simulator:
         """The live loop: the same queue with the waits slept on a wall
         clock, cut to the next scheduled event so a sensor fires at the time
         batch mode stamps it. `period_s` caps a wait so commands arriving
-        over the bridge are drained while nothing is scheduled; `stop` is
-        polled once per wait, and the interactive session ignores it and
-        stops on Ctrl-C instead. No quiescence termination: an idle railroad
-        keeps waiting until the session is stopped."""
+        from the bus are drained while nothing is scheduled; `stop` is
+        polled once per wait, and the deployed process sets it never and
+        stops on a signal instead. No quiescence termination: an idle
+        railroad keeps waiting until it is stopped."""
         self._bus.drain()  # the startup cascade: standing locks reach the trace
         while not stop():
             step = period_s

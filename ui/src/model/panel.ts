@@ -3,7 +3,7 @@
  *
  * No DOM anywhere. The component paints what this class answers — block
  * states, direction arrows, signal aspects, request markers, the lit route —
- * and a trace replay or the live bridge feed the same `apply`, which is what
+ * and a trace replay or the broker's own feed the same `apply`, which is what
  * lets the live panel consume this model unchanged.
  *
  * Everything is derived the way the dispatcher derives it: occupancy events

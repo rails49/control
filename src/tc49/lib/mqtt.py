@@ -104,7 +104,8 @@ def address(text: str) -> tuple[str, int]:
 
 
 class MqttBus:
-    """Connecting from construction, as the bridge serves from construction.
+    """Connecting from construction: an app is handed a bus that is already
+    on its way to the broker.
 
     The connection is made in the background, so an app comes up whether its
     broker is there yet or not (ADR-0059 decision 5): `wait_connected` is for

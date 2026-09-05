@@ -301,20 +301,17 @@ def is_state_topic(topic: str) -> bool:
 
 
 INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
-"""The topics a client writes: the panel's write surface, and what a broker's
-ACL will grant it once the bridge is gone (ADR-0034). Named here rather than
-in the bridge because the fact outlives the relay, and read off the rows'
-marks rather than off a prefix — a topic now names the component that
+"""The topics a client writes: the page's write surface, and what a broker's
+ACL would grant it were one built (ADR-0034, ADR-0059 decision 4). Read off
+the rows' marks rather than off a prefix — a topic names the component that
 responds to it, so the nine gestures sit under `schedule`, `dispatch` and
 `layout` beside everything else those three answer, and only the mark says a
 page may send them.
 
 Event topics only. A page has concurrent instances — two tabs are two of
 them — and concurrent writers may not write a state topic at all
-(ADR-0035), and the bridge relies on it besides: a client's frame is
-published from that client's own handler thread, and publishing a state topic
-would write the bus's last-value map from there. So `browser=True` belongs on
-event rows, and a state row must never carry it.
+(ADR-0035). So `browser=True` belongs on event rows, and a state row must
+never carry it.
 
 Gestures, never requests: `tc49/dispatch/request_submitted` carries no mark
 and is refused inbound like any other unmarked topic, which is what makes the

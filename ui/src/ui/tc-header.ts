@@ -159,7 +159,7 @@ export class TcHeader extends LitElement {
    * A region rather than a string, with room in it: per-container reachability
    * and eventually the hardware's belong here too, and what fills the slot is
    * the deployment design's (`2a-docker`). What is here today is the store not
-   * answering, the bridge on a joined session, whether the rails have power,
+   * answering, the broker on a live run, whether the rails have power,
    * how far the run has got, and the one coarse mark the loaded railroad makes
    * about itself.
    */
