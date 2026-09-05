@@ -217,6 +217,19 @@ report supersedes it (ADR-0030).
    id, a drop where it does not, and `state/power` failing towards `off`
    ([#181](https://github.com/rails49/control/issues/181)).
 
+   **A recorder on a bus where every publisher is in the same process may
+   fail loudly.** The rule exists because anything at all can publish on a
+   shared bus, so a consumer cannot trust what arrives. An instrument reading
+   a bus inside one process has no such publishers: everything on it is our
+   own code, a payload outside the inventory there is our own bug, and
+   failing on it is an assertion rather than a fault. That is the trace tap
+   (`lib/trace.py`), which runs in `bench` and in the suite and nowhere else
+   ([#421](https://github.com/rails49/control/issues/421)).
+
+   **A recorder that watches a broker may not**, and must record what it can.
+   The moment an instrument reads a bus anything can publish on, the reason
+   for the exception is gone and the rule binds it like every other consumer.
+
 **The inventory is open.** A new topic, a new *optional* field on an existing
 payload, or a new value in an enum whose readers declare a fallback
 (CONTEXT.md) is a compatible change: one communication issue

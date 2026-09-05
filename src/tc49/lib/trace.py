@@ -9,6 +9,18 @@ so no app can read one. A topic or payload field outside the inventory fails
 loudly: the trace is load-bearing, and a stray field must break a test, not
 rot quietly.
 
+That is the scoped exception to SYSTEM.md rule 4, which otherwise says a
+consumer never raises on a payload. The rule exists because anything at all
+can publish on a shared bus. This tap reads an in-process bus and nothing
+else — ``bench`` and the suite construct it and no app does — so every
+publisher on it is our own code and a payload outside the inventory is our own
+bug. Failing on it is an assertion, not a fault (#421).
+
+**Attaching this to a broker would take the exception away with it.** There
+anything with credentials publishes, the reason for failing loudly is gone,
+and a tap must record what it can instead. The rule and its limit are stated
+together in SYSTEM.md beside rule 4.
+
 ``event`` is the topic's leaf, which the inventory keeps unique — except on
 a **device row**, where it is the key past ``tc49/layout/state/``: the
 address is trailing levels a railroad's wiring decides, so a leaf there
