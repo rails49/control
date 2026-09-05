@@ -115,6 +115,13 @@ export class TcStock extends LitElement {
   /** The model being written, `null` while the dialog is shut. */
   @state() private making: Draft | null = null;
 
+  /** What the New-model dialog was refused with, in the words of whichever
+   *  refused it, and `null` where nothing was. The dialog's own rather than
+   *  the screen's `trouble`: the two are unrelated surfaces, so sharing one
+   *  state said a refusal about the dialog under the Trains heading as well,
+   *  and left it standing there once the dialog was gone (#446). */
+  @state() private refusal: string | null = null;
+
   /** Bumped after each edit: `Stock` keeps its identity across one, so
    *  rendering is asked for rather than observed. */
   @state() private beat = 0;
@@ -707,7 +714,7 @@ export class TcStock extends LitElement {
     const making = this.making;
     if (making === null) return nothing;
     return html`
-      <sl-dialog open label="New model" @sl-after-hide=${() => (this.making = null)}>
+      <sl-dialog open label="New model" @sl-after-hide=${this.shut}>
         <div class="field">
           <label for="model">Name</label>
           <input
@@ -755,8 +762,8 @@ export class TcStock extends LitElement {
             Add a function
           </button>
         </div>
-        ${this.trouble === null ? nothing : html`<p class="trouble">${this.trouble}</p>`}
-        <sl-button slot="footer" @click=${() => (this.making = null)}>Cancel</sl-button>
+        ${this.refusal === null ? nothing : html`<p class="trouble">${this.refusal}</p>`}
+        <sl-button slot="footer" @click=${this.shut}>Cancel</sl-button>
         <sl-button slot="footer" variant="primary" class="create" @click=${this.create}>
           Create
         </sl-button>
@@ -802,6 +809,13 @@ export class TcStock extends LitElement {
     `;
   }
 
+  /** The dialog put away, and what it was refused with put away in the same
+   *  breath: a sentence about a dialog that is gone is about nothing (#446). */
+  private shut(): void {
+    this.making = null;
+    this.refusal = null;
+  }
+
   private drafting(part: Partial<Draft>): void {
     this.making = { ...this.making!, ...part };
   }
@@ -819,9 +833,9 @@ export class TcStock extends LitElement {
     const making = this.making;
     const stock = this.stock;
     if (making === null || stock === null) return;
-    const trouble = this.wrong(making, stock);
-    if (trouble !== null) {
-      this.trouble = trouble;
+    const refused = this.wrong(making, stock);
+    if (refused !== null) {
+      this.refusal = refused;
       return;
     }
     const functions: Record<string, ModelFn> = {};
@@ -835,11 +849,12 @@ export class TcStock extends LitElement {
     try {
       await saveModel(model);
       stock.putModel(model);
-      this.making = null;
-      this.trouble = null;
-      this.beat++;
-    } catch (refused) {
-      this.trouble = said(refused);
+      this.shut();
+      // The catalogue has a row it had not got, so this is an edit that cannot
+      // refuse: the screen redraws and what it last said is taken down.
+      this.did(null);
+    } catch (trouble) {
+      this.refusal = said(trouble);
     }
   };
 
