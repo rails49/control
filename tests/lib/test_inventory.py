@@ -28,6 +28,7 @@ SENSOR = "tc49/layout/state/device/sensor"
 OBSERVED_POINT = "tc49/layout/state/device/point"
 OBSERVED_TRACK = "tc49/layout/state/device/track"
 LINK = "tc49/layout/state/device/link"
+REFUSED = "tc49/layout/state/device/refused"
 MODE_WANTED = "tc49/layout/mode_wanted"
 THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 MODE = "tc49/layout/state/mode"
@@ -188,6 +189,7 @@ def test_the_observed_rows_state_their_fields_in_order() -> None:
     assert DEVICE_TOPICS[OBSERVED_POINT].fields == (AT, "addr", "position")
     assert DEVICE_TOPICS[OBSERVED_TRACK].fields == (AT, "power", "reason")
     assert DEVICE_TOPICS[LINK].fields == (AT, "id", "link", "detail")
+    assert DEVICE_TOPICS[REFUSED].fields == (AT, "id", "addr", "detail")
 
 
 def test_a_sensor_is_addressed_by_the_block_end_it_watches() -> None:
@@ -208,6 +210,18 @@ def test_a_link_is_keyed_by_whatever_the_publisher_calls_itself() -> None:
     it (ADR-0059)."""
     assert split_device(device_topic(LINK, "the shed")) == (LINK, "the shed")
     assert DEVICE_TOPICS[LINK].address == "id"
+
+
+def test_a_refusal_is_keyed_by_the_publisher_and_not_by_the_device() -> None:
+    """The row `device/link` is keyed the same way and for a reason of its
+    own: a refusal is the publisher's report on its own last exchange rather
+    than a state of the thing addressed, so keying it by device address would
+    ask a translator to remember which addresses are refusing and when they
+    stop — the table no translator holds (ADR-0063). The address the refused
+    command named rides in the payload as ``addr`` and is optional, a refusal
+    that had no address having none to give."""
+    assert split_device(device_topic(REFUSED, "the shed")) == (REFUSED, "the shed")
+    assert DEVICE_TOPICS[REFUSED].address == "id"
 
 
 def test_the_two_halves_of_the_vocabulary_are_named_apart() -> None:

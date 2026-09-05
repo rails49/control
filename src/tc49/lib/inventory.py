@@ -129,6 +129,9 @@ DEVICE_TOPICS: dict[str, Topic] = {
     "tc49/layout/state/device/point": Topic((AT, "addr", "position"), address="addr"),
     "tc49/layout/state/device/track": Topic((AT, "power", "reason")),
     "tc49/layout/state/device/link": Topic((AT, "id", "link", "detail"), address="id"),
+    "tc49/layout/state/device/refused": Topic(
+        (AT, "id", "addr", "detail"), address="id"
+    ),
 }
 """The device vocabulary under the layout interface, both halves of it: the
 `wanted/` rows are what the hardware should do and the `device/` rows are what
@@ -177,6 +180,22 @@ ever waiting for one it has not heard (ADR-0058, ADR-0059). `device/track`
 carries the free-text `reason` for the same person: the participant that
 reports the supply and cannot reach it says why on the row itself, rather than
 leaving them a second row to find.
+
+`device/refused` is no device state at all, which is why it is the one
+observed row nothing folds: it is the publisher's report on its own last
+exchange, keyed by whatever it calls itself as `device/link` is, carrying the
+``addr`` the refused command named where it had one and free text for the
+reason. Each refusal overwrites the last, so nothing has to remember which
+addresses are refusing — the table no translator holds — and a UI that wants a
+per-device view builds it from the stream. What it catches is misconfiguration
+— an address the hardware does not have, a value out of range, an aspect a
+mast will not accept — which is common and otherwise entirely silent; what it
+misses is hardware that answers and does not obey, which no protocol reports.
+A refusal that is published happened, and one that is not published is no
+evidence that none occurred: where a participant cannot attribute a refusal to
+its own command it publishes nothing, and DEVICES.md says which those are
+(ADR-0063, #463). `layout` does not read it — nothing branches on it, and it
+is there for a person.
 
 Separate from ``TOPICS`` rather than in it because ``TOPICS`` maps a whole
 topic to its field order, and a device row's whole topic is not knowable until

@@ -94,6 +94,65 @@ def test_the_unaddressed_device_rows_are_named_the_same_way() -> None:
     ]
 
 
+def test_a_refusal_is_named_by_its_row_and_keyed_by_the_publisher() -> None:
+    """The publisher's report on its own last exchange, keyed by whatever it
+    calls itself as `device/link` is (ADR-0063). The line names the key past
+    `tc49/layout/state/` like every other device row — the leaf is the
+    publisher's id and says nothing about which row it came on — and the
+    payload repeats that id beside the address the refused command named."""
+    clock = Clock()
+    bus = InProcessBus(clock)
+    out = io.StringIO()
+    TraceTap(bus, out, clock)
+
+    bus.publish(
+        "tc49/layout/state/device/refused/the shed",
+        {"id": "the shed", "addr": "5", "detail": "no such accessory"},
+    )
+    bus.drain()
+
+    assert out.getvalue() == (
+        '{"time":0.0,"event":"device/refused","at":0.0,'
+        '"id":"the shed","addr":"5","detail":"no such accessory"}\n'
+    )
+
+
+def test_a_refusal_with_no_address_is_recorded_without_one() -> None:
+    """`addr` is optional: a command the hardware could not parse at all has
+    no address to attribute the refusal to, and the row says so by leaving the
+    field out rather than by inventing one."""
+    clock = Clock()
+    bus = InProcessBus(clock)
+    out = io.StringIO()
+    TraceTap(bus, out, clock)
+
+    bus.publish(
+        "tc49/layout/state/device/refused/the shed",
+        {"id": "the shed", "detail": "unparseable"},
+    )
+    bus.drain()
+
+    assert out.getvalue() == (
+        '{"time":0.0,"event":"device/refused","at":0.0,'
+        '"id":"the shed","detail":"unparseable"}\n'
+    )
+
+
+def test_a_refusal_field_outside_the_row_fails_loudly() -> None:
+    """An optional field is one the inventory names and a frame may omit, and
+    it is not a licence to carry a field the row does not name: the new row is
+    checked like every other one."""
+    bus = InProcessBus(Clock())
+    TraceTap(bus, io.StringIO(), Clock())
+    bus.publish(
+        "tc49/layout/state/device/refused/the shed",
+        {"id": "the shed", "reason": "no such accessory"},
+    )
+
+    with pytest.raises(ValueError):
+        bus.drain()
+
+
 def test_the_time_stamp_reads_the_run_clock_as_it_records() -> None:
     clock = Clock()
     bus = InProcessBus(clock)
