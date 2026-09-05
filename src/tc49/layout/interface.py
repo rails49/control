@@ -1068,12 +1068,13 @@ class LayoutInterface:
 
         **An `off` that is applied leaves the railroad at rest**, the traction
         rows zeroed the way they are at startup (#435, ADR-0054). "The
-        railroad comes up at rest" is a promise about a power cycle as well as
-        about a process start, and a power cycle is not a process restart, so
-        the startup rule does not reach it: an arrival zeroes the row of a
-        train this app drives and nothing zeroes the row of one a person holds
-        in a throttle, so a plain `off` would otherwise leave a speed standing
-        and the next `on` would bring current back over it.
+        railroad comes up at rest" is a promise about a **power off** and the
+        `on` after it as well as about a process start, and the supply going
+        is not a restart, so the startup rule does not reach it: an arrival
+        zeroes the row of a train this app drives and nothing zeroes the row
+        of one a person holds in a throttle, so a plain `off` would otherwise
+        leave a speed standing and the next `on` would bring current back over
+        it.
 
         The zeros go out **before** the word, and the order is load-bearing:
         a translator acts on desired rows as they arrive, so zeros first means
