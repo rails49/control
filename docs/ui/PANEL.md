@@ -723,10 +723,18 @@ the two differ because what the wait risks is a train stranded where no sensor
 will ever say it stopped, and all its caution costs is a button that goes on
 saying *DRAINING…* against a dispatcher too old to answer it.
 
-**Three things drop the wait, and none of them cuts.** A `state/run` row
-reading `running` while it stands is a drain somebody abandoned — a GO on this
-panel or on another — and the wait goes with it, rather than standing until a
-HOLD hours later cuts the power out of a press the person had moved on from.
+**Three things drop the wait, and none of them cuts.** A `state/run` row whose
+run word has *changed* to `running` while it stands is a drain somebody
+abandoned — a GO on this panel or on another — and the wait goes with it,
+rather than standing until a HOLD hours later cuts the power out of a press the
+person had moved on from. **The change and not the value**: the dispatcher
+republishes the row whenever `moving` moves under a standing run word, so a
+running run whose last train arrives says `running` again with `moving` false,
+and that is the drain still outstanding rather than one released
+([#441](https://github.com/rails49/control/issues/441)). It is news about the
+run word that decides this wait, and never news about `moving` — which is what
+the other half of the same rule already says, `moving` being read only
+alongside `held`.
 ON and STOP drop it as they write their own frame, and a session that goes
 away takes it with it. **ON is the way out of a wait**, a supply going away
 out of a press the person has moved on from being the surprise this button
