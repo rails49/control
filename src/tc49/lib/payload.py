@@ -918,8 +918,8 @@ class Ordering:
     publisher's reconnect or a retransmission with more than one message in
     flight (ADR-0008). A state topic keeps the last message published on it,
     so a pair delivered backwards would leave the *older* value standing, and
-    the durable file would write it to disk. The stamp is what tells the two
-    apart, and it does not care who published: whoever wrote the later one
+    the broker would go on handing it to every late subscriber. The stamp is
+    what tells the two apart, and it does not care who published: whoever wrote the later one
     wrote the value that is kept.
 
     State topics only. An event topic reports something that happened and is

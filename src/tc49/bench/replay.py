@@ -1,8 +1,8 @@
 """A scenario played back as a person's gestures (#171).
 
 A scenario is the harness's file format — a roster's worth of placement and a
-canned request list — and `tc49 live --scenario` is the harness running one as
-a test run. It does that from **outside**: one
+canned request list — and this is the harness running one as a test run. It
+does that from **outside**: one
 `tc49/dispatch/placement_wanted` per train, a
 `tc49/schedule/reversal_wanted` where the document faces a train the other
 way, `tc49/dispatch/run_wanted` to release the hold, and then the requests in

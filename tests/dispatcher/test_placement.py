@@ -19,7 +19,7 @@ import pytest
 
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.dispatcher import FullRoute, Incremental
-from tc49.lib import durable
+from tc49.lib.bus import Payload
 from tc49.lib.scenario import TrainSpec
 from tests.harness import RUN_WANTED, events, load, press, stock, ticks
 
@@ -386,25 +386,21 @@ def test_a_placement_clears_whatever_the_train_was_crossing(tmp_path: Path) -> N
     One entry, and no more: the gesture names one train, and every other one
     the last session left between two blocks is still between them.
     """
-    state = tmp_path / "session.json"
-    durable.write(
-        state,
-        {
-            "tc49/dispatch/state/allocation": {
-                "trains": {"freight_1": "yard_w", "leviathan": "dn_e"},
-                "crossing": {
-                    "freight_1": "west_ladder.to_dn",
-                    "leviathan": "east_ladder.from_dn",
-                },
-                "locks": {},
-                "requests": [],
-            }
-        },
-    )
+    kept: dict[str, Payload] = {
+        "tc49/dispatch/state/allocation": {
+            "trains": {"freight_1": "yard_w", "leviathan": "dn_e"},
+            "crossing": {
+                "freight_1": "west_ladder.to_dn",
+                "leviathan": "east_ladder.from_dn",
+            },
+            "locks": {},
+            "requests": [],
+        }
+    }
     layout, _roster, _ = load("crossover-yard/meet")
     # No press: a session that adopted a picture comes up held (#154), which
     # is what makes the placement below acceptable at all.
-    assembly = assemble_live(layout, STOCK, two_trains(), state=state)
+    assembly = assemble_live(layout, STOCK, two_trains(), retained=kept)
     assembly.bus.drain()  # the opening statement, which no boundary has yet
     assert last(assembly, "run")["run"] == "held"
     assert last(assembly, "allocation")["crossing"] == {
@@ -435,25 +431,21 @@ def test_a_train_adoption_placed_nowhere_can_be_put_on_the_layout(
 
     So the placement has no standing lock to move, only one to take.
     """
-    state = tmp_path / "session.json"
-    durable.write(
-        state,
-        {
-            "tc49/dispatch/state/allocation": {
-                "trains": {"freight_1": "dn_e", "railcar_3": "yard_w"},
-                "crossing": {},
-                "locks": {},
-                "requests": [],
-            }
-        },
-    )
+    kept: dict[str, Payload] = {
+        "tc49/dispatch/state/allocation": {
+            "trains": {"freight_1": "dn_e", "railcar_3": "yard_w"},
+            "crossing": {},
+            "locks": {},
+            "requests": [],
+        }
+    }
     layout, _roster, _ = load("crossover-yard/meet")
     stood = {
         "freight_1": TrainSpec("yard_w", "A-to-B"),
         "railcar_3": TrainSpec("dn_w", "B-to-A"),
         "leviathan": TrainSpec("dn_e", "B-to-A"),
     }
-    assembly = assemble_live(layout, STOCK, stood, state=state)
+    assembly = assemble_live(layout, STOCK, stood, retained=kept)
     assembly.bus.drain()  # the opening statement, which no boundary has yet
     opening = last(assembly, "allocation")
     assert "freight_1" not in opening["trains"]
@@ -575,20 +567,16 @@ def test_a_removal_releases_everything_the_train_held(tmp_path: Path) -> None:
     between two of them (#154) — and it is also the train an operator most
     wants to lift out, there being no sensor that will ever say where it
     stopped."""
-    state = tmp_path / "session.json"
-    durable.write(
-        state,
-        {
-            "tc49/dispatch/state/allocation": {
-                "trains": {"freight_1": "yard_w", "leviathan": "dn_e"},
-                "crossing": {"freight_1": "west_ladder.to_dn"},
-                "locks": {},
-                "requests": [],
-            }
-        },
-    )
+    kept: dict[str, Payload] = {
+        "tc49/dispatch/state/allocation": {
+            "trains": {"freight_1": "yard_w", "leviathan": "dn_e"},
+            "crossing": {"freight_1": "west_ladder.to_dn"},
+            "locks": {},
+            "requests": [],
+        }
+    }
     layout, _roster, _ = load("crossover-yard/meet")
-    assembly = assemble_live(layout, STOCK, two_trains(), state=state)
+    assembly = assemble_live(layout, STOCK, two_trains(), retained=kept)
     assembly.bus.drain()
 
     remove(assembly, "freight_1")
@@ -757,20 +745,16 @@ def test_a_hand_placed_train_no_document_placed_survives_a_restart(
     without it would believe the block free and hand it to the next train,
     with a locomotive in it.
     """
-    state = tmp_path / "session.json"
-    durable.write(
-        state,
-        {
-            "tc49/dispatch/state/allocation": {
-                "trains": {"shunter": "up_w"},
-                "crossing": {},
-                "locks": {},
-                "requests": [],
-            }
-        },
-    )
+    kept: dict[str, Payload] = {
+        "tc49/dispatch/state/allocation": {
+            "trains": {"shunter": "up_w"},
+            "crossing": {},
+            "locks": {},
+            "requests": [],
+        }
+    }
     layout, _roster, _ = load("crossover-yard/meet")
-    assembly = assemble_live(layout, STOCK, state=state)
+    assembly = assemble_live(layout, STOCK, retained=kept)
     assembly.bus.drain()
 
     picture = last(assembly, "allocation")
@@ -783,20 +767,16 @@ def test_a_picture_naming_stock_the_railroad_lacks_is_not_adopted(
 ) -> None:
     """The roster is what makes a train known, so a name the railroad does not
     own is a picture from another railroad or another day."""
-    state = tmp_path / "session.json"
-    durable.write(
-        state,
-        {
-            "tc49/dispatch/state/allocation": {
-                "trains": {"ghost": "up_w"},
-                "crossing": {},
-                "locks": {},
-                "requests": [],
-            }
-        },
-    )
+    kept: dict[str, Payload] = {
+        "tc49/dispatch/state/allocation": {
+            "trains": {"ghost": "up_w"},
+            "crossing": {},
+            "locks": {},
+            "requests": [],
+        }
+    }
     layout, _roster, _ = load("crossover-yard/meet")
-    assembly = assemble_live(layout, STOCK, state=state)
+    assembly = assemble_live(layout, STOCK, retained=kept)
     assembly.bus.drain()
 
     assert last(assembly, "allocation")["trains"] == {}

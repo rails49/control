@@ -160,13 +160,13 @@ replaced by the one publishing it. No event payload carries a stamp and none
 needs one — a detector reports a level, so a repeat re-asserts what a consumer
 holds, and a request is keyed by a unique id, so duplicates drop.
 
-`at` orders messages **within one session and says nothing across a restart**.
-The clock is seconds since the session started and resets to zero every run,
-so a stamp carried out of the last session would beat every genuine report the
-new one makes for as long as the old run was long. The durable file stores
-`at` beside the value; the bus re-stamps what it loads with this session's
-clock, which makes the restored picture the oldest thing known and lets the
-first real report supersede it (ADR-0030).
+`at` orders messages **within one run and says nothing across a restart**. On
+the in-process binding the clock is seconds since the run started and resets
+to zero every time, so a stamp carried out of the last run would beat every
+genuine report the new one makes for as long as the old run was long; on the
+broker it is wall time, processes sharing no run clock (ADR-0059 decision 1).
+Either way what a restart adopts is a starting assumption, and the first real
+report supersedes it (ADR-0030).
 
 **Four rules govern the topics listed in the next section.**
 
@@ -541,7 +541,7 @@ payload is read defensively, and one that fails the read is dropped.
   make across its block, `<block>.A-to-B` or `<block>.B-to-A`; a train facing
   `<block>.A-to-B` would depart through that block's B end (CONTEXT.md,
   **Facing**). The bare end letter this value once carried is refused rather
-  than read, a state file written by an older build losing that train's
+  than read, a retained row written by an older build losing that train's
   facing rather than turning it round.
 
 #### `dispatch`
@@ -1385,8 +1385,8 @@ comes up with power off** — `layout` starts having written `off`, so nothing
 moves and no turnout throws until a person turns it on — and thereafter
 `layout` writes the value it was told to write and never `off` of its own
 accord. **It also comes up at rest**: `layout` starts having written `0.0`
-over every retained `wanted/traction` row, so a speed a previous session left
-on a durable bus is not replayed to a station and no locomotive rolls on the
+over every retained `wanted/traction` row, so a speed a previous run left on
+the broker is not replayed to a station and no locomotive rolls on the
 power-on
 ([ADR-0054](adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
 `wanted/point` replays instead — a point has no resting value to write. **`state/power` is folded from what the hardware reports**, never from

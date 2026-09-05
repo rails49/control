@@ -22,7 +22,8 @@ from tc49.bench.runner import (
     run_scenario,
 )
 from tc49.bench.runner import load as load_scenario
-from tc49.lib.bus import Payload
+from tc49.lib.bus import InProcessBus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster, Train
 from tc49.lib.scenario import Scenario
@@ -42,6 +43,7 @@ __all__ = [
     "load",
     "press",
     "railroads",
+    "retaining",
     "run",
     "run_wanted",
     "runs",
@@ -75,16 +77,35 @@ def load(scenario_id: str) -> tuple[Layout, Roster, Scenario]:
     return load_scenario(AssetStore(ASSETS), scenario_id)
 
 
-def live(scenario_id: str, state: Path | None = None) -> Assembly:
+def live(scenario_id: str, retained: dict[str, Payload] | None = None) -> Assembly:
     """A live run over the railroad a scenario names, its trains stood where
     that document stands them.
 
-    `tc49 live` builds a run from a railroad alone and lets a person place the
-    trains (#171); a test that wants a railroad already laid out asks the
-    harness to stand them, which is what `--scenario` replays as gestures.
+    A run an operator drives is built from a railroad alone and a person
+    places the trains (#171); a test that wants a railroad already laid out
+    asks the harness to stand them, which is what `bench/replay.py` replays as
+    gestures. `retained` is what the broker was already holding when these
+    apps came up, for a test about what an app adopts.
     """
     layout, roster, scenario = load(scenario_id)
-    return assemble_live(layout, roster, scenario.trains, state=state)
+    return assemble_live(layout, roster, scenario.trains, retained=retained)
+
+
+def retaining(rows: dict[str, Payload], clock: Clock | None = None) -> InProcessBus:
+    """A bus with those rows already on their topics, as a broker holds them
+    for an app that comes up under a running railroad (ADR-0059, decision 3).
+
+    Published and drained with nothing subscribed yet, so what is left is the
+    last-value map alone: an app built on this bus adopts its own row at
+    construction exactly as it adopts the broker's retained one, and nothing
+    is delivered twice. Only a state row survives the round trip, which is the
+    bus keeping its own promise whatever a test asks it to hold.
+    """
+    bus = InProcessBus(clock or Clock())
+    for topic, value in rows.items():
+        bus.publish(topic, value)
+    bus.drain()
+    return bus
 
 
 def railroads() -> list[str]:

@@ -25,12 +25,11 @@ import type { Drawing } from "./drawing.js";
  *  read that got no document: both begin by asking the store, so the wait is
  *  one number and lives beside the routes rather than in either view.
  *
- *  The loaded railroad **is** the session (#171), so a page with a railroad on
- *  it wants to be joined to that railroad and there is no choice left for a
- *  person to make: the band's picker says nothing about a name it is already
- *  showing, and a session that went is not a reason to make somebody reload.
+ *  The loaded railroad **is** the run (#171), so a page with a railroad on it
+ *  wants to be on that railroad and there is no choice left for a person to
+ *  make: a store that went away is not a reason to make somebody reload.
  *  Three seconds is long enough not to hammer a port nothing is listening on,
- *  and short enough that restarting `tc49 live` under an open tab reconnects
+ *  and short enough that restarting the store under an open tab reconnects
  *  while the operator is still looking at it. */
 export const RETRY_MS = 3000;
 

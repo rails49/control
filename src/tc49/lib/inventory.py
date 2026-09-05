@@ -55,10 +55,10 @@ value for good. A consumer keeps the later stamp and ignores the earlier
 one, whoever published it — `tc49.lib.payload.Ordering` (#240).
 
 Stamped by the binding that publishes and never by an app, so no app
-component reads a clock (ADR-0009). It orders messages **within one
-session** and says nothing across a restart: the clock resets to zero every
-run, which is why a value loaded from the durable file is re-stamped as it
-is read (SYSTEM.md, ADR-0030)."""
+component reads a clock (ADR-0009). It orders messages **within one run**
+and says nothing across a restart: the in-process clock resets to zero every
+run and the broker stamps from wall time, so what a restarted app adopts is
+the oldest thing it knows (SYSTEM.md, ADR-0030)."""
 
 
 TOPICS: dict[str, Topic] = {

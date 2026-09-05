@@ -48,20 +48,18 @@ wall clock, polls for commands each period, and never terminates on
 quiescence. The dispatcher cannot tell the modes apart: ADR-0009 stands,
 and the same run leaves the same trace.
 
-Given a path it keeps its **own placement file** (#123): where each train
-stands, written when one moves and read at startup. On a real railroad the
-steel is the persistence — the trains are simply still there in the morning
-— and the simulator stands in for the steel, so this stays inside the app.
-No bus topic, no inventory entry, and nothing about simulation in the
-contract (ADR-0030).
+Where each train stands is held in memory and goes with the process. On a
+real railroad the steel is the persistence — the trains are simply still
+there in the morning — and this binding stands in for the steel, so where
+that memory lives in a container is open and on no topic: retained state
+lives in the broker and nowhere else, and a placement is nothing the
+inventory names (ADR-0030, ADR-0059 decision 3, `tc49/simulator/__main__.py`).
 """
 
 import time
 from collections.abc import Callable
 from heapq import heappop, heappush
-from pathlib import Path
 
-from tc49.lib import durable
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import ON
@@ -73,13 +71,6 @@ from tc49.lib.payload import Command, command, named_train, placement
 _Event = tuple[float, int, str, str, str]  # (time, seq, leaf, train, block)
 
 
-def placement_file(state: Path) -> Path:
-    """Where the simulator keeps its placement, beside the session's state
-    file: a sibling and never the same file, the bus's holding the contract's
-    retained values and this one the steel."""
-    return durable.sibling(state, "placement")
-
-
 class Simulator:
     def __init__(
         self,
@@ -87,7 +78,6 @@ class Simulator:
         layout: Layout,
         clock: Clock,
         position: dict[str, str] | None = None,
-        placement: Path | None = None,
         transit_s: float = 30.0,
         clear_s: float = 30.0,
     ) -> None:
@@ -102,26 +92,15 @@ class Simulator:
         (`bench/runner.py`). A run an operator drives is given none: its steel
         arrives block by block as the dispatcher accepts each placement.
 
-        `placement`: the file this railroad's steel stands in for, or None to
-        forget everything when the process ends.
-
-        The file is the steel's own memory and comes first: a train it names
-        is where it was left, including one no document places, which is a
-        train a hand put on the rails (ADR-0039). A train the file does not
-        name — one added since, or a first run — starts where it was built
-        standing, if anywhere.
-
         `transit_s` and `clear_s`: the fixed delays — head to the far
         detector, then tail past the near one.
         """
         self._bus = bus
         self._layout = layout
         self._clock = clock
-        self._placement = placement
         self._transit_s = transit_s
         self._clear_s = clear_s
-        stood = durable.read(placement) if placement is not None else {}
-        self._position = dict(position or {}) | dict(stood)
+        self._position = dict(position or {})
         self._events: list[_Event] = []
         self._seq = 0
         self._rolling: set[str] = set()  # trains between blocks, mid-move
@@ -176,8 +155,6 @@ class Simulator:
         if placed is None or placed.block is None:
             return
         self._position[placed.train] = placed.block
-        if self._placement is not None:
-            durable.write(self._placement, self._position)
 
     def _on_removed(self, topic: str, payload: Payload) -> None:
         """A hand lifted a train off the layout (#170).
@@ -191,8 +168,6 @@ class Simulator:
         if train is None:
             return
         self._position.pop(train, None)
-        if self._placement is not None:
-            durable.write(self._placement, self._position)
 
     def _near_end(self, commanded: Command) -> str | None:
         """The block a train must stand in to take this move's transit: the
@@ -246,13 +221,11 @@ class Simulator:
 
     def _fire(self, event: _Event) -> None:
         """One detector speaks. The head arriving is when the train's
-        position moves — and so when the placement file is written — and the
-        tail clearing is when it stops rolling and stands again."""
+        position moves, and the tail clearing is when it stops rolling and
+        stands again."""
         _at, _seq, leaf, train, block = event
         if leaf == "block_occupied":
             self._position[train] = block
-            if self._placement is not None:
-                durable.write(self._placement, self._position)
         else:
             self._rolling.discard(train)
         self._bus.publish(f"tc49/layout/{leaf}", {"block": block})

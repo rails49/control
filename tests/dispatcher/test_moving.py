@@ -16,9 +16,6 @@ Driven at the bus, which is where a person's press arrives: the gestures in,
 `state/run` and the trace out.
 """
 
-import json
-from pathlib import Path
-
 from tc49.bench.runner import Assembly
 from tests.harness import live, press, run_rows, runs, ticks
 
@@ -93,32 +90,29 @@ def test_the_drains_completion_is_held_and_not_moving() -> None:
     assert run_rows(assembly)[-1] == ("held", False)
 
 
-def test_a_restored_crossing_hint_with_no_request_is_moving(tmp_path: Path) -> None:
+def test_a_restored_crossing_hint_with_no_request_is_moving() -> None:
     """A hint the last session left is a train the dispatcher believes is
     between two blocks, and nothing but a person clears it (#123, #154).
     There is no request behind it — the queue comes back empty — so `active`
     is empty and the hint alone is what says the railroad is not still."""
-    state = tmp_path / "session.json"
-    state.write_text(
-        json.dumps(
-            {
-                ALLOCATION: {
-                    "trains": {"express_2": "up_w", "freight_1": "dn_e"},
-                    "crossing": {"freight_1": "crossover.dn_straight"},
-                    "locks": {},
-                    "requests": [],
-                }
+    assembly = live(
+        "crossover-yard/meet",
+        {
+            ALLOCATION: {
+                "trains": {"express_2": "up_w", "freight_1": "dn_e"},
+                "crossing": {"freight_1": "crossover.dn_straight"},
+                "locks": {},
+                "requests": [],
             }
-        )
+        },
     )
-    assembly = live("crossover-yard/meet", state=state)
     ticks(assembly, 1)
 
     assert not assembly.dispatcher.state.active
     assert run_rows(assembly) == [("held", True)]
 
 
-def test_lifting_the_wedged_train_off_stops_the_moving(tmp_path: Path) -> None:
+def test_lifting_the_wedged_train_off_stops_the_moving() -> None:
     """The documented way out of a drain a train holds open forever: hold,
     and take the train off the layout (ADR-0039, #294). The gesture drops the
     hint and the request together, and it is not a sweep — so the row is

@@ -10,8 +10,6 @@ next honest frame is acted on as if the drop had never happened.
 Driven at the layout interface: a command in, sensor events out.
 """
 
-import json
-from pathlib import Path
 from typing import cast
 
 from tc49.bench.runner import placement
@@ -40,10 +38,10 @@ def sensors(bus: InProcessBus) -> list[tuple[str, Payload]]:
     return seen
 
 
-def build(path: Path | None = None) -> tuple[InProcessBus, Simulator]:
+def build() -> tuple[InProcessBus, Simulator]:
     layout, _roster, scenario = load("crossover-yard/meet")
     bus = InProcessBus(Clock())
-    return bus, simulator(bus, layout, placement(scenario.trains), path)
+    return bus, simulator(bus, layout, placement(scenario.trains))
 
 
 def send(bus: InProcessBus, topic: str, payload: object) -> None:
@@ -152,19 +150,18 @@ def test_a_command_carrying_a_field_the_binding_does_not_know_still_moves() -> N
     assert ("tc49/layout/block_occupied", {"block": "dn_w"}) in seen
 
 
-def test_a_placement_that_cannot_be_read_moves_no_steel(tmp_path: Path) -> None:
+def test_a_placement_that_cannot_be_read_moves_no_steel() -> None:
     """`train_placed` is the one thing besides a `move` that moves a train,
     so a frame claiming to be one is a frame claiming to have lifted a
-    locomotive. The file is the steel: none of these touches it, and the
-    honest placement after them does.
+    locomotive. Where the steel stands is what none of these touches and the
+    honest placement after them does, read off the block the next move
+    vacates.
 
     A null block is dropped with the unreadable ones: the fact never carries
     one — a train off the layout is `train_removed` — so a null says nothing
     about where steel stands (ADR-0039).
     """
-    path = tmp_path / "placement.json"
-    bus, _sim = build(path)
-    stood = {"express_2": "up_e", "freight_1": "yard_w"}
+    bus, sim = build()
 
     unreadable: list[object] = [
         "freight_1 in up_w",
@@ -177,21 +174,36 @@ def test_a_placement_that_cannot_be_read_moves_no_steel(tmp_path: Path) -> None:
     ]
     for payload in unreadable:
         send(bus, "tc49/dispatch/train_placed", payload)
-    assert not path.exists()
+
+    # Still standing where the document stood it, so this is the move it can
+    # make and `yard_w` is the block it leaves.
+    seen = sensors(bus)
+    send(bus, MOVE, HONEST)
+    tick(sim)
+    assert ("tc49/layout/block_vacated", {"block": "yard_w"}) in seen
 
     send(bus, "tc49/dispatch/train_placed", {"train": "freight_1", "block": "up_w"})
-    assert json.loads(path.read_text()) == {**stood, "freight_1": "up_w"}
+    send(
+        bus,
+        MOVE,
+        {
+            "train": "freight_1",
+            "connection": "crossover",
+            "transit": "up_to_dn",
+            "into": "dn_e",
+        },
+    )
+    tick(sim)
+    assert ("tc49/layout/block_vacated", {"block": "up_w"}) in seen
 
 
-def test_a_removal_that_cannot_be_read_takes_no_steel_away(tmp_path: Path) -> None:
+def test_a_removal_that_cannot_be_read_takes_no_steel_away() -> None:
     """The other half: a frame that names no train names no steel to take
     off, so the railroad is left as it was and the train still moves."""
-    path = tmp_path / "placement.json"
-    bus, sim = build(path)
+    bus, sim = build()
 
     for payload in ("freight_1", {}, {"train": None}, {"trains": ["freight_1"]}):
         send(bus, "tc49/dispatch/train_removed", payload)
-    assert not path.exists()
 
     seen = sensors(bus)
     send(bus, MOVE, HONEST)

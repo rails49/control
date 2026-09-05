@@ -515,7 +515,7 @@ supply going away below it moves `state/power` and never `wanted/track`.
 
 **And on startup the railroad is at rest.** The app also comes up having
 written `0.0` over every retained `wanted/traction` row it finds. A traction
-row is durable, so a bus that outlived the app hands the last session's speed
+row is retained, so a broker that outlived the app hands the last run's speed
 straight back and a translator sends it at the first connect — a locomotive
 rolling on the power-on with no grant and the run still held
 ([#333](https://github.com/rails49/control/issues/333)). Zero is written here

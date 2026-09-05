@@ -12,14 +12,12 @@ Driven at the bus: `publish(REQUESTS, payload)` and nothing else.
 """
 
 from collections.abc import Callable
-from pathlib import Path
 from typing import cast
 
 import pytest
 
 from tc49.bench.runner import DEFAULT_K, Assembly, assemble_live, placement
 from tc49.dispatcher import Dispatcher, FullRoute
-from tc49.lib import durable
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.scenario import Scenario, TrainSpec
@@ -155,7 +153,7 @@ def test_the_session_survives_every_unreadable_payload(assembly: Assembly) -> No
     assert events(assembly.trace, "request_completed", rid="freight_1-1")
 
 
-def test_a_request_for_a_train_off_the_layout_is_answered(tmp_path: Path) -> None:
+def test_a_request_for_a_train_off_the_layout_is_answered() -> None:
     """A known train that stands nowhere has no origin to depart from, so the
     request is answered rather than indexed for (ADR-0039, #175).
 
@@ -170,18 +168,14 @@ def test_a_request_for_a_train_off_the_layout_is_answered(tmp_path: Path) -> Non
     stands where the picture left `freight_1`; `railcar_3` sits in
     `freight_1`'s own starting block.
     """
-    state = tmp_path / "session.json"
-    durable.write(
-        state,
-        {
-            "tc49/dispatch/state/allocation": {
-                "trains": {"freight_1": "dn_e", "railcar_3": "yard_w"},
-                "crossing": {},
-                "locks": {},
-                "requests": [],
-            }
-        },
-    )
+    kept: dict[str, Payload] = {
+        "tc49/dispatch/state/allocation": {
+            "trains": {"freight_1": "dn_e", "railcar_3": "yard_w"},
+            "crossing": {},
+            "locks": {},
+            "requests": [],
+        }
+    }
     layout, _roster, _ = load("crossover-yard/meet")
     scenario = Scenario(
         name="unplaced",
@@ -197,7 +191,7 @@ def test_a_request_for_a_train_off_the_layout_is_answered(tmp_path: Path) -> Non
         layout,
         stock(freight_1=1100, railcar_3=600, leviathan=2000),
         scenario.trains,
-        state=state,
+        retained=kept,
     )
     assembly.bus.drain()
 
