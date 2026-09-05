@@ -25,7 +25,11 @@ The startup order is what a cold start needs:
 2. **The broker**, waited for the same way, because a publish made to a broker
    that is not there is dropped rather than queued (ADR-0050) — and this app's
    opening rows are the railroad coming up dark and at rest.
-3. **The traction rows a previous process left**, if the broker is holding
+3. **The picker**, subscribed before a word is published. What it carries is
+   a gesture, and an event is not retained, so a press landing before the
+   subscription is gone; the supply the gesture is conditional on comes with
+   it (ADR-0060, `lib/loading.py`).
+4. **The traction rows a previous process left**, if the broker is holding
    any. On the in-process binding they were in `last_values` synchronously and
    the constructor zeroed them as it ran; on a broker they arrive moments after
    the subscription does, so the wait is here, in the thing that assembles the
@@ -60,7 +64,7 @@ from tc49.layout.interface import WANTED_TRACTION, LayoutInterface
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
-from tc49.lib.loading import Loaded, dropped
+from tc49.lib.loading import Answering, dropped
 from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
 from tc49.lib.roster import Roster
 
@@ -137,27 +141,30 @@ def serve(
     it, so a restart resetting it is news to nobody (ADR-0009).
 
     The outer loop is one railroad each time round. This app is the one that
-    publishes which railroad that is, and it follows its own row: a person
-    loads a railroad while the apps run (ADR-0060), and what the row says is
-    what the railroad is. The desired rows go with the old one — a speed for
-    a locomotive the new railroad does not have, a position for a point it
-    does not have, and nothing would ever republish either.
+    publishes which railroad that is, so it is the one that **answers** the
+    picker rather than following the row: a person loads a railroad while the
+    apps run and the layout interface is what says which one is loaded
+    (ADR-0060). The desired rows go with the old one — a speed for a
+    locomotive the new railroad does not have, a position for a point it does
+    not have, and nothing would ever republish either.
     """
-    loaded = Loaded(railroad)
+    loaded = Answering(railroad)
     layout, roster = _documents(documents, loaded.name)
     log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
     if not _connected(bus, stop, log):
         return
     while not stop.is_set():
+        # First of all, where the five apps that follow the state row
+        # subscribe after they are built: what this one watches is a
+        # **gesture**, and an event is not retained, so a press landing
+        # anywhere before the subscription — in the window below, or between
+        # the app's opening rows and its own handlers — would simply be gone
+        # (ADR-0059, decision 5). It also picks up the supply this app is
+        # about to state, which is the precondition on the gesture.
+        loaded.follow(bus)
         _retained(bus, stop)
         clock = Clock()
         app = LayoutInterface(bus, layout, roster, clock)
-        # After the app is built and not before: the row is retained, so
-        # subscribing here is handed whatever it holds, and nothing this app
-        # does on the way up moves — a gesture published in the instant
-        # between an app's opening rows and its own subscriptions is lost,
-        # and that instant is not one to lengthen (ADR-0059, decision 5).
-        loaded.follow(bus)
         built = loaded.name
         log(f"up on '{built}', draining every {period_s}s")
         started = time.monotonic()
@@ -180,7 +187,7 @@ def _documents(documents: Documents, railroad: str) -> tuple[Layout, Roster]:
 
 
 def _loading(
-    documents: Documents, loaded: Loaded, built: str, log: Callable[[str], None]
+    documents: Documents, loaded: Answering, built: str, log: Callable[[str], None]
 ) -> tuple[Layout, Roster]:
     """The railroad just named, or the one still running where the store has
     no such railroad or its documents do not load. A store that is not

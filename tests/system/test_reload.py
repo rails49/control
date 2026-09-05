@@ -1,14 +1,21 @@
 """Another railroad is loaded while the apps run, and each reaches the same
 state a second time (ADR-0060).
 
-The apps are not restarted. `tc49/layout/state/railroad` moves to another
-name and every app follows it: the app built on the railroad that is leaving
-stops answering, the retained rows it owns are **cleared**, and it is built
-again on the new one. Asserting that new rows appeared is not enough — a
-stale row for a block or an address the new railroad does not have is exactly
-the failure the reload introduces, is invisible to a cold-start check, and is
-what a page opened afterwards reads. So the whole retained picture is read
-back and the railroad that left may not be named anywhere in it.
+The apps are not restarted. A person publishes `tc49/layout/railroad_wanted`,
+the binding of the layout interface that is running answers it — that being
+the one app bound to a railroad, and the writer of the row — and
+`tc49/layout/state/railroad` moves. Every other app follows the **state** row
+and never the gesture, so the five of them are driven here by moving the row
+directly and the two bindings by the gesture, each the way a running system
+reaches it.
+
+Whichever way it arrives: the app built on the railroad that is leaving stops
+answering, the retained rows it owns are **cleared**, and it is built again on
+the new one. Asserting that new rows appeared is not enough — a stale row for
+a block or an address the new railroad does not have is exactly the failure
+the reload introduces, is invisible to a cold-start check, and is what a page
+opened afterwards reads. So the whole retained picture is read back and the
+railroad that left may not be named anywhere in it.
 
 Processes again rather than threads, for the reason `test_cold_start.py`
 gives: what a container does when the row moves is what is under test, and
@@ -24,6 +31,7 @@ from pathlib import Path
 import pytest
 
 from tc49.lib.bus import Payload
+from tc49.lib.inventory import OFF, ON
 from tc49.lib.mqtt import MqttBus
 from tests.apps import APPS, App, Process, Store
 from tests.brokers import Broker, settle, until
@@ -36,6 +44,12 @@ over from the first legible in the second. Both are the committed fixtures:
 what is under test is the reload and not the drawing."""
 
 RAILROAD = "tc49/layout/state/railroad"
+WANTED = "tc49/layout/railroad_wanted"
+POWER = "tc49/layout/state/power"
+
+MISSING = "no-such-railroad"
+"""A name the store does not list. Nothing derives from it and nothing ever
+will: what it is for is the refusal (ADR-0050)."""
 
 WAS_BLOCKS = ("yard_w", "yard_e", "up_w", "up_e", "dn_w", "dn_e")
 """Every block of the railroad that leaves. None of them is a block of the
@@ -109,10 +123,54 @@ def hand(broker: Broker) -> MqttBus:
 
 
 def load(bus: MqttBus, railroad: str) -> None:
-    """The gesture under test: the row that says which railroad this broker
-    runs, moved. Retained, as every state row is, so an app that is
-    restarted afterwards comes up on the railroad the row names."""
+    """The row that says which railroad this broker runs, moved. Retained, as
+    every state row is, so an app that is restarted afterwards comes up on
+    the railroad the row names.
+
+    This is how the **followers** are driven: the five apps that watch the
+    row and never the gesture behind it. The binding of the layout interface
+    that is running is the row's writer and answers `railroad_wanted`
+    instead, so it is driven by `pick` below (ADR-0060)."""
     bus.publish(RAILROAD, {"name": railroad})
+
+
+def pick(bus: MqttBus, railroad: str) -> None:
+    """The gesture a person makes: the railroad they want, on the topic the
+    binding of the layout interface answers. An event and not a row — nothing
+    hands it over a second time, and the state row moves only where the app
+    that owns it takes this (ADR-0060)."""
+    bus.publish(WANTED, {"railroad": railroad})
+
+
+def picks(bus: MqttBus, railroad: str, running: Process) -> None:
+    """The gesture, said again until the app is up on the railroad it names.
+
+    For the case where the supply the gesture is conditional on was written
+    by this same hand a moment earlier: the two are different topics, and the
+    bus orders nothing between two topics (ADR-0008), so a gesture that
+    arrived first is a gesture read against the rails as they were. A person
+    with a picker in front of them presses it again, and that is the whole of
+    what this does — a press naming the railroad already loaded is ignored,
+    so repeating one that landed costs nothing.
+    """
+
+    def said() -> bool:
+        pick(bus, railroad)
+        return f"up on '{railroad}'" in running.said()
+
+    assert until(said, UP_S), f"it never came up on '{railroad}':\n{running.said()}"
+
+
+def dark(bus: MqttBus) -> None:
+    """Wait until the supply reads `off`, which is the precondition on the
+    gesture (ADR-0060). The layout interface writes it from its constructor —
+    the railroad comes up dark — so what this waits for is the broker holding
+    it, and a gesture published afterwards reaches that app behind the echo of
+    its own row."""
+    bus.subscribe(POWER, lambda topic, payload: None)
+    assert until(
+        lambda: bus.last_values.get(POWER, {}).get("power") == OFF, UP_S
+    ), "the rails never read dead"
 
 
 def up_on(running: Process, railroad: str) -> None:
@@ -236,29 +294,104 @@ def test_the_dispatcher_clears_the_picture_it_held_and_rebuilds(
         running.stop()
 
 
-def test_the_layout_interface_clears_the_rows_it_asked_for_and_rebuilds(
+def test_the_layout_interface_answers_the_gesture_and_rebuilds(
     broker: Broker, store: Store, tmp_path: Path
 ) -> None:
-    """The desired rows are one per address, and the address is the old
+    """This app **answers** the picker where the five others follow the row
+    it writes: it is the one app bound to a railroad, so a person's
+    `railroad_wanted` is what moves `state/railroad` and nothing else is
+    (ADR-0060).
+
+    One gesture is enough. It is an event and nothing hands it over a second
+    time, so the app is subscribed to it before its own opening rows go out;
+    a press landing in that instant would simply be gone.
+
+    The desired rows are one per address, and the address is the old
     railroad's wiring: a speed for a locomotive the new railroad does not
     have is a row nothing republishes and nothing else drops. Zeroing is not
     clearing — a zeroed row is still a row, keyed to an address that is not
-    there (ADR-0060)."""
+    there."""
     running = started("layout", broker, store, tmp_path)
     try:
         writing = hand(broker)
         writing.publish(STALE_TRACTION, {"addr": "17", "speed": 0.5})
         assert until(lambda: STALE_TRACTION in writing.last_values)
+        dark(writing)
 
-        load(writing, NOW)
+        pick(writing, NOW)
         up_on(running, NOW)
 
         held = picture(broker)
         assert STALE_TRACTION not in held, "the desired speed survived the reload"
         assert held[RAILROAD]["name"] == NOW
-        assert held["tc49/layout/state/wanted/track"]["power"] == "off"
+        assert held["tc49/layout/state/wanted/track"]["power"] == OFF
         assert held["tc49/layout/state/mode"]["modes"] == {}
         no_trace_of_the_old_railroad(held)
+        writing.close()
+    finally:
+        running.stop()
+
+
+def test_a_gesture_while_the_rails_have_power_changes_nothing(
+    broker: Broker, store: Store, tmp_path: Path
+) -> None:
+    """Track power off is the precondition, and it is read off the one
+    retained row rather than orchestrated: nothing here commands a shutdown,
+    and this app never writes `off` of its own accord (ADR-0060, ADR-0051).
+
+    With the power on a train already under a committed route keeps rolling
+    and a turnout can still throw, which is what a reload must not happen
+    under — so the gesture is dropped and the state row is unmoved. The
+    supply is written by a hand here because what folds it on a running
+    railroad is the hardware, and there is none (ADR-0043)."""
+    running = started("layout", broker, store, tmp_path)
+    try:
+        writing = hand(broker)
+        dark(writing)
+        writing.publish("tc49/layout/state/device/track", {"power": ON, "reason": ""})
+        assert until(
+            lambda: writing.last_values.get(POWER, {}).get("power") == ON, UP_S
+        ), "the rails never came alive"
+
+        pick(writing, NOW)
+        settle(writing)
+
+        held = picture(broker)
+        assert held[RAILROAD]["name"] == WAS, "it loaded a railroad under a live track"
+        assert f"up on '{NOW}'" not in running.said(), running.said()
+        assert running.running, f"the layout interface stopped:\n{running.said()}"
+        writing.close()
+    finally:
+        running.stop()
+
+
+def test_a_railroad_the_store_does_not_have_is_refused(
+    broker: Broker, store: Store, tmp_path: Path
+) -> None:
+    """An app with nothing to run on is worse than one still running the
+    railroad it had (ADR-0050), so a name the store cannot answer for is said
+    on stderr and the running railroad stands.
+
+    And the picker still works afterwards: a gesture is an event, so there is
+    no row standing to be attempted, refused and attempted again — the app
+    forgets the refusal and the next press is taken."""
+    running = started("layout", broker, store, tmp_path)
+    try:
+        writing = hand(broker)
+        dark(writing)
+
+        pick(writing, MISSING)
+        assert until(lambda: f"'{MISSING}':" in running.said(), UP_S), running.said()
+        # Up on the same railroad a second time: the rows it owns went with
+        # the railroad it was leaving, `state/railroad` among them, so the
+        # picture below is read after they have been written again.
+        assert until(
+            lambda: running.said().count(f"up on '{WAS}'") == 2, UP_S
+        ), running.said()
+
+        assert picture(broker)[RAILROAD]["name"] == WAS
+        picks(writing, NOW, running)
+        assert picture(broker)[RAILROAD]["name"] == NOW
         writing.close()
     finally:
         running.stop()
@@ -269,18 +402,40 @@ def test_the_simulator_stands_in_for_the_new_railroads_steel(
 ) -> None:
     """This binding's steel is the drawing it was built from, so another
     railroad is another simulator (ADR-0030). Both its rows are republished
-    rather than left, so what this catches is an app that ignores the row and
-    not one that fails to clear — this app owns no row keyed by anything the
-    old railroad had."""
+    rather than left, so what this catches is an app that ignores the gesture
+    and not one that fails to clear — this app owns no row keyed by anything
+    the old railroad had.
+
+    **It answers the gesture under the same rule as the other binding**, and
+    the rule is read off `state/power` rather than off which binding this is:
+    one rule, two observations, which is the one place the two already differ
+    (ADR-0030). Simulated rails are always live, so the row this app writes
+    reads `on` and the gesture is refused — the case above — and it is a hand
+    writing `off` that makes the reload happen here.
+
+    That leaves a deployed simulator with nothing that writes `off`, so a
+    picker in front of one is inert: ADR-0060 states the precondition for a
+    railroad wired to steel and says nothing about a binding whose supply is
+    nailed live. It is recorded here rather than decided here.
+    """
     running = started("simulator", broker, store, tmp_path)
     try:
         writing = hand(broker)
-        load(writing, NOW)
-        up_on(running, NOW)
+        writing.subscribe(POWER, lambda topic, payload: None)
+        assert until(
+            lambda: writing.last_values.get(POWER, {}).get("power") == ON, UP_S
+        ), "the simulated rails never came alive"
+
+        pick(writing, NOW)
+        settle(writing)
+        assert picture(broker)[RAILROAD]["name"] == WAS, "it reloaded under live rails"
+
+        writing.publish(POWER, {"power": OFF})
+        picks(writing, NOW, running)
 
         held = picture(broker)
         assert held[RAILROAD]["name"] == NOW
-        assert held["tc49/layout/state/power"]["power"] == "on"
+        assert held[POWER]["power"] == ON, "the rebuilt binding forgot its own supply"
         no_trace_of_the_old_railroad(held)
         writing.close()
     finally:
