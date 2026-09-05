@@ -13,20 +13,9 @@ has an opinion about how often it takes what the broker's network thread left
 waiting, and it is short enough that a person's gesture is acted on in the
 same tenth of a second whoever started the container.
 
-The startup order is what a cold start needs:
-
-1. **The documents**, first and blocking, because an app with no layout has
-   nothing to do and the store is the thing most likely not to be up yet. The
-   retry and what it says on stderr are `lib/documents.py`'s.
-2. **The broker**, waited for the same way, because a publish made to a broker
-   that is not there is dropped rather than queued (ADR-0050) — and the rows
-   below are this app's opening ones.
-3. **The facing this app already owns**, if the broker is holding one. On the
-   in-process binding a retained value is there synchronously and the
-   scheduler reads it as it is constructed (#123); on a broker it arrives
-   moments after the subscription does, so the wait is here, in the thing that
-   assembles the app, and no app code learns which binding it got. It is
-   `lib/startup.py`'s wait, ended by the row landing or by a stop.
+The startup order is `lib/startup.py`'s, and this app runs all three of its
+steps with nothing of its own to add: one document, the layout, and one row it
+already owns, the facing (`tc49/schedule/state/facing`).
 
 Then the loop, which is a drain and a sleep. `Scheduler` is handed a `Bus` and
 nothing else changes in the package: what a run an operator drives has is a

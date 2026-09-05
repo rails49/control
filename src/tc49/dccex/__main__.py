@@ -48,26 +48,20 @@ railroad — the link it has and the supply it reports are the command
 station's, and the station is still the same station. So it stands, and its
 rows stand with it (`tests/system/test_reload.py`).
 
-The startup order is what a cold start needs, and it has no store in it:
-
-1. **No documents.** An app that reads nothing cannot be brought up in the
-   wrong order with respect to one that serves documents.
-2. **The broker**, waited for, and then `DccEx` on it. The constructor states
-   this app's two opening rows — `device/link/<id>: down` and a dark
-   `device/track` carrying why — and a publish made to a broker that is not
-   there is dropped rather than queued (ADR-0050), so the wait comes first.
-3. **No rows of a previous process to adopt**, and none of this app's own to
-   read back: the two it owns are stated by the constructor. What it does wait
-   for is the *desired* picture, which is `layout`'s to write and the broker's
-   to retain — and it is waited for **before the link is opened**, so that the
-   whole of it is held when the first connection is handed it. That is what
-   keeps the track row first: `_applied()` orders a connect's picture, where a
-   value arriving over a link that is already up is acted on as it arrives, and
-   a speed reaching the station ahead of the power is a locomotive that rolls
-   the moment somebody makes the rails live (#333, ADR-0054). On the in-process
-   binding the retained values were there synchronously; on a broker they
-   arrive moments after the subscription, so the wait is here, in the thing
-   that assembles the app, and no app code learns which binding it got.
+The startup order is `lib/startup.py`'s, with no store in it. **No
+documents**: an app that reads nothing cannot be brought up in the wrong order
+with respect to one that serves documents. Then the broker, and `DccEx` on it,
+the constructor stating this app's two opening rows — `device/link/<id>: down`
+and a dark `device/track` carrying why. **No rows of a previous process to
+adopt**, and none of this app's own to read back: the two it owns are stated
+by the constructor. What it does wait for is the *desired* picture, which is
+`layout`'s to write and the broker's to retain — and it is waited for
+**before the link is opened**, so that the whole of it is held when the first
+connection is handed it. That is what keeps the track row first: `_applied()`
+orders a connect's picture, where a value arriving over a link that is already
+up is acted on as it arrives, and a speed reaching the station ahead of the
+power is a locomotive that rolls the moment somebody makes the rails live
+(#333, ADR-0054).
 
 Then the loop: `DccEx.run()` keeping the link, and a drain beside it.
 
