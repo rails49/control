@@ -873,7 +873,10 @@ is what byte-identical replay requires. The id means nothing to a consumer and
 only has to be unique
 ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)). A run
 carrying gestures makes no claim about that order, and a benchmark run
-receives no gestures. The id is never derived from a clock.
+receives no gestures — so a gesture's id takes that same counter with a nonce
+the scheduler process mints once in between, `<train>-<nonce>-<n>`, which is
+what keeps a restart of the scheduler alone from re-minting an id the
+dispatcher is still holding. The id is never derived from a clock.
 
 It **holds facing**, which is scheduler state
 ([ADR-0019](adr/0019-facing-is-scheduler-state.md)). A train's facing starts

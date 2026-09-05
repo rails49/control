@@ -1,5 +1,23 @@
 # A request id is unique, not meaningful
 
+**Amended under
+[ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+for [#437](https://github.com/rails49/control/issues/437):** the split below
+is unchanged and has **moved inside the scheduler**. The panel no longer
+mints anything — [ADR-0036](0036-the-scheduler-is-an-app-the-panel-is-a-view.md)
+made the scheduler the one writer of requests and inherited both jobs into its
+counter — so where the text below names the panel as the nonce-minter, read
+the scheduler's gestures. A timetable keeps `<train>-N`, minted
+deterministically in the file's order, for exactly the reason it always did:
+byte-identical replay. A gesture is minted `<train>-<nonce>-<n>` from a nonce
+the scheduler process makes once at construction. What forced the move is that
+the scheduler and the dispatcher are separate processes now, so a supervisor
+restarting the minter alone is ordinary: its counter starts at zero again
+while the dispatcher still holds every id it has seen, and the next drag is
+dropped at the top of admission and never answered — the failure below,
+reproduced by a restart instead of a page reload. Nothing about
+uniqueness-not-meaning changes.
+
 A request id is an idempotency key and a correlation key. Both want one thing
 from it — that no two requests share one — and neither reads it. It was
 nevertheless specified by its *shape*, `<train>-1`, `<train>-2`, …, and that
