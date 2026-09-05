@@ -179,9 +179,9 @@ from tc49.lib.payload import (
     link_up,
     named_train,
     placement,
-    power,
     reported_reason,
     shown_aspects,
+    supply,
     wanted_mode,
     wanted_throttle,
 )
@@ -1159,7 +1159,7 @@ class LayoutInterface:
         if row == DEVICE_TRACK:
             if not self._ordering.accepts(topic, payload):
                 return
-            self._track = power(payload)
+            self._track = supply(payload)
         elif row == DEVICE_LINK:
             if not self._ordering.accepts(topic, payload):
                 return
@@ -1333,16 +1333,20 @@ class LayoutInterface:
         waits for no word from: nothing must announce itself to come up
         (ADR-0058), and the ids here are whatever has spoken.
 
-        Anything that cannot be read falls the same way. `power` answers
+        Anything that cannot be read falls the same way. `supply` answers
         `off` for a supply it cannot read and `link_up` answers false for a
         link it cannot, so the fold needs no case for an unreadable frame:
         the direction a state topic must fail in is already in the readers
         (#181).
 
-        `stopped` reaches `state/power` as itself rather than as `off`, since
-        the two differ for the person recovering — one is cleared and the
-        other switched back on — and the dispatcher branches on "not `on`"
-        either way (ADR-0041, CONTEXT.md **Emergency stop**).
+        The supply's own word is `on` or `off` and never an emergency stop:
+        a stop leaves the rails live, so the row reads `on` under one, and a
+        frame claiming otherwise claims something no hardware can observe and
+        is refused with everything else this cannot read (ADR-0063). The fold
+        therefore answers `on` while the railroad stands under a stop. Saying
+        that a person has yet to clear one is not a fold from hardware and
+        never can be: it is this app's to hold, from the command it wrote
+        (ADR-0063, CONTEXT.md **Emergency stop**), and is not here yet (#470).
         """
         if not all(self._links.values()):
             return OFF

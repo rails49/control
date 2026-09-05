@@ -197,10 +197,12 @@ def test_the_railroad_reads_on_only_once_the_hardware_says_so() -> None:
     assert said[-1] == (POWER, {"at": 0.0, "power": "on"})
 
 
-def test_an_emergency_stop_is_reported_as_itself() -> None:
-    """`stopped` and `off` differ for the person recovering — one is cleared
-    and the other switched back on — and the dispatcher branches on "not
-    `on`" either way (ADR-0041)."""
+def test_the_supply_cannot_report_an_emergency_stop() -> None:
+    """An emergency stop leaves the rails live, so the supply reads `on`
+    under one and the observed row has no third value to say it with
+    (ADR-0063). A frame that says it anyway says what no hardware can
+    observe, and is refused like any other value outside the closed set —
+    falling to `off`, the direction a supply that cannot be read fails in."""
     bus, _app = build()
     energised(bus)
     said = heard(bus, POWER)
@@ -208,7 +210,7 @@ def test_an_emergency_stop_is_reported_as_itself() -> None:
 
     bus.publish(DEVICE_TRACK, {"power": "stopped"})
     bus.drain()
-    assert said[-1] == (POWER, {"at": 0.0, "power": "stopped"})
+    assert said[-1] == (POWER, {"at": 0.0, "power": "off"})
 
 
 def test_a_link_going_down_takes_the_power_off_on() -> None:

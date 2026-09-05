@@ -539,10 +539,16 @@ Anything that cannot be read falls the same way, which is the direction a state
 topic must fail in
 ([#181](https://github.com/rails49/control/issues/181)): a supply that cannot be
 read is not one a train may move on, and a link that cannot be read is not one
-this app may call good. `stopped` reaches `state/power` as itself rather than as
-`off`, because the two differ for the person recovering — one is cleared and the
-other switched back on — while the dispatcher branches on "not `on`" either way
-(ADR-0041).
+this app may call good.
+
+**The supply is `on` or `off`.** An emergency stop leaves the rails live, so the
+observed row reads `on` under one and has no third value to say it with
+([ADR-0063](../adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
+A frame that says it anyway says what no hardware can observe, and is refused
+with everything else this app cannot read. So the fold answers `on` while the
+railroad stands under a stop: saying that a person has yet to clear one is not
+a fold from hardware and never can be — it is this app's to hold, from the
+command it wrote ([#470](https://github.com/rails49/control/issues/470)).
 
 **On startup the railroad is off.** The app comes up having written
 `wanted/track: off` and `state/power: off`, so nothing moves and no turnout

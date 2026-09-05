@@ -110,10 +110,12 @@ def test_a_train_taken_off_the_layout_stands_at_no_near_end() -> None:
 
 
 def test_no_move_while_the_rails_are_dead() -> None:
-    """A railroad that is off or emergency-stopped moves nothing, which is
-    what makes a restart safe: the app comes up with the power off, so the
-    check has teeth on every one of them (ADR-0041)."""
-    for reported in ("off", "stopped"):
+    """A railroad that is off moves nothing, which is what makes a restart
+    safe: the app comes up with the power off, so the check has teeth on
+    every one of them (ADR-0041). A supply the app cannot read is dead on the
+    same terms, the reading falling to `off` (#181), so the guard is one
+    check and not two."""
+    for reported in ("off", "sideways"):
         bus, app = build()
         bus.publish(DEVICE_TRACK, {"power": reported})
         bus.drain()
