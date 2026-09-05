@@ -228,6 +228,14 @@ having asked about it first (#415).
 — *PUT /catalogue/hopper answered 404* — so the product is still written down
 and there to write again once the store is reachable.
 
+**The dialog's refusal is the dialog's own**, and the line under the Trains
+heading is the screen's. The two are unrelated surfaces, so a refusal about a
+name in the dialog is said beside the Create button and nowhere else, and it
+goes when the dialog does — dismissed, cancelled, or shut by a Create that
+landed. They were one state, which said *there is already a model 'hopper'*
+twice at once and then left it standing under a list the sentence was never
+about ([#446](https://github.com/rails49/control/issues/446)).
+
 ## The run view beside it
 
 **The run view re-reads the roster when it becomes the current view.** The
@@ -290,7 +298,8 @@ catalogue already has, a train made up of a locomotive and three hoppers, the do
 killing a field while the run has that train placed, the run view showing a
 train made up here without a reload, the row an older roster's train draws and
 the first entry converting it, the current train moving when the one it named
-is unmade and carried when that one is renamed, the field a refusal puts back, the edit standing in a field that a
+is unmade and carried when that one is renamed, the dialog's refusal staying
+out of the trains and going with the dialog, the field a refusal puts back, the edit standing in a field that a
 frame about the railroad leaves alone, and the three ways a call to the
 store fails as this screen shows them. The words themselves are
 `ui/test/asking.test.ts`'s, at the helper that decides them.
