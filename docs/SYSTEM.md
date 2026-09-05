@@ -756,6 +756,9 @@ LAN is still the trust boundary and a browser is not on it
   itself where it was given somewhere to keep one (`tc49 serve --keys`);
   `GET /backup` shows the public half in `key` for the person to paste into
   that one repository's deploy keys, and `remote` says where the copy goes.
+  `key` is null where there is none to push with — nowhere to keep one, and a
+  private half this store cannot read, which `needs` tells apart in words
+  ([#443](https://github.com/rails49/control/issues/443)).
   Every refusal — git's, and the one over a dirty tree — comes back inside a
   200 with `ok` false and git's own words in `said`, because each of them is
   a state of somebody's machine that the UI has to read out rather than a bad

@@ -158,6 +158,39 @@ The volume is made writable by that uid in the image, and the host's passwd
 and group tables come into the store read-only, because ssh will not run for
 a uid it cannot name.
 
+**A box deployed before the store ran as the person is fixed by removing that
+volume once.** Docker fills a named volume from the image only while the
+volume is empty, so a `keys` volume made before
+[#387](https://github.com/rails49/control/issues/387) is still root's and no
+later deploy re-makes it. The store, running as uid 1000, then finds a key it
+can see and cannot open: the public half is world-readable, so the backup
+dialog used to show a key that looked fine while every push under it was
+refused ([#443](https://github.com/rails49/control/issues/443)). It says so
+now, and what it asks for is this. The volume is `deploy_keys` on a box
+deployed before the project named itself and `tc49_keys` since
+([#451](https://github.com/rails49/control/issues/451)); `docker volume ls`
+says which. Only the store mounts it, so nothing else comes down:
+
+```
+cd ~/control
+docker compose --env-file /etc/tc49/deploy.env -f deploy/compose.yaml rm -sf store
+docker volume rm deploy_keys
+docker compose --env-file /etc/tc49/deploy.env -f deploy/compose.yaml up -d --no-deps store
+```
+
+The store makes itself a new key on the next `File ▸ Backup…`, in a volume
+seeded from the image and owned by that person. Paste its public half into the
+repository under *Settings ▸ Deploy keys* with *Allow write access*, and delete
+the old one if it is still listed. The key is the box's identity and nothing
+else of yours, so losing it costs that re-registration and nothing more.
+
+**Deploy keys have to be allowed for the organisation that holds the
+repository.** `deploy_keys_enabled_for_repositories` off forbids the whole
+mechanism for every repository under that organisation, so a box rebuilt into
+one gets a key the store can read and GitHub will not accept — a different
+fault reaching the same dead backup. It is an organisation setting and not a
+repository one, so no amount of work on the box finds it.
+
 ### Typing the block readings
 
 No camera publishes `tc49/layout/state/device/sensor` yet, so on a physical
