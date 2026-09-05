@@ -225,10 +225,13 @@ def serve(
 ) -> None:
     """`tc49 readings`: the typed readings as a client of the broker.
 
-    The broker first and blocking, because a publish made to a broker that is
-    not there is dropped rather than queued (ADR-0050) — a reading typed into
-    nothing would be a person watching the railroad ignore them, which is the
-    one thing a stand-in for a detector must not do. The layout is the
+    Nothing is typed at until the broker is there, because a publish made to
+    a broker that is not there is dropped rather than queued (ADR-0050) — a
+    reading typed into nothing would be a person watching the railroad ignore
+    them, which is the one thing a stand-in for a detector must not do. That
+    wait is the whole of what this shares with an app coming up: a client of
+    the broker reads no documents and owns no retained row, and the order an
+    app comes up in is `lib/startup.py`'s. The layout is the
     caller's, read off the store before this is called, and it is here for one
     reason only: a typo at the keyboard must not look like a detector
     (ADR-0048), which is what `reads` checks it against.
