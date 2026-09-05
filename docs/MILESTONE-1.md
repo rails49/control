@@ -78,7 +78,7 @@ empty layout and **held**, which is what lets the placing happen
 ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md),
 [ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) — there is nothing to
 do on one but place trains and press GO. A scenario is the harness's file, not
-a run's: `tc49 bench` builds a batch run from one, and `tc49 live --scenario`
+a run's: `tc49 bench` builds a batch run from one, and `bench/replay.py`
 replays one as the gestures a person would make.
 
 ## Rigor bar

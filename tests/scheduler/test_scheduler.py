@@ -103,9 +103,9 @@ def test_an_empty_timetable_is_exhausted_at_once() -> None:
 
 
 def test_a_run_given_no_timetable_submits_nothing() -> None:
-    """Which sources a run has is configuration (ADR-0036): `tc49 live` runs
-    the same scheduler with no timetable at all, and the first gesture's id
-    is still `<train>-1`."""
+    """Which sources a run has is configuration (ADR-0036): a run an
+    operator drives has the same scheduler with no timetable at all, and the
+    first gesture's id is still `<train>-1`."""
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())

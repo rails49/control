@@ -18,8 +18,8 @@ hand-written `align` (#150). It cannot read either asset, so the last test here
 holds a mirror of what that copy encodes and fails when the run or the drawing
 stops agreeing with it.
 
-The strategy is `Incremental`, because that is what a live session runs
-(`tc49 live`, #165) and this scenario exists to be watched. It is named here
+The strategy is `Incremental`, because that is what a live run locks with
+(#165) and this scenario exists to be watched. It is named here
 rather than defaulted: `run` is the batch loop, whose own default is the
 `FullRoute` baseline.
 """

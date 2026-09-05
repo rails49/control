@@ -2,7 +2,7 @@
 
 The store the fixtures live in is the harness's and is found by
 `tc49.bench.runner.find_assets`; this is the other one — the person's, which
-`tc49 live` and the store server open and which starts out empty.
+`tc49 serve` opens and which starts out empty.
 """
 
 from pathlib import Path

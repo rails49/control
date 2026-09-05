@@ -750,7 +750,7 @@ LAN is still the trust boundary and a browser is not on it
   ([ADR-0015](adr/0015-drawing-is-the-source-of-truth.md)), so a railroad has
   one committed description and not two.
 - **A scenario belongs to the harness and is not served over HTTP** —
-  `tc49 bench` and `tc49 live --scenario` read one off disk through the
+  `tc49 bench` and `bench/replay.py` read one off disk through the
   library binding, and no browser can reach one
   ([#171](https://github.com/rails49/control/issues/171)). The two document
   types a run is built from are the other two.
@@ -836,7 +836,7 @@ person gesturing on the panel; and, later, a generator inventing traffic. Those 
 sources inside one scheduler, not three publishers
 ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md),
 [GOALS.md](GOALS.md#scheduling)). Which of them a run has is configuration
-rather than a rule: `tc49 live` is given no timetable at all
+rather than a rule: a run an operator drives has no timetable at all
 ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 
 From a timetable request the scheduler does one thing: it expands the arrival

@@ -188,9 +188,9 @@ def test_the_facing_a_previous_process_left_is_adopted(
     broker: Broker, store: Store, app: App
 ) -> None:
     """A scheduler restarted under a running railroad finds its own row on
-    the broker and carries the trains' facing forward, exactly as the durable
-    file did in one process (#123). Without it every train's direction arrow
-    is dropped and the next drag has no departure end."""
+    the broker and carries the trains' facing forward, which is the whole of
+    what #123 asks for now that the broker holds it. Without it every train's
+    direction arrow is dropped and the next drag has no departure end."""
     store.start()
     left = MqttBus(port=broker.port)
     assert left.wait_connected()

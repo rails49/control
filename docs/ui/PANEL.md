@@ -134,9 +134,8 @@ forward along a cyan path as the train advances, and the length of the green
 says how far the train may go. It agrees with the signal at the block end,
 which the dispatcher reads off the same locks.
 
-A live session is the one that locks that way: `tc49 live` assembles its
-dispatcher with `Incremental`, so a page joining a session is watching an
-incremental run
+A live run is the one that locks that way: the deployed dispatcher takes
+`Incremental`, so a page watching a railroad is watching an incremental run
 ([#165](https://github.com/rails49/control/issues/165)). `FullRoute`, which
 locks a whole route at launch, is the baseline the batch harness measures
 against ([BENCHMARKS.md](../bench/BENCHMARKS.md)) and is not a discipline the
@@ -449,11 +448,11 @@ documents the model is built from — so what arrives in between is held and
 applied the moment there is a model, rather than dropped for the want of one
 that was seconds away. Nothing republishes a retained row for a late reader.
 
-**A session driving a command station stays on one railroad.** `tc49 live
-<railroad> --station <host>:<port>` brings the run up on the **physical
-binding** — the layout interface and the `dccex` translator where the
-simulator would be ([layout](../layout/README.md),
-[dccex](../dccex/README.md)) — and the railroad is then the station's, a
+**A box driving a command station stays on one railroad.** It runs the
+**physical binding** — the `layout` app with the `dccex` translator beside
+it, where a simulated box runs `simulator` instead
+([layout](../layout/README.md), [dccex](../dccex/README.md)) — and the
+railroad is then the station's, a
 station being one physical railroad. It is required on the command line for
 the same reason: the
 railroad is not the first client to connect's to pin. Ctrl-C sends zero to
@@ -524,7 +523,7 @@ rails until a person puts something there: every train the railroad owns is in
 the roster pane, and the run is held so the placing gesture is honoured
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md),
 [ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)). A **scenario** is
-the harness's file and never reaches the browser: `tc49 live --scenario`
+the harness's file and never reaches the browser: `bench/replay.py`
 replays one as the gestures a person would make, over these same topics.
 
 Beyond the name, joining takes everything off the bus. Placement, locks,
