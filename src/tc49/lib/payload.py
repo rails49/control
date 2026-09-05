@@ -810,23 +810,28 @@ def desired_aspect(payload: object) -> str | None:
     return _stated(payload, "aspect")
 
 
-def desired_function(payload: object) -> str | None:
-    """The state a `wanted/function` value asks a function for, or None where
-    it asks for none.
+def desired_function(payload: object) -> bool | None:
+    """Whether a `wanted/function` value asks a function on, or None where it
+    asks for nothing this can read.
 
-    The field is `value` rather than a name of its own, and what it may be is
-    the model's: a function's values are fully configurable, `off` and `on`
-    where a model states none (LAYOUT.md). So it is read as a string and
-    nothing more, and which strings a decoder can actually be told is the
-    translator's answer.
+    A **boolean**, and the one desired row that carries no name at all: a
+    function is one bit on the wire wherever it was checked, so the row
+    carries the bit itself and not a word out of a catalogue (ADR-0063). The
+    strings `off` and `on` it once carried are values no more — a payload
+    stating one states nothing this reads, and is refused here rather than
+    at a translator, which is where the value domain of a desired row is read
+    for every translator at once.
     """
-    return _stated(payload, "value")
+    if not isinstance(payload, dict):
+        return None
+    stated = cast(dict[str, object], payload).get("value")
+    return stated if isinstance(stated, bool) else None
 
 
 def _stated(payload: object, field: str) -> str | None:
     """One named string field of a device row, or None where the payload
-    states no such thing. The three desired rows that carry a name rather
-    than a number share it: each fails the same way, and the difference
+    states no such thing. The two desired rows that carry a name rather than
+    a number or a bit share it: each fails the same way, and the difference
     between them is which name they carry and who decides what it means."""
     if not isinstance(payload, dict):
         return None

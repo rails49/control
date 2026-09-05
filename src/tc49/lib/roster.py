@@ -41,22 +41,22 @@ FORWARD = "forward"
 REVERSE = "reverse"
 ORIENTATIONS = (FORWARD, REVERSE)
 
-OFF_ON = ("off", "on")
-"""What a function is in where the model states no values: a plain switch,
-off to begin with."""
-
 
 @dataclass(frozen=True)
 class Function:
-    """What one function number does on a product.
+    """What one function number does on a product: a **name on a number**,
+    and nothing else.
 
-    `values` is what the function can be in, **first entry first**: that is
-    the one it is in when nothing has been commanded, which is why the list
-    is ordered rather than a set.
+    A function is one bit wherever it was checked, so there is nothing for a
+    value list to say: the desired row carries a boolean, and a model naming
+    `low` and `high` would be naming states no translator could ever send
+    ([ADR-0063](../../../docs/adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
+    What people mean by a range — volume, brightness, momentum — is written
+    as decoder configuration, which is a different capability and would be a
+    different row.
     """
 
     name: str
-    values: tuple[str, ...] = OFF_ON
 
 
 @dataclass(frozen=True)
@@ -191,8 +191,8 @@ class Train:
         (CONTEXT.md, **Throttle**): a set with a locomotive at each end has one
         headlight to press, not two, and which car — which address, which
         orientation — a press reaches is `layout`'s, the same composition it
-        does for a speed. So the name is the whole of the key, and the first
-        car declaring one settles what its values are.
+        does for a speed. So the name is the whole of the entry, and the
+        first car declaring one is the one that stands.
 
         No number: which function number a name sits on is what a model records
         for the translator to use, and it is a decoder detail no view shows

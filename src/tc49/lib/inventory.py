@@ -154,6 +154,14 @@ sensor and never a whole-railroad map — a map would make one camera the writer
 of every sensor on the railroad, and a second camera could then not join
 (ADR-0035).
 
+`wanted/function`'s ``value`` is a **boolean**, where every other desired
+row carries a name or a number. A function is one bit on the wire wherever it
+was checked, so the row carries the bit and the catalogue carries a name on a
+number and no value list at all; what people mean by a range — volume,
+brightness, momentum — is written as decoder configuration, a different
+capability that would be a different row (ADR-0063).
+``tc49.lib.payload.desired_function`` is the reader.
+
 `device/point` is published only where the hardware actually reports a
 position, and a commanded one is never echoed back as a measured one
 (ADR-0022): on this railroad turnouts have no feedback, so the translator
