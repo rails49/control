@@ -53,22 +53,12 @@ from collections.abc import Callable
 from tc49.driver.driver import Driver
 from tc49.lib.loading import Loaded
 from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
+from tc49.lib.startup import PERIOD_S, connected
 
 CLIENT_ID = "tc49-driver"
 """What this app calls itself to the broker, so its log names an app rather
 than a random string. Nothing in the contract reads it: a topic has one
 writing role and no payload says who published (SYSTEM.md, rule 4)."""
-
-PERIOD_S = 0.1
-"""Seconds between drains. The railroad's own pacing is elsewhere entirely —
-this only bounds how long a grant sits in the queue the client's network
-thread fills before this thread delivers it, so it stays small."""
-
-BROKER_S = 5.0
-"""How long one wait for the broker lasts before it is said again. The wait is
-resumed until the connection lands, so this is only how often a person
-watching the container is told, and how long a signal takes to be noticed
-while the broker is missing."""
 
 
 def to_stderr(line: str) -> None:
@@ -102,7 +92,7 @@ def serve(
     to read either. What a rebuild drops is the transit it was in the middle
     of, which belongs to the railroad that is gone (ADR-0054).
     """
-    if not _connected(bus, stop, log):
+    if not connected(bus, stop, log):
         return
     loaded = Loaded(railroad)
     while not stop.is_set():
@@ -122,17 +112,6 @@ def serve(
             return
         bus.forget()
         log(f"loading '{loaded.name}': nothing of '{built}' to clear")
-
-
-def _connected(bus: MqttBus, stop: threading.Event, log: Callable[[str], None]) -> bool:
-    """Wait for the broker, saying so, until it is there or the caller has
-    stopped. An app whose broker is missing has nowhere to publish and nothing
-    to read, so there is nothing else for it to be doing meanwhile."""
-    while not stop.is_set():
-        if bus.wait_connected(BROKER_S):
-            return True
-        log("waiting for the broker")
-    return False
 
 
 def main() -> None:
