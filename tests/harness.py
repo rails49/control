@@ -205,6 +205,23 @@ def leaves(assembly: Assembly, leaf: str) -> list[Payload]:
     return events(assembly.trace, leaf)
 
 
+def minted(assembly: Assembly, train: str, nth: int = 1) -> str:
+    """The id the scheduler minted for `train`'s `nth` request, counting
+    from one in the order it submitted them.
+
+    A gesture's id carries the scheduler process's nonce (ADR-0033), so a
+    test that pressed a drag reads the id back off the trace instead of
+    spelling it out. A timetable's stays `<train>-N` and can still be
+    written.
+    """
+    ids = [
+        str(line["id"])
+        for line in events(assembly.trace, "request_submitted")
+        if line["train"] == train
+    ]
+    return ids[nth - 1]
+
+
 def runs(assembly: Assembly) -> list[str]:
     """Every value `tc49/dispatch/state/run` took, in the order it took them.
 
