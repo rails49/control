@@ -102,8 +102,10 @@ export class TcStock extends LitElement {
    *  the app loads another and kept when anything else changes. */
   @state() private held: string | null = null;
 
-  /** The train a press on the left is about. Composing right from left needs
-   *  somewhere for the left to go, and one train is current at a time. */
+  /** The train a press on the left is about, as a **name**. Composing right
+   *  from left needs somewhere for the left to go, and one train is current
+   *  at a time. Read through `pointed()` and never directly: a name is not a
+   *  hold on the train, and the roster can stop having it (#445). */
   @state() private train: string | null = null;
 
   /** What was refused — by this screen before the store had to see it, or by
@@ -323,8 +325,10 @@ export class TcStock extends LitElement {
         />
         <button
           class="add"
-          title=${this.train === null ? "make a train up first" : `add to '${this.train}'`}
-          ?disabled=${this.train === null}
+          title=${this.pointed() === null
+            ? "make a train up first"
+            : `add to '${this.pointed()}'`}
+          ?disabled=${this.pointed() === null}
           @click=${() => this.coupled({ car: car.name })}
         >
           +
@@ -393,8 +397,10 @@ export class TcStock extends LitElement {
         />
         <button
           class="add"
-          title=${this.train === null ? "make a train up first" : `add to '${this.train}'`}
-          ?disabled=${this.train === null}
+          title=${this.pointed() === null
+            ? "make a train up first"
+            : `add to '${this.pointed()}'`}
+          ?disabled=${this.pointed() === null}
           @click=${() => this.coupled({ model: model.model })}
         >
           +
@@ -450,7 +456,7 @@ export class TcStock extends LitElement {
   private trainRow(train: TrainRow) {
     return html`
       <li
-        class=${`train ${this.train === train.train ? "current" : ""}`}
+        class=${`train ${this.pointed() === train.train ? "current" : ""}`}
         @click=${() => {
           this.train = train.train;
         }}
@@ -460,11 +466,7 @@ export class TcStock extends LitElement {
             class="name"
             .value=${this.putting(`train:${train.train}:name`, train.train)}
             aria-label="train name"
-            @change=${(event: Event) =>
-              this.did(
-                this.stock?.renameTrain(train.train, value(event)),
-                `train:${train.train}:name`,
-              )}
+            @change=${(event: Event) => this.renamed(train.train, value(event))}
           />
           ${train.placed ? html`<span class="of">on the layout</span>` : nothing}
           <button
@@ -553,23 +555,56 @@ export class TcStock extends LitElement {
   };
 
   /**
-   * Unmake a train, and leave the left pointing at one that is there.
+   * Unmake a train. All it does is unmake it: `×` sits inside the row and the
+   * row's click is what makes a train current, so the press is stopped from
+   * being a press on the row as well (#416).
    *
-   * The press is not a press on the row. `×` sits inside the row and the
-   * row's click is what makes a train current, so unmaking one first made it
-   * the train every `+` named — and then it was gone, `append` returning
-   * silently for a train the roster has not got: every `+` enabled, saying
-   * *add to 'ore'*, doing nothing and saying nothing (#416).
-   *
-   * Whatever was current, a train that is gone is not: the first train left
-   * becomes current, as reading the documents picks one, and `null` where the
-   * roster has none — which is the `+` disabled with no target, as it is
-   * before any train is made up.
+   * It moves nothing. Whatever was current, a train that is gone is not, and
+   * `pointed()` is what says so — the first train left, and `null` where the
+   * roster has none, which is the `+` disabled with no target as it is before
+   * any train is made up. Moving `this.train` here as well would be the same
+   * rule written twice, and it was written here alone that let the rename
+   * road into the same defect stay open (#445).
    */
   private unmade(event: Event, train: string): void {
     event.stopPropagation();
     this.changed((stock) => stock.removeTrain(train));
-    if (this.train === train) this.train = this.first();
+  }
+
+  /**
+   * A train renamed.
+   *
+   * The current train is a name and `renameTrain` rebuilds `trains` under the
+   * new key, so renaming the current one would leave the name naming nothing.
+   * It is carried: the person renamed the train they were composing, not
+   * another one, and falling back to the first train the roster has would
+   * hand them a different train to compose (#445).
+   *
+   * A refusal changes the document not at all, so there is nothing to carry,
+   * and renaming any other train says nothing about which one is current.
+   */
+  private renamed(was: string, name: string): void {
+    if (this.stock === null) return;
+    const refused = this.stock.renameTrain(was, name);
+    if (refused === null && this.train === was) this.train = name;
+    // The old name, because a refused rename is the row still drawn under it:
+    // the field to write back is the one the edit was typed into (#444).
+    this.did(refused, `train:${was}:name`);
+  }
+
+  /**
+   * The train every `+` names: the one that is current.
+   *
+   * `this.train` where the roster has that train, and the first train it has
+   * where it has not — `null` where it has none at all. The current train is
+   * a name, and what a roster has is the view's to keep up with rather than
+   * the name's: unmaking a train takes one away, and every read going through
+   * here is what makes *the `+` buttons name one train, and it is always a
+   * train there is* (ui/STOCK.md) hold for whatever else does (#416, #445).
+   */
+  private pointed(): string | null {
+    const trains = this.stock?.roster.trains ?? {};
+    return this.train !== null && this.train in trains ? this.train : this.first();
   }
 
   /** The train the left points at when nothing has said which: the first the
@@ -582,8 +617,9 @@ export class TcStock extends LitElement {
    *  composing right from left. Named for what it does to the train rather
    *  than for the list press, `append` being `HTMLElement`'s. */
   private coupled(what: { car: string } | { model: string }): void {
-    if (this.train === null) return;
-    this.stock?.append(this.train, what);
+    const train = this.pointed();
+    if (train === null) return;
+    this.stock?.append(train, what);
     this.did(null);
   }
 

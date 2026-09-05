@@ -59,9 +59,18 @@ row drawn as current, which is the one you last made up or clicked. Unmaking
 that train hands the current row to the first train left, the pick reading the
 documents makes; unmaking the last one leaves no target at all, and the `+`
 buttons are dead with *make a train up first*, as they are before any train
-exists. The `×` does not select the row it removes: it used to, and every `+`
-was then left naming a train that was gone, doing nothing and saying nothing
-when pressed ([#416](https://github.com/rails49/control/issues/416)).
+exists. **Renaming that train carries the current row with it**: you renamed
+the train you were composing, not another one. The `×` does not select the row
+it removes: it used to, and every `+` was then left naming a train that was
+gone, doing nothing and saying nothing when pressed
+([#416](https://github.com/rails49/control/issues/416)).
+
+Which train is current is held as a **name**, and a name is not a hold on the
+train: the roster can stop having it. So it is resolved against the roster
+wherever it is read and falls back to the first train there — one rule, rather
+than a move written at each press that can take the train away. Written that
+second way it covered unmaking and not renaming, and the sentence above did
+not hold ([#445](https://github.com/rails49/control/issues/445)).
 
 **Kind never implies an address.** A powered van is a real thing
 (`layout/interface.py`), so the address field is offered on every entry and
@@ -281,7 +290,7 @@ catalogue already has, a train made up of a locomotive and three hoppers, the do
 killing a field while the run has that train placed, the run view showing a
 train made up here without a reload, the row an older roster's train draws and
 the first entry converting it, the current train moving when the one it named
-is unmade, the field a refusal puts back, the edit standing in a field that a
+is unmade and carried when that one is renamed, the field a refusal puts back, the edit standing in a field that a
 frame about the railroad leaves alone, and the three ways a call to the
 store fails as this screen shows them. The words themselves are
 `ui/test/asking.test.ts`'s, at the helper that decides them.
