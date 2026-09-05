@@ -3,16 +3,23 @@
 Here rather than in `tests/harness.py`, which is the in-process assembly and
 nothing else: what these build is a second process on a port of its own, and
 the apps that come up alone against one (ADR-0059, decision 5) each want the
-same fixture. Skipped where no `mosquitto` is installed: a machine without one
-still runs everything else, and CI installs it (#369).
+same fixture.
+
+Where no `mosquitto` is installed the suites that take `broker` skip, so a
+machine without one still runs everything else. Under CI they fail instead:
+a broker is software and belongs in the gate where hardware does not (#372),
+so a failed install has to redden the gate rather than quietly delete every
+suite built on the bus (#423). `CI` in the environment tells the two apart.
 """
 
+import os
 import shutil
 import socket
 import subprocess
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 
@@ -97,14 +104,23 @@ class Broker:
             self._running = None
 
 
+def no_broker(reason: str) -> NoReturn:
+    """End the test for want of a broker: a skip on a developer's machine, a
+    failure under CI, where a missing broker is the gate's business and not
+    the test's."""
+    if os.environ.get("CI", "").lower() in ("", "0", "false"):
+        pytest.skip(reason)
+    pytest.fail(reason)
+
+
 @pytest.fixture
 def broker(tmp_path: Path) -> Iterator[Broker]:
     if shutil.which("mosquitto") is None:
-        pytest.skip("no mosquitto installed")
+        no_broker("no mosquitto installed")
     running = Broker(tmp_path / "mosquitto.conf")
     if not running.start():
         running.stop()
-        pytest.skip("mosquitto would not start")
+        no_broker("mosquitto would not start")
     try:
         yield running
     finally:
