@@ -117,6 +117,13 @@ export class TcStock extends LitElement {
    *  rendering is asked for rather than observed. */
   @state() private beat = 0;
 
+  /** The field the refusal just answered was about, for the one render that
+   *  follows it, and `null` in every other render — which is what keeps the
+   *  write-back off a person mid-word (`did`, #444). Named the way `shown`
+   *  names a field, and not `@state`: `did` bumps `beat` in the same breath,
+   *  and clearing it is not itself news. */
+  private putBack: string | null = null;
+
   /** The read waiting to be made again, `null` while none is. */
   private waiting: ReturnType<typeof setTimeout> | null = null;
 
@@ -162,6 +169,9 @@ export class TcStock extends LitElement {
    * child, and the app holds nothing of its own to read.
    */
   override updated(): void {
+    // The render the write-back was set for has happened, so it is spent: the
+    // next render is caused by something else and leaves the DOM alone.
+    this.putBack = null;
     const now = this.stock?.edits ?? false;
     if (now === this.told) return;
     this.told = now;
@@ -270,35 +280,39 @@ export class TcStock extends LitElement {
   }
 
   private car(car: CarRow) {
+    const field = `car/${car.name}`;
     return html`
       <li class="car">
         <span class="what">
           <input
             class="name"
-            .value=${live(car.name)}
+            .value=${this.shown(`${field}/name`, car.name)}
             aria-label="car name"
             @change=${(event: Event) =>
-              this.did(this.stock?.renameCar(car.name, value(event)))}
+              this.did(this.stock?.renameCar(car.name, value(event)), `${field}/name`)}
           />
           <span class="of">${car.model}${car.kind === null ? " — no such model" : ""}</span>
         </span>
         <input
           class="addr"
-          .value=${live(car.addr ?? "")}
+          .value=${this.shown(`${field}/addr`, car.addr ?? "")}
           placeholder="address"
           aria-label="address"
           @change=${(event: Event) =>
-            this.did(this.stock?.carAddress(car.name, value(event)))}
+            this.did(this.stock?.carAddress(car.name, value(event)), `${field}/addr`)}
         />
         <input
           class="length"
-          .value=${live(car.own ? String(car.length) : "")}
+          .value=${this.shown(`${field}/length`, car.own ? String(car.length) : "")}
           placeholder=${car.length === null ? "" : String(car.length)}
           aria-label="length"
           title=${car.held ?? "millimetres over buffers, where this item is not its model's length"}
           ?disabled=${car.held !== null}
           @change=${(event: Event) =>
-            this.did(this.stock?.carLength(car.name, millimetres(event), this.placed))}
+            this.did(
+              this.stock?.carLength(car.name, millimetres(event), this.placed),
+              `${field}/length`,
+            )}
         />
         <button
           class="add"
@@ -347,6 +361,7 @@ export class TcStock extends LitElement {
   }
 
   private model(model: ModelRow) {
+    const field = `model/${model.model}/length`;
     return html`
       <li class="product">
         <span class="what">
@@ -360,12 +375,15 @@ export class TcStock extends LitElement {
         <span></span>
         <input
           class="length"
-          .value=${live(String(model.length))}
+          .value=${this.shown(field, String(model.length))}
           aria-label="length"
           title=${model.held ?? "millimetres over buffers, on every item of this product"}
           ?disabled=${model.held !== null}
           @change=${(event: Event) =>
-            this.did(this.stock?.modelLength(model.model, millimetres(event) ?? 0, this.placed))}
+            this.did(
+              this.stock?.modelLength(model.model, millimetres(event) ?? 0, this.placed),
+              field,
+            )}
         />
         <button
           class="add"
@@ -424,6 +442,7 @@ export class TcStock extends LitElement {
    *  the train again does not bring it back, so the screen owes the price
    *  before the press rather than the number afterwards (#448). */
   private trainRow(train: TrainRow) {
+    const field = `train/${train.train}/name`;
     return html`
       <li
         class=${`train ${this.train === train.train ? "current" : ""}`}
@@ -434,10 +453,10 @@ export class TcStock extends LitElement {
         <header>
           <input
             class="name"
-            .value=${live(train.train)}
+            .value=${this.shown(field, train.train)}
             aria-label="train name"
             @change=${(event: Event) =>
-              this.did(this.stock?.renameTrain(train.train, value(event)))}
+              this.did(this.stock?.renameTrain(train.train, value(event)), field)}
           />
           ${train.placed ? html`<span class="of">on the layout</span>` : nothing}
           <button
@@ -474,6 +493,7 @@ export class TcStock extends LitElement {
    *  (ADR-0061) — and typing one is what promotes an anonymous item to a car
    *  in the list above. */
   private entry(train: string, entry: EntryRow, at: number) {
+    const field = `entry/${train}/${at}/addr`;
     return html`
       <li class="entry">
         <span class=${`what ${entry.car === null ? "anonymous" : ""}`}>
@@ -484,11 +504,11 @@ export class TcStock extends LitElement {
         </span>
         <input
           class="addr"
-          .value=${live(entry.addr ?? "")}
+          .value=${this.shown(field, entry.addr ?? "")}
           placeholder="address"
           aria-label="address"
           @change=${(event: Event) =>
-            this.did(this.stock?.address(train, at, value(event)))}
+            this.did(this.stock?.address(train, at, value(event)), field)}
         />
         <button
           class="turn"
@@ -592,20 +612,40 @@ export class TcStock extends LitElement {
     this.did(null);
   }
 
-  /** What an edit answered: nothing, or the words to show. Either way the
-   *  screen redraws — `Stock` keeps its identity across an edit, so Lit sees
-   *  no changed property.
+  /** What an edit answered: nothing, or the words to show, and the field it
+   *  was about where the caller has one. Either way the screen redraws —
+   *  `Stock` keeps its identity across an edit, so Lit sees no changed
+   *  property.
    *
    *  A redraw is not by itself the field going back. A refusal changes the
    *  document by construction not at all, so what a field is bound to is what
    *  it was last rendered with and Lit's property part skips the write: a car
    *  renamed to `a/b` was refused and went on showing `a/b`, a value the
-   *  roster has not got. So every field over a document is bound with `live`,
-   *  which compares against the DOM rather than against the last binding and
-   *  writes the document's value back (#416). */
-  private did(refused: string | null | undefined): void {
+   *  roster has not got. What names that field is remembered here, and `shown`
+   *  binds that one field with `live` — which compares against the DOM rather
+   *  than against the last binding and writes the document's value back
+   *  (#416).
+   *
+   *  It is the refusal that puts a field back and nothing else. Binding every
+   *  field with `live` on every render did it on renders that were not about
+   *  anybody's typing at all — the app hands this view `.placed` off the run
+   *  state, so a power change took back a half-typed length (#444). */
+  private did(refused: string | null | undefined, field?: string): void {
     this.trouble = refused ?? null;
+    this.putBack = this.trouble === null || field === undefined ? null : field;
     this.beat++;
+  }
+
+  /** What a field over the document shows: the document's value, written over
+   *  the DOM on the one render that answers a refusal of this very field, and
+   *  bound plainly on every other — so a refusal on one field leaves an edit
+   *  standing in another where it was typed (#444).
+   *
+   *  `field` names the field rather than the element, there being no element
+   *  yet at binding time. A refusal changes the document not at all, so the
+   *  name a row is built from is the name it is redrawn under. */
+  private shown(field: string, value: string) {
+    return this.putBack === field ? live(value) : value;
   }
 
   // --- writing a model ------------------------------------------------------

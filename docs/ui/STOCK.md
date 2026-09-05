@@ -148,6 +148,15 @@ holds while the words say why: rename a car to `a/b` and the name goes back to
 the one the roster has. It used to keep the typed value, so the screen
 displayed a name, an address or a length nothing had (#416).
 
+**Nothing else puts a field back.** The refusal names the field it was about
+and only that field is written back, on only the render that answers it. Every
+other render leaves the DOM alone, which is what an edit still being typed
+needs: this view is handed `.placed` off the run state, so a power change, a
+train placed or any other frame re-renders it while somebody is halfway through
+a length or a name. Writing every field back on every render took that
+half-typed word away ([#444](https://github.com/rails49/control/issues/444)),
+and a refusal on one field left an edit standing in another where it was typed.
+
 **Refusals name what holds a thing.** A car a train is made of cannot be
 removed, and the message says which train. A model's row says what names it —
 the cars that are one, then the trains whose entries do — for the same reason,
@@ -271,7 +280,8 @@ catalogue already has, a train made up of a locomotive and three hoppers, the do
 killing a field while the run has that train placed, the run view showing a
 train made up here without a reload, the row an older roster's train draws and
 the first entry converting it, the current train moving when the one it named
-is unmade, the field a refusal puts back, and the three ways a call to the
+is unmade, the field a refusal puts back, the edit still being typed that a
+frame about the railroad does not take, and the three ways a call to the
 store fails as this screen shows them. The words themselves are
 `ui/test/asking.test.ts`'s, at the helper that decides them.
 
