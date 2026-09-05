@@ -66,7 +66,7 @@ ssh there is nothing to ask.
 ssh blocks
 cd ~/control && git pull
 pnpm --dir ui build
-mkdir -p ~/tc49
+mkdir -p "$(scripts/store-root.sh /etc/tc49/deploy.env)"
 export TC49_UID=$(id -u) TC49_GID=$(id -g)
 TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
   -f deploy/compose.yaml --profile layout --profile hardware \
@@ -126,13 +126,19 @@ The store is always on, because the documents are the one thing there that is
 nobody's run: the editor reads and writes them whether or not a railroad is
 moving. It is rooted at `~/tc49` on the box, bind-mounted in, which is a
 directory rather than a docker volume so it stays somewhere to `cd` into and
-push from (#320). `TC49_STORE` moves it.
+push from (#320). `TC49_STORE` moves it, in the env file or in the shell the
+deploy runs from.
 
 **The directory and everything in it belong to the person who deployed the
 box.** `scripts/deploy.sh` makes it before it runs compose, because a bind
 mount whose source is missing is created by the Docker daemon as root, and
 that shut the person out of their own documents — no editing, no `git init`,
-no catalogue put in by hand (#387). The store then runs as that
+no catalogue put in by hand (#387). Which directory that is,
+`scripts/store-root.sh` answers, the way compose answers it: the deploy
+shell's `TC49_STORE` first, then the env file's, then `~/tc49`. Expanding it
+in the deploy shell made `~/tc49` on a box that had moved its store in the
+env file, and the daemon then made the real one as root after all (#442).
+The store then runs as that
 person, `TC49_UID` and `TC49_GID` from `id` on the box and uid 1000 where
 neither is set, so every drawing the editor saves and every object the backup
 commits is theirs on the host too. `cd` into it, edit it, make it a
