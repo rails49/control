@@ -1540,11 +1540,12 @@ rather than writing them.
 | `tc49/layout/state/device/point/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
 | `tc49/layout/state/device/track` | `power`, `reason` | `power` `on` or `off`; `reason` *optional*, free text |
 | `tc49/layout/state/device/link/<id>` | `id`, `link`, `detail` | `link` `up` or `down`; `detail` *optional*, free text |
+| `tc49/layout/state/device/refused/<id>` | `id`, `addr`, `detail` | `addr` *optional*, absent where the refusal had no address; `detail` free text |
 
-The address rules are the desired half's, and `link` is the one row whose
-address comes back under a name of its own: it is keyed by whatever the
-publisher calls itself, and the payload repeats that as `id` rather than as
-`addr`, there being no device at the far end of it.
+The address rules are the desired half's, and `link` and `refused` are the two
+rows whose address comes back under a name of its own: each is keyed by
+whatever the publisher calls itself, and the payload repeats that as `id`
+rather than as `addr`, there being no device at the far end of it.
 
 **The link's `id` is the publisher's own.** It appears in no drawing, no
 configuration and no list of ours, and nothing but `layout` reads the row. It
@@ -1609,6 +1610,25 @@ as a measured one (ADR-0043); on this railroad turnouts have no feedback
 ([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)), so the
 translator driving them writes none, a faked reply being worse than silence.
 
+**`refused` is the publisher's report on its own last exchange**, and not a
+state of any device: the hardware refused a command or could not parse it, and
+whoever sent that command says so, keyed by whatever it calls itself. It
+carries the `addr` the command named where it had one and free text for the
+reason, and each refusal overwrites the last, so nothing remembers which
+addresses are refusing — that is the table no translator holds, and a UI that
+wants a per-device view builds it from the stream. What it catches is
+misconfiguration: an address the hardware does not have, a value out of range,
+an aspect a mast will not accept, which is common and otherwise entirely
+silent. What it misses is hardware that answers and does not obey, which no
+protocol reports and this row does not pretend to
+([ADR-0063](adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md),
+[#463](https://github.com/rails49/control/issues/463)). A refusal that is
+published happened, and one that is not published is no evidence that none
+occurred: where a participant cannot attribute a refusal to its own command it
+publishes nothing, and [layout/DEVICES.md](layout/DEVICES.md) says which those
+are. `layout` does not subscribe it. It is for a UI, for a person to read, and
+nothing branches on it.
+
 Two of the observed rows are published today, both by a translator:
 `device/track` and `device/link`, which are two of the three `layout` reads
 and the two `state/power` is folded from. The third is `device/sensor`, whose
@@ -1618,8 +1638,9 @@ them a line at a time on the writing role a detector holds, at a client of the
 broker like the camera that will replace it
 ([#315](https://github.com/rails49/control/issues/315),
 [#379](https://github.com/rails49/control/issues/379),
-[bench/detector.py](../src/tc49/bench/detector.py)); `device/point` is
-declared and written by nobody. Folding a block's two sensors into
+[bench/detector.py](../src/tc49/bench/detector.py)); `device/point` and
+`device/refused` are declared and written by nobody, the second being each
+translator's own implementation issue. Folding a block's two sensors into
 `block_occupied` and `block_vacated` is `layout`'s own work, and so is the
 **settling time** a new level is held for before it is acted on — a number
 private to that app, on no topic, so nothing above the layout interface is
