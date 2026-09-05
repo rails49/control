@@ -269,6 +269,19 @@ is a client of the broker like any other app
 decision 4), and native clients go straight to 1883 and never come through the
 proxy.
 
+**A handshake from a page on another origin is answered 403 here**, before
+the upgrade, so a foreign page gets no socket at all. A WebSocket has no
+preflight, so this is the whole of what stands between a page somebody's
+browser visits and the gestures a client may publish
+([ADR-0056](adr/0056-the-browsers-way-onto-the-bus-refuses-a-foreign-origin.md),
+[#349](https://github.com/rails49/control/issues/349)). It is a second router
+on `/mqtt` in each site's table, matching an `Origin` that is not the
+router's own host and carrying a middleware that refuses: Mosquitto has no
+`Origin` setting, so the rule is stated in front of it rather than in an app,
+`lib/origin.py` being the same rule at the store's face. A handshake with no
+`Origin` is a native client and goes through, and one on 1883 does not pass
+this way at all.
+
 Traefik proxies and does not read files, which is why the built UI needs
 nginx behind it. Traefik rather than Caddy because its stock image carries
 every ACME provider; a DNS-01 certificate under Caddy would mean building a
