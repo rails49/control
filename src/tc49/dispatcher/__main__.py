@@ -43,7 +43,6 @@ by gesture and a train nothing places comes up off the layout (ADR-0039,
 ADR-0036).
 """
 
-import argparse
 import contextlib
 import signal
 import sys
@@ -56,31 +55,14 @@ from tc49.dispatcher.locking import Incremental
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
 from tc49.lib.loading import Loaded, dropped
-from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
+from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
+from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
 
 CLIENT_ID = "tc49-dispatcher"
 """What this app calls itself to the broker, so its log names an app rather
 than a random string. Nothing in the contract reads it: a topic has one
 writing role and no payload says who published (SYSTEM.md, rule 4)."""
-
-PERIOD_S = 0.1
-"""Seconds between drains. The railroad's own pacing is elsewhere entirely —
-this only bounds how long a request or a sensor reading sits in the queue the
-client's network thread fills before this thread delivers it, so it stays
-small."""
-
-BROKER_S = 5.0
-"""How long one wait for the broker lasts before it is said again. The wait is
-resumed until the connection lands, so this is only how often a person
-watching the container is told, and how long a signal takes to be noticed
-while the broker is missing."""
-
-RETAINED_S = 1.0
-"""How long the rows this app owns are waited for on the way up. A bound and
-not a promise: the broker sends a retained value as the subscription lands,
-and a broker holding none would otherwise be waited for forever. Overrunning
-it is a cold start, which is what a railroad with no such row is."""
 
 OWNED = ("tc49/dispatch/state/#",)
 """The retained rows this app writes, as a filter rather than a list: a topic
@@ -127,7 +109,7 @@ def serve(
     loaded = Loaded(railroad)
     layout, roster = _documents(documents, loaded.name)
     log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
-    if not _connected(bus, stop, log):
+    if not connected(bus, stop, log):
         return
     while not stop.is_set():
         _retained(bus, ALLOCATION)
@@ -178,17 +160,6 @@ def _loading(
         return _documents(documents, built)
 
 
-def _connected(bus: MqttBus, stop: threading.Event, log: Callable[[str], None]) -> bool:
-    """Wait for the broker, saying so, until it is there or the caller has
-    stopped. An app whose broker is missing has nowhere to publish and nothing
-    to read, so there is nothing else for it to be doing meanwhile."""
-    while not stop.is_set():
-        if bus.wait_connected(BROKER_S):
-            return True
-        log("waiting for the broker")
-    return False
-
-
 def _retained(bus: MqttBus, topic: str, timeout_s: float = RETAINED_S) -> None:
     """Subscribe, and come back once the broker has handed over what it holds
     on `topic` — or once it is clear it holds nothing.
@@ -211,28 +182,10 @@ def _retained(bus: MqttBus, topic: str, timeout_s: float = RETAINED_S) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
+    parser = command_line(
         prog="python -m tc49.dispatcher",
         description="Run the dispatcher against a broker: the one grantor of"
         " moves, and the holder of the run's picture.",
-    )
-    parser.add_argument(
-        "--broker",
-        required=True,
-        metavar="HOST:PORT",
-        help=f"the broker to run on, e.g. {BROKER_EXAMPLE}",
-    )
-    parser.add_argument(
-        "--railroad",
-        required=True,
-        help="the railroad this broker runs, as the store lists it",
-    )
-    parser.add_argument(
-        "--store",
-        required=True,
-        metavar="URL",
-        help="where the store serves the documents, e.g. http://127.0.0.1:8765;"
-        " waited for until it answers",
     )
     args = parser.parse_args()
     try:
