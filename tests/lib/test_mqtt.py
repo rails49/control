@@ -2,8 +2,8 @@
 
 Against a `mosquitto` on a free port, one per test, so no test sees another's
 retained values (`tests/brokers.py`). Skipped where no `mosquitto` is
-installed: a machine without one still runs everything else, and CI installs
-it (#369).
+installed, and failed rather than skipped under CI, where the broker is part
+of the gate (#369, #423).
 """
 
 import json
