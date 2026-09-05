@@ -670,13 +670,18 @@ traction power (which is the track supply)
 **Detector**:
 What watches a **block end** and publishes what it sees there, on one retained
 state topic per **sensor**: `occupied`, `clear` or `unknown`. Addressed by the
-block end, `<block>.<end>`, and never by the detector's own identifier — the
-drawing carries the mapping and the detector is configured with the names it
-must publish, so nothing above the layout interface learns detector geometry
-(ADR-0043, [#194](https://github.com/rails49/control/issues/194)). It
-publishes a **level change and nothing else**: no heartbeat, no restatement on
-a timer, and
-nothing asks it for its state, retention being what a late subscriber gets.
+block end, `<block>.<end>`, on every railroad and never by the detector's own
+identifier — the drawing carries the name the hardware knows each sensor by,
+one per block end and defaulting to that same string, and whoever publishes
+reads it from the store, so nothing above the layout interface learns detector
+geometry
+([ADR-0063](docs/adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md),
+ADR-0043, [#194](https://github.com/rails49/control/issues/194)). A publisher
+that reads the store follows `tc49/layout/state/railroad` like every other app
+that does, and one that reads nothing does not
+([ADR-0060](docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+It publishes a **level change and nothing else**: no heartbeat, no
+restatement on a timer, and nothing asks it for its state, retention being what a late subscriber gets.
 `unknown` is a value and not an absence — the detector knows *why* it cannot
 say, and the free-text `reason` carries that for a person to read, while a
 consumer treats it as no information about that end. Two of them watch a

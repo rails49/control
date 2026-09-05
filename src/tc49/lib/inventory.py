@@ -150,9 +150,12 @@ observed, and a translator maps it onto however many districts it drives
 (#217).
 
 A **sensor** is addressed by the block end it watches, ``<block>.<end>``,
-never by a camera's own identifier: the drawing carries the mapping and the
-detector is configured with the names it must publish, so nothing above the
-layout interface learns detector geometry (#194, ADR-0043). One topic per
+never by a camera's own identifier, and by that on every railroad, so a trace
+is comparable between installations. The drawing carries the name the hardware
+knows each sensor by, one per block end and defaulting to that same string,
+and whoever publishes the row reads it from the store, so the name reaches no
+payload and nothing above the layout interface learns detector geometry (#194,
+ADR-0043, ADR-0063). One topic per
 sensor and never a whole-railroad map — a map would make one camera the writer
 of every sensor on the railroad, and a second camera could then not join
 (ADR-0035).
