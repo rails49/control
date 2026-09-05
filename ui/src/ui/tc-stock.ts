@@ -117,6 +117,11 @@ export class TcStock extends LitElement {
    *  rendering is asked for rather than observed. */
   @state() private beat = 0;
 
+  /** The field an edit was just typed into, while the render that edit asked
+   *  for is outstanding, and `null` on every other render. Not `@state`: the
+   *  edit bumps `beat`, so the render it names is already asked for. */
+  private back: string | null = null;
+
   /** The read waiting to be made again, `null` while none is. */
   private waiting: ReturnType<typeof setTimeout> | null = null;
 
@@ -162,6 +167,10 @@ export class TcStock extends LitElement {
    * child, and the app holds nothing of its own to read.
    */
   override updated(): void {
+    // The render the field was named for has happened, so the name goes: a
+    // frame about the railroad draws this view again and is not news about
+    // what somebody is typing (#444).
+    this.back = null;
     const now = this.stock?.edits ?? false;
     if (now === this.told) return;
     this.told = now;
@@ -275,30 +284,42 @@ export class TcStock extends LitElement {
         <span class="what">
           <input
             class="name"
-            .value=${live(car.name)}
+            .value=${this.putting(`car:${car.name}:name`, car.name)}
             aria-label="car name"
             @change=${(event: Event) =>
-              this.did(this.stock?.renameCar(car.name, value(event)))}
+              this.did(
+                this.stock?.renameCar(car.name, value(event)),
+                `car:${car.name}:name`,
+              )}
           />
           <span class="of">${car.model}${car.kind === null ? " — no such model" : ""}</span>
         </span>
         <input
           class="addr"
-          .value=${live(car.addr ?? "")}
+          .value=${this.putting(`car:${car.name}:addr`, car.addr ?? "")}
           placeholder="address"
           aria-label="address"
           @change=${(event: Event) =>
-            this.did(this.stock?.carAddress(car.name, value(event)))}
+            this.did(
+              this.stock?.carAddress(car.name, value(event)),
+              `car:${car.name}:addr`,
+            )}
         />
         <input
           class="length"
-          .value=${live(car.own ? String(car.length) : "")}
+          .value=${this.putting(
+            `car:${car.name}:length`,
+            car.own ? String(car.length) : "",
+          )}
           placeholder=${car.length === null ? "" : String(car.length)}
           aria-label="length"
           title=${car.held ?? "millimetres over buffers, where this item is not its model's length"}
           ?disabled=${car.held !== null}
           @change=${(event: Event) =>
-            this.did(this.stock?.carLength(car.name, millimetres(event), this.placed))}
+            this.did(
+              this.stock?.carLength(car.name, millimetres(event), this.placed),
+              `car:${car.name}:length`,
+            )}
         />
         <button
           class="add"
@@ -360,12 +381,15 @@ export class TcStock extends LitElement {
         <span></span>
         <input
           class="length"
-          .value=${live(String(model.length))}
+          .value=${this.putting(`model:${model.model}:length`, String(model.length))}
           aria-label="length"
           title=${model.held ?? "millimetres over buffers, on every item of this product"}
           ?disabled=${model.held !== null}
           @change=${(event: Event) =>
-            this.did(this.stock?.modelLength(model.model, millimetres(event) ?? 0, this.placed))}
+            this.did(
+              this.stock?.modelLength(model.model, millimetres(event) ?? 0, this.placed),
+              `model:${model.model}:length`,
+            )}
         />
         <button
           class="add"
@@ -434,10 +458,13 @@ export class TcStock extends LitElement {
         <header>
           <input
             class="name"
-            .value=${live(train.train)}
+            .value=${this.putting(`train:${train.train}:name`, train.train)}
             aria-label="train name"
             @change=${(event: Event) =>
-              this.did(this.stock?.renameTrain(train.train, value(event)))}
+              this.did(
+                this.stock?.renameTrain(train.train, value(event)),
+                `train:${train.train}:name`,
+              )}
           />
           ${train.placed ? html`<span class="of">on the layout</span>` : nothing}
           <button
@@ -484,11 +511,14 @@ export class TcStock extends LitElement {
         </span>
         <input
           class="addr"
-          .value=${live(entry.addr ?? "")}
+          .value=${this.putting(`entry:${train}:${at}:addr`, entry.addr ?? "")}
           placeholder="address"
           aria-label="address"
           @change=${(event: Event) =>
-            this.did(this.stock?.address(train, at, value(event)))}
+            this.did(
+              this.stock?.address(train, at, value(event)),
+              `entry:${train}:${at}:addr`,
+            )}
         />
         <button
           class="turn"
@@ -592,20 +622,40 @@ export class TcStock extends LitElement {
     this.did(null);
   }
 
-  /** What an edit answered: nothing, or the words to show. Either way the
-   *  screen redraws — `Stock` keeps its identity across an edit, so Lit sees
-   *  no changed property.
+  /** What an edit answered: nothing, or the words to show, and the field it
+   *  was typed into where it was typed into one. Either way the screen
+   *  redraws — `Stock` keeps its identity across an edit, so Lit sees no
+   *  changed property.
    *
    *  A redraw is not by itself the field going back. A refusal changes the
    *  document by construction not at all, so what a field is bound to is what
    *  it was last rendered with and Lit's property part skips the write: a car
    *  renamed to `a/b` was refused and went on showing `a/b`, a value the
-   *  roster has not got. So every field over a document is bound with `live`,
-   *  which compares against the DOM rather than against the last binding and
-   *  writes the document's value back (#416). */
-  private did(refused: string | null | undefined): void {
+   *  roster has not got (#416). The field is named here so that the render
+   *  this edit asks for is the one that writes it back, and no other. */
+  private did(refused: string | null | undefined, field: string | null = null): void {
     this.trouble = refused ?? null;
+    this.back = field;
     this.beat++;
+  }
+
+  /**
+   * What a document-backed field is bound to: the document's value, and on
+   * the render an edit typed into *that* field asked for, the document's
+   * value written over the DOM.
+   *
+   * `live` compares against the DOM rather than against the last binding, so
+   * it writes a refused edit back where an ordinary binding skips it. Binding
+   * every field with it did that on **every** render, and this view redraws
+   * for reasons that have nothing to do with the field being typed in: the
+   * app hands it `placed`, and every `run-status` the run view fires replaces
+   * the run state whole. Power going off then wrote the document's `122` over
+   * the `12` somebody was half way through typing (#444). So `live` is
+   * reached for by name: the field the edit was typed into, on the render
+   * that edit asked for.
+   */
+  private putting(field: string, held: string) {
+    return this.back === field ? live(held) : held;
   }
 
   // --- writing a model ------------------------------------------------------
