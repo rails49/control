@@ -747,10 +747,13 @@ events are dropped) and correlation key threading a request's lifecycle and
 move events — and **opaque to both**, so uniqueness is the whole contract and
 no consumer reads the shape
 ([ADR-0033](docs/adr/0033-a-request-id-is-unique-not-meaningful.md)). The
-scheduler mints `<train>-1`, `<train>-2`, … from one undivided counter in
-the order a timetable states, which replay needs — and a run carrying
-gestures does not, no benchmark run receiving any. Never clock-derived, and never minted by a
-page.
+scheduler mints a timetable's `<train>-1`, `<train>-2`, … from one undivided
+counter in the order the file states, which replay needs — and a run carrying
+gestures does not, no benchmark run receiving any. A **gesture**'s takes the
+same counter with a nonce the scheduler process mints once in between,
+`<train>-<nonce>-<n>`, so that a restart of the scheduler alone cannot
+re-mint an id the dispatcher is still holding. Never clock-derived, and never
+minted by a page.
 _Avoid_: event id (there is no universal envelope id)
 
 ### Interruptions
