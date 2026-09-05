@@ -426,16 +426,7 @@ class LayoutInterface:
         # because this app is the row's one writer and this is where "the
         # railroad comes up dark" already lives: the ruling then holds when a
         # process is killed as well as when it exits.
-        #
-        # `wanted/point` is left to replay on purpose. Traction has a resting
-        # value and a point has none — there is no neutral position to write
-        # into the row — so the retained belief about where the last session
-        # left the blades is the only answer short of throwing every point at
-        # startup.
-        for topic in bus.last_values:
-            split = split_device(topic)
-            if split is not None and split[0] == WANTED_TRACTION:
-                self._traction_write(split[1], 0.0)
+        self._traction_rest()
         # And every train is automatic, which is the resting value and the
         # honest one: this app's map of who drives is empty, so the topic says
         # so rather than leaving a client to read that out of an absence
@@ -723,6 +714,24 @@ class LayoutInterface:
         self._bus.publish(
             device_topic(WANTED_TRACTION, addr), {"addr": addr, "speed": speed}
         )
+
+    def _traction_rest(self) -> None:
+        """Zero over every retained `wanted/traction` row the bus holds.
+
+        Every row and not the ones this app has commanded: a row a session
+        that is gone left behind is exactly the one nothing else can reach,
+        and a translator standing down zeroes only the addresses it sent to
+        itself (ADR-0054).
+
+        `wanted/point` is left to replay on purpose. Traction has a resting
+        value and a point has none — there is no neutral position to write
+        into the row — so the retained belief about where the last session
+        left the blades is the only answer short of throwing every point.
+        """
+        for topic in self._bus.last_values:
+            split = split_device(topic)
+            if split is not None and split[0] == WANTED_TRACTION:
+                self._traction_write(split[1], 0.0)
 
     # -- who drives, and a person's throttle ---------------------------------
 
