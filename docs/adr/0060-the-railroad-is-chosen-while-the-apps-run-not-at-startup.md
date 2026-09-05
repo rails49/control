@@ -80,6 +80,37 @@ That is what makes this safe on a railroad wired to steel and not only in
 simulation: rebuilding a station and loading the matching plan is the ordinary
 case, and no check the software can run would tell it whether the two agree.
 
+### The precondition is about steel
+
+*Amended 2026-09-05, after the picker landed dead on every simulated box.*
+
+The precondition asks a person to confirm something no software can check:
+that the rails in front of them match the drawing just loaded. **A binding
+that drives no hardware has nothing to confirm.** Nothing rolls when its model
+changes, no turnout throws, and there is no steel that could disagree with the
+drawing.
+
+**A binding that drives no hardware answers `railroad_wanted` whatever the
+power row says.** The precondition binds the binding that drives hardware.
+
+This is a correction, not a carve-out. "Why power and not a held run" above
+argues entirely about physical consequence — a locomotive that keeps rolling
+whatever the software forgets, a turnout that must not throw — and then states
+the rule in terms of a row that a binding with no hardware writes as a
+constant. Simulated track is always live and says so (`simulator/sim.py`,
+[ADR-0030](0030-the-physical-railroad-is-the-normative-binding.md)), so the
+rule as first written refuses the gesture for ever in exactly the place this
+ADR's own motivation is strongest: a person with a box and no hardware, who
+otherwise cannot create a railroad from the app at all.
+
+The exemption is a property of the binding, not a name — not "the simulator" —
+so a later binding that drives nothing inherits it without another amendment.
+Nothing on the bus says which kind is running, since ADR-0030 keeps simulation
+out of every other app's fields, topics and branches; it is expressed where the
+app is built. The binding that drives hardware hands its answering the topic
+its supply is on. One that drives none hands it nothing (`lib/loading.py`,
+`Answering`).
+
 ## Loading a railroad is a cold start
 
 The new railroad comes up at rest, which

@@ -133,23 +133,32 @@ class Answering(Loaded):
     app owns go and it is built again — so everything below `moved` is
     `Loaded`'s and only what moves it differs.
 
-    **Track power off is the precondition.** The gesture is answered where
-    `tc49/layout/state/power` reads `off` and dropped otherwise: with the
-    power off nothing moves and no turnout throws, and the person who turns
-    it back on is the one confirming the rails match the drawing just loaded
-    (ADR-0051, the operator as the backstop). It is a precondition and not a
-    sequence — nothing here commands a shutdown, and this app never writes
-    `off` of its own accord.
+    **Track power off is the precondition, for a binding that drives
+    hardware.** The gesture is answered where `tc49/layout/state/power` reads
+    `off` and dropped otherwise: with the power off nothing moves and no
+    turnout throws, and the person who turns it back on is the one confirming
+    the rails match the drawing just loaded (ADR-0051, the operator as the
+    backstop). It is a precondition and not a sequence — nothing here commands
+    a shutdown, and this app never writes `off` of its own accord.
 
-    The row is read off the bus rather than out of the app, so the two
-    bindings apply one rule to their own observation: the layout interface
-    folds the supply from the hardware, and the simulator's rails are always
-    live, a power cut being a physical act that ADR-0030 keeps out of the
-    simulation.
+    **A binding that drives no hardware has nothing to confirm**, so it
+    answers whatever the supply reads (ADR-0060 as amended). Its rails are
+    always live and say so, a power cut being a physical act that ADR-0030
+    keeps out of the simulation, so the rule as first written refused the
+    gesture for ever exactly where ADR-0060's motivation is strongest.
+
+    Which it is comes from whoever builds this, never off the bus: nothing
+    there says which kind of binding is running, and ADR-0030 keeps simulation
+    out of every other app's fields, topics and branches. The binding that
+    drives hardware hands over the topic its supply is on; one that drives
+    none hands over `None`.
     """
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, precondition: str | None = POWER) -> None:
         super().__init__(name)
+        # The topic whose `off` the gesture waits for, or `None` where there
+        # is no hardware and so nothing to wait on.
+        self._precondition = precondition
         # What the supply was last observed to be, and `None` until it says.
         # Not `off`: an app that has heard nothing has no evidence that the
         # rails are dead, and the gesture waits rather than being answered on
@@ -166,7 +175,8 @@ class Answering(Loaded):
         subscription would simply be gone (ADR-0059, decision 5).
         """
         self._moved = False
-        bus.subscribe(POWER, self._powered)
+        if self._precondition is not None:
+            bus.subscribe(self._precondition, self._powered)
         bus.subscribe(RAILROAD_WANTED, self._wanted)
 
     def _powered(self, topic: str, payload: Payload) -> None:
@@ -187,7 +197,7 @@ class Answering(Loaded):
         railroad = payload.get("railroad")
         if not isinstance(railroad, str) or not railroad or railroad == self._name:
             return
-        if self._power != OFF:
+        if self._precondition is not None and self._power != OFF:
             return
         self._take(railroad, (railroad, None))
 

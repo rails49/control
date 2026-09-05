@@ -406,17 +406,18 @@ def test_the_simulator_stands_in_for_the_new_railroads_steel(
     and not one that fails to clear — this app owns no row keyed by anything
     the old railroad had.
 
-    **It answers the gesture under the same rule as the other binding**, and
-    the rule is read off `state/power` rather than off which binding this is:
-    one rule, two observations, which is the one place the two already differ
-    (ADR-0030). Simulated rails are always live, so the row this app writes
-    reads `on` and the gesture is refused — the case above — and it is a hand
-    writing `off` that makes the reload happen here.
+    **It answers the gesture with the rails live**, which is the whole of what
+    this asserts: nothing writes `off` anywhere below, and the supply reads
+    `on` before the pick and after it. The precondition binds the binding that
+    drives hardware, because what it buys is a person confirming that the steel
+    matches the drawing just loaded; this binding has no steel and so nothing
+    to confirm (ADR-0060 as amended, `lib/loading.py`).
 
-    That leaves a deployed simulator with nothing that writes `off`, so a
-    picker in front of one is inert: ADR-0060 states the precondition for a
-    railroad wired to steel and says nothing about a binding whose supply is
-    nailed live. It is recorded here rather than decided here.
+    Written the other way — the precondition applied here too — a deployed
+    simulator could never answer the picker at all, since it is the only writer
+    of its own supply and that supply is a constant. The reload could then only
+    be reached by a hand publishing `off`, which is a test driving the system
+    through a contract violation to demonstrate an acceptance criterion.
     """
     running = started("simulator", broker, store, tmp_path)
     try:
@@ -426,11 +427,6 @@ def test_the_simulator_stands_in_for_the_new_railroads_steel(
             lambda: writing.last_values.get(POWER, {}).get("power") == ON, UP_S
         ), "the simulated rails never came alive"
 
-        pick(writing, NOW)
-        settle(writing)
-        assert picture(broker)[RAILROAD]["name"] == WAS, "it reloaded under live rails"
-
-        writing.publish(POWER, {"power": OFF})
         picks(writing, NOW, running)
 
         held = picture(broker)
