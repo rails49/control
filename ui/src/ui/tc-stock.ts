@@ -418,7 +418,11 @@ export class TcStock extends LitElement {
    *
    *  A train written before #223 states its length and names no cars: it is
    *  drawn with that length and a note saying so, and the first thing put in
-   *  it converts it to the ordinary shape (#414). */
+   *  it converts it to the ordinary shape (#414). The note names the stated
+   *  number and says that filling the train in takes it: the stated length is
+   *  a property of the older shape that the conversion consumes, and emptying
+   *  the train again does not bring it back, so the screen owes the price
+   *  before the press rather than the number afterwards (#448). */
   private trainRow(train: TrainRow) {
     return html`
       <li
@@ -453,8 +457,9 @@ export class TcStock extends LitElement {
         ${train.entries.length === 0
           ? html`<p class="hint">
               ${train.stated
-                ? "states its length and names no cars — press + beside a car" +
-                  " or a model to fill it in"
+                ? `states its length and names no cars — press + beside a car` +
+                  ` or a model to fill it in, and the stated ${train.length} mm` +
+                  ` goes`
                 : "nothing in it yet"}
             </p>`
           : html`<ol>

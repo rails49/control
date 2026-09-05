@@ -404,8 +404,32 @@ describe("a roster written the old way", () => {
     expect(parts(shell, ".derived")[0]!.textContent).toMatch("400 mm");
     expect(parts(shell, "li.train p.hint")[0]!.textContent!.trim()).toBe(
       "states its length and names no cars — press + beside a car or a model" +
-        " to fill it in",
+        " to fill it in, and the stated 400 mm goes",
     );
+  });
+
+  /** The conversion consumes the stated number, and emptying the converted
+   *  train writes `cars: []` rather than putting it back — a document the
+   *  store refuses and Save stops (#412). So the note names the number and
+   *  says it goes, before the press that takes it (#448). */
+  it("says what the stated length costs before it is given up", async () => {
+    const shell = await older();
+    expect(parts(shell, "li.train p.hint")[0]!.textContent).toMatch(
+      "the stated 400 mm goes",
+    );
+
+    await add(shell, "car", 0);
+    await pressed(shell, "li.entry button.remove");
+
+    // The conversion is not undone: the train is the ordinary shape now, so
+    // the note is the ordinary one and the stated number is not on the row.
+    expect(parts(shell, "li.train p.hint")[0]!.textContent!.trim()).toBe(
+      "nothing in it yet",
+    );
+    expect(parts(shell, ".derived")[0]!.textContent).not.toMatch("400 mm");
+    await pressed(shell, "sl-button.save");
+    expect(written()).toBeUndefined();
+    expect(trouble(shell)).toMatch("train 'goods' has nothing in it");
   });
 
   /** Composing it converts it: a train says a stated length or cars and never
