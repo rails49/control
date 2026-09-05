@@ -17,7 +17,8 @@ Neither knows about the other, and a run has one of them.
 
 The general contract is [SYSTEM.md](../SYSTEM.md#layout-interface), which is
 where the topics and their payloads are. This page is what this app does with
-them.
+them. [DEVICES.md](DEVICES.md) is the other half of the same picture: what
+each translator does with each device row, and where one cannot.
 
 ## What it reads and writes
 

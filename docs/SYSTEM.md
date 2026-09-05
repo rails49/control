@@ -1466,7 +1466,9 @@ for that address — and whatever recognises an address acts on it while
 everything else ignores it, so no ownership table exists anywhere and an
 address nothing answers to does no harm, as a packet nobody picks up does
 ([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
-The rows are `tc49.lib.inventory.DEVICE_TOPICS`.
+The rows are `tc49.lib.inventory.DEVICE_TOPICS`. What each translator does
+with them, and where one cannot, is
+[layout/DEVICES.md](layout/DEVICES.md).
 
 **What `layout` asks of the hardware.** Four of the five are written today —
 `wanted/point` on each `align`, `wanted/signal` on each aspect the dispatcher
