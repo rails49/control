@@ -10,6 +10,8 @@ whichever tab was open. Everything else stands, including the reading of the
 two-tab problem as a single-writer violation — 0035 restates the rule so that
 it names multi-instance *state* rather than the tab count.
 
+**Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** the bridge is deleted, and what it forwarded below is now what the broker does natively — state topics are published retained and a late subscriber is handed the last value. The ruling stands as written; only the thing carrying it out changed.
+
 A browser that connects to a running session sees nothing until the next event
 moves. Event topics are never replayed
 ([ADR-0008](0008-bus-contract-is-the-mqtt-safe-intersection.md)), so a panel

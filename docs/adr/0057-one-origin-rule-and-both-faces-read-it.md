@@ -1,5 +1,7 @@
 # One origin rule, and both faces read it
 
+**Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** the case this ADR names last — "where it cannot — mosquitto, when the bridge is deleted" — is the case now. The bridge and its `_refuse_foreign` are gone, so one face reads the rule in Python (the store's) and the other states it as a proxy middleware on `/mqtt`. One rule, still, and still not a third copy.
+
 Resolves [#351](https://github.com/rails49/control/issues/351).
 [ADR-0055](0055-a-browser-is-not-on-the-lan-and-the-store-refuses-it.md) made
 the store refuse a page on another origin and

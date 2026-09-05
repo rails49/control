@@ -1,5 +1,7 @@
 # A browser is not on the LAN, and the store refuses it
 
+**Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** "the bridge is not covered" below is settled and the face it names is gone. ADR-0056 extended this rule to the browser's way onto the bus, and with the bridge deleted that way is the broker's WebSocket listener, where the rule stands in front of it as a proxy middleware on `/mqtt` rather than in an app.
+
 > **Two things in the paragraph headed "No client we serve loses anything"
 > are wrong.** Its premise — "in development vite proxies the store's routes
 > without rewriting the header" — is false: vite does rewrite it, and every

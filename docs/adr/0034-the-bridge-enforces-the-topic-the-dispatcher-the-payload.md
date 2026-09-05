@@ -8,6 +8,8 @@ first app to touch a frame a browser wrote, and it never raises on a bus
 payload either. A gesture carries no id at all, which makes every unreadable
 one the null-id case this ADR already answers by dropping it to the trace.
 
+**Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** the bridge is deleted, and with it the enforcer of the topic half. With anonymous clients a broker cannot tell a page from an app, so which topics a page publishes on becomes convention: the inventory's browser mark is still the list, and it is still not written down a second time, but nothing checks an inbound publish against it. The ACL stays derivable from the inventory and is not built. The dispatcher half — the payload checked at admission, never raised on — is untouched, and is now the whole of the split this title names.
+
 [ADR-0021](0021-a-bad-request-is-answered-not-raised.md) made a *readable* bad
 request an answer rather than a crash, and left the rest open: a payload the
 dispatcher cannot read at all still raised out of a bus handler and still ended
