@@ -264,7 +264,17 @@ is not a race. This app holds the map and publishes the whole of it on
 `automatic` is the resting value, so a train the map does not name is
 automatic. `train: null` names **every** train this app holds — every train it
 has a position for — which is a thing a person does to a railroad rather than
-to the train they have picked. A gesture that cannot be read leaves the mode
+to the train they have picked. Handing the railroad over that way **skips the
+trains this app is driving** and takes the rest
+([#436](https://github.com/rails49/control/issues/436)): a gesture about the
+railroad is not a person looking at a train, and taking one under way on a
+grant would stop the arrival being this app's to write, so it would keep its
+commanded speed past the block it was sent to. The skipped trains are dropped
+to the trace and nothing is published to name them — `state/mode` is what says
+where every train's mode now stands. A train somebody **names** is untouched in
+either direction, and so is `train: null` with `automatic`, which is giving
+trains back and asks nothing of a moving one. A gesture that cannot be read
+leaves the mode
 where it was: falling to `manual` would hand a train to a person who is not
 there, and falling to `automatic` would take one out of the hands of a person
 who is. On startup the map is empty and the topic says so, and a value a
