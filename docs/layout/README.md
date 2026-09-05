@@ -166,7 +166,11 @@ That is what makes a restart safe, and it has teeth on every one of them now
 that the app comes up with the railroad off. A command that arrives dead is
 dropped rather than queued: one honoured minutes after the power came back is a
 train moving long after anybody asked for it, and the run is held when power
-returns anyway.
+returns anyway. The value read is the **observed** one, folded from what the
+hardware reports below, so a `move` arriving while a cut is in flight is still
+acted on until the station says the supply went
+([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
+as amended).
 
 A held command meets all three at the moment it is acted on and not at the
 moment it arrived, since the railroad can move under it while it waits.
@@ -478,6 +482,13 @@ granted, and a railroad that could not be turned off would be worse than the
 race. A row that cannot be read leaves the run this app already held standing,
 and a row with no `moving` at all reads as nothing moving, an older dispatcher
 saying nothing about what is under way being no evidence either.
+
+**What `moving` sees is the dispatcher's grants**, and a train somebody has
+taken in a throttle and is driving with no request behind it is neither active
+nor crossing. So the row reads not moving and the `off` is applied while that
+train rolls — this app writes its wheels on the throttle gesture alone, with
+no grant to ask about. Asking for power off with a train in hand is a user
+error the app does not guard (CONTEXT.md, **Moving**).
 
 **An `off` that is applied leaves the railroad at rest.** Before the word goes
 out, `0.0` is written over every retained `wanted/traction` row, exactly as at
