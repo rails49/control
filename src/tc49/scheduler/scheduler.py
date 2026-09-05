@@ -237,6 +237,15 @@ class Scheduler:
         request leaves the train idle — `_train_of` has dropped it — and that
         is precisely when you want to turn around.
 
+        In flight means **every request the dispatcher has announced**, not
+        every request this app sent. A request topic has one responder and
+        any number of writers (SYSTEM.md, rule 1), so a page may submit for a
+        train this scheduler holds the facing of, and a guard reading only
+        what `_submit` minted would be blind to it and turn the arrow under
+        somebody else's queued request (#439). `_on_dispatch` fills
+        `_train_of` from the bus, which is where every submitter's requests
+        land, and the answers empty it there whoever asked.
+
         A train turned around leaves by the end it had been standing with
         its tail at, and the flip goes through `lib`'s `connected_end` on the
         way: on a terminal block that end is the wall, so the gesture is a
@@ -284,9 +293,17 @@ class Scheduler:
         `train_placed`, which already recomputes it.
 
         `request_submitted` is on this filter too, the scheduler's own
-        included, because the topic names the dispatcher that responds to it.
-        It is ignored here like every other leaf the scheduler does not act
-        on.
+        included, because the topic names the dispatcher that responds to it,
+        and it is **read** rather than ignored: it is what tells this app
+        that a train has a request in flight when something else submitted
+        one (SYSTEM.md, rule 1 — one responder, any number of writers). The
+        id and the train are recorded, and the answers below drop them again
+        by id, so the removal side that was already whole gets an insertion
+        side to match (#439). `_submit` writes the same key and the same
+        value for this app's own requests, which keeps the guard immediate
+        there: over a broker the frame comes back a round trip later, and a
+        reversal arriving inside that window would slip past a guard that is
+        about to be correct.
 
         Every payload is **read** and never trusted, exactly as a gesture is
         (#259). These leaves name the dispatcher because the dispatcher
@@ -314,6 +331,15 @@ class Scheduler:
             removed = named_train(payload)
             if removed is not None:
                 self._facing.pop(removed, None)
+        elif leaf == "request_submitted":
+            # A request in flight, whoever submitted it. Either half
+            # unreadable and there is nothing to remember by: a frame with no
+            # id could never be answered and so never dropped again, and one
+            # with no train says nothing about the train the guard asks
+            # about.
+            submitted, mover = readable_id(payload), named_train(payload)
+            if submitted is not None and mover is not None:
+                self._train_of[submitted] = mover
         elif leaf in ("request_completed", "request_rejected", "request_cancelled"):
             answered = readable_id(payload)
             if answered is not None:
