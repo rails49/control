@@ -149,7 +149,13 @@ def serve(
     wire come off wall time in the binding (ADR-0059, decision 1) — so a
     restart resetting it is news to nobody (ADR-0009).
     """
-    loaded = Answering(railroad)
+    # No precondition, because this binding drives no hardware: the power row
+    # it publishes is a constant `on` — a power cut is a physical act ADR-0030
+    # keeps out of the simulation — so a gesture waiting for `off` here would
+    # wait for ever. There is no steel that could disagree with the drawing
+    # just loaded, so there is nothing for a person to confirm (ADR-0060 as
+    # amended).
+    loaded = Answering(railroad, precondition=None)
     layout = documents.layout(loaded.name)
     log(f"'{loaded.name}': {len(layout.blocks)} blocks")
     if not _connected(bus, stop, log):

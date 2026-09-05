@@ -387,8 +387,11 @@ Every app but the translator and the layout interface also subscribes
 the one it is running, which is a railroad being loaded under it (ADR-0060,
 above). The translator does not, hardware needing no layout. The layout
 interface does not either, being the row's writer: it follows
-`tc49/layout/railroad_wanted` instead, which is the gesture it answers, and
-reads back its own `tc49/layout/state/power` for the precondition on it.
+`tc49/layout/railroad_wanted` instead, which is the gesture it answers. The
+binding of it that drives hardware reads back its own
+`tc49/layout/state/power` for the precondition on that gesture; a binding that
+drives none has no precondition and answers with the rails live, having no
+steel that could disagree with the drawing just loaded (ADR-0060 as amended).
 
 Two things the inventory has to keep true:
 
