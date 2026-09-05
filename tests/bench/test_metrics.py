@@ -327,7 +327,8 @@ def test_metrics_over_a_run_that_cancelled_read_it_as_a_cancellation() -> None:
     ticks(assembly, 6)
 
     m = metrics(assembly.trace)
-    assert m.cancelled == ("freight_1-1",)
+    # The drag's id, minted with this scheduler process's nonce (ADR-0033).
+    assert m.cancelled == (events(assembly.trace, "request_submitted")[-1]["id"],)
     assert m.stalls == ()
     assert m.status == "cancelled"
     assert m.completed == ()

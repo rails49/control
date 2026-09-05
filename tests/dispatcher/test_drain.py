@@ -28,6 +28,7 @@ from tests.harness import (
     leaves,
     live,
     load,
+    minted,
     press,
     runs,
     ticks,
@@ -60,7 +61,9 @@ def test_a_drain_admits_and_never_launches() -> None:
     press(assembly, REQUEST_WANTED, {"train": "express_2", "dest": ["dn_w.A"]})
     ticks(assembly, 4)
 
-    assert "express_2-2" in ids(assembly, "request_admitted")
+    # The drag's own id, which carries the scheduler's nonce (ADR-0033); the
+    # timetable's above it are `express_2-1` and freight_1's two.
+    assert minted(assembly, "express_2", 2) in ids(assembly, "request_admitted")
     assert ids(assembly, "route_chosen") == ["freight_1-1"]
 
 

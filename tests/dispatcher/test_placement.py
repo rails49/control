@@ -21,7 +21,7 @@ from tc49.bench.runner import Assembly, assemble_live
 from tc49.dispatcher import FullRoute, Incremental
 from tc49.lib.bus import Payload
 from tc49.lib.scenario import TrainSpec
-from tests.harness import RUN_WANTED, events, load, press, stock, ticks
+from tests.harness import RUN_WANTED, events, load, minted, press, stock, ticks
 
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 REQUEST_WANTED = "tc49/schedule/request_wanted"
@@ -187,7 +187,7 @@ def test_a_placement_cancels_the_request_in_flight_and_then_places(
         {
             "time": 0.0,
             "event": "request_cancelled",
-            "id": "freight_1-1",
+            "id": minted(held, "freight_1"),
             "reason": "displaced",
         }
     ]
@@ -247,7 +247,7 @@ def test_a_placement_over_an_outstanding_move_retires_the_request_at_once() -> N
     assert last(assembly, "request_cancelled") == {
         "time": 0.0,
         "event": "request_cancelled",
-        "id": "freight_1-1",
+        "id": minted(assembly, "freight_1"),
         "reason": "displaced",
     }
     after = last(assembly, "allocation")
@@ -370,7 +370,7 @@ def test_the_released_run_departs_from_where_the_train_was_put(
 
     assert last(held, "route_chosen")["route"][0] == "up_w"
     assert events(held.trace, "request_rejected") == []
-    assert last(held, "request_completed")["id"] == "freight_1-1"
+    assert last(held, "request_completed")["id"] == minted(held, "freight_1")
     assert last(held, "allocation")["trains"]["freight_1"] == "yard_e"
 
 
@@ -622,7 +622,7 @@ def test_a_removal_cancels_the_request_in_flight_and_then_lifts_the_train(
         {
             "time": 0.0,
             "event": "request_cancelled",
-            "id": "freight_1-1",
+            "id": minted(held, "freight_1"),
             "reason": "removed",
         }
     ]

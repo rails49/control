@@ -56,16 +56,38 @@ def placement(assembly: Assembly) -> dict[str, Any]:
     return dict(events(assembly.trace, "allocation")[-1]["trains"])
 
 
+def stable_ids(assembly: Assembly) -> dict[Any, str]:
+    """Every id the run minted, keyed to that id with the nonce taken out.
+
+    A replay feeds the file as drags, and a drag's id carries the scheduler
+    process's nonce where a timetable's does not (ADR-0033). The train and
+    the ordinal either side of it are what two runs of one document have to
+    agree on.
+    """
+    return {
+        line["id"]: f"{line['train']}-{str(line['id']).rsplit('-', 1)[-1]}"
+        for line in events(assembly.trace, "request_submitted")
+    }
+
+
 def requests(assembly: Assembly) -> list[tuple[Any, ...]]:
     """Each submission minus its departure end: the one field a gesture
     cannot state. A drag on a moving train is composed from facing as it
     stands mid-run, the file states the end its author knew, and the launch
     corrects both to the same origin (#135) — so the ends differ on the wire
-    while the runs agree."""
+    while the runs agree. And minus the nonce, which `stable_ids` says."""
+    stable = stable_ids(assembly)
     return [
-        (line["id"], line["train"], tuple(line["dest"]))
+        (stable[line["id"]], line["train"], tuple(line["dest"]))
         for line in events(assembly.trace, "request_submitted")
     ]
+
+
+def completions(assembly: Assembly) -> list[str]:
+    """The requests that completed, in order, each named as `requests` names
+    it."""
+    stable = stable_ids(assembly)
+    return [stable[line["id"]] for line in events(assembly.trace, "request_completed")]
 
 
 def test_a_bare_block_becomes_both_of_its_ends() -> None:
@@ -147,9 +169,7 @@ def test_the_replayed_run_is_the_one_the_document_produced() -> None:
 
     assert requests(replay) == requests(document)
     assert placement(replay) == placement(document)
-    assert [line["id"] for line in events(replay.trace, "request_completed")] == [
-        line["id"] for line in events(document.trace, "request_completed")
-    ]
+    assert completions(replay) == completions(document)
 
 
 def test_a_placement_the_dispatcher_refuses_stops_the_replay() -> None:

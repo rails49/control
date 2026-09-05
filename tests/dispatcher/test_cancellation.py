@@ -51,8 +51,12 @@ def cancel(assembly: Assembly, train: str) -> None:
     press(assembly, CANCEL_WANTED, {"train": train})
 
 
-def drag(assembly: Assembly, train: str, *dest: str) -> None:
+def drag(assembly: Assembly, train: str, *dest: str) -> str:
+    """The gesture, and the id the scheduler minted for it: a drag's id
+    carries the scheduler process's nonce (ADR-0033), so it is read back off
+    the trace rather than spelled out."""
     press(assembly, REQUEST_WANTED, {"train": train, "dest": list(dest)})
+    return str(last(assembly, "request_submitted")["id"])
 
 
 def last(assembly: Assembly, leaf: str) -> dict[str, Any]:
@@ -73,7 +77,7 @@ def test_a_request_still_queued_is_revoked_and_never_launches() -> None:
     finds nothing to launch."""
     assembly = whole_route()
     press(assembly, RUN_WANTED, {"run": "held"})
-    drag(assembly, "freight_1", "yard_e.A")
+    request = drag(assembly, "freight_1", "yard_e.A")
     assert events(assembly.trace, "request_admitted")
 
     cancel(assembly, "freight_1")
@@ -82,7 +86,7 @@ def test_a_request_still_queued_is_revoked_and_never_launches() -> None:
         {
             "time": 0.0,
             "event": "request_cancelled",
-            "id": "freight_1-1",
+            "id": request,
             "reason": "revoked",
         }
     ]
@@ -100,15 +104,12 @@ def test_every_request_the_train_has_ends_with_the_one_gesture() -> None:
     an origin the cancellation just unfixed."""
     assembly = whole_route()
     press(assembly, RUN_WANTED, {"run": "held"})
-    drag(assembly, "freight_1", "yard_e.A")
-    drag(assembly, "freight_1", "dn_w.A", "dn_w.B")
+    first = drag(assembly, "freight_1", "yard_e.A")
+    second = drag(assembly, "freight_1", "dn_w.A", "dn_w.B")
 
     cancel(assembly, "freight_1")
 
-    assert [line["id"] for line in cancellations(assembly)] == [
-        "freight_1-1",
-        "freight_1-2",
-    ]
+    assert [line["id"] for line in cancellations(assembly)] == [first, second]
 
 
 def test_a_cancelled_request_at_rest_gives_up_all_but_the_block_it_stands_in() -> None:
@@ -118,8 +119,8 @@ def test_a_cancelled_request_at_rest_gives_up_all_but_the_block_it_stands_in() -
     outstanding — the sweep that would have granted the next one is the one
     the hold stops."""
     assembly = whole_route()
-    drag(assembly, "freight_1", "yard_e.A")
-    assert last(assembly, "route_chosen")["id"] == "freight_1-1"
+    request = drag(assembly, "freight_1", "yard_e.A")
+    assert last(assembly, "route_chosen")["id"] == request
     ticks(assembly, 2, at={0: (RUN_WANTED, {"run": "held"})})
     assert locks(assembly)["dn_w"] == "freight_1"
 
@@ -129,7 +130,7 @@ def test_a_cancelled_request_at_rest_gives_up_all_but_the_block_it_stands_in() -
         {
             "time": 60.0,
             "event": "request_cancelled",
-            "id": "freight_1-1",
+            "id": request,
             "reason": "revoked",
         }
     ]
@@ -175,16 +176,16 @@ def test_what_a_cancellation_frees_is_granted_on_the_sweep_that_follows() -> Non
     sensors, and everything the route held goes back at once.
     """
     assembly = whole_route()
-    drag(assembly, "freight_1", "yard_e.A")
-    drag(assembly, "express_2", "yard_w.B")
-    assert leaves(assembly, "grant_refused")[-1]["id"] == "express_2-1"
+    cancelled = drag(assembly, "freight_1", "yard_e.A")
+    refused = drag(assembly, "express_2", "yard_w.B")
+    assert leaves(assembly, "grant_refused")[-1]["id"] == refused
 
     cancel(assembly, "freight_1")
     ticks(assembly, 2)
 
     assert [line["id"] for line in leaves(assembly, "route_chosen")] == [
-        "freight_1-1",
-        "express_2-1",
+        cancelled,
+        refused,
     ]
     retired = leaves(assembly, "request_cancelled")[0]["time"]
     assert leaves(assembly, "route_chosen")[-1]["time"] == retired
@@ -211,7 +212,7 @@ def test_a_cancellation_mid_move_retires_when_the_move_ends_and_not_before() -> 
     cancellation and not a completion, the train having stopped short of
     where it was going."""
     assembly = whole_route()
-    drag(assembly, "freight_1", "yard_e.A")
+    request = drag(assembly, "freight_1", "yard_e.A")
 
     cancel(assembly, "freight_1")
     assert cancellations(assembly) == []  # the move is still running
@@ -224,7 +225,7 @@ def test_a_cancellation_mid_move_retires_when_the_move_ends_and_not_before() -> 
         {
             "time": 60.0,
             "event": "request_cancelled",
-            "id": "freight_1-1",
+            "id": request,
             "reason": "revoked",
         }
     ]
