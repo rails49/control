@@ -21,8 +21,8 @@ the whole of the point: nothing downstream knows a person typed it.
 
 **Not a bus contract change.** The topic and the payload are SYSTEM.md's
 already and this writes what a detector writes, on the writing role a detector
-holds (ADR-0035). **Not a panel gesture** either: the bridge enforces the
-topics a page may publish and a device row is not among them (ADR-0034). This
+holds (ADR-0035). **Not a panel gesture** either: a device row carries no
+browser mark and is nothing a page publishes (ADR-0034). This
 stands in for hardware until a camera publishes, and it is meant to be as easy
 to delete as it was to write — one module, one branch of the physical wiring,
 and nothing above the layout interface touched.

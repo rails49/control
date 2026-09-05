@@ -80,7 +80,7 @@ status line's job, and #85 took that button off the screen entirely.
 
 **Whether what the app talks to is answering reads here**, in a health area at
 the right. That is what is wrong that is not the author's doing — the store not
-answering, the bridge on a joined session, whether the rails have power
+answering, the broker on a live run, whether the rails have power
 ([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md))
 — and what the author has to fix is marked on the drawing
 ([Validation](#validation)). A name no drawing can wear is
@@ -1047,7 +1047,7 @@ A drawing that still has a generic connection symbol has to open, so the editor
 draws it as a box with the pins it declares and no turnout detail. It stays off
 the palette, having no fixed pin set to place.
 
-The panel later adds a bus bridge alongside it
+The run view reads the bus off the broker alongside it
 ([PANEL.md](PANEL.md#implementation)).
 
 Symbol pins and transits are generated into `ui/src/symbols.generated.ts` from

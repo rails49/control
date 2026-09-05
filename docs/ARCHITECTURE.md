@@ -61,9 +61,9 @@ src/tc49/
     mqtt.py       the other binding, over an MQTT broker — retained state
                   topics, a wall-time stamp, the network thread queueing and
                   `drain()` delivering (ADR-0059)
-    bridge.py     the WebSocket relay of a live session — `tc49/#` out as
-                  {topic, payload} frames, `request_submitted` in; deleted
-                  with the in-process bus when a real broker arrives
+    origin.py     is_own_page — whether a browser request came from the
+                  page the server is part of, read by the store's HTTP face
+                  (ADR-0057)
     layout.py     Layout — blocks, connections, transits, conflict matrix
                   (expanded from `concurrent` by inversion), derived
                   terminal blocks

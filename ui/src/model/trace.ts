@@ -34,8 +34,8 @@ export interface Frame {
  * A message is a topic and a payload already, and the topic leaf is the
  * event, exactly as SYSTEM.md's inventory has it — so the whole of the
  * browser's side of the contract is here. Retained values arrive as the
- * subscription lands (ADR-0032), which is what a page joining mid-run is fed
- * and what the bridge used to send on connect.
+ * subscription lands (ADR-0032), which is what a page joining mid-run is
+ * fed.
  *
  * A payload that is not a JSON object is dropped rather than thrown — an
  * empty payload is how a retained row is cleared, and a page must not go dark

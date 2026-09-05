@@ -300,8 +300,8 @@ function turnout(on: Lit, set: Against = NEITHER): SVGTemplateResult {
  * A crossing, a slip, or one of the two 90 degree crossings: the same drawing
  * from the same four pins, differing only in where those pins are.
  *
- * Each route is two half-strokes meeting at the frog, and a slip's tick
- * bridges its two legs there. Which legs run over a half-stroke is read off
+ * Each route is two half-strokes meeting at the frog, and a slip's tick joins
+ * its two legs there. Which legs run over a half-stroke is read off
  * the library: every transit through the pin it ends at lights it, which is
  * what makes a lit slip its entry half, its tick and its exit half.
  */

@@ -17,6 +17,11 @@ from tc49.lib.inventory import (
     split_device,
 )
 
+REQUEST_WANTED = "tc49/schedule/request_wanted"
+REVERSAL_WANTED = "tc49/schedule/reversal_wanted"
+RUN_WANTED = "tc49/dispatch/run_wanted"
+PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
+CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
 POINT = "tc49/layout/state/wanted/point"
 TRACK = "tc49/layout/state/wanted/track"
 SENSOR = "tc49/layout/state/device/sensor"
@@ -136,6 +141,34 @@ def test_the_railroad_a_person_loads_is_a_gesture_of_its_own() -> None:
     assert TOPICS[RAILROAD_WANTED].fields == ("railroad",)
     assert TOPICS[RAILROAD].fields == (AT, "name")
     assert RAILROAD not in INBOUND
+
+
+def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
+    """What a broker's ACL would grant a page is the inventory's
+    browser-writable rows (#263): the set is read off the rows' marks rather
+    than off a prefix, a topic naming the component that responds to it.
+
+    The equality below is where widening stops being silent (#158). Marking a
+    row grants every page the write — with anonymous clients a broker cannot
+    tell a page from an app (ADR-0059, decision 4) — so pinning the set
+    exactly means a new mark fails here instead, and whoever adds it grants
+    the write deliberately by naming it. Do not relax this to a subset check.
+
+    Gestures, never requests: `tc49/dispatch/request_submitted` carries no
+    mark, which is what leaves the scheduler the single minter of ids
+    (ADR-0036)."""
+    assert INBOUND == {
+        REQUEST_WANTED,
+        REVERSAL_WANTED,
+        RUN_WANTED,
+        PLACEMENT_WANTED,
+        CANCEL_WANTED,
+        MODE_WANTED,
+        THROTTLE_WANTED,
+        POWER_WANTED,
+        RAILROAD_WANTED,
+    }
+    assert not any(is_state_topic(topic) for topic in INBOUND)
 
 
 def test_no_state_row_is_browser_writable() -> None:

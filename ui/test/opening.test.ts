@@ -11,8 +11,8 @@
  * **`File ▸ New` is the one gesture that asks.** The railroad itself arrives
  * on the bus — the broker says which one it runs and the app reads it off the
  * store (#371, ADR-0059 decision 2) — and nobody is at the keyboard to have
- * meant that, so it is loaded rather than asked about. The picker that used to
- * ask went with the bridge.
+ * meant that, so it is loaded rather than asked about; the picker that used to
+ * ask is a gesture on the bus now and asks nothing either (ADR-0060).
  *
  * The roster is here for the same reason the drawing is: it is the second
  * document the loaded railroad carries, the stock view holds it, and starting
