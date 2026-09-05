@@ -73,7 +73,8 @@ Single-context: `CONTEXT.md` at the root plus `docs/adr/`. See `docs/agents/doma
 
 ### Batch implementation
 
-`/batch-implement` lands `ready-for-agent` issues unattended, one cold subagent
-each, gated by `scripts/check.sh`. It is a user skill rather than a repo one —
-`~/.claude/skills/batch-implement/SKILL.md` — and derives the repo and the gate
-from wherever it is run.
+`/implement-loop` lands `ready-for-agent` issues unattended: one cold agent per
+issue in a Docker sandbox, `scripts/check.sh` run by the host between them, and
+the batch landing as one PR that `ci` must pass. It is a user skill rather than
+a repo one — `~/.claude/skills/implement-loop/SKILL.md` — and derives the repo
+and the gate from wherever it is run.
