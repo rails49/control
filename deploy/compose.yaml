@@ -23,6 +23,17 @@
 # a box carrying both files fetches a certificate for a name that is not its
 # own — which is why the directory holds one file rather than the mount
 # picking one out of a directory holding two.
+#
+# The project's name, which compose otherwise takes from the directory this
+# file sits in — `deploy`, which says where the file is rather than what the
+# stack is, and which a clone under another name would spell differently. Said
+# here instead, so the containers are `tc49-store-1` and stay so wherever the
+# clone lives. Not a `container_name` on each service, which was the other way
+# to the same names: that one is the daemon's name rather than the project's,
+# so `-p` would stop working and a second copy of this stack — a throwaway one
+# for testing a change to this file — could never run beside the first (#451).
+
+name: tc49
 
 services:
   proxy:
