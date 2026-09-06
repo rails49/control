@@ -323,7 +323,7 @@ reports it is `device/link`.
 With the railroad powered and a locomotive on address 3 standing on the main:
 
 ```
-$ nc blocks49.local 2560
+$ nc layout.rails49.org 2560
 <s>
 <iDCC-EX V-5.4.16 / ESP32 / EXCSB1_WITH_EX8874 G-devel-202504182148Z>
 <p1 A>
