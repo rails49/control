@@ -85,7 +85,8 @@ unaddressed point derives a `points` list with a single entry, which is
 indistinguishable from a transit that genuinely needs one point thrown. The
 layout under-reports rather than visibly gapping, and the failure mode is a
 route the dispatcher believes it set on a railroad where one point never moved.
-That belongs to the class of failure [GOALS.md](../GOALS.md#hardware-that-lies)
+That belongs to the class of failure
+[GOALS.md](../GOALS.md#what-the-app-is-assumed-to-be-told)
 assumes away until hardware runs, and the day that assumption is paid off this
 is one of the places it will have to look.
 
