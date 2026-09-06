@@ -4,9 +4,15 @@
 #
 #   scripts/deploy.sh
 #
-# Every command runs on the layout server. `ssh rails49` on a line of its own
+# Every command runs on the layout server. An ssh command on a line of its own
 # opens a session, and what came after it would run on this machine instead,
 # so the whole sequence is fed to a shell there.
+#
+# The host is named in full rather than as `rails49`, which is an ssh alias and
+# lives in `~/.ssh/config` — a personal file that is in no repository. A machine
+# whose config has lost the stanza had a broken deploy (#488, #496); naming the
+# host here means the deploy depends on nothing outside this checkout. `ssh
+# rails49` stays what you type by hand (docs/DEPLOY.md).
 #
 # A login shell, so pnpm is on PATH the way it is when you log in. The strict
 # options are set inside it rather than as `bash -leu`, because
@@ -14,7 +20,7 @@
 # deploy before it began.
 set -euo pipefail
 
-ssh rails49 bash -l -s <<'REMOTE'
+ssh ttmetro@layout.rails49.org bash -l -s <<'REMOTE'
 set -euo pipefail
 # The heredoc is this shell's stdin, so a prompt for a git credential would
 # read the rest of the script as the answer. Fail instead.

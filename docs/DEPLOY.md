@@ -56,11 +56,17 @@ one place a secret sits on disk: `/etc/tc49/deploy.env`, owned `root:docker`
 and mode 640, outside the clone, written once from a machine that does have
 `op`. Revoke and rewrite it rather than editing it in place.
 
-**`rails49` is an ssh alias**, and this is where it is written down.
-`~/.ssh/config` is a personal file that collects every host its owner has ever
-reached, so it is not tracked anywhere; without the stanza below a fresh
-machine has nothing to go on, and `ssh rails49` fails with `Could not resolve
-hostname rails49`, taking `scripts/deploy.sh` with it.
+**`rails49` is an ssh alias**, and it is a convenience rather than something
+the deploy needs. `scripts/deploy.sh` names `ttmetro@layout.rails49.org` in
+full, because the alias lives in `~/.ssh/config` — a personal file that
+collects every host its owner has ever reached, is in no repository, and once
+lost the stanza and took the deploy down with it (#488, #496). Nothing that
+runs unattended may depend on a file like that.
+
+What you type by hand is still `ssh rails49`, here and further down the page.
+The stanza is kept in the dotfiles repository as `~/.ssh/config.d/rails49` and
+pulled in by an `Include ~/.ssh/config.d/*` line at the top of
+`~/.ssh/config`, which stays untracked. On a machine that has neither, add it:
 
 ```ssh-config
 Host rails49
@@ -71,10 +77,26 @@ Host rails49
 `HostName` is the DNS name rather than `rails49.local` on purpose: the record
 is independent of what the box calls itself, so renaming the machine cannot cut
 off the deploy. It had to survive exactly that when the host was renamed from
-`blocks49`. Naming the account here gives nothing away — everyone on the LAN
-can drive and there is no authentication, by design
-([ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)),
-and the name resolves to a private address.
+`blocks49`.
+
+The account is named here, on a public page, and what that costs depends on the
+box rather than on this project's design. [ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)
+says everyone on the LAN may drive the railroad; it says nothing about who may
+open a shell, which is a separate surface with real authentication. Today the
+server still accepts ssh passwords, so the name is half of a login for anything
+that reaches port 22 — see [#497](https://github.com/rails49/control/issues/497),
+which turns that off. Nothing is inbound from the internet and the name
+resolves to a private address, which is why this is a defect to fix rather than
+an emergency.
+
+**This installation's own deploy facts stay in this repository** — the LAN
+address above, the zone, the box, the account — even though
+[#318](https://github.com/rails49/control/issues/318) moved an installation's
+*documents* out to a store of its own. The two are different kinds of thing: a
+railroad, its stock and its decoder addresses are a user's data and drift as
+the layout changes, while this page is how this project's own stack is run.
+Splitting it would leave a general page nobody can follow beside a private one
+nobody reviews.
 
 The clone pulls over ssh — `git@github.com:rails49/control.git` — with the key
 that is already on the box. The repository is public, so HTTPS needs no
