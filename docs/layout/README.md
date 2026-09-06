@@ -494,20 +494,36 @@ train rolls — this app writes its wheels on the throttle gesture alone, with
 no grant to ask about. Asking for power off with a train in hand is a user
 error the app does not guard (CONTEXT.md, **Moving**).
 
-**An `off` that is applied leaves the railroad at rest.** Before the word goes
-out, `0.0` is written over every retained `wanted/traction` row, exactly as at
-startup below. "The railroad comes up at rest" is a promise about a **power
-off** and the `on` after it as well as about a process start, and the supply
-going is not a **restart**, so the startup rule does not reach it: an arrival
-zeroes the row of a train this app drives and nothing zeroes the row of one a
-person holds in a throttle, so a plain `off` would otherwise leave a speed
-standing and the next `on` would bring current back over it
+**An `off` that is applied leaves the railroad at rest**, as far as a write
+can leave it. Before the word goes out, `0.0` is written over every retained
+`wanted/traction` row, exactly as at startup below. "The railroad comes up at
+rest" is a promise about a **power off** and the `on` after it as well as
+about a process start, and the supply going is not a **restart**, so the
+startup rule does not reach it: an arrival zeroes the row of a train this app
+drives and nothing zeroes the row of one a person holds in a throttle, so a
+plain `off` would otherwise leave a speed standing and the next `on` would
+bring current back over it
 ([#435](https://github.com/rails49/control/issues/435)). The order is
 load-bearing — a translator acts on desired rows as they arrive, so zeros first
 means the last thing the station is told before the supply goes is a stop — and
 it is only this `off`: a refused gesture changes nothing, and `stopped` is a run
 that is meant to resume from it, which zeroed rows would turn into a re-drive.
 `wanted/point` is left alone here for the reason it is left alone at startup.
+
+**That rest is what the cut writes, and not what the rails are guaranteed to
+carry a moment later.** The guard above reads the observed power and so does
+*no move while the rails are dead*, so ADR-0062 as amended reasons about a
+window between this app publishing `wanted/track: off` and the station
+reporting `device/track: off` in which a `run_wanted: running` from a second
+panel is accepted, the sweep grants, and the traction write of a crossing
+lands after the zeros
+([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
+Nothing here closes it and neither gate changes: the outcome is a train
+holding locks for a move no sensor will answer, which ADR-0040 as amended by
+ADR-0049 already calls safe but wedged, with hold plus a placement as the
+recourse. How long the window is nobody has measured, and the simulator
+cannot show it at all, publishing `state/power: on` once at construction and
+never again (ADR-0030).
 
 A refused `off` is **dropped**, in silence and to the trace with the reason,
 as every gesture this app cannot act on is
