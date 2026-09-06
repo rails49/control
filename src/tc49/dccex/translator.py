@@ -49,15 +49,21 @@ over a missing file is neither (ADR-0050).
 
 Two rules are not a row of the mapping table:
 
-**The stop is the one-shot, and it is not a state.** `stopped` tells every
-decoder to stand with the track still live and holds nothing afterwards, so
-any throttle on the shared port may drive away from it. That is the operator's
-call to make — they are the one holding the layout — and it is why the
-observed power goes back to `on` as soon as the broadcast is out rather than
-reading `stopped` until somebody clears it. A station's emergency-stop *lock*
-would make it a state, which is the better answer where a station has one; it
-is one product's firmware-branch command and belongs behind a question this
-app cannot yet ask (#463, #464).
+**The stop is the one-shot, and no row of this app's holds it.** `stopped`
+tells every decoder to stand with the track still live and holds nothing
+afterwards, so any throttle on the shared port may drive away from it. That
+is the operator's call to make — they are the one holding the layout.
+`device/track` is `on` and `off` (ADR-0063): the observed supply goes back to
+`on` as soon as the broadcast is out, because the rails are live under a stop
+and there is nothing else the supply could truthfully read. The stop is not
+lost for going unobserved — `layout` holds the one it commanded and publishes
+`state/power: stopped` above this app until a person clears it. A station's
+emergency-stop *lock* would hold it in the hardware instead, which is the
+better answer where a station has one, and nothing has to be asked before
+using it: each translator implements `stopped` as well as its own hardware
+allows and never by removing power (ADR-0063, decision 3). One product's
+firmware-branch command is dialect this app absorbs, not a word the bus
+learns (ADR-0058, #463, #464).
 
 **An overload is polled for.** A district that trips is not broadcast on TCP
 — the station cuts it and says so on its USB diagnostics only — so this app

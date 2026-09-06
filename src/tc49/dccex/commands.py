@@ -164,7 +164,8 @@ def track(power: str) -> bytes:
     an act, which is the better answer where a station has one and is not
     asked for here: it is one product's firmware-branch command, and a
     `stopped` that meant "under a lock" would put a station's private
-    vocabulary inside a bus word every railroad shares (ADR-0043, #464).
+    vocabulary inside a bus word every railroad shares (ADR-0043, ADR-0063,
+    #464).
     """
     if power == ON:
         return b"<1>"
