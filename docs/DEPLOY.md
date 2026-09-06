@@ -56,6 +56,26 @@ one place a secret sits on disk: `/etc/tc49/deploy.env`, owned `root:docker`
 and mode 640, outside the clone, written once from a machine that does have
 `op`. Revoke and rewrite it rather than editing it in place.
 
+**`rails49` is an ssh alias**, and this is where it is written down.
+`~/.ssh/config` is a personal file that collects every host its owner has ever
+reached, so it is not tracked anywhere; without the stanza below a fresh
+machine has nothing to go on, and `ssh rails49` fails with `Could not resolve
+hostname rails49`, taking `scripts/deploy.sh` with it.
+
+```ssh-config
+Host rails49
+    HostName layout.rails49.org
+    User ttmetro
+```
+
+`HostName` is the DNS name rather than `rails49.local` on purpose: the record
+is independent of what the box calls itself, so renaming the machine cannot cut
+off the deploy. It had to survive exactly that when the host was renamed from
+`blocks49`. Naming the account here gives nothing away — everyone on the LAN
+can drive and there is no authentication, by design
+([ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)),
+and the name resolves to a private address.
+
 The clone pulls over ssh — `git@github.com:rails49/control.git` — with the key
 that is already on the box. The repository is public, so HTTPS needs no
 credential for it, but GitHub challenges the second request of an anonymous
