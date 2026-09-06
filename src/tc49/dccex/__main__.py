@@ -169,12 +169,11 @@ def _retained(bus: MqttBus, stop: threading.Event, timeout_s: float) -> None:
     """Give the broker its moment to hand over the desired rows it holds, and
     deliver them, before anything opens a link they could go out over.
 
-    The window is waited out **whole**, where an app waiting for one named row
-    comes back the instant it lands (`lib/startup.py`). There is nothing to key
-    on: a row exists for each address `layout` has written to and this app
-    holds no list of which, so an empty broker and a broker still sending look
-    alike from here. A second on the way up, once, against a locomotive
-    commanded ahead of the power it needs.
+    The window is waited out **whole**, for the reason `lib/startup.py` gives
+    a wait with nothing to name: what is being waited for is a row per address
+    `layout` has written to, and this app holds no list of which. A second on
+    the way up, once, against a locomotive commanded ahead of the power it
+    needs.
 
     Delivered here on this thread, which is the one thread there is until
     `asyncio.run` starts: `DccEx` remembers a desired value and acts on it

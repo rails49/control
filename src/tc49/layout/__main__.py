@@ -188,12 +188,11 @@ def _retained(
     why (#333, ADR-0054). Zeroing them is the constructor's, and it can only
     zero the rows it can see.
 
-    The window is waited out **whole**, where every other app waits for one
-    named row and comes back the instant it lands. There is nothing to key on:
-    a row exists for each address a previous process wrote to and this app
-    holds no list of which, so an empty broker and a broker still sending look
-    alike from here. A second on the way up, once, against a locomotive that
-    would otherwise take itself away.
+    The window is waited out **whole**, for the reason `lib/startup.py` gives
+    a wait with nothing to name: what is being waited for is a row per
+    address a previous process wrote to, and this app holds no list of which.
+    A second on the way up, once, against a locomotive that would otherwise
+    take itself away.
 
     The value is read here only in the sense of being waited for; reading it is
     the app's, and this handler does nothing with what it is given.
