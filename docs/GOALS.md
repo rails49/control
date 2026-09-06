@@ -192,7 +192,7 @@ simulator travel time is a pair of fixed delays of the simulator's own; on a
 physical railroad transits take as long as they take
 ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 
-### Hardware that lies
+### What the app is assumed to be told
 
 Everything above assumes the layout interface tells the truth: that a detector
 reporting `occupied` is right, and that points told to throw have thrown.
@@ -216,3 +216,24 @@ and no hardware is running yet, so the set worth working on is empty. The
 failures are written down here rather than worked on, so the day hardware
 appears the effort starts from a list instead of from a surprise under a
 running train.
+
+**The operator is assumed to leave the railroad to the app**, and that is a
+decision of the same kind. The app is correct about the railroad it is told
+about, and a person can change the steel without saying so. Some of that it
+sees: a detector reading no granted move accounts for holds the run and names
+what it contradicts for a person to walk
+([ADR-0048](adr/0048-an-unexplained-reading-holds-the-run.md)). Most of it it
+cannot. Nothing detects a train driven from a throttle the app does not know
+about, and asking for power off with a train in hand is a user error it does
+not guard (`CONTEXT.md`, **Moving**).
+
+What that costs is correctness, not liveness. A consumer never raises on what
+it reads (SYSTEM.md, rule 4) and an unexplained reading is handled rather than
+thrown, so nothing here makes the app fall over. The lock table stops
+describing the steel, and collision safety is the property that rests on it.
+
+Placing and lifting stock by hand is not the deviation. It is how stock joins
+an evening and how every session starts
+([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)), and it ends with a
+person confirming a placement. The deviation is moving a train the app
+believes is somewhere else, or driving one it does not know is moving.

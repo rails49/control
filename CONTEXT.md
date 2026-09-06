@@ -496,7 +496,8 @@ A manual train on its route is active and so moving, whatever its throttle
 reads. A manual train **off** its route is neither, since only the
 dispatcher's own grants populate the two, so `moving` reads false and an
 `off` is applied while a person drives it: asking for **power off** with a
-train in hand is a user error the app does not guard.
+train in hand is a user error the app does not guard, which is one case of the
+assumption in [GOALS.md](docs/GOALS.md#what-the-app-is-assumed-to-be-told).
 _Avoid_: busy, in motion, rolling, quiet/still (for the negation — say "not
 moving")
 
@@ -537,7 +538,9 @@ train pushed while the supply was off, a detector asserting on dirt. It
 **holds the run**, by the path track power takes, and what it contradicts is
 named in the **disputed** set for a person to walk
 ([ADR-0048](docs/adr/0048-an-unexplained-reading-holds-the-run.md)). It never
-raises, and nothing is placed on the strength of it.
+raises, and nothing is placed on the strength of it. It is the part of a
+railroad changed outside the app that the app can see; what it cannot see is
+in [GOALS.md](docs/GOALS.md#what-the-app-is-assumed-to-be-told).
 _Avoid_: unexpected sensor, stray reading, phantom occupancy, false positive
 (which names one cause of a reading, not the reading)
 
