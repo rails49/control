@@ -19,7 +19,21 @@ round trip plus the hardware's, since
 [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
 made each app its own process — there is a window in which a
 `run_wanted: running` from a second panel is accepted, the sweep grants, and
-`_cross` writes a speed onto rails that are going dark.
+`_cross` writes a speed onto rails that are going dark. How long that window
+is nobody has measured; what is reasoned about here is what the code says,
+not a hardware result.
+
+**What the window can undo is the rest the cut writes.**
+[#435](https://github.com/rails49/control/issues/435) has an applied `off`
+zero every retained `wanted/traction` row before the word goes out, so that
+the supply coming back does not come back over a standing speed
+(`docs/layout/README.md`, **Power**). The traction write of a crossing granted
+in this window lands after those zeros, and leaves a speed standing on a row
+zeroed a moment earlier. So "an applied `off` leaves the railroad at rest" is
+a statement about what the cut writes, and not about what the rails are
+guaranteed to carry a moment later. The zeros are still the last thing the
+station is told before the supply goes in every cut where nothing is granted
+in between, which is every cut the window does not catch.
 
 The outcome is a train holding locks for a move no sensor will answer, which
 is not a new failure mode:
