@@ -1331,13 +1331,14 @@ throttle makes it manual and releasing it puts it back
 ([#207](https://github.com/rails49/control/issues/207)). Both gestures are
 this component's — `mode_wanted` hands a train over or takes it back,
 `train: null` handing over every train at once bar the ones `layout` is
-driving, and `throttle_wanted` is the throttle being turned — because the device row a throttle ends at has one
-writer and that writer is `layout` (rule 1), while a throttle is any number
-of writers, two tabs being two of them. The layout interface applies a
-`throttle_wanted` only while that train is manual and drops it otherwise, and
-on the transition back to automatic it writes the speed the train's current
-grant implies, which is `0.0` where there is none. It publishes `state/mode`,
-which is where a view reads who is driving what.
+driving, and `throttle_wanted` is the throttle being turned — because the
+device row a throttle ends at has one writer and that writer is `layout`
+(rule 1), while a throttle is any number of writers, two tabs being two of
+them. The layout interface applies a `throttle_wanted` only while that
+train is manual and drops it otherwise, and on the transition back to
+automatic it writes the speed the train's current grant implies, which is
+`0.0` where there is none. It publishes `state/mode`, which is where a view
+reads who is driving what.
 
 Two things this does **not** change. The **driver** still turns a
 `move_granted` for a manual train into a `move`, so the points still throw and
