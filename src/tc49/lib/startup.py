@@ -126,17 +126,28 @@ def _nothing(topic: str, payload: Payload) -> None:
     reads it here: the app is built afterwards and reads the value itself."""
 
 
-def command_line(prog: str, description: str) -> argparse.ArgumentParser:
-    """The three flags a compose service passes an app that reads documents:
-    where the broker is, which railroad it runs, and where the store serves
-    the documents that railroad is built from.
+def command_line(
+    prog: str, description: str, railroad: bool = True, store: bool = True
+) -> argparse.ArgumentParser:
+    """The flags a compose service passes an app: where the broker is, which
+    railroad it runs, and where the store serves the documents that railroad
+    is built from.
 
-    Four of the six take exactly these and differed only in `prog` and
-    `description`. The other two build their own, their flags being a
-    difference and not a repetition: the driver reads no documents and so
-    takes no `--store` (SYSTEM.md, driver footprint), and the translator is
-    told about no railroad at all — hardware needs no layout — and takes the
-    station it speaks to instead (ADR-0059, decisions 5 and 6).
+    **All six start here**, and the two arguments say which of the three an
+    app takes rather than which apps write a parser of their own. Every app
+    is given a broker, having nowhere to publish and nothing to read without
+    one. `railroad=False` is the translator's, which is told about no
+    railroad at all — hardware needs no layout, and an address is the string
+    the hardware answers to rather than something looked up (ADR-0059,
+    decisions 5 and 6). `store=False` is the driver's as well, which reads no
+    documents (SYSTEM.md, driver footprint). What an app adds on top of what
+    it is handed here — a station, a startup file, an id — it adds to the
+    parser this returns.
+
+    Taking fewer flags was what let two apps declare their own and drift from
+    the words here while a commit said six of them shared these (#430, #456).
+    An app's own flags are a difference; `--broker` spelled out a second time
+    is a repetition.
 
     A period is not a flag anywhere: nothing outside a process has an opinion
     about how often it takes what the broker's network thread left waiting.
@@ -148,16 +159,18 @@ def command_line(prog: str, description: str) -> argparse.ArgumentParser:
         metavar="HOST:PORT",
         help=f"the broker to run on, e.g. {BROKER_EXAMPLE}",
     )
-    parser.add_argument(
-        "--railroad",
-        required=True,
-        help="the railroad this broker runs, as the store lists it",
-    )
-    parser.add_argument(
-        "--store",
-        required=True,
-        metavar="URL",
-        help="where the store serves the documents, e.g. http://127.0.0.1:8765;"
-        " waited for until it answers",
-    )
+    if railroad:
+        parser.add_argument(
+            "--railroad",
+            required=True,
+            help="the railroad this broker runs, as the store lists it",
+        )
+    if store:
+        parser.add_argument(
+            "--store",
+            required=True,
+            metavar="URL",
+            help="where the store serves the documents, e.g."
+            " http://127.0.0.1:8765; waited for until it answers",
+        )
     return parser

@@ -88,7 +88,6 @@ under MQTT whoever published it is another container, and a bug there must not
 take the thing that drives the railroad down with it.
 """
 
-import argparse
 import asyncio
 import contextlib
 import signal
@@ -103,8 +102,8 @@ from tc49.dccex.translator import (
     MAX_BACKOFF_S,
     DccEx,
 )
-from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
-from tc49.lib.startup import PERIOD_S, RETAINED_S, connected
+from tc49.lib.mqtt import MqttBus, address
+from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
 
 CLIENT_PREFIX = "tc49-"
 """What this app calls itself to the broker, in front of its id, so the log
@@ -213,16 +212,12 @@ async def _driving(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
+    parser = command_line(
         prog="python -m tc49.dccex",
         description="Run the dccex translator against a broker: the device"
         " vocabulary turned into a command station's own language.",
-    )
-    parser.add_argument(
-        "--broker",
-        required=True,
-        metavar="HOST:PORT",
-        help=f"the broker to run on, e.g. {BROKER_EXAMPLE}",
+        railroad=False,
+        store=False,
     )
     parser.add_argument(
         "--station",

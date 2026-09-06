@@ -39,7 +39,6 @@ it was in one process (#261, SYSTEM.md rule 4) — under MQTT the publisher is
 another process, and a bug there must not take this one down.
 """
 
-import argparse
 import contextlib
 import signal
 import sys
@@ -48,8 +47,8 @@ from collections.abc import Callable
 
 from tc49.driver.driver import Driver
 from tc49.lib.loading import Loaded
-from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
-from tc49.lib.startup import PERIOD_S, connected
+from tc49.lib.mqtt import MqttBus, address
+from tc49.lib.startup import PERIOD_S, command_line, connected
 
 CLIENT_ID = "tc49-driver"
 """What this app calls itself to the broker, so its log names an app rather
@@ -111,22 +110,11 @@ def serve(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
+    parser = command_line(
         prog="python -m tc49.driver",
         description="Run the driver against a broker: each granted move"
         " restated as the command that moves the train.",
-    )
-    parser.add_argument(
-        "--broker",
-        required=True,
-        metavar="HOST:PORT",
-        help=f"the broker to run on, e.g. {BROKER_EXAMPLE}",
-    )
-    parser.add_argument(
-        "--railroad",
-        required=True,
-        help="the railroad this broker runs, as the store lists it;"
-        " named in the log and read for nothing, this app holding no documents",
+        store=False,
     )
     args = parser.parse_args()
     try:
