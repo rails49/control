@@ -31,11 +31,17 @@ only place a shape six of them share can live. Beside `loading.py` rather
 than inside it — what an app does when the railroad moves under it is that
 module's whole subject, and the way in is this one's.
 
-**Not every wait that looks alike is here.** A binding holding no list of the
-addresses to key on waits its window out whole and cannot come back the
-instant a row lands, an empty broker and a broker still sending looking alike
-from there (`layout`, `dccex`). That is a difference in behaviour, and it
-stays written where it happens.
+**Not every wait that looks alike is here, and the reason they differ is.**
+`retained` below names the row it is waiting for and comes back the instant
+that row lands. An app whose rows are keyed by address holds no list of which
+addresses a railroad has, so there is nothing for it to name: a broker holding
+nothing and a broker still sending look alike from there, and the only way to
+have the whole picture is to wait the window out whole. That is a difference
+in behaviour and it has an app's own `_retained` — `layout`, waiting out the
+traction rows a previous process left, and `dccex`, waiting out the desired
+picture before it opens a link those values could go out over. Each of those
+says what it is waiting for and why a second is worth spending on it; why a
+wait with nothing to name lasts the whole window is written here, once (#456).
 """
 
 import argparse
