@@ -494,15 +494,15 @@ train rolls — this app writes its wheels on the throttle gesture alone, with
 no grant to ask about. Asking for power off with a train in hand is a user
 error the app does not guard (CONTEXT.md, **Moving**).
 
-**An `off` that is applied leaves the railroad at rest**, as far as a write
-can leave it. Before the word goes out, `0.0` is written over every retained
-`wanted/traction` row, exactly as at startup below. "The railroad comes up at
-rest" is a promise about a **power off** and the `on` after it as well as
-about a process start, and the supply going is not a **restart**, so the
-startup rule does not reach it: an arrival zeroes the row of a train this app
-drives and nothing zeroes the row of one a person holds in a throttle, so a
-plain `off` would otherwise leave a speed standing and the next `on` would
-bring current back over it
+**An `off` that is applied leaves the railroad at rest** (CONTEXT.md,
+**Railroad at rest**), as far as a write can leave it. Before the word goes
+out, `0.0` is written over every retained `wanted/traction` row, exactly as at
+startup below. "The railroad comes up at rest" is a promise about a **power
+off** and the `on` after it as well as about a process start, and the supply
+going is not a **restart**, so the startup rule does not reach it: an arrival
+zeroes the row of a train this app drives and nothing zeroes the row of one a
+person holds in a throttle, so a plain `off` would otherwise leave a speed
+standing and the next `on` would bring current back over it
 ([#435](https://github.com/rails49/control/issues/435)). The order is
 load-bearing — a translator acts on desired rows as they arrive, so zeros first
 means the last thing the station is told before the supply goes is a stop — and

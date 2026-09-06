@@ -835,6 +835,23 @@ is a train granted a move when the supply went: it is stranded between blocks
 and no sensor will ever say where it stopped.
 _Avoid_: shutdown, blackout, emergency stop (the track stays live for that)
 
+**Railroad at rest**:
+Every retained `tc49/layout/state/wanted/traction` row holding `0.0` — every
+commanded speed zero. `layout` writes it when it comes up, and again when it
+applies a plain **power off**, so a speed left on the bus by a previous run or
+by a person's throttle is not handed back to a **translator** and replayed when
+the supply returns
+([ADR-0054](docs/adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md),
+[#435](https://github.com/rails49/control/issues/435)). It is a property of the
+commanded rows and never an observation of the steel: a train already rolling
+does not stop the instant it is told to, and a write that lands after the zeros
+undoes them
+([ADR-0062](docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
+`tc49/layout/state/wanted/point` is no part of it — a point has no resting
+value to write.
+_Avoid_: at rest (of a train, which is a train standing still and a different
+thing), idle, quiet
+
 ### Store
 
 **Railroad**:
