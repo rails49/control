@@ -91,7 +91,7 @@ device, so the gate is green on a laptop with nothing plugged in. Verifying
 the actual link is runtime's job, and it is one command:
 
 ```
-$ nc blocks49.local 2560
+$ nc layout.rails49.org 2560
 <s>
 <iDCC-EX V-5.4.16 / ESP32 / EXCSB1_WITH_EX8874 G-9db8d0e>
 <p0>

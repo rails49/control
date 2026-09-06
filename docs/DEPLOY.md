@@ -44,7 +44,7 @@ only outbound HTTPS.
 
 ## The layout server
 
-`blocks49.local`, a Kamrui JK06 running Ubuntu 24.04, on wifi at
+`layout.rails49.org`, a Kamrui JK06 running Ubuntu 24.04, on wifi at
 `192.168.178.56`. It carries three things the dev box does not — the command
 station on USB, JMRI, and a UI that is built rather than served by vite — and
 the broker, which both have.
@@ -63,7 +63,7 @@ fetch often enough that an unattended pull stops to ask for a username. Over
 ssh there is nothing to ask.
 
 ```
-ssh blocks
+ssh rails49
 cd ~/control && git pull
 pnpm --dir ui build
 mkdir -p "$(scripts/store-root.sh /etc/tc49/deploy.env)"
@@ -200,7 +200,7 @@ from compose — it is one process reading one terminal's input, and nothing
 about it wants restarting (ADR-0059, decision 5, #379):
 
 ```
-ssh blocks
+ssh rails49
 cd ~/control
 uv run tc49 readings --broker 127.0.0.1:1883 \
   --railroad gotthard --store http://127.0.0.1:8765

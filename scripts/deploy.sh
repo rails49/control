@@ -4,7 +4,7 @@
 #
 #   scripts/deploy.sh
 #
-# Every command runs on the layout server. `ssh blocks` on a line of its own
+# Every command runs on the layout server. `ssh rails49` on a line of its own
 # opens a session, and what came after it would run on this machine instead,
 # so the whole sequence is fed to a shell there.
 #
@@ -14,7 +14,7 @@
 # deploy before it began.
 set -euo pipefail
 
-ssh blocks bash -l -s <<'REMOTE'
+ssh rails49 bash -l -s <<'REMOTE'
 set -euo pipefail
 # The heredoc is this shell's stdin, so a prompt for a git credential would
 # read the rest of the script as the answer. Fail instead.
