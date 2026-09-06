@@ -9,7 +9,6 @@ main thread and a signal ends it.
 
 import shutil
 import threading
-import time
 from collections.abc import Iterator
 from http.server import HTTPServer
 from pathlib import Path
@@ -25,6 +24,7 @@ from tc49.lib.startup import RETAINED_S
 from tc49.store.server import make_server
 from tests.brokers import Broker, drained, free_port, settle, until
 from tests.harness import ASSETS, catalogued
+from tests.startup import WINDOW_S, a_stop_in_the_window_is_acted_on_there
 
 RAILROAD = "crossover-yard"
 RUN = "tc49/dispatch/state/run"
@@ -252,48 +252,18 @@ def test_it_answers_a_gesture_it_finds_on_the_broker(
     witness.close()
 
 
-WINDOW_S = 30.0
-"""A retained window long enough for a test to be sure the app is inside one.
-The deployed number is `RETAINED_S`; what is under test is that a stop is
-acted on wherever inside a window it lands, which no length may change."""
-
-
 @pytest.fixture
-def waiting(broker: Broker, store: Store) -> Iterator[App]:
-    """The same app on a window nothing will end early: the broker holds no
-    `allocation` row, so it waits the whole of `WINDOW_S` for one."""
-    running = App(broker, store, retained_s=WINDOW_S)
-    try:
-        yield running
-    finally:
-        running.stop()
+def windowed(broker: Broker, store: Store) -> App:
+    """The dispatcher this suite runs, given a window nothing will end early:
+    the broker holds no `allocation` row, so it waits the whole of one."""
+    return App(broker, store, retained_s=WINDOW_S)
 
 
 def test_a_stop_inside_the_retained_window_is_acted_on_there(
     broker: Broker, store: Store, waiting: App
 ) -> None:
-    """`retained_s` is a moment given to the broker, "waited on `stop` so a
-    signal arriving in it ends the process rather than being sat on"
-    (`lib/loading.py`). This app polled instead and took no `stop` at all, so
-    a SIGTERM landing in the window was honoured a window late — a second in
-    the deployment, and however long the window is here (#430).
-    """
+    """The dispatcher held to the rule every app comes up through, which is
+    stated once for both apps that run it (`tests/startup.py`)."""
     store.start()
     witness, _heard = watching(broker)
-    waiting.start()
-    assert until(lambda: waiting.said != []), "it never read its documents"
-    # Past the store and past the broker, and nothing but the window left to
-    # be in: the row it is waiting for is one nothing on this broker writes.
-    settle(witness)
-    assert waiting.bus.connected, "it never reached the broker"
-    assert not any(
-        line.startswith("up on") for line in waiting.said
-    ), f"it came up, so the stop below would not land in the window: {waiting.said}"
-
-    began = time.monotonic()
-    waiting.stop()
-    took = time.monotonic() - began
-
-    assert not waiting.running, f"a stop in the window did not end it: {waiting.said}"
-    assert took < RETAINED_S, f"the stop was sat on for {took}s of a {WINDOW_S}s window"
-    witness.close()
+    a_stop_in_the_window_is_acted_on_there(waiting, witness)
