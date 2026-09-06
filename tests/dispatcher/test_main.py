@@ -99,8 +99,8 @@ class App:
         self._stop = threading.Event()
         self.said: list[str] = []
         """What the app has printed. The suite asserts on the bus, except
-        where where it is on its way to the bus and not there yet: what an app
-        says is how a test knows how far up it has got."""
+        where it is on its way to the bus and not there yet: what an app says
+        is how a test knows how far up it has got."""
         self._thread = threading.Thread(
             target=serve,
             args=(self.bus, self._documents, RAILROAD, self._stop, 0.01, retained_s),
