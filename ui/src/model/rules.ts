@@ -16,3 +16,14 @@
 export function isName(name: string): boolean {
   return name !== "" && !name.includes(".") && !name.includes("/");
 }
+
+/** Why a length will not do, or `null` for one that will: the store takes a
+ *  positive whole number of millimetres and nothing else
+ *  (`tc49.lib.layout.check_length`). Named after `symbolTrouble` in
+ *  `drawing.ts` — a rule that answers with the words to show reads as the
+ *  refusal it is. */
+export function lengthTrouble(mm: number): string | null {
+  return Number.isInteger(mm) && mm > 0
+    ? null
+    : "a length is a positive whole number of millimetres";
+}
