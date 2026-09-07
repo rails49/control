@@ -12,8 +12,8 @@ import { describe, expect, it } from "vitest";
 import {
   COMMANDS,
   frozen,
-  MENUS,
   NOTHING,
+  RAIL,
   type CommandId,
   type Standing,
 } from "../src/model/commands.js";
@@ -27,41 +27,64 @@ function on(id: CommandId, parts: Partial<Standing> = {}): boolean {
   return COMMANDS[id].enabled(standing(parts));
 }
 
-describe("the menus", () => {
-  it("carries the editor's items in the order the bar draws them", () => {
-    expect(MENUS.edit.map((menu) => [menu.name, menu.items])).toEqual([
-      ["File", ["new", "save", "save-as", null, "export-svg", null, "backup"]],
-      [
-        "Edit",
-        ["undo", "redo", null, "rotate", "flip", "delete", null, "properties"],
-      ],
-      ["View", ["zoom-in", "zoom-out", "fit", null, "netlist"]],
+/** The four verbs the rail deliberately leaves out. They apply to a selection
+ *  and read in the editor's right-click menu with their keys beside them
+ *  (ADR-0064); `menu.test.ts` is where that menu is checked. */
+const SELECTION: CommandId[] = ["rotate", "flip", "delete", "properties"];
+
+describe("the rail", () => {
+  it("carries the editor's groups in the order the rail draws them", () => {
+    expect(RAIL.edit.map((group) => [group.name, group.items])).toEqual([
+      ["View", ["zoom-out", "zoom-in", "fit", "netlist"]],
+      ["File", ["new", "save", "save-as", "export-svg", "backup"]],
+      ["Edit", ["undo", "redo"]],
     ]);
   });
 
   /** The run view's document is a railroad somebody else is running, so it
    *  has no File and no Edit; what it presses instead is HOLD and GO, which
    *  is a gesture on the bus rather than a verb of this app's. */
-  it("gives the run view a View menu and nothing else", () => {
-    expect(MENUS.run.map((menu) => [menu.name, menu.items])).toEqual([
-      ["View", ["zoom-in", "zoom-out", "fit"]],
+  it("gives the run view a View group and nothing else", () => {
+    expect(RAIL.run.map((group) => [group.name, group.items])).toEqual([
+      ["View", ["zoom-out", "zoom-in", "fit"]],
     ]);
   });
 
-  it("puts every command in exactly one of the editor's menus", () => {
-    const placed = MENUS.edit
-      .flatMap((menu) => menu.items)
-      .filter((item) => item !== null);
-    expect([...placed].sort()).toEqual(Object.keys(COMMANDS).sort());
+  /** Zoom and fit are pressed constantly in both views, and both draw on the
+   *  one canvas (#168), so a person who has learnt where Fit is does not learn
+   *  it again on the other view. */
+  it("opens every view that has a group with the same three", () => {
+    for (const groups of Object.values(RAIL)) {
+      if (groups.length === 0) continue;
+      expect(groups[0]!.items.slice(0, 3)).toEqual(["zoom-out", "zoom-in", "fit"]);
+    }
   });
 
-  /** Every item a view draws has to be a command, or the bar would look one
+  it("puts every command but the selection verbs on the editor's rail", () => {
+    const placed = RAIL.edit.flatMap((group) => group.items);
+    const wanted = Object.keys(COMMANDS).filter(
+      (id) => !SELECTION.includes(id as CommandId),
+    );
+    expect([...placed].sort()).toEqual(wanted.sort());
+  });
+
+  /** Four buttons that are dead whenever nothing is selected say less than a
+   *  menu that opens on the thing they act on (ADR-0064). */
+  it("leaves the selection verbs to the right-click menu", () => {
+    const placed = Object.values(RAIL).flatMap((groups) =>
+      groups.flatMap((group) => group.items),
+    );
+    for (const id of SELECTION) expect(placed).not.toContain(id);
+  });
+
+  /** Every button a view draws has to be a command, or the rail would look one
    *  up and find nothing. */
-  it("names only commands in the run view's menu", () => {
-    const placed = MENUS.run
-      .flatMap((menu) => menu.items)
-      .filter((item) => item !== null);
-    for (const id of placed) expect(COMMANDS[id]).toBeDefined();
+  it("names only commands in every view's groups", () => {
+    for (const groups of Object.values(RAIL)) {
+      for (const group of groups) {
+        for (const id of group.items) expect(COMMANDS[id]).toBeDefined();
+      }
+    }
   });
 });
 

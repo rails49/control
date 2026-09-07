@@ -23,7 +23,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { band, bar, serving, settled } from "./support/shell.js";
+import { band, rail, serving, settled } from "./support/shell.js";
 import {
   brokering,
   joined,
@@ -143,21 +143,21 @@ describe("the picker against the rails", () => {
   });
 });
 
-describe("the band's picker against the bar's menus", () => {
-  /** The band sits above the bar (`tc-app.styles.ts`), so a press on the
-   *  picker lands on it rather than on the overlay the open menu is waiting
-   *  for. The menu would be left down with the keyboard still its, so the
-   *  picker takes it up. */
-  it("takes a menu on the bar up when the picker goes down", async () => {
+describe("the band's picker against the rail", () => {
+  /** The picker is the one thing on either that hangs over anything else
+   *  (ADR-0064), and `tc-app.styles.ts` lifts the band above the rail, so the
+   *  list is drawn over the rail rather than clipped behind it. Nothing on the
+   *  rail comes down, so there is nothing for the picker to take up. */
+  it("drops its list with the rail's buttons still where they were", async () => {
     const shell = await dark();
-    bar(shell).renderRoot.querySelector<HTMLElement>("button.title")!.click();
-    await settled(shell);
-    expect(bar(shell).renderRoot.querySelector("menu")).not.toBeNull();
+    const buttons = rail(shell).renderRoot.querySelectorAll("button").length;
 
     band(shell).renderRoot.querySelector<HTMLElement>("button.chosen")!.click();
     await settled(shell);
 
-    expect(bar(shell).renderRoot.querySelector("menu")).toBeNull();
     expect(band(shell).renderRoot.querySelector("menu.drawings")).not.toBeNull();
+    expect(rail(shell).renderRoot.querySelectorAll("button")).toHaveLength(
+      buttons,
+    );
   });
 });

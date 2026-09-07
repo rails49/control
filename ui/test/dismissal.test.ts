@@ -8,8 +8,8 @@
  * by, and that overlay is then the topmost thing over the drawing. A second
  * right-click landed on it: the menu came down, `contextmenu` never reached
  * the canvas, nothing called `preventDefault`, and Chrome put its own menu up
- * over the railroad. Both menu systems wear the one overlay, so the bar's
- * menus did it too.
+ * over the railroad. Both menus wear the one overlay, so the band's railroad
+ * picker did it too.
  *
  * **No vitest suite can see #180's bug.** happy-dom does not render, so it has
  * no hit testing: `document.elementFromPoint` returns null there whatever is
@@ -34,7 +34,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import "../src/ui/tc-app.js";
 import type { Point } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { bar, chose, running, settled, surface } from "./support/shell.js";
+import { band, chose, running, settled, surface } from "./support/shell.js";
 import {
   brokering,
   joined,
@@ -46,6 +46,7 @@ import {
 } from "./support/session.js";
 
 const ALLOCATION = "tc49/dispatch/state/allocation";
+const POWER = "tc49/layout/state/power";
 
 /** happy-dom's own answer, put back after each test: the stub below is what
  *  stands in for the browser's hit test. */
@@ -64,6 +65,9 @@ afterEach(() => {
 async function standing(): Promise<TcApp> {
   const shell = await joined();
   await said(shell, "tc49/dispatch/state/run", { run: "held" });
+  // The rails dead, which is the whole of the precondition on the picker
+  // (ADR-0060): it is the second menu that can be down over a canvas one.
+  await said(shell, POWER, { power: "off" });
   await said(shell, ALLOCATION, {
     trains: { goods: "a", shunter: "b" },
     locks: { a: "goods", b: "shunter" },
@@ -103,11 +107,15 @@ function offered(shell: TcApp): string[] {
   );
 }
 
-/** The title on the bar whose menu is down, `null` while none is. */
-function down(shell: TcApp): string | null {
-  const titles = [...bar(shell).renderRoot.querySelectorAll("button.title")];
-  const open = titles.find((one) => one.getAttribute("aria-expanded") === "true");
-  return open === undefined ? null : open.textContent!.trim();
+/** Whether the band's picker has its list down. */
+function down(shell: TcApp): boolean {
+  return band(shell).renderRoot.querySelector("menu.drawings") !== null;
+}
+
+/** Put the picker's list down. */
+async function picking(shell: TcApp): Promise<void> {
+  band(shell).renderRoot.querySelector<HTMLElement>("button.chosen")!.click();
+  await settled(shell);
 }
 
 /**
@@ -182,19 +190,18 @@ describe("a right-click while a canvas menu is open", () => {
   });
 });
 
-describe("a right-click while the bar's menu is open", () => {
+describe("a right-click while the band's picker is open", () => {
   it("dismisses it and opens the menu for the train under the pointer", async () => {
     const shell = await standing();
-    bar(shell).renderRoot.querySelector<HTMLElement>("button.title")!.click();
-    await settled(shell);
-    expect(down(shell)).toBe("View");
+    await picking(shell);
+    expect(down(shell)).toBe(true);
 
     underneath(shell);
-    expect(await rightClicked(shell, overlay(bar(shell)), MIDDLE.a)).toEqual({
+    expect(await rightClicked(shell, overlay(band(shell)), MIDDLE.a)).toEqual({
       native: false,
     });
 
-    expect(down(shell)).toBeNull();
+    expect(down(shell)).toBe(false);
     expect(offered(shell)).toEqual(["Turn around"]);
   });
 });
@@ -238,11 +245,11 @@ function pressesOn(nodes: readonly Element[]): number[] {
 describe("a right-click while two menus are open", () => {
   /**
    * The case `82f2abc` records fixing, and the risk in putting back anything
-   * the forwarding took away. The bar's menu is the menu that can be down over
-   * another one: `tc-menubar` is lifted above the work (`tc-app.styles.ts`),
-   * so a press on the bar reaches its own title rather than the overlay a
-   * canvas menu already dropped, and both overlays are then over the drawing
-   * at once.
+   * the forwarding took away. The band's picker is the menu that can be down
+   * over another one: `tc-header` is lifted above the work
+   * (`tc-app.styles.ts`), so a press on the band reaches the picker's own
+   * button rather than the overlay a canvas menu already dropped, and both
+   * overlays are then over the drawing at once.
    *
    * The press has to pass each of them once and reach the drawing once, never
    * returning to one it has already passed.
@@ -252,13 +259,12 @@ describe("a right-click while two menus are open", () => {
     const drawing = surface(shell);
     await rightClicked(shell, drawing, MIDDLE.a);
     const menu = running(shell).renderRoot.querySelector("tc-menu")!;
-    bar(shell).renderRoot.querySelector<HTMLElement>("button.title")!.click();
-    await settled(shell);
-    expect(down(shell)).toBe("View");
+    await picking(shell);
+    expect(down(shell)).toBe(true);
     expect(offered(shell)).toEqual(["Turn around"]);
 
     // Topmost first, which is the order the hit test answers in.
-    const overlays = [overlay(bar(shell)), overlay(menu)];
+    const overlays = [overlay(band(shell)), overlay(menu)];
     stubHitTest(drawing, overlays);
     const seen = pressesOn([...overlays, drawing]);
     const outcome = await rightClicked(shell, overlays[0], PAPER);
@@ -267,7 +273,7 @@ describe("a right-click while two menus are open", () => {
     // thing it is, where the answers below only come out wrong.
     expect(seen).toEqual([1, 1, 1]);
     expect(outcome).toEqual({ native: false });
-    expect(down(shell)).toBeNull();
+    expect(down(shell)).toBe(false);
     expect(offered(shell)).toEqual([]);
     expect(overlays.map((one) => one.style.pointerEvents)).toEqual(["", ""]);
   });

@@ -29,14 +29,13 @@
 import type { CSSResult } from "lit";
 import { describe, expect, it } from "vitest";
 
-import { COLOURS } from "../src/render/units.js";
+import { COLOURS, RAIL_TURNS_PX } from "../src/render/units.js";
 import * as shared from "../src/ui/shared.styles.js";
 import {
   dismiss,
   menuBox,
   menuRow,
   menuRowChosen,
-  menuShortcut,
   palette,
   symbols,
 } from "../src/ui/shared.styles.js";
@@ -45,9 +44,9 @@ import { canvasStyles, exportStyles } from "../src/ui/tc-canvas.styles.js";
 import { editorStyles } from "../src/ui/tc-editor.styles.js";
 import { headerStyles } from "../src/ui/tc-header.styles.js";
 import { menuStyles } from "../src/ui/tc-menu.styles.js";
-import { menubarStyles } from "../src/ui/tc-menubar.styles.js";
 import { paletteStyles } from "../src/ui/tc-palette.styles.js";
 import { panelStyles } from "../src/ui/tc-panel.styles.js";
+import { railStyles } from "../src/ui/tc-rail.styles.js";
 import { rosterStyles } from "../src/ui/tc-roster.styles.js";
 import { throttleStyles } from "../src/ui/tc-throttle.styles.js";
 
@@ -62,9 +61,9 @@ const sheets: Record<string, CSSResult> = {
   exportStyles,
   headerStyles,
   menuStyles,
-  menubarStyles,
   paletteStyles,
   panelStyles,
+  railStyles,
   rosterStyles,
   throttleStyles,
 };
@@ -144,12 +143,14 @@ describe("the drawing's own rules", () => {
 });
 
 describe("what a menu is made of", () => {
-  /** The box, a row of it, and the key set beside a label: all three, or the
-   *  editor's two menu systems stop reading as one. */
-  it("is the same for the right-click menu and the bar's", () => {
-    for (const part of [menuBox, menuRow, menuShortcut]) {
+  /** The box and a row of it: both, or the app's two menus stop reading as
+   *  one. The key set beside a label is no longer among them — with the menu
+   *  bar gone only `tc-menu` prints one (ADR-0064), so those rules are its
+   *  own. */
+  it("is the same for the right-click menu and the band's picker", () => {
+    for (const part of [menuBox, menuRow]) {
       expect(menuStyles.cssText).toContain(part.cssText);
-      expect(menubarStyles.cssText).toContain(part.cssText);
+      expect(headerStyles.cssText).toContain(part.cssText);
     }
   });
 
@@ -160,7 +161,26 @@ describe("what a menu is made of", () => {
   it("dismisses and paints the chosen row the same way in both", () => {
     for (const part of [dismiss, menuRowChosen]) {
       expect(menuStyles.cssText).toContain(part.cssText);
-      expect(menubarStyles.cssText).toContain(part.cssText);
+      expect(headerStyles.cssText).toContain(part.cssText);
+    }
+  });
+});
+
+/**
+ * The rail turns into a strip along the top of the work below a short window
+ * (ADR-0064), and two sheets have to turn with it: `tc-app` gives it the row
+ * to lie in and `tc-rail` lies its own contents down. A media query cannot read
+ * a custom property, so the height is interpolated into each from
+ * `render/units.ts`; switching at different heights would draw the strip inside
+ * a column that is still there.
+ */
+describe("the height the rail turns at", () => {
+  it("is the one number in both sheets that turn", () => {
+    const turn = `@media (max-height:${RAIL_TURNS_PX}px)`;
+    for (const sheet of [appStyles, railStyles]) {
+      expect(sheet.cssText.replace(/\s+/g, "")).toContain(
+        turn.replace(/\s+/g, ""),
+      );
     }
   });
 });

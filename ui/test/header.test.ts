@@ -10,7 +10,6 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { VIEWS } from "../src/model/views.js";
 import "../src/ui/tc-header.js";
 import type { TcHeader } from "../src/ui/tc-header.js";
 
@@ -27,11 +26,6 @@ async function band(facts: Partial<TcHeader> = {}): Promise<TcHeader> {
 function reads(header: TcHeader, part: string): string | null {
   const found = header.renderRoot.querySelector(part);
   return found === null ? null : found.textContent!.trim();
-}
-
-/** The selector's buttons, one per view, in the order they are drawn. */
-function views(header: TcHeader): HTMLButtonElement[] {
-  return [...header.renderRoot.querySelectorAll<HTMLButtonElement>("button.view")];
 }
 
 /** Put the picker's list down, which is where a railroad is chosen. */
@@ -412,38 +406,5 @@ describe("commanding the supply", () => {
     const [on, stop] = presses(header);
     expect([on!.disabled, stop!.disabled]).toEqual([false, false]);
     expect(on!.textContent!.trim()).toBe("ON");
-  });
-});
-
-/** Views are a list with one current entry, drawn as one icon-button each
- *  with the current one marked — the selector ADR-0038 said a third view
- *  would make of the toggle two of them were. */
-describe("the view selector", () => {
-  /** The list is what the views are, so every one of them has a button and
-   *  the current one is marked rather than missing. */
-  it("offers every view the app has, in the order the list has them", async () => {
-    const buttons = views(await band({ view: "run" }));
-    expect(buttons.map((one) => one.getAttribute("aria-label"))).toEqual(
-      VIEWS.map((view) => view.label),
-    );
-  });
-
-  it("marks the one that is current and no other", async () => {
-    for (const view of VIEWS) {
-      const marked = views(await band({ view: view.id }))
-        .filter((one) => one.classList.contains("current"))
-        .map((one) => one.dataset["view"]);
-      expect(marked).toEqual([view.id]);
-    }
-  });
-
-  it("asks for the view whose button was pressed", async () => {
-    const header = await band({ view: "run" });
-    const heard: string[] = [];
-    header.addEventListener("view-wanted", (event) => {
-      heard.push((event as CustomEvent<string>).detail);
-    });
-    for (const button of views(header)) button.click();
-    expect(heard).toEqual(VIEWS.map((view) => view.id));
   });
 });

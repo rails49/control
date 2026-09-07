@@ -13,13 +13,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
-import { hashOf, viewOf } from "../src/model/views.js";
+import { hashOf, viewOf, VIEWS } from "../src/model/views.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import {
   band,
-  bar,
   editing,
   mounted,
+  rail,
   serving,
   session,
   settled,
@@ -66,11 +66,12 @@ function loaded(shell: TcApp): string {
   return band(shell).renderRoot.querySelector(".drawing")!.textContent!.trim();
 }
 
-/** The titles the bar carries, which are the current view's. */
-function titles(shell: TcApp): string[] {
-  return [...bar(shell).renderRoot.querySelectorAll("button.title")].map((one) =>
-    one.textContent!.trim(),
-  );
+/** The groups the rail carries under the views, which are the current
+ *  view's. */
+function groups(shell: TcApp): string[] {
+  return [...rail(shell).renderRoot.querySelectorAll(".group")]
+    .map((one) => one.getAttribute("aria-label")!)
+    .filter((name) => name !== "views");
 }
 
 /** The hash, as a view name and no `#`. */
@@ -167,26 +168,22 @@ describe("switching view", () => {
 
   /** The bar is the current view's document's, so its menus follow the
    *  switch. */
-  it("hands the bar the menus of the view it switched to", async () => {
+  it("hands the rail the groups of the view it switched to", async () => {
     const shell = await mounted("edit");
-    expect(titles(shell)).toEqual(["File", "Edit", "View"]);
+    expect(groups(shell)).toEqual(["View", "File", "Edit"]);
 
     await shows(shell, "run");
 
-    expect(titles(shell)).toEqual(["View"]);
+    expect(groups(shell)).toEqual(["View"]);
   });
 
-  /** A menu is the view's too: one left down would be drawing the titles of a
-   *  view that is no longer on screen. */
-  it("takes a menu that is down up with the view", async () => {
+  /** The views are the rail's top group and are every view's, so switching
+   *  view leaves the way to the others exactly where it was. */
+  it("keeps the view selector across a switch", async () => {
     const shell = await mounted("edit");
-    const titled = bar(shell).renderRoot.querySelectorAll("button.title")[0]!;
-    (titled as HTMLElement).click();
-    await settled(shell);
-    expect(bar(shell).renderRoot.querySelector("menu")).not.toBeNull();
-
     await shows(shell, "run");
-
-    expect(bar(shell).renderRoot.querySelector("menu")).toBeNull();
+    expect(
+      rail(shell).renderRoot.querySelectorAll("button.view"),
+    ).toHaveLength(VIEWS.length);
   });
 });
