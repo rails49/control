@@ -82,12 +82,14 @@ off the deploy. It had to survive exactly that when the host was renamed from
 The account is named here, on a public page, and what that costs depends on the
 box rather than on this project's design. [ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)
 says everyone on the LAN may drive the railroad; it says nothing about who may
-open a shell, which is a separate surface with real authentication. Today the
-server still accepts ssh passwords, so the name is half of a login for anything
-that reaches port 22 — see [#497](https://github.com/rails49/control/issues/497),
-which turns that off. Nothing is inbound from the internet and the name
-resolves to a private address, which is why this is a defect to fix rather than
-an emergency.
+open a shell, which is a separate surface with real authentication. **The box is
+key-only.** `PasswordAuthentication no` sits in
+`/etc/ssh/sshd_config.d/50-cloud-init.conf`, the file the installer had left at
+`yes` ([#497](https://github.com/rails49/control/issues/497)); check it with
+`sudo sshd -T | grep -i passwordauthentication`. A published name is half of a
+login only where a password can complete it, so naming the account costs
+nothing. A new machine gets in by having its public key added to
+`~/.ssh/authorized_keys` on the box; there is no password to fall back on.
 
 **This installation's own deploy facts stay in this repository** — the LAN
 address above, the zone, the box, the account — even though
