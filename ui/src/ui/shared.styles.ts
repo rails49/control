@@ -1,7 +1,12 @@
 /**
  * What more than one component wears: the palette, the symbol rules, and what
- * a menu is made of — its box, its rows, the key set beside a
- * label, the overlay a press outside lands on, and the row under the pointer.
+ * a menu is made of — its box, its rows, the overlay a press outside lands on,
+ * and the row under the pointer.
+ *
+ * The two menus are the editor's right-click menu (`tc-menu`) and the band's
+ * railroad picker (`tc-header`). They were three until the menu bar went
+ * (ADR-0064), and the key set beside a label left with it: only `tc-menu`
+ * prints one now, so those rules moved into its own sheet.
  *
  * The page is not here. There is one page, and `tc-app.styles.ts` is it
  * (ADR-0038).
@@ -54,10 +59,10 @@ export const palette = unsafeCSS(
 
 /**
  * Declaration body. The box a menu drops into, shared by the right-click menu
- * and the bar's, so that the editor's two menu systems read as one. Position
- * is the caller's: one is pinned to the pointer and the other hangs off its
- * title. Named for the menu it belongs to, `tc-panel` being another thing
- * entirely.
+ * and the band's picker, so that the app's two menus read as one. Position is
+ * the caller's: one is pinned to the pointer and the other hangs off the name
+ * it lists alternatives to. Named for the menu it belongs to, `tc-panel` being
+ * another thing entirely.
  */
 export const menuBox = css`
   margin: 0;
@@ -86,13 +91,6 @@ export const menuRow = css`
   font: inherit;
   text-align: left;
   cursor: pointer;
-`;
-
-/** Declaration body. The key that does the same thing, set apart from the
- *  words rather than competing with them. */
-export const menuShortcut = css`
-  color: var(--hint);
-  font: inherit;
 `;
 
 // --- Whole rule sets ------------------------------------------------------
@@ -178,17 +176,16 @@ export const symbols = css`
   }
 `;
 
-
 /**
  * Whole rule set. The overlay a menu drops over the page: a press anywhere
  * outside the menu lands here and dismisses it, and nothing under it is
- * clicked by the same press. Worn by both menu systems, which is why it has
- * to be one block — the two z-indices have to agree with each other and with
- * everything the bar lifts above it.
+ * clicked by the same press. Worn by both menus, which is why it has to be one
+ * block — the two z-indices have to agree with each other and with everything
+ * `tc-app.styles.ts` lifts above it.
  *
  * What the overlay does with a press is `dismissal.ts`, which is the element
- * that wears this, for the same three components. A right-click is the one it
- * hands on rather than swallows (#180).
+ * that wears this, for both components. A right-click is the one it hands on
+ * rather than swallows (#180).
  */
 export const dismiss = css`
   .dismiss {
@@ -199,14 +196,14 @@ export const dismiss = css`
 `;
 
 /**
- * Whole rule sets. The row under the pointer, in both menu systems: the one
- * item a press would choose, painted in the chosen colour so that a menu says
- * what it is about to do.
+ * Whole rule sets. The row under the pointer, in both menus: the one item a
+ * press would choose, painted in the chosen colour so that a menu says what it
+ * is about to do.
  *
- * The selector is `li` deep because the bar's rows are, and both menus wrap
- * every button in one; at (0,2,2) it still beats the `menuRow` the row wears
- * underneath, which the two callers write at (0,0,1) and (0,0,2). A disabled
- * row is left out — an item that does not apply is not about to be chosen.
+ * The selector is `li` deep because both menus wrap every button in one; at
+ * (0,2,2) it still beats the `menuRow` the row wears underneath, which the two
+ * callers write at (0,0,1) and (0,0,2). A disabled row is left out — an item
+ * that does not apply is not about to be chosen.
  */
 export const menuRowChosen = css`
   li button:hover:not(:disabled) {
@@ -214,9 +211,9 @@ export const menuRowChosen = css`
     color: #fff;
   }
 
-  /* Whatever sits beside the label goes with it: the key set, and the .more
-     glyph, which is the bar's own — tc-menu renders no such element and that
-     half of the selector matches nothing there. */
+  /* Whatever sits beside the label goes with it: the key set, which is
+     tc-menu's, and the .more glyph, which is the picker's — neither renders
+     the other's element, so half of the selector matches nothing in each. */
   li button:hover:not(:disabled) kbd,
   li button:hover:not(:disabled) .more {
     color: inherit;

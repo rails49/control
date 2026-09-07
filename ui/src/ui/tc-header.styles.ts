@@ -3,19 +3,44 @@ import { css } from "lit";
 import { dismiss, menuBox, menuRow, menuRowChosen } from "./shared.styles.js";
 
 /**
- * The band across the top (`tc-header`): what is true of the whole system, and
- * the controls that act on it — the railroad picker at the left, the three
- * track-power presses beside the reading they act on, and the view selector
- * at the right. The spacer parts what is loaded from what is going on, and the
- * rest is text.
+ * What a fault reads as on a coloured band: a pale chip carrying its own
+ * ground, rather than red text that fights the blue behind it. One block, worn
+ * by the four things that are wrong in the same way — the store not answering,
+ * a broker that is not, a name no drawing can wear, and rails that are dead.
+ *
+ * Here and not in shared.styles.ts: nothing lives in that module that fewer
+ * than two component stylesheets wear (#132), and this is one sheet's.
+ */
+const alarm = css`
+  padding: 0 0.35rem;
+  border-radius: 0.2rem;
+  background: var(--wrong-body);
+  color: var(--wrong);
+`;
+
+/**
+ * The band across the top (tc-header): what is true of the whole system, and
+ * the controls that act on it — the railroad picker at the left and the three
+ * track-power presses beside the reading they act on. The spacer parts what is
+ * loaded from what is going on, and the rest is text. The view selector is the
+ * rail's (ADR-0064).
+ *
+ * It is a coloured band and not a ruled row, as the occupancy UI's is. What
+ * that costs is the palette: --hint and --lit are mixed for paper and read
+ * as mud on blue. So the quiet weight here is the band's own ink at reduced
+ * opacity, which follows --band wherever it goes, and the loud one is
+ * alarm above — a chip carrying the ground it needs with it.
  */
 export const headerStyles = css`
   :host {
     display: flex;
     gap: 0.5rem;
     align-items: center;
-    padding: 0.3rem 0.6rem;
-    border-bottom: 1px solid var(--rule);
+    height: 2.6rem;
+    padding: 0 0.6rem;
+    box-sizing: border-box;
+    background: var(--band);
+    color: var(--band-ink);
   }
 
   ${dismiss}
@@ -41,7 +66,7 @@ export const headerStyles = css`
   }
 
   .chosen:hover:not(:disabled) {
-    background: #f0eeea;
+    background: rgb(255 255 255 / 0.18);
   }
 
   /* Nothing to pick — the rails have power, or the store lists nothing — so
@@ -51,7 +76,10 @@ export const headerStyles = css`
     cursor: default;
   }
 
+  /* The list itself is paper and not band: it hangs over the work, where the
+     page's own ink and rules are what everything else is drawn in. */
   menu.drawings {
+    color: var(--ink);
     position: absolute;
     top: calc(100% + 0.2rem);
     left: 0;
@@ -77,7 +105,7 @@ export const headerStyles = css`
   }
 
   .more {
-    color: var(--hint);
+    opacity: 0.7;
   }
 
   .drawing {
@@ -88,7 +116,6 @@ export const headerStyles = css`
      catch an eye that is not looking for it. */
   .unsaved {
     margin-left: -0.3rem;
-    color: var(--lit);
   }
 
   /* What the app talks to, and what it could not do. One row with room in it:
@@ -102,7 +129,7 @@ export const headerStyles = css`
   }
 
   .session {
-    color: var(--hint);
+    opacity: 0.75;
     font-variant-numeric: tabular-nums;
   }
 
@@ -116,10 +143,7 @@ export const headerStyles = css`
      other party's mistake. It never shrinks; the sentence does. */
   .refused {
     flex: none;
-    padding: 0 0.35rem;
-    border-radius: 0.2rem;
-    background: var(--wrong-body);
-    color: var(--wrong);
+    ${alarm}
   }
 
   /* Trains on the layout freeze the drawing (ADR-0038, #169). The other thing
@@ -129,7 +153,7 @@ export const headerStyles = css`
      refusal above. */
   .frozen {
     flex: none;
-    color: var(--hint);
+    opacity: 0.75;
   }
 
   /* One line, whatever the store said: the band's height is a row of the
@@ -139,17 +163,17 @@ export const headerStyles = css`
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    color: var(--wrong);
+    ${alarm}
   }
 
   /* Whether the broker is answering: the one thing a live band says that a
      replay's does not. */
   .link.joined {
-    color: var(--lit);
+    opacity: 0.75;
   }
 
   .link.gone {
-    color: var(--wrong);
+    ${alarm}
   }
 
   /* Whether a train may move at all. Power on is the quiet case and reads as
@@ -157,19 +181,16 @@ export const headerStyles = css`
      operator's to act on, so they take the alarm the trouble beside them
      takes. */
   .power.on {
-    color: var(--hint);
+    opacity: 0.75;
   }
 
   .power.stopped,
   .power.off {
     flex: none;
-    padding: 0 0.35rem;
-    border-radius: 0.2rem;
-    background: var(--wrong-body);
-    color: var(--wrong);
+    ${alarm}
   }
 
-  /* ON, STOP and OFF (ADR-0051). They read as the bar's HOLD/GO reads —
+  /* ON, STOP and OFF (ADR-0051). They read as the rail's HOLD/GO reads —
      short words in capitals — because they are the same kind of press about
      the same railroad, and they sit next to the reading they act on. STOP
      wears the alarm the reading beside it wears when it lands. */
@@ -182,7 +203,7 @@ export const headerStyles = css`
 
   button.press {
     padding: 0.1rem 0.45rem;
-    border: 1px solid var(--rule);
+    border: 1px solid rgb(255 255 255 / 0.55);
     border-radius: 4px;
     background: none;
     color: inherit;
@@ -193,58 +214,24 @@ export const headerStyles = css`
   }
 
   button.press:hover:not(:disabled) {
-    background: #f0eeea;
+    background: rgb(255 255 255 / 0.18);
   }
 
   button.press.stopped {
-    border-color: var(--wrong);
-    color: var(--wrong);
+    border-color: var(--wrong-body);
+    color: var(--wrong-body);
   }
 
   /* Nothing to command, or the press would be swallowed: a dead button and
      not a hidden one, so the row does not move under the hand. */
   button.press:disabled {
-    color: var(--hint);
+    opacity: 0.45;
     cursor: default;
   }
 
   /* The drain is outstanding, so the button says what it is waiting for
      rather than what it would do. */
   button.press.waiting {
-    border-color: var(--hint);
-  }
-
-  /* The view selector: the buttons sit together as one control, so the group
-     reads as a choice among them rather than as three loose presses. */
-  .views {
-    display: flex;
-    flex: none;
-    gap: 0.1rem;
-  }
-
-  /* One view: square around its icon, as the bar's tools are. */
-  .view {
-    display: flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 1.9rem;
-    height: 1.6rem;
-    border: none;
-    border-radius: 4px;
-    background: none;
-    color: inherit;
-    cursor: pointer;
-  }
-
-  .view:hover {
-    background: #f0eeea;
-  }
-
-  /* Where you are. A mark and not a missing button: the list is what the
-     views are, and the current one is one of them (ADR-0038). */
-  .view.current {
-    background: #ebe8e2;
-    color: var(--ink);
+    border-color: rgb(255 255 255 / 0.3);
   }
 `;

@@ -1,6 +1,6 @@
 /**
- * The app: one railroad, a list of views of it, and the two rows of chrome
- * they share
+ * The app: one railroad, a list of views of it, and the band and rail they
+ * share
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
  *
  * It holds the loaded railroad — its name, the document, and what the store
@@ -17,13 +17,15 @@
  * what it needs of the run: which trains are placed, which is what its length
  * guard is (ui/STOCK.md).
  *
- * It also holds everything the two rows need. The band is the system's, so the
- * picker that asks for a railroad and the toggle that switches view report
- * here; the bar is the current view's
+ * It also holds everything the chrome needs. The band is the system's, so the
+ * picker that asks for a railroad reports here; the rail is the current view's
  * document's, so a command comes here and is either run against the document
- * this holds or passed to the view that owns the surface. The keyboard is the same single path — `model/commands.ts`
- * decides what is dead, and an item and the key printed beside it cannot come
- * to mean different things.
+ * this holds or passed to the view that owns the surface, and the selector that
+ * switches view reports here too
+ * ([ADR-0064](../../../docs/adr/0064-the-chrome-is-a-band-and-a-rail.md)). The
+ * keyboard is the same single path — `model/commands.ts` decides what is dead,
+ * and a button and the key its title names cannot come to mean different
+ * things.
  *
  * **The broker is the only thing that loads a railroad**
  * ([#371](https://github.com/rails49/control/issues/371)). One broker runs one
@@ -61,13 +63,12 @@ import { appStyles } from "./tc-app.styles.js";
 import "./tc-backup.js";
 import "./tc-editor.js";
 import "./tc-header.js";
-import "./tc-menubar.js";
 import "./tc-panel.js";
+import "./tc-rail.js";
 import "./tc-stock.js";
 import "./tc-throttle.js";
 import type { TcBackup } from "./tc-backup.js";
 import type { TcEditor } from "./tc-editor.js";
-import type { TcMenubar } from "./tc-menubar.js";
 import type { RunStatus, TcPanel } from "./tc-panel.js";
 import type { ModeWanted, ThrottleWanted } from "./tc-throttle.js";
 import { editable } from "./tc-properties.js";
@@ -114,13 +115,9 @@ export class TcApp extends LitElement {
    *  surface, and the editor is the setup tool you go to deliberately. */
   @state() private view: ViewId = VIEWS[0]!.id;
 
-  /** Whether a menu on the bar is down. While one is, the keyboard is the
-   *  menu's and nothing reaches the view. */
-  @state() private barMenu = false;
-
-  /** Whether the netlist pane is open in the editor. It is the bar's `View ▸
-   *  Netlist` that opens it, so the flag is the bar's side of the app rather
-   *  than the view's. */
+  /** Whether the netlist pane is open in the editor. It is the rail's
+   *  Netlist button that opens it, so the flag is the chrome's side of the app
+   *  rather than the view's. */
   @state() private netlist = false;
 
   /** Whether the operator's word is being waited on before the loaded
@@ -187,26 +184,19 @@ export class TcApp extends LitElement {
         .power=${this.status.power}
         .draining=${this.status.draining}
         .frozen=${still}
-        .view=${this.view}
         @power-wanted=${(event: CustomEvent<Power>) => this.supplying(event.detail)}
         @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}
-        @view-wanted=${(event: CustomEvent<ViewId>) => this.showing(event.detail)}
-        @picker-open=${(event: CustomEvent<boolean>) => {
-          if (event.detail) this.renderRoot.querySelector<TcMenubar>("tc-menubar")?.close();
-        }}
       ></tc-header>
 
-      <tc-menubar
+      <tc-rail
         .view=${this.view}
         .standing=${this.standing}
         .run=${this.status.run}
         .power=${this.status.power}
+        @view-wanted=${(event: CustomEvent<ViewId>) => this.showing(event.detail)}
         @command=${(event: CustomEvent<CommandId>) => this.invoke(event.detail)}
         @run-wanted=${(event: CustomEvent<Run>) => this.held(event.detail)}
-        @menu-open=${(event: CustomEvent<boolean>) => {
-          this.barMenu = event.detail;
-        }}
-      ></tc-menubar>
+      ></tc-rail>
 
       <tc-panel
         class=${this.view === "run" ? "" : "off"}
@@ -308,9 +298,9 @@ export class TcApp extends LitElement {
     }
   }
 
-  /** HOLD or GO, pressed on the bar. The broker's client is the run view's, so
-   *  the press goes there: the bar draws the run's word and this carries it,
-   *  and neither decides anything about the run. */
+  /** HOLD or GO, pressed on the rail. The broker's client is the run view's,
+   *  so the press goes there: the rail draws the run's word and this carries
+   *  it, and neither decides anything about the run. */
   private held(run: Run): void {
     this.running?.press(run);
   }
@@ -333,11 +323,11 @@ export class TcApp extends LitElement {
     this.running?.pressRailroad(railroad);
   }
 
-  // --- the bar and the keyboard --------------------------------------------
+  // --- the rail and the keyboard -------------------------------------------
 
   /** Where the app stands, as far as a command needs to know
    *  (model/commands.ts). Nothing here decides what is dead; that module
-   *  does, and it is what both the bar and the keyboard ask. */
+   *  does, and it is what both the rail and the keyboard ask. */
   private get standing(): Standing {
     // Trains on the layout freeze the drawing (ADR-0038, #169), and the run
     // view is what knows of any: the count comes up here with the rest of what
@@ -365,13 +355,13 @@ export class TcApp extends LitElement {
     return selected.length === 1 ? selected[0]! : null;
   }
 
-  /** One command, however it was asked for. A menu item and the key printed
-   *  beside it come through here, so the two cannot diverge, and a command
+  /** One command, however it was asked for. A rail button and the key its
+   *  title names come through here, so the two cannot diverge, and a command
    *  that is dead does nothing whichever way it was reached.
    *
    *  `invoke` and not `run`: a **run** is the railroad moving under a
    *  dispatcher (CONTEXT.md), which this app now has a view of, and a private
-   *  method that dispatches menu items must not answer to that word. */
+   *  method that dispatches rail buttons must not answer to that word. */
   private invoke(id: CommandId): void {
     if (!COMMANDS[id].enabled(this.standing)) return;
     switch (id) {
@@ -579,7 +569,7 @@ export class TcApp extends LitElement {
 
   /** The views hold the same `Editor` across an edit, so Lit sees no changed
    *  property and would not re-render them. Asking directly is what makes a
-   *  bar button show its effect without waiting for `/review`. */
+   *  rail button show its effect without waiting for `/review`. */
   private redraw(): void {
     this.requestUpdate();
     this.edit?.redraw();
@@ -621,26 +611,11 @@ export class TcApp extends LitElement {
     // `r` behind a modal must not rotate the selection under it. Shoelace
     // closes on Escape itself, and `backup-closed` comes back from that.
     if (this.backingUp) return;
+    // Nothing on the rail comes down over the work, so there is no state in
+    // which the keyboard belongs to the chrome (ADR-0064). The band's picker is
+    // the one thing that hangs over anything, and a press outside it lands on
+    // the overlay it drops rather than reaching here.
     const meta = event.metaKey || event.ctrlKey;
-    // A menu on the bar is down, so the keyboard is the menu's: `r` would
-    // typeahead in the menu and rotate the selection behind it at once, and
-    // Escape would close the menu and clear the selection. Escape closes the
-    // menu, and closing it is all it does.
-    //
-    // A shortcut is not a bare key. The open menu prints `⌘S` beside Save, so
-    // pressing it has to be that item (#85) — otherwise the key it just
-    // taught does nothing while Chrome offers to save the page over the top.
-    // It takes the menu up, the command having been chosen, and falls through
-    // to the handlers below, which are the ones the item itself reaches.
-    if (this.barMenu) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        this.renderRoot.querySelector<TcMenubar>("tc-menubar")?.close();
-        return;
-      }
-      if (!meta) return;
-      this.renderRoot.querySelector<TcMenubar>("tc-menubar")?.close();
-    }
     // The view's own commands, and then its verbs. Zoom is every view's, and
     // is asked for first so that it keeps working wherever there is a viewport
     // to move; the rest are the editor's document, and a bare `r` in the run
@@ -693,7 +668,7 @@ export class TcApp extends LitElement {
       return;
     }
 
-    // Every one of these is a command the bar also names, so the two cannot
+    // Every one of these is a command the rail also names, so the two cannot
     // come to mean different things, and one that is dead does nothing here
     // either — `r` with nothing selected does not mark the railroad unsaved
     // and ask `/review` again.
