@@ -48,6 +48,7 @@ import {
   type AnyKind,
   type SymbolSpec,
 } from "../model/drawing.js";
+import { lengthTrouble } from "../model/rules.js";
 import { PINS } from "../symbols.generated.js";
 import { propertiesStyles } from "./tc-properties.styles.js";
 
@@ -114,11 +115,24 @@ export class TcProperties extends LitElement {
     `;
   }
 
-  /** Why the typed name will not do, or `null` for one that will. Nothing to
-   *  say where the kind has no name to type (model/drawing.ts). */
+  /**
+   * Why the dialog as it stands will not do, or `null` where nothing is
+   * wrong. Nothing to say where the kind has no name to type
+   * (model/drawing.ts).
+   *
+   * A block's length is asked here too. The store refuses one that is not a
+   * positive whole number, so a `0` typed into the field used to be written
+   * onto the drawing and answered with a 400 on the save — a refusal about a
+   * keystroke made long before, and reported nowhere near it (ADR-0023). The
+   * name is answered first: it is the field the reason is shown beside.
+   */
   private get trouble(): string | null {
     if (this.editing === null || !named(this.draft.kind)) return null;
-    return symbolTrouble(this.name, this.editing.name, this.taken);
+    const name = symbolTrouble(this.name, this.editing.name, this.taken);
+    if (name !== null) return name;
+    return this.draft.kind === "block"
+      ? lengthTrouble(this.draft.length ?? 0)
+      : null;
   }
 
   private perKind() {
