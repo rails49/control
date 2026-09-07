@@ -103,6 +103,26 @@ def test_the_gesture_changes_nothing_while_the_rails_have_power() -> None:
     assert (answering.name, answering.moved) == (WAS, False)
 
 
+def test_a_power_value_outside_the_set_is_not_news_about_the_rails() -> None:
+    """Rule 4 is that anything at all can arrive on a topic, and power is a
+    closed set of three. A frame naming a fourth value said nothing, so the
+    rails are still dark and the gesture is still answered.
+
+    Adopting it instead wedged the picker: the stored value was not `off`, so
+    every railroad a person picked was refused until a true frame landed
+    (#492)."""
+    bus = bused()
+    answering = Answering(WAS)
+    answering.follow(bus)
+    dark(bus)
+    bus.publish(POWER, {"power": "banana"})
+
+    picking(bus, NOW)
+    bus.drain()
+
+    assert (answering.name, answering.moved) == (NOW, True)
+
+
 def test_a_gesture_before_the_supply_has_said_anything_is_dropped() -> None:
     """No evidence that the rails are dead is not evidence that they are: an
     app that has heard nothing waits rather than answering on a guess."""

@@ -26,7 +26,7 @@ import threading
 from collections.abc import Sequence
 
 from tc49.lib.bus import Bus, Payload, matches
-from tc49.lib.inventory import AT, OFF
+from tc49.lib.inventory import AT, OFF, ON, STOPPED
 
 RAILROAD = "tc49/layout/state/railroad"
 """The row every app follows: the railroad this broker runs, as the store
@@ -183,9 +183,23 @@ class Answering(Loaded):
         """What the supply is doing, as this app publishes it. A payload
         naming nothing readable leaves the last observation standing: rule 4
         is that anything at all can arrive on a topic, and an unreadable
-        frame is not news about the rails."""
+        frame is not news about the rails.
+
+        **Readable is the closed set and not merely a string.** Power is three
+        values (`lib/inventory.py`), and a frame naming a fourth says nothing
+        about the rails — but adopted, it is a value that is not `off`, and
+        `_wanted` below then refuses every railroad a person picks until the
+        next true frame lands. Falling to `off` instead is not the answer
+        either: that would answer the picker on a frame nobody could read.
+        The unreadable frame is dropped, which is what the paragraph above
+        says and what the check makes true.
+
+        The opposite direction from `payload.power`, deliberately, and for the
+        reason that reader gives: it hands a value to the dispatcher, which
+        branches on "not `on`" and must hold when the frame cannot be read.
+        Nothing here is held by a value that never arrived."""
         power = payload.get("power")
-        if isinstance(power, str) and power:
+        if isinstance(power, str) and power in (ON, STOPPED, OFF):
             self._power = power
 
     def _wanted(self, topic: str, payload: Payload) -> None:
