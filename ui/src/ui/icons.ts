@@ -1,5 +1,5 @@
 /**
- * The band's and the bar's icons, drawn here rather than fetched.
+ * The band's and the rail's icons, drawn here rather than fetched.
  *
  * Shoelace's `sl-icon` loads its SVGs from a CDN at runtime unless a base path
  * is registered, and the editor has to work on the railroad's own network
@@ -153,8 +153,9 @@ export const BACKUP = icon(svg`
   <path d="M6 6.6 6.2 9.2 8.8 8.7" />
 `);
 
-/** The glyph beside each command's label, and on the three buttons the bar
- *  pins at its right end. Exhaustive over `CommandId` by its type. */
+/** The picture on a command's button on the rail, which is the whole of that
+ *  button — the label and its key are what a pointer resting there says.
+ *  Exhaustive over `CommandId` by its type. */
 export const GLYPHS: Record<CommandId, SVGTemplateResult> = {
   new: NEW,
   save: SAVE,

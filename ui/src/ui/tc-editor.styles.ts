@@ -31,7 +31,7 @@ export const editorStyles = css`
 
   /* Trains on the layout freeze the drawing (ADR-0038, #169), and the palette
      is the one part of this view that would otherwise look as pressable as
-     ever: the bar greys its own items and the canvas's gestures are the
+     ever: the rail greys its own buttons and the canvas's gestures are the
      machine's to refuse. Greyed and unpressable, not taken away — a frozen
      drawing is read-only, and the tiles say what the editor is for. */
   :host([frozen]) tc-palette {

@@ -174,6 +174,24 @@ export const RING = {
 export const NOTE = 0.22;
 
 /**
+ * The window height at or below which the rail lies down along the top of the
+ * work instead of standing down its left (ADR-0064).
+ *
+ * The editor's rail is fifteen buttons — four views and eleven verbs — which
+ * at the sizes `tc-rail.styles.ts` gives them is about 600px of column. Set
+ * above that rather than at it: the measurement moves with the font and the
+ * engine, and the turn has to stay ahead of the clipping rather than level
+ * with it.
+ *
+ * A media query cannot read a custom property, which is what stops this
+ * reaching the two sheets on its own; it is interpolated into each instead,
+ * and `test/styles.test.ts` asserts the two agree. `tc-rail` turning while
+ * `tc-app` still holds a column would draw the strip inside the column, which
+ * is the bug with extra steps.
+ */
+export const RAIL_TURNS_PX = 640;
+
+/**
  * The palette, as the custom properties the stylesheets read. Track is black
  * and a block's rectangle white in edit mode; run mode recolours by toggling
  * classes rather than by editing these.
@@ -227,4 +245,13 @@ export const COLOURS: Record<string, string> = {
   // left is what the panes still read.
   "--tint-1": "#14866d",
   "--tint-2": "#a55b12",
+  // The chrome, which is not the drawing: the band across the top and the rail
+  // down the left (ADR-0064), taken from the occupancy UI so that two apps a
+  // person moves between within one session look like one system. The rail is
+  // two greens — the column and the runs of buttons on it — because a group is
+  // what says which commands belong together once their labels are gone.
+  "--band": "#1d4ed8",
+  "--band-ink": "#ffffff",
+  "--rail": "#064e3b",
+  "--rail-group": "#059669",
 };

@@ -92,7 +92,7 @@ import type { MenuItem } from "./tc-menu.js";
 import type { RosterDrag, TcRoster } from "./tc-roster.js";
 
 /**
- * What the run view knows about the run that the band and the bar do not:
+ * What the run view knows about the run that the band and the rail do not:
  * whether a session is joined and answering, how far it has got, and what it
  * refused. One event carries all of it, because they change together and the
  * app keeps one copy.
@@ -101,11 +101,11 @@ export interface RunStatus {
   joined: boolean;
   linked: boolean;
   /** How the run stands, `null` while no session is joined or before the
-   *  dispatcher has said (ADR-0037). It is what the bar's HOLD/GO reads. */
+   *  dispatcher has said (ADR-0037). It is what the rail's HOLD/GO reads. */
   run: Run | null;
   /** Whether a train may move at all, `null` while no session is joined or
    *  before the layout has said (ADR-0041). The band says which it is, and
-   *  the bar's GO is greyed while it is anything but `on`. */
+   *  the rail's GO is greyed while it is anything but `on`. */
   power: Power | null;
   /** Whether the band's OFF is waiting on the drain: it has asked for
    *  `draining` and publishes `power_wanted: off` when the run reads `held`
@@ -116,7 +116,7 @@ export interface RunStatus {
   /** What a session refused, or the store not answering. Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
   trouble: string | null;
-  /** The trains the run has on the layout, by name. The bar reads how many
+  /** The trains the run has on the layout, by name. The rail reads how many
    *  there are as the rule that trains on the layout freeze the drawing
    *  (`model/commands.ts`, ADR-0038), and the stock screen reads which they
    *  are as the rule that a placed train's length may not be corrected
@@ -550,7 +550,7 @@ export class TcPanel extends LitElement {
 
   /**
    * Hold the run, or release it: one `run_wanted` naming where it should
-   * stand (ADR-0037). The app presses it on the bar, the client is here, and
+   * stand (ADR-0037). The app presses it on the rail, the client is here, and
    * the dispatcher's answer comes back on `state/run` and redraws the button.
    *
    * Releasing with disputes outstanding is allowed — the person decides, not
@@ -890,7 +890,7 @@ export class TcPanel extends LitElement {
     `;
   }
 
-  /** What the band and the bar read off the run, told rather than reached
+  /** What the band and the rail read off the run, told rather than reached
    *  for: only this view knows any of it, and it changes as the bus moves. */
   private get status(): RunStatus {
     return {
@@ -1036,7 +1036,7 @@ export class TcPanel extends LitElement {
 
   // --- the viewport, which is the canvas's ----------------------------------
 
-  /** Zoom and fit, pressed on the bar or typed on the keyboard. The app asks
+  /** Zoom and fit, pressed on the rail or typed on the keyboard. The app asks
    *  whichever view is current, and the surface is the same one the editor
    *  draws on. */
   zoom(scale: number): void {

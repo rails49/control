@@ -94,7 +94,7 @@ export class TcEditor extends LitElement {
   /** Whether the netlist pane is open. Shut on load and shut again whenever a
    *  railroad is loaded, the netlist being a debugging view consulted when
    *  something looks wrong rather than what the editor is for (ADR-0024). The
-   *  app owns it, `View ▸ Netlist` being a bar command; it is reflected onto
+   *  app owns it, Netlist being a rail command; it is reflected onto
    *  the host because the grid drops the column with the pane, and an
    *  attribute is what `tc-editor.styles.ts` can read. */
   @property({ type: Boolean, reflect: true }) netlist = false;
@@ -217,7 +217,7 @@ export class TcEditor extends LitElement {
 
   /** The canvas holds the same `Editor` across an edit, so Lit sees no changed
    *  property and would not re-render it. Asking it directly is what makes a
-   *  bar button show its effect without waiting for `/review`. */
+   *  rail button show its effect without waiting for `/review`. */
   redraw(): void {
     this.requestUpdate();
     this.canvas?.requestUpdate();

@@ -2,7 +2,7 @@
  * Every command a view offers: what it is called, the key that does the same
  * thing, the menu it sits in, and when it is dead.
  *
- * The menu bar and the keyboard both come through here, so an item and the key
+ * The rail and the keyboard both come through here, so a button and the key
  * printed beside it cannot come to mean different things. That is what makes a
  * menu bar the second thing EDITOR.md#editing endorses rather than the first
  * it refuses: the header carries no bare verb button, and a menu names the key
@@ -111,7 +111,7 @@ export function frozen({ placed }: Standing): boolean {
 export interface Command {
   label: string;
   /** What the item has to say before anybody opens it, or `null` for the
-   *  ordinary case of nothing. The bar draws a mark and says these words; the
+   *  ordinary case of nothing. The rail draws a mark and says these words; the
    *  command still runs, so this warns and never disables. */
   mark?(standing: Standing): string | null;
   /** The key that does the same thing, as it reads beside the label.
@@ -208,59 +208,55 @@ function editing(rule: (standing: Standing) => boolean): Command["enabled"] {
   return (standing) => !frozen(standing) && rule(standing);
 }
 
-export interface Menu {
+export interface Group {
+  /** What the group is, which is the accessible name of the run of buttons.
+   *  The words are the old menu titles: the grouping did not change, only the
+   *  row it was drawn in (ADR-0064). */
   name: string;
-  /** The items in order, `null` where a divider parts two groups. */
-  items: (CommandId | null)[];
+  /** The commands in it, in the order they sit. */
+  items: CommandId[];
 }
 
 /**
- * The bar, left to right, for each view.
+ * The rail down the left, top to bottom, for each view.
  *
- * The bar is the shell's and its menus are the current view's: it acts on the
- * document that view has open (ADR-0038). The editor's document is a drawing,
- * so it has a `File` and an `Edit`; the run view's is a railroad somebody else
- * is running, so it has neither, and what it presses instead — HOLD and GO —
- * is not a command and has no key, being a gesture on the bus rather than a
- * verb of this app's.
+ * The rail is the shell's and its groups are the current view's: they act on
+ * the document that view has open (ADR-0038, ADR-0064). The editor's document
+ * is a drawing, so it has a `File` and an `Edit`; the run view's is a railroad
+ * somebody else is running, so it has neither, and what it presses instead —
+ * HOLD and GO — is not a command and has no key, being a gesture on the bus
+ * rather than a verb of this app's.
  *
- * Which railroad is loaded is not here either. That is the whole system's and
- * the band's picker sets it, so `File ▸ Open` is gone from both views
+ * **`View` comes first wherever there is one.** Zoom and fit are pressed
+ * constantly — while drawing, and while following a train across a railroad
+ * too large to see at once — and both views draw on the one canvas (#168), so
+ * the three sit in the same place whichever view is up. A person who has
+ * learnt where Fit is does not learn it again on the other view.
+ *
+ * Which railroad is loaded is not here. That is the whole system's and the
+ * band's picker sets it, so `File ▸ Open` is gone from both views
  * ([#167](https://github.com/rails49/control/issues/167)).
+ *
+ * Rotate, Flip, Delete and Properties are not here either. They apply to a
+ * selection and already read in the right-click menu with their keys beside
+ * them; four buttons that are dead whenever nothing is selected say less than
+ * a menu that opens on the thing they act on (ADR-0064).
  */
-export const MENUS: Record<ViewId, Menu[]> = {
+export const RAIL: Record<ViewId, Group[]> = {
   edit: [
-    {
-      name: "File",
-      items: ["new", "save", "save-as", null, "export-svg", null, "backup"],
-    },
-    {
-      name: "Edit",
-      items: ["undo", "redo", null, "rotate", "flip", "delete", null, "properties"],
-    },
-    { name: "View", items: ["zoom-in", "zoom-out", "fit", null, "netlist"] },
+    { name: "View", items: ["zoom-out", "zoom-in", "fit", "netlist"] },
+    { name: "File", items: ["new", "save", "save-as", "export-svg", "backup"] },
+    { name: "Edit", items: ["undo", "redo"] },
   ],
-  run: [{ name: "View", items: ["zoom-in", "zoom-out", "fit"] }],
+  run: [{ name: "View", items: ["zoom-out", "zoom-in", "fit"] }],
   // The throttle draws no document: there is nothing to zoom, nothing to
   // save, and the two gestures it writes are controls in the view itself
-  // rather than verbs in a menu (ui/THROTTLE.md).
+  // rather than buttons on the rail (ui/THROTTLE.md).
   throttle: [],
   // Stock draws two documents and neither is a drawing: there is no viewport
   // to move, and what it writes — a model, a roster — are controls in the
   // view itself for the same reason the throttle's gestures are
-  // (ui/STOCK.md). `File ▸ Save` here would be a second Save meaning
-  // something else than the one beside it.
-  stock: [],
-};
-
-/** What each view pins at the right end of the bar, in the order they sit in.
- *  Zoom and fit are pressed constantly — while drawing, and while following a
- *  train across a railroad too large to see at once — and `View ▸ Zoom in` is
- *  three clicks for what is then one. Both views draw on one canvas, so both
- *  get the same three (#168). */
-export const TOOLS: Record<ViewId, CommandId[]> = {
-  edit: ["zoom-out", "zoom-in", "fit"],
-  run: ["zoom-out", "zoom-in", "fit"],
-  throttle: [],
+  // (ui/STOCK.md). A `Save` here would be a second Save meaning something
+  // else than the one beside it.
   stock: [],
 };

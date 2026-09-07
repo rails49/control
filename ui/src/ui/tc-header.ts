@@ -3,8 +3,10 @@
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
  *
  * Which railroad is loaded and the way to another, whether it holds unsaved
- * edits, whether what the app talks to is answering, and which view is
- * current. The bar below carries what acts on that view's document.
+ * edits, and whether what the app talks to is answering. The rail down the
+ * left carries what acts on the current view's document, the selector that
+ * switches view among it
+ * ([ADR-0064](../../../docs/adr/0064-the-chrome-is-a-band-and-a-rail.md)).
  *
  * The line is *what it is about*, not *whether it is pressable*. The rule this
  * carried — "it shows status and nothing else. Everything a person presses
@@ -28,9 +30,7 @@ import { LitElement, html, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import type { Power } from "../model/trace.js";
-import { VIEWS, type ViewId } from "../model/views.js";
 import { dismissal } from "./dismissal.js";
-import { ICONS } from "./icons.js";
 import { headerStyles } from "./tc-header.styles.js";
 
 /** What each power value reads as. `stopped` reads as the thing rather than as
@@ -64,10 +64,6 @@ export class TcHeader extends LitElement {
 
   /** Whether the loaded railroad holds edits the store has not been given. */
   @property({ type: Boolean }) unsaved = false;
-
-  /** The view that is current, which the selector at the right end marks and
-   *  offers a way out of. */
-  @property() view: ViewId = VIEWS[0]!.id;
 
   /** Whether a session is joined, which is what makes the broker a thing to
    *  report on at all. */
@@ -149,7 +145,7 @@ export class TcHeader extends LitElement {
           </span>`
         : nothing}
       <span class="spacer"></span>
-      ${this.health()} ${this.supply()} ${this.chooser()}
+      ${this.health()} ${this.supply()}
     `;
   }
 
@@ -200,8 +196,8 @@ export class TcHeader extends LitElement {
 
   /**
    * ON, STOP and OFF: what the whole railroad's supply should be doing
-   * (ADR-0051). They stand beside the reading rather than on the bar below,
-   * which is the current view's document's — track power is no document's.
+   * (ADR-0051). They stand beside the reading rather than on the rail, which
+   * is the current view's document's — track power is no document's.
    *
    * **One press each and no confirmation.** An emergency stop that asks "are
    * you sure?" is not one, `stopped` is cheap to recover from with the points
@@ -249,56 +245,9 @@ export class TcHeader extends LitElement {
   }
 
   /**
-   * Which view is current, and the way to each of the others: **a selector**,
-   * one icon-button per view with the current one marked.
-   *
-   * The views are a list with one current entry (`model/views.ts`), and
-   * ADR-0038 wrote down what the list is for: two of them render as one
-   * icon-button wearing the other's name, which is what a toggle is, and a
-   * third makes it a selector. The third is here (#291), so this is that —
-   * the redesign the list existed to keep small, and it is small: every view
-   * gets a button, and the current one is the one that is marked rather than
-   * the one that is missing.
-   *
-   * The current view's own button is live and asks for the view it is
-   * already showing. Nothing happens — the app ignores a switch to the view
-   * it holds — and a control whose only dead button is the one under the
-   * pointer would say the app was busy rather than that you are already
-   * there.
-   */
-  private chooser() {
-    return html`
-      <div class="views" role="group" aria-label="views">
-        ${VIEWS.map((view) => {
-          const current = view.id === this.view;
-          return html`
-            <button
-              class=${`view ${current ? "current" : ""}`}
-              data-view=${view.id}
-              title=${view.label}
-              aria-label=${view.label}
-              aria-pressed=${current}
-              @click=${() =>
-                this.dispatchEvent(
-                  new CustomEvent<ViewId>("view-wanted", {
-                    detail: view.id,
-                    bubbles: true,
-                    composed: true,
-                  }),
-                )}
-            >
-              ${ICONS[view.id]}
-            </button>
-          `;
-        })}
-      </div>
-    `;
-  }
-
-  /**
    * Which railroad is loaded, and the way to another (#167). It is the band's
    * because it is the whole system's: both views are of it, and a menu on one
-   * view's bar would be the editor deciding what the run view is looking at.
+   * view's rail would be the editor deciding what the run view is looking at.
    *
    * **It asks and does not load.** One broker runs one railroad and the layout
    * interface says which on a retained row
@@ -372,10 +321,9 @@ export class TcHeader extends LitElement {
     return null;
   }
 
-  /** Put the list down, or take it up. The app is told either way: the band
-   *  sits above the bar, so a press here lands on the picker rather than on
-   *  the overlay a menu on the bar is waiting for, and the menu would be left
-   *  down with the keyboard still its. */
+  /** Put the list down, or take it up. The app is told either way: the picker
+   *  is the one thing on the band that hangs over anything, so what it is doing
+   *  is the band's own to report. */
   private pick(down: boolean): void {
     if (this.picking === down) return;
     this.picking = down;
