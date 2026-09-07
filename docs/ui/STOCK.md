@@ -281,12 +281,13 @@ The view is not in the shell's left-pane slot. `--pane` is the width of the
 strip beside a drawing surface — the editor's palette, the run view's roster
 ([#169](https://github.com/rails49/control/issues/169)) — and this view has no
 surface, so it declares its own two columns and leaves `--pane` alone. It puts
-nothing in the bar either: `MENUS.stock` and `TOOLS.stock` are empty, there
-being no viewport to move, and `File ▸ Save` here would be a second Save
-meaning something other than the one beside it.
+no commands on the rail either: `RAIL.stock` is empty, there being no viewport
+to move, and a `Save` there would be a second Save meaning something other than
+the one beside it. The views are the whole of this view's rail
+([ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)).
 
 `ICONS` in `ui/src/ui/icons.ts` is keyed by `ViewId`, so the wagon on the
-band's selector is part of this rather than something to remember.
+rail's selector is part of this rather than something to remember.
 
 ## Tests
 

@@ -29,7 +29,7 @@ labels, the arrows, the aspects, the markers and the drag's rings. It arrives
 as one overlay object worked out in `model/panel.ts`, so the component still
 computes nothing.
 
-**So the run view has zoom, pan and fit**, on the same keys and the same bar
+**So the run view has zoom, pan and fit**, on the same keys and the same rail
 buttons as the editor — `+`, `−`, `0`. It had none of the three while it drew
 its own picture fitted to the sheet, which is what a railroad too large to see
 at once cost.
@@ -374,8 +374,8 @@ press outside is dismissed by — takes the press, puts the menu down, and hands
 it on to whatever is under the point, so the menu opens on the train that was
 clicked and the browser's own still does not
 ([#180](https://github.com/rails49/control/issues/180),
-`ui/src/ui/dismissal.ts`). It holds for the bar's menus too: both wear the one
-overlay.
+`ui/src/ui/dismissal.ts`). It holds for the band's railroad picker too: both
+menus wear the one overlay.
 
 The menu a forwarded press opens is a menu like any other: it drops a live
 overlay, and a left press outside it takes it down and reaches nothing
@@ -655,15 +655,15 @@ reads it off the broker's retained row and the app loads the documents — and
 the connection is opened once the view is on screen, for as long as it is
 there.
 
-The chrome is two rows the editor also wears (#84,
-[EDITOR.md](EDITOR.md#the-band)). The **band** is the whole system's: the
-railroad the app has loaded, the unsaved
-dot, the health area — the store not answering, the broker, whether the rails
-have power, how far the run has got, whether the trains standing here have
-frozen the drawing — the three track-power presses beside that reading, and
-the view selector. The **bar** is this
-view's document's: a `View` menu carrying zoom and fit, those three pinned as
-icon buttons at its right end, and **HOLD/GO**.
+The chrome is the band and the rail the editor also wears (#84,
+[EDITOR.md](EDITOR.md#the-band),
+[ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)). The **band** is
+the whole system's: the railroad the app has loaded, the unsaved dot, the
+health area — the store not answering, the broker, whether the rails have
+power, how far the run has got, whether the trains standing here have frozen
+the drawing — and the three track-power presses beside that reading. The
+**rail** is the views, and then this view's document's: zoom out, zoom in and
+fit as icon buttons, and **HOLD/GO**.
 
 **HOLD and GO are one press and no confirmation.** The button says HOLD while
 the run is running and GO while it is held, which is what the press will do,
