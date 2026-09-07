@@ -72,7 +72,7 @@ async function opened(): Promise<TcApp> {
  *  away. */
 async function fresh(shell: TcApp): Promise<void> {
   shell.renderRoot
-    .querySelector("tc-menubar")!
+    .querySelector("tc-rail")!
     .dispatchEvent(new CustomEvent<string>("command", { detail: "new" }));
   await settled(shell);
 }

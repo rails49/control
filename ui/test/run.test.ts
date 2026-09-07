@@ -21,7 +21,7 @@ import type { TcApp } from "../src/ui/tc-app.js";
 import { brokerAt } from "../src/ui/tc-panel.js";
 import {
   band,
-  bar,
+  rail,
   CLEAN,
   mounted,
   running,
@@ -46,9 +46,9 @@ beforeEach(brokering);
 
 afterEach(unbrokered);
 
-/** The HOLD/GO button on the bar. */
+/** The HOLD/GO button on the rail. */
 function press(shell: TcApp): HTMLButtonElement {
-  return bar(shell).renderRoot.querySelector<HTMLButtonElement>("button.run")!;
+  return rail(shell).renderRoot.querySelector<HTMLButtonElement>("button.run")!;
 }
 
 /** What the run view is saying about the release, `null` while it says
@@ -450,14 +450,16 @@ describe("the viewport the run view gained", () => {
       .map(Number);
   }
 
-  /** One of the bar's pinned buttons, by the command it carries. */
+  /** One of the rail's command buttons, by the label it carries. */
   function tool(shell: TcApp, label: string): HTMLButtonElement {
-    return [...bar(shell).renderRoot.querySelectorAll<HTMLButtonElement>("button.tool")].find(
-      (one) => one.getAttribute("aria-label")!.startsWith(label),
-    )!;
+    return [
+      ...rail(shell).renderRoot.querySelectorAll<HTMLButtonElement>(
+        "button[data-command]",
+      ),
+    ].find((one) => one.getAttribute("aria-label")!.startsWith(label))!;
   }
 
-  it("fits the railroad it was handed, and zooms from the bar", async () => {
+  it("fits the railroad it was handed, and zooms from the rail", async () => {
     const shell = await joined();
     // The two blocks span 0 to 8 across, so a fit frames at least that much.
     const [x, , w] = looking(shell);

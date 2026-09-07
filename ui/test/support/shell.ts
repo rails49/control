@@ -31,8 +31,8 @@ import type { ViewId } from "../../src/model/views.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
 import type { TcEditor } from "../../src/ui/tc-editor.js";
 import type { TcHeader } from "../../src/ui/tc-header.js";
-import type { TcMenubar } from "../../src/ui/tc-menubar.js";
 import type { TcPanel } from "../../src/ui/tc-panel.js";
+import type { TcRail } from "../../src/ui/tc-rail.js";
 import type { TcStock } from "../../src/ui/tc-stock.js";
 import type { TcThrottle } from "../../src/ui/tc-throttle.js";
 
@@ -236,10 +236,10 @@ export async function mounted(view: ViewId = "edit"): Promise<TcApp> {
   return shell;
 }
 
-/** Press the band's view selector for one view, which is the one control that
- *  switches: a button per view, the current one marked (ADR-0038). */
+/** Press the rail's view selector for one view, which is the one control that
+ *  switches: a button per view, the current one marked (ADR-0038, ADR-0064). */
 export async function shows(shell: TcApp, view: ViewId): Promise<void> {
-  band(shell)
+  rail(shell)
     .renderRoot.querySelector<HTMLButtonElement>(`button.view[data-view="${view}"]`)!
     .click();
   await settled(shell);
@@ -256,9 +256,24 @@ export function band(shell: TcApp): TcHeader {
   return shell.renderRoot.querySelector("tc-header")!;
 }
 
-/** The bar under it, which carries the current view's menus. */
-export function bar(shell: TcApp): TcMenubar {
-  return shell.renderRoot.querySelector("tc-menubar")!;
+/** The rail down the left, which carries the views and the current view's
+ *  commands. */
+export function rail(shell: TcApp): TcRail {
+  return shell.renderRoot.querySelector("tc-rail")!;
+}
+
+/** One of the rail's command buttons, by the command it sends, or `null` where
+ *  the current view does not offer it. */
+export function railButton(shell: TcApp, id: string): HTMLButtonElement | null {
+  return rail(shell).renderRoot.querySelector<HTMLButtonElement>(
+    `button[data-command="${id}"]`,
+  );
+}
+
+/** Press one of the rail's command buttons, the way a pointer does. */
+export async function pressed(shell: TcApp, id: string): Promise<void> {
+  railButton(shell, id)!.click();
+  await settled(shell);
 }
 
 /** The editing view, and whatever it has drawn inside itself. */

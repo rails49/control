@@ -60,7 +60,7 @@ function band(shell: TcApp): TcHeader {
 async function opened(shell: TcApp, editing: Editor, name: string) {
   editing.select([name]);
   shell.renderRoot
-    .querySelector("tc-menubar")!
+    .querySelector("tc-rail")!
     .dispatchEvent(new CustomEvent("command", { detail: "properties" }));
   await settled(shell);
   const dialog = inside(shell, "tc-properties") as TcProperties;

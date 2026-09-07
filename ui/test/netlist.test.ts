@@ -42,15 +42,15 @@ async function open(): Promise<TcApp> {
   return shell;
 }
 
-/** A command asked for on the menu bar, the way an item's click asks it. */
+/** A command asked for on the rail, the way a button's click asks it. */
 async function asked(shell: TcApp, command: string): Promise<void> {
   shell.renderRoot
-    .querySelector("tc-menubar")!
+    .querySelector("tc-rail")!
     .dispatchEvent(new CustomEvent("command", { detail: command }));
   await settled(shell);
 }
 
-/** The same command reached by the key the menu prints beside it. */
+/** The same command reached by the key the rail names in its title. */
 async function pressed(shell: TcApp, name: string): Promise<void> {
   window.dispatchEvent(
     new KeyboardEvent("keydown", { key: name, bubbles: true, composed: true }),
@@ -128,13 +128,12 @@ describe("the key and the item", () => {
     expect(showing(shell)).toBe(false);
   });
 
-  /** A bare key is the menu's while a menu is down, as `r` and `0` are
-   *  (keys.test.ts). */
-  it("leaves the key to the menu while one is down", async () => {
+  /** Nothing on the rail comes down over the work, so the key reaches the
+   *  editor whatever the rail is showing (ADR-0064, keys.test.ts). */
+  it("reaches the editor whatever the rail is showing", async () => {
     const shell = await open();
-    const bar = shell.renderRoot.querySelector("tc-menubar")!;
-    bar.dispatchEvent(new CustomEvent("menu-open", { detail: true }));
-    await settled(shell);
+    await asked(shell, "netlist");
+    expect(showing(shell)).toBe(true);
 
     await pressed(shell, "n");
 

@@ -19,7 +19,7 @@ import { Backing, type BackupStore } from "../src/model/backup.js";
 import type { BackupDoc } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcBackup } from "../src/ui/tc-backup.js";
-import { bar, mounted, serving, settled, UNBACKED } from "./support/shell.js";
+import { mounted, pressed, serving, settled, UNBACKED } from "./support/shell.js";
 
 /** A store that is a repository with one drawing waiting and one backup in
  *  it: the ordinary state, which is what most of these are about. */
@@ -359,17 +359,9 @@ function open(shell: TcApp): TcBackup | null {
   return surface === null || surface.backing === null ? null : surface;
 }
 
-/** `File ▸ Backup…`, the way a pointer chooses it. */
+/** The rail's Backup button, the way a pointer presses it. */
 async function chooseBackup(shell: TcApp): Promise<void> {
-  const menubar = bar(shell);
-  [...menubar.renderRoot.querySelectorAll<HTMLButtonElement>("button.title")]
-    .find((title) => title.textContent!.trim() === "File")!
-    .click();
-  await menubar.updateComplete;
-  [...menubar.renderRoot.querySelectorAll<HTMLButtonElement>("menu li button")]
-    .find((item) => (item.textContent ?? "").includes("Backup…"))!
-    .click();
-  await settled(shell);
+  await pressed(shell, "backup");
 }
 
 /**

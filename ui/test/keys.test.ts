@@ -18,7 +18,6 @@ import type { Drawing } from "../src/model/drawing.js";
 import type { Editor } from "../src/model/editor.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import type { TcMenubar } from "../src/ui/tc-menubar.js";
 import { inside, mounted, serving, session } from "./support/shell.js";
 
 /** One turnout, selected, the way the right-click that opens the properties
@@ -36,8 +35,7 @@ beforeEach(() => {
 });
 
 // A shell listens on the window for as long as it is in the page, so one left
-// behind would answer the next test's keystrokes too — and answer them with no
-// menu down, which is the very thing under test here.
+// behind would answer the next test's keystrokes too.
 afterEach(() => {
   document.body.replaceChildren();
 });
@@ -58,18 +56,6 @@ async function holding(): Promise<{
   document.body.append(control);
   await control.updateComplete;
   return { shell, editing, field: control.shadowRoot!.querySelector("input")! };
-}
-
-/** The bar's `File` menu, put down the way a pointer puts it down. */
-async function opened(shell: {
-  renderRoot: ParentNode;
-}): Promise<TcMenubar> {
-  const bar = shell.renderRoot.querySelector("tc-menubar")!;
-  await bar.updateComplete;
-  const titles = [...bar.renderRoot.querySelectorAll("button.title")];
-  (titles.find((one) => one.textContent!.trim() === "File") as HTMLElement).click();
-  await bar.updateComplete;
-  return bar;
 }
 
 /** How often the canvas was asked to change the view. The zoom keys say
@@ -130,73 +116,50 @@ test("the same keys still reach the canvas from outside a control", async () => 
 });
 
 /**
- * The same bug as a key typed into a dialog field reaching the canvas, wearing
- * a menu: with `File` down, `r` would rotate the selection behind it and
- * Escape would clear it rather than closing the menu (#85).
+ * Nothing on the rail comes down over the work, so there is no state in which
+ * the keyboard belongs to the chrome (ADR-0064). What the bar's open menu used
+ * to take — `r`, Escape, the zoom keys — the canvas keeps whatever the rail is
+ * showing, and #85's rule that a shortcut is not a bare key survives as the
+ * keys the browser is not allowed to have.
  */
-test("the canvas keys do not reach it while a menu is down", async () => {
+test("the canvas keys reach it whatever the rail is showing", async () => {
   const { shell, editing } = await holding();
   const asked = views(shell);
-  await opened(shell);
-  const was = structuredClone(editing.drawing.symbols["sw1"]);
 
-  for (const name of ["r", "f", "Delete", "Backspace", "0", "+", "-"]) {
-    key(window, name);
-  }
+  key(window, "r");
+  for (const name of ["0", "+", "-"]) key(window, name);
 
-  expect(editing.drawing.symbols["sw1"]).toEqual(was);
-  expect(asked()).toBe(0);
+  expect(editing.drawing.symbols["sw1"]!.rot).toBe(90);
+  expect(asked()).toBe(3);
 });
 
-test("escape closes the menu rather than clearing the selection", async () => {
+test("escape clears the selection, there being no menu to close first", async () => {
   const { shell, editing } = await holding();
-  const bar = await opened(shell);
+  await shell.updateComplete;
 
   key(window, "Escape");
-  await bar.updateComplete;
 
-  expect(bar.renderRoot.querySelector("menu")).toBeNull();
-  expect([...editing.selection]).toEqual(["sw1"]);
+  expect([...editing.selection]).toEqual([]);
 });
 
-/**
- * The other half of the rule: a shortcut is not a bare key. `File` prints
- * `Save ⌘S` beside the item, so the press is that item — it takes the menu up
- * and runs, rather than being swallowed under the menu that just taught it
- * (#85).
- */
-test("a shortcut printed in the menu runs the command and takes the menu up", async () => {
-  const { shell, editing } = await holding();
-  key(window, "r");
-  const turned = structuredClone(editing.drawing.symbols["sw1"]);
-  const bar = await opened(shell);
-
-  const event = key(window, "z", { meta: true });
-  await bar.updateComplete;
-
-  expect(event.defaultPrevented).toBe(true);
-  expect(editing.drawing.symbols["sw1"]).not.toEqual(turned);
-  expect(bar.renderRoot.querySelector("menu")).toBeNull();
-});
-
-/** ⌘S under an open `File` is the editor's save, so Chrome's "Save page as…"
- *  never opens over the app. */
-test("save's key is taken from the browser while a menu is down", async () => {
-  const { shell } = await holding();
-  await opened(shell);
+/** ⌘S is the editor's save, so Chrome's "Save page as…" never opens over the
+ *  app. */
+test("save's key is taken from the browser", async () => {
+  await holding();
 
   const event = key(window, "s", { meta: true });
 
   expect(event.defaultPrevented).toBe(true);
 });
 
-test("the same keys reach the canvas again once the menu is up", async () => {
-  const { shell, editing } = await holding();
-  const bar = await opened(shell);
-  key(window, "Escape");
-  await bar.updateComplete;
-
+/** ⌘Z is the editor's undo for the same reason. */
+test("undo's key is taken from the browser and undoes the edit", async () => {
+  const { editing } = await holding();
   key(window, "r");
+  const turned = structuredClone(editing.drawing.symbols["sw1"]);
 
-  expect(editing.drawing.symbols["sw1"]!.rot).toBe(90);
+  const event = key(window, "z", { meta: true });
+
+  expect(event.defaultPrevented).toBe(true);
+  expect(editing.drawing.symbols["sw1"]).not.toEqual(turned);
 });
