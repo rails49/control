@@ -30,8 +30,7 @@ import threading
 from collections.abc import Callable
 
 from tc49.lib.documents import Documents
-from tc49.lib.layout import Layout
-from tc49.lib.loading import Loaded, dropped
+from tc49.lib.loading import Loaded, dropped, taken
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.startup import (
     PERIOD_S,
@@ -85,7 +84,7 @@ def serve(
     forgotten, the rows it owns are cleared and the whole of the above is
     done again. A railroad the store cannot give is said and not taken: an
     app still running the last one is worth more than one running none
-    (ADR-0050).
+    (ADR-0050, `lib/loading.py`).
     """
     loaded = Loaded(railroad)
     layout = documents.layout(loaded.name)
@@ -108,24 +107,9 @@ def serve(
             stop.wait(period_s)
         if not loaded.moved:
             return
-        layout = _loading(documents, loaded, built, log)
+        layout = taken(loaded, built, log, documents.layout)
         gone = dropped(bus, OWNED, stop, retained_s)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
-
-
-def _loading(
-    documents: Documents, loaded: Loaded, built: str, log: Callable[[str], None]
-) -> Layout:
-    """The railroad just named, or the one still running where the store has
-    no such railroad or its drawing does not derive. A store that is not
-    answering is waited for rather than refused, which is `lib/documents.py`'s
-    own retry and not a case here."""
-    try:
-        return documents.layout(loaded.name)
-    except (OSError, ValueError, TypeError) as refused:
-        log(f"'{loaded.name}': {refused} — staying on '{built}'")
-        loaded.keep(built)
-        return documents.layout(built)
 
 
 def main() -> None:

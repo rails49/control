@@ -53,7 +53,7 @@ from tc49.layout.interface import WANTED_TRACTION, LayoutInterface
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
-from tc49.lib.loading import Answering, dropped
+from tc49.lib.loading import Answering, dropped, taken
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
@@ -148,30 +148,18 @@ def serve(
             stop.wait(period_s)
         if not loaded.moved:
             return
-        layout, roster = _loading(documents, loaded, built, log)
+        layout, roster = taken(
+            loaded, built, log, lambda name: _documents(documents, name)
+        )
         gone = dropped(bus, OWNED, stop, RETAINED_S)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
 
 
 def _documents(documents: Documents, railroad: str) -> tuple[Layout, Roster]:
     """The pair the interface is built from: the railroad's topology and the
-    stock that runs on it."""
+    stock that runs on it. What this app reads, which is the whole of what it
+    says when a railroad is loaded under it (`lib.loading.taken`)."""
     return documents.layout(railroad), documents.roster(railroad)
-
-
-def _loading(
-    documents: Documents, loaded: Answering, built: str, log: Callable[[str], None]
-) -> tuple[Layout, Roster]:
-    """The railroad just named, or the one still running where the store has
-    no such railroad or its documents do not load. A store that is not
-    answering is waited for rather than refused, which is `lib/documents.py`'s
-    own retry and not a case here (ADR-0050)."""
-    try:
-        return _documents(documents, loaded.name)
-    except (OSError, ValueError, TypeError) as refused:
-        log(f"'{loaded.name}': {refused} — staying on '{built}'")
-        loaded.keep(built)
-        return _documents(documents, built)
 
 
 def _retained(

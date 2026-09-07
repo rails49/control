@@ -62,8 +62,7 @@ from collections.abc import Callable
 
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
-from tc49.lib.layout import Layout
-from tc49.lib.loading import Answering, dropped
+from tc49.lib.loading import Answering, dropped, taken
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
 from tc49.simulator.sim import Simulator
@@ -157,24 +156,9 @@ def serve(
         )
         if not loaded.moved:
             return
-        layout = _loading(documents, loaded, built, log)
+        layout = taken(loaded, built, log, documents.layout)
         gone = dropped(bus, OWNED, stop, RETAINED_S)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
-
-
-def _loading(
-    documents: Documents, loaded: Answering, built: str, log: Callable[[str], None]
-) -> Layout:
-    """The railroad just named, or the one still running where the store has
-    no such railroad or its drawing does not derive. A store that is not
-    answering is waited for rather than refused, which is `lib/documents.py`'s
-    own retry and not a case here (ADR-0050)."""
-    try:
-        return documents.layout(loaded.name)
-    except (OSError, ValueError, TypeError) as refused:
-        log(f"'{loaded.name}': {refused} — staying on '{built}'")
-        loaded.keep(built)
-        return documents.layout(built)
 
 
 def _waiting(stop: threading.Event) -> Callable[[float], None]:
