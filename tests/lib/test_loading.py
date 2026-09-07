@@ -12,9 +12,18 @@ each applies to a payload and not the containers around them:
 railroad is loaded under them for real.
 """
 
+import pytest
+
 from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
-from tc49.lib.loading import POWER, RAILROAD, RAILROAD_WANTED, Answering, Loaded
+from tc49.lib.loading import (
+    POWER,
+    RAILROAD,
+    RAILROAD_WANTED,
+    Answering,
+    Loaded,
+    taken,
+)
 
 WAS = "crossover-yard"
 NOW = "single-track-meet"
@@ -266,3 +275,91 @@ def test_a_binding_with_hardware_still_waits_for_the_supply() -> None:
     bus.drain()
 
     assert (answering.name, answering.moved) == (WAS, False)
+
+
+# -- the documents a moved railroad is rebuilt on --------------------------
+
+
+class Reading:
+    """What an app reads, as `taken` sees it: a railroad's name to that app's
+    documents, and nothing else about which documents they are. It records
+    what it was asked for, so that the railroad the documents came back for
+    is visible."""
+
+    def __init__(self, refuses: Exception | None = None, of: str = "") -> None:
+        # Which railroad the store cannot give, and what it says about it.
+        self.refuses = refuses
+        self.of = of
+        self.asked: list[str] = []
+
+    def __call__(self, railroad: str) -> str:
+        self.asked.append(railroad)
+        if self.refuses is not None and railroad == self.of:
+            raise self.refuses
+        return f"the documents of {railroad}"
+
+
+def moved() -> Loaded:
+    """A follower whose row has just named another railroad, which is where
+    an app's loop calls `taken`."""
+    bus = bused()
+    loaded = Loaded(WAS)
+    loaded.follow(bus)
+    bus.publish(RAILROAD, {"name": NOW})
+    bus.drain()
+    return loaded
+
+
+def test_the_railroad_just_named_is_read() -> None:
+    """The ordinary case, which is the store having the railroad a person
+    picked: what comes back is that railroad's documents, nothing is said,
+    and the app stays on the name it moved to."""
+    loaded = moved()
+    reading = Reading()
+    said: list[str] = []
+
+    documents = taken(loaded, WAS, said.append, reading)
+
+    assert documents == f"the documents of {NOW}"
+    assert (loaded.name, said) == (NOW, [])
+    assert reading.asked == [NOW]
+
+
+@pytest.mark.parametrize(
+    "refused",
+    [
+        OSError("the store is not answering"),
+        ValueError("no such railroad"),
+        TypeError("the drawing does not derive"),
+    ],
+    ids=["os", "value", "type"],
+)
+def test_a_railroad_the_store_cannot_give_is_said_and_not_taken(
+    refused: Exception,
+) -> None:
+    """An app with nothing to run on is worse than one still running the
+    railroad it had (ADR-0050): the refusal is said against the railroad
+    still built, that one is kept, and its documents are what the app is
+    rebuilt on."""
+    loaded = moved()
+    reading = Reading(refuses=refused, of=NOW)
+    said: list[str] = []
+
+    documents = taken(loaded, WAS, said.append, reading)
+
+    assert said == [f"'{NOW}': {refused} — staying on '{WAS}'"]
+    assert (loaded.name, loaded.moved) == (WAS, False)
+    assert documents == f"the documents of {WAS}"
+    assert reading.asked == [NOW, WAS]
+
+
+def test_what_an_app_reads_is_the_only_thing_it_says() -> None:
+    """One document or two is the whole of the difference between the four
+    apps that load a railroad, and it comes back as the app wrote it — the
+    scheduler and the simulator with a layout, the dispatcher and the layout
+    interface with a layout and a roster."""
+    loaded = moved()
+
+    pair = taken(loaded, WAS, lambda _line: None, lambda name: (name, len(name)))
+
+    assert pair == (NOW, len(NOW))
