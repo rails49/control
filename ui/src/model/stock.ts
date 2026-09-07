@@ -26,7 +26,7 @@
  * plain values.
  */
 
-import { isName } from "./rules.js";
+import { isName, lengthTrouble } from "./rules.js";
 import type {
   CarDoc,
   Coupled,
@@ -641,7 +641,8 @@ export class Stock {
       this.write({ cars: { ...this.doc.cars, [name]: rest } });
       return null;
     }
-    if (!Number.isInteger(mm) || mm <= 0) return "a length is a positive whole number of millimetres";
+    const trouble = lengthTrouble(mm);
+    if (trouble !== null) return trouble;
     this.write({ cars: { ...this.doc.cars, [name]: { ...car, length: mm } } });
     return null;
   }
@@ -692,7 +693,8 @@ export class Stock {
     if (model === undefined) return null;
     const held = modelHeldByRun(name, this.doc, placed);
     if (held !== null) return held;
-    if (!Number.isInteger(mm) || mm <= 0) return "a length is a positive whole number of millimetres";
+    const trouble = lengthTrouble(mm);
+    if (trouble !== null) return trouble;
     this.putModel({ ...model, length: mm });
     return null;
   }

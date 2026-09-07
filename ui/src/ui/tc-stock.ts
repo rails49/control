@@ -32,7 +32,7 @@ import { live } from "lit/directives/live.js";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 
-import { isName } from "../model/rules.js";
+import { isName, lengthTrouble } from "../model/rules.js";
 import {
   KINDS,
   Stock,
@@ -869,10 +869,8 @@ export class TcStock extends LitElement {
     if (!isName(name)) return `'${name}' is not a name a model can have`;
     const already = stock.stopsMaking(name);
     if (already !== null) return already;
-    const mm = Number(making.length);
-    if (!Number.isInteger(mm) || mm <= 0) {
-      return "a length is a positive whole number of millimetres";
-    }
+    const trouble = lengthTrouble(Number(making.length));
+    if (trouble !== null) return trouble;
     for (const fn of making.functions) {
       if (fn.number.trim() === "" || fn.name.trim() === "") {
         return "a function is a DCC number and what it does on this product";
