@@ -166,6 +166,21 @@ export function brokerAt(page: {
 
 const BROKER = brokerAt(location);
 
+/**
+ * What the band says while the broker is not answering, which is the whole of
+ * what it says about the link (#517).
+ *
+ * It names the address the page is trying and the one thing a person can do
+ * about it, because a bare "not connected" leaves them with a working app and
+ * no idea which of five containers is down. The broker is the first hop and
+ * the only one this page opens itself — the store is asked over HTTP and says
+ * so in its own words — so naming it is naming what to look at.
+ *
+ * Exported so the suite reads the words off this module rather than respelling
+ * them, the way it reads `RETRY_MS`.
+ */
+export const GONE = `no broker at ${BROKER} — is the bus running?`;
+
 /** Everything of ours, which is the whole of what a page subscribes: the
  *  retained rows arrive as the subscription lands and the events follow
  *  (ADR-0032). One filter and not a list — the panel already reads a subset of
@@ -392,12 +407,18 @@ export class TcPanel extends LitElement {
       // thaws, and the picture the last frame left stays on screen with
       // nothing to gesture at.
       this.connected = false;
+      // Said here as well as on `error`, and in the same words. The band draws
+      // no "connected" of its own any more (#517): a link that is up is the
+      // ordinary case and says nothing, so the one time it has to speak is the
+      // time it is down, and a page that lost the broker mid-run must not go
+      // quiet just because the connection opened once.
+      this.trouble = GONE;
       this.leave();
       this.beat++;
     });
     client.on("error", () => {
       if (client !== this.client) return;
-      this.trouble = `no broker at ${BROKER}`;
+      this.trouble = GONE;
     });
     this.client = client;
   }

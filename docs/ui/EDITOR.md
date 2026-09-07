@@ -79,17 +79,30 @@ been given. That state had no indicator at all before: it was inferrable only
 from the Save button being enabled, which is a control's affordance doing a
 status line's job, and #85 took that button off the screen entirely.
 
-**Whether what the app talks to is answering reads here**, in a health area at
-the right. That is what is wrong that is not the author's doing — the store not
-answering, the broker on a live run, whether the rails have power
-([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md))
-— and what the author has to fix is marked on the drawing
-([Validation](#validation)). A name no drawing can wear is
+**What the app could not do reads here**, in a health area at the right. That
+is what is wrong that is not the author's doing — the store not answering, or a
+broker that is not ([PANEL.md](PANEL.md)) — and what the author has to fix is
+marked on the drawing ([Validation](#validation)). A name no drawing can wear is
 the one refusal that joins it: it is typed at a prompt that is gone by the time
 it is refused, and nothing on the canvas is wrong ([Files](#files)). It is a
 region with room in it rather than a string, because per-container and
 eventually hardware reachability belong beside those, and the slot in it is
 where they go.
+
+**Nothing that is going right reads in it**
+([#517](https://github.com/rails49/control/issues/517)). The band was six
+entries with five of them saying the ordinary thing — `drawing frozen connected
+power on session 12:04` — and a status line that is always full is one nobody
+reads, so the entry that matters is not seen either. So the link has no word of
+its own at all: connected is ordinary and says nothing, and not connected is the
+trouble line naming the broker and asking whether the bus is running. Track
+power is the **mark on the press that names where it stands**
+([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md),
+[Supply](#the-band)) — three buttons plus a word repeating one of them was the
+same fact twice, and the marked one carries which of the two ways of standing
+still it is in what it says when it is hovered. STOP and OFF wear the alarm
+while they are the one marked; STOP is told apart from its neighbours whatever
+the supply is doing.
 
 Beside them, one coarse indicator: this drawing derives, or it does not. It
 names no fault and counts nothing, the canvas being where you find out where. A
@@ -101,16 +114,22 @@ And beside that, the other thing the band says about the drawing: that it is
 **frozen**, trains being on the layout ([Trains on the layout freeze the
 drawing](#trains-on-the-layout-freeze-the-drawing)). It reads as the session
 clock does rather than as the refusal above it — a railroad with trains on it
-is the ordinary state and nothing about it is wrong — and it is what explains
-an Edit menu of dead verbs to whoever opens one.
+is the ordinary state and nothing about it is wrong — and it is what explains a
+rail of dead verbs to whoever looks at one. **In the editing view alone**
+(#517): the dead verbs it explains are the editor's, so anywhere else it is a
+warning about nothing. The band decides that itself no more than it decides
+which view is current — the app hands the mark over while the editing view is
+up, and not otherwise.
 
-**The view selector is at the right end.** The views are a list with one
-current entry, `{id, label, icon}` in `model/views.ts`, drawn as one
-icon-button each with the current one marked. Two of them were a single
-icon-button wearing the other one's name — which is what a toggle is — and the
-third made it this selector, so a stock screen and a schedule table add a line
-rather than force a redesign. Which view is current is in the location hash, so
-a reload and a bookmark keep it, and a hash naming no view is the run view.
+**The view selector is on the rail**, not here
+([ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)). The views are a
+list with one current entry, `{id, label}` in `model/views.ts` with the glyph in
+`ui/icons.ts`, drawn as one icon-button each with the current one marked. Two of
+them were a single icon-button wearing the other one's name — which is what a
+toggle is — and the third made it this selector, so a stock screen and a
+schedule table add a line rather than force a redesign. Which view is current is
+in the location hash, so a reload and a bookmark keep it, and a hash naming no
+view is the run view.
 
 The rule this section carried — that the band "shows status and nothing else",
 everything pressable staying in the row below — is amended rather than kept.

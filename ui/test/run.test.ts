@@ -18,7 +18,7 @@ import type { Drawing } from "../src/model/drawing.js";
 import { centreOf } from "../src/model/geometry.js";
 import { RETRY_MS, type Explained, type Layout } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { brokerAt } from "../src/ui/tc-panel.js";
+import { brokerAt, GONE } from "../src/ui/tc-panel.js";
 import {
   band,
   rail,
@@ -65,12 +65,15 @@ function health(shell: TcApp): string | null {
   return said === null ? null : said.textContent!.trim();
 }
 
-/** What the band says about the broker, `null` while it says nothing. The
- *  badge is drawn only while a session is joined, so a page that has let one
- *  go says nothing here rather than saying it is not connected. */
-function link(shell: TcApp): string | null {
-  const said = band(shell).renderRoot.querySelector(".link");
-  return said === null ? null : said.textContent!.trim();
+/** The band's mark on the press the supply is standing at, `null` while
+ *  nothing has said where it stands. Since #517 the three presses are the
+ *  reading as well as the presses, so this is what the band says about track
+ *  power. */
+function supply(shell: TcApp): string | null {
+  const marked = band(shell).renderRoot.querySelector<HTMLButtonElement>(
+    "button.press.at",
+  );
+  return marked === null ? null : marked.title;
 }
 
 describe("where the broker is", () => {
@@ -164,7 +167,9 @@ describe("joining the railroad the broker runs", () => {
     broker.closes();
     await settled(shell);
 
-    expect(link(shell)).toBeNull();
+    // The band has no word for the link either way since #517: a broker that
+    // has gone says so in the trouble line, in words naming what to look at.
+    expect(health(shell)).toBe(GONE);
     running(shell).press("running");
     expect(written()).toEqual([]);
     expect(notice(shell)).toBeNull();
@@ -173,18 +178,19 @@ describe("joining the railroad the broker runs", () => {
     await settled(shell);
 
     expect(Broker.opened).toHaveLength(1);
-    expect(link(shell)).toBe("connected");
+    expect(health(shell)).toBeNull();
     expect(press(shell).textContent!.trim()).toBe("GO");
   });
 
   /** Nothing at the address at all: the band names where it looked, which is
-   *  the only answer a page gets when there is no broker to answer it. */
+   *  the only answer a page gets when there is no broker to answer it, and
+   *  asks the one question a person can act on (#517). */
   it("says where it looked when nothing is there", async () => {
     const shell = await mounted("run");
     Broker.last!.fails();
     await settled(shell);
 
-    expect(health(shell)).toBe(`no broker at ${brokerAt(location)}`);
+    expect(health(shell)).toBe(GONE);
   });
 });
 
@@ -538,12 +544,6 @@ describe("the word on the button", () => {
  * person recovering acts on.
  */
 describe("what the rails say about the button", () => {
-  /** What the band says about power, `null` while it says nothing. */
-  function supply(shell: TcApp): string | null {
-    const said = band(shell).renderRoot.querySelector(".power");
-    return said === null ? null : said.textContent!.trim();
-  }
-
   it("greys GO and says why, and lets go of both when the power returns", async () => {
     const shell = await joined();
     await said(shell, "tc49/dispatch/state/run", { run: "held" });

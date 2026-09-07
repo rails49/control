@@ -118,9 +118,10 @@ export const headerStyles = css`
     margin-left: -0.3rem;
   }
 
-  /* What the app talks to, and what it could not do. One row with room in it:
-     per-container and hardware reachability land here (2a-docker), and the
-     slot is where they go. */
+  /* What the app could not do, and how far the run has got. One row with room
+     in it: per-container and hardware reachability land here (2a-docker), and
+     the slot is where they go. Nothing that is going right is drawn in it
+     (#517). */
   .health {
     display: flex;
     gap: 0.5rem;
@@ -166,30 +167,6 @@ export const headerStyles = css`
     ${alarm}
   }
 
-  /* Whether the broker is answering: the one thing a live band says that a
-     replay's does not. */
-  .link.joined {
-    opacity: 0.75;
-  }
-
-  .link.gone {
-    ${alarm}
-  }
-
-  /* Whether a train may move at all. Power on is the quiet case and reads as
-     the session clock beside it does; the two ways of standing still are the
-     operator's to act on, so they take the alarm the trouble beside them
-     takes. */
-  .power.on {
-    opacity: 0.75;
-  }
-
-  .power.stopped,
-  .power.off {
-    flex: none;
-    ${alarm}
-  }
-
   /* ON, STOP and OFF (ADR-0051). They read as the rail's HOLD/GO reads —
      short words in capitals — because they are the same kind of press about
      the same railroad, and they sit next to the reading they act on. STOP
@@ -217,9 +194,31 @@ export const headerStyles = css`
     background: rgb(255 255 255 / 0.18);
   }
 
+  /* STOP is told apart from its neighbours whatever the supply is doing: it is
+     the press a hand reaches for without reading, and the one whose cost of
+     being pressed late is a train on the floor. */
   button.press.stopped {
     border-color: var(--wrong-body);
     color: var(--wrong-body);
+  }
+
+  /* Where the supply stands, marked on the press that names it: the same mark
+     the rail puts on the current view, and the whole of what the band says
+     about track power since #517. */
+  button.press.at {
+    background: rgb(255 255 255 / 0.22);
+    font-weight: 600;
+  }
+
+  /* The two that are somebody's to act on. Standing at either is not a state
+     to leave a railroad in, so the marked button wears the alarm the reading
+     beside it used to wear; ON marked is the ordinary case and wears the plain
+     mark above. */
+  button.press.stopped.at,
+  button.press.off.at {
+    background: var(--wrong-body);
+    border-color: var(--wrong-body);
+    color: var(--wrong);
   }
 
   /* Nothing to command, or the press would be swallowed: a dead button and

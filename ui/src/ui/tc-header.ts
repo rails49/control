@@ -33,9 +33,10 @@ import type { Power } from "../model/trace.js";
 import { dismissal } from "./dismissal.js";
 import { headerStyles } from "./tc-header.styles.js";
 
-/** What each power value reads as. `stopped` reads as the thing rather than as
- *  the token, because the two ask for different actions: an emergency stop is
- *  cleared, and a supply that is off is switched back on. */
+/** What each power value reads as, which is what the press standing at it says
+ *  when it is hovered. `stopped` reads as the thing rather than as the token,
+ *  because the two ask for different actions: an emergency stop is cleared,
+ *  and a supply that is off is switched back on. */
 const POWERED: Record<Power, string> = {
   on: "power on",
   stopped: "emergency stop",
@@ -79,11 +80,16 @@ export class TcHeader extends LitElement {
    *  nothing: the canvas is where you find out where. */
   @property({ type: Boolean }) derives = true;
 
-  /** Whether the drawing is frozen: a train is on the layout, so the editing
-   *  view is read-only until it is off it (`model/commands.ts`, ADR-0038).
-   *  Said here because it is true of the system rather than of a view — the
-   *  editor's dead verbs are what it explains, and it reads in the run view as
-   *  what the run is doing to the drawing. */
+  /** Whether to say the drawing is frozen: a train is on the layout, so the
+   *  editing view is read-only until it is off it (`model/commands.ts`,
+   *  ADR-0038).
+   *
+   *  **Whether, and not merely that.** The app hands this over in the editing
+   *  view alone (#517). The mark exists to explain the dead verbs, and they are
+   *  the editor's; trains on the layout are the ordinary state of a railroad
+   *  being run, so in the run view the same mark is a warning about nothing.
+   *  The band decides no such thing itself — which view is current is the app's
+   *  and left the band with the selector (ADR-0064). */
   @property({ type: Boolean }) frozen = false;
 
   /** Whether the broker is answering, read only while a session is joined. */
@@ -150,14 +156,32 @@ export class TcHeader extends LitElement {
   }
 
   /**
-   * Whether what the app talks to is answering, and what it could not do.
+   * What the app could not do, and how far the run has got.
+   *
+   * **Nothing that is going right reads here** (#517). The band was a row of
+   * six entries with five of them saying the ordinary thing — `drawing frozen
+   * connected power on session 12:04` — and a status line that is always full
+   * is one nobody reads, so the entry that matters is not seen either. So each
+   * of them speaks only where a person would act on it:
+   *
+   * - **The link** has no word of its own at all. Connected is the ordinary
+   *   case; not connected is `trouble`, in a sentence that names the broker
+   *   and asks whether the bus is running (`tc-panel.ts`).
+   * - **Track power** is the mark on the press that names where it stands, not
+   *   a reading beside them ([Supply](#supply)). Three buttons plus a word
+   *   repeating one of them was the same fact twice.
+   * - **The frozen drawing** reads in the editing view alone, that being where
+   *   the dead verbs it explains are. Trains on the layout are the ordinary
+   *   state of a railroad being run, and nothing is wrong with it, so in the
+   *   run view it is a warning about nothing.
+   *
+   * What is left is the two things that are somebody's mistake — the store not
+   * answering or a broker that is not, and a drawing that does not derive —
+   * and the session clock.
    *
    * A region rather than a string, with room in it: per-container reachability
    * and eventually the hardware's belong here too, and what fills the slot is
-   * the deployment design's (`2a-docker`). What is here today is the store not
-   * answering, the broker on a live run, whether the rails have power,
-   * how far the run has got, and the one coarse mark the loaded railroad makes
-   * about itself.
+   * the deployment design's (`2a-docker`).
    */
   private health() {
     return html`
@@ -175,18 +199,6 @@ export class TcHeader extends LitElement {
         ${this.trouble === null
           ? nothing
           : html`<span class="trouble" title=${this.trouble}>${this.trouble}</span>`}
-        ${this.joined
-          ? html`
-              <span class=${`link ${this.linked ? "joined" : "gone"}`}>
-                ${this.linked ? "connected" : "not connected"}
-              </span>
-            `
-          : nothing}
-        ${this.power === null
-          ? nothing
-          : html`
-              <span class=${`power ${this.power}`}>${POWERED[this.power]}</span>
-            `}
         ${this.sessionS === null
           ? nothing
           : html`<span class="session">session ${clocked(this.sessionS)}</span>`}
@@ -198,6 +210,14 @@ export class TcHeader extends LitElement {
    * ON, STOP and OFF: what the whole railroad's supply should be doing
    * (ADR-0051). They stand beside the reading rather than on the rail, which
    * is the current view's document's — track power is no document's.
+   *
+   * **The press that names where the supply stands is marked** (#517). It is
+   * the same mark the rail puts on the current view: the list is what the
+   * supply can be doing and the current one is one of them, so the three
+   * buttons are the reading as well as the presses and the band needs no word
+   * beside them. The two that are somebody's to act on — an emergency stop to
+   * clear, a supply switched off — wear the alarm while they are the one
+   * marked, because they are not states to leave a railroad in.
    *
    * **One press each and no confirmation.** An emergency stop that asks "are
    * you sure?" is not one, `stopped` is cheap to recover from with the points
@@ -222,10 +242,16 @@ export class TcHeader extends LitElement {
       <div class="supply">
         ${SUPPLY.map(({ power, word, says }) => {
           const waiting = power === "off" && this.draining;
+          const at = power === this.power;
           return html`
             <button
-              class=${`press ${power}${waiting ? " waiting" : ""}`}
-              title=${waiting ? "waiting for the run to drain" : says}
+              class=${`press ${power}${at ? " at" : ""}${waiting ? " waiting" : ""}`}
+              aria-pressed=${at}
+              title=${waiting
+                ? "waiting for the run to drain"
+                : at
+                  ? POWERED[this.power!]
+                  : says}
               ?disabled=${!this.linked || waiting}
               @click=${() =>
                 this.dispatchEvent(
