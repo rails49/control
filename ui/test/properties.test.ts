@@ -15,11 +15,16 @@ import type { Properties, TcProperties } from "../src/ui/tc-properties.js";
 import type { SymbolSpec } from "../src/model/drawing.js";
 import type SlInput from "@shoelace-style/shoelace/dist/components/input/input.js";
 
-/** The dialog, opened on one symbol. */
-async function opened(name: string, spec: SymbolSpec): Promise<TcProperties> {
+/** The dialog, opened on one symbol. The drawing holds that symbol's name
+ *  and, where the caller says so, the names of its neighbours too. */
+async function opened(
+  name: string,
+  spec: SymbolSpec,
+  taken: readonly string[] = [name],
+): Promise<TcProperties> {
   const dialog = document.createElement("tc-properties");
   dialog.editing = { name, spec };
-  dialog.taken = [name];
+  dialog.taken = taken;
   document.body.append(dialog);
   await dialog.updateComplete;
   return dialog;
@@ -36,6 +41,11 @@ function field(dialog: TcProperties, label: string): SlInput {
   return [...dialog.renderRoot.querySelectorAll<SlInput>("sl-input")].find(
     (input) => input.label === label,
   )!;
+}
+
+/** Whether a field is marked as holding what the dialog will not take. */
+function refused(dialog: TcProperties, label: string): boolean {
+  return field(dialog, label).classList.contains("refused");
 }
 
 /** Type into a field, the way a keystroke reaches it. */
@@ -148,20 +158,44 @@ describe("a block", () => {
    * The store takes a positive whole number of millimetres and nothing else
    * (`tc49.lib.layout.check_length`). A `0` used to be written onto the
    * drawing here and answered with a 400 on the save; the dialog now refuses
-   * it where it was typed, the way it refuses a name (ADR-0023).
+   * it beside the Length field it was typed in, the way it refuses a name
+   * beside the Name field (ADR-0023).
    */
-  it("refuses a length that is not a positive whole number", async () => {
+  it("refuses a length that is not a positive whole number, beside Length", async () => {
     const dialog = await opened("b1", { kind: "block", length: 1000 });
     await typed(dialog, "Length", "0");
     expect(applying(dialog)).toEqual([]);
-    expect(field(dialog, "Name").helpText).toBe(
+    expect(field(dialog, "Length").helpText).toBe(
       "a length is a positive whole number of millimetres",
     );
+    expect(refused(dialog, "Length")).toBe(true);
+    expect(field(dialog, "Name").helpText).toBe(
+      "The id every transit through this symbol is prefixed with.",
+    );
+    expect(refused(dialog, "Name")).toBe(false);
   });
 
-  it("hands back a length that is one", async () => {
+  /** Neither refusal hides the other: a name the drawing will not take used
+   *  to be answered first, and a bad length went unsaid until the name was
+   *  corrected. */
+  it("says a name and a length are both wrong at once", async () => {
+    const dialog = await opened("b1", { kind: "block", length: 1000 }, ["b1", "b2"]);
+    await typed(dialog, "Name", "b2");
+    await typed(dialog, "Length", "0");
+    expect(applying(dialog)).toEqual([]);
+    expect(field(dialog, "Name").helpText).toBe("'b2' is already taken");
+    expect(field(dialog, "Length").helpText).toBe(
+      "a length is a positive whole number of millimetres",
+    );
+    expect(refused(dialog, "Name")).toBe(true);
+    expect(refused(dialog, "Length")).toBe(true);
+  });
+
+  it("hands back a length that is one, marking neither field", async () => {
     const dialog = await opened("b1", { kind: "block", length: 1000 });
     await typed(dialog, "Length", "1200");
+    expect(refused(dialog, "Name")).toBe(false);
+    expect(refused(dialog, "Length")).toBe(false);
     expect(applying(dialog).map((one) => one.spec.length)).toEqual([1200]);
   });
 
