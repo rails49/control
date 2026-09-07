@@ -637,8 +637,10 @@ positive whole number of millimetres (`tc49.lib.layout.check_length`, said once
 for the browser in `model/rules.ts`), and a `0` typed into the field used to be
 written onto the drawing and answered with a 400 on the save — the same
 keystroke reported from across the network instead of beside the field. The
-reason stands where a rejected name's does and Apply does nothing until it is
-gone.
+reason stands beside the Length field the number was typed in, the way a
+rejected name's stands beside the Name field, and a bad name and a bad length
+are said together rather than one after the other. Apply does nothing until
+both are gone.
 
 Transit names are not edited here. A drawing can still write one on a symbol's
 leg and derivation honours it — a name on a turnout's straight leg is taken by

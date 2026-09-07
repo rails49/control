@@ -100,7 +100,7 @@ export class TcProperties extends LitElement {
    *  where the name was typed rather than in a panel across the screen, and it
    *  is shown as it is typed rather than only on Apply. */
   private nameField() {
-    const trouble = this.trouble;
+    const trouble = this.nameTrouble;
     return html`
       <sl-input
         class=${trouble === null ? "" : "refused"}
@@ -115,21 +115,25 @@ export class TcProperties extends LitElement {
     `;
   }
 
-  /**
-   * Why the dialog as it stands will not do, or `null` where nothing is
-   * wrong. Nothing to say where the kind has no name to type
-   * (model/drawing.ts).
-   *
-   * A block's length is asked here too. The store refuses one that is not a
-   * positive whole number, so a `0` typed into the field used to be written
-   * onto the drawing and answered with a 400 on the save — a refusal about a
-   * keystroke made long before, and reported nowhere near it (ADR-0023). The
-   * name is answered first: it is the field the reason is shown beside.
-   */
-  private get trouble(): string | null {
+  /** Why the name in the field will not do, or `null` where it will. Nothing
+   *  to say where the kind has no name to type (model/drawing.ts). */
+  private get nameTrouble(): string | null {
     if (this.editing === null || !named(this.draft.kind)) return null;
-    const name = symbolTrouble(this.name, this.editing.name, this.taken);
-    if (name !== null) return name;
+    return symbolTrouble(this.name, this.editing.name, this.taken);
+  }
+
+  /**
+   * Why a block's length will not do, or `null` where it will and for a kind
+   * that has no length.
+   *
+   * The store refuses one that is not a positive whole number, so a `0` typed
+   * into the field used to be written onto the drawing and answered with a
+   * 400 on the save — a refusal about a keystroke made long before, and
+   * reported nowhere near it (ADR-0023). It is answered on its own rather
+   * than after the name, so a name the drawing will not take does not hide a
+   * length it will not take either.
+   */
+  private get lengthTrouble(): string | null {
     return this.draft.kind === "block"
       ? lengthTrouble(this.draft.length ?? 0)
       : null;
@@ -162,10 +166,13 @@ export class TcProperties extends LitElement {
   }
 
   private block() {
+    const trouble = this.lengthTrouble;
     return html`
       <sl-input
         type="number"
+        class=${trouble === null ? "" : "refused"}
         label="Length"
+        help-text=${trouble ?? nothing}
         value=${String(this.draft.length ?? 0)}
         @sl-input=${(event: Event) => {
           this.draft = {
@@ -236,9 +243,10 @@ export class TcProperties extends LitElement {
 
   private apply(): void {
     if (this.editing === null) return;
-    // A name the drawing will not take leaves the dialog open holding it, so
-    // it can be corrected where it was typed (ADR-0023).
-    if (this.trouble !== null) return;
+    // A name the drawing will not take, or a length the store will not, leaves
+    // the dialog open holding it, so it can be corrected where it was typed
+    // (ADR-0023).
+    if (this.nameTrouble !== null || this.lengthTrouble !== null) return;
     this.dispatchEvent(
       new CustomEvent<Properties>("properties", {
         detail: { was: this.editing.name, name: this.name, spec: tidy(this.draft) },
