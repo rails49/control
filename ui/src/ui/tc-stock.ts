@@ -32,6 +32,7 @@ import { live } from "lit/directives/live.js";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 
+import { isName } from "../model/rules.js";
 import {
   KINDS,
   Stock,
@@ -865,9 +866,7 @@ export class TcStock extends LitElement {
    *  whole (#413). */
   private wrong(making: Draft, stock: Stock): string | null {
     const name = making.model.trim();
-    if (name === "" || name.includes(".") || name.includes("/")) {
-      return `'${name}' is not a name a model can have`;
-    }
+    if (!isName(name)) return `'${name}' is not a name a model can have`;
     const already = stock.stopsMaking(name);
     if (already !== null) return already;
     const mm = Number(making.length);

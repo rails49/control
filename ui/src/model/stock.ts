@@ -26,6 +26,7 @@
  * plain values.
  */
 
+import { isName } from "./rules.js";
 import type {
   CarDoc,
   Coupled,
@@ -205,13 +206,6 @@ export function mint(model: string, taken: Iterable<string>): string {
     const name = `${model}-${n}`;
     if (!already.has(name)) return name;
   }
-}
-
-/** Whether a name is one a document may be filed under: the store refuses a
- *  `.` or a `/` in one, and an empty name names nothing
- *  (`tc49.lib.layout.check_name`). */
-export function nameable(name: string): boolean {
-  return name !== "" && !name.includes(".") && !name.includes("/");
 }
 
 /** What names a car, in words: the trains whose entries do. Empty where
@@ -500,7 +494,7 @@ export class Stock {
   /** Make up a train: a name and nothing in it yet, which is what composing
    *  right from left starts with. */
   addTrain(name: string): string | null {
-    if (!nameable(name)) return `'${name}' is not a name a train can have`;
+    if (!isName(name)) return `'${name}' is not a name a train can have`;
     if (this.doc.trains[name] !== undefined) return `there is already a train '${name}'`;
     this.write({ trains: { ...this.doc.trains, [name]: { cars: [] } } });
     return null;
@@ -508,7 +502,7 @@ export class Stock {
 
   renameTrain(was: string, name: string): string | null {
     if (name === was) return null;
-    if (!nameable(name)) return `'${name}' is not a name a train can have`;
+    if (!isName(name)) return `'${name}' is not a name a train can have`;
     if (this.doc.trains[name] !== undefined) return `there is already a train '${name}'`;
     const train = this.doc.trains[was];
     if (train === undefined) return null;
@@ -599,7 +593,7 @@ export class Stock {
 
   renameCar(was: string, name: string): string | null {
     if (name === was) return null;
-    if (!nameable(name)) return `'${name}' is not a name a car can have`;
+    if (!isName(name)) return `'${name}' is not a name a car can have`;
     if (this.doc.cars?.[name] !== undefined) return `there is already a car '${name}'`;
     const car = this.doc.cars?.[was];
     if (car === undefined) return null;
