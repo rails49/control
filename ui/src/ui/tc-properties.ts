@@ -115,8 +115,9 @@ export class TcProperties extends LitElement {
     `;
   }
 
-  /** Why the name in the field will not do, or `null` where it will. Nothing
-   *  to say where the kind has no name to type (model/drawing.ts). */
+  /** Why the name in the field will not do, or `null` where it will. Shown
+   *  beside the Name field, which is where it was typed (ADR-0023). Nothing to
+   *  say where the kind has no name to type (model/drawing.ts). */
   private get nameTrouble(): string | null {
     if (this.editing === null || !named(this.draft.kind)) return null;
     return symbolTrouble(this.name, this.editing.name, this.taken);
@@ -124,19 +125,19 @@ export class TcProperties extends LitElement {
 
   /**
    * Why a block's length will not do, or `null` where it will and for a kind
-   * that has no length.
+   * that has no length. Shown beside the Length field, which is where it was
+   * typed (ADR-0023).
    *
    * The store refuses one that is not a positive whole number, so a `0` typed
    * into the field used to be written onto the drawing and answered with a
-   * 400 on the save — a refusal about a keystroke made long before, and
-   * reported nowhere near it (ADR-0023). It is answered on its own rather
-   * than after the name, so a name the drawing will not take does not hide a
-   * length it will not take either.
+   * 400 on the save — the same keystroke reported from across the network
+   * instead of beside the field. It is answered on its own rather than after
+   * the name, so a name the drawing will not take does not hide a length it
+   * will not take either.
    */
   private get lengthTrouble(): string | null {
-    return this.draft.kind === "block"
-      ? lengthTrouble(this.draft.length ?? 0)
-      : null;
+    if (this.editing === null || this.draft.kind !== "block") return null;
+    return lengthTrouble(this.draft.length ?? 0);
   }
 
   private perKind() {
