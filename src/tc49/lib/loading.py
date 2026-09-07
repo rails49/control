@@ -16,14 +16,14 @@ and nothing republishes a row for a block that no longer exists. One writing
 role (ADR-0035) is what lets each app say exactly which rows are its own.
 
 This module is the seam the six apps share: the two topics, the follower that
-watches the row, the **answerer** that watches the gesture behind it, and the
-clearing. An app's `__main__` names the filters it owns and nothing else here
-knows them — what a row is about is the app's business, and the rule is only
+watches the row, the **answerer** that watches the gesture behind it, the
+documents the app is rebuilt on, and the clearing. An app's `__main__` names
+the filters it owns and what it reads, and nothing else here knows either — what a row is about is the app's business, and the rule is only
 that it is the row's owner who drops it.
 """
 
 import threading
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from tc49.lib.bus import Bus, Payload, matches
 from tc49.lib.inventory import AT, OFF, ON, STOPPED
@@ -226,6 +226,48 @@ class Answering(Loaded):
         """
         self._name = name
         self._moved = False
+
+
+def taken[Read](
+    loaded: Loaded,
+    built: str,
+    log: Callable[[str], None],
+    reading: Callable[[str], Read],
+) -> Read:
+    """The documents of the railroad just named, or of the one still running
+    where the store has no such railroad or its documents do not load.
+
+    A railroad the store cannot give is **said and not taken**: it is
+    reported against the railroad still built, `keep` puts that one back, and
+    what comes back are the documents the app already had — an app still
+    running the last railroad being worth more than one running none
+    (ADR-0050). A store that is not answering at all is waited for rather
+    than refused, which is `lib/documents.py`'s own retry and not a case
+    here.
+
+    Here rather than in `lib/startup.py` beside `connected` and `retained`:
+    those are the shape a process comes up in, and this is what an app does
+    when the railroad **moves under it**, which is this module's whole
+    subject. Here rather than in each app because it is one rule about the
+    whole system — written once in each of the four apps that read documents,
+    it could be fixed in one place and left wrong in three (#502).
+
+    `reading` is the one thing those four differ in: a railroad's name to
+    what that app reads, which is one document for the scheduler and the
+    simulator and two for the dispatcher and the layout interface. Generic in
+    what it answers — `Read` is that app's documents and never the store's
+    face they came off — so each comes back as the app wrote it rather than
+    through a cast.
+
+    `Loaded` and not `Answering`: the wider type covers both, and the name
+    last taken and `keep` are the same on either.
+    """
+    try:
+        return reading(loaded.name)
+    except (OSError, ValueError, TypeError) as refused:
+        log(f"'{loaded.name}': {refused} — staying on '{built}'")
+        loaded.keep(built)
+        return reading(built)
 
 
 def dropped(
