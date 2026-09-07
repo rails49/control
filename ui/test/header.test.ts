@@ -217,11 +217,32 @@ describe("the status the band takes over", () => {
     expect([...health.querySelectorAll("span")].map((one) => one.className)).toEqual([
       "refused",
       "trouble",
-      "link joined",
-      "power on",
       "session",
     ]);
     expect(health.querySelector("slot[name=health]")).not.toBeNull();
+  });
+
+  /**
+   * Nothing that is going right reads here (#517). A band whose status line is
+   * always full is one nobody reads, so the entry that matters is not seen
+   * either.
+   *
+   * The whole of the ordinary case: a session joined, the broker answering, the
+   * rails live, the drawing deriving, and trains standing on the layout. Only
+   * the session clock is drawn.
+   */
+  it("says nothing at all while everything is going right", async () => {
+    const header = await band({
+      joined: true,
+      linked: true,
+      power: "on",
+      derives: true,
+      frozen: false,
+    });
+    const health = header.renderRoot.querySelector(".health")!;
+    expect([...health.querySelectorAll("span")].map((one) => one.className)).toEqual([
+      "session",
+    ]);
   });
 
   /** The store not answering is not one of the author's mistakes, so it
@@ -235,34 +256,24 @@ describe("the status the band takes over", () => {
     expect(reads(await band(), ".trouble")).toBeNull();
   });
 
-  it("says whether the broker is answering a joined session", async () => {
-    expect(reads(await band({ joined: true, linked: true }), ".link")).toBe(
-      "connected",
-    );
-    expect(reads(await band({ joined: true, linked: false }), ".link")).toBe(
-      "not connected",
-    );
+  /** The link has no word of its own at all (#517): connected is the ordinary
+   *  case, and not connected is a sentence in `trouble` that names the broker
+   *  and asks whether the bus is running (`tc-panel.ts`). Two entries saying
+   *  one thing, one of them with nothing a person could act on in it. */
+  it("says nothing of its own about the broker either way", async () => {
+    for (const linked of [true, false]) {
+      const header = await band({ joined: true, linked });
+      expect(header.renderRoot.querySelector(".link")).toBeNull();
+    }
   });
 
-  /** With no session joined there is no broker to be answering. */
-  it("says nothing about a broker off a joined session", async () => {
-    expect(reads(await band({ linked: true }), ".link")).toBeNull();
-  });
-
-  /** Which of the two it is, and not only that something is wrong: the
-   *  person recovering clears an emergency stop or switches a supply back on,
-   *  which are different actions (ADR-0041). It is also the reason the bar's
-   *  GO is greyed beside it. */
-  it("says whether the rails have power, and which way they have not", async () => {
-    expect(reads(await band({ power: "on" }), ".power")).toBe("power on");
-    expect(reads(await band({ power: "off" }), ".power")).toBe("power off");
-    expect(reads(await band({ power: "stopped" }), ".power")).toBe("emergency stop");
-  });
-
-  /** With no session joined nothing has said, and a drawing has no rails to
-   *  have power. */
-  it("says nothing about power off a joined session", async () => {
-    expect(reads(await band({ power: null }), ".power")).toBeNull();
+  /** Track power reads as the mark on the press that names where it stands
+   *  (#517), not as a word beside three buttons saying the same thing. */
+  it("says nothing of its own about power", async () => {
+    for (const power of ["on", "off", "stopped", null] as const) {
+      const header = await band({ joined: true, linked: true, power });
+      expect(header.renderRoot.querySelector(".power")).toBeNull();
+    }
   });
 
   /** The session clock: elapsed time on the page's own clock, until a fast
@@ -398,6 +409,43 @@ describe("commanding the supply", () => {
     expect(off.textContent!.trim()).toBe("DRAINING…");
     expect(off.disabled).toBe(true);
     expect(off.title).toBe("waiting for the run to drain");
+  });
+
+  /**
+   * Where the supply stands, marked on the press that names it (#517).
+   *
+   * The three buttons are the reading as well as the presses, which is what
+   * lets the status line drop the word that used to repeat one of them. The
+   * mark is the rail's mark on the current view: the list is what the supply
+   * can be doing and the current one is one of them.
+   */
+  it("marks the press the supply is standing at, and no other", async () => {
+    for (const power of ["on", "stopped", "off"] as const) {
+      const header = await band({ ...LIVE, power });
+      const marked = presses(header)
+        .filter((one) => one.classList.contains("at"))
+        .map((one) => one.textContent!.trim());
+      expect(marked).toEqual([{ on: "ON", stopped: "STOP", off: "OFF" }[power]]);
+    }
+  });
+
+  /** The marked press says which of the two ways of standing still it is, the
+   *  words the status line used to carry: an emergency stop is cleared and a
+   *  supply that is off is switched back on, which are different actions by a
+   *  person (ADR-0041). */
+  it("names the state on the press that is standing at it", async () => {
+    const said: string[] = [];
+    for (const power of ["on", "stopped", "off"] as const) {
+      const header = await band({ ...LIVE, power });
+      said.push(presses(header).find((one) => one.classList.contains("at"))!.title);
+    }
+    expect(said).toEqual(["power on", "emergency stop", "power off"]);
+  });
+
+  /** With nothing said about the supply there is nothing to mark. */
+  it("marks none of them before the layout has said", async () => {
+    const header = await band({ joined: true, linked: true, power: null });
+    expect(presses(header).some((one) => one.classList.contains("at"))).toBe(false);
   });
 
   /** ON is the way out of a wait, so it keeps its word and stays live. */

@@ -208,6 +208,29 @@ describe("a train standing on the railroad", () => {
     const shell = await frozen();
     expect(says(shell)).toBe("drawing frozen");
   });
+
+  /**
+   * The band says it in the editing view alone (#517).
+   *
+   * The mark exists to explain the verbs the freeze kills, and they are the
+   * editor's. Trains standing on the layout are the ordinary state of a
+   * railroad being run, so in the run view the same mark is a warning about
+   * nothing — and the freeze itself is unchanged, the editing view still being
+   * read-only when it is switched back to.
+   */
+  it("says nothing in the views the dead verbs are not in", async () => {
+    const shell = await frozen();
+    expect(says(shell)).toBe("drawing frozen");
+
+    for (const view of ["run", "throttle", "stock"] as const) {
+      await shows(shell, view);
+      expect(says(shell)).toBeNull();
+    }
+
+    await shows(shell, "edit");
+    expect(says(shell)).toBe("drawing frozen");
+    expect(editing(shell).hasAttribute("frozen")).toBe(true);
+  });
 });
 
 describe("loading another railroad", () => {

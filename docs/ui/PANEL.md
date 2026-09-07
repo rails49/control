@@ -494,14 +494,24 @@ is argued and where a test reads it rather than spelling 3000: the stock view
 waits the same before reading again, and both waits begin by asking the
 store.
 
-**The band reports the wait rather than the page looking dead.** The
-*connected* badge belongs to a joined session and goes with it, so while the
-broker is gone the band says nothing about it — *not connected* is what a
-joined session that has stopped answering says, not what a page between tries
-says. What stands there instead is the trouble the last failure named: *no
-broker at ws://…/mqtt* where there is nothing at the address, and what the
-failed roster read said where a read got no roster. The badge is back at
-*connected* when the client reconnects and the railroad's row arrives again.
+**The band reports the wait rather than the page looking dead.** It has no
+word for the link either way ([#517](https://github.com/rails49/control/issues/517)):
+a broker that is answering is the ordinary case and says nothing, so the one
+time the link speaks is the time it is down. What stands there is the trouble
+the last failure named — *no broker at ws://…/mqtt — is the bus running?* where
+there is nothing at the address or where the connection has closed under a live
+run, and what the failed roster read said where a read got no roster. It clears
+when the client reconnects and the railroad's row arrives again.
+
+The words name the address and ask the one question a person can act on. A bare
+*not connected* leaves them with a working app and no idea which of several
+containers is down; the broker is the first hop and the only one this page opens
+itself, the store being asked over HTTP and saying so in its own words, so
+naming it is naming what to look at. `GONE` in `ui/src/ui/tc-panel.ts` is the
+sentence, exported so a test reads it rather than respelling it — the same
+reason `RETRY_MS` is read off its module. It is said on `close` as well as on
+`error`, so a page that loses the broker mid-run does not go quiet just because
+the connection opened once.
 
 **A call to the store fails in three ways and the words say which**
 ([#411](https://github.com/rails49/control/issues/411)). *Nothing answered* —
@@ -659,11 +669,18 @@ The chrome is the band and the rail the editor also wears (#84,
 [EDITOR.md](EDITOR.md#the-band),
 [ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)). The **band** is
 the whole system's: the railroad the app has loaded, the unsaved dot, the
-health area — the store not answering, the broker, whether the rails have
-power, how far the run has got, whether the trains standing here have frozen
-the drawing — and the three track-power presses beside that reading. The
-**rail** is the views, and then this view's document's: zoom out, zoom in and
-fit as icon buttons, and **HOLD/GO**.
+health area — the store or the broker not answering, and how far the run has
+got — and the three track-power presses, one of which is marked as where the
+supply stands. The **rail** is the views, and then this view's document's: zoom
+out, zoom in and fit as icon buttons, and **HOLD/GO**.
+
+**Nothing that is going right reads in the band**
+([#517](https://github.com/rails49/control/issues/517)). It carried six entries
+with five of them saying the ordinary thing, and a status line that is always
+full is one nobody reads. Track power is the mark on the press naming where it
+stands rather than a word repeating it; the frozen drawing reads in the editing
+view alone, trains on the layout being the ordinary state of a railroad being
+run; and the link has no word at all.
 
 **HOLD and GO are one press and no confirmation.** The button says HOLD while
 the run is running and GO while it is held, which is what the press will do,
