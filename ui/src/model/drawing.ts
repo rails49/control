@@ -19,6 +19,7 @@ import {
   type MotorisedKind,
   type Rotation,
 } from "../symbols.generated.js";
+import { isName } from "./rules.js";
 
 /** A pin, written `<symbol>.<pin>`. */
 export type PinRef = string;
@@ -138,12 +139,6 @@ export function nameTrouble(name: string, taken: readonly string[]): string | nu
   if (name.includes("/")) return `'${name}' cannot name a file`;
   if (taken.includes(name)) return `'${name}' is already a railroad`;
   return null;
-}
-
-/** What the drawing schema takes as a name: not empty, and without the `.`
- *  that separates a symbol from its pin or the `/` that separates a path. */
-export function isName(name: string): boolean {
-  return name !== "" && !name.includes(".") && !name.includes("/");
 }
 
 /**
