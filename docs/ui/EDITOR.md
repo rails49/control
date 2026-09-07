@@ -46,12 +46,13 @@ marked on the drawing.
 
 ## The band
 
-A band across the top of the page, above the bar, carrying **what is true of
-the whole system** — as against the bar below it, which acts on the current
-view's document
-([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)). The
-editor is one view of the app and the run view is the other
-([PANEL.md](PANEL.md)); the band is the app's and is the same band in both.
+A band across the top of the page carrying **what is true of the whole
+system** — as against the rail down the left of the work, which acts on the
+current view's document
+([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md),
+[ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)). The editor is one
+view of the app and the run view is another ([PANEL.md](PANEL.md)); the band is
+the app's and is the same band in both.
 
 **The railroad the app has loaded is named here, and picked here.** It is not
 the editor's `File ▸ Open` with the run view guessing separately: both views
@@ -122,60 +123,69 @@ entries and separate apps
 [ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)
 reversed, and ADR-0038 retired it.
 
-It costs about 2rem off a full-height grid, and that is accepted: the rows
-become the band, the bar, and the work.
+It costs about 2rem off a full-height grid, and that is accepted: the page is
+the band, then the rail beside the work.
 
-## The bar
+## The rail
 
-Under the band, a menu bar carrying **the current view's document**: in the
-editor `File`, `Edit` and `View` at the left, and the zoom and fit buttons
-pinned at its right end. Every command the editor has is in it, with the key
-that does the same thing printed beside the item.
+Down the left of the work, a green column carrying **the current view's
+document**: the views at the top, then that view's commands as icon buttons,
+then any press of its own. It replaced a menu bar under the band
+([ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)) — three of the
+four views carry no menus at all, so the row was empty or nearly so most of the
+time while taking a band's worth of height off the canvas, which is what the
+drawing can least spare.
 
-    File   New…  ·  Save ⌘S  ·  Save As… ⇧⌘S  ·  ──  ·  Export SVG…
-           ·  ──  ·  Backup…
-    Edit   Undo ⌘Z  ·  Redo ⇧⌘Z  ·  ──  ·  Rotate R  ·  Flip F  ·  Delete ⌫
-           ·  ──  ·  Properties…
-    View   Zoom in +  ·  Zoom out −  ·  Fit 0  ·  ──  ·  Netlist N
+Every command the editor has is a button on it, with the label and the key that
+does the same thing in the title a pointer resting there reads.
 
-The run view's bar is a `View` menu and HOLD/GO ([PANEL.md](PANEL.md)). Its
-document is a railroad somebody else is running, so it has no `File` and no
-`Edit`, and `MENUS` in `model/commands.ts` is a record keyed by view rather
-than one list.
+    views  Run  ·  Throttle  ·  Stock  ·  Edit
+    View   Zoom out −  ·  Zoom in +  ·  Fit 0  ·  Netlist N
+    File   New…  ·  Save ⌘S  ·  Save As… ⇧⌘S  ·  Export SVG…  ·  Backup…
+    Edit   Undo ⌘Z  ·  Redo ⇧⌘Z
 
-**There is no `File ▸ Open`.** Which railroad is loaded is the whole system's
-and the band picks it, with the tick rule this menu used to carry
+The run view's rail is the views, the three `View` commands and HOLD/GO
+([PANEL.md](PANEL.md)). Its document is a railroad somebody else is running, so
+it has no `File` and no `Edit`; the throttle and the stock screen draw no
+document with a viewport and have no commands at all, so the views are the whole
+of their rail. `RAIL` in `model/commands.ts` is a record keyed by view.
+
+**Rotate, Flip, Delete and Properties are not on it.** They apply to a
+selection and read in the right-click menu with their keys beside them; four
+buttons that are dead whenever nothing is selected say less than a menu that
+opens on the thing they act on.
+
+**There is no `Open`.** Which railroad is loaded is the whole system's and the
+band picks it, with the tick rule the old `File` menu used to carry
 ([The band](#the-band)).
 
 **New… shows no key.** Chrome keeps `⌘N` for a new window; it never reaches the
 page and cannot be `preventDefault`ed. A blank is better than a binding the
 browser eats. `⌘S` and `⇧⌘S` are the editor's.
 
-**Zoom and fit stay one click.** They are pressed constantly — while drawing,
-and while following a train across a railroad too large to see at once — and
-`View ▸ Zoom in` is three clicks for what is now one, so those three are also
-icon buttons at the right end of the bar, in **both** views. Undo and redo are
-not: `⌘Z` and `⇧⌘Z` are known, and the `Edit` menu is where they are read.
+**`View` comes first wherever there is one.** Zoom and fit are pressed
+constantly — while drawing, and while following a train across a railroad too
+large to see at once — and both views draw on the one canvas (#168), so the
+three sit in the same place whichever view is up. A person who has learnt where
+Fit is does not learn it again on the other view.
 
-**Sliding along the bar reads the next menu.** With one menu down, the pointer
-crossing onto a neighbouring title puts that menu down, as every menu bar does,
-and the click the hand lands there afterwards is absorbed — it neither closes
-what the hover just opened nor re-opens it (#100). A second click closes it.
-With no menu down, the pointer crossing the bar opens nothing.
+**Nothing on the rail takes the keyboard.** A rail has nothing that comes down
+over the work, so there is no state in which a bare key belongs to the chrome:
+`r`, `f`, `n`, `0`, `+`, `-`, Delete and Backspace reach the canvas whatever the
+rail is showing, and Escape clears the selection. The band's picker is the one
+control that hangs over anything, and a press outside it lands on the overlay it
+drops rather than reaching the keyboard at all.
 
-**While a menu is down, the bare keys are the menu's.** `r`, `f`, `n`, `0`,
-`+`, `-`, Delete and Backspace do not reach the canvas, and Escape closes the
-menu rather than clearing the selection. That is the same bug as a key typed
-into a dialog field reaching the canvas, one of the six of `ddbefb2..feb1fae`,
-wearing a menu.
-
-**A shortcut is not a bare key.** `⌘S` and `⌘Z` are printed beside the items
-they duplicate, so with `File` down `⌘S` takes the menu up and saves, the same
-as clicking the item that just taught it. Swallowing it would leave the key the
-menu names doing nothing while Chrome's own `⌘S` offers to save the page over
+**A shortcut is still not a bare key.** `⌘S` and `⌘Z` are the editor's and are
+taken from the browser, so Chrome's own `⌘S` never offers to save the page over
 the app.
 
-What is dead and what is alive is not the bar's to decide. Save is dead with
+**Below a short window the rail lies down** along the top of the work, as the
+occupancy UI's does: a column of fifteen buttons does not fit a phone held
+sideways, and the throttle is used that way. `RAIL_TURNS_PX` in
+`render/units.ts` is the height, interpolated into both sheets that turn.
+
+What is dead and what is alive is not the rail's to decide. Save is dead with
 nothing open or nothing to write, Rotate, Flip and Delete are dead on an empty
 selection, Properties on anything but one symbol that has some, Undo and Redo
 at the ends of the snapshot stack, and Export SVG… with nothing to export. The
@@ -184,15 +194,16 @@ empty sheet still zooms. Those rules
 are `model/commands.ts` with a test and no DOM, which is the rule
 [below](#tests): the model owns the document, a component owns the DOM, and a
 rule that is neither is a module in `model/`. The keyboard asks the same module
-the bar does, so an item and the key beside it cannot come to mean different
-things. One switch turns the command into the verb it runs, and its default arm
-assigns the id to a `never`, so a command added to the union without an arm
-fails to compile rather than drawing a live item that does nothing (#102).
+the rail does, so a button and the key its title names cannot come to mean
+different things. One switch turns the command into the verb it runs, and its
+default arm assigns the id to a `never`, so a command added to the union without
+an arm fails to compile rather than drawing a live button that does nothing
+(#102).
 
 Export SVG… writes the drawing to a file; what it writes is under
 [Files](#files). Backup… opens the one dialog there is about the **store** —
 every railroad in it rather than the one that is open — which is why it is the
-one item in the menu that nothing about the open drawing can kill
+one button on the rail that nothing about the open drawing can kill
 ([Backing the store up](#backing-the-store-up)).
 
 ## Canvas
@@ -259,7 +270,7 @@ after opening a file that already had one.
 
 Zoom and pan are the SVG `viewBox`: the wheel zooms about the pointer and the
 middle button pans. Both directions of the wheel were there from the start and
-neither was findable, so the bar carries a minus and a plus beside Fit and the
+neither was findable, so the rail carries a minus and a plus beside Fit and the
 keyboard has `+`, `-` and `0`. All of it is both modes': the run view gained
 every bit of it by being drawn here. **Fit** frames `scene.fitBox`, which is
 also what an exported file is drawn in, so a view fitted and a file written
@@ -938,7 +949,7 @@ Serving the run its own snapshot is the more permissive answer and was
 rejected there: it needs a second source of every drawing and a way to serve
 one, and the freeze is what the railroad does anyway.
 
-**It is a document rule and not a chrome rule.** What is dead is not the bar's
+**It is a document rule and not a chrome rule.** What is dead is not the rail's
 to decide ([The bar](#the-bar)), so the rule sits in `model/commands.ts` with
 the rest of them and every command that changes the document is declared
 through it — a verb joins the frozen category by wearing it rather than by
@@ -1008,11 +1019,12 @@ pointer is stays with the canvas and dies with the gesture. That split is what
 puts the centring, the footprint a turn transposes, and the refusal over an
 occupied square in the tested layer rather than in a component.
 
-The bar's icons are inline SVG, one per command, drawn on a 16 unit square in
+The band's and the rail's icons are inline SVG, one per command and one per
+view, drawn on a 16 unit square in
 `ui/icons.ts`. Shoelace's `sl-icon` fetches from a CDN at runtime unless a base
 path is registered, and the editor has to work on the railroad's own network.
-The map is keyed by `CommandId` and exhaustive, so a command declared without a
-glyph is a compile error; it lives beside the drawings rather than beside the
+The maps are keyed by `CommandId` and by `ViewId` and both are exhaustive, so a
+command or a view declared without a glyph is a compile error; it lives beside the drawings rather than beside the
 declarations because a glyph is a `lit` template and `model/` imports no
 `ui/`.
 
