@@ -17,6 +17,7 @@
  * than caught.
  */
 
+import type { Position } from "../symbols.generated.js";
 import type { Drawing } from "./drawing.js";
 
 /** How long a view waits before asking the store again.
@@ -74,10 +75,29 @@ export interface Explained {
 export interface Layout {
   layout: string;
   units?: string;
-  blocks: Record<string, { length: number }>;
+  blocks: Record<
+    string,
+    {
+      length: number;
+      /** The address the signal at each end answers to, keyed by the end. An
+       *  end no signal stands at is absent, and a block with none says
+       *  nothing at all
+       *  ([ADR-0022](../../../docs/adr/0022-a-symbol-carries-its-hardware-address.md)). */
+      signals?: Record<string, string>;
+    }
+  >;
   connections: Record<
     string,
-    { transits: Record<string, [string, string]>; concurrent?: [string, string][] }
+    {
+      transits: Record<string, [string, string]>;
+      concurrent?: [string, string][];
+      /** The points a way needs thrown, keyed by transit name: one pair per
+       *  accessory address, sorted by address, and a point wearing no address
+       *  omitted. A transit needing none is absent, and a connection where no
+       *  way needs any says nothing at all
+       *  ([ADR-0031](../../../docs/adr/0031-the-layout-carries-the-points-a-transit-needs.md)). */
+      points?: Record<string, { addr: string; position: Position }[]>;
+    }
   >;
 }
 
