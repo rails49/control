@@ -14,7 +14,6 @@
 import type { Kind } from "../symbols.generated.js";
 import {
   clone,
-  isName,
   motorised,
   pinsOf,
   symbolOf,
@@ -37,6 +36,7 @@ import {
   turned,
 } from "./geometry.js";
 import { remint, settle } from "./naming.js";
+import { isName } from "./rules.js";
 import type { Review } from "./store.js";
 
 /** What a new symbol of each kind is called: `sw1`, `sw2`, and so on. Short,

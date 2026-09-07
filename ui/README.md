@@ -72,6 +72,7 @@ src/
     machine.ts   what the canvas asks of whatever decides what a press means
     drag.ts      what a drag on a run means: a train, and where to put it
     naming.ts    connection names, minted and written into the drawing
+    rules.ts     the store's rules over a document, transcribed once
     store.ts     the routes, and which of the three ways a call to one
                  failed
     trace.ts     the broker's messages read as events, and the gestures
