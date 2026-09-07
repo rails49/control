@@ -17,13 +17,14 @@ import { describe, expect, it } from "vitest";
 import {
   LIGHT_ENGINE,
   MIXED,
+  merged,
   mint,
   Stock,
   trainFunctions,
   trainKind,
   trainLength,
 } from "../src/model/stock.js";
-import type { ModelDoc, RosterDoc } from "../src/model/store.js";
+import type { CarDoc, ModelDoc, RosterDoc } from "../src/model/store.js";
 
 const CATALOGUE: Record<string, ModelDoc> = {
   "arnold-ce68": {
@@ -367,6 +368,54 @@ describe("a car of one's own", () => {
   it("refuses a length that is not a positive whole number of millimetres", () => {
     const screen = stock();
     expect(screen.carLength("krokodil-a", 0)).toMatch("positive whole number");
+  });
+});
+
+/**
+ * What a car says over its model, and what counts as saying it.
+ *
+ * The two bindings have to agree, `tc49.lib.stock._car` being the other one:
+ * it branches on the key being written, so a car that wrote `functions:` with
+ * a YAML null is a correction typed wrong and the store refuses the whole
+ * document. A browser that read that null as "nothing said" would draw a
+ * train off the product's functions and hand the store a roster it will not
+ * take.
+ */
+describe("a car merged onto its model", () => {
+  it("inherits what it says nothing about", () => {
+    expect(merged({ model: "van" }, CATALOGUE)).toEqual({
+      model: "van",
+      kind: "freight",
+      length: 90,
+      addr: null,
+      functions: { "3": { name: "vacuum" } },
+    });
+  });
+
+  it("takes what it corrects", () => {
+    expect(merged({ model: "van", kind: "special", length: 95 }, CATALOGUE)).toMatchObject({
+      kind: "special",
+      length: 95,
+    });
+  });
+
+  /** A null the store refuses reaches no fallback: what is written is the
+   *  correction, whatever was written. The cast is the point — the shape is
+   *  one no document may have, and it arrives from a file all the same. */
+  it("does not read a written null as nothing said", () => {
+    const wrong = { model: "van", functions: null } as unknown as CarDoc;
+    expect(merged(wrong, CATALOGUE)!.functions).toBeNull();
+  });
+
+  /** An item with no decoder has no address rather than its product's, which
+   *  is `spec.get("addr")` at the other end. */
+  it("has no address of its own until one is programmed", () => {
+    expect(merged({ model: "van" }, CATALOGUE)!.addr).toBeNull();
+    expect(merged({ model: "van", addr: "7" }, CATALOGUE)!.addr).toBe("7");
+  });
+
+  it("is nothing at all where the catalogue has no such model", () => {
+    expect(merged({ model: "nothing-like-it" }, CATALOGUE)).toBeNull();
   });
 });
 

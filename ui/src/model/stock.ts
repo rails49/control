@@ -78,8 +78,20 @@ export function anonymous(model: ModelDoc): Merged {
   };
 }
 
-/** One car, merged onto its model. `null` where the installation has no such
- *  model, which is a car nothing can say the length of. */
+/**
+ * One car, merged onto its model. `null` where the installation has no such
+ * model, which is a car nothing can say the length of.
+ *
+ * **A written key is a correction**, which is what `tc49.lib.stock._car`
+ * reads: the branch is on the key being there and not on its value being
+ * something. A car written `functions:` with a YAML null is a correction
+ * somebody typed wrong, and the store refuses the document rather than
+ * inheriting the product's — so a browser that read the null as "nothing
+ * said" would draw a train the store will not take.
+ *
+ * `addr` is the exception at both ends: Python reads it with `spec.get`, an
+ * item with no decoder having none rather than its product's.
+ */
 export function merged(
   car: CarDoc,
   catalogue: Record<string, ModelDoc>,
@@ -88,10 +100,10 @@ export function merged(
   if (model === undefined) return null;
   return {
     model: model.model,
-    kind: car.kind ?? model.kind,
-    length: car.length ?? model.length,
+    kind: "kind" in car ? car.kind : model.kind,
+    length: "length" in car ? car.length : model.length,
     addr: car.addr ?? null,
-    functions: car.functions ?? model.functions ?? {},
+    functions: "functions" in car ? car.functions : (model.functions ?? {}),
   };
 }
 
