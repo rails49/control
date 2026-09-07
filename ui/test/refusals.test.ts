@@ -26,7 +26,12 @@ import { inside, mounted, serving, session, settled } from "./support/shell.js";
 /** Two symbols, so a rename onto a taken name has something to collide with. */
 const DRAWING: Drawing = {
   drawing: "two-symbols",
-  symbols: { sw1: { kind: "turnout", at: [0, 0] }, b1: { kind: "block", at: [4, 0] } },
+  symbols: {
+    sw1: { kind: "turnout", at: [0, 0] },
+    // With the length the store requires of a block: the dialog refuses one
+    // that has none, the way it refuses a name the drawing will not take.
+    b1: { kind: "block", at: [4, 0], length: 1000 },
+  },
   wires: [],
 };
 

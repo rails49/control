@@ -632,6 +632,14 @@ stays open and says so. The dialog is the only place a name is typed, so it is
 the only place a collision can be made, and a refusal read across the screen was
 telling the author about a keystroke they had just made.
 
+**A length the store would refuse is refused here too.** A block's length is a
+positive whole number of millimetres (`tc49.lib.layout.check_length`, said once
+for the browser in `model/rules.ts`), and a `0` typed into the field used to be
+written onto the drawing and answered with a 400 on the save — the same
+keystroke reported from across the network instead of beside the field. The
+reason stands where a rejected name's does and Apply does nothing until it is
+gone.
+
 Transit names are not edited here. A drawing can still write one on a symbol's
 leg and derivation honours it — a name on a turnout's straight leg is taken by
 every derived transit that runs through it, and a transit crossing two named

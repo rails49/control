@@ -62,6 +62,18 @@ async function applied(dialog: TcProperties): Promise<Properties> {
   return handed;
 }
 
+/** Press Apply, and answer with every `properties` event it emitted — none
+ *  where the dialog refused what it is holding. */
+function applying(dialog: TcProperties): Properties[] {
+  const handed: Properties[] = [];
+  dialog.addEventListener("properties", (event) =>
+    handed.push((event as CustomEvent<Properties>).detail),
+  );
+  const buttons = [...dialog.renderRoot.querySelectorAll("sl-button")];
+  (buttons.find((one) => one.textContent!.trim() === "Apply") as HTMLElement).click();
+  return handed;
+}
+
 /**
  * A turnout and a slip are addressed by `addr` rather than by their key
  * (ADR-0022), so the address is the one thing the dialog asks them for.
@@ -130,6 +142,27 @@ describe("a block", () => {
       "Sensor at A",
       "Sensor at B",
     ]);
+  });
+
+  /**
+   * The store takes a positive whole number of millimetres and nothing else
+   * (`tc49.lib.layout.check_length`). A `0` used to be written onto the
+   * drawing here and answered with a 400 on the save; the dialog now refuses
+   * it where it was typed, the way it refuses a name (ADR-0023).
+   */
+  it("refuses a length that is not a positive whole number", async () => {
+    const dialog = await opened("b1", { kind: "block", length: 1000 });
+    await typed(dialog, "Length", "0");
+    expect(applying(dialog)).toEqual([]);
+    expect(field(dialog, "Name").helpText).toBe(
+      "a length is a positive whole number of millimetres",
+    );
+  });
+
+  it("hands back a length that is one", async () => {
+    const dialog = await opened("b1", { kind: "block", length: 1000 });
+    await typed(dialog, "Length", "1200");
+    expect(applying(dialog).map((one) => one.spec.length)).toEqual([1200]);
   });
 
   it("keeps the signal addresses it already carries", async () => {
