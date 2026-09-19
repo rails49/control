@@ -52,13 +52,24 @@ mkdir -p "$(scripts/store-root.sh "$DEPLOY_ENV")"
 # by hand and goes on. The second test catches a directory the daemon made
 # there before this line existed, which `touch` updates rather than replaces.
 DCCEX_STARTUP=/etc/tc49/dccex-startup.txt
+# What that second test advises, built here so docs/DEPLOY.md can give the
+# same line and tests/system/test_startup_file_is_mounted.py can hold the two
+# together. It removes what is at the path before making the file: `install`
+# takes a directory as a *destination*, so against the directory this test
+# exists to catch it wrote a file called `null` inside it and reported
+# success — nothing to see, the translator still opening a directory as its
+# startup file, and the next deploy printing this line again (#529). `rm -rf`
+# and not `rmdir`, because a run of that old advice left the `null` behind.
+# Removing is safe because the message is printed only where no regular file
+# is at the path: nobody's trip currents are there to lose.
+remedy="sudo rm -rf $DCCEX_STARTUP && sudo install -m 644 /dev/null $DCCEX_STARTUP"
 if [ ! -f "$DCCEX_STARTUP" ]; then
   touch "$DCCEX_STARTUP" 2>/dev/null || true
 fi
 if [ ! -f "$DCCEX_STARTUP" ]; then
   echo "no $DCCEX_STARTUP and this account cannot make one: the districts" \
     "run at the limits the station's firmware was built with until" \
-    "'sudo install -m 644 /dev/null $DCCEX_STARTUP' is run on the box" >&2
+    "'$remedy' is run on the box" >&2
 fi
 # The uid and gid are this account's, and compose reads them as the user the
 # store and a session run as — the shell's environment wins over the
