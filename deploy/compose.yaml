@@ -129,7 +129,10 @@ services:
     devices:
       - "${TC49_STATION_DEVICE:-/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0}:/dev/dccex"
     command:
-      ["python", "-m", "tc49.dccex_usb", "--device", "/dev/dccex", "--port", "2560"]
+      ["python", "-m", "tc49.dccex_usb",
+       "--broker", "broker:1883",
+       "--device", "/dev/dccex",
+       "--port", "2560"]
 
   # The store's HTTP face, always on, because the documents are the one thing
   # here that is nobody's run: the editor reads and writes them whether or not

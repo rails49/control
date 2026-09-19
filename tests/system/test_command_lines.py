@@ -11,10 +11,12 @@ the same as this one. So the rule is checked rather than reviewed.
 An app's own flags are untouched by it — the station and the startup file are
 the translator's, and are added to the parser `lib` hands back.
 
-Two of the packages are not here. `dccex_usb` is on no bus and takes no
-broker at all, its flags being a device and a port (ADR-0043), and the
-store's face is a subcommand of the `tc49` script rather than a `__main__`
-(ADR-0014).
+One package is not here: the store's face is a subcommand of the `tc49`
+script rather than a `__main__` (ADR-0014). `dccex_usb` is, since it gained a
+broker — the app that owns the command station's device is the one that
+writes its firmware, so it answers a gesture like the others (ADR-0065) — and
+its own flags, the device and the port, are its own on the same terms as the
+translator's station.
 """
 
 import ast
@@ -33,6 +35,7 @@ ON_THE_BROKER = (
     "simulator",
     "layout",
     "dccex",
+    "dccex_usb",
 )
 """The apps a compose service starts with a broker to run on, each a
 `python -m tc49.<app>` whose `__main__` parses that line."""
