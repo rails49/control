@@ -67,7 +67,9 @@ def serve(
 
     `stop` is how a caller that is not a signal ends the loop, which is the
     suite. The deployment sets it never: a signal raises where the process
-    happens to be, and `main` lets that out.
+    happens to be, and `main` lets that out. So does a mirror that cannot
+    serve — the port is taken, and this comes back raising rather than
+    staying up with nothing behind it (#526).
     """
     station = Station(device, port)
     flasher = Flasher(bus, station, releases, id=id)
@@ -84,6 +86,14 @@ async def mirroring(
 ) -> None:
     """The mirror and the drain, on the one loop, until the process ends.
 
+    **The mirror ending ends this**, which is why the drain waits on the task
+    rather than on the clock: a port already taken raises out of the mirror,
+    and a drain that went round anyway would leave a live process with no TCP
+    server, no device and nothing said (#526). The failure is what the
+    teardown's `await` carries out, so it reaches `main` and the exit status
+    and `restart: unless-stopped` gets its turn — which is what a box whose
+    2560 is busy for a moment during a deploy depends on.
+
     A flash in flight is waited out where there is still a loop to wait on:
     the mirror gives the device back when the flash is done with it, and
     ending in the middle of one leaves the station half written. A signal
@@ -92,9 +102,9 @@ async def mirroring(
     """
     mirror = asyncio.create_task(station.run())
     try:
-        while not stop.is_set():
+        while not stop.is_set() and not mirror.done():
             bus.drain()
-            await asyncio.sleep(period_s)
+            await asyncio.wait((mirror,), timeout=period_s)
     finally:
         with contextlib.suppress(asyncio.CancelledError):
             await flasher.settled()
