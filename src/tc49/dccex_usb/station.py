@@ -24,15 +24,25 @@ client half a message it reads as garbage, and not silence either: a peer that
 has gone is reported rather than absorbed (ADR-0050). It may reconnect and
 pick the live conversation up.
 
-**While the device is away a client's messages are dropped**, not queued, and
-the client stays connected. A command is honored now or ignored: a queue that
-flushes on reconnect is a train that moves minutes after someone asked for
-it. Reopening the device is this app's own business — it goes away when the
-command station is switched off — so it retries with backoff, and a client
-notices only that what it sent meanwhile did nothing. Every way the device
-can fail to be there is the same outage — a path that is not there, one that
-will not take the line discipline, one that is gone again the moment it is
-open — and the watcher outlives all of them.
+**While the device is away a client's messages are dropped**, not queued. A
+command is honored now or ignored: a queue that flushes on reconnect is a
+train that moves minutes after someone asked for it. Reopening the device is
+this app's own business — it goes away when the command station is switched
+off — so it retries with backoff, and a client notices only that what it
+sent meanwhile did nothing. Every way the device can fail to be there is the
+same outage — a path that is not there, one that will not take the line
+discipline, one that is gone again the moment it is open — and the watcher
+outlives all of them.
+
+**An outage that outlasts the grace takes the clients with it.** A client
+cannot tell an away device from a quiet one, and this port has no way to
+tell it: the socket closing is the whole signal, and it is the one that ends
+the translator's session and lowers `device/link` (ADR-0066). So a device
+still away two reopens in has every connected client disconnected. Inside
+the grace nothing changes — a blip the first reopen recovers costs no
+throttle a reconnect, which is what the grace is for — and each client is
+given a grace of its own, so one connecting into an outage meets the outage
+rather than the remainder of somebody else's.
 
 There is no client limit beyond the OS's and no authentication: the LAN is
 the trust boundary (ADR-0042), and the port is published to it by the
@@ -71,6 +81,13 @@ DEVICE_AWAY = (OSError, termios.error)
 
 FIRST_BACKOFF_S = 0.5
 MAX_BACKOFF_S = 8.0
+
+# How long a client waits on an away device before it is disconnected, in
+# reopens at the first backoff: about a second, past the first retry and far
+# inside a flash. Counted off the backoff rather than kept as a number of its
+# own, so there is one number here and not two that can drift apart
+# (ADR-0066).
+GRACE_REOPENS = 2
 
 # How far behind a client may fall before it is cut off. The device speaks at
 # 115200 baud, so this is a minute and a half of everything it has to say: a
@@ -113,6 +130,7 @@ class Station:
         self._behind: set[asyncio.StreamWriter] = set()
         self._fd: int | None = None
         self._dropped = False
+        self._grace: asyncio.Task[None] | None = None
         self._server: asyncio.Server | None = None
         self._watcher: asyncio.Task[None] | None = None
         self._writing = asyncio.Lock()
@@ -162,11 +180,14 @@ class Station:
         over the line discipline and the reset lines, so a flash needs the
         mirror off the port entirely (ADR-0065).
 
-        What clients see is an outage like any other — they stay connected,
-        what they send is dropped, and the app says so once (ADR-0050) —
-        because for the length of it the device genuinely is away. Taking it
-        back is the watcher started again, so a station that is still
-        rebooting is waited for on the ordinary backoff rather than specially.
+        What clients see is an outage like any other — what they send is
+        dropped, the app says so once (ADR-0050), and the grace disconnects
+        them because a flash lasts tens of seconds — since for the length of
+        it the device genuinely is away. The grace hangs off the device
+        being closed rather than off the watcher, so this path needs no rule
+        of its own. Taking it back is the watcher started again, so a station
+        that is still rebooting is waited for on the ordinary backoff rather
+        than specially.
         """
         await self._stop_watching()
         try:
@@ -189,6 +210,7 @@ class Station:
         if server is not None:
             await server.wait_closed()
         await self._stop_watching()
+        self._stop_grace()
 
     async def _stop_watching(self) -> None:
         """End the watcher and come back with the device closed.
@@ -211,6 +233,7 @@ class Station:
         peer = writer.get_extra_info("peername")
         self._clients.add(writer)
         self._log(f"client connected {peer}")
+        self._start_grace()
         partial = b""
         try:
             while True:
@@ -271,6 +294,50 @@ class Station:
             self._dropped = True
             self._log(f"device away, dropping what clients send to {self._device}")
 
+    def _start_grace(self) -> None:
+        """Run the grace, where the device is away and there is a client on it.
+
+        Started where the device goes away and again where a client arrives
+        to one that already is, so what a client gets is a grace of its own
+        rather than the remainder of one that was already running. Nothing
+        starts for an outage nobody is connected to: what the grace ends is
+        connections, and there are none to end.
+        """
+        if self._grace is not None or self._fd is not None or not self._clients:
+            return
+        self._grace = asyncio.create_task(self._disconnect_after_grace())
+
+    def _stop_grace(self) -> None:
+        """End the grace unrun: the device is open again, or the app is."""
+        grace, self._grace = self._grace, None
+        if grace is not None:
+            grace.cancel()
+
+    async def _disconnect_after_grace(self) -> None:
+        """Wait out the grace and close what is still connected.
+
+        Closed rather than aborted: what is outstanding to a client that is
+        reading is a reply from before the outage, and it reaches the client
+        the way the bytes before it did. A client that is not reading is
+        `_cut_off`'s, which is a different reason to disconnect and keeps
+        its own path.
+
+        Each client leaves by its handler, which is where a disconnect is
+        logged, so the line here says what this did and the lines under it
+        say to whom.
+        """
+        await asyncio.sleep(GRACE_REOPENS * self._first_backoff_s)
+        self._grace = None
+        clients = tuple(self._clients)
+        if not clients:
+            return
+        self._log(
+            f"device still away, disconnecting {len(clients)} clients"
+            f" of {self._device}"
+        )
+        for writer in clients:
+            writer.close()
+
     async def _watch(self) -> None:
         """Keep the device open, retrying with backoff while it is away."""
         backoff = self._first_backoff_s
@@ -282,6 +349,7 @@ class Station:
                 backoff = min(backoff * 2, self._max_backoff_s)
                 continue
             self._fd = fd
+            self._stop_grace()
             self._log(f"serial open {self._device}")
             try:
                 spoke = await self._mirror(fd)
@@ -290,6 +358,7 @@ class Station:
                 # The outage that starts here is news again, however many
                 # have been reported before it.
                 self._dropped = False
+                self._start_grace()
                 os.close(fd)
                 self._log(f"serial closed {self._device}")
             # Opening is not proof the device is there: a session that ends
