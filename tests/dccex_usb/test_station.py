@@ -512,3 +512,38 @@ def test_the_dropped_notice_is_said_again_in_a_later_outage(
             await app.close()
 
     asyncio.run(scenario())
+
+
+def test_the_device_is_let_go_for_the_block_and_taken_back_after(pty: Pty) -> None:
+    """The handover a flash needs: nothing of the mirror's is on the port
+    while the block runs, and the device is open again after it (ADR-0065).
+
+    What a client sees inside it is the ordinary outage — still connected,
+    what it sends dropped — because for that while the device genuinely is
+    away.
+    """
+
+    async def scenario() -> None:
+        log = Log()
+        app = station(pty.path, log)
+        await app.start()
+        try:
+            _, writer = await connect(app)
+            await log.wait_for("serial open")
+
+            async with app.released():
+                assert not app.held
+                assert log.said("serial closed"), "the device is still open"
+
+                await send(writer, b"<t 3 50 1>")
+                await log.wait_for("device away")
+                assert await nothing_arriving(pty.master) == b""
+
+            await log.wait_for_count("serial open", 2)
+            assert app.held
+            await send(writer, b"<a 12 1>")
+            assert await arriving(pty.master, len(b"<a 12 1>")) == b"<a 12 1>"
+        finally:
+            await app.close()
+
+    asyncio.run(scenario())

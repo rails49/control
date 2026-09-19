@@ -38,7 +38,11 @@ There is no client limit beyond the OS's and no authentication: the LAN is
 the trust boundary (ADR-0042), and the port is published to it by the
 container. The server binds every interface for the same reason.
 
-It speaks no bus topic and imports nothing of ours.
+**The device is let go on demand and taken back after**, which is `released()`
+and the one thing here that is not the mirror's own business: writing the
+station's flash means owning the port, and the process holding it is the only
+one that can hand it over (ADR-0065). What is done with it meanwhile is
+`firmware.py`'s; this class still speaks no bus topic and reads no payload.
 """
 
 import asyncio
@@ -46,7 +50,7 @@ import contextlib
 import os
 import sys
 import termios
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 
 from tc49.dccex_usb.framing import frame
 
@@ -131,6 +135,45 @@ class Station:
         """The port being served: the one the OS chose, when asked for 0."""
         return int(self._serving().sockets[0].getsockname()[1])
 
+    @property
+    def path(self) -> str:
+        """The device this mirror was started on — the one a flash writes."""
+        return self._device
+
+    @property
+    def held(self) -> bool:
+        """Whether the device is open at this moment.
+
+        The station is away for as long as it takes to come back — it is
+        switched off, or the cable is out — and the mirror answers by
+        dropping what clients send rather than by ending. What asks is a
+        flash: writing a station that is not there is a refusal, and this is
+        the question already being answered every time a client's message
+        arrives.
+        """
+        return self._fd is not None
+
+    @contextlib.asynccontextmanager
+    async def released(self) -> AsyncGenerator[None]:
+        """Let the device go for the duration of the block, and take it back.
+
+        The device is **closed before the block runs** and is reopened by the
+        existing path after it, however the block ended: two openers fight
+        over the line discipline and the reset lines, so a flash needs the
+        mirror off the port entirely (ADR-0065).
+
+        What clients see is an outage like any other — they stay connected,
+        what they send is dropped, and the app says so once (ADR-0050) —
+        because for the length of it the device genuinely is away. Taking it
+        back is the watcher started again, so a station that is still
+        rebooting is waited for on the ordinary backoff rather than specially.
+        """
+        await self._stop_watching()
+        try:
+            yield
+        finally:
+            self._watcher = asyncio.create_task(self._watch())
+
     async def serve_forever(self) -> None:
         await self._serving().serve_forever()
 
@@ -145,6 +188,16 @@ class Station:
             writer.close()
         if server is not None:
             await server.wait_closed()
+        await self._stop_watching()
+
+    async def _stop_watching(self) -> None:
+        """End the watcher and come back with the device closed.
+
+        Awaited rather than cancelled and left: the watcher closes the
+        descriptor on its way out, so waiting for it is what makes "the
+        device is let go" true by the time this returns — which is the
+        ordering a flash depends on.
+        """
         watcher, self._watcher = self._watcher, None
         if watcher is not None:
             watcher.cancel()
