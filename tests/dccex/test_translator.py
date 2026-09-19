@@ -16,7 +16,8 @@ import asyncio
 import contextlib
 import logging
 import socket
-from collections.abc import AsyncGenerator
+import time
+from collections.abc import AsyncGenerator, Callable
 from pathlib import Path
 
 import pytest
@@ -29,8 +30,14 @@ TIMEOUT_S = 5.0
 QUIET_S = 0.05
 
 # Far longer than any test runs, so a poll never lands in the middle of what
-# a test is asserting. The two tests about polling set their own.
+# a test is asserting. The tests about polling set their own.
 NEVER_S = 3600.0
+
+# A poll period short enough that many of them land inside `QUIET_S`, used
+# where what a test is timing is the silence and not the cadence: the clock
+# the silence is measured against is the test's own, so how long ten
+# intervals take to elapse is not this machine's scheduler's to decide.
+FAST_POLL_S = 0.005
 
 TRACK = "tc49/layout/state/wanted/track"
 TRACTION = "tc49/layout/state/wanted/traction"
@@ -124,12 +131,14 @@ async def running(
     poll_s: float = NEVER_S,
     backoff_s: float = 0.005,
     startup: Path | None = None,
+    now: Callable[[], float] = time.monotonic,
 ) -> AsyncGenerator[DccEx]:
     """The app, constructed on the bus and keeping its link, until the test
     is done with it."""
     app = DccEx(
         bus,
         connect=port.connect,
+        now=now,
         startup=startup,
         poll_s=poll_s,
         first_backoff_s=backoff_s,
@@ -819,6 +828,148 @@ async def _poll_asks_for_the_status_and_asks_for_nothing_else() -> None:
         assert await station.heard(1) == [b"<s>"]
         assert await station.heard(1) == [b"<s>"]
         assert await station.heard(1) == [b"<s>"]
+
+
+def test_a_station_that_stops_answering_lowers_the_link() -> None:
+    asyncio.run(_station_that_stops_answering_lowers_the_link())
+
+
+async def _station_that_stops_answering_lowers_the_link() -> None:
+    """The link is the station answering, not the socket being open.
+
+    `dccex-usb` holds its clients through an outage and drops their bytes,
+    and a wedged station leaves the mirror nothing to report at all, so the
+    session goes on and nothing closes. Ten unanswered polls are what says
+    the station is gone, and the supply says it too: `layout` folds a link
+    it has heard say `down` to `state/power: off`, which is the point of the
+    row (ADR-0066).
+    """
+    bus, tap = bus_and_tap()
+    port = Port()
+    clock = [0.0]
+    async with running(bus, port, poll_s=FAST_POLL_S, now=lambda: clock[0]):
+        station = await port.opened()
+        station.says(b"<p1>")
+        await asyncio.sleep(QUIET_S)
+        bus.drain()
+        assert [value["link"] for value in tap.values(DEVICE_LINK)] == ["down", "up"]
+
+        clock[0] = 10 * FAST_POLL_S
+        await asyncio.sleep(QUIET_S)
+        bus.drain()
+        gone = tap.values(DEVICE_LINK)[-1]
+        assert gone["link"] == "down"
+        assert "has not answered" in gone["detail"]
+        assert "0.05s" in gone["detail"]
+
+        dark = tap.values(DEVICE_TRACK)[-1]
+        assert dark["power"] == "off"
+        assert dark["reason"] == gone["detail"]
+
+
+def test_a_link_lowered_by_silence_carries_no_build() -> None:
+    asyncio.run(_link_lowered_by_silence_carries_no_build())
+
+
+async def _link_lowered_by_silence_carries_no_build() -> None:
+    """A station that has stopped answering is reporting no build, whatever
+    it last said it was running — the box may since have been written."""
+    bus, tap = bus_and_tap()
+    port = Port()
+    clock = [0.0]
+    async with running(bus, port, poll_s=FAST_POLL_S, now=lambda: clock[0]):
+        station = await port.opened()
+        station.says(
+            b"<iDCC-EX V-5.6.4 / ESP32 / EXCSB1_WITH_EX8874 G-v5.6.4-rails49.1>"
+        )
+        await asyncio.sleep(QUIET_S)
+        bus.drain()
+        assert tap.values(DEVICE_LINK)[-1]["build"] == "v5.6.4-rails49.1"
+
+        clock[0] = 10 * FAST_POLL_S
+        await asyncio.sleep(QUIET_S)
+        bus.drain()
+        gone = tap.values(DEVICE_LINK)[-1]
+        assert gone["link"] == "down"
+        assert "build" not in gone
+
+
+def test_a_station_answering_inside_the_window_keeps_the_link_up() -> None:
+    asyncio.run(_station_answering_inside_the_window_keeps_the_link_up())
+
+
+async def _station_answering_inside_the_window_keeps_the_link_up() -> None:
+    """The number has teeth — a `down` takes the railroad's power with it —
+    so an answer at the last interval before the threshold is an answer, and
+    the window starts again from it."""
+    bus, tap = bus_and_tap()
+    port = Port()
+    clock = [0.0]
+    async with running(bus, port, poll_s=FAST_POLL_S, now=lambda: clock[0]):
+        station = await port.opened()
+        station.says(b"<p1>")
+        await asyncio.sleep(QUIET_S)
+
+        clock[0] = 9 * FAST_POLL_S
+        await asyncio.sleep(QUIET_S)
+        station.says(b"<p1>")
+        await asyncio.sleep(QUIET_S)
+
+        clock[0] = 18 * FAST_POLL_S
+        await asyncio.sleep(QUIET_S)
+        bus.drain()
+        assert [value["link"] for value in tap.values(DEVICE_LINK)] == ["down", "up"]
+
+
+def test_a_station_that_answers_again_raises_the_link() -> None:
+    asyncio.run(_station_that_answers_again_raises_the_link())
+
+
+async def _station_that_answers_again_raises_the_link() -> None:
+    """Nothing was torn down, so nothing has to be rebuilt: the message that
+    comes back raises the link by the path every message raises it, with
+    whatever build the station names *now*."""
+    bus, tap = bus_and_tap()
+    port = Port()
+    clock = [0.0]
+    async with running(bus, port, poll_s=FAST_POLL_S, now=lambda: clock[0]):
+        station = await port.opened()
+        station.says(b"<p1>")
+        await asyncio.sleep(QUIET_S)
+
+        clock[0] = 10 * FAST_POLL_S
+        await asyncio.sleep(QUIET_S)
+        bus.drain()
+        assert tap.values(DEVICE_LINK)[-1]["link"] == "down"
+
+        station.says(
+            b"<iDCC-EX V-5.6.4 / ESP32 / EXCSB1_WITH_EX8874 G-v5.6.4-rails49.1>"
+        )
+        await asyncio.sleep(QUIET_S)
+        bus.drain()
+        back = tap.values(DEVICE_LINK)[-1]
+        assert back["link"] == "up"
+        assert back["build"] == "v5.6.4-rails49.1"
+
+
+def test_a_station_that_has_never_answered_is_not_lowered_again() -> None:
+    asyncio.run(_station_that_has_never_answered_is_not_lowered_again())
+
+
+async def _station_that_has_never_answered_is_not_lowered_again() -> None:
+    """A socket that opened onto silence is already `down`, and says why in
+    its own words. There is nothing for the poll to notice and no second
+    reason to publish over the first."""
+    bus, tap = bus_and_tap()
+    port = Port()
+    clock = [0.0]
+    async with running(bus, port, poll_s=FAST_POLL_S, now=lambda: clock[0]):
+        await port.opened()
+        clock[0] = 100 * FAST_POLL_S
+        await asyncio.sleep(QUIET_S)
+        bus.drain()
+        assert [value["link"] for value in tap.values(DEVICE_LINK)] == ["down"]
+        assert "has not answered" not in tap.values(DEVICE_LINK)[-1]["detail"]
 
 
 # -- standing the railroad down -------------------------------------------
