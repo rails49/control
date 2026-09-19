@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Scheduling, dispatching, and driving trains on a model railroad"
 requires-python = ">=3.12"
 dependencies = [
+    "esptool>=5.4",
     "paho-mqtt>=2.1",
     "pyyaml>=6.0.3",
     "ruamel-yaml>=0.18",
