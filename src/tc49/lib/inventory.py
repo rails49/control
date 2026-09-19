@@ -140,7 +140,9 @@ DEVICE_TOPICS: dict[str, Topic] = {
     ),
     "tc49/layout/state/device/point": Topic((AT, "addr", "position"), address="addr"),
     "tc49/layout/state/device/track": Topic((AT, "power", "reason")),
-    "tc49/layout/state/device/link": Topic((AT, "id", "link", "detail"), address="id"),
+    "tc49/layout/state/device/link": Topic(
+        (AT, "id", "link", "detail", "build"), address="id"
+    ),
     "tc49/layout/state/device/refused": Topic(
         (AT, "id", "addr", "detail"), address="id"
     ),
@@ -191,7 +193,14 @@ to a person who can act on it, which is where verifying a link belongs
 appears in no drawing, no configuration and no list of ours; it is a key
 because two participants publishing on one row would erase each other, and
 `layout` folds the supply to `off` for any id it has heard say `down` without
-ever waiting for one it has not heard (ADR-0058, ADR-0059). `device/track`
+ever waiting for one it has not heard (ADR-0058, ADR-0059). Its ``build`` is
+the identifier the hardware on the far end reports for the firmware it is
+running, optional and free text: a link that is `down` has no build to report
+and hardware that reports none at all is ordinary. It carries the build alone
+and never the banner it was read out of — a banner's shape is one vendor's,
+where this row is device-neutral — and what reads it is a client that asked
+for a build on `tc49/layout/firmware_wanted` and wants to see which one
+answered, there being no reply and no correlation id (ADR-0065). `device/track`
 carries the free-text `reason` for the same person: the participant that
 reports the supply and cannot reach it says why on the row itself, rather than
 leaving them a second row to find.

@@ -217,7 +217,7 @@ def test_the_observed_rows_state_their_fields_in_order() -> None:
     assert DEVICE_TOPICS[SENSOR].fields == (AT, "addr", "occupancy", "reason")
     assert DEVICE_TOPICS[OBSERVED_POINT].fields == (AT, "addr", "position")
     assert DEVICE_TOPICS[OBSERVED_TRACK].fields == (AT, "power", "reason")
-    assert DEVICE_TOPICS[LINK].fields == (AT, "id", "link", "detail")
+    assert DEVICE_TOPICS[LINK].fields == (AT, "id", "link", "detail", "build")
     assert DEVICE_TOPICS[REFUSED].fields == (AT, "id", "addr", "detail")
 
 
@@ -239,6 +239,27 @@ def test_a_link_is_keyed_by_whatever_the_publisher_calls_itself() -> None:
     it (ADR-0059)."""
     assert split_device(device_topic(LINK, "the shed")) == (LINK, "the shed")
     assert DEVICE_TOPICS[LINK].address == "id"
+
+
+def test_a_link_says_which_build_answers() -> None:
+    """The row already reads the thing: a participant calls the link `up` on
+    what the hardware answered back, and what it answered names the firmware
+    it is running (ADR-0065). Carrying it puts *which build is on the box* on
+    the bus, where a client that asked for a tag on `firmware_wanted` sees
+    whether the build it asked for is the build that answered — a desired
+    half and an observed half, with no correlation id and no reply.
+
+    **Optional, and free text.** A link that is `down` has no build to
+    report, and hardware that reports none at all is ordinary, which is the
+    kind of reason `detail` beside it is optional for. It is the build
+    identifier alone and never the whole banner it was read out of: a
+    banner's shape is one vendor's, where this row is device-neutral and
+    another publisher reports whatever its own hardware calls its build.
+
+    It obliges no consumer. `layout` reads the row today and goes on reading
+    it with the field absent, a consumer validating every payload and never
+    raising on one (SYSTEM.md, rule 4)."""
+    assert DEVICE_TOPICS[LINK].fields[-1] == "build"
 
 
 def test_a_refusal_is_keyed_by_the_publisher_and_not_by_the_device() -> None:
