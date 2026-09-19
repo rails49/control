@@ -350,9 +350,10 @@ class Flasher:
         """A build asked for: refused here, or started as a task of its own.
 
         Started rather than awaited because this runs on the loop that is the
-        mirror: the fan-out goes on for the whole of a fetch and for the whole
-        of the flash after it, which is what lets a client stay connected
-        through an outage it is told nothing else about.
+        mirror: the fan-out goes on for the whole of a fetch — which the
+        device is held through — and the port goes on being served for the
+        whole of the flash after it, which is what lets a client that was
+        disconnected by the outage come back to a mirror that is answering.
         """
         tag = wanted_tag(payload)
         if tag is None:
