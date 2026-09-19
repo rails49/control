@@ -102,19 +102,27 @@ def pty() -> Iterator[Pty]:
 
 BEHIND_BYTES = 4096
 
+QUICK_BACKOFF_S = 0.005
+PATIENT_BACKOFF_S = 0.2
+"""A backoff a test can act inside: the grace is two of it, so a test that
+has to speak to an away device before its clients are dropped asks for this
+one and still finishes in under a second."""
 
-def station(device: str, log: Log) -> Station:
+
+def station(device: str, log: Log, *, backoff_s: float = QUICK_BACKOFF_S) -> Station:
     """A station on an OS-chosen port, with outages measured in milliseconds.
 
     A client falls behind in kilobytes rather than the megabyte of the real
-    bound, so a test can put one behind by not reading for a moment.
+    bound, so a test can put one behind by not reading for a moment. The
+    backoff is the grace as well — two reopens of it — so an outage is over,
+    and the clients of one are gone, in milliseconds too.
     """
     return Station(
         device,
         0,
         log=log,
-        first_backoff_s=0.005,
-        max_backoff_s=0.02,
+        first_backoff_s=backoff_s,
+        max_backoff_s=4 * backoff_s,
         max_outstanding_bytes=BEHIND_BYTES,
     )
 
@@ -393,7 +401,13 @@ def test_a_doubled_start_yields_one_message(pty: Pty) -> None:
 def test_what_a_client_sends_while_the_device_is_away_is_dropped(
     pty: Pty, tmp_path: Path
 ) -> None:
-    """The device appears only after the client has spoken, and hears nothing of it."""
+    """The device appears only after the client has spoken, and hears nothing of it.
+
+    The client here connects to an outage already past its grace, whose
+    clients are gone: what it meets is the outage itself — its bytes dropped
+    because a command is honored now or ignored — and not the timer that was
+    already running, which was somebody else's.
+    """
 
     async def scenario() -> None:
         log = Log()
@@ -401,6 +415,10 @@ def test_what_a_client_sends_while_the_device_is_away_is_dropped(
         app = station(str(absent), log)
         await app.start()
         try:
+            _, early = await connect(app)
+            await log.wait_for("client disconnected")
+            early.close()
+
             _, writer = await connect(app)
             await send(writer, b"<t 3 50 1>")
             await log.wait_for("device away")
@@ -452,6 +470,10 @@ def test_a_device_that_will_not_configure_keeps_the_watcher_retrying(
             _, writer = await connect(app)
             await send(writer, b"<t 3 50 1>")
             await log.wait_for("device away")
+            # And once the grace has taken the client with it and that has
+            # settled, so what is counted is the watcher's descriptors.
+            await log.wait_for("client disconnected")
+            await asyncio.sleep(SETTLE_S)
 
             held = open_fds()
             await asyncio.sleep(SETTLE_S)
@@ -492,9 +514,12 @@ def test_the_dropped_notice_is_said_again_in_a_later_outage(
     async def scenario() -> None:
         log = Log()
         cable = tmp_path / "dccex"
-        app = station(str(cable), log)
+        app = station(str(cable), log, backoff_s=PATIENT_BACKOFF_S)
         await app.start()
         try:
+            # A grace the test stays inside: the first outage is recovered
+            # before it ends and the second is spoken into, so the one client
+            # is still there to speak into each of them.
             _, writer = await connect(app)
             await send(writer, b"<t 3 50 1>")
             await log.wait_for_count("device away", 1)
@@ -518,14 +543,16 @@ def test_the_device_is_let_go_for_the_block_and_taken_back_after(pty: Pty) -> No
     """The handover a flash needs: nothing of the mirror's is on the port
     while the block runs, and the device is open again after it (ADR-0065).
 
-    What a client sees inside it is the ordinary outage — still connected,
-    what it sends dropped — because for that while the device genuinely is
-    away.
+    What a client sees inside it is the ordinary outage — what it sends
+    dropped, and its connection closed once the grace passes — because for
+    that while the device genuinely is away, and a flash lasts tens of
+    seconds. The flash path drops its clients by the rule every outage drops
+    them by and has no rule of its own (ADR-0066).
     """
 
     async def scenario() -> None:
         log = Log()
-        app = station(pty.path, log)
+        app = station(pty.path, log, backoff_s=PATIENT_BACKOFF_S)
         await app.start()
         try:
             _, writer = await connect(app)
@@ -539,11 +566,85 @@ def test_the_device_is_let_go_for_the_block_and_taken_back_after(pty: Pty) -> No
                 await log.wait_for("device away")
                 assert await nothing_arriving(pty.master) == b""
 
+                await log.wait_for("client disconnected")
+                writer.close()
+
             await log.wait_for_count("serial open", 2)
             assert app.held
-            await send(writer, b"<a 12 1>")
+            _, after = await connect(app)
+            await send(after, b"<a 12 1>")
             assert await arriving(pty.master, len(b"<a 12 1>")) == b"<a 12 1>"
         finally:
             await app.close()
+
+    asyncio.run(scenario())
+
+
+def test_a_device_away_past_the_grace_disconnects_every_client(
+    tmp_path: Path,
+) -> None:
+    """The outage this app is the one to report: the station is switched off,
+    the cable is out, or the flash is running, and the reopens do not recover.
+
+    A client cannot tell an away device from a quiet one, so one held through
+    an outage is a translator publishing `device/link: up` over a railroad
+    that cannot move. The socket closing is the whole signal: the translator's
+    session ends the way it already ends and the row goes `down` (ADR-0066).
+    """
+
+    async def scenario() -> None:
+        log = Log()
+        absent = tmp_path / "dccex"
+        app = station(str(absent), log)
+        await app.start()
+        try:
+            one, first = await connect(app)
+            two, second = await connect(app)
+
+            assert await asyncio.wait_for(one.read(READ_SIZE), TIMEOUT_S) == b""
+            assert await asyncio.wait_for(two.read(READ_SIZE), TIMEOUT_S) == b""
+
+            await log.wait_for_count("client disconnected", 2)
+            first.close()
+            second.close()
+        finally:
+            await app.close()
+
+    asyncio.run(scenario())
+
+
+def test_a_device_back_inside_the_first_reopen_keeps_its_clients(
+    pty: Pty, tmp_path: Path
+) -> None:
+    """What the grace is for: a blip costs no throttle a reconnect.
+
+    The device goes and is back before the watcher has asked for it twice —
+    a USB stutter, not a station switched off — and what a client notices is
+    what it has always noticed, that a command sent meanwhile did nothing.
+    """
+
+    async def scenario() -> None:
+        log = Log()
+        cable = tmp_path / "dccex"
+        cable.symlink_to(pty.path)
+        app = station(str(cable), log, backoff_s=PATIENT_BACKOFF_S)
+        await app.start()
+        again = Pty()
+        try:
+            _, writer = await connect(app)
+            await log.wait_for("serial open")
+
+            cable.unlink()
+            pty.close()
+            await log.wait_for("serial closed")
+            cable.symlink_to(again.path)
+            await log.wait_for_count("serial open", 2)
+
+            assert log.said("client disconnected") == []
+            await send(writer, b"<a 12 1>")
+            assert await arriving(again.master, len(b"<a 12 1>")) == b"<a 12 1>"
+        finally:
+            await app.close()
+            again.close()
 
     asyncio.run(scenario())
