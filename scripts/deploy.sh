@@ -40,6 +40,26 @@ DEPLOY_ENV=/etc/tc49/deploy.env
 # file, which this shell knows nothing about — so the path is resolved the
 # way compose resolves it rather than expanded here.
 mkdir -p "$(scripts/store-root.sh "$DEPLOY_ENV")"
+# The translator's startup file — this installation's per-district trip
+# currents (#217) — made here for the same reason and never written over: the
+# values in it are edited on the box, and the deploy that truncated them would
+# move every district to the firmware's default without saying so.
+#
+# `/etc/tc49` is root's, holding the secret above, so this account may not be
+# able to make a file in it. A deploy that stopped there would take the whole
+# railroad down over a file that is allowed to be empty — a railroad with none
+# powers on at the firmware's own limits (ADR-0050) — so it says what to run
+# by hand and goes on. The second test catches a directory the daemon made
+# there before this line existed, which `touch` updates rather than replaces.
+DCCEX_STARTUP=/etc/tc49/dccex-startup.txt
+if [ ! -f "$DCCEX_STARTUP" ]; then
+  touch "$DCCEX_STARTUP" 2>/dev/null || true
+fi
+if [ ! -f "$DCCEX_STARTUP" ]; then
+  echo "no $DCCEX_STARTUP and this account cannot make one: the districts" \
+    "run at the limits the station's firmware was built with until" \
+    "'sudo install -m 644 /dev/null $DCCEX_STARTUP' is run on the box" >&2
+fi
 # The uid and gid are this account's, and compose reads them as the user the
 # store and a session run as — the shell's environment wins over the
 # `--env-file` below, which is what makes exporting them here enough.
