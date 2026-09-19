@@ -221,6 +221,21 @@ supply itself rather than off a second row. A district that has tripped gets
 none: the station reported that and said nothing about why, and an invented
 reason would be worse than none.
 
+**`build`** rides on that same row, where the station's banner names one. The
+banner is what `<s>` is answered with and what raises the link, and its last
+field is the build the firmware was made from: `G-v5.6.4-rails49.1` publishes
+as `v5.6.4-rails49.1` — the identifier alone and never the whole line, whose
+shape is this vendor's where the row is device-neutral. On this railroad's
+firmware that is the release tag, so the row names exactly which build is on
+the box, which is what a client that asked for one on
+`tc49/layout/firmware_wanted` reads to see which answered
+([ADR-0065](../adr/0065-the-app-that-owns-the-device-flashes-it.md)); older
+firmware puts the commit it was built from there instead, and that goes out as
+it stands, the field being free text this app does not interpret. A banner with
+no build this app can find carries none and the link is `up` all the same — a
+field that failed to parse is not a link failure — and a link that is `down`
+carries none either, a station that cannot be reached reporting nothing.
+
 **No `device/point`.** This railroad's turnouts have no feedback and the
 station's answer to a throw is one it faked
 ([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), so the row
@@ -344,7 +359,9 @@ $ nc layout.rails49.org 2560
 ```
 
 The banner naming the firmware, the board and the motor shield is the station
-answering through the mirror, which is what `device/link: up` is made of; the
+answering through the mirror, which is what `device/link: up` is made of — and
+its last field is what the row's `build` carries, `G-devel-202504182148Z`
+publishing as `devel-202504182148Z`; the
 `<p…>` lines are what `device/track` is folded from; and the `<l>` line is the
 station saying what the locomotive is now doing, speed byte 191 being the
 forward bit over step 63.
