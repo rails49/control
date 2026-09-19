@@ -258,8 +258,13 @@ runs is what makes it steel or a simulation, and neither is started by hand.
 
 ### The command station
 
-A DCC-EX EX-CSB1 with an EX8874, firmware 5.4.16, on a CH340 cable. It is
-named by
+A DCC-EX EX-CSB1 with an EX8874 on a CH340 cable. Which firmware build is on
+it is not written here: the station names it in the banner it answers `<s>`
+with, the `dccex` translator publishes that as `build` on
+`tc49/layout/state/device/link/dccex`, and a page kept by hand would go stale
+the first time somebody wrote a new one
+([ADR-0065](adr/0065-the-app-that-owns-the-device-flashes-it.md)). The device
+is named by
 
 ```
 /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
