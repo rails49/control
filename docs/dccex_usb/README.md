@@ -7,20 +7,37 @@ throttle — is a client of the port and they coexist
 ([ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 DecoderPro keeps working with every app of ours down.
 
-It has no bus topic, no HTTP face and no state. It is the one app with no
-contract in [SYSTEM.md](../SYSTEM.md), because there is nothing of ours on
-either of its sides.
+It has no HTTP face and no state of its own, and for a long while it had no
+bus contract either — there was nothing of ours on either of its sides. That
+changed with one thing it does that is not mirroring: **writing a released
+firmware build onto the station**, which only the process holding the device
+can do ([ADR-0065](../adr/0065-the-app-that-owns-the-device-flashes-it.md)).
+So it now subscribes `tc49/layout/firmware_wanted` and publishes
+`tc49/layout/state/device/refused/<id>` when it will not do it, and those two
+rows are its whole contract in [SYSTEM.md](../SYSTEM.md). The mirror itself
+still reads no payload and speaks no topic.
 
 ## The command line
 
 ```
-python -m tc49.dccex_usb --device /dev/dccex --port 2560
+python -m tc49.dccex_usb --broker broker:1883 --device /dev/dccex --port 2560
 ```
 
-Two flags, and they are the whole interface: the device to open and the port
-to serve it on. `deploy/app.Dockerfile` passes exactly these, and
+The device to open, the port to serve it on, and the broker where the flash
+gesture arrives. `deploy/app.Dockerfile` passes these, and
 `deploy/compose.yaml` maps the cable in as `/dev/dccex` and publishes 2560
-([DEPLOY.md](../DEPLOY.md#the-command-station)).
+([DEPLOY.md](../DEPLOY.md#the-command-station)). Two more are optional:
+`--firmware-releases <url>`, where releases are read from, this
+installation's fork by default; and `--id`, what this app calls itself on the
+row it refuses on, the package's name by default.
+
+**The broker is not waited for.** The five apps that publish opening rows wait
+for it before they publish (`lib/startup.py`); this one has no opening rows,
+and the port it serves is how DecoderPro, JMRI and the throttles reach the
+command station — a broker that is down must not take the command station
+down with it, which is the promise the app exists for. The client connects in
+the background and subscribes again on every reconnect, so a flash asked for
+after the broker comes back is answered.
 
 There is no bind address. The server binds every interface, because the
 container publishes the port and JMRI reaches it as `dccex-usb:2560`; what
@@ -84,10 +101,84 @@ from the ones a client made — the device opening and closing, and the first
 message dropped in each outage, to stderr. Nothing else: a mirror that logged
 the traffic would log the whole railroad.
 
+## Writing the firmware
+
+The station's firmware is built elsewhere, against the station's own source.
+What this app does is write a **released build** onto the box on a gesture:
+`tc49/layout/firmware_wanted`, carrying a `tag` and never a source. It is the
+only process that can — it holds the serial device open, esptool cannot share
+it, and no container can stop a sibling without the Docker daemon's socket,
+which is root on the box (ADR-0065).
+
+On the gesture, in this order, and the order is the point:
+
+1. Resolve the `tag` against the release API of `--firmware-releases`.
+2. Fetch `firmware.bin`.
+3. Check it against the `digest` that API reports for the asset — a
+   per-asset `sha256:…`, so a tag chosen at the moment of the gesture is
+   still checked. esptool verifies what it wrote, not what was fetched.
+4. **Then** close the serial device.
+5. Run esptool.
+6. Reopen the device by the existing path.
+
+A network failure costs nothing that way. The reverse order leaves the
+railroad with a closed port and no firmware.
+
+esptool is a **subprocess with a timeout**, not a library call: this process
+is the one every throttle, DecoderPro and the translator depend on, and
+esptool manipulates the port and exits on error, so a subprocess is what buys
+crash isolation, a timeout and a kill. It is a project dependency, pinned by
+`uv.lock` and present in the one shared image, so `uv run esptool` works on a
+laptop too. The command line, against the device the container already maps:
+
+```
+esptool --chip esp32 --port /dev/dccex --baud 460800 \
+  --before default-reset --after hard-reset write-flash -z \
+  --flash-mode dio --flash-freq 80m --flash-size 4MB 0x0 firmware.bin
+```
+
+Flash mode, frequency and size are the station core's own upload settings.
+Hyphenated throughout: esptool 5 renamed the entry point and the subcommands,
+and the underscore forms are deprecated aliases a later major drops.
+
+**While it writes, clients on 2560 stay connected and their bytes are
+dropped** — the device-away behaviour above, unchanged, because for that
+minute or two the device genuinely is away. Progress needs no topic of its
+own: the link is down and says so on `tc49/layout/state/device/link/<id>`,
+published by the translator that has lost it, and when the station answers
+again that row carries the `build` it now reports. There is no reply, no
+correlation id and no outcome topic; a client that asked for a tag reads the
+answer off the observed half.
+
+**What it refuses**, each on `tc49/layout/state/device/refused/<id>` with
+free-text `detail` and no `addr`: a tag with no such release, a release
+carrying no `firmware.bin` or no digest for it, a digest that does not match,
+esptool exiting non-zero, esptool outliving the timeout, the device absent,
+and a second gesture while a flash is in flight — refused, not queued, for
+the reason a client's bytes are dropped rather than queued. `latest` is
+refused too: it names a different build depending on when it is read, and
+what was written has to be sayable afterwards. Nothing is log-only; broken
+hardware is reported, never worked around (ADR-0050). A gesture whose payload
+cannot be read is dropped in silence, having nobody to answer (SYSTEM.md,
+rule 4).
+
+**Whether it is safe to reset the station is the client's**, not this app's.
+Flashing drops the rails and disconnects every throttle, and the guarantee
+that this is not done under a moving train lives in the client written to
+honour it — `tc49/dispatch/state/run` at `held` and
+`tc49/layout/state/device/track` at `off` before it publishes — exactly as it
+does for cutting track power (ADR-0051, ADR-0062). Reading the dispatcher's
+state is the coupling this app has never had and the reason it is
+trustworthy.
+
 ## Checking it against a real station
 
 Nothing in the test suite needs the hardware — the tests use a pty as the
-device, so the gate is green on a laptop with nothing plugged in. Verifying
+device, so the gate is green on a laptop with nothing plugged in. That holds
+for the flash as well: esptool cannot write a pty and the gate reaches no
+release API, so what fetches a URL and what runs a command are injected and
+the suite substitutes its own. What the suite does hold is the ordering —
+the device closed before the runner is called and reopened after. Verifying
 the actual link is runtime's job, and it is one command:
 
 ```

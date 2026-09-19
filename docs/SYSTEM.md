@@ -396,15 +396,27 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Driver | `tc49/dispatch/move_granted` |
 | Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/run`, `tc49/schedule/state/facing` **and** `tc49/layout/state/device/#` |
 | Translator | `tc49/layout/state/wanted/#`, **and** `tc49/layout/state/railroad` where it publishes sensors |
+| Command station mirror | `tc49/layout/firmware_wanted` |
 | Trace tap | `tc49/#` |
 
-Every app but the layout interface also subscribes
+The **command station mirror** is the app that owns the station's USB device
+and serves it on a TCP port, and the one row it responds to is the flash
+gesture: writing the station's flash means owning the port, so the process
+holding it is the only thing that can hand the device over
+([ADR-0065](adr/0065-the-app-that-owns-the-device-flashes-it.md)). It reads
+nothing else on the bus — not the run, not the supply, not the railroad — and
+what it publishes is `device/refused/<id>` where it will not flash. Its other
+side is not the bus at all
+([docs/dccex_usb/README.md](dccex_usb/README.md)).
+
+Every app but the layout interface and the mirror also subscribes
 `tc49/layout/state/railroad`, and acts on one thing only: a name other than
 the one it is running, which is a railroad being loaded under it (ADR-0060,
 above). A translator does so where it reads the store: one publishing
 `device/sensor` reads the names the hardware knows those sensors by out of
 the drawing, and those are a railroad's (ADR-0063, below). One that reads
-nothing does not, hardware needing no layout. The layout interface does not
+nothing does not, hardware needing no layout — and the mirror reads no
+document at all, a cable being no railroad's. The layout interface does not
 either, being the row's writer: it follows
 `tc49/layout/railroad_wanted` instead, which is the gesture it answers. The
 binding of it that drives hardware reads back its own
