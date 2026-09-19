@@ -631,7 +631,8 @@ subscribing all of them and acting on every address it recognises — one nobody
 answers to does no harm (ADR-0059). What it is **observed to do**, under
 `tc49/layout/state/device/` — a sensor's occupancy, a point's position where
 the hardware reports one, the track's power, and a participant's **link**,
-keyed by the id it calls itself — written by whatever watches or drives the
+keyed by the id it calls itself and saying which **build** the far end answers
+with (ADR-0065) — written by whatever watches or drives the
 thing addressed, of which there is exactly one per address, and read by
 `layout`. The rest of the system never
 names a device, `align` and `move` naming a transit

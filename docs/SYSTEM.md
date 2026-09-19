@@ -588,9 +588,11 @@ its two names, as each topic states.
   **There is no reply**, no correlation id and no outcome topic. The flash
   is a desired half and what happened is read off the observed half:
   `tc49/layout/state/device/link/<id>` goes `down` with the link while the
-  station is being written and comes back up when it answers again, and a
-  failure is published on `tc49/layout/state/device/refused/<id>`, whose
-  `addr` is already optional for a refusal that named no address.
+  station is being written and comes back up when it answers again, carrying
+  the `build` the station now reports — which is where a client sees whether
+  the tag it asked for is the build that answered — and a failure is published
+  on `tc49/layout/state/device/refused/<id>`, whose `addr` is already optional
+  for a refusal that named no address.
   **The client sequences it**, as the panel sequences a plain `off`
   (ADR-0051, ADR-0062): flashing resets the station, so the rails drop and
   every throttle on the port disconnects, and the guarantee that this is not
@@ -1600,7 +1602,7 @@ rather than writing them.
 | `tc49/layout/state/device/sensor/<block>.<end>` | `addr`, `occupancy`, `reason` | `occupancy` `occupied`, `clear` or `unknown`; `reason` *optional*, free text, only with `unknown` |
 | `tc49/layout/state/device/point/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
 | `tc49/layout/state/device/track` | `power`, `reason` | `power` `on` or `off`; `reason` *optional*, free text |
-| `tc49/layout/state/device/link/<id>` | `id`, `link`, `detail` | `link` `up` or `down`; `detail` *optional*, free text |
+| `tc49/layout/state/device/link/<id>` | `id`, `link`, `detail`, `build` | `link` `up` or `down`; `detail` *optional*, free text; `build` *optional*, free text |
 | `tc49/layout/state/device/refused/<id>` | `id`, `addr`, `detail` | `addr` *optional*, absent where the refusal had no address; `detail` free text |
 
 The address rules are the desired half's, and `link` and `refused` are the two
@@ -1619,6 +1621,21 @@ the railroad to come up
 A publisher may set an MQTT last will of `down` on its own row, which
 [ADR-0040](adr/0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md)
 permits as a faster signal no safety property depends on (ADR-0059).
+
+**`build` is what the far end says it is running.** The identifier the
+hardware reports for its firmware, free text and optional, on the row that
+already reads the thing: a publisher calls the link `up` on what the hardware
+answered back, and what it answered names the build
+([ADR-0065](adr/0065-the-app-that-owns-the-device-flashes-it.md)). The build
+identifier alone and never the whole banner it was read out of — a banner's
+shape is one vendor's, where this row is device-neutral and another publisher
+reports whatever its own hardware calls its build. Optional for two reasons,
+both ordinary: a link that is `down` has no build to report, and hardware that
+reports no build at all is common. Nothing branches on it and `layout` does not
+read it; what reads it is a client that asked for a build on
+`tc49/layout/firmware_wanted` and wants to see whether the build it asked for
+is the build that answered, which is the whole of that verification path — a
+desired half and an observed half, no correlation id and no reply.
 
 **The supply is `on` or `off`.** The observed row carries no emergency stop
 where the desired one does, and that asymmetry is the vocabulary's own: what
