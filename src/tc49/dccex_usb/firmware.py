@@ -382,7 +382,9 @@ class Flasher:
         Every way out of it publishes or leaves the row alone, and the flag
         falls whichever way it went: an app that refused a flash and then
         refused every one after it because a failure left the flag standing
-        would be worse than the failure.
+        would be worse than the failure. Nothing waits after the flag falls,
+        so the gesture that is answered next is answered by an app that has
+        already said what became of this one.
         """
         self._log(f"flashing '{tag}' from {self._releases}")
         try:
