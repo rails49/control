@@ -184,14 +184,16 @@ and `<!Q>` are all read as `<!>` and none of them says so. That is what made a
 `<!Q>` in the poll an emergency stop once a second, and every train move a few
 centimetres and stand.
 
-**An overload is polled for, with `<s>` and with nothing else.** A district
-that trips is not broadcast on TCP: the firmware cuts the output directly and
-prints the diagnostic to USB serial only, so no client sees a `<p…>` line for
-it. Once a second this app sends `<s>`, which makes the station restate every
-track's power, so `device/track` telling the truth does not depend on a person
-noticing. Nothing else goes in the poll. A poll runs for as long as the link
-does, so a command in it that a station acts on rather than answers is acted
-on for as long as the railroad is up, and a station says nothing about a
+**An overload is polled for, with `<s>` and with nothing else**, and the
+answers are what the link is measured by. A district that trips is not
+broadcast on TCP: the firmware cuts the output directly and prints the
+diagnostic to USB serial only, so no client sees a `<p…>` line for it. Once a
+second this app sends `<s>`, which makes the station restate every track's
+power, so `device/track` telling the truth does not depend on a person
+noticing — and ten of those questions going unanswered is what says the
+station has stopped answering at all, below. Nothing else goes in the poll. A
+poll runs for as long as the link does, so a command in it that a station acts
+on rather than answers is acted on for as long as the railroad is up, and a station says nothing about a
 command it does not know.
 
 ## What it publishes back
@@ -207,19 +209,39 @@ topic must fail in
 takes the reading with it: a district that tripped while this app was away
 would otherwise stand as an observation nobody made.
 
-**`device/link`** is `up` while the connection is open **and** the station has
-answered, `down` otherwise, with `detail` carrying what a person would want to
-read, on the row the app's id keys. An open socket is not a command station — `dccex-usb` accepts a client
-with the serial cable unplugged — so the link is not called good until
-something has come back on it. It goes on saying `down` for the whole outage,
-which is where a broken link becomes visible: at runtime, to a person who can
-act on it, and not in a gate that would need a powered layout to pass
+**`device/link`** is `up` while the station **is answering**, `down`
+otherwise, with `detail` carrying what a person would want to read, on the row
+the app's id keys. An open socket is not a command station — `dccex-usb`
+accepts a client with the serial cable unplugged — so the link is not called
+good until something has come back on it. It goes on saying `down` for the
+whole outage, which is where a broken link becomes visible: at runtime, to a
+person who can act on it, and not in a gate that would need a powered layout
+to pass
 ([ADR-0050](../adr/0050-broken-hardware-is-reported-never-worked-around.md)).
 The same words go on `device/track` as its `reason` while the station is
 unreachable, so a person reading why the railroad is dark reads it off the
 supply itself rather than off a second row. A district that has tripped gets
 none: the station reported that and said nothing about why, and an invented
 reason would be worse than none.
+
+**Ten unanswered polls lower it, with the session still open.** The socket
+closing is not the only way a station goes away and is not the usual one:
+`dccex-usb` holds its clients through an outage it thinks is brief and drops
+their bytes, and a station that is powered, enumerated and mute — wedged
+firmware — leaves the mirror a device it holds and nothing to report. So the
+far end counts: ten intervals of `poll_s` with nothing read at all says the
+station has stopped answering, and the row goes `down` naming it and how long
+it has been silent. Everything the station told us goes with it, the build
+included, exactly as it does when a link closes — a station that is not
+answering is reporting no build, and the box may since have been written
+over. Nothing is torn down for it: the connection stays, the poll goes on
+asking, and the next message read raises the link by the path every message
+raises it. Ten is counted off the poll rather than kept as a second number, so
+the two cannot drift apart, and it is generous on purpose — `layout` folds any
+`down` to `state/power: off`, so a timeout that fires early stops a railroad
+mid-session, and the mirror closing its clients is what reports the outages
+that actually happen
+([ADR-0066](../adr/0066-the-link-is-the-station-answering-not-the-socket-being-open.md)).
 
 **`build`** rides on that same row, where the station's banner names one. The
 banner is what `<s>` is answered with and what raises the link, and its last
@@ -286,8 +308,9 @@ one app a railroad may run twice, and two clients sharing a client id take
 turns disconnecting each other.
 
 The drain period, the poll and the reconnect backoff are not flags. Nothing
-outside the process has an opinion about them, and what the station is asked
-and how often a lost link is retried are this app's own.
+outside the process has an opinion about them, and what the station is asked,
+how long it may go without answering before the link falls, and how often a
+lost link is retried are this app's own.
 
 Coming up is the broker, then the desired picture, then the link. The two rows
 the constructor states are publishes, and a publish made to a broker that is
