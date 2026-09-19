@@ -1,13 +1,14 @@
-"""What the station says, and the two facts this app reads out of it.
+"""What the station says, and the three facts this app reads out of it.
 
 The station writes `<…>` messages to every client, replies and unasked
 broadcasts alike, and one byte stream cannot say which a line is —
 `dccex-usb` fans the whole conversation to everybody and routes nothing
 (ADR-0043). So what arrives here is everything the station has to say to
 anyone, and the reading is deliberately narrow: the power each track is in,
-and whether the emergency-stop lock is on. Everything else — a slot's speed,
-a turnout the station keeps of its own, a sensor it polls, a fast clock — is
-another client's business and is passed over unread.
+whether the emergency-stop lock is on, and the build the station's banner
+names. Everything else — a slot's speed, a turnout the station keeps of its
+own, a sensor it polls, a fast clock — is another client's business and is
+passed over unread.
 
 Two functions, both pure. `messages` is the framing rule, bytes in and whole
 messages out; `reply` is one message read into a fact or into `None`. Neither
@@ -31,6 +32,18 @@ rather than grown without bound."""
 
 START = ord("<")
 END = ord(">")
+
+INFO = b"i"
+"""The opcode on the line the station says who it is on — its banner, which
+is what `<s>` is answered with. Everything this app reads out of it is the
+last field; the rest of the line is the firmware version, the board and the
+motor shield, which nothing here has a use for."""
+
+BUILD = "G-"
+"""What the banner's last field puts in front of the build identifier. The
+station is built from a checkout and prints what that checkout was — a
+release tag on this railroad's firmware, a commit on older ones — and the
+prefix is the banner's marker for it rather than part of the identifier."""
 
 TRACKS = "ABCDEFGH"
 """The letters a track can be called. A `<p…>` line naming anything else —
@@ -64,6 +77,19 @@ class Lock:
     locked: bool
 
 
+@dataclass(frozen=True)
+class Build:
+    """The build identifier the station's banner names: what firmware is on
+    the box, the identifier alone and never the banner it was read out of.
+
+    Free text as far as this app is concerned — it publishes what the station
+    printed and interprets none of it — so a release tag and a commit hash
+    are the same thing here (ADR-0065).
+    """
+
+    build: str
+
+
 def messages(buffered: bytes, arrived: bytes) -> tuple[bytes, list[bytes]]:
     """Fold `arrived` into `buffered`: what is still partial, and the
     messages that completed, delimiters included and in the order they
@@ -90,14 +116,17 @@ def messages(buffered: bytes, arrived: bytes) -> tuple[bytes, list[bytes]]:
     return partial, whole
 
 
-def reply(message: bytes) -> Power | Lock | None:
-    """The fact one whole message states, or None where it states neither of
-    the two this app reads."""
+def reply(message: bytes) -> Power | Lock | Build | None:
+    """The fact one whole message states, or None where it states none of the
+    three this app reads."""
     body = message[1:-1]
     if body == b"!PAUSED":
         return Lock(locked=True)
     if body == b"!RESUMED":
         return Lock(locked=False)
+    if body.startswith(INFO):
+        named = _build(body)
+        return None if named is None else Build(build=named)
     if not body.startswith((b"p0", b"p1")):
         return None
     named = body[2:].strip().decode(errors="replace")
@@ -106,3 +135,21 @@ def reply(message: bytes) -> Power | Lock | None:
     if len(named) == 1 and named in TRACKS:
         return Power(track=named, on=body[1:2] == b"1")
     return None
+
+
+def _build(body: bytes) -> str | None:
+    """The build identifier in a banner, or None where it holds none this app
+    can find.
+
+    The last field and only where it carries the prefix: a banner whose shape
+    this app does not recognise says nothing about the build, which is not a
+    reason to call the station unreachable — the link is made of the station
+    having answered, and a field that failed to parse is not a link failure.
+    """
+    fields = body[len(INFO) :].decode(errors="replace").split()
+    if not fields:
+        return None
+    last = fields[-1]
+    if not last.startswith(BUILD):
+        return None
+    return last[len(BUILD) :] or None
