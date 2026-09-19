@@ -89,13 +89,29 @@ bytes without its `>` is discarded, and so are the bytes after it up to the
 next `<`. A client that disconnects mid-message takes its partial message
 with it. Nothing else of the protocol is read.
 
-**While the device is away, what a client sends is dropped** and the client
-stays connected. The app reopens the device with backoff — it goes away when
-the command station is switched off, or when the cable is pulled — and the
+**While the device is away, what a client sends is dropped.** The app reopens
+the device with backoff — it goes away when the command station is switched
+off, or when the cable is pulled — and for the length of the grace below the
 clients wait through it without noticing anything but that their commands did
 nothing. A command is honored now or ignored: a queue that flushes on
 reconnect is a train that moves minutes after someone asked for it, which is
 why the broker keeps nothing across a restart either.
+
+**An outage that outlasts the grace disconnects every client on the port.**
+The grace is two reopens at the first backoff, about a second, counted off
+the backoff rather than kept as a number of its own. A client cannot tell an
+away device from a quiet one and this port has no way to tell it, so a mirror
+that held its clients through a station switched off would leave the
+translator publishing `tc49/layout/state/device/link/<id>: up` over a railroad
+that cannot move. The socket closing is the whole signal: the translator's
+session ends the way it already ends, the row goes `down`, and nothing is
+inferred anywhere
+([ADR-0066](../adr/0066-the-link-is-the-station-answering-not-the-socket-being-open.md)).
+An outage the first reopen recovers is invisible to clients as it always was,
+which is what the grace is for — a USB blip, not a flash — and a client that
+connects to an away device is served the outage and gets a grace of its own
+rather than the remainder of somebody else's. Falling too far behind is a
+different reason to disconnect and keeps its own rule.
 
 Every way the device can fail to be there is the same outage: a path that is
 not there, a path that will not take the line discipline because it is no
@@ -105,9 +121,9 @@ waited out rather than reopened straight away. Each outage says once that
 what clients send is being dropped, and the next outage says it again.
 
 It logs connects, disconnects — with the ones it made itself distinguishable
-from the ones a client made — the device opening and closing, and the first
-message dropped in each outage, to stderr. Nothing else: a mirror that logged
-the traffic would log the whole railroad.
+from the ones a client made — the device opening and closing, the first
+message dropped in each outage, and the grace ending one, to stderr. Nothing
+else: a mirror that logged the traffic would log the whole railroad.
 
 ## Writing the firmware
 
@@ -149,12 +165,16 @@ Flash mode, frequency and size are the station core's own upload settings.
 Hyphenated throughout: esptool 5 renamed the entry point and the subcommands,
 and the underscore forms are deprecated aliases a later major drops.
 
-**While it writes, clients on 2560 stay connected and their bytes are
-dropped** — the device-away behaviour above, unchanged, because for that
-minute or two the device genuinely is away. Progress needs no topic of its
-own: the link is down and says so on `tc49/layout/state/device/link/<id>`,
-published by the translator that has lost it, and when the station answers
-again that row carries the `build` it now reports. There is no reply, no
+**While it writes, the device is away and clients on 2560 are served the
+device-away behaviour above** — their bytes dropped, and their connections
+closed once the grace passes, because for that minute or two the device
+genuinely is away and a flash outlasts any grace. The railroad going dark for
+the length of a flash is the correct outcome: nobody expects trains to run
+while the station is being written, and the guard against a flash under a
+moving train is the client's, below. Progress needs no topic of its own: the
+link is down and says so on `tc49/layout/state/device/link/<id>`, published by
+the translator that has lost it, and when the station answers again that row
+carries the `build` it now reports. There is no reply, no
 correlation id and no outcome topic; a client that asked for a tag reads the
 answer off the observed half.
 
