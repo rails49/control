@@ -47,6 +47,14 @@ For the same reason there is no authentication and no limit on the number of
 clients beyond the OS's — though there is a limit on how far behind one may
 fall, which is a different question.
 
+**A mirror that cannot serve its port exits.** Something else on 2560 — a
+second copy of the app, a container that has not finished going away — is not
+a state this app can mirror out of, so it ends non-zero with the reason on
+stderr rather than staying up with no server behind it. `restart:
+unless-stopped` in `deploy/compose.yaml` is what tries again, and a port that
+is busy for a moment during a deploy comes good on the retry. The device is a
+different matter: one that is not there yet is waited for, not exited on.
+
 The device is opened raw at 115200 8N1 — no echo, no line editing, no flow
 control — so what a client sends is what the station receives.
 
