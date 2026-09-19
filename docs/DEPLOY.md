@@ -111,6 +111,7 @@ ssh rails49
 cd ~/control && git pull
 pnpm --dir ui build
 mkdir -p "$(scripts/store-root.sh /etc/tc49/deploy.env)"
+[ -f /etc/tc49/dccex-startup.txt ] || sudo install -m 644 /dev/null /etc/tc49/dccex-startup.txt
 export TC49_UID=$(id -u) TC49_GID=$(id -g)
 TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
   -f deploy/compose.yaml --profile layout --profile hardware \
@@ -274,6 +275,41 @@ Only `dccex-usb` opens the device. Everything else — the `dccex` translator,
 JMRI, hand-held throttles — is a client of 2560, and they coexist: every byte
 the command station sends reaches every client, and a client's bytes go to it
 only as whole `<…>` messages (ADR-0043).
+
+**This railroad's per-district trip currents live on the box**, in
+`/etc/tc49/dccex-startup.txt`, and nowhere else: a district is a hardware fact
+that reaches no bus topic and no document
+([#217](https://github.com/rails49/control/issues/217)). The `dccex` service
+is given it with `--startup` and the file itself is mounted read-only —
+**the file, not `/etc/tc49`**, which also holds `deploy.env`, so a directory
+mount would hand the translator this box's one secret. What may go in it is
+[dccex/README.md](dccex/README.md#the-startup-file); it is sent on every
+power-on and on nothing else, and a station whose limits are compiled into
+its firmware needs none of it.
+
+An empty file is an ordinary state, and a box with no values to set deploys
+and runs on the limits its firmware was built with (ADR-0050). It is made
+empty rather than left out, because a bind mount whose source is missing is
+created by the daemon as a root-owned *directory* and the translator would
+then open a directory as its startup file — the fault `~/tc49` had (#387).
+`scripts/deploy.sh` makes it where this account can write `/etc/tc49`, and
+says what to run by hand where it cannot rather than stopping the deploy over
+a file that is allowed to be empty.
+
+**Edit it in place.** A single-file bind mount binds the inode, so an editor
+that replaces the file leaves the container reading the values it was created
+with, the way the proxy went on serving the route table it started with
+([#353](https://github.com/rails49/control/issues/353)). The directory mount
+that cured that one is not available here. A container that has lost the file
+this way is recreated:
+
+```
+docker compose --env-file /etc/tc49/deploy.env -f deploy/compose.yaml \
+  up -d --force-recreate --no-deps dccex
+```
+
+Then power the railroad off and on: the file is read at that transition, so
+the edit and the power cycle together are the whole of changing a limit.
 
 ### JMRI
 

@@ -85,6 +85,16 @@ flashing it are a separate project and not this repository's work
 Until it lands the values are compiled into the station instead, which is a
 reflash to change one and the reason for wanting the command at all.
 
+**On the layout box the file is `/etc/tc49/dccex-startup.txt`**, mounted
+read-only into this app's container and named on the command line the service
+runs ([../DEPLOY.md](../DEPLOY.md#the-command-station),
+[#523](https://github.com/rails49/control/issues/523)). The deploy makes an
+empty one where the box has none, because a bind mount whose source is
+missing is made by the daemon as a directory and this app would open it as
+its startup file. A single-file mount binds the inode, so the file is edited
+in place: an editor that replaces it leaves the container reading the values
+it was created with.
+
 **The file is not parsed beyond blank and comment.** A line beginning with `#`
 is a note and a blank line is layout; every other line is stripped of
 surrounding whitespace and handed to the station exactly as typed. That is the
