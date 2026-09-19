@@ -111,7 +111,9 @@ ssh rails49
 cd ~/control && git pull
 pnpm --dir ui build
 mkdir -p "$(scripts/store-root.sh /etc/tc49/deploy.env)"
-[ -f /etc/tc49/dccex-startup.txt ] || sudo install -m 644 /dev/null /etc/tc49/dccex-startup.txt
+[ -f /etc/tc49/dccex-startup.txt ] ||
+  { sudo rm -rf /etc/tc49/dccex-startup.txt &&
+    sudo install -m 644 /dev/null /etc/tc49/dccex-startup.txt; }
 export TC49_UID=$(id -u) TC49_GID=$(id -g)
 TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
   -f deploy/compose.yaml --profile layout --profile hardware \
@@ -299,7 +301,11 @@ created by the daemon as a root-owned *directory* and the translator would
 then open a directory as its startup file — the fault `~/tc49` had (#387).
 `scripts/deploy.sh` makes it where this account can write `/etc/tc49`, and
 says what to run by hand where it cannot rather than stopping the deploy over
-a file that is allowed to be empty.
+a file that is allowed to be empty. What it says to run is the line above,
+and it removes what is at the path first: against a directory `install`
+writes a file called `null` inside it and reports success, leaving the
+directory there for the translator to open
+([#529](https://github.com/rails49/control/issues/529)).
 
 **Edit it in place.** A single-file bind mount binds the inode, so an editor
 that replaces the file leaves the container reading the values it was created
