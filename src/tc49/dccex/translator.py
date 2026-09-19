@@ -82,9 +82,13 @@ loop go (`bench/runner.py`).
 feedback and the station's answer to a throw is one it faked (ADR-0022), so
 the row stays empty: a faked observation is worse than silence (ADR-0050).
 
-**`device/link`** is `up` while the connection is open and the station has
-answered, `down` otherwise, with `detail` carrying what a person would want
-to read. That is where the physical link becomes visible at runtime, which is
+**`device/link`** is `up` while the station is answering, `down` otherwise,
+with `detail` carrying what a person would want to read. It is the station
+answering and not the socket being open: the poll goes on asking for as long
+as the link lasts, and ten intervals of silence lower the row where the
+connection underneath is still there — a station switched off behind a mirror
+that holds its clients, a pulled cable, a wedged one. An answer afterwards
+raises it again, and nothing is torn down for it (ADR-0066). That is where the physical link becomes visible at runtime, which is
 where verifying it belongs — not in a gate that would need a powered layout
 to pass. The same words go on `device/track` as its `reason` while the
 station is unreachable, so a person reading why the railroad is dark reads it
@@ -106,6 +110,7 @@ what is here is the connection and the state that a connection is made of.
 import asyncio
 import contextlib
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import NamedTuple
@@ -154,6 +159,18 @@ tripped district reads as live and how long a fresh connection reads as
 notice, and the two questions are two short lines on a port that carries the
 whole railroad's traffic."""
 
+MISSED_POLLS = 10
+"""How many polls may go unanswered before the link is lowered, counted off
+`poll_s` rather than held as a second number so the two cannot drift apart.
+
+This is the number with teeth: `layout` folds any `down` to
+`state/power: off`, so one that fires early stops the railroad in the middle
+of a session. It can afford to be generous, because the mirror closes its
+clients for a device it knows is away and that ends the session through the
+path that already exists — what is left for this to catch is a station that
+is powered, enumerated and mute, and ten seconds is well outside anything a
+healthy station does with a status query under load (ADR-0066)."""
+
 FIRST_BACKOFF_S = 0.5
 MAX_BACKOFF_S = 8.0
 
@@ -163,6 +180,11 @@ READ_SIZE = 4096
 Connect = Callable[[], Awaitable[tuple[asyncio.StreamReader, asyncio.StreamWriter]]]
 """How a connection is made, injected so a test drives a socket pair rather
 than hardware: nothing in the gate may need a command station."""
+
+Now = Callable[[], float]
+"""Where the silence is measured against, injected for the same reason: a
+suite that had to wait out ten real poll intervals would be asserting the
+machine's scheduler as much as this app."""
 
 
 class Wanted(NamedTuple):
@@ -195,6 +217,7 @@ class DccEx:
         *,
         id: str = ID,
         connect: Connect | None = None,
+        now: Now = time.monotonic,
         startup: Path | None = None,
         poll_s: float = POLL_S,
         first_backoff_s: float = FIRST_BACKOFF_S,
@@ -206,6 +229,7 @@ class DccEx:
         self._connect: Connect = connect or (
             lambda: asyncio.open_connection(host, port)
         )
+        self._now = now
         self._startup = startup
         self._poll_s = poll_s
         self._first_backoff_s = first_backoff_s
@@ -223,6 +247,12 @@ class DccEx:
         # an outage is not an observation, and what cannot be read may not be
         # called good (#181).
         self._answered = False
+        # When the station last said anything, and `None` where it has said
+        # nothing this app has heard. What the poll measures its silence
+        # against: the link is the station answering, so a station that has
+        # stopped answering is one this app has to stop calling reachable,
+        # however open the socket underneath stays (ADR-0066).
+        self._last_heard: float | None = None
         self._tracks: dict[str, bool] = {}
         self._every: bool | None = None
         self._paused = False
@@ -427,7 +457,14 @@ class DccEx:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> bool:
         """One connection, from the desired state going out to the link
-        going down. Says whether the station spoke at all."""
+        going down.
+
+        Says whether the station was answering when it ended, which is what
+        the backoff is reset on. A session the poll timed out reads as one
+        that heard nothing — the silence is what `_forget` already recorded —
+        so a station that wedged and then dropped is retried on the same
+        lengthening interval as a port that accepts and drops.
+        """
         self._writer = writer
         for wanted in self._applied():
             self._act(wanted)
@@ -480,7 +517,43 @@ class DccEx:
         """
         while True:
             await asyncio.sleep(self._poll_s)
+            self._lower_if_silent()
             self._send(commands.STATUS)
+
+    def _lower_if_silent(self) -> None:
+        """Lower the link where the station has gone quiet on us, which the
+        poll is the natural place to notice: it is already the thing asking.
+
+        A socket that stays open is not the station answering. `dccex-usb`
+        holds its clients through an outage it thinks is brief and drops
+        their bytes, and a station that is powered, enumerated and mute
+        leaves the mirror nothing to report at all — so the far end noticing
+        that ten questions went unanswered is the only thing that catches a
+        wedged station (ADR-0066).
+
+        What goes is everything the station told us, the same `_forget` a
+        link that closed runs: a reading nobody can take is not the last one
+        taken, and the build goes with it, which is what keeps a row that is
+        `down` from naming a build that may since have been written over.
+        The session itself stays — this is an observation being published,
+        not the transport being torn down — so an answer arriving afterwards
+        raises the link by the one path that raises it, a message read.
+
+        A station that has not answered *yet* is left alone: that link is
+        already `down` and already says why.
+        """
+        last = self._last_heard
+        if last is None:
+            return
+        silent = self._now() - last
+        if silent < MISSED_POLLS * self._poll_s:
+            return
+        self._forget()
+        self._publish_link(
+            False,
+            f"the station at {self._where} has not answered for {silent:g}s",
+        )
+        self._publish_track()
 
     def _heard(self, message: bytes) -> None:
         """One whole message from the station: the link is up, and the three
@@ -513,6 +586,7 @@ class DccEx:
             # link that went away and came back — a flash resets the station.
             self._build = told.build
         self._answered = True
+        self._last_heard = self._now()
         self._publish_link(True, f"connected to {self._where}")
         self._publish_track()
 
@@ -529,6 +603,7 @@ class DccEx:
         build goes with them: the station on the far end of the next link may
         be the one this one was just written into (ADR-0065)."""
         self._answered = False
+        self._last_heard = None
         self._tracks.clear()
         self._every = None
         self._paused = False
