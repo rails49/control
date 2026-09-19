@@ -72,10 +72,10 @@ def serve(
     station = Station(device, port)
     flasher = Flasher(bus, station, releases, id=id)
     to_stderr(f"serving {device} on {port} as '{id}', flashing from {releases}")
-    asyncio.run(_mirroring(station, flasher, bus, stop, period_s))
+    asyncio.run(mirroring(station, flasher, bus, stop, period_s))
 
 
-async def _mirroring(
+async def mirroring(
     station: Station,
     flasher: Flasher,
     bus: Bus,
@@ -90,7 +90,7 @@ async def _mirroring(
     arriving mid-flash is not something this can hold off — the cancellation
     it raises is what ends the wait — and neither is the container's kill.
     """
-    mirroring = asyncio.create_task(station.run())
+    mirror = asyncio.create_task(station.run())
     try:
         while not stop.is_set():
             bus.drain()
@@ -98,9 +98,9 @@ async def _mirroring(
     finally:
         with contextlib.suppress(asyncio.CancelledError):
             await flasher.settled()
-        mirroring.cancel()
+        mirror.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await mirroring
+            await mirror
 
 
 def main() -> None:
