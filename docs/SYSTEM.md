@@ -335,13 +335,15 @@ would carry were one built
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md),
 [ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
 decision 4).
-Today the mark sits on exactly the nine gesture rows. The throttle a person
+Today the mark sits on exactly the ten gesture rows. The throttle a person
 drives with ([#207](https://github.com/rails49/control/issues/207)), the
 track power a person commands
-([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md))
-and the railroad a person loads
+([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)),
+the railroad a person loads
 ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md))
-are four of them, under `layout`, which is the component that responds to
+and the firmware a person writes to the command station
+([ADR-0065](adr/0065-the-app-that-owns-the-device-flashes-it.md))
+are five of them, under `layout`, which is the component that responds to
 them. Whether a row carries the mark is an ACL decision, made when the row
 lands.
 
@@ -362,6 +364,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/layout/mode_wanted` | event | any (browser) | a train is driven automatically, or by a person |
 | `tc49/layout/throttle_wanted` | event | any (browser) | how fast a person is driving a train |
 | `tc49/layout/state/mode` | state | layout | who drives each train |
+| `tc49/layout/firmware_wanted` | event | any (browser) | flash the command station with this build ([ADR-0065](adr/0065-the-app-that-owns-the-device-flashes-it.md)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -557,11 +560,51 @@ its two names, as each topic states.
   `manual`. `automatic` is the resting value, so a train the map does not
   name is `automatic` and an unreadable entry leaves that train without a
   mode rather than being read as one.
+- `tc49/layout/firmware_wanted` — browser-writable — `tag`: the release tag
+  to write to the command station, `v5.6.4-rails49.1` and the like. The
+  firmware is built elsewhere, against the station's own source; what this
+  gesture does is make writing a released build onto the box something the
+  running system does, rather than something a person does from a checkout
+  ([ADR-0065](adr/0065-the-app-that-owns-the-device-flashes-it.md)). The app
+  that holds the station's device answers it and nothing else subscribes:
+  writing flash means owning the port, so the app holding it is the only one
+  that can hand the device over. Under `layout` because hardware hangs under
+  the layout interface (ADR-0043).
+  **A tag and never a source.** The payload names no repository and no URL:
+  the LAN is the trust boundary and carries no authentication on purpose
+  ([ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)),
+  so a payload that named where to fetch from would let anyone on the wifi
+  have the station fetch and run an arbitrary binary. A tag can only choose
+  among builds already published to the one place the responder is
+  configured to look, and that place is a flag on that app. `latest` is no
+  legal value either: it names a different build depending on when it is
+  read, and the point of the gesture is to be able to say afterwards what
+  was written.
+  **Never retained**, which is rule 2 and no exception to it. It is spelled
+  out here because this is the row where breaking that rule costs a command
+  station: a retained flash request reflashes the station every time the
+  responder reconnects to the broker — every restart, every deploy, every
+  blip.
+  **There is no reply**, no correlation id and no outcome topic. The flash
+  is a desired half and what happened is read off the observed half:
+  `tc49/layout/state/device/link/<id>` goes `down` with the link while the
+  station is being written and comes back up when it answers again, and a
+  failure is published on `tc49/layout/state/device/refused/<id>`, whose
+  `addr` is already optional for a refusal that named no address.
+  **The client sequences it**, as the panel sequences a plain `off`
+  (ADR-0051, ADR-0062): flashing resets the station, so the rails drop and
+  every throttle on the port disconnects, and the guarantee that this is not
+  done under a moving train lives in the client written to honour it. A
+  control requires `tc49/dispatch/state/run` at `held` and
+  `tc49/layout/state/device/track` at `off` before it publishes. The
+  responder checks neither and knows nothing about runs: reading the
+  dispatcher's state is the coupling the app holding the device has never
+  had.
 
 #### `schedule`
 
-The eight browser-writable rows — the two here, the three under `dispatch`
-and the three under `layout` above — are where rule 4 bites hardest: each
+The ten browser-writable rows — the two here, the three under `dispatch`
+and the five under `layout` above — are where rule 4 bites hardest: each
 payload is read defensively, and one that fails the read is dropped.
 
 - `tc49/schedule/request_wanted` — browser-writable — `train`; `dest`: list,

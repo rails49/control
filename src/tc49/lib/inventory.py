@@ -79,6 +79,18 @@ TOPICS: dict[str, Topic] = {
     "tc49/layout/mode_wanted": Topic(("train", "mode"), browser=True),
     "tc49/layout/throttle_wanted": Topic(("train", "speed"), browser=True),
     "tc49/layout/state/mode": Topic((AT, "modes")),
+    # Writing a released firmware build onto the command station: the gesture
+    # asking the app that holds the device to do it, that being the only
+    # thing able to hand the device over (ADR-0065). `tag` names a build and
+    # never where to fetch it — the LAN is the trust boundary and carries no
+    # authentication on purpose (ADR-0042), so a field naming a repository or
+    # a URL would let anyone on the wifi have the station fetch and run an
+    # arbitrary binary, where a tag can only choose among builds already
+    # published to the one place the responder is configured to look. An
+    # event, so rule 2 already forbids replay; it is worth saying on this row
+    # because a retained flash request reflashes the station every time the
+    # responder reconnects to the broker.
+    "tc49/layout/firmware_wanted": Topic(("tag",), browser=True),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
     "tc49/schedule/state/exhausted": Topic((AT, "exhausted")),
@@ -355,7 +367,7 @@ INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
 """The topics a client writes: the page's write surface, and what a broker's
 ACL would grant it were one built (ADR-0034, ADR-0059 decision 4). Read off
 the rows' marks rather than off a prefix — a topic names the component that
-responds to it, so the nine gestures sit under `schedule`, `dispatch` and
+responds to it, so the ten gestures sit under `schedule`, `dispatch` and
 `layout` beside everything else those three answer, and only the mark says a
 page may send them.
 
