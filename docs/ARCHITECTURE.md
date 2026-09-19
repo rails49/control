@@ -29,8 +29,11 @@ simulator inside one process.
 `dccex-usb` and `dccex` hang under `layout`. `dccex-usb` owns the command
 station's serial device and serves it on a TCP port; it is an app by the same
 rule as the rest — its own container, on the machine the device is plugged
-into — and it is the one that meets neither the bus nor the store, having no
-contract of ours to speak (docs/dccex_usb/README.md). `dccex` is the first
+into — and it meets the store not at all and the bus in one place only: it
+answers the gesture to write a released firmware build onto the station,
+which no other process can do while it holds the device
+([ADR-0065](adr/0065-the-app-that-owns-the-device-flashes-it.md),
+docs/dccex_usb/README.md). `dccex` is the first
 **translator**: it subscribes to the device vocabulary, turns it into the
 command station's own language over that port, and publishes back the supply
 and its own link (docs/dccex/README.md). Zero, one or more translators run,
@@ -158,8 +161,12 @@ src/tc49/
                             mirrored on a TCP port: every byte fanned out to
                             every client, a client's bytes written whole
                 framing.py  frame() — bytes in, whole `<…>` messages out
-                __main__.py `python -m tc49.dccex_usb --device … --port …`,
-                            the command line deploy/app.Dockerfile runs
+                firmware.py Flasher — the one gesture this app answers: a
+                            released build fetched, checked and written to the
+                            station, the device let go for it (ADR-0065)
+                __main__.py `python -m tc49.dccex_usb --broker … --device …
+                            --port …`, the command line
+                            deploy/app.Dockerfile runs
   dccex/        translator.py  the translator between the device vocabulary
                                and the command station: the desired state out
                                over one connection to `dccex-usb`, the supply
@@ -309,7 +316,7 @@ tests/
   layout/      test_align  test_move  test_aspects  test_power  test_reading
                test_occupancy  test_traction  test_mode  test_throttle
                test_railroad  test_main
-  dccex_usb/   test_framing  test_station
+  dccex_usb/   test_framing  test_station  test_firmware
   dccex/       test_commands  test_replies  test_translator  test_main
   system/      test_skeleton  test_properties  test_safety_conditions
                test_app_boundaries  test_cold_start  test_reload
