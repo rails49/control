@@ -24,7 +24,7 @@ import pytest
 
 from tc49.dccex_usb.__main__ import mirroring
 from tc49.dccex_usb.firmware import Flasher
-from tc49.dccex_usb.station import Station
+from tc49.dccex_usb.station import HOST, Station
 from tc49.lib.bus import Bus, InProcessBus
 from tc49.lib.clock import Clock
 from tests.brokers import free_port
@@ -171,10 +171,24 @@ def test_a_flash_in_flight_is_waited_out_before_the_mirror_is_cancelled() -> Non
 def test_a_port_already_in_use_exits_non_zero() -> None:
     """The whole of it as the container runs it. What the box does with the
     exit is the deploy's business; what this app owes it is a process that is
-    gone and a reason on stderr (ADR-0050)."""
+    gone and a reason on stderr (ADR-0050).
+
+    The port is held on `HOST` and not on loopback, which is what the app asks
+    for: asyncio binds with `SO_REUSEADDR`, and BSD lets a wildcard bind walk
+    past a socket on `127.0.0.1` when it is set — so on a Mac the mirror came
+    up beside the holder and this test waited out its timeout instead.
+    """
     with socket.socket() as taken:
-        taken.bind(("127.0.0.1", 0))
+        taken.bind((HOST, 0))
         taken.listen()
+        port = int(taken.getsockname()[1])
+        with socket.socket() as probe:
+            # The holder really holds it, asked the way the app asks. A
+            # platform that answered otherwise would leave the mirror up and
+            # this test waiting on a process that is not going to end.
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            with pytest.raises(OSError):
+                probe.bind((HOST, port))
         ran = subprocess.run(
             [
                 sys.executable,
@@ -185,7 +199,7 @@ def test_a_port_already_in_use_exits_non_zero() -> None:
                 "--device",
                 DEVICE,
                 "--port",
-                str(taken.getsockname()[1]),
+                str(port),
             ],
             capture_output=True,
             text=True,
