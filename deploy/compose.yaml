@@ -270,14 +270,36 @@ services:
   # by what it talks to, so it comes up with the rest of the hardware and not
   # with the software — and it takes no railroad and no store, hardware
   # needing no layout (ADR-0059, decision 5).
+  #
+  # `--startup` is this installation's per-district trip currents (#217), the
+  # one hardware fact that reaches no bus topic and no document. Passed here
+  # because for as long as nothing passed it the values reached the station by
+  # not existing: the flag was whole, documented and connected to nothing
+  # (#523).
+  #
+  # The **file**, not `/etc/tc49`, which also holds `deploy.env` — this box's
+  # one on-disk secret (docs/DEPLOY.md) — and a directory mount would put that
+  # inside the translator's container. So the lesson of the route mount above
+  # (#353) is deliberately not taken here, and the inode a single-file mount
+  # binds is what it costs: an editor that replaces the file rather than
+  # writing through it leaves this container reading the values it was
+  # created with, so the file is edited in place and a container that has
+  # lost it is recreated (docs/DEPLOY.md). `scripts/deploy.sh` makes
+  # the file before compose runs, because a missing source is made by the
+  # daemon as a root-owned directory (#387) and the translator would then open
+  # a directory as its startup file. An empty one is an ordinary state: a
+  # railroad with no file powers on at the firmware's own limits (ADR-0050).
   dccex:
     build: *app
     profiles: [hardware]
     restart: unless-stopped
+    volumes:
+      - /etc/tc49/dccex-startup.txt:/etc/tc49/dccex-startup.txt:ro
     command:
       ["python", "-m", "tc49.dccex",
        "--broker", "broker:1883",
-       "--station", "${TC49_STATION:-dccex-usb:2560}"]
+       "--station", "${TC49_STATION:-dccex-usb:2560}",
+       "--startup", "/etc/tc49/dccex-startup.txt"]
 
   # JMRI, a third-party GUI appliance and none of this app's business: an
   # operator's DecoderPro and panel tool, reaching the same command station as a
