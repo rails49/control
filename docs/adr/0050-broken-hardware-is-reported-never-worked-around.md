@@ -1,5 +1,7 @@
 # Broken hardware is reported, never worked around
 
+**Amended by [ADR-0066](0066-the-link-is-the-station-answering-not-the-socket-being-open.md), 2026-09-19:** the illustration under *Where the repo already does this* — a client staying connected while the device is away — no longer holds. An outage that outlasts the mirror's grace now disconnects every client on the port, because a client cannot tell an away device from a quiet one and the socket closing is the only way to say so. The drop is unchanged, and so is the ruling: it is the working-around that is gone, not the reporting.
+
 Resolves [#280](https://github.com/rails49/control/issues/280). Two findings
 in the batch review of [#273](https://github.com/rails49/control/issues/273)
 turned out to be one defect wearing different clothes:
@@ -82,9 +84,10 @@ The rule is not new behaviour. It is the argument that four existing
 decisions were made by, none of which could cite it.
 
 **A command is honored now or ignored.** While the device is away, what a
-client sends the station is dropped and the client stays connected; a queue
-that flushes on reconnect is a train that moves minutes after someone asked
-for it, which is why the broker keeps nothing across a restart either
+client sends the station is dropped, and the client is let go once the outage
+outlasts the grace; a queue that flushes on reconnect is a train that moves
+minutes after someone asked for it, which is why the broker keeps nothing
+across a restart either
 ([docs/dccex_usb/README.md](../dccex_usb/README.md),
 [#219](https://github.com/rails49/control/issues/219),
 [#202](https://github.com/rails49/control/issues/202)). The drop *is* the
