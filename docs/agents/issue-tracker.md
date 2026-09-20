@@ -71,12 +71,22 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 
 ### Live maps
 
-- [Milestone 2 map: connect hardware and run trains](https://github.com/rails49/control/issues/193)
-  — the way to `docs/MILESTONE-2.md`: a physical binding of the layout
-  interface, a driver that turns an aspect into a speed, stock a real railroad
-  has, a scheduler that runs trains unattended, and a person's throttle.
+- [UI map: how rails49's browser surfaces are organized](https://github.com/rails49/.github/issues/1)
+  — **in `rails49/.github`, not this repository.** Read every call above with
+  `rails49/control` replaced by `rails49/.github` for that map and its children.
+  It is org-wide rather than this repository's because `control` is one of four
+  browser surfaces and no decision about them may re-center it: whether a new
+  thing is a UI of its own or a view of an existing one, what one system is
+  binding on, where shared UI code lives, what serves each UI and how a person
+  reaches it, and where the bus contract lives now that `docs/SYSTEM.md` names
+  publishers in repositories that hold no copy of it.
 
 ### Completed maps
 
+- [Milestone 2 map: connect hardware and run trains](https://github.com/rails49/control/issues/193)
+  — the way to `docs/MILESTONE-2.md`: a physical binding of the layout
+  interface, a driver that turns an aspect into a speed, stock a real railroad
+  has, a scheduler that runs trains unattended, and a person's throttle. Closed
+  on 2026-09-03 to clear the tracker rather than at the end of the way.
 - [System organization map](https://github.com/rails49/control/issues/13) — the way to `docs/SYSTEM.md`: component decomposition (asset store, scheduler, dispatcher, driver, layout interface) and the bus/CRUD contracts between them. Reached; the spec is `docs/SYSTEM.md` with ADRs 0008–0010.
 - [Milestone 1 spec map](https://github.com/rails49/control/issues/1) — the way to a buildable spec for the simulator, dispatcher, and benchmark harness. Reached; the spec is `docs/`.
