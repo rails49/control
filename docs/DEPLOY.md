@@ -108,7 +108,7 @@ secret on its disk beyond `deploy.env`. `scripts/deploy.sh` exports
 reading the rest of the deploy as the answer.
 
 Clone with that URL, and a box that was cloned with another one still deploys:
-`scripts/pin-origin.sh` sets the remote on every run, and prints the URL it
+`scripts/deploy.sh` sets the remote before every pull, and prints the URL it
 replaced when it replaced one. Which remote a box pulls from is state outside
 the checkout — a line in `.git/config` on that one machine — and it took the
 deploy down on 2026-09-20, when the box's ssh remote met a key GitHub no longer
@@ -116,9 +116,17 @@ accepted ([#541](https://github.com/rails49/control/issues/541)). It is the
 same fault as the ssh alias, and gets the same answer: the deploy depends on
 nothing that is not in this checkout.
 
+The deploy carries that line itself rather than calling a script under
+`scripts/`, the way it calls `store-root.sh` below. It runs before the pull,
+and what is under `scripts/` on the box is whatever the box last pulled —
+which on a box that cannot pull is nothing
+([#543](https://github.com/rails49/control/issues/543)).
+
 ```
 ssh rails49
-cd ~/control && scripts/pin-origin.sh && git pull
+cd ~/control
+git remote set-url origin https://github.com/rails49/control.git
+git pull
 pnpm --dir ui build
 mkdir -p "$(scripts/store-root.sh /etc/tc49/deploy.env)"
 [ -f /etc/tc49/dccex-startup.txt ] ||
