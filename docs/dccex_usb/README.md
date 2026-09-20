@@ -109,8 +109,11 @@ inferred anywhere
 ([ADR-0066](../adr/0066-the-link-is-the-station-answering-not-the-socket-being-open.md)).
 An outage the first reopen recovers is invisible to clients as it always was,
 which is what the grace is for — a USB blip, not a flash — and a client that
-connects to an away device is served the outage and gets a grace of its own
-rather than the remainder of somebody else's. Falling too far behind is a
+connects to an away device is served the outage itself, its bytes dropped
+because a command is honored now or ignored. The grace is the outage's and
+not each client's, so one that arrives while an outage is being waited out
+leaves with the clients already on it, and one that arrives after they are
+gone starts the next grace and gets all of it. Falling too far behind is a
 different reason to disconnect and keeps its own rule.
 
 Every way the device can fail to be there is the same outage: a path that is
