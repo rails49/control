@@ -88,11 +88,12 @@ answering and not the socket being open: the poll goes on asking for as long
 as the link lasts, and ten intervals of silence lower the row where the
 connection underneath is still there — a station switched off behind a mirror
 that holds its clients, a pulled cable, a wedged one. An answer afterwards
-raises it again, and nothing is torn down for it (ADR-0066). That is where the physical link becomes visible at runtime, which is
-where verifying it belongs — not in a gate that would need a powered layout
-to pass. The same words go on `device/track` as its `reason` while the
-station is unreachable, so a person reading why the railroad is dark reads it
-off the supply itself rather than off a second row (ADR-0059).
+raises it again, and nothing is torn down for it (ADR-0066). That is where
+the physical link becomes visible at runtime, which is where verifying it
+belongs — not in a gate that would need a powered layout to pass. The same
+words go on `device/track` as its `reason` while the station is unreachable,
+so a person reading why the railroad is dark reads it off the supply itself
+rather than off a second row (ADR-0059).
 
 **The row also says which build answered**, where the station's banner names
 one: `build` is the identifier alone, read out of the line the poll asks for

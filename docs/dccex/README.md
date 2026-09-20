@@ -193,8 +193,8 @@ power, so `device/track` telling the truth does not depend on a person
 noticing — and ten of those questions going unanswered is what says the
 station has stopped answering at all, below. Nothing else goes in the poll. A
 poll runs for as long as the link does, so a command in it that a station acts
-on rather than answers is acted on for as long as the railroad is up, and a station says nothing about a
-command it does not know.
+on rather than answers is acted on for as long as the railroad is up, and a
+station says nothing about a command it does not know.
 
 ## What it publishes back
 
