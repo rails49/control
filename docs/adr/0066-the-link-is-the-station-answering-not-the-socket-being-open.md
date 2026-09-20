@@ -106,7 +106,9 @@ does not add a second guard, and the responder still knows nothing about runs.
    whatever the reason.
 2. `dccex-usb` disconnects its TCP clients once the serial device has been away
    for two failed reopens, rather than holding them open and dropping bytes for
-   the whole outage.
+   the whole outage. The two reopens are the outage's, not each client's: a
+   client that connects while an outage is already being waited out is
+   disconnected with the rest of them, however briefly it has been there.
 3. `dccex` publishes `device/link: down` when the station has not answered the
    `<s>` poll for ten poll intervals.
 4. Neither app learns what the other is doing. The mirror reports a device it

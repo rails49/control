@@ -404,9 +404,9 @@ def test_what_a_client_sends_while_the_device_is_away_is_dropped(
     """The device appears only after the client has spoken, and hears nothing of it.
 
     The client here connects to an outage already past its grace, whose
-    clients are gone: what it meets is the outage itself — its bytes dropped
-    because a command is honored now or ignored — and not the timer that was
-    already running, which was somebody else's.
+    clients are gone, so the grace it meets is the one its own arrival starts.
+    What it meets meanwhile is the outage itself: its bytes dropped, because a
+    command is honored now or ignored.
     """
 
     async def scenario() -> None:
@@ -590,6 +590,9 @@ def test_a_device_away_past_the_grace_disconnects_every_client(
     an outage is a translator publishing `device/link: up` over a railroad
     that cannot move. The socket closing is the whole signal: the translator's
     session ends the way it already ends and the row goes `down` (ADR-0066).
+
+    Both clients here are on the outage before its grace begins, and both
+    leave on the one deadline: the grace is the outage's, not each client's.
     """
 
     async def scenario() -> None:

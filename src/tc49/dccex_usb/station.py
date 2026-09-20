@@ -40,9 +40,11 @@ tell it: the socket closing is the whole signal, and it is the one that ends
 the translator's session and lowers `device/link` (ADR-0066). So a device
 still away two reopens in has every connected client disconnected. Inside
 the grace nothing changes — a blip the first reopen recovers costs no
-throttle a reconnect, which is what the grace is for — and each client is
-given a grace of its own, so one connecting into an outage meets the outage
-rather than the remainder of somebody else's.
+throttle a reconnect, which is what the grace is for. The grace is the
+outage's and not each client's: one that connects while an outage is being
+waited out leaves with the rest, however briefly it has been there, and one
+that connects after an outage has already taken its clients starts the next
+grace and gets all of it.
 
 There is no client limit beyond the OS's and no authentication: the LAN is
 the trust boundary (ADR-0042), and the port is published to it by the
@@ -297,10 +299,12 @@ class Station:
     def _start_grace(self) -> None:
         """Run the grace, where the device is away and there is a client on it.
 
-        Started where the device goes away and again where a client arrives
-        to one that already is, so what a client gets is a grace of its own
-        rather than the remainder of one that was already running. Nothing
-        starts for an outage nobody is connected to: what the grace ends is
+        Started where the device goes away, and again where a client arrives
+        to an outage with no grace running — the first client into one, or
+        the first after a grace has already taken its clients. A client that
+        arrives while one is running joins it and leaves on its deadline: the
+        grace is the outage's, not the client's (ADR-0066). Nothing starts
+        for an outage nobody is connected to: what the grace ends is
         connections, and there are none to end.
         """
         if self._grace is not None or self._fd is not None or not self._clients:
