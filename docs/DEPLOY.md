@@ -100,15 +100,25 @@ the layout changes, while this page is how this project's own stack is run.
 Splitting it would leave a general page nobody can follow beside a private one
 nobody reviews.
 
-The clone pulls over ssh — `git@github.com:rails49/control.git` — with the key
-that is already on the box. The repository is public, so HTTPS needs no
-credential for it, but GitHub challenges the second request of an anonymous
-fetch often enough that an unattended pull stops to ask for a username. Over
-ssh there is nothing to ask.
+**The box pulls over HTTPS — `https://github.com/rails49/control.git`.** The
+repository is public, so an anonymous fetch needs no credential: nothing is
+registered on GitHub for this box, there is no key to rotate, and there is no
+secret on its disk beyond `deploy.env`. `scripts/deploy.sh` exports
+`GIT_TERMINAL_PROMPT=0`, so a request for a username fails loudly rather than
+reading the rest of the deploy as the answer.
+
+Clone with that URL, and a box that was cloned with another one still deploys:
+`scripts/pin-origin.sh` sets the remote on every run, and prints the URL it
+replaced when it replaced one. Which remote a box pulls from is state outside
+the checkout — a line in `.git/config` on that one machine — and it took the
+deploy down on 2026-09-20, when the box's ssh remote met a key GitHub no longer
+accepted ([#541](https://github.com/rails49/control/issues/541)). It is the
+same fault as the ssh alias, and gets the same answer: the deploy depends on
+nothing that is not in this checkout.
 
 ```
 ssh rails49
-cd ~/control && git pull
+cd ~/control && scripts/pin-origin.sh && git pull
 pnpm --dir ui build
 mkdir -p "$(scripts/store-root.sh /etc/tc49/deploy.env)"
 [ -f /etc/tc49/dccex-startup.txt ] ||
