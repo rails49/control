@@ -31,7 +31,24 @@ cd ~/control
 # that the deploy depends on and cannot see. A box whose remote had an ssh URL
 # GitHub no longer had a key for stopped the deploy before it did anything
 # (#541), so the deploy sets it rather than trusting it.
-scripts/pin-origin.sh
+#
+# HTTPS, because the repository is public: nothing to register, no key to
+# rotate, and no credential on the box. The prompt is off above, so a challenge
+# fails rather than stalls.
+#
+# Written out here rather than kept in a script under `scripts/`, which is
+# where `store-root.sh` belongs. This runs *before* the pull, and everything
+# under `scripts/` on that box is whatever it last pulled — on the box this
+# rescues, which cannot pull at all, a script would never arrive (#543). These
+# lines come from the dev box's checkout with the rest of the heredoc.
+ORIGIN=https://github.com/rails49/control.git
+was=$(git remote get-url origin)
+if [ "$was" != "$ORIGIN" ]; then
+  # Only when it changed one: a box that drifted leaves the old URL in the
+  # deploy log, and a box that was right says nothing.
+  echo "origin was $was; pulling from $ORIGIN" >&2
+  git remote set-url origin "$ORIGIN"
+fi
 git pull
 pnpm --dir ui build
 # Where the deploy settings of this box sit, read by compose below and by the
