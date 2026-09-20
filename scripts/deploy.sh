@@ -26,6 +26,12 @@ set -euo pipefail
 # read the rest of the script as the answer. Fail instead.
 export GIT_TERMINAL_PROMPT=0
 cd ~/control
+# Which repository this box pulls from is state outside the checkout, the way
+# the ssh alias was before #496: a line in `.git/config` on this one machine
+# that the deploy depends on and cannot see. A box whose remote had an ssh URL
+# GitHub no longer had a key for stopped the deploy before it did anything
+# (#541), so the deploy sets it rather than trusting it.
+scripts/pin-origin.sh
 git pull
 pnpm --dir ui build
 # Where the deploy settings of this box sit, read by compose below and by the
