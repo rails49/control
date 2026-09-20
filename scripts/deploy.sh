@@ -60,9 +60,12 @@ DCCEX_STARTUP=/etc/tc49/dccex-startup.txt
 # success — nothing to see, the translator still opening a directory as its
 # startup file, and the next deploy printing this line again (#529). `rm -rf`
 # and not `rmdir`, because a run of that old advice left the `null` behind.
-# Removing is safe because the message is printed only where no regular file
-# is at the path: nobody's trip currents are there to lose.
-remedy="sudo rm -rf $DCCEX_STARTUP && sudo install -m 644 /dev/null $DCCEX_STARTUP"
+# The guard goes with it. Nothing is at the path at the moment this is
+# printed, but the line is run whenever the operator gets to it — pasted out
+# of a deploy log an hour later, after a colleague made the file — and
+# unguarded `rm -rf` would take this installation's trip currents with it
+# (#536). It also makes this line and the page's literally the same.
+remedy="[ -f $DCCEX_STARTUP ] || { sudo rm -rf $DCCEX_STARTUP && sudo install -m 644 /dev/null $DCCEX_STARTUP; }"
 if [ ! -f "$DCCEX_STARTUP" ]; then
   touch "$DCCEX_STARTUP" 2>/dev/null || true
 fi

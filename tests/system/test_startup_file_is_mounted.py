@@ -189,9 +189,18 @@ def test_the_page_gives_the_command_the_deploy_prints() -> None:
     assert collapsed(remedy()) in collapsed(PAGE), remedy()
 
 
-def test_the_page_guards_the_remedy_against_a_file_that_is_there() -> None:
-    """The block on that page is the by-hand sequence of `deploy.sh`, which
-    prints the remedy only where no regular file is at the path. Run
-    unguarded on a box that has one, `rm -rf` would take this installation's
-    trip currents with it."""
-    assert f"[ -f {FILE} ] || {{ {remedy()}; }}" in collapsed(PAGE)
+def test_the_remedy_is_guarded_against_a_file_that_is_there() -> None:
+    """The line is printed where no regular file is at the path and run
+    whenever the operator gets to it, which can be out of a deploy log an
+    hour after a colleague made the file. Unguarded, `rm -rf` would take this
+    installation's trip currents with it (#536)."""
+    assert remedy().startswith(f"[ -f {FILE} ] ||")
+
+
+def test_the_remedy_leaves_a_file_that_is_there_alone(tmp_path: Path) -> None:
+    """What the guard is for, run rather than read: the trip currents an
+    operator edited on the box survive the advised command."""
+    theirs = tmp_path / "dccex-startup.txt"
+    theirs.write_text("<JA 1 2000>\n")
+    run_remedy(tmp_path)
+    assert theirs.read_text() == "<JA 1 2000>\n"
