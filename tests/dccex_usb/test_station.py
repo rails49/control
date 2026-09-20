@@ -108,6 +108,10 @@ PATIENT_BACKOFF_S = 0.2
 has to speak to an away device before its clients are dropped asks for this
 one and still finishes in under a second."""
 
+PATIENT_GRACE_S = 2 * PATIENT_BACKOFF_S
+"""The grace at that backoff: two reopens of it, which is what GRACE_REOPENS
+counts."""
+
 
 def station(device: str, log: Log, *, backoff_s: float = QUICK_BACKOFF_S) -> Station:
     """A station on an OS-chosen port, with outages measured in milliseconds.
@@ -608,6 +612,46 @@ def test_a_device_away_past_the_grace_disconnects_every_client(
             assert await asyncio.wait_for(two.read(READ_SIZE), TIMEOUT_S) == b""
 
             await log.wait_for_count("client disconnected", 2)
+            first.close()
+            second.close()
+        finally:
+            await app.close()
+
+    asyncio.run(scenario())
+
+
+def test_a_client_arriving_into_a_running_grace_leaves_with_it(
+    tmp_path: Path,
+) -> None:
+    """The grace is the outage's, not each client's (ADR-0066).
+
+    The late client here arrives half a grace into one already being waited
+    out, and is disconnected on that deadline rather than on one of its own:
+    it lives the remainder. A grace per client would keep it a full one past
+    its arrival, which is what the margin below separates.
+    """
+
+    async def scenario() -> None:
+        log = Log()
+        absent = tmp_path / "dccex"
+        app = station(str(absent), log, backoff_s=PATIENT_BACKOFF_S)
+        await app.start()
+        try:
+            early, first = await connect(app)
+            # The grace starts where this line is said, so the sleep under it
+            # is measured from the grace and not from the connect.
+            await log.wait_for("client connected")
+            await asyncio.sleep(PATIENT_GRACE_S / 2)
+
+            late, second = await connect(app)
+            joined = time.monotonic()
+
+            assert await asyncio.wait_for(late.read(READ_SIZE), TIMEOUT_S) == b""
+            assert await asyncio.wait_for(early.read(READ_SIZE), TIMEOUT_S) == b""
+            await log.wait_for_count("client disconnected", 2)
+
+            lived = max(log.said("client disconnected")) - joined
+            assert lived < 0.75 * PATIENT_GRACE_S, lived
             first.close()
             second.close()
         finally:
