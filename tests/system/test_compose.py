@@ -35,12 +35,14 @@ FACE = ("tc49", "serve")
 """The one app started by name rather than by module: the store's face is a
 subcommand of the `tc49` script, which is what a wheel installs (ADR-0014)."""
 
-HARDWARE = frozenset({"dccex-usb", "dccex", "jmri"})
+HARDWARE = frozenset({"dccex-usb", "dccex"})
 """The services that exist because of what is wired to a box: the mirror that
-owns the command station's device, the translator that speaks to it, and the
-third-party appliance an operator clicks (ADR-0043). Named here because
-hardware is a fact about a machine rather than something readable off a
-command line — what they have in common is a cable, not a flag."""
+owns the command station's device and the translator that speaks to it
+(ADR-0043). Named here because hardware is a fact about a machine rather than
+something readable off a command line — what they have in common is a cable,
+not a flag. JMRI was a third of this list until #557: an operator's tool with
+a compose project of its own, and none of this repository's business
+(rails49/installation ADR-0002)."""
 
 PROFILE = "hardware"
 

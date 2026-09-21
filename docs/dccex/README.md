@@ -69,7 +69,7 @@ hardware-level fact that reaches no bus topic
 learns there are four of them, or any.
 
 ```
-# /etc/tc49/dccex-startup.txt — trip currents for the four districts
+# /etc/rails49/dccex-startup.txt — trip currents for the four districts
 <= A LIMIT 3000>
 <= B LIMIT 3000>
 <= C LIMIT 1500>
@@ -85,7 +85,7 @@ flashing it are a separate project and not this repository's work
 Until it lands the values are compiled into the station instead, which is a
 reflash to change one and the reason for wanting the command at all.
 
-**On the layout box the file is `/etc/tc49/dccex-startup.txt`**, mounted
+**On the layout box the file is `/etc/rails49/dccex-startup.txt`**, mounted
 read-only into this app's container and named on the command line the service
 runs ([../DEPLOY.md](../DEPLOY.md#the-command-station),
 [#523](https://github.com/rails49/control/issues/523)). The deploy makes an
@@ -327,7 +327,7 @@ The app is also constructed on the bus directly, with where the station is
 served:
 
 ```python
-DccEx(bus, "dccex-usb", 2560, startup=Path("/etc/tc49/dccex-startup.txt"))
+DccEx(bus, "dccex-usb", 2560, startup=Path("/etc/rails49/dccex-startup.txt"))
 ```
 
 That is what `--startup` on this app's own command line does, and what the
@@ -371,7 +371,7 @@ reports it is `device/link`.
 With the railroad powered and a locomotive on address 3 standing on the main:
 
 ```
-$ nc layout.rails49.org 2560
+$ nc gleis49.org 2560
 <s>
 <iDCC-EX V-5.4.16 / ESP32 / EXCSB1_WITH_EX8874 G-devel-202504182148Z>
 <p1 A>

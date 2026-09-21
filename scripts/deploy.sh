@@ -14,13 +14,18 @@
 # host here means the deploy depends on nothing outside this checkout. `ssh
 # rails49` stays what you type by hand (docs/DEPLOY.md).
 #
+# The box is `gleis49.org`, which is the name it is declared under and reached
+# at now that the door is the installation's (#557). This UI is a label under
+# that name, `control.gleis49.org`, and ssh goes to the box rather than to the
+# label.
+#
 # A login shell, so pnpm is on PATH the way it is when you log in. The strict
 # options are set inside it rather than as `bash -leu`, because
 # /etc/profile.d/apps-bin-path.sh reads XDG_DATA_DIRS unset and would stop the
 # deploy before it began.
 set -euo pipefail
 
-ssh ttmetro@layout.rails49.org bash -l -s <<'REMOTE'
+ssh ttmetro@gleis49.org bash -l -s <<'REMOTE'
 set -euo pipefail
 # The heredoc is this shell's stdin, so a prompt for a git credential would
 # read the rest of the script as the answer. Fail instead.
@@ -51,10 +56,15 @@ if [ "$was" != "$ORIGIN" ]; then
 fi
 git pull
 pnpm --dir ui build
-# Where the deploy settings of this box sit, read by compose below and by the
-# script above it, so the two cannot come to different answers about the same
-# variable (#442).
-DEPLOY_ENV=/etc/tc49/deploy.env
+# The two files this box is started against, neither of them in this clone.
+# `box.env` is the box's declaration of itself, which every stack on the box
+# reads, and is where the name in the routers' labels comes from; `deploy.env`
+# is this stack's own settings, read by compose below and by the script above
+# it, so the two cannot come to different answers about the same variable
+# (#442). Both sit in the installation's directory, so the box has one rather
+# than two (#557).
+BOX_ENV=/etc/rails49/box.env
+DEPLOY_ENV=/etc/rails49/deploy.env
 # The store's directory, made here rather than left to Docker. A bind mount
 # whose source is missing is created by the daemon as root, and the person is
 # then shut out of their own documents: no editing, no `git init`, no putting
@@ -68,13 +78,14 @@ mkdir -p "$(scripts/store-root.sh "$DEPLOY_ENV")"
 # values in it are edited on the box, and the deploy that truncated them would
 # move every district to the firmware's default without saying so.
 #
-# `/etc/tc49` is root's, holding the secret above, so this account may not be
-# able to make a file in it. A deploy that stopped there would take the whole
-# railroad down over a file that is allowed to be empty — a railroad with none
-# powers on at the firmware's own limits (ADR-0050) — so it says what to run
-# by hand and goes on. The second test catches a directory the daemon made
-# there before this line existed, which `touch` updates rather than replaces.
-DCCEX_STARTUP=/etc/tc49/dccex-startup.txt
+# `/etc/rails49` is root's, holding the box's declaration and the door's
+# credential, so this account may not be able to make a file in it. A deploy
+# that stopped there would take the whole railroad down over a file that is
+# allowed to be empty — a railroad with none powers on at the firmware's own
+# limits (ADR-0050) — so it says what to run by hand and goes on. The second
+# test catches a directory the daemon made there before this line existed,
+# which `touch` updates rather than replaces.
+DCCEX_STARTUP=/etc/rails49/dccex-startup.txt
 # What that second test advises, built here so docs/DEPLOY.md can give the
 # same line and tests/system/test_startup_file_is_mounted.py can hold the two
 # together. It removes what is at the path before making the file: `install`
@@ -110,8 +121,10 @@ export TC49_UID TC49_GID
 # Two profiles: `layout` is the software of a running railroad — the store,
 # the built ui and the four apps — and `hardware` is what this box owns
 # because of what is plugged into it (ADR-0059, decision 5). A box with no
-# command station on it asks for the first alone.
-TC49_SITE=layout docker compose --env-file "$DEPLOY_ENV" \
+# command station on it asks for the first alone. JMRI is neither: it is an
+# operator's tool with a compose project of its own, started once by hand from
+# the installation's checkout (rails49/installation ADR-0002).
+docker compose --env-file "$BOX_ENV" --env-file "$DEPLOY_ENV" \
   -f deploy/compose.yaml --profile layout --profile hardware \
   up -d --build --remove-orphans
 REMOTE

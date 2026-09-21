@@ -10,12 +10,12 @@ So the three lines that connect it are checked together, the way the store's
 three are (`test_store_is_the_persons.py`): the flag, the mount that puts the
 file behind it, and the deploy making the file before compose can.
 
-The mount is the **file** and not `/etc/tc49`. That directory holds
-`deploy.env`, this box's one on-disk secret (docs/DEPLOY.md), and a directory
-mount would put it inside the translator's container — so this is the one
-place where the lesson of the route mount (#353, `test_route_mount.py`) is
-deliberately not followed, and the inode a single-file mount binds is the
-price.
+The mount is the **file** and not `/etc/rails49`. That directory holds
+`acme.env`, the credential the box's certificate is renewed with and the one
+thing on it the door alone may read (docs/DEPLOY.md), and a directory mount
+would put it inside the translator's container. The inode a single-file mount
+binds is what that costs: an editor that replaces the file rather than writing
+through it leaves the container reading the values it started with (#353).
 """
 
 import re
@@ -34,13 +34,14 @@ COMPOSE: dict[str, Any] = yaml.safe_load((ROOT / "deploy/compose.yaml").read_tex
 DEPLOY = (ROOT / "scripts/deploy.sh").read_text()
 PAGE = (ROOT / "docs/DEPLOY.md").read_text()
 
-FILE = "/etc/tc49/dccex-startup.txt"
+FILE = "/etc/rails49/dccex-startup.txt"
 """Where this box keeps it, on the host and in the container alike. One path
 in both halves of the mount, because a person reading a container's command
 line is then reading the path they would edit."""
 
-SECRETS = "/etc/tc49"
-"""The directory it sits in, which is not mountable: `deploy.env` is in it."""
+SECRETS = "/etc/rails49"
+"""The directory it sits in, which is not mountable: the box's declaration and
+the door's credential are in it (#557)."""
 
 
 def translator() -> dict[str, Any]:
@@ -77,13 +78,13 @@ def test_the_file_the_flag_names_is_mounted() -> None:
 
 
 def test_the_mount_is_the_file_and_not_the_directory_holding_the_secret() -> None:
-    """`/etc/tc49/deploy.env` is root:docker 640 and the one secret on this
+    """`/etc/rails49/acme.env` is root:docker 640 and the one secret on this
     box's disk. Mounting the directory to reach one file in it would hand the
     translator the other."""
     sources = [m.split(":")[0] for m in mounts()]
     assert (
         SECRETS not in sources
-    ), f"{SECRETS} holds deploy.env; mount the startup file itself"
+    ), f"{SECRETS} holds acme.env; mount the startup file itself"
     assert FILE in sources
 
 
@@ -113,11 +114,11 @@ def test_the_deploy_does_not_write_over_a_file_that_is_there() -> None:
 
 
 def test_a_file_the_deploy_could_not_make_does_not_stop_it() -> None:
-    """`/etc/tc49` is root's, and this account may not be able to make a file
-    in it. An empty startup file is an ordinary state and the railroad powers
-    on without one (ADR-0050), so stopping here would take the whole box down
-    over a file that is allowed to be missing — it says what to run by hand
-    instead."""
+    """`/etc/rails49` is root's, and this account may not be able to make a
+    file in it. An empty startup file is an ordinary state and the railroad
+    powers on without one (ADR-0050), so stopping here would take the whole box
+    down over a file that is allowed to be missing — it says what to run by
+    hand instead."""
     assert 'touch "$DCCEX_STARTUP" 2>/dev/null || true' in DEPLOY
     assert "'$remedy' is run on the box" in DEPLOY
 
@@ -178,8 +179,8 @@ def test_the_remedy_resolves_the_directory_it_is_printed_for(tmp_path: Path) -> 
 
 @linux_only
 def test_the_remedy_makes_the_file_where_there_is_nothing(tmp_path: Path) -> None:
-    """The other state the message is printed in: `/etc/tc49` is root's, the
-    `touch` before it was refused, and nothing is at the path at all."""
+    """The other state the message is printed in: `/etc/rails49` is root's,
+    the `touch` before it was refused, and nothing is at the path at all."""
     a_made_startup_file(run_remedy(tmp_path))
 
 

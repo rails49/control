@@ -33,8 +33,8 @@ view.
 which is worth having because vite holds 5173 strictly: a second `pnpm dev`
 fails rather than moving to 5174, leaving an open tab talking to a server that
 has gone. The page is reached as `localhost`; every server the script starts
-binds each interface, because the reverse proxy that serves
-`dev.rails49.org` reaches them from a container (../docs/DEPLOY.md).
+binds each interface, because a container cannot reach a macOS host's loopback
+and a door running beside them would have nothing to dial (../docs/DEPLOY.md).
 
 It also brings up the broker the run view is a client of — mosquitto in a
 container of its own, `1883` for native clients and `9001` for the browser,

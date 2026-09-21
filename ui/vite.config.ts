@@ -15,18 +15,19 @@ export default defineConfig({
     // the tab already open on 5173 keeps fetching its own origin, and when the
     // first server goes away every call there dies as `Failed to fetch`.
     strictPort: true,
-    // Every interface, not just loopback: the reverse proxy that serves
-    // `dev.rails49.org` runs in a container and reaches the host by address
-    // (docs/DEPLOY.md). Vite refuses a request whose `Host` header it has not
-    // been told about, so the name is named.
+    // Every interface, not just loopback: a container beside this one — a
+    // door, a browser on the LAN — reaches the host by address and not
+    // through its loopback (docs/DEPLOY.md). Vite refuses a request whose
+    // `Host` header it has not been told about, and allows `localhost` and a
+    // bare address without being told, so only a name is named here.
     host: true,
     allowedHosts: ["dev.rails49.org"],
     // `changeOrigin: false` on every store route, which the string shorthand
     // does not give: vite turns `"/x": "http://…"` into `changeOrigin: true`
     // and rewrites `Host` to the target, so the store saw the page's origin
-    // against its own address and refused every write (#351). The reverse
-    // proxy in front of a layout server passes the host header through, so
-    // this is what makes development behave the way deployment does.
+    // against its own address and refused every write (#351). The door in
+    // front of a box passes the host header through, so this is what makes
+    // development behave the way deployment does.
     proxy: {
       "/backup": { target: STORE, changeOrigin: false },
       "/drawings": { target: STORE, changeOrigin: false },
@@ -36,8 +37,8 @@ export default defineConfig({
       "/catalogue": { target: STORE, changeOrigin: false },
       // The broker's WebSocket listener under a path of the app's own origin,
       // which is what lets the panel build one URL whether TLS is terminated
-      // in front of it or not. The proxy in front of a layout server strips
-      // the same prefix (docs/DEPLOY.md).
+      // in front of it or not. The door in front of a box strips the same
+      // prefix (docs/DEPLOY.md).
       "/mqtt": {
         target: "ws://127.0.0.1:9001",
         ws: true,
