@@ -20,8 +20,9 @@
 # containers a browser reaches — `web`, `store` and `broker` — carry their own
 # routers as labels, which the installation's door reads off the box; `proxy`
 # below still serves the same routing out of a route file, and reads no label.
-# This is the expand half of an expand–contract pair (#556): a box keeps
-# working through the cutover, and the file goes in the contract half.
+# The routing arrives before the old way leaves (#556), so that a box keeps
+# working through the cutover; the route file goes in the release after this
+# one.
 #
 # The name in every label comes from the box's own declaration,
 # `/etc/rails49/box.env`, by compose substitution — no template is rendered and
@@ -31,10 +32,12 @@
 #   docker compose --env-file /etc/rails49/box.env \
 #     --env-file /etc/tc49/deploy.env -f deploy/compose.yaml up -d
 #
-# A box with no declaration yet gets a blank name and compose says which
-# variable it is. It is left that way rather than made required, because the
-# box this repository deploys today has no declaration and is still served by
-# `proxy`, which ignores the labels; the contract half requires it.
+# That is what a box reached through the door runs, and no box runs it yet:
+# `scripts/deploy.sh` passes the second file alone. So `BOX_DOMAIN` is unset
+# there, compose says which variable it is, and the rules below render a blank
+# name — which nothing reads, the door not being on the box and `proxy`
+# ignoring labels. The variable is optional for that reason, and is made
+# required when the route file goes.
 #
 # One route directory, named by TC49_SITE and `dev` unless it is set, holding
 # that site's `site.yaml` and nothing else. Both files were mounted at first,
@@ -112,6 +115,10 @@ services:
   # installation's door and by nothing in this file: `proxy` below reads a
   # route file and ignores labels entirely, which is what lets both ways be
   # true at once while the box is cut over (#556).
+  #
+  # Every router here names the service it dials and every service names its
+  # port, including this one, where the image exposes 80 and nothing else. The
+  # door would pick that port itself; a reader would have to know it does.
   web:
     image: nginx:alpine
     profiles: [layout]
@@ -121,9 +128,11 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=rails49
+      - traefik.http.services.tc49-app.loadbalancer.server.port=80
       - traefik.http.routers.tc49-app.rule=Host(`control.${BOX_DOMAIN}`)
       - traefik.http.routers.tc49-app.priority=1
       - traefik.http.routers.tc49-app.entrypoints=websecure
+      - traefik.http.routers.tc49-app.service=tc49-app
       - traefik.http.routers.tc49-app.tls.certresolver=le
     networks: [default, rails49]
 
@@ -283,6 +292,7 @@ services:
       - traefik.http.routers.tc49-store.rule=Host(`control.${BOX_DOMAIN}`) && (PathPrefix(`/backup`) || PathPrefix(`/drawings`) || PathPrefix(`/review`) || PathPrefix(`/layouts`) || PathPrefix(`/rosters`) || PathPrefix(`/catalogue`))
       - traefik.http.routers.tc49-store.priority=2
       - traefik.http.routers.tc49-store.entrypoints=websecure
+      - traefik.http.routers.tc49-store.service=tc49-store
       - traefik.http.routers.tc49-store.tls.certresolver=le
     networks: [default, rails49]
 

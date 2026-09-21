@@ -1,10 +1,10 @@
 """`control` declares its own routers as labels on its own containers (#556).
 
-The door in front of everything a browser reaches on a box is the
-installation's, not this repository's, and it reads its routers off container
-labels. So the three containers a browser reaches — the built ui, the store
-and the broker — carry the rules for their own paths, and a UI's paths change
-in the same commit as the UI.
+The door — one reverse proxy per box, in front of everything a browser reaches
+on it — is the installation's now, not this repository's, and it reads its
+routers off container labels. So the three containers a browser reaches — the
+built ui, the store and the broker — carry the rules for their own paths, and
+a UI's paths change in the same commit as the UI.
 
 What a running proxy does with these labels is not checked here: a wrong label
 parses and asserts fine, and only a request on a real box says otherwise. What
@@ -16,10 +16,11 @@ beside the rule it has to beat.
 
 `deploy/routes/*/site.yaml` is still mounted and still serving, and the
 assertions over it in `test_route_mount.py` and
-`test_broker_refuses_a_foreign_origin.py` still hold. This is the expand half
-of an expand–contract pair (#556): both ways exist until the route file goes,
-and `test_the_two_ways_agree_while_both_exist` is what keeps them from
-drifting apart in between.
+`test_broker_refuses_a_foreign_origin.py` still hold. Both ways are live for
+one release, so that a box keeps working while it is cut over, and
+`test_the_two_ways_agree_while_both_exist` is what keeps them from drifting
+apart in between. Why each rule is written the way it is sits where the rules
+are, in `deploy/compose.yaml` and `docs/DEPLOY.md`, and is not repeated here.
 """
 
 import re
@@ -41,11 +42,12 @@ the broker's WebSocket listener. Everything else here talks to the bus rather
 than to browsers, and stays off the shared network — the door has no route to
 any of them."""
 
-LABEL = "control"
-"""What this UI is called under the box's name. The box declares which labels
-it serves; which one is ours is ours to say."""
+UI_LABEL = "control"
+"""What this UI is called under the box's name. A box declares which UIs it
+serves and each is a label under its name; which label is ours is ours to
+say. Not a docker label, which is what the rest of this file reads."""
 
-HOST = f"Host(`{LABEL}.${{BOX_DOMAIN}}`)"
+HOST = f"Host(`{UI_LABEL}.${{BOX_DOMAIN}}`)"
 """Every rule begins with this: the box's own name, by compose substitution
 out of `/etc/rails49/box.env`, so no template is rendered and no file is
 copied."""
@@ -55,9 +57,9 @@ DOMAIN = "gleis49.org"
 patterns below. The file is read as written, with `${BOX_DOMAIN}` still in
 it — what is asserted is that the declaration is where the name comes from."""
 
-FOREIGN = "https://evil.example"
-"""A page somebody's browser visits. Its origin is wherever it is served from,
-which is never the app's own name."""
+WRITTEN_OUT = "rails49.org"
+"""The zone the route file names five times, and the reason naming a box was
+forking this repository. No rule here may spell it."""
 
 ORIGIN = re.compile(r"!Header\(`Origin`, `([^`]+)`\)")
 
@@ -193,7 +195,7 @@ def test_the_hostname_comes_from_the_boxs_declaration(name: str) -> None:
     here is what made naming a box a fork of this repository."""
     said = router(name)["rule"]
     assert said.startswith(HOST), f"{name} does not begin at the box's name"
-    assert "rails49.org" not in said
+    assert WRITTEN_OUT not in said
 
 
 @pytest.mark.parametrize("name", ["app", "store", "mqtt", "mqtt-foreign"])
@@ -203,17 +205,33 @@ def test_every_router_reaches_the_door_over_tls(name: str) -> None:
     assert settings["tls.certresolver"] == "le"
 
 
-def test_the_store_is_reached_at_its_own_port() -> None:
-    """The image publishes nothing, so the door is told which port to dial."""
-    assert (
-        declared("services")[f"{stack()}-store"]["loadbalancer.server.port"] == "8765"
+def test_every_router_names_a_service_and_every_service_its_port() -> None:
+    """Both are defaults a reader would otherwise have to know: the door names
+    a container's service after the container and picks a port off the image,
+    and a container carrying two routers and one service has each of them
+    routed by the same default. Said outright instead, and one of the two
+    containers here does publish two ports."""
+    services_said = declared("services")
+    for name, settings in routers().items():
+        assert settings["service"] in services_said, f"{name} dials nothing named"
+    portless = sorted(
+        name
+        for name, settings in services_said.items()
+        if "loadbalancer.server.port" not in settings
     )
+    assert not portless, f"{portless} leave the port to the image"
 
 
-def test_the_bus_is_reached_at_its_websocket_listener() -> None:
-    """9001 and not 1883: what comes through the door is a browser, and a
-    native client goes straight to the other one."""
-    assert declared("services")[f"{stack()}-mqtt"]["loadbalancer.server.port"] == "9001"
+def test_the_store_and_the_bus_are_reached_where_they_answer() -> None:
+    """9001 and not 1883 for the bus: what comes through the door is a
+    browser, and a native client goes straight to the other one. Both bus
+    routers dial the one service."""
+    ports = {
+        name: settings["loadbalancer.server.port"]
+        for name, settings in declared("services").items()
+    }
+    assert ports[f"{stack()}-store"] == "8765"
+    assert ports[f"{stack()}-mqtt"] == "9001"
     for name in ("mqtt", "mqtt-foreign"):
         assert router(name)["service"] == f"{stack()}-mqtt"
 
@@ -246,8 +264,9 @@ def test_a_path_outranks_the_app_it_is_served_under() -> None:
 
 def test_the_refusal_refuses_rather_than_proxies() -> None:
     """The middleware answers before the service behind it, so a foreign page
-    is given no socket to be told over. No source address is the limited
-    broadcast address, so every request routed here is refused."""
+    is given no socket to be told over — which is what the range in
+    `deploy/compose.yaml` makes of it. A routable one lets a foreign page
+    through."""
     middlewares = declared("middlewares")
     carried = [
         middlewares[one] for one in router("mqtt-foreign")["middlewares"].split(",")
@@ -263,17 +282,13 @@ def test_the_refusal_refuses_rather_than_proxies() -> None:
 
 def test_the_refusal_admits_the_apps_own_origin_and_nothing_else() -> None:
     """The rule `lib/origin.py` states at the store's face: an origin whose
-    host is the app's own is the app on its own origin and goes through.
-    Compared whole rather than matched, because the name comes from the
-    declaration and a dot inside it cannot be escaped on its way into a
-    pattern — `control.gleis49.org` as a pattern admits `control-gleis49.org`,
-    which somebody may register."""
-    admitted = set(ORIGIN.findall(rule("mqtt-foreign")))
-    assert admitted == {
-        f"https://{LABEL}.{DOMAIN}",
-        f"http://{LABEL}.{DOMAIN}",  # TLS terminates at the door
+    host is the app's own is the app on its own origin and goes through, and
+    anything else carrying one is refused. Two origins and not a pattern, for
+    the reason `deploy/compose.yaml` gives beside them."""
+    assert set(ORIGIN.findall(rule("mqtt-foreign"))) == {
+        f"https://{UI_LABEL}.{DOMAIN}",
+        f"http://{UI_LABEL}.{DOMAIN}",  # TLS terminates at the door
     }
-    assert FOREIGN not in admitted
 
 
 def test_a_handshake_with_no_origin_is_not_what_is_refused() -> None:
