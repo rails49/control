@@ -184,7 +184,7 @@ def test_it_comes_up_against_a_broker_that_is_not_there_yet(
 def test_a_grant_it_cannot_read_leaves_it_running(broker: Broker, app: App) -> None:
     """A frame claiming to be a grant is one more thing anyone can publish,
     and on the broker whoever publishes it is another process: a driver that
-    raised on one would be taken down from outside (SYSTEM.md, rule 4, #261).
+    raised on one would be taken down from outside (BUS.md, rule 4, #261).
 
     Each is dropped, the process stays up, and the honest grant after them
     still lands — a drop being a drop and not a state.

@@ -334,7 +334,7 @@ def test_a_gesture_that_cannot_be_read_at_all_is_dropped(
 ) -> None:
     """Anyone may publish on the topic and nothing authenticates them, so the
     gesture is read and never subscripted: what cannot be read moves no train
-    and takes no app down (SYSTEM.md, rule 4). The missing `block` key is a
+    and takes no app down (BUS.md, rule 4). The missing `block` key is a
     frame that lost a field, not a train taken off the layout — the key's
     presence is load-bearing, and a `null` a page wrote is the removal."""
     press(held, PLACEMENT_WANTED, cast(Any, payload))

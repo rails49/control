@@ -58,7 +58,7 @@ from tc49.lib.startup import (
 CLIENT_ID = "tc49-dispatcher"
 """What this app calls itself to the broker, so its log names an app rather
 than a random string. Nothing in the contract reads it: a topic has one
-writing role and no payload says who published (SYSTEM.md, rule 4)."""
+writing role and no payload says who published (BUS.md, rule 4)."""
 
 OWNED = ("tc49/dispatch/state/#",)
 """The retained rows this app writes, as a filter rather than a list: a topic

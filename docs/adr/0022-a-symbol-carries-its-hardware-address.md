@@ -75,10 +75,10 @@ the symbol gives the address. An adapter throws what it is told and keeps no
 table.
 
 Moving the publisher has two consequences. Topics are publisher-first
-([SYSTEM.md](../SYSTEM.md#event-inventory)), so `tc49/drive/align` becomes
+([BUS.md](../BUS.md#event-inventory)), so `tc49/drive/align` becomes
 `tc49/dispatch/align`. And the layout interface, which subscribed to the one
 prefix `tc49/drive/+`, needs `tc49/dispatch/align` beside it. That is an
-individual topic rather than a prefix, which SYSTEM.md calls a design smell and
+individual topic rather than a prefix, which BUS.md calls a design smell and
 which is accepted here as the price of putting route setup where the
 responsibility for it sits.
 

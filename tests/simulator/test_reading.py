@@ -141,7 +141,7 @@ def test_a_command_whose_transit_does_not_reach_the_block_it_names_moves_nothing
 
 def test_a_command_carrying_a_field_the_binding_does_not_know_still_moves() -> None:
     """Unknown fields are ignored, which is what lets the inventory grow one
-    without every binding being rebuilt (SYSTEM.md)."""
+    without every binding being rebuilt (BUS.md)."""
     bus, sim = build()
     seen = sensors(bus)
 

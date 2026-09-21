@@ -15,7 +15,7 @@ layout interface's to compose out of geometry the driver does not hold.
 The one thing it does read is the grant, and it is **read** and never trusted
 (#261): a topic under `dispatch` names the component that answers for it and
 not the process that published this frame, the bus authenticates nobody, and a
-consumer may not raise on a payload (SYSTEM.md, rule 4). In process the
+consumer may not raise on a payload (BUS.md, rule 4). In process the
 dispatcher publishing it is a call away; under MQTT it is another process, and
 a bug there must not take the driver down.
 """
@@ -70,7 +70,7 @@ class Driver:
         nothing to run at. There is no default to fall back on — a speed this
         component invented would be authority the dispatcher never gave — and
         a drop is what a grant this driver cannot act on is worth, since it
-        commands and answers nothing (SYSTEM.md, rule 4).
+        commands and answers nothing (BUS.md, rule 4).
         """
         granted = grant(payload)
         if granted is None:

@@ -83,7 +83,7 @@ after that have nowhere to go.
 
 `DccEx` is handed a `Bus` and nothing else in the package changes: which
 binding it got is this file's business, and a desired value that cannot be
-read is dropped exactly as it was in one process (#289, SYSTEM.md rule 4) —
+read is dropped exactly as it was in one process (#289, BUS.md rule 4) —
 under MQTT whoever published it is another container, and a bug there must not
 take the thing that drives the railroad down with it.
 """
@@ -109,7 +109,7 @@ CLIENT_PREFIX = "tc49-"
 """What this app calls itself to the broker, in front of its id, so the log
 names a translator rather than a random string and two of them on one railroad
 are two clients. Nothing in the contract reads it: a topic has one writing
-role and no payload says who published (SYSTEM.md, rule 4)."""
+role and no payload says who published (BUS.md, rule 4)."""
 
 STATION_EXAMPLE = "dccex-usb:2560"
 """What a station address looks like, for the help and for a refusal. The

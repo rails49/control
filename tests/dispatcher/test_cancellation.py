@@ -314,7 +314,7 @@ def test_a_gesture_naming_stock_the_railroad_lacks_says_nothing() -> None:
 def test_a_gesture_that_cannot_be_read_at_all_is_dropped() -> None:
     """Anyone may publish on the topic and nothing authenticates them, so the
     frame is read and never subscripted: what cannot be read ends no request
-    and takes no app down (SYSTEM.md, rule 4)."""
+    and takes no app down (BUS.md, rule 4)."""
     assembly = whole_route()
     drag(assembly, "freight_1", "yard_e.A")
 

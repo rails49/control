@@ -50,7 +50,7 @@ protocol surface, not JMRI and not the hardware.
 
 ## `state/power` holds the emergency stop
 
-`state/power` is what the dispatcher and every UI read, and SYSTEM.md has it
+`state/power` is what the dispatcher and every UI read, and BUS.md has it
 folded from `device/track`, deliberately never from having commanded
 anything. With `stopped` gone from the observed row, that rule leaves
 [ADR-0041](0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)'s
@@ -65,7 +65,7 @@ hardware can hold it. `on` and `off` fold exactly as before.
 
 ## A translator reads the drawing
 
-`device/sensor` is addressed by the block end it watches, and SYSTEM.md's rule
+`device/sensor` is addressed by the block end it watches, and BUS.md's rule
 is that whoever publishes it is configured with the names it must publish, so
 no detector geometry reaches above the layout interface. That works for a
 camera, which can be told what to call itself, and cannot work for a system

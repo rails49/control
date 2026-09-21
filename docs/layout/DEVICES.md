@@ -1,7 +1,7 @@
 # The device rows, and how each translator carries them
 
 The rows themselves are normative in
-[SYSTEM.md](../SYSTEM.md#device-vocabulary) and bound in code as
+[BUS.md](../BUS.md#device-vocabulary) and bound in code as
 `tc49.lib.inventory.DEVICE_TOPICS`. This page adds one column per translator:
 what that hardware does with each row, and where it cannot do it at all.
 

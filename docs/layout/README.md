@@ -5,7 +5,7 @@ hardware-independent, and the only writer of what the hardware is asked to do
 ([ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 Above it the railroad is blocks, transits and trains; below it is the **device
 vocabulary**, one retained state topic per device
-([SYSTEM.md](../SYSTEM.md#device-vocabulary)). Nothing above this app names a
+([BUS.md](../BUS.md#device-vocabulary)). Nothing above this app names a
 device and nothing below it names a transit, which is what lets two hardware
 systems drive one railroad with no ownership table anywhere.
 
@@ -177,7 +177,7 @@ A held command meets all three at the moment it is acted on and not at the
 moment it arrived, since the railroad can move under it while it waits.
 
 **Every payload is read and never trusted**
-([SYSTEM.md](../SYSTEM.md#event-inventory), rule 4). Nine topics from six
+([BUS.md](../BUS.md#event-inventory), rule 4). Nine topics from six
 publishers reach this app and it answers none of them — it reports observations
 — so a frame that cannot be read is **dropped**, silently and to the trace, and
 so is a command the layout contradicts: one naming a transit this railroad does
@@ -231,7 +231,7 @@ a real thing and the address is what says a car can be told a speed.
 seen is dropped: none published for it, one it cannot spell, or one naming a
 block other than the one the train is departing. Guessing is a locomotive
 driven the wrong way down the track, and a drop is what a failed read is worth
-for an app that answers nothing ([SYSTEM.md](../SYSTEM.md#event-inventory),
+for an app that answers nothing ([BUS.md](../BUS.md#event-inventory),
 rule 4). Nothing holds the command for a facing, so a facing arriving later
 does not retroactively run the train — where a command is *held* for its
 `align`, though, it is signed on the facing it has at the moment it acts, like

@@ -228,7 +228,7 @@ about, and asking for power off with a train in hand is a user error it does
 not guard (`CONTEXT.md`, **Moving**).
 
 What that costs is correctness, not liveness. A consumer never raises on what
-it reads (SYSTEM.md, rule 4) and an unexplained reading is handled rather than
+it reads (BUS.md, rule 4) and an unexplained reading is handled rather than
 thrown, so nothing here makes the app fall over. The lock table stops
 describing the steel, and collision safety is the property that rests on it.
 

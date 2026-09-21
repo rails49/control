@@ -372,7 +372,7 @@ def test_a_desired_value_it_cannot_read_leaves_it_running(
     """A frame claiming to be a desired value is one more thing anyone can
     publish, and on the broker whoever publishes it is another process: a
     translator that raised on one would be taken down from outside
-    (SYSTEM.md, rule 4, #289).
+    (BUS.md, rule 4, #289).
 
     Each is dropped whole — not remembered either, so a connect does not
     replay something that sent nothing when it arrived — and the honest value

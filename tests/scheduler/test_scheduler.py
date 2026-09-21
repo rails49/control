@@ -681,7 +681,7 @@ def test_a_reversal_lands_once_the_request_is_answered() -> None:
 
 
 def test_a_reversal_is_dropped_under_a_request_somebody_else_submitted() -> None:
-    """A request topic has one responder and any number of writers (SYSTEM.md,
+    """A request topic has one responder and any number of writers (BUS.md,
     rule 1), so a page may submit for a train this scheduler holds the facing
     of. The guard is the same guard: the queued request departs the end the
     facing named when it was composed, and whose request it is changes
@@ -738,7 +738,7 @@ def test_a_submission_that_cannot_be_read_is_dropped() -> None:
     dropped again, and one naming no train says nothing about the train the
     guard asks about. Either half missing and the frame leaves nothing
     behind, silently and to the trace, as everything else on this filter does
-    (SYSTEM.md, rule 4)."""
+    (BUS.md, rule 4)."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded())
@@ -965,7 +965,7 @@ def announce(bus: InProcessBus, leaf: str, payload: object) -> None:
 def test_an_announcement_that_cannot_be_read_leaves_facing_where_it_was() -> None:
     """A leaf under `dispatch` names the component that emits it and not the
     process that published this frame: the bus authenticates nobody, so an
-    announcement is read exactly as a gesture is (SYSTEM.md, rule 4). None of
+    announcement is read exactly as a gesture is (BUS.md, rule 4). None of
     these raises out of the handler, none moves an arrow, and the honest
     grant after them still lands.
 
@@ -1023,7 +1023,7 @@ def test_a_leaf_the_scheduler_does_not_act_on_is_ignored() -> None:
     announcement it does not follow comes back past it. Ignoring one is rule
     4 doing its ordinary work — including a leaf that did not exist when this
     scheduler was built, which is what leaves the inventory open
-    (SYSTEM.md)."""
+    (BUS.md)."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)

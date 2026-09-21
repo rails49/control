@@ -4,7 +4,7 @@ A restart loses the lock table and no sensor can return it, sensors being
 anonymous, so placement has to be seeded before the first sensor event. The
 seed used to be the scenario document, which says where the railroad
 *started*. Now the broker holds the last picture across the process
-(SYSTEM.md, the bus), and the dispatcher finds it waiting on its own state
+(BUS.md, the bus), and the dispatcher finds it waiting on its own state
 topic and adopts it.
 
 Adoption is **selective** (#123): placement and the crossing hint are taken,

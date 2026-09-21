@@ -74,7 +74,7 @@ export class Broker {
   /** The retained rows in the order a subscription is answered with them.
    *
    *  **The railroad row goes last, deliberately.** The contract fixes no
-   *  order (SYSTEM.md rule 2), and a view that treats that row as the one
+   *  order (BUS.md rule 2), and a view that treats that row as the one
    *  that starts everything will drop whatever the broker handed over before
    *  it. Every suite here used to retain the railroad row first, so the
    *  ordering was fixed in the friendly direction and a whole class of bug
@@ -125,7 +125,7 @@ export class Broker {
 
   /** What the railroad says, on a topic. A state row is retained and answers
    *  the next subscription; an event is delivered to whoever is listening now
-   *  and never replayed (SYSTEM.md rule 2, ADR-0059 decision 1). */
+   *  and never replayed (BUS.md rule 2, ADR-0059 decision 1). */
   says(topic: string, payload: Record<string, unknown>): void {
     const body = JSON.stringify(payload);
     if (topic.includes("/state/")) this.retained.set(topic, body);

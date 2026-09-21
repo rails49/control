@@ -1,4 +1,4 @@
-"""Tests at the InProcessBus seam: publish/subscribe/drain per SYSTEM.md "The bus"."""
+"""Tests at the InProcessBus seam: publish/subscribe/drain per BUS.md "The bus"."""
 
 from typing import cast
 

@@ -10,7 +10,7 @@ case this rule is about in any event — the layout interface is one instance,
 and the concurrent-instance role is the panel, whose gestures are independent
 of one another.)*
 
-Rule 1 of [SYSTEM.md](../SYSTEM.md#the-bus) said *exactly one component
+Rule 1 of [BUS.md](../BUS.md#the-bus) said *exactly one component
 publishes on any topic*. Read literally that forbids two browser tabs, which
 are two components of one role, and it is the rule
 [ADR-0032](0032-a-joining-client-is-served-the-runs-retained-state.md) records

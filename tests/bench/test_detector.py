@@ -99,7 +99,7 @@ def test_a_typed_line_reaches_the_sensor_row_with_the_level_on_it() -> None:
 @pytest.mark.parametrize("level", LEVELS)
 def test_every_level_a_detector_may_report_may_be_typed(level: str) -> None:
     """The three values of `occupancy` and no others — `unknown` among them,
-    which is a value and not an absence (SYSTEM.md)."""
+    which is a value and not an absence (BUS.md)."""
     layout, _roster = a_railroad()
     detector, bus, _out = hand_fed(layout)
     end = f"{a_block(layout)}.B"

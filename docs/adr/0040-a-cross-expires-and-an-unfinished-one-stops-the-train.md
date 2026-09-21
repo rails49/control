@@ -82,7 +82,7 @@ boundaries and not in seconds because the layout interface *mints* the
 boundary: it is the one component that always knows which number is current,
 without a clock reading that would have to agree with anyone else's.
 
-**This amends `SYSTEM.md`'s "no other event carries a `boundary` field."** That
+**This amends `BUS.md`'s "no other event carries a `boundary` field."** That
 line is right about observation — the trace tap stamps what it records, and
 nothing needs to carry a number for a reader's benefit. It is wrong about
 action. A stamp applied by an observer is not available to the actor, and the
@@ -97,7 +97,7 @@ Rejected: **a liveness state topic**, the dispatcher republishing the boundary
 it last handled. It detects a wedged dispatcher, which the expiry window
 already covers by starving the adapter of fresh commands, and it writes a
 retained value every boundary — which the durable binding answers with a
-whole-file rewrite per beat ([SYSTEM.md](../SYSTEM.md#the-bus)).
+whole-file rewrite per beat ([BUS.md](../BUS.md#the-bus)).
 
 ## An unfinished transit stops the train, and wedges the block
 

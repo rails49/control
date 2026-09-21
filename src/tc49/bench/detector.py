@@ -3,7 +3,7 @@
 Nothing publishes `tc49/layout/state/device/sensor/<block>.<end>` on a
 physical railroad. The detector is a camera that lives outside this repository
 and publishes nothing yet, and there is no broker in the loop besides — the
-bus is a Python object in one process (SYSTEM.md, *the bus*). So a `move` on
+bus is a Python object in one process (BUS.md, *the bus*). So a `move` on
 the steel has nothing to complete it, and the first train would cross into a
 block the system never hears about.
 
@@ -19,7 +19,7 @@ as it folds a camera's ([#288](https://github.com/rails49/control/issues/288)),
 and the settling time sees a typed level as it would see a detector's. That is
 the whole of the point: nothing downstream knows a person typed it.
 
-**Not a bus contract change.** The topic and the payload are SYSTEM.md's
+**Not a bus contract change.** The topic and the payload are BUS.md's
 already and this writes what a detector writes, on the writing role a detector
 holds (ADR-0035). **Not a panel gesture** either: a device row carries no
 browser mark and is nothing a page publishes (ADR-0034). This
@@ -59,7 +59,7 @@ publishes a detector's row and invents nothing (tested)."""
 
 LEVELS = (OCCUPIED, CLEAR, UNKNOWN)
 """What a person may say a block end reads, and the whole of it: the three
-values of `occupancy` (SYSTEM.md, *what the hardware reports back*)."""
+values of `occupancy` (BUS.md, *what the hardware reports back*)."""
 
 ENDS = ("A", "B")
 """The two ends a block has, which is what a sensor is addressed by."""
@@ -72,7 +72,7 @@ CLIENT_ID = "tc49-readings"
 """What `tc49 readings` calls itself to the broker, so a person reading the
 broker's log finds the keyboard rather than a random string. Nothing in the
 contract reads it: a topic has one writing role and no payload says who
-published (SYSTEM.md, rule 4)."""
+published (BUS.md, rule 4)."""
 
 
 class HandFed:

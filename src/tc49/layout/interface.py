@@ -15,7 +15,7 @@ person to read needs no address on it (#203); and the roster is how a train
 becomes the addresses that answer for it, no address ever reaching a command
 (#199).
 
-**Everything the bus hands it is read and never trusted** (SYSTEM.md, rule 4).
+**Everything the bus hands it is read and never trusted** (BUS.md, rule 4).
 Ten topics from six publishers — the detectors joining them with the fold
 (#288), the throttle's two gestures coming from where a person's press
 already does (#297), and the run row the guard on a plain `off` reads (#407)
@@ -666,7 +666,7 @@ class LayoutInterface:
         this app has seen — none published, one it cannot spell, or one naming
         another block than the one the train is departing — is dropped whole.
         Facing arriving later does not run it: the command was dropped, and
-        nothing here holds it (SYSTEM.md, rule 4). A move that states no
+        nothing here holds it (BUS.md, rule 4). A move that states no
         **speed** falls the same way and for the same reason: this app would
         have to choose a number nobody asked for.
         """
@@ -1237,7 +1237,7 @@ class LayoutInterface:
         discard the level held: the end goes on reading whatever it last
         actually said. The `reason` is logged once per transition into
         `unknown`, for a person — the detector knows why it cannot say, and
-        nothing in the system branches on it (SYSTEM.md, *what the hardware
+        nothing in the system branches on it (BUS.md, *what the hardware
         reports back*).
 
         The address is the block end the detector watches, taken from the

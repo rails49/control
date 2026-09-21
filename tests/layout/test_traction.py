@@ -171,7 +171,7 @@ def test_the_arrival_stops_each_car_once_and_the_vacate_follows_it() -> None:
 def test_a_move_for_a_train_with_no_published_facing_is_dropped() -> None:
     """Guessing is a locomotive driven the wrong way down the track, and a
     drop is what a failed read is worth for an app that answers nothing
-    (SYSTEM.md, rule 4)."""
+    (BUS.md, rule 4)."""
     bus, app = build()
     energised(bus)
     stand(bus, "single", "up_w")
@@ -235,7 +235,7 @@ def test_a_move_stating_no_speed_commands_nothing_and_moves_nothing() -> None:
 
 
 def test_the_sign_is_this_apps_and_never_the_commands() -> None:
-    """`speed` on a `move` is a magnitude (SYSTEM.md): a frame that signs one
+    """`speed` on a `move` is a magnitude (BUS.md): a frame that signs one
     anyway does not get to reverse a locomotive by it."""
     bus, _app = ready("single", "up_w.A-to-B")
     written = commanded(bus)

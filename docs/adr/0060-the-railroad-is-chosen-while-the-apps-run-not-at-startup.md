@@ -38,7 +38,7 @@ answers it: it is the app bound to a railroad and already the publisher of
 and never the wanted, as the scheduler follows `train_placed` and never
 `placement_wanted`. One writing role
 ([ADR-0035](0035-a-topic-has-one-writing-role.md)) and one responder
-([SYSTEM.md](../SYSTEM.md#event-inventory), rule 4).
+([BUS.md](../BUS.md#event-inventory), rule 4).
 
 The band's picker writes it, and stays.
 

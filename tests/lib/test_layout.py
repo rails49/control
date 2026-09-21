@@ -211,7 +211,7 @@ def test_a_transit_names_one_end_of_each_block_it_joins() -> None:
 def test_a_transit_the_layout_does_not_hold_crosses_no_end() -> None:
     """The same question asked of names that came off the bus: `end_crossed`
     answers None where `end_on` reaches straight into the layout and raises,
-    because a consumer may not raise on a payload (SYSTEM.md, rule 4). A
+    because a consumer may not raise on a payload (BUS.md, rule 4). A
     transit under no connection, one no connection declares, one left
     unqualified, and one that crosses the block named nowhere."""
     layout, _roster, _ = load("crossover-yard/meet")

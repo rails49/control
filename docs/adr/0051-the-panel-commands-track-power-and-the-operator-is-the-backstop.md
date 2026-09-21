@@ -23,7 +23,7 @@ safe to remove *because* the command arrives.
 
 The topic is `layout`'s because `layout` is what answers it: a topic names the
 component that responds to it and never the one that sent the frame
-([SYSTEM.md](../SYSTEM.md#event-inventory), rule 4). One topic and one axis in
+([BUS.md](../BUS.md#event-inventory), rule 4). One topic and one axis in
 the command direction, for ADR-0041's own reason — two topics would make every
 consumer decide what powered-off-and-emergency-stopped means. The bridge picks
 the row up with no change of its own, the inbound set being read off the mark
@@ -36,7 +36,7 @@ The command goes to `layout`, which writes
 Not panel → a translator, for three reasons:
 
 - ADR-0043 carves out desired power as device vocabulary, and every desired
-  row has `layout` as its one writer (SYSTEM.md, rule 1). Routing round
+  row has `layout` as its one writer (BUS.md, rule 1). Routing round
   `layout` would leave that value with no writer at all.
 - `layout` owns `tc49/layout/state/power`, and it must not publish a word
   about a railroad it never commanded.

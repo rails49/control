@@ -11,7 +11,7 @@ train and a block, so the question was where the layout interface gets it.
 ## `layout` subscribes to `tc49/schedule/state/facing`
 
 The retained state topic the scheduler already publishes, read like any other
-payload and never trusted (SYSTEM.md, rule 4). It is the only topic the
+payload and never trusted (BUS.md, rule 4). It is the only topic the
 interface reads that is neither a command nor a device row.
 
 The alternative ADR-0045 named was for `layout` to keep its own facing, seeded

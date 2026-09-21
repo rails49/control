@@ -31,7 +31,7 @@ session left them — so refusing the combination is not the answer.
 ## `layout` opens by wanting zero on every retained traction row
 
 Beside the `wanted/track: off` it already writes, and for the same reason.
-`layout` is the one writer of every desired row (SYSTEM.md, rule 1), so this
+`layout` is the one writer of every desired row (BUS.md, rule 1), so this
 is its ruling to make and no other app's to undo, and the file the bus keeps
 then records a railroad at rest rather than one holding a speed nobody asked
 for.

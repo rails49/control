@@ -55,7 +55,7 @@ per-page nonce. Nothing parses either, and the panel's catch-up parse is
 deleted along with the collision it existed to prevent.
 
 A nonce is not clock-derived, which is what
-[SYSTEM.md](../SYSTEM.md#the-bus) forbids, but it is not deterministic either.
+[BUS.md](../BUS.md#the-bus) forbids, but it is not deterministic either.
 That costs nothing here: [ADR-0016](0016-the-panel-is-a-scheduler.md) makes
 panel runs and file-scheduler runs mutually exclusive and says plainly that
 panel runs make no reproducibility claim, "since a human clicking is not a

@@ -31,7 +31,7 @@ from tc49.lib.inventory import AT, OFF, ON, STOPPED
 RAILROAD = "tc49/layout/state/railroad"
 """The row every app follows: the railroad this broker runs, as the store
 lists it. Published by whichever binding of the layout interface is running
-(SYSTEM.md, the inventory), which is the one app bound to a railroad."""
+(BUS.md, the inventory), which is the one app bound to a railroad."""
 
 RAILROAD_WANTED = "tc49/layout/railroad_wanted"
 """The gesture behind that row: a person choosing which railroad the apps
@@ -87,7 +87,7 @@ class Loaded:
         binding of the interface that owns the row republishes it, and an app
         that rebuilt on every republication would rebuild on its own
         neighbour's heartbeat. A payload naming nothing readable is dropped:
-        anything at all can arrive on a topic (SYSTEM.md, rule 4).
+        anything at all can arrive on a topic (BUS.md, rule 4).
 
         **The row that was refused is not tried again.** A retained value is
         handed over afresh every time this app subscribes, and subscribing is

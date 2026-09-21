@@ -14,7 +14,7 @@ firmware build onto the station**, which only the process holding the device
 can do ([ADR-0065](../adr/0065-the-app-that-owns-the-device-flashes-it.md)).
 So it now subscribes `tc49/layout/firmware_wanted` and publishes
 `tc49/layout/state/device/refused/<id>` when it will not do it, and those two
-rows are its whole contract in [SYSTEM.md](../SYSTEM.md). The mirror itself
+rows are its whole contract in [BUS.md](../BUS.md). The mirror itself
 still reads no payload and speaks no topic.
 
 ## The command line
@@ -190,7 +190,7 @@ the reason a client's bytes are dropped rather than queued. `latest` is
 refused too: it names a different build depending on when it is read, and
 what was written has to be sayable afterwards. Nothing is log-only; broken
 hardware is reported, never worked around (ADR-0050). A gesture whose payload
-cannot be read is dropped in silence, having nobody to answer (SYSTEM.md,
+cannot be read is dropped in silence, having nobody to answer (BUS.md,
 rule 4).
 
 **Whether it is safe to reset the station is the client's**, not this app's.

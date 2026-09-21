@@ -112,7 +112,7 @@ class Scheduler:
         # alone: the counter above starts empty in every process, so without
         # it the first drag after a restart mints an id the dispatcher is
         # still holding and drops before any check runs (ADR-0033). Four
-        # bytes of `secrets`, not the clock, which SYSTEM.md forbids of the
+        # bytes of `secrets`, not the clock, which BUS.md forbids of the
         # bus.
         #
         # `nonce` is the harness's, and the only caller that passes one: the
@@ -159,7 +159,7 @@ class Scheduler:
         scheduler's own two state topics come back through here and are
         ignored on the way past. Nothing in the topic or the payload says who
         sent a gesture, and nothing here asks: a page sends these today, and
-        anything else that composes one is served the same (SYSTEM.md,
+        anything else that composes one is served the same (BUS.md,
         rule 4).
 
         What the scheduler cannot act on it **drops**, in silence and to the
@@ -242,7 +242,7 @@ class Scheduler:
 
         In flight means **every request the dispatcher has announced**, not
         every request this app sent. A request topic has one responder and
-        any number of writers (SYSTEM.md, rule 1), so a page may submit for a
+        any number of writers (BUS.md, rule 1), so a page may submit for a
         train this scheduler holds the facing of, and a guard reading only
         what `_submit` minted would be blind to it and turn the arrow under
         somebody else's queued request (#439). `_on_dispatch` fills
@@ -299,7 +299,7 @@ class Scheduler:
         included, because the topic names the dispatcher that responds to it,
         and it is **read** rather than ignored: it is what tells this app
         that a train has a request in flight when something else submitted
-        one (SYSTEM.md, rule 1 — one responder, any number of writers). The
+        one (BUS.md, rule 1 — one responder, any number of writers). The
         id and the train are recorded, and the answers below drop them again
         by id, so the removal side that was already whole gets an insertion
         side to match (#439). `_submit` writes the same key and the same
@@ -313,7 +313,7 @@ class Scheduler:
         emits them, and a name is not a sender: the bus authenticates
         nobody, so a frame claiming to be an announcement is one more thing
         anyone can publish, and a consumer that raised on one would be taken
-        down by whoever published it (SYSTEM.md, rule 4). What cannot be read
+        down by whoever published it (BUS.md, rule 4). What cannot be read
         is dropped, silently and to the trace, as a gesture is: the scheduler
         answers nothing on the bus, so there is nothing to address a refusal
         to even where the frame carries an id (ADR-0034).

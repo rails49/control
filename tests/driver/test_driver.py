@@ -71,7 +71,7 @@ def test_a_grant_that_cannot_be_read_commands_nothing() -> None:
     """`move_granted` names the dispatcher because the dispatcher emits it,
     and a name is not a sender: the bus authenticates nobody, so a frame
     claiming to be a grant is one more thing anyone can publish, and a driver
-    that raised on one would be taken down by whoever published it (SYSTEM.md,
+    that raised on one would be taken down by whoever published it (BUS.md,
     rule 4). Under MQTT that publisher is another process.
 
     None of these raises out of the handler, none commands anything, and the
