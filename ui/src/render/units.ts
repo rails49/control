@@ -174,14 +174,30 @@ export const RING = {
 export const NOTE = 0.22;
 
 /**
+ * Every button on the rail, square: the minimum a thumb needs, and one of the
+ * two sizes the look rules bind across rails49's UIs (`ui/look/tokens.css`,
+ * ADR-0003). It was 35 here, which is the drift those rules exist to stop.
+ *
+ * The rail is driven with a mouse in every view but the throttle, so this is
+ * larger than what this app alone would have picked; what it buys is that the
+ * two apps a person moves between within one session are the same size under
+ * the hand, and that the throttle is drivable from a phone.
+ */
+export const RAIL_BUTTON_PX = 44;
+
+/**
  * The window height at or below which the rail lies down along the top of the
- * work instead of standing down its left (ADR-0064).
+ * work instead of standing down its left (ADR-0064). The other size the look
+ * rules bind.
  *
  * The editor's rail is fifteen buttons — four views and eleven verbs — which
- * at the sizes `tc-rail.styles.ts` gives them is about 600px of column. Set
- * above that rather than at it: the measurement moves with the font and the
- * engine, and the turn has to stay ahead of the clipping rather than level
- * with it.
+ * at `RAIL_BUTTON_PX` and the spacing `tc-rail.styles.ts` gives them is about
+ * 710px of column, taller than the work in a laptop window. That is not what
+ * this height answers: a window between the two is a column the rail scrolls,
+ * with its top group — the views — pinned, so the way out of a view is never
+ * the thing that got scrolled away (`tc-rail.styles.ts`). This height is the
+ * other case, a window too short for a column at all, which is a phone held
+ * sideways.
  *
  * A media query cannot read a custom property, which is what stops this
  * reaching the two sheets on its own; it is interpolated into each instead,
