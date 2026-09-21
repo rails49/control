@@ -113,9 +113,18 @@ src/
     <component>.styles.ts  a component's styles, beside it
     shared.styles.ts   what more than one of them wears: the palette, the
                    symbol rules, and what a menu is made of
+    theme.ts       which Shoelace theme the page wears, which is whichever
+                   the operating system asks for
 test/            vitest; the suites that mount a component need a DOM
                  (happy-dom), the rest run without one
+look/            the look rules' values, copied in and pinned to the commit
+                 they came from; inert, and read by test/styles.test.ts
 ```
+
+**Four colours and two sizes are not this app's to pick.** The band, the rail,
+the size of a button on it and the height it turns into a strip at are one
+system across the project's UIs, and `look/README.md` says how they get here
+and what keeps them honest.
 
 **The front end knows no topology.** Pin degrees, junction membership, the
 derived layout and the explanations come from `POST /review`. TypeScript owns
