@@ -1,51 +1,24 @@
-# The edge: one reverse proxy holding the certificate, in front of apps that
-# stay native (ADR-0042). Nothing here is built and nothing is installed on
-# the machine — the images are stock.
-#
-#   op run --env-file=deploy/op.env -- \
-#     docker compose -f deploy/compose.yaml up -d                  the dev box
-#   op run --env-file=deploy/op.env -- \
-#     docker compose -f deploy/compose.yaml --profile layout up -d  the layout
-#
-# The token comes from 1Password through `op run` rather than from a file on
-# disk, so nothing here holds a secret and nothing has to be kept out of the
-# repository. `op.env` beside this one says where to look.
-#
-# Traefik rather than Caddy because the stock binary carries every ACME
-# provider, Cloudflare included; Caddy's does not, and a DNS-01 certificate
-# there would mean building one. Its own settings come from the environment
-# (TRAEFIK_*), so the file below carries no secret and no address.
-#
-# Two ways to the same routing, on purpose and for one release. The three
-# containers a browser reaches — `web`, `store` and `broker` — carry their own
-# routers as labels, which the installation's door reads off the box; `proxy`
-# below still serves the same routing out of a route file, and reads no label.
-# The routing arrives before the old way leaves (#556), so that a box keeps
-# working through the cutover; the route file goes in the release after this
-# one.
-#
-# The name in every label comes from the box's own declaration,
-# `/etc/rails49/box.env`, by compose substitution — no template is rendered and
-# no file is copied — so a box is named in one place rather than in a route
-# file this repository would have to be forked to edit:
+# The railroad, and nothing in front of it. Every container a browser reaches
+# carries its own routers as labels; what reads them is the door, the one
+# thing in front of everything a browser reaches on the box, which is the
+# installation's rather than this repository's (ADR-0009). So there is
+# no proxy here, no entry point on 80 or 443, no ACME credential and no route
+# file: being reachable stopped being a railroad's business (#557).
 #
 #   docker compose --env-file /etc/rails49/box.env \
-#     --env-file /etc/tc49/deploy.env -f deploy/compose.yaml up -d
+#     --env-file /etc/rails49/deploy.env -f deploy/compose.yaml up -d
 #
-# That is what a box reached through the door runs, and no box runs it yet:
-# `scripts/deploy.sh` passes the second file alone. So `BOX_DOMAIN` is unset
-# there, compose says which variable it is, and the rules below render a blank
-# name — which nothing reads, the door not being on the box and `proxy`
-# ignoring labels. The variable is optional for that reason, and is made
-# required when the route file goes.
+# Two files, both the box's and neither in this clone. The first is the box's
+# declaration of itself, which every stack on the box is started against, so
+# that two stacks cannot come to different answers about the box's name. The
+# second is this stack's own settings — which railroad it comes up on, where
+# its store is, which device the command station is on. `scripts/deploy.sh` is
+# that command run over ssh.
 #
-# One route directory, named by TC49_SITE and `dev` unless it is set, holding
-# that site's `site.yaml` and nothing else. Both files were mounted at first,
-# on the theory that a certificate is asked for when a request for that name
-# arrives; it is not. Traefik asks at startup for every router it can see, so
-# a box carrying both files fetches a certificate for a name that is not its
-# own — which is why the directory holds one file rather than the mount
-# picking one out of a directory holding two.
+# The name in every label comes from the declaration by compose substitution —
+# no template is rendered and no file is copied — so a box is named in one
+# place rather than in a route file this repository would have to be forked to
+# edit.
 #
 # The project's name, which compose otherwise takes from the directory this
 # file sits in — `deploy`, which says where the file is rather than what the
@@ -58,63 +31,21 @@
 
 name: tc49
 
-services:
-  proxy:
-    image: traefik:v3.3
-    restart: unless-stopped
-    # 80 carries a redirect and nothing else. A person types a bare hostname
-    # and the browser tries http, so a box that publishes 443 alone refuses
-    # the connection and the site reads as down (#364). The certificate comes
-    # from a DNS-01 challenge, so nothing here needs 80 to reach the outside.
-    ports:
-      - "80:80"
-      - "443:443"
-    # The token and the ACME account, from whatever `op run` put in the
-    # environment; without it compose stops rather than starting a proxy that
-    # cannot renew. The values do end up in the container's own configuration,
-    # where `docker inspect` can read them, which is what a container
-    # environment is. Docker Desktop publishes 443 through its privileged
-    # helper, so none of this wants root.
-    environment:
-      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN:?run this under op run --env-file=deploy/op.env}
-      TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_EMAIL: ${TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_EMAIL:?run this under op run --env-file=deploy/op.env}
-    command:
-      - --entryPoints.web.address=:80
-      - --entryPoints.web.http.redirections.entryPoint.to=websecure
-      - --entryPoints.web.http.redirections.entryPoint.scheme=https
-      - --entryPoints.websecure.address=:443
-      - --providers.file.directory=/etc/traefik/routes
-      - --providers.file.watch=true
-      - --certificatesResolvers.le.acme.storage=/acme/acme.json
-      - --certificatesResolvers.le.acme.dnsChallenge.provider=cloudflare
-      # Before writing the TXT record lego asks which zone the name belongs
-      # to, and a consumer router answers that question with SERVFAIL often
-      # enough that the resolver cannot be left to whatever the network hands
-      # the container. These two are asked instead.
-      - --certificatesResolvers.le.acme.dnsChallenge.resolvers=1.1.1.1:53,9.9.9.9:53
-    # The directory, not the file inside it. A single-file bind mount binds the
-    # inode, and `git pull` replaces a file rather than writing through it, so
-    # the container kept the table it started with and the file watch above
-    # watched something nothing touched any more (#353). A directory mount
-    # sees the replacement, so a deploy is `git pull` and `up` with no
-    # `--force-recreate` behind it.
-    volumes:
-      - ./routes/${TC49_SITE:-dev}:/etc/traefik/routes:ro
-      - acme:/acme
-    # How a container reaches an app on the host. Docker Desktop supplies the
-    # name already; on Linux this is what supplies it.
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+# Nothing reads this. It is where the box's name is required, so that a box
+# with no declaration is told which variable is missing rather than given
+# routers under a blank name — compose interpolates the whole file before it
+# runs any subcommand, so one line here covers every rule below and every
+# `logs` and `ps` besides.
+x-require-box-domain: ${BOX_DOMAIN:?start this with --env-file /etc/rails49/box.env}
 
-  # The built UI, which Traefik cannot serve itself: it proxies and does not
-  # read files. Only the layout box has a build to serve — the dev box has
+services:
+  # The built UI, which the door cannot serve itself: it proxies and does not
+  # read files. Only a box has a build to serve — a development machine has
   # vite — so it is a profile rather than a service.
   #
   # The first of the three containers a browser reaches, and so the first to
   # carry its own router. Everything under `traefik.` here is read by the
-  # installation's door and by nothing in this file: `proxy` below reads a
-  # route file and ignores labels entirely, which is what lets both ways be
-  # true at once while the box is cut over (#556).
+  # door, which is on the box and not in this file (#556, #557).
   #
   # Every router here names the service it dials and every service names its
   # port, including this one, where the image exposes 80 and nothing else. The
@@ -144,8 +75,8 @@ services:
   # Two listeners: 1883 for native clients and 9001 for a browser, published
   # on the LAN because that is the trust boundary and there is no
   # authentication anywhere (ADR-0042). A page served over TLS cannot open a
-  # `ws://` socket, which is the defect #174 found in the run view, so the
-  # layout box also reaches 9001 through the proxy as `/mqtt`.
+  # `ws://` socket, which is the defect #174 found in the run view, so 9001 is
+  # also reached through the door as `/mqtt`.
   broker:
     image: eclipse-mosquitto:2
     restart: unless-stopped
@@ -232,7 +163,7 @@ services:
   # root and shuts the person out of their own documents (#387); an empty
   # store is an ordinary state and the server comes up and answers.
   #
-  # Bound to every interface because the proxy reaches it from another
+  # Bound to every interface because the door reaches it from another
   # container; what limits its reach is the LAN (ADR-0042), and a page on
   # another origin is refused at the face itself (ADR-0057).
   store:
@@ -382,14 +313,13 @@ services:
   # not existing: the flag was whole, documented and connected to nothing
   # (#523).
   #
-  # The **file**, not `/etc/tc49`, which also holds `deploy.env` — this box's
-  # one on-disk secret (docs/DEPLOY.md) — and a directory mount would put that
-  # inside the translator's container. So the lesson of the route mount above
-  # (#353) is deliberately not taken here, and the inode a single-file mount
-  # binds is what it costs: an editor that replaces the file rather than
-  # writing through it leaves this container reading the values it was
-  # created with, so the file is edited in place and a container that has
-  # lost it is recreated (docs/DEPLOY.md). `scripts/deploy.sh` makes
+  # The **file**, not `/etc/rails49`, which also holds `acme.env` — the box's
+  # ACME credential, which the door alone reads (docs/DEPLOY.md) — and a
+  # directory mount would put that inside the translator's container. So the
+  # inode a single-file mount binds is what it costs: an editor that replaces
+  # the file rather than writing through it leaves this container reading the
+  # values it was created with, so the file is edited in place and a container
+  # that has lost it is recreated (docs/DEPLOY.md). `scripts/deploy.sh` makes
   # the file before compose runs, because a missing source is made by the
   # daemon as a root-owned directory (#387) and the translator would then open
   # a directory as its startup file. An empty one is an ordinary state: a
@@ -399,54 +329,25 @@ services:
     profiles: [hardware]
     restart: unless-stopped
     volumes:
-      - /etc/tc49/dccex-startup.txt:/etc/tc49/dccex-startup.txt:ro
+      - /etc/rails49/dccex-startup.txt:/etc/rails49/dccex-startup.txt:ro
     command:
       ["python", "-m", "tc49.dccex",
        "--broker", "broker:1883",
        "--station", "${TC49_STATION:-dccex-usb:2560}",
-       "--startup", "/etc/tc49/dccex-startup.txt"]
-
-  # JMRI, a third-party GUI appliance and none of this app's business: an
-  # operator's DecoderPro and panel tool, reaching the same command station as a
-  # plain client of 2560 (#196). Nothing of ours is in it and it owns no device.
-  # The image does not start JMRI — a person clicks DecoderPro through noVNC on
-  # 6901 — and `/home/jmri` is a volume because that is where the click that
-  # points it at `dccex-usb` persists.
-  jmri:
-    image: jsa1987/jmri-docker:stable
-    profiles: [hardware]
-    # A fresh /tmp on every start. The image's websockify dials
-    # `localhost:5901` while its `vncserver` takes the first display that has
-    # no socket in /tmp/.X11-unix, and `docker restart` keeps the writable
-    # layer — so each restart leaks a socket, burns a display, and moves the
-    # VNC server one port away from the one noVNC connects to. The entrypoint
-    # is upstream's and stays untouched (ADR-0043); this makes the leak
-    # impossible instead.
-    tmpfs:
-      - /tmp
-    restart: unless-stopped
-    ports:
-      - "6901:6901"
-      - "5901:5901"
-      - "12080:12080"
-    volumes:
-      - jmri:/home/jmri
+       "--startup", "/etc/rails49/dccex-startup.txt"]
 
 # The one network every stack on the box shares, created by the installation
 # under a fixed name four repositories hardcode and joined here by the three
 # containers a browser reaches (rails49/installation ADR-0001). External,
 # because a stack that makes it when it is absent is a stack that silently
 # decides its options, and the first one started would decide them for the
-# rest. A box that has not installed the installation yet is told so:
+# rest. A box that has not installed the installation yet is told so before
+# anything comes up, which is the whole of the ordering requirement:
 #
 #   network rails49 declared as external, but could not be found
-#
-# and makes it by hand until it does (docs/DEPLOY.md).
 networks:
   rails49:
     external: true
 
 volumes:
-  acme:
-  jmri:
   keys:

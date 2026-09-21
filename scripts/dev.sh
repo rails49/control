@@ -33,17 +33,16 @@
 # working on the app wants are those. Export TC49_STORE to work on your own
 # instead, and pass the same store URL to whatever apps you start.
 #
-# The store and vite bind every interface rather than loopback, because the
-# reverse proxy serving `dev.rails49.org` runs in a container and cannot reach
-# a macOS host's loopback (ADR-0042, docs/DEPLOY.md). They are still reached
-# here as loopback, which is one of the interfaces bound. The broker publishes
-# its two ports the same way, and the proxy reaches 9001 as `/mqtt`.
+# The store and vite bind every interface rather than loopback, because a
+# container cannot reach a macOS host's loopback (ADR-0042, docs/DEPLOY.md) —
+# which is what a developer running the installation's door beside these needs.
+# They are still reached here as loopback, which is one of the interfaces
+# bound. The broker publishes its two ports the same way.
 #
 # The broker is a container and not a process: mosquitto is nobody's Python
 # dependency and the deployment runs the stock image (deploy/compose.yaml). It
-# is started with `docker run` rather than through that file, because compose
-# demands the proxy's Cloudflare token in the environment for any service it is
-# asked for and a developer bringing up a bus has no business with one.
+# is started with `docker run` rather than through that file, which starts a
+# railroad's worth of services and wants the box's declaration to do it.
 #
 # Running it twice is running it once: vite holds its port strictly, so a
 # second `pnpm dev` would fail rather than move to 5174, and a tab already open

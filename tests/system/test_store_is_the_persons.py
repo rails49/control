@@ -110,7 +110,7 @@ def test_the_deploy_makes_the_store_directory_before_compose() -> None:
 def test_the_deploy_asks_the_env_file_compose_is_given() -> None:
     """One name for the file, so the directory made and the directory mounted
     cannot be resolved out of two different places (#442)."""
-    assert "DEPLOY_ENV=/etc/tc49/deploy.env" in DEPLOY
+    assert "DEPLOY_ENV=/etc/rails49/deploy.env" in DEPLOY
     assert '--env-file "$DEPLOY_ENV"' in DEPLOY
 
 

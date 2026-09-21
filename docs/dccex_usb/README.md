@@ -213,7 +213,7 @@ the device closed before the runner is called and reopened after. Verifying
 the actual link is runtime's job, and it is one command:
 
 ```
-$ nc layout.rails49.org 2560
+$ nc gleis49.org 2560
 <s>
 <iDCC-EX V-5.4.16 / ESP32 / EXCSB1_WITH_EX8874 G-9db8d0e>
 <p0>

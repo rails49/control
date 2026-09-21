@@ -5,66 +5,82 @@ inbound from the internet and nothing on the wire beyond the LAN. Why it is
 built this way is [ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md);
 this page is how to run it.
 
-Two names in the `rails49.org` zone, both DNS-only:
+**The name, the certificate and the door are the installation's.** A box
+installs [`rails49/installation`](https://github.com/rails49/installation)
+before any railroad. That repository holds the door — the one thing in front
+of everything a browser reaches on the box — the certificate for the box's
+name, the page listing what the box serves, and the box's declaration of
+itself. `control` installs on top of it and carries no proxy, no entry point on
+80 or 443, no ACME credential and no route file
+([#557](https://github.com/rails49/control/issues/557)): being reachable
+stopped being a railroad's business.
 
-| name | points at | ttl |
-| --- | --- | --- |
-| `dev.rails49.org` | `127.0.0.1`, or the dev box's LAN address when a phone has to reach it | 60s |
-| `layout.rails49.org` | the address the router reserves for the layout server | a day |
-
-A public record holding a private address is the design rather than a trick.
-Anyone may resolve the name; it only works on the LAN. The certificate is a
-DNS-01 one, proved by writing a TXT record, so no port is forwarded and the
-router is not configured.
+What is left to this page is the railroad — the containers, the store's
+documents, the command station — and the two files on the box they are started
+against.
 
 **Everyone on the LAN can drive.** There is no authentication, on purpose, and
 the reasoning is in the ADR. Do not put this behind a name reachable from
 anywhere you would not hand a throttle.
 
-## Setting it up once
+## What the box declares
 
-A Cloudflare API token with `DNS:Edit` on the zone, in 1Password as
-**`Cloudflare DNS` in the `rails49` vault**, with the ACME account address in
-the same item's `email` field. Nothing is copied out of it: `scripts/dns.sh`
-reads the token at the moment it uses one, and `op run` puts it in the
-environment of the `docker compose` that needs it.
+`/etc/rails49/box.env`, written once when the installation is installed and
+read by every stack on the box:
 
-The zone's id is not a secret and stands in `scripts/dns.sh` beside the zone's
-name, so the token needs no permission to look one up.
+| variable | what it says | on this box |
+| --- | --- | --- |
+| `BOX_DOMAIN` | the name the box is reached at | `gleis49.org` |
+| `BOX_UIS` | the UIs it serves, one label each | `control jmri` |
+| `BOX_ACME_PROVIDER` | the DNS provider that issues its certificates | `cloudflare` |
 
-```
-docker network create rails49
-scripts/dns.sh dev 127.0.0.1
-op run --env-file=deploy/op.env -- docker compose -f deploy/compose.yaml up -d
-```
+So this UI is at <https://control.gleis49.org>, and naming a box is editing one
+file on the box rather than forking this repository. An `A` record for the apex
+and one per label, each holding the box's LAN address, is the installation's
+step and its README is where it is written; a public record holding a private
+address is the design rather than a trick, since anyone may resolve the name
+and it only works on the LAN.
 
-The first line is once per box, and only until the box installs the
-installation, which makes that network itself — see
-[What the containers declare](#what-the-containers-declare). Without it
-compose refuses to start anything: "network rails49 declared as external, but
-could not be found".
+`/etc/rails49/acme.env` sits beside the declaration and holds the credential
+the certificate is renewed with. **The door is the only thing that reads it**,
+so handing `control` the declaration does not hand it the box's DNS
+credentials — and the declaration stays something you can paste into an issue
+while debugging a headless box.
 
-The first request for the name is what makes Traefik ask for the certificate,
-so give it a few seconds and then open <https://dev.rails49.org>. Renewal is
-Traefik's, at about a third of the certificate's remaining life, and needs
-only outbound HTTPS.
+`control` adds one file of its own in that directory,
+`/etc/rails49/deploy.env`: which railroad the apps come up on, where the store
+is rooted, which device the command station is on. One directory rather than
+two, so the box has one place its settings sit.
+
+## Working on the app
+
+`scripts/dev.sh` needs none of this. It starts vite on `localhost:5173`, the
+store on 8765 and the broker beside them — no name, no certificate and no
+door, because `localhost` is a secure context and the browser asks for nothing
+more. A developer who wants the real shape runs the installation on their own
+machine, writes a declaration for it, and starts this stack against it the way
+a box does.
 
 ## The layout server
 
-`layout.rails49.org`, a Kamrui JK06 running Ubuntu 24.04, on wifi at
-`192.168.178.56`. It carries three things the dev box does not — the command
-station on USB, JMRI, and a UI that is built rather than served by vite — and
-the broker, which both have.
+`gleis49.org`, a Kamrui JK06 running Ubuntu 24.04, on wifi at
+`192.168.178.56`. It carries three things a development machine does not — the
+command station on USB, JMRI, and a UI that is built rather than served by
+vite — and the broker, which both have. The installation is already on it, so
+the door is up, the certificate is real, and `https://control.gleis49.org`
+answers 404 until this stack is started.
 
-**The token cannot come from 1Password here.** `op` unlocks through the
-desktop app and a headless box has none, while Traefik has to renew a
-certificate months from now with nobody present. So the layout server is the
-one place a secret sits on disk: `/etc/tc49/deploy.env`, owned `root:docker`
-and mode 640, outside the clone, written once from a machine that does have
-`op`. Revoke and rewrite it rather than editing it in place.
+**The ACME credential cannot come from 1Password here.** `op` unlocks through
+the desktop app and a headless box has none, while the door has to renew a
+certificate months from now with nobody present. So `/etc/rails49/acme.env` is
+where that secret sits on disk, owned `root:docker` and mode 640, outside every
+clone, written once from a machine that does have `op`. Revoke and rewrite it
+rather than editing it in place. It is the installation's file and `control`
+never reads it; `control`'s own `/etc/rails49/deploy.env` beside it holds no
+secret at all.
 
 **`rails49` is an ssh alias**, and it is a convenience rather than something
-the deploy needs. `scripts/deploy.sh` names `ttmetro@layout.rails49.org` in
+the deploy needs. `scripts/deploy.sh` names `ttmetro@gleis49.org` in
 full, because the alias lives in `~/.ssh/config` — a personal file that
 collects every host its owner has ever reached, is in no repository, and once
 lost the stanza and took the deploy down with it (#488, #496). Nothing that
@@ -77,7 +93,7 @@ pulled in by an `Include ~/.ssh/config.d/*` line at the top of
 
 ```ssh-config
 Host rails49
-    HostName layout.rails49.org
+    HostName gleis49.org
     User ttmetro
 ```
 
@@ -110,7 +126,7 @@ nobody reviews.
 **The box pulls over HTTPS — `https://github.com/rails49/control.git`.** The
 repository is public, so an anonymous fetch needs no credential: nothing is
 registered on GitHub for this box, there is no key to rotate, and there is no
-secret on its disk beyond `deploy.env`. `scripts/deploy.sh` exports
+secret on its disk beyond the door's `acme.env`. `scripts/deploy.sh` exports
 `GIT_TERMINAL_PROMPT=0`, so a request for a username fails loudly rather than
 reading the rest of the deploy as the answer.
 
@@ -129,11 +145,11 @@ and what is under `scripts/` on the box is whatever the box last pulled —
 which on a box that cannot pull is nothing
 ([#543](https://github.com/rails49/control/issues/543)).
 
-**The shared network is made once on the box**, and only until the box
-installs the installation, which makes it itself — see
+**The shared network is the installation's**, made under a fixed name every
+stack on the box joins — see
 [What the containers declare](#what-the-containers-declare). Three of the
-containers below join it and compose starts none of them without it:
-`ssh rails49 docker network create rails49`.
+containers below join it and compose starts none of them without it, so a box
+that has not installed the installation is told so before anything comes up.
 
 ```
 ssh rails49
@@ -141,24 +157,35 @@ cd ~/control
 git remote set-url origin https://github.com/rails49/control.git
 git pull
 pnpm --dir ui build
-mkdir -p "$(scripts/store-root.sh /etc/tc49/deploy.env)"
-[ -f /etc/tc49/dccex-startup.txt ] ||
-  { sudo rm -rf /etc/tc49/dccex-startup.txt &&
-    sudo install -m 644 /dev/null /etc/tc49/dccex-startup.txt; }
+mkdir -p "$(scripts/store-root.sh /etc/rails49/deploy.env)"
+[ -f /etc/rails49/dccex-startup.txt ] ||
+  { sudo rm -rf /etc/rails49/dccex-startup.txt &&
+    sudo install -m 644 /dev/null /etc/rails49/dccex-startup.txt; }
 export TC49_UID=$(id -u) TC49_GID=$(id -g)
-TC49_SITE=layout docker compose --env-file /etc/tc49/deploy.env \
+docker compose --env-file /etc/rails49/box.env \
+  --env-file /etc/rails49/deploy.env \
   -f deploy/compose.yaml --profile layout --profile hardware \
   up -d --remove-orphans
 ```
 
-`scripts/deploy.sh` is that sequence, run over ssh from the dev box.
+`scripts/deploy.sh` is that sequence, run over ssh from a development machine.
+
+**Two `--env-file`s, because two things are being said.** The first is the
+box's declaration, which every stack on the box is started against and which
+is where the name in the routers' labels comes from; the second is this
+stack's own settings. A box with no declaration is told which variable is
+missing rather than given routers under a blank name.
+
+**Every `docker compose` here takes both**, `logs` and `ps` included: compose
+reads the whole file before it runs any subcommand, so one without them stops
+on the missing name rather than on anything to do with what was asked.
 
 **Two profiles, because a box is software plus whatever is wired to it.**
 `layout` is the software of a running railroad: the store, the built ui, and
 the scheduler, dispatcher, driver and layout interface, each its own
 container (ADR-0059, decision 5). `hardware` is what this box owns because of
-what is plugged into it — the command station's mirror, the translator that
-speaks to it, and JMRI. A box with no steel under it asks for `sim` in place
+what is plugged into it — the command station's mirror and the translator that
+speaks to it. A box with no steel under it asks for `sim` in place
 of `hardware`, which runs the simulator where the layout interface's hardware
 binding would be, and `tests/system/test_compose.py` holds the split.
 
@@ -176,8 +203,9 @@ held 2560, and `dccex-usb` could not start until it was gone.
 ([#451](https://github.com/rails49/control/issues/451)) rather than letting
 compose take the name from the `deploy/` directory, so `docker logs
 tc49-store-1` is the same container on every clone. Addressing a service
-rather than a container — `docker compose --env-file /etc/tc49/deploy.env -f
-deploy/compose.yaml logs scheduler` — needs no name at all.
+rather than a container — `docker compose --env-file /etc/rails49/box.env
+--env-file /etc/rails49/deploy.env -f deploy/compose.yaml logs scheduler` —
+needs no name at all.
 
 Nothing starts this at boot but Docker itself: every service is
 `restart: unless-stopped` and the daemon is enabled, so a power cut comes back
@@ -187,16 +215,17 @@ on its own. There is no systemd unit to forget.
 to run anything else (#354). Every service below is built from one image,
 `deploy/app.Dockerfile`, with a command of its own.
 
+Nothing here publishes 80 or 443: those are the door's, and it is the
+installation's container. What the door serves is a label under the box's
+name, and what the containers below publish is on the LAN beside it.
+
 | runs on the layout server | port | reached how |
 | --- | --- | --- |
-| the app, over the certificate | 443 | `https://layout.rails49.org` |
-| the redirect to it | 80 | `layout.rails49.org` typed bare |
-| the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue` |
+| the app, over the certificate | the door's 443 | `https://control.gleis49.org` |
+| the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue` under that name |
 | the broker, native clients | 1883 | the LAN address |
-| the broker, a browser | 9001, and `/mqtt` | plaintext on the LAN, or through the proxy from a TLS page |
+| the broker, a browser | 9001, and `/mqtt` | plaintext on the LAN, or through the door from a TLS page |
 | `dccex-usb`, the command station mirrored | 2560 | the LAN address |
-| JMRI's desktop | 6901 noVNC, 5901 VNC | `http://192.168.178.56:6901` |
-| JMRI's web server, once it is running | 12080 | the LAN address |
 
 ### The store, and the documents it serves
 
@@ -251,9 +280,11 @@ says which. Only the store mounts it, so nothing else comes down:
 
 ```
 cd ~/control
-docker compose --env-file /etc/tc49/deploy.env -f deploy/compose.yaml rm -sf store
+docker compose --env-file /etc/rails49/box.env \
+  --env-file /etc/rails49/deploy.env -f deploy/compose.yaml rm -sf store
 docker volume rm deploy_keys
-docker compose --env-file /etc/tc49/deploy.env -f deploy/compose.yaml up -d --no-deps store
+docker compose --env-file /etc/rails49/box.env \
+  --env-file /etc/rails49/deploy.env -f deploy/compose.yaml up -d --no-deps store
 ```
 
 The store makes itself a new key on the next `File ▸ Backup…`, in a volume
@@ -315,12 +346,12 @@ the command station sends reaches every client, and a client's bytes go to it
 only as whole `<…>` messages (ADR-0043).
 
 **This railroad's per-district trip currents live on the box**, in
-`/etc/tc49/dccex-startup.txt`, and nowhere else: a district is a hardware fact
+`/etc/rails49/dccex-startup.txt`, and nowhere else: a district is a hardware fact
 that reaches no bus topic and no document
 ([#217](https://github.com/rails49/control/issues/217)). The `dccex` service
 is given it with `--startup` and the file itself is mounted read-only —
-**the file, not `/etc/tc49`**, which also holds `deploy.env`, so a directory
-mount would hand the translator this box's one secret. What may go in it is
+**the file, not `/etc/rails49`**, which also holds the door's `acme.env`, so
+a directory mount would hand the translator this box's one secret. What may go in it is
 [dccex/README.md](dccex/README.md#the-startup-file); it is sent on every
 power-on and on nothing else, and a station whose limits are compiled into
 its firmware needs none of it.
@@ -330,7 +361,7 @@ and runs on the limits its firmware was built with (ADR-0050). It is made
 empty rather than left out, because a bind mount whose source is missing is
 created by the daemon as a root-owned *directory* and the translator would
 then open a directory as its startup file — the fault `~/tc49` had (#387).
-`scripts/deploy.sh` makes it where this account can write `/etc/tc49`, and
+`scripts/deploy.sh` makes it where this account can write `/etc/rails49`, and
 says what to run by hand where it cannot rather than stopping the deploy over
 a file that is allowed to be empty. What it says to run is the line above,
 and it removes what is at the path first: against a directory `install`
@@ -340,13 +371,15 @@ directory there for the translator to open
 
 **Edit it in place.** A single-file bind mount binds the inode, so an editor
 that replaces the file leaves the container reading the values it was created
-with, the way the proxy went on serving the route table it started with
+with — the fault the old proxy had, going on serving the route table it
+started with while `git pull` replaced the file under it
 ([#353](https://github.com/rails49/control/issues/353)). The directory mount
 that cured that one is not available here. A container that has lost the file
 this way is recreated:
 
 ```
-docker compose --env-file /etc/tc49/deploy.env -f deploy/compose.yaml \
+docker compose --env-file /etc/rails49/box.env \
+  --env-file /etc/rails49/deploy.env -f deploy/compose.yaml \
   up -d --force-recreate --no-deps dccex
 ```
 
@@ -355,19 +388,25 @@ the edit and the power cycle together are the whole of changing a limit.
 
 ### JMRI
 
-An operator's tool and none of this app's business. The image does not start
-JMRI: open `http://192.168.178.56:6901`, and click DecoderPro or PanelPro on
-the desktop. Its profile is already pointed at the command station — a DCC++
-over TCP connection to `dccex-usb:2560` — and `/home/jmri` is a volume, so
-whatever else is configured through the GUI survives the container.
+An operator's tool and none of this repository's business. It used to be a
+service in the file below, which made it part of a railroad's stack that it
+never was; it is a compose project of its own in the installation now, started
+and stopped without touching anything here
+([rails49/installation ADR-0002](https://github.com/rails49/installation/blob/main/docs/adr/0002-jmri-is-a-compose-project-of-its-own.md)),
+and that repository's README is where the command sits.
 
-That volume is why renaming the service
-([#299](https://github.com/rails49/control/issues/299)) needs a click here.
-Compose's DNS follows the service name, and a profile saved before the rename
-still holds the old one, which no longer resolves: open DecoderPro, set the
-connection's host to `dccex-usb`, and save. Nothing else moves — the published
-port is still 2560, and everything reaching it by LAN address reaches it
-unchanged.
+It publishes no port. noVNC answers at `https://jmri.gleis49.org`, behind the
+same door as everything else, and the image does not start JMRI: open that
+name and click DecoderPro or PanelPro on the desktop.
+
+What is `control`'s here is the one thing JMRI talks to: the command station,
+as a plain client of `dccex-usb` on 2560 over the LAN, like any hand-held
+throttle (ADR-0043). Its connection is a DCC++ over TCP one, and the host in
+it is the box rather than a compose service name now that JMRI is in another
+project — set it in DecoderPro once and save. The rest of what is configured
+through the GUI lives in a volume of that project's
+([#299](https://github.com/rails49/control/issues/299) is the last time that
+volume needed a click here).
 
 ### The router
 
@@ -375,7 +414,7 @@ Most home routers strip private addresses out of answers from upstream DNS —
 DNS rebind protection, and it is the one thing that can break this design. A
 FritzBox has it under **Home Network → Network**, the **Network Settings**
 tab, at the foot of the page behind the **Change Advanced Network Settings**
-button, on its **DNS Rebind Protection** tab, where `layout.rails49.org` goes
+button, on its **DNS Rebind Protection** tab, where `gleis49.org` goes
 in the exception list. It is one field, it survives a reboot, and it rides
 along in the configuration backup. AVM exposes no API for it, so this is the
 only step here that cannot be scripted.
@@ -389,18 +428,6 @@ button on the page that owns them, and the DNS one lands directly on
 Reserve the layout server's address in the same router while you are there —
 **Network Connections**, the device, **Home Network**, *Assign permanent IPv4
 address*. The record is then set once rather than maintained.
-
-## Moving a name
-
-```
-scripts/dns.sh                     what the A records say now
-scripts/dns.sh dev 192.168.1.9     so a phone can reach the dev box
-scripts/dns.sh dev 127.0.0.1       back again
-```
-
-`dev` carries a 60-second TTL precisely because it moves. Pointing it at the
-LAN address is what testing on a phone needs; the loopback default is what
-needs no maintenance when the box changes networks.
 
 ## What the containers declare
 
@@ -422,7 +449,7 @@ not build.
 
 The names are keyed to the stack rather than to the site. The door sees every
 stack on the box, so a name has to be unique across all of them, and the site
-prefix named a route directory that is about to stop existing.
+prefix named a route directory that no longer exists.
 
 **The name comes from the box's declaration.** `/etc/rails49/box.env` holds
 `BOX_DOMAIN`, the name the box is reached at, and every stack on the box is
@@ -464,120 +491,78 @@ whichever container address it finds first. That is
 [ADR-0001](https://github.com/rails49/installation/blob/main/docs/adr/0001-only-what-the-door-reaches-joins-the-shared-network.md)
 in `rails49/installation`.
 
-The network is the installation's to create, so a box that has not installed
-the installation yet makes it by hand and removes it when it does:
+The network is the installation's to create, and compose declares it external
+here, so a box that has not installed the installation is told so rather than
+quietly making a network of its own:
 
 ```
-docker network create rails49
+network rails49 declared as external, but could not be found
 ```
 
-**Both ways are live for one release.** The labels are read by a door that is
-not on this box yet, and `proxy` below goes on serving the same routing out of
-its route file and reads no label. The routing arrives before the old way
-leaves, so that a box keeps working while it is cut over; the route file,
-`TC49_SITE` and `proxy` itself go in the release after this one, and until
-then `tests/system/test_router_labels.py` holds the two to the same paths.
+**`/mqtt` is on the app's own origin** because a page served over TLS cannot
+open a `ws://` socket, and the browser refuses it rather than warning. The run
+view is a client of the broker like any other app
+([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+decision 4), and native clients go straight to 1883 and never come through the
+door. In development vite proxies the same paths, so the app builds one URL out
+of the page's own on both.
 
-## What the proxy carries
-
-Two entry points and one route file, `deploy/routes/<site>/site.yaml`. The
-proxy mounts that site's directory, named by `TC49_SITE` and `dev` unless it
-is set. The routers all sit on `:443`. `:80` carries a redirect to it and
-holds no router of its own, because a person types a bare hostname and the
-browser tries http first; a box publishing 443 alone refuses that connection
-and reads as down. The certificate comes from a DNS-01 challenge, so nothing
-needs `:80` reachable from outside the LAN.
-
-A box mounts its own site's directory and no other: Traefik asks for a
-certificate at startup for every router it can see, rather than when a request
-for that name first arrives, so a box carrying both files fetches a
-certificate for a name that is not its own.
-
-Each site has a directory of its own so that the mount can be a directory. A
-single-file bind mount binds the inode, and `git pull` replaces a file rather
-than writing through it, so the container went on serving the table it started
-with until somebody recreated it by hand (#353). A directory mount sees the
-replacement, which is what `--providers.file.watch=true` needs, so a route
-change reaches the proxy through `scripts/deploy.sh` alone.
-
-| path | dev | layout |
+| path | development | the layout box |
 | --- | --- | --- |
-| `/mqtt` | the broker's websocket listener on the host, `:9001`, prefix stripped | the same, as the `broker` container |
+| `/mqtt` | the broker container's websocket listener on `:9001` | the same, as the `broker` container |
 | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue` | vite's own proxy to the store | the store, `:8765` |
 | everything else | vite, `:5173` | `ui/dist` through nginx |
 
-`/mqtt` is on the app's own origin because a page served over TLS cannot open
-a `ws://` socket, and the browser refuses it rather than warning. The run view
-is a client of the broker like any other app
-([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
-decision 4), and native clients go straight to 1883 and never come through the
-proxy.
-
-**A handshake from a page on another origin is answered 403 here**, before
-the upgrade, so a foreign page gets no socket at all. A WebSocket has no
+**A handshake from a page on another origin is answered 403 before the
+upgrade**, so a foreign page gets no socket at all. A WebSocket has no
 preflight, so this is the whole of what stands between a page somebody's
 browser visits and the gestures a client may publish
 ([ADR-0056](adr/0056-the-browsers-way-onto-the-bus-refuses-a-foreign-origin.md),
-[#349](https://github.com/rails49/control/issues/349)). It is a second router
-on `/mqtt` in each site's table, matching an `Origin` that is not the
-router's own host and carrying a middleware that refuses: Mosquitto has no
+[#349](https://github.com/rails49/control/issues/349)). Mosquitto has no
 `Origin` setting, so the rule is stated in front of it rather than in an app,
 `lib/origin.py` being the same rule at the store's face. A handshake with no
 `Origin` is a native client and goes through, and one on 1883 does not pass
 this way at all.
 
-Traefik proxies and does not read files, which is why the built UI needs
-nginx behind it. Traefik rather than Caddy because its stock image carries
-every ACME provider; a DNS-01 certificate under Caddy would mean building a
-binary with the Cloudflare module in it.
+The built UI needs nginx behind the door because the door proxies and does not
+read files. That is the whole of what `web` is.
 
 ## Why the apps bind wider than loopback
 
 `scripts/dev.sh` starts the store with `--host 0.0.0.0`, vite with
-`server.host`, and publishes the broker container's ports. A container cannot reach a macOS host's loopback —
-Docker Desktop is a virtual machine, and `host.docker.internal` reaches an
-interface nothing was listening on. Both default to `127.0.0.1` and only
-`dev.sh` widens them.
+`server.host`, and publishes the broker container's ports. A container cannot
+reach a macOS host's loopback — Docker Desktop is a virtual machine, and
+`host.docker.internal` reaches an interface nothing was listening on — so a
+door running beside them in a container would have nothing to dial. Both
+default to `127.0.0.1` and only `dev.sh` widens them.
 
 ## When it does not work
 
+**`network rails49 declared as external, but could not be found`** — the
+installation is not up on this box. It creates that network, and every stack
+that serves a UI joins it.
+
+**Compose stops on an unset `BOX_DOMAIN`** — it was run without
+`--env-file /etc/rails49/box.env`. The message names the variable it wanted.
+
+**`https://control.gleis49.org` answers 404** — the door is up and this stack
+is not, or its containers are not on the shared network. `docker compose
+--env-file /etc/rails49/box.env --env-file /etc/rails49/deploy.env -f
+deploy/compose.yaml ps` says which.
+
 **`Blocked request. This host is not allowed.`** — vite 6 refuses a request
-whose `Host` header it does not know. The name belongs in
-`server.allowedHosts` in `ui/vite.config.ts`.
+whose `Host` header it does not know. `localhost` and a bare LAN address it
+allows; a name belongs in `server.allowedHosts` in `ui/vite.config.ts`.
 
 **The name resolves to nothing, or to `0.0.0.0`** — DNS rebind protection at
-the router, above. `dig dev.rails49.org @1.1.1.1` answers correctly while the
-router does not, which is how to tell this apart from a wrong record.
+the router, above. `dig control.gleis49.org @1.1.1.1` answers correctly while
+the router does not, which is how to tell this apart from a wrong record.
 
-**The record will not save as a private address** — it is proxied. The cloud
-beside it in the dashboard has to be grey.
-
-**`acme: error presenting token: could not find zone`, with `SERVFAIL`** —
-before writing the TXT record lego asks which zone the name belongs to, and
-the resolver the network handed the container would not answer. The compose
-file names `1.1.1.1` and `9.9.9.9` for that question rather than leaving it to
-whatever is on hand.
-
-**Traefik logs nothing at all** — that is success. It reports failures, so a
-quiet log and a `/acme/acme.json` with bytes in it is a certificate.
-
-**noVNC serves its page on 6901 but Connect fails** — the VNC server came up
-on a display other than `:1`, and the page dials 5901 regardless. The image's
-`vncserver` takes the first display with no socket in `/tmp/.X11-unix`, and a
-restart that keeps the writable layer leaves the old one behind, so each
-restart moves the server one port further away. `tmpfs: [/tmp]` on the `jmri`
-service in `deploy/compose.yaml` gives it an empty `/tmp` every start, which
-is what keeps it on `:1` and 5901.
-
-**No certificate, and the log says the challenge failed** — the token is
-scoped to the wrong zone, or lacks `DNS:Edit`. Renewal, and first issue, use
-the same permission. `scripts/dns.sh` exercises it: if that can move a record,
-the token can answer a challenge.
-
-**Compose stops on an unset variable** — it was run without `op run`, which is
-what supplies them. The message names the variable it wanted.
+**No certificate, or the door's log says a challenge failed** — the
+installation's, not this stack's: its README is where the credential and the
+provider are written.
 
 **The internet is down mid-run** — a `hosts` line covers the operating
 console, and a phone cannot have one, so hand-held throttles are off the
-layout until the name resolves again. The long TTL on `layout` is the whole
+layout until the name resolves again. A long TTL on the record is the whole
 mitigation.

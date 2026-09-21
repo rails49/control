@@ -362,7 +362,7 @@ async def _an_on_does_not_lift_a_lock_the_station_reports() -> None:
 # -- the startup file ----------------------------------------------------
 
 FILE = """\
-# /etc/tc49/dccex-startup.txt — trip currents for the four districts
+# /etc/rails49/dccex-startup.txt — trip currents for the four districts
 
 <= A LIMIT 3000>
 <= B LIMIT 3000>

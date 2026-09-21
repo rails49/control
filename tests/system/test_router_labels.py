@@ -9,17 +9,17 @@ a UI's paths change in the same commit as the UI.
 What a running proxy does with these labels is not checked here: a wrong label
 parses and asserts fine, and only a request on a real box says otherwise. What
 is checked is what a reader cannot see is wrong — a hostname written out
-instead of taken from the box's declaration, a router named for a site that is
-about to stop existing, an app container on a network the door can reach it
-from, and the refusal's precedence left to a rule length that no longer sits
-beside the rule it has to beat.
+instead of taken from the box's declaration, a router named for a site that
+stopped existing, an app container on a network the door can reach it from,
+and the refusal's precedence left to a rule length that no longer sits beside
+the rule it has to beat.
 
-`deploy/routes/*/site.yaml` is still mounted and still serving, and the
-assertions over it in `test_route_mount.py` and
-`test_broker_refuses_a_foreign_origin.py` still hold. Both ways are live for
-one release, so that a box keeps working while it is cut over, and
-`test_the_two_ways_agree_while_both_exist` is what keeps them from drifting
-apart in between. Why each rule is written the way it is sits where the rules
+This is the whole of `control`'s routing since #557: the route file, `proxy`
+and the site variable are gone, and there is no second table anywhere to
+disagree with these labels. The assertions that read that file went with it;
+the ones over the refusal are here, unchanged, and are the highest-value
+assertions in the file — a mistake in them is a foreign page on the bus rather
+than a dead link. Why each rule is written the way it is sits where the rules
 are, in `deploy/compose.yaml` and `docs/DEPLOY.md`, and is not repeated here.
 """
 
@@ -30,6 +30,11 @@ import pytest
 import yaml
 
 from tests.system.test_compose import COMPOSE, services
+
+DOOR_PORTS = frozenset({"80", "443"})
+"""The entry points a door holds. One per box, and it is the installation's
+(#557), so a second stack binding either is a stack that cannot come up
+beside it."""
 
 NETWORK = "rails49"
 """The one network every stack on the box shares, created by the installation
@@ -58,8 +63,8 @@ patterns below. The file is read as written, with `${BOX_DOMAIN}` still in
 it — what is asserted is that the declaration is where the name comes from."""
 
 WRITTEN_OUT = "rails49.org"
-"""The zone the route file names five times, and the reason naming a box was
-forking this repository. No rule here may spell it."""
+"""The zone the deleted route file named five times, and the reason naming a
+box was forking this repository. No rule here may spell it."""
 
 ORIGIN = re.compile(r"!Header\(`Origin`, `([^`]+)`\)")
 
@@ -109,10 +114,6 @@ def rule(name: str) -> str:
 
 def priority(name: str) -> int:
     return int(router(name)["priority"])
-
-
-def prefixes(text: str) -> set[str]:
-    return set(re.findall(r"PathPrefix\(`([^`]+)`\)", text))
 
 
 def test_the_shared_network_is_the_installations_to_create() -> None:
@@ -177,9 +178,9 @@ def test_nothing_else_carries_a_router() -> None:
 
 
 def test_router_names_are_keyed_to_the_stack() -> None:
-    """Not to the site: the site prefix named a route directory that is about
-    to stop existing, and these names have to be unique across every stack the
-    door sees rather than across this file."""
+    """Not to the site: the site prefix named a route directory that no longer
+    exists, and these names have to be unique across every stack the door sees
+    rather than across this file."""
     named = (
         sorted(routers())
         + sorted(declared("middlewares"))
@@ -298,19 +299,27 @@ def test_a_handshake_with_no_origin_is_not_what_is_refused() -> None:
     assert "HeaderRegexp(`Origin`, `.`)" in rule("mqtt-foreign")
 
 
-def test_the_two_ways_agree_while_both_exist() -> None:
-    """The labels and the layout box's route file are the same routing said
-    twice until the file goes, and the paths are the half a person edits. A
-    prefix added to one and not the other is a path that works on whichever
-    box has not been cut over yet."""
-    table = yaml.safe_load((COMPOSE.parent / "routes/layout/site.yaml").read_text())
-    said = {
-        name: prefixes(str(one["rule"]))
-        for name, one in cast(
-            dict[str, dict[str, Any]], table["http"]["routers"]
-        ).items()
-    }
-    for name in ("app", "store", "mqtt", "mqtt-foreign"):
-        assert (
-            prefixes(rule(name)) == said[f"layout-{name}"]
-        ), f"the labels and the route file disagree about {name}'s paths"
+def test_nothing_here_holds_the_boxs_entry_points() -> None:
+    """One door per box and it is the installation's (#557), so a service here
+    that published 80 or 443 would be a stack that cannot come up beside it."""
+    published: set[str] = set()
+    for service in services().values():
+        ports: list[str] = service.get("ports") or []
+        published |= {str(port).split(":")[0] for port in ports}
+    held = sorted(published & DOOR_PORTS)
+    assert not held, f"{held} are the door's entry points and it is not here"
+
+
+def test_no_route_file_is_left_beside_the_compose_file() -> None:
+    """The labels above are the whole of this repository's routing. A second
+    table is something for them to disagree with, and the release that removed
+    the first one is where that stops being possible (#557). `deploy/` and not
+    the tree: that is where routing lives here, and a walk of everything would
+    read whatever a dependency vendored under `node_modules` as ours."""
+    where = COMPOSE.parent
+    left = sorted(
+        str(path.relative_to(where))
+        for path in where.rglob("*.yaml")
+        if path.name != COMPOSE.name and "routers" in path.read_text()
+    )
+    assert not left, f"deploy/{left} is a second route table"
