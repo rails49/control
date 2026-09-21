@@ -1,6 +1,11 @@
 import { css, unsafeCSS } from "lit";
 
-import { DARK, RAIL_BUTTON_PX, RAIL_TURNS_PX } from "../render/units.js";
+import {
+  DARK,
+  RAIL_BUTTON_PX,
+  RAIL_PAD_PX,
+  RAIL_TURNS_PX,
+} from "../render/units.js";
 import { palette } from "./shared.styles.js";
 
 /** Declaration body. What the palette's entries become on a dark page, built
@@ -42,10 +47,9 @@ export const appStyles = css`
 
     /* The rail's own width, which is the column the work starts after. Stated
        here as well as read there, the grid being what has to leave room for
-       it: a button and the 4px of padding either side of it
-       (tc-rail.styles.ts), so the bound button size is the whole of what
-       decides it. */
-    --rail-width: ${RAIL_BUTTON_PX + 8}px;
+       it: a button and the padding either side of it, both of which the rail
+       is written in too (tc-rail.styles.ts, render/units.ts). */
+    --rail-width: ${RAIL_BUTTON_PX + 2 * RAIL_PAD_PX}px;
 
     display: grid;
     grid-template-columns: auto 1fr;

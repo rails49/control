@@ -1,6 +1,10 @@
 import { css, unsafeCSS } from "lit";
 
-import { RAIL_BUTTON_PX, RAIL_TURNS_PX } from "../render/units.js";
+import {
+  RAIL_BUTTON_PX,
+  RAIL_PAD_PX,
+  RAIL_TURNS_PX,
+} from "../render/units.js";
 
 /**
  * The rail down the left (tc-rail): the views, then the current view's
@@ -34,12 +38,12 @@ export const railStyles = css`
   :host {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: ${RAIL_PAD_PX}px;
     align-items: center;
     /* No padding above the first group and none below the last: the column is
        long enough already, and a pinned group has to sit flush against the top
        of the scroll or the buttons under it show in the gap. */
-    padding: 0 4px;
+    padding: 0 ${RAIL_PAD_PX}px;
     width: var(--rail-width);
     box-sizing: border-box;
     background: var(--rail);
@@ -89,7 +93,9 @@ export const railStyles = css`
 
   /* The glyphs are drawn at 16 units square (ui/icons.ts) and the rail wants
      them bigger than the band does, so the size is the button's rather than
-     the drawing's: a fraction of it, so the two cannot come apart. */
+     the drawing's. The fraction is the one they have always been drawn at —
+     1.35rem in a 2.2rem button — written as a fraction now so that it survives
+     the button changing size. */
   button svg {
     width: ${0.6 * RAIL_BUTTON_PX}px;
     height: ${0.6 * RAIL_BUTTON_PX}px;
@@ -156,7 +162,7 @@ export const railStyles = css`
     :host {
       flex-direction: row;
       width: auto;
-      padding: 4px 6px;
+      padding: ${RAIL_PAD_PX}px ${1.5 * RAIL_PAD_PX}px;
       overflow: auto hidden;
     }
 

@@ -204,9 +204,12 @@ describe("the height the rail turns at", () => {
  */
 describe("what a pane paints its ground with", () => {
   /** The sheets of the work, which is everything but the chrome. The band and
-   *  the rail are the two that must not follow the theme. */
+   *  the rail are the two that must not follow the theme, and they are left
+   *  out by identity rather than by name: renaming a sheet would otherwise
+   *  quietly change what this covers. */
+  const chrome: CSSResult[] = [headerStyles, railStyles];
   const panes = Object.entries(sheets).filter(
-    ([name]) => name !== "headerStyles" && name !== "railStyles",
+    ([, sheet]) => !chrome.includes(sheet),
   );
 
   it.each(panes)("%s asks the palette rather than naming a colour", (_, sheet) => {
