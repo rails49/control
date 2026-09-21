@@ -185,6 +185,12 @@ export const NOTE = 0.22;
  */
 export const RAIL_BUTTON_PX = 44;
 
+/** The padding either side of that button, which with it is the whole of the
+ *  rail's width. Two sheets need it — `tc-rail` pads the column and `tc-app`
+ *  leaves the grid room for it — so it is one number here rather than two that
+ *  agree. */
+export const RAIL_PAD_PX = 4;
+
 /**
  * The window height at or below which the rail lies down along the top of the
  * work instead of standing down its left (ADR-0064). The other size the look
