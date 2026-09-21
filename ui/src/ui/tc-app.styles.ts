@@ -1,7 +1,15 @@
 import { css, unsafeCSS } from "lit";
 
-import { RAIL_BUTTON_PX, RAIL_TURNS_PX } from "../render/units.js";
+import { DARK, RAIL_BUTTON_PX, RAIL_TURNS_PX } from "../render/units.js";
 import { palette } from "./shared.styles.js";
+
+/** Declaration body. What the palette's entries become on a dark page, built
+ *  the way `palette` is built from the light ones (render/units.ts). */
+const afterDark = unsafeCSS(
+  Object.entries(DARK)
+    .map(([name, value]) => `${name}: ${value};`)
+    .join("\n      "),
+);
 
 /**
  * The app (tc-app): the page every view is laid out on.
@@ -49,6 +57,21 @@ export const appStyles = css`
     background: var(--paper);
     color: var(--ink);
     font: 13px/1.4 system-ui, sans-serif;
+  }
+
+  /* The same palette on a dark page, and the operating system decides: both
+     Shoelace themes are linked and there is no toggle (LOOK.md, ADR-0003).
+     Only the entries that move are redeclared, so the band and the rail keep
+     the one value they have in both themes by having no line here at all.
+
+     It is on the same host the palette is, which is the page every view
+     inherits from, and it is written here rather than in shared.styles.ts
+     because one component wears it and nothing lives there that fewer than two
+     do (#132). */
+  @media (prefers-color-scheme: dark) {
+    :host {
+      ${afterDark}
+    }
   }
 
   /* The band's picker hangs over the rail and the work. z-index only competes

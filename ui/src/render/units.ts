@@ -271,3 +271,49 @@ export const COLOURS: Record<string, string> = {
   "--rail": "#064e3b",
   "--rail-group": "#059669",
 };
+
+/**
+ * The same palette on a dark page, entry for entry.
+ *
+ * Both Shoelace themes are linked and `prefers-color-scheme` decides, with no
+ * toggle in the page (LOOK.md, ADR-0003). The work pane follows that; the
+ * chrome does not, which is why the band and the rail have no entry here — they
+ * are what says *this is the same project* as a person moves between the
+ * project's apps, and a colour that moved with the theme would say it twice
+ * over. `test/styles.test.ts` asserts that division against the copy: every
+ * colour that is not one of the four has a value here.
+ *
+ * The values are not inversions. Track and ink swap ends, because the paper
+ * does; a signal lamp, a route's green and cyan, and the two weights a fault is
+ * marked in keep their hue and are lifted until they carry on the dark ground,
+ * since what each colour *means* is the same page of LOOK.md in either theme. A
+ * pale ground — a lit block body, a red one — becomes a dark ground of the same
+ * hue rather than a pale one on a dark page.
+ *
+ * An exported file takes the light palette whichever theme drew it
+ * (`tc-canvas.styles.ts`): it is a file that leaves here, and it should not
+ * depend on the settings of the machine it was saved from.
+ */
+export const DARK: Record<string, string> = {
+  "--ink": "#e6e8ea",
+  "--paper": "#14171b",
+  "--rule": "#2f343b",
+  "--face": "#6b7078",
+  "--track": "#dfe3e8",
+  "--body": "#1b1f26",
+  "--chosen": "#4d90ef",
+  "--good": "#3ed17f",
+  "--wrong": "#f2555f",
+  "--unfinished": "#8b95a3",
+  "--hint": "#8d939c",
+  "--green": "#2fbf5e",
+  "--red": "#f04a40",
+  "--amber": "#f0ad35",
+  "--lit": "#e09a4a",
+  "--lit-body": "#3a2e1d",
+  "--locked": "#4fb844",
+  "--committed": "#1cb6d4",
+  "--wrong-body": "#3d2125",
+  "--tint-1": "#2fb99a",
+  "--tint-2": "#e09a4a",
+};

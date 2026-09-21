@@ -38,6 +38,7 @@ import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import mqtt, { type MqttClient } from "mqtt";
 import "@shoelace-style/shoelace/dist/themes/light.css";
+import "@shoelace-style/shoelace/dist/themes/dark.css";
 
 import {
   blockAt,

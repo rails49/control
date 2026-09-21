@@ -52,7 +52,7 @@ export const netlistStyles = css`
     margin-bottom: 0.9rem;
     padding: 0.1rem 0.5rem 0.5rem;
     border-left: 3px solid var(--tint-2);
-    background: #faf5ee;
+    background: color-mix(in srgb, var(--tint-2) 6%, var(--paper));
   }
 
   .concurrent {
@@ -87,11 +87,11 @@ export const netlistStyles = css`
   }
 
   .transits button:hover {
-    background: #f0eeea;
+    background: color-mix(in srgb, var(--ink) 8%, var(--paper));
   }
 
   .transits button.on {
-    background: #e8f0fe;
+    background: color-mix(in srgb, var(--chosen) 12%, var(--paper));
     font-weight: 600;
   }
 

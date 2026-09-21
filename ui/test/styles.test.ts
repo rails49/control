@@ -26,13 +26,14 @@
  * unnoticed until the module has grown back into the file it came out of.
  */
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 import type { CSSResult } from "lit";
 import { describe, expect, it } from "vitest";
 
 import {
   COLOURS,
+  DARK,
   RAIL_BUTTON_PX,
   RAIL_TURNS_PX,
 } from "../src/render/units.js";
@@ -192,6 +193,82 @@ describe("the height the rail turns at", () => {
 });
 
 /**
+ * Both themes, with the operating system deciding (#547).
+ *
+ * LOOK.md binds three things here: both Shoelace themes are linked with no
+ * toggle in the page, the chrome keeps one value in both, and the work pane
+ * follows the theme. The first two are checked above and beside this; this is
+ * the third, and it is the one a sheet breaks by accident — a ground written
+ * as a hex is invisible in the light theme and unreadable in the dark one,
+ * where the text over it has moved and the ground has not.
+ */
+describe("what a pane paints its ground with", () => {
+  /** The sheets of the work, which is everything but the chrome. The band and
+   *  the rail are the two that must not follow the theme. */
+  const panes = Object.entries(sheets).filter(
+    ([name]) => name !== "headerStyles" && name !== "railStyles",
+  );
+
+  it.each(panes)("%s asks the palette rather than naming a colour", (_, sheet) => {
+    const written = sheet.cssText
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(palette.cssText, "");
+    const named = [
+      ...written.matchAll(/(?:background|fill)\s*:[^;}]*#[0-9a-fA-F]{3,8}/g),
+    ].map(([rule]) => rule.trim());
+    expect(named).toEqual([]);
+  });
+
+  /** The dark half of the palette, on the one host the light half is declared
+   *  on (ADR-0038). A view redeclaring it would be a second place for a colour
+   *  to be changed in, and a view that only redeclared half of it would paint
+   *  a dark pane inside a light page. */
+  it("is redeclared for a dark page on the page itself", () => {
+    expect(appStyles.cssText).toContain("prefers-color-scheme: dark");
+    expect(appStyles.cssText).toContain(`--paper: ${DARK["--paper"]}`);
+    for (const sheet of [editorStyles, panelStyles, throttleStyles]) {
+      expect(sheet.cssText).not.toContain("prefers-color-scheme");
+    }
+  });
+
+  /** An export is a file that leaves here: it carries the light palette
+   *  whichever theme drew it, so what it looks like does not depend on the
+   *  settings of the machine it was saved from (#86). */
+  it("leaves an exported file in the light palette it was written in", () => {
+    expect(exportStyles.cssText).not.toContain("prefers-color-scheme");
+  });
+
+  /** The page under the app, which is a plain stylesheet and cannot read the
+   *  palette. It shows while the module loads and nowhere else, and the two
+   *  values it names are the two the app would paint. */
+  it("is the app's own paper on the page underneath it", () => {
+    const page = readFileSync(
+      new URL("../src/page.css", import.meta.url),
+      "utf8",
+    );
+    const grounds = [...page.matchAll(/background:\s*([^;]+);/g)].map(
+      ([, value]) => value!.trim(),
+    );
+    expect(grounds).toEqual([COLOURS["--paper"], DARK["--paper"]]);
+  });
+
+  /** Both themes linked, wherever one of them is. Shoelace's dark theme is a
+   *  class rather than a query of its own, so linking it is half the job and
+   *  `ui/theme.ts` is the other half; a module that linked one theme alone
+   *  would leave that page in it whatever the system says. */
+  it("links both Shoelace themes in every module that links one", () => {
+    const dir = new URL("../src/ui/", import.meta.url);
+    for (const file of readdirSync(dir).filter((it) => it.endsWith(".ts"))) {
+      const source = readFileSync(new URL(file, dir), "utf8");
+      expect(
+        source.includes("themes/light.css"),
+        `${file} links one theme and not the other`,
+      ).toBe(source.includes("themes/dark.css"));
+    }
+  });
+});
+
+/**
  * The values the look rules bind, against the copy they came from (#548).
  *
  * Four colours and two sizes are one system across rails49's UIs
@@ -254,6 +331,21 @@ describe("the values the look rules bind", () => {
     const flat = railStyles.cssText.replace(/\s+/g, "");
     expect(flat).toContain(`width:${RAIL_BUTTON_PX}px`);
     expect(flat).toContain(`height:${RAIL_BUTTON_PX}px`);
+  });
+
+  /** The chrome keeps one value in both themes and the work pane follows the
+   *  theme, which is the division LOOK.md draws and this is it in code: the
+   *  four colours the copy binds have no dark value, and every other colour
+   *  the app draws with has one. A colour added to the palette without one
+   *  fails here rather than painting in its light value on a dark page. */
+  it("are the colours that keep one value in both themes", () => {
+    const chrome = ["--band", "--band-ink", "--rail", "--rail-group"];
+    for (const name of Object.keys(COLOURS)) {
+      expect(name in DARK, `${name} in the dark palette`).toBe(
+        !chrome.includes(name),
+      );
+    }
+    expect(Object.keys(DARK).every((name) => name in COLOURS)).toBe(true);
   });
 });
 

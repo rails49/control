@@ -53,7 +53,7 @@ export const paletteStyles = css`
   }
 
   button:hover {
-    background: #f0eeea;
+    background: color-mix(in srgb, var(--ink) 8%, var(--paper));
   }
 
   button:active {
