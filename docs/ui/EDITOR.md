@@ -387,6 +387,13 @@ f = 0.15. The fractions and the colours are named constants in one
 TypeScript module, the colours as CSS custom properties; configuring the
 look is editing that module, not a settings UI.
 
+Each colour has a second value for a dark page. Both Shoelace themes are
+linked and `prefers-color-scheme` decides, with no toggle in the page; the work
+follows the theme and the chrome — the band across the top and the rail down
+the left — keeps one value in both. The chrome's colours, the size of a rail
+button and the height the rail turns into a strip at are bound across the
+project's UIs rather than this app's to pick (`ui/look/`).
+
 Track is drawn solid, never patterned: wires run at any angle, so a pattern's
 spacing would vary with direction. A track stroke ends in a round cap and pins
 are round, so track joins seamlessly at any wire angle; a wire meeting a fixed
