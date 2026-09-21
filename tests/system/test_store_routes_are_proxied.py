@@ -1,11 +1,13 @@
 """Every route the store serves is reachable from the app (#392).
 
 The app fetches the store on its own origin: through vite's proxy in
-development and through the reverse proxy in front of a layout server. Both
-list the store's path prefixes by hand, and so do the tables in DEPLOY.md.
-`/catalogue` landed in the store with no entry in any of them, so the routes
-worked in tests and nowhere else. This reads the prefixes off the store's own
-route list and checks each is named where a request has to pass.
+development, through the reverse proxy in front of a layout server, and through
+the installation's door, which reads the store's own router off its container
+(#556). All of them list the store's path prefixes by hand, and so do the
+tables in DEPLOY.md. `/catalogue` landed in the store with no entry in any of
+them, so the routes worked in tests and nowhere else. This reads the prefixes
+off the store's own route list and checks each is named where a request has to
+pass.
 """
 
 import re
@@ -31,6 +33,7 @@ def store_prefixes() -> set[str]:
     [
         "ui/vite.config.ts",
         "deploy/routes/layout/site.yaml",
+        "deploy/compose.yaml",
         "docs/DEPLOY.md",
     ],
 )
