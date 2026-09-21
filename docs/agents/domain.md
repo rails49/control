@@ -23,7 +23,8 @@ Top level is repo-wide; each app's implementation details sit in its own subfold
 ├── docs/
 │   ├── GOALS.md                            ← assets and operations
 │   ├── MILESTONE-1.md                      ← scope: what is built first, what is not
-│   ├── SYSTEM.md                           ← the apps and the contracts between them
+│   ├── SYSTEM.md                           ← the apps, the store, the footprints, the trace
+│   ├── BUS.md                              ← the bus contract: topics, payloads, time
 │   ├── ARCHITECTURE.md                     ← repo organization, app boundaries, tests
 │   ├── adr/
 │   │   ├── 0001-no-reversal-within-a-route.md

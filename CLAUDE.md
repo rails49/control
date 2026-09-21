@@ -27,13 +27,17 @@ and a `ui` later. Each gets one package in
 `src/tc49/`. Apps import `tc49.lib` and themselves, **never each other**; they
 meet over the event bus and the store's CRUD contract.
 
-`docs/SYSTEM.md` is the normative definition of those contracts and `lib/` is
-its Python binding, so a TypeScript UI gets a sibling language binding rather
-than chasing Python. `src/tc49/bench/` is the research harness, not an app,
-and is the only code that wires apps together; top-level `bench/` is the
-fixture data it roots itself at, while a session and the store server read an
-installation's own store. `tests/` mirrors the same structure;
-`tests/system/test_app_boundaries.py` enforces the import rule.
+`docs/BUS.md` and `docs/SYSTEM.md` are the normative definition of those
+contracts. `lib/bus.py` and `lib/mqtt.py` are the bus's Python binding — the
+interface every app is handed, and its two transports — so a TypeScript UI
+gets a sibling binding written against `BUS.md`, as `ui/src/model/trace.ts`
+is. `lib/payload.py` is not part of that: it is this repository's own
+defensive reading, organised by which of our apps reads which frame and
+importing `lib.layout`, so none of it carries over. `src/tc49/bench/` is the
+research harness, not an app, and is the only code that wires apps together;
+top-level `bench/` is the fixture data it roots itself at, while a session and
+the store server read an installation's own store. `tests/` mirrors the same
+structure; `tests/system/test_app_boundaries.py` enforces the import rule.
 
 `docs/` splits the same way: repo-wide pages at the top level, an app's
 implementation details in a subfolder named for its package. ADRs are the
