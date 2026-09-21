@@ -389,6 +389,76 @@ scripts/dns.sh dev 127.0.0.1       back again
 LAN address is what testing on a phone needs; the loopback default is what
 needs no maintenance when the box changes networks.
 
+## What the containers declare
+
+The three containers a browser reaches — the built ui, the store and the
+broker — carry their own routers as labels on themselves
+([#556](https://github.com/rails49/control/issues/556)). What reads them is
+the installation's door, one per box in front of every stack on it, which
+takes its routers off containers rather than out of a file. A UI's paths then
+change in the same commit as the UI, and this repository stops owning the
+routing for UIs it does not build.
+
+| container | router | what it claims |
+| --- | --- | --- |
+| `web` | `tc49-app` | the bare host: everything no other router claims |
+| `store` | `tc49-store` | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue`, on `:8765` |
+| `broker` | `tc49-mqtt` | `/mqtt`, prefix stripped, to the WebSocket listener on `:9001` |
+| `broker` | `tc49-mqtt-foreign` | the same from a page on another origin, answered 403 |
+
+The names are keyed to the stack rather than to the site. The door sees every
+stack on the box, so a name has to be unique across all of them, and the site
+prefix named a route directory that is about to stop existing.
+
+**The name comes from the box's declaration.** `/etc/rails49/box.env` holds
+`BOX_DOMAIN`, the name the box is reached at, and every stack on the box is
+started against that one file, so this UI is at `control.$BOX_DOMAIN` and
+naming a box is editing a file on the box rather than forking this repository.
+No template is rendered and no file is copied — compose substitutes it. A box
+with no declaration yet gets a blank name, and compose says which variable is
+missing.
+
+**Each router states its priority.** Traefik's default is the rule's length,
+which was legible while every rule sat in one file and is not now that they
+sit on three containers: the app's rule is the bare host and matches every
+path under it, so the store's, the bus's and the refusal's each say outright
+that they come first. The refusal's precedence over the bus router it stands
+in front of is what this exists to keep, and nothing shows a reader that
+shortening one rule changes what another matches.
+
+**The refusal compares origins whole.** The route file matched a pattern with
+the dots in the name escaped; the name now comes from the declaration and a
+dot inside it cannot be escaped on its way into one, and
+`control.gleis49.org` as a pattern admits `control-gleis49.org`, which
+somebody may register. So the two origins that are the app's own — `https://`
+and `http://`, TLS terminating at the door — are named exactly, and anything
+else carrying an `Origin` is refused. A handshake with no `Origin` is a native
+client and still goes through.
+
+**Only what the door reaches joins the shared network.** `web`, `store` and
+`broker` join `rails49`, the network the installation creates and every stack
+on the box shares; `scheduler`, `dispatcher`, `driver`, the layout interface,
+the simulator and the translators stay on this stack's own network, because
+they talk to the bus and not to browsers. Each of the three is on two networks
+and names the shared one again in a label, or the docker provider picks
+whichever container address it finds first. That is
+[ADR-0001](https://github.com/rails49/installation/blob/main/docs/adr/0001-only-what-the-door-reaches-joins-the-shared-network.md)
+in `rails49/installation`.
+
+The network is the installation's to create, so a box that has not installed
+the installation yet makes it by hand and removes it when it does:
+
+```
+docker network create rails49
+```
+
+**Both ways are live for one release.** The labels are read by a door that is
+not on this box yet, and `proxy` below goes on serving the same routing out of
+its route file and reads no label. That is the expand half of an
+expand–contract pair: the route file, `TC49_SITE` and `proxy` itself go in the
+contract half, and until then `tests/system/test_router_labels.py` holds the
+two to the same paths.
+
 ## What the proxy carries
 
 Two entry points and one route file, `deploy/routes/<site>/site.yaml`. The
