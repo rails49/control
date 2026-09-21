@@ -16,6 +16,26 @@
 # there would mean building one. Its own settings come from the environment
 # (TRAEFIK_*), so the file below carries no secret and no address.
 #
+# Two ways to the same routing, on purpose and for one release. The three
+# containers a browser reaches — `web`, `store` and `broker` — carry their own
+# routers as labels, which the installation's door reads off the box; `proxy`
+# below still serves the same routing out of a route file, and reads no label.
+# This is the expand half of an expand–contract pair (#556): a box keeps
+# working through the cutover, and the file goes in the contract half.
+#
+# The name in every label comes from the box's own declaration,
+# `/etc/rails49/box.env`, by compose substitution — no template is rendered and
+# no file is copied — so a box is named in one place rather than in a route
+# file this repository would have to be forked to edit:
+#
+#   docker compose --env-file /etc/rails49/box.env \
+#     --env-file /etc/tc49/deploy.env -f deploy/compose.yaml up -d
+#
+# A box with no declaration yet gets a blank name and compose says which
+# variable it is. It is left that way rather than made required, because the
+# box this repository deploys today has no declaration and is still served by
+# `proxy`, which ignores the labels; the contract half requires it.
+#
 # One route directory, named by TC49_SITE and `dev` unless it is set, holding
 # that site's `site.yaml` and nothing else. Both files were mounted at first,
 # on the theory that a certificate is asked for when a request for that name
@@ -86,12 +106,26 @@ services:
   # The built UI, which Traefik cannot serve itself: it proxies and does not
   # read files. Only the layout box has a build to serve — the dev box has
   # vite — so it is a profile rather than a service.
+  #
+  # The first of the three containers a browser reaches, and so the first to
+  # carry its own router. Everything under `traefik.` here is read by the
+  # installation's door and by nothing in this file: `proxy` below reads a
+  # route file and ignores labels entirely, which is what lets both ways be
+  # true at once while the box is cut over (#556).
   web:
     image: nginx:alpine
     profiles: [layout]
     restart: unless-stopped
     volumes:
       - ../ui/dist:/usr/share/nginx/html:ro
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=rails49
+      - traefik.http.routers.tc49-app.rule=Host(`control.${BOX_DOMAIN}`)
+      - traefik.http.routers.tc49-app.priority=1
+      - traefik.http.routers.tc49-app.entrypoints=websecure
+      - traefik.http.routers.tc49-app.tls.certresolver=le
+    networks: [default, rails49]
 
   # The bus. It is here before the first train because the occupancy camera
   # publishes to it while our own apps may still share the in-process binding
@@ -111,6 +145,51 @@ services:
       - "9001:9001"
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    # The bus behind the door, and the refusal in front of it. Both routers
+    # dial 9001 — a browser's listener; a native client goes straight to 1883
+    # and never comes this way — so the service is named once and each router
+    # says it, rather than leaving a container with two routers and one
+    # service to a default.
+    #
+    # The refusal is a router of its own carrying a middleware that answers
+    # 403 before the service behind it: a foreign page gets no socket to be
+    # told over. Mosquitto has no `Origin` setting, so the rule is stated here
+    # rather than in an app, `lib/origin.py` being the same rule at the store's
+    # face (ADR-0056, ADR-0059 decision 4).
+    #
+    # The origins it admits are compared whole rather than matched. The name
+    # comes from the box's declaration and a dot inside it cannot be escaped on
+    # its way into a pattern, and `control.gleis49.org` as a pattern admits
+    # `control-gleis49.org`, which somebody may register. Two of them because
+    # TLS terminates at the door and a page on the app's own origin is the app
+    # (ADR-0042, ADR-0055).
+    #
+    # Matching `Origin` at all is what selects the refusal, so a handshake
+    # carrying none — a native client, `mosquitto_sub`, the suite — does not
+    # match it and falls through to the router above: no header, no page.
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=rails49
+      - traefik.http.services.tc49-mqtt.loadbalancer.server.port=9001
+      - traefik.http.routers.tc49-mqtt.rule=Host(`control.${BOX_DOMAIN}`) && PathPrefix(`/mqtt`)
+      - traefik.http.routers.tc49-mqtt.priority=2
+      - traefik.http.routers.tc49-mqtt.entrypoints=websecure
+      - traefik.http.routers.tc49-mqtt.service=tc49-mqtt
+      - traefik.http.routers.tc49-mqtt.middlewares=tc49-mqtt-strip
+      - traefik.http.routers.tc49-mqtt.tls.certresolver=le
+      - traefik.http.middlewares.tc49-mqtt-strip.stripprefix.prefixes=/mqtt
+      - traefik.http.routers.tc49-mqtt-foreign.rule=Host(`control.${BOX_DOMAIN}`) && PathPrefix(`/mqtt`) && HeaderRegexp(`Origin`, `.`) && !Header(`Origin`, `https://control.${BOX_DOMAIN}`) && !Header(`Origin`, `http://control.${BOX_DOMAIN}`)
+      - traefik.http.routers.tc49-mqtt-foreign.priority=3
+      - traefik.http.routers.tc49-mqtt-foreign.entrypoints=websecure
+      - traefik.http.routers.tc49-mqtt-foreign.service=tc49-mqtt
+      - traefik.http.routers.tc49-mqtt-foreign.middlewares=tc49-mqtt-refused
+      - traefik.http.routers.tc49-mqtt-foreign.tls.certresolver=le
+      # Traefik has no middleware whose job is to refuse, and this is the one
+      # that answers 403 without reaching the service behind it: no source
+      # address is `255.255.255.255`, the limited broadcast address, so every
+      # request routed here is refused.
+      - traefik.http.middlewares.tc49-mqtt-refused.ipallowlist.sourcerange=255.255.255.255/32
+    networks: [default, rails49]
 
   # The one container that owns the command station's USB device, mirroring it
   # to TCP 2560 so the dccex translator, JMRI and hand-held throttles share one
@@ -193,6 +272,19 @@ services:
       - /etc/group:/etc/group:ro
     command:
       ["tc49", "serve", "--host", "0.0.0.0", "--store", "/store", "--keys", "/keys"]
+    # The store's six path prefixes, on the app's own origin. They are the
+    # store's own list and nothing else's, which is the point of stating them
+    # here: `tests/system/test_store_routes_are_proxied.py` reads them off the
+    # server's route list and holds every place a request has to pass to it.
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=rails49
+      - traefik.http.services.tc49-store.loadbalancer.server.port=8765
+      - traefik.http.routers.tc49-store.rule=Host(`control.${BOX_DOMAIN}`) && (PathPrefix(`/backup`) || PathPrefix(`/drawings`) || PathPrefix(`/review`) || PathPrefix(`/layouts`) || PathPrefix(`/rosters`) || PathPrefix(`/catalogue`))
+      - traefik.http.routers.tc49-store.priority=2
+      - traefik.http.routers.tc49-store.entrypoints=websecure
+      - traefik.http.routers.tc49-store.tls.certresolver=le
+    networks: [default, rails49]
 
   # The six apps, one service each (ADR-0059, decision 5). Every one of them
   # comes up alone: started against nothing, it connects, publishes the rows
@@ -329,6 +421,20 @@ services:
       - "12080:12080"
     volumes:
       - jmri:/home/jmri
+
+# The one network every stack on the box shares, created by the installation
+# under a fixed name four repositories hardcode and joined here by the three
+# containers a browser reaches (rails49/installation ADR-0001). External,
+# because a stack that makes it when it is absent is a stack that silently
+# decides its options, and the first one started would decide them for the
+# rest. A box that has not installed the installation yet is told so:
+#
+#   network rails49 declared as external, but could not be found
+#
+# and makes it by hand until it does (docs/DEPLOY.md).
+networks:
+  rails49:
+    external: true
 
 volumes:
   acme:
