@@ -253,7 +253,7 @@ def test_a_train_adoption_placed_nowhere_is_disputed_as_a_block() -> None:
 )
 def test_an_occupancy_frame_that_cannot_be_read_is_dropped(payload: object) -> None:
     """Nothing the layout role publishes takes the dispatcher down, which is
-    what SYSTEM.md already promises of every bus payload (#181).
+    what BUS.md already promises of every bus payload (#181).
 
     Once the bus is not in-process a binding's bug can put anything on these
     leaves, and a bare subscript would have raised on some of these and

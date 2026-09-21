@@ -179,7 +179,7 @@ def test_the_answerer_ignores_the_state_row_it_writes() -> None:
 
 
 def test_a_gesture_naming_nothing_readable_is_dropped() -> None:
-    """Anything at all can arrive on a topic (SYSTEM.md, rule 4), and none of
+    """Anything at all can arrive on a topic (BUS.md, rule 4), and none of
     it takes the railroad down."""
     bus = bused()
     answering = Answering(WAS)

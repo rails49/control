@@ -26,7 +26,7 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
   only as endpoints ([ADR-0001](../adr/0001-no-reversal-within-a-route.md)).
 - **Event-driven** — the dispatcher reacts to bus events and never reads a
   clock — it never learns what time it is
-  ([SYSTEM.md](../SYSTEM.md#time)) — so a simulator and a physical layout drive
+  ([BUS.md](../BUS.md#time)) — so a simulator and a physical layout drive
   it the same way.
 - **Signalled** — how far the dispatcher has locked ahead of a train is what
   the signal it faces shows. The aspect is published on the grant and on a
@@ -106,7 +106,7 @@ need different information:
 
 Either stage rejects the request if it empties the set. The admission stage
 records what it dropped, with reasons, on `request_admitted`
-([SYSTEM.md](../SYSTEM.md#event-inventory)) — that is where an authoring
+([BUS.md](../BUS.md#event-inventory)) — that is where an authoring
 slip shows up, so a mistyped end is visible when it is made instead of
 silently narrowing the experiment. The launch stage records nothing unless it rejects,
 because a prune that leaves candidates standing changes nothing observable: the
@@ -343,7 +343,7 @@ place a **stamp** is compared here: a supply that went off and came back on,
 delivered backwards, would otherwise leave the dispatcher holding the run
 over live track — or worse, running over dead track. The later `at` wins and
 the earlier value is ignored, quietly and with the frame on the trace like
-any other (SYSTEM.md, the bus;
+any other (BUS.md, the bus;
 [#240](https://github.com/rails49/control/issues/240)). The sensor leaves
 beside it are compared against nothing: a detector reports a level, so a
 repeat re-asserts what the dispatcher already holds, and the readings of one
@@ -362,7 +362,7 @@ train stands in, says the table has stopped describing the steel — a hand
 putting a locomotive down, a train pushed while the supply was off, a detector
 asserting on dirt. The run holds by the path power takes, and nothing is
 guessed: occupancy is anonymous, so there is no train to place. It does not
-raise, a payload never being a reason to leave the bus (SYSTEM.md, rule 4).
+raise, a payload never being a reason to leave the bus (BUS.md, rule 4).
 
 **A held run also asks the detectors.** The sensor readings the layout has
 reported are compared against the placement, and the two contradictions — a

@@ -433,7 +433,7 @@ def end_crossed(layout: Layout, block: str, transit: str) -> str | None:
     `transit` crosses, or None where the layout holds no such transit or that
     transit crosses neither end of that block.
 
-    A consumer may not raise on a payload (SYSTEM.md, rule 4), and `end_on`
+    A consumer may not raise on a payload (BUS.md, rule 4), and `end_on`
     reaches straight into the layout, so a transit no connection here holds is
     a `KeyError` out of a handler. The pair is read together because a grant
     names both and neither is meaningful alone: a transit crossing no end of

@@ -7,8 +7,8 @@ sensor readings, executing turnout, signal and throttle commands. A physical
 railroad is the normative binding of that interface and a simulator the
 subordinate one, whichever exists first
 ([ADR-0030](docs/adr/0030-the-physical-railroad-is-the-normative-binding.md)).
-Components communicate over an event bus and an asset CRUD contract
-([docs/SYSTEM.md](docs/SYSTEM.md)).
+Components communicate over an event bus ([docs/BUS.md](docs/BUS.md)) and an
+asset CRUD contract ([docs/SYSTEM.md](docs/SYSTEM.md)).
 
 ## Language
 
@@ -596,7 +596,7 @@ which any number of writers may send and which disclose their source nowhere
 ([ADR-0035](docs/adr/0035-a-topic-has-one-writing-role.md),
 [#263](https://github.com/rails49/control/issues/263)). Concurrent writers
 are for event topics, never state topics. Consumers subscribe by prefix
-filter; the full inventory is [SYSTEM.md](docs/SYSTEM.md#event-inventory).
+filter; the full inventory is [BUS.md](docs/BUS.md#event-inventory).
 _Avoid_: channel, queue
 
 **Event topic / state topic**:
@@ -730,7 +730,7 @@ set ([#175](https://github.com/rails49/control/issues/175)); an unreadable
 driver nobody could read.
 _Avoid_: word (the term this entry used until
 [#242](https://github.com/rails49/control/issues/242)), status. Not a
-**flag**, which is what [SYSTEM.md](docs/SYSTEM.md) calls a state topic
+**flag**, which is what [BUS.md](docs/BUS.md) calls a state topic
 carrying a boolean — `exhausted` is one and is not an enum.
 
 **Command**:
@@ -895,9 +895,10 @@ _Avoid_: revert, roll back, undo (the editor's, over one drawing), recovery
 ### Contracts
 
 **Binding**:
-One implementation of a contract that [SYSTEM.md](docs/SYSTEM.md) defines
-normatively. The contract is the authority; a binding is not, and replacing
-one changes no app. Bindings differ in whether they supersede or coexist.
+One implementation of a contract that [BUS.md](docs/BUS.md) or
+[SYSTEM.md](docs/SYSTEM.md) defines normatively. The contract is the
+authority; a binding is not, and replacing one changes no app. Bindings differ
+in whether they supersede or coexist.
 _Avoid_: implementation, adapter, backend. Not *driver*, which names an app.
 
 **Milestone binding**:

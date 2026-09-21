@@ -254,7 +254,7 @@ every candidate route. The run's `stalled` status and its diagnosis are
 ([ADR-0049](../adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md))
 — and the last `grant_refused` for its id names the obstacles — which train (`holder`),
 which block (`resource`), how many candidates it blocked (the list's length)
-([SYSTEM.md](../SYSTEM.md#event-inventory)). Stalled runs are excluded from
+([BUS.md](../BUS.md#event-inventory)). Stalled runs are excluded from
 makespan aggregates.
 
 This turns the conditional-liveness proviso of SAFETY.md from a paragraph into

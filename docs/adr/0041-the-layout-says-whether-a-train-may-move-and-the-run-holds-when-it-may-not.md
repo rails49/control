@@ -99,7 +99,7 @@ may not ask for it.
 Its filter widens from `tc49/layout/+` to `tc49/layout/#`. `+` matches one
 level and would never see a topic under `layout/state/`, so this is required
 rather than cosmetic, and it is still one prefix filter naming one role
-(SYSTEM.md, rule 3).
+(BUS.md, rule 3).
 
 ## Consequences
 

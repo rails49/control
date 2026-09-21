@@ -21,7 +21,7 @@ unreadable request is an answer where it can be addressed and a drop where
 it cannot (ADR-0034). Who sent one is not asked and is nowhere to be read:
 `tc49/dispatch/request_submitted` names the dispatcher that answers it, and a
 second scheduler submitting alongside the first needs no change here
-(SYSTEM.md, rule 4).
+(BUS.md, rule 4).
 
 The whole of what arrives is read that way (#260). Two filters: the requests
 this app answers — `request_submitted`, `run_wanted`, `placement_wanted` and
@@ -464,7 +464,7 @@ def restored(picture: object, roster: Roster, cold: dict[str, str]) -> Adopted:
 @dataclass
 class Submission:
     """A payload read as the request it claims to be: the fields of
-    `request_submitted` with the shapes the inventory promises (SYSTEM.md).
+    `request_submitted` with the shapes the inventory promises (BUS.md).
     Read rather than trusted, in `lib.payload`'s terms.
     """
 
@@ -800,11 +800,11 @@ class Dispatcher:
         name the dispatcher because the dispatcher is what answers them, and
         none of them says who sent it. The scheduler submits requests today
         and a second one could submit them tomorrow with nothing here to
-        change (SYSTEM.md, rule 4).
+        change (BUS.md, rule 4).
 
         Everything else on `tc49/dispatch/#` is the dispatcher's own
         announcements coming back past it, and is ignored — the filter is the
-        component, as every consumer's is (SYSTEM.md, rule 3). What it cannot
+        component, as every consumer's is (BUS.md, rule 3). What it cannot
         act on it drops, in silence and to the trace: a gesture carries no id
         and there is nothing to address an answer to (ADR-0034).
         """
@@ -1236,7 +1236,7 @@ class Dispatcher:
         new commits, every signalled end shows `stop`, and the move already
         outstanding still runs to its sensors. It does not raise: the frame is
         well formed and a handler that raised would take the app off the bus
-        for an ordinary act of a person's hand (SYSTEM.md, rule 4). It is not
+        for an ordinary act of a person's hand (BUS.md, rule 4). It is not
         dropped either, and nothing is placed: occupancy is anonymous, so
         there is no train to place, and the reading is on the trace and in the
         dispute set the hold turns on, which is what points a person at it
@@ -1573,7 +1573,7 @@ class Dispatcher:
         """The signalled ends, on a last-value topic, when any of them has
         changed. Every end each time rather than the ones that moved: a late
         subscriber wants the whole picture on connect, not the first change
-        after it arrives (SYSTEM.md)."""
+        after it arrives (BUS.md)."""
         shown = aspects(self._state)
         if shown != self._aspects:
             self._aspects = shown

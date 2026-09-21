@@ -3,7 +3,7 @@
 The wiring the CLI and the test suite share, so there is exactly one of it.
 Nothing here is a contract — the components find each other by topic, not by
 this module — but the order matters for the trace: the tap subscribes first,
-so it sees every event (SYSTEM.md, the bus).
+so it sees every event (BUS.md, the bus).
 
 A live run is built on **one** binding of the layout interface: the simulator,
 or `layout` with the `dccex` translator under it where a command station is

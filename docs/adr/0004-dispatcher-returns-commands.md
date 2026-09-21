@@ -24,4 +24,4 @@ The old cost — each adapter writing out its own run loop — dissolved with
 the loop itself: components react to events, and the tick's owner is fixed
 by [ADR-0009](0009-layout-interface-owns-time.md). What remains is the same
 promise, in its strongest form: the dispatcher never reads a clock, and now
-never learns what tick it is. See [SYSTEM.md](../SYSTEM.md).
+never learns what tick it is. See [BUS.md](../BUS.md).

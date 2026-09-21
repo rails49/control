@@ -9,7 +9,7 @@ the table has stopped describing the steel.
 It **holds the run**, by the path track power takes, and the dispute check
 names what it contradicts for a person to walk. It does not raise: the frame
 is well formed, and a handler that raised would take the app off the bus for
-an ordinary act of a person's hand (SYSTEM.md, rule 4).
+an ordinary act of a person's hand (BUS.md, rule 4).
 
 Driven at the bus, on a railroad standing still with no timetable at all —
 which is exactly the railroad a hand reaches onto.

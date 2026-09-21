@@ -49,7 +49,7 @@ what makes a live run and a benchmark the same run.
 
 `Simulator` is handed a `Bus` and nothing else in the package changes: which
 binding it got is this file's business, and a payload that cannot be read is
-dropped exactly as it was in one process (#262, SYSTEM.md rule 4) — under MQTT
+dropped exactly as it was in one process (#262, BUS.md rule 4) — under MQTT
 whoever published it is another container, and a bug there must not take the
 thing that watches the railroad down with it.
 """
@@ -70,7 +70,7 @@ from tc49.simulator.sim import Simulator
 CLIENT_ID = "tc49-simulator"
 """What this app calls itself to the broker, so its log names an app rather
 than a random string. Nothing in the contract reads it: a topic has one
-writing role and no payload says who published (SYSTEM.md, rule 4)."""
+writing role and no payload says who published (BUS.md, rule 4)."""
 
 TRANSIT_S = 30.0
 CLEAR_S = 30.0

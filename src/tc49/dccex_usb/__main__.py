@@ -51,7 +51,7 @@ CLIENT_PREFIX = "tc49-"
 """What this app calls itself to the broker, in front of its id, so the log
 names a mirror rather than a random string and two boxes with a command
 station each are two clients. Nothing in the contract reads it: a topic has
-one writing role and no payload says who published (SYSTEM.md, rule 4)."""
+one writing role and no payload says who published (BUS.md, rule 4)."""
 
 
 def serve(

@@ -1,6 +1,6 @@
 """The event inventory: canonical payload field order per topic.
 
-Mirrors the inventory table of SYSTEM.md. The trace's canonical key order
+Mirrors the inventory table of BUS.md. The trace's canonical key order
 depends on this module; leaf names are globally unique across all topics
 (tested), because the trace's ``event`` field is the leaf alone.
 
@@ -13,7 +13,7 @@ a name is unique across both.
 
 A topic names the component that **declares** it: the events that component
 emits, and the requests it responds to. Nothing in a name says who sent a
-request, and no responder may read or infer it (SYSTEM.md, rule 4).
+request, and no responder may read or infer it (BUS.md, rule 4).
 
 Browser-writability is a mark on the row rather than a prefix to read:
 ``INBOUND`` below is the marked rows, so a page's write surface widens only
@@ -58,7 +58,7 @@ Stamped by the binding that publishes and never by an app, so no app
 component reads a clock (ADR-0009). It orders messages **within one run**
 and says nothing across a restart: the in-process clock resets to zero every
 run and the broker stamps from wall time, so what a restarted app adopts is
-the oldest thing it knows (SYSTEM.md, ADR-0030)."""
+the oldest thing it knows (BUS.md, ADR-0030)."""
 
 
 TOPICS: dict[str, Topic] = {
@@ -226,7 +226,7 @@ topic to its field order, and a device row's whole topic is not knowable until
 a railroad is wired. What the two mappings share is the namespace: a name is
 unique across both (tested).
 
-SYSTEM.md, *Layout interface*, carries the values each field takes. An
+BUS.md, *Device vocabulary*, carries the values each field takes. An
 address is the string the drawing carries and the hardware answers to, with no
 system level in front of it: whatever is wired subscribes the desired rows and
 acts on the addresses it recognises, and one nobody answers to does no harm
@@ -361,7 +361,7 @@ information** about that end and keeps whatever level it last had
 def is_state_topic(topic: str) -> bool:
     """Whether a topic is a state topic, read off the path: state is marked
     structurally by a ``state`` level under the component, so the split is a
-    property of the name and not a list to keep (SYSTEM.md, rule 2).
+    property of the name and not a list to keep (BUS.md, rule 2).
 
     The mark is the **third** level and not the second from last, because a
     topic's name may go on past its own: an addressed device row is

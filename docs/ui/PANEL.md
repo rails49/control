@@ -581,7 +581,7 @@ holding the truth the whole time
 **The page keeps the later of two state values.** Every state payload carries
 a stamp, `at`, and the model applies the one with the later stamp whichever
 order the two arrive in — equal replaces, an earlier one is ignored, and a
-value carrying no stamp is taken and starts the ordering again (SYSTEM.md,
+value carrying no stamp is taken and starts the ordering again (BUS.md,
 the bus; [#240](https://github.com/rails49/control/issues/240)). A page is a
 consumer of state topics like any other, and a pair the wire handed over
 backwards would leave a person looking at aspects the railroad has moved on
@@ -592,7 +592,7 @@ when the model starts over.
 **A run outlives any one app's process.** The broker holds the retained rows
 and each app adopts its own coming up, so a restarted app opens on the
 placement and facing the last one left rather than on an empty layout
-(SYSTEM.md, the bus;
+(BUS.md, the bus;
 [ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
 decision 3). The page reads nothing new for it: placement arrives on
 `state/allocation` and facing on `state/facing` exactly as they do on a

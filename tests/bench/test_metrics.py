@@ -1,7 +1,7 @@
 """metrics(trace) against hand-written traces — no run required (#30).
 
 Writing the traces by hand is the point: every metric is a pure function of
-the events SYSTEM.md defines, so each one can be pinned to an exact input
+the events BUS.md defines, so each one can be pinned to an exact input
 here, and `test_the_trace_is_load_bearing` then proves the dependency runs
 the other way too — suppress any metric-feeding event in a real trace and a
 metric changes.

@@ -11,7 +11,7 @@ at a known tick is the cheapest way to see it.
 
 The panel is a scheduler ([ADR-0016](0016-the-panel-is-a-scheduler.md)), so the
 writer is now a browser, and a browser can be stale. The bridge relays the bus
-and describes nothing ([SYSTEM.md](../SYSTEM.md#the-bus)), and a train's
+and describes nothing ([BUS.md](../BUS.md#the-bus)), and a train's
 placement lock is published before any page connects, so a panel joining a
 running session seeds placement from the scenario and shows trains where they
 started. A drag then states a block its train has left. Raising out of a bus

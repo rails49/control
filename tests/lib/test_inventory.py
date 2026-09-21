@@ -1,6 +1,6 @@
 """The inventory's own rules: what marks a state topic, and the device rows
 addressed under the layout interface — what `layout` wants of the hardware and
-what a detector or a translator reports back (SYSTEM.md, rules 1 and 2;
+what a detector or a translator reports back (BUS.md, rules 1 and 2;
 ADR-0043)."""
 
 import pytest
@@ -258,7 +258,7 @@ def test_a_link_says_which_build_answers() -> None:
 
     It obliges no consumer. `layout` reads the row today and goes on reading
     it with the field absent, a consumer validating every payload and never
-    raising on one (SYSTEM.md, rule 4)."""
+    raising on one (BUS.md, rule 4)."""
     assert DEVICE_TOPICS[LINK].fields[-1] == "build"
 
 

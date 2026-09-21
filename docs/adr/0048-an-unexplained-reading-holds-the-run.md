@@ -37,7 +37,7 @@ the steel.
 Milestone 1 raised on one while running, and said so openly rather than
 pretending the case did not exist. It cannot stand. The bus does not
 authenticate a publisher, so a consumer validates every payload it reads and
-**never raises on one** (SYSTEM.md, rule 4;
+**never raises on one** (BUS.md, rule 4;
 [ADR-0034](0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 The exception was not thrown by the read — the frame is well formed, and
 `{"block": "up_w"}` is exactly what the contract asks for — but it comes out

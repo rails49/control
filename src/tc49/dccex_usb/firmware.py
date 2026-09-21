@@ -164,7 +164,7 @@ def asset(document: object, name: str = ASSET) -> Asset | None:
     """The firmware asset a release document names, or None where it names
     none.
 
-    Read the way a payload is read (SYSTEM.md, rule 4) and for the same
+    Read the way a payload is read (BUS.md, rule 4) and for the same
     reason one level out: this is a document from a service, and a build that
     reached into it would be taken down by whatever the service returned the
     day it returned something else.
@@ -276,7 +276,7 @@ def wanted_tag(payload: object) -> str | None:
     A gesture that cannot be read is **dropped**, in silence and with no
     refusal to publish: a refusal is addressed to nobody, the gesture carries
     no id, and a frame nobody can read names no station to answer about
-    (SYSTEM.md, rule 4, ADR-0034).
+    (BUS.md, rule 4, ADR-0034).
     """
     if not isinstance(payload, dict):
         return None

@@ -2,7 +2,7 @@
 
 Nothing is accumulated live and no component computes a metric at runtime
 (bench/METRICS.md). Everything below derives from the tapped events
-of SYSTEM.md, which is what keeps the trace **load-bearing**: an event that
+of BUS.md, which is what keeps the trace **load-bearing**: an event that
 stops being emitted breaks a metric and fails a test, rather than leaving
 the trace to rot until a future UI discovers it is missing what it needs.
 It also makes every metric testable against a hand-written trace, with no

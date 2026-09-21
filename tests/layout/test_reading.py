@@ -1,4 +1,4 @@
-"""Every payload is read and never trusted (#287, SYSTEM.md rule 4).
+"""Every payload is read and never trusted (#287, BUS.md rule 4).
 
 Nine topics from six publishers reach this app, and it answers none of them:
 it reports observations, so a refusal would have nowhere to go (ADR-0034). A

@@ -76,7 +76,7 @@ class Unstamped(InProcessBus):
     What a binding on the other side of a broker can put on a topic: an older
     build that does not stamp, or a value hand-edited into the retained file.
     A payload proves nothing about its sender and is read rather than trusted
-    (SYSTEM.md, rule 4).
+    (BUS.md, rule 4).
     """
 
     def _stamped(self, payload: Payload) -> Payload:

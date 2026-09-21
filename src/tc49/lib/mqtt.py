@@ -60,7 +60,7 @@ QOS = 0
 """What everything is published and subscribed at, and the reason nothing is
 queued for a broker that is gone: at QoS 0 the client drops what it cannot
 send rather than holding it for a reconnect. The bus promises at-least-once
-delivery and no more (SYSTEM.md), and retention — which is what a state topic
+delivery and no more (BUS.md), and retention — which is what a state topic
 actually needs — is independent of QoS."""
 
 SUBSCRIBE_TIMEOUT_S = 5.0
@@ -200,7 +200,7 @@ class MqttBus:
 
         A payload that will not encode as JSON raises here rather than going
         anywhere: it is a bug in the publisher, and the wire has no way to
-        carry it (SYSTEM.md, rule 4, is about what a *consumer* reads).
+        carry it (BUS.md, rule 4, is about what a *consumer* reads).
         """
         retain = is_state_topic(topic)
         if retain:

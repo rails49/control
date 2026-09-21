@@ -9,7 +9,7 @@ views of the loaded railroad, the [run view](PANEL.md) and the
 its commands ride the bus like everything else — the two gestures
 `tc49/layout/mode_wanted` and `tc49/layout/throttle_wanted`, which are rows of
 the inventory marked browser-writable and are answered by `layout`
-([ADR-0035](../adr/0035-a-topic-has-one-writing-role.md), SYSTEM.md).
+([ADR-0035](../adr/0035-a-topic-has-one-writing-role.md), BUS.md).
 Terminology follows [CONTEXT.md](../../CONTEXT.md), **Throttle** and
 **Automatic / manual**.
 
@@ -115,7 +115,7 @@ which is most of the stock a railroad owns.
 
 They are **drawn and not yet live**. A function reaches a decoder through the
 device vocabulary, `tc49/layout/state/wanted/function/<addr>/<number>`, whose
-one writer is `layout` (SYSTEM.md, *Device vocabulary*), and no gesture
+one writer is `layout` (BUS.md, *Device vocabulary*), and no gesture
 carrying a function press is declared — the two rows a throttle rides on are
 the mode and the speed
 ([#296](https://github.com/rails49/control/issues/296),

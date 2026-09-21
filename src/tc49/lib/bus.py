@@ -9,7 +9,7 @@ suite keep the in-process one because byte-identical replay is what they
 exist for.
 
 The in-process binding is single-threaded, queued-FIFO, run-to-completion
-(SYSTEM.md "The bus",
+(BUS.md "The bus",
 ADR-0008): ``publish()`` appends to one queue and returns; ``drain()``
 delivers each queued event to subscribers in subscription order, so
 delivery order is a pure function of publish and subscribe order.

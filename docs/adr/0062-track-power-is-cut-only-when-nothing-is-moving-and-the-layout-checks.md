@@ -149,7 +149,7 @@ drain-then-hold case that strands a train.
 
 ## Consequences
 
-**One field on an existing row.** SYSTEM.md's `state/run` entry and the
+**One field on an existing row.** BUS.md's `state/run` entry and the
 TypeScript binding gain `moving`. A reader that does not know the field
 ignores it; a reader that needs it and does not find it treats the row as
 unreadable and drops it, as for any other field it cannot read.

@@ -467,7 +467,7 @@ def test_latest_is_not_a_build() -> None:
 def test_a_gesture_that_cannot_be_read_is_dropped_without_raising(
     payload: Payload,
 ) -> None:
-    """SYSTEM.md, rule 4: a gesture carries no id, so a refusal would be
+    """BUS.md, rule 4: a gesture carries no id, so a refusal would be
     addressed to nobody and there is no station to name in one either."""
 
     async def scenario() -> None:

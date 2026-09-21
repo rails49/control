@@ -32,7 +32,7 @@ export interface Frame {
  * applies (ui/PANEL.md, #72).
  *
  * A message is a topic and a payload already, and the topic leaf is the
- * event, exactly as SYSTEM.md's inventory has it — so the whole of the
+ * event, exactly as BUS.md's inventory has it — so the whole of the
  * browser's side of the contract is here. Retained values arrive as the
  * subscription lands (ADR-0032), which is what a page joining mid-run is
  * fed.
@@ -58,7 +58,7 @@ export class Live {
 }
 
 /** The topics the browser may write, and the frames that carry them
- *  (SYSTEM.md). With anonymous clients a broker cannot tell a page from an
+ *  (BUS.md). With anonymous clients a broker cannot tell a page from an
  *  app, so this list is convention rather than enforcement (ADR-0059,
  *  decision 4) — and the browser still writes gestures and never requests,
  *  `request_submitted` included
@@ -230,7 +230,7 @@ export interface Submission {
 
 
 /** The leaves of the state topics: the events that carry a last value rather
- *  than reporting something that happened (SYSTEM.md, rule 2).
+ *  than reporting something that happened (BUS.md, rule 2).
  *
  *  A leaf and not a topic because the relay hands the model the leaf alone,
  *  which is all `Live` keeps of a frame. The list is the state rows of

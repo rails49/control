@@ -114,7 +114,7 @@ def test_a_granted_move_reads_as_the_train_the_transit_and_the_block() -> None:
 def test_a_payload_naming_no_granted_move_reads_as_none() -> None:
     """An announcement is read exactly as a gesture is: the bus does not
     authenticate a publisher, so a frame claiming to be the dispatcher's is
-    read and never trusted (SYSTEM.md, rule 4)."""
+    read and never trusted (BUS.md, rule 4)."""
     refused: list[object] = [
         "freight_1 into dn_w",  # not an object at all
         ["freight_1", "west_ladder.to_dn", "dn_w"],  # nor a list of its fields
@@ -410,7 +410,7 @@ def test_a_payload_turning_no_throttle_reads_as_none() -> None:
 
 def test_an_occupancy_frame_reads_as_the_block_it_names() -> None:
     """A block is the whole payload: which of the two readings it is, is the
-    leaf it arrived on and not a field (SYSTEM.md, event inventory)."""
+    leaf it arrived on and not a field (BUS.md, event inventory)."""
     assert occupancy({"block": "up_w"}) == "up_w"
 
 
@@ -539,7 +539,7 @@ def test_a_command_carries_the_speed_it_states_and_none_where_it_states_one_badl
 def test_a_payload_commanding_no_move_reads_as_none() -> None:
     """A command is read exactly as an announcement is: `tc49/layout/move`
     names the layout interface because the interface responds to it, and
-    anyone at all can publish a frame claiming to be the driver's (SYSTEM.md,
+    anyone at all can publish a frame claiming to be the driver's (BUS.md,
     rule 4)."""
     refused: list[object] = [
         "freight_1 into dn_w",  # not an object at all
@@ -945,7 +945,7 @@ def test_each_state_topic_is_ordered_against_itself_alone() -> None:
 
 def test_an_event_topic_is_not_ordered_at_all() -> None:
     """Gated on the topic being a state topic and never on what a payload
-    happens to carry (SYSTEM.md, rule 2). An event topic reports something
+    happens to carry (BUS.md, rule 2). An event topic reports something
     that happened and is never replayed, so there is no held value for a late
     one to lose to — and a repeated sensor reading must go on arriving."""
     ordering = Ordering()

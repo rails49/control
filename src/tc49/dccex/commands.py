@@ -151,7 +151,7 @@ def track(power: str) -> bytes:
     `on` and `off` reach every track the station has, a power district being
     a hardware fact that does not reach the bus: there is one railroad-wide
     desired power and a translator maps it onto however many districts its
-    hardware drives (SYSTEM.md, *Device vocabulary*).
+    hardware drives (BUS.md, *Device vocabulary*).
 
     `stopped` is the **one-shot** emergency stop: every decoder told to stand
     with the track still live, and nothing afterwards. Any throttle on the
@@ -177,7 +177,7 @@ def track(power: str) -> bytes:
 
 def _number(addr: str, most: int, *, least: int) -> int | None:
     """An address as the station's own number, or None where it is no such
-    address. Read and never trusted like any other field (SYSTEM.md, rule 4):
+    address. Read and never trusted like any other field (BUS.md, rule 4):
     the drawing types a plain string and nothing checks its shape there, so
     this is where a string that is no accessory number stops."""
     if not addr.isdigit():

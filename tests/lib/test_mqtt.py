@@ -27,7 +27,7 @@ OCCUPIED = "tc49/layout/block_occupied"
 def raw(broker: Broker) -> Iterator[paho.Client]:
     """A client on this test's broker that is not ours: what any other
     participant can send and see, the bus contract being JSON on named topics
-    and nothing about who is speaking (SYSTEM.md, rule 4)."""
+    and nothing about who is speaking (BUS.md, rule 4)."""
     client = paho.Client(CallbackAPIVersion.VERSION2, protocol=paho.MQTTv311)
     client.connect("127.0.0.1", broker.port)
     client.loop_start()
@@ -270,7 +270,7 @@ def test_the_payload_on_the_wire_is_json(
     buses: Callable[[], MqttBus], raw: paho.Client
 ) -> None:
     """One shape, so a client that is not ours reads what we publish and we
-    read what it sends: the bus is JSON on named topics (SYSTEM.md)."""
+    read what it sends: the bus is JSON on named topics (BUS.md)."""
     bus = buses()
     wire: list[bytes] = []
     raw.on_message = lambda client, userdata, message: wire.append(message.payload)

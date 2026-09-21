@@ -35,7 +35,7 @@ re-grants rather than the driver remembering.
 Then the loop, which is a drain and a sleep. `Driver` is handed a `Bus` and
 nothing else in the package changes: which binding it got is this file's
 business, and a grant that cannot be read is dropped on the broker exactly as
-it was in one process (#261, SYSTEM.md rule 4) — under MQTT the publisher is
+it was in one process (#261, BUS.md rule 4) — under MQTT the publisher is
 another process, and a bug there must not take this one down.
 """
 
@@ -53,7 +53,7 @@ from tc49.lib.startup import PERIOD_S, command_line, connected
 CLIENT_ID = "tc49-driver"
 """What this app calls itself to the broker, so its log names an app rather
 than a random string. Nothing in the contract reads it: a topic has one
-writing role and no payload says who published (SYSTEM.md, rule 4)."""
+writing role and no payload says who published (BUS.md, rule 4)."""
 
 
 def to_stderr(line: str) -> None:

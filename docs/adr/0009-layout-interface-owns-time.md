@@ -49,4 +49,4 @@ The boundary number rides in the payload because at-least-once delivery makes
 a counted bare event double-advance on a duplicate. That argument is about
 delivery and not about the simulator, which is why every binding numbers its
 boundary. No other event carries a `boundary` field — the trace tap stamps.
-See [SYSTEM.md](../SYSTEM.md#time).
+See [BUS.md](../BUS.md#time).

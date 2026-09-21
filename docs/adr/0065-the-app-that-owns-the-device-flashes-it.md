@@ -35,7 +35,7 @@ it the mirror has the subscription anyway.
 
 ## The gesture is a gesture like the others
 
-Nothing new is needed on the bus. [SYSTEM.md](../SYSTEM.md#event-inventory)
+Nothing new is needed on the bus. [BUS.md](../BUS.md#event-inventory)
 already has three kinds of topic — state, event and the two imperative
 commands — and nine rows carrying the `browser` mark, which *is* the browser's
 write permission rather than a note about it. A flash request is the tenth

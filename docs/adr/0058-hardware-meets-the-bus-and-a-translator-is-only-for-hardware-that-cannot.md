@@ -87,7 +87,7 @@ in the session's own process, which is the bench harness wiring apps together
 whatever answers for a system is a participant on the broker, and a session
 drives no hardware itself.
 
-**`docs/SYSTEM.md` is a public contract.** Its event inventory is what
+**`docs/BUS.md` is a public contract.** Its event inventory is what
 somebody building hardware reads, so a change to it is a change to an
 interface strangers implement, not internal documentation. That is a
 constraint on us, not on them.

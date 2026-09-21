@@ -56,7 +56,7 @@ and wrong for a process holding a cable somebody can trip over.
 
 This is the distinction a reader will get wrong, so it is stated plainly.
 
-[SYSTEM.md](../SYSTEM.md) rule 4 says a consumer validates every payload it
+[BUS.md](../BUS.md) rule 4 says a consumer validates every payload it
 reads and **never raises on one**: an unreadable payload is dropped, or
 answered where the payload carries an id
 ([ADR-0034](0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md),
@@ -152,7 +152,7 @@ a place where a failure is visible at all.
 - **Extends ADR-0030**, which carries a note saying so. ADR-0030 ranks the
   bindings; this says the same ranking governs what may be hidden. Nothing in
   ADR-0030 changes.
-- **SYSTEM.md rule 4 stands as written.** An unreadable payload is still
+- **BUS.md rule 4 stands as written.** An unreadable payload is still
   dropped and still never raises. This rule is about conditions, and it adds
   nothing to how a payload is read.
 - **ADR-0048 stands** as this rule's instance inside the dispatcher, and its

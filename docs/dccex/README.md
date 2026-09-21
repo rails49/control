@@ -11,7 +11,7 @@ written down.** Every other component is oblivious to what powers the layout:
 nothing above the layout interface expects DCC-EX, or Lenz, or NCE, or
 anything else — those are one family of devices among many. The `<…>` syntax
 appears on no bus topic, in no other package and in no normative document
-([SYSTEM.md](../SYSTEM.md#device-vocabulary) is the contract, and a test keeps
+([BUS.md](../BUS.md#device-vocabulary) is the contract, and a test keeps
 protocol names off the pages that are not about hardware). A different command
 station gets a different translator, or reaches the system through JMRI, and
 nothing else moves.

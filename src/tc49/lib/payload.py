@@ -515,7 +515,7 @@ def detected(payload: object) -> str:
     not-up because a supply or a link that cannot be read is not one a train
     may move on (#181). An occupancy row has a word of its own for exactly
     this — `unknown` is **no information** about that end, a value and not an
-    absence (SYSTEM.md, *what the hardware reports back*) — and a frame that
+    absence (BUS.md, *what the hardware reports back*) — and a frame that
     cannot be read carries no information about that end either. So the read
     that fails says the thing the contract already has a word for, and what a
     consumer does with `unknown` is the one behaviour rather than two: it
@@ -956,7 +956,7 @@ class Ordering:
 
     State topics only. An event topic reports something that happened and is
     never replayed, so there is no held value for a late one to lose to, and
-    the guard is off the gate a topic's own name gives (SYSTEM.md, rule 2)
+    the guard is off the gate a topic's own name gives (BUS.md, rule 2)
     rather than off whether a payload happens to carry a number.
     """
 

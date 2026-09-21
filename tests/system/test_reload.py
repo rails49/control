@@ -139,7 +139,7 @@ def started(app: str, broker: Broker, store: Store, tmp_path: Path) -> Process:
 
 def hand(broker: Broker) -> MqttBus:
     """A client that is nobody: a page, another app, a person with a shell.
-    Nothing here says who published, and no app asks (SYSTEM.md, rule 4)."""
+    Nothing here says who published, and no app asks (BUS.md, rule 4)."""
     bus = MqttBus(port=broker.port)
     assert bus.wait_connected(), "the hand never reached the broker"
     return bus

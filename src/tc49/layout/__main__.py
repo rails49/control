@@ -61,7 +61,7 @@ from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
 CLIENT_ID = "tc49-layout"
 """What this app calls itself to the broker, so its log names an app rather
 than a random string. Nothing in the contract reads it: a topic has one
-writing role and no payload says who published (SYSTEM.md, rule 4)."""
+writing role and no payload says who published (BUS.md, rule 4)."""
 
 OWNED = (
     "tc49/layout/state/railroad",
