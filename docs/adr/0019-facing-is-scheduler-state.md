@@ -65,7 +65,7 @@ nose points *at* the end it came in by. Which of the two happened is read
 rather than remembered: for a move out of block `origin` over `transit`, the
 train left nose-first exactly when `end_crossed(layout, origin, transit)` is
 the end its facing points at. Routes are strict pass-throughs
-([ADR-0001](0001-a-route-is-a-strict-pass-through.md)), so every move of one
+([ADR-0001](0001-no-reversal-within-a-route.md)), so every move of one
 route gets the same answer and nothing has to be carried between them.
 
 Nothing on the bus changes, and the dispatcher still learns nothing: it keeps

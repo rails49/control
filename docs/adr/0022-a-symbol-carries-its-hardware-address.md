@@ -66,7 +66,7 @@ contract, and the overall account of how the railroad runs is being written
 separately.
 
 `addr` does not enter the layout document.
-[LAYOUT.md](../store/LAYOUT.md#layout-schema)'s "there are no turnouts in the
+[LAYOUT.md](../store/LAYOUT.md#the-derived-layout)'s "there are no turnouts in the
 layout" stands and derivation still drops every hardware id. The
 transit-to-turnout-positions table [SYSTEM.md](../SYSTEM.md#layout-interface)
 called private hardware configuration is now built from the drawing: a

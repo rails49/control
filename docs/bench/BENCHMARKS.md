@@ -63,7 +63,7 @@ diluting the one signal the sweep exists to find. A `--profile uniform`
 robustness check remains available later at the cost of a second sweep.
 
 Note what this does *not* mean. `reversing-loops`'s sidings are trailing dead
-ends ([LAYOUT.md](../store/LAYOUT.md#the-encoded-railroads)), so a train parked
+ends ([LAYOUT.md](../store/LAYOUT.md#the-drawn-railroads)), so a train parked
 in one blocks nothing but a request destined to it — and no generated request
 is. Siding stock is inert scenery for the sweep. The permanent obstacles that
 actually bite are **idle trains on station tracks**: a working train before it
