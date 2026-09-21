@@ -43,7 +43,7 @@ const sheet = css`
   /* The generic connection symbol shows no turnout detail, which is what it
      says about itself. */
   .opaque {
-    fill: #edeae4;
+    fill: color-mix(in srgb, var(--track) 12%, var(--body));
     stroke: var(--track);
     stroke-width: ${0.5 * W};
     stroke-dasharray: ${2 * W} ${W};
@@ -272,12 +272,12 @@ const running = css`
      than named a second time, so one value moves a colour and its wash
      together and they cannot disagree. */
   .symbol.occupied .block-body {
-    fill: #f6d3cb;
+    fill: color-mix(in srgb, var(--wrong) 18%, var(--body));
     stroke: var(--wrong);
   }
 
   .symbol.locked .block-body {
-    fill: color-mix(in srgb, var(--locked) 18%, white);
+    fill: color-mix(in srgb, var(--locked) 18%, var(--body));
     stroke: var(--locked);
   }
 
@@ -286,7 +286,7 @@ const running = css`
      channel that is not hue. Track and wires stay solid — a dash's spacing
      would vary with a wire's angle, which is why track is never patterned. */
   .symbol.committed .block-body {
-    fill: color-mix(in srgb, var(--committed) 18%, white);
+    fill: color-mix(in srgb, var(--committed) 18%, var(--body));
     stroke: var(--committed);
     stroke-dasharray: ${2 * W} ${W};
   }

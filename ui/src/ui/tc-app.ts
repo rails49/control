@@ -45,6 +45,7 @@ import { customElement, state } from "lit/decorators.js";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
+import "@shoelace-style/shoelace/dist/themes/dark.css";
 
 import {
   COMMANDS,

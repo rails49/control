@@ -6,6 +6,17 @@ body {
   height: 100%;
 }
 
+/* The paper the app paints over, in both themes: the app's own host covers
+   the viewport, so this shows while the module loads and nowhere else. The two
+   values are `--paper` and its dark entry (src/render/units.ts), which a
+   stylesheet outside the app cannot read; test/styles.test.ts asserts they
+   still agree. */
 body {
   background: #fbfbfa;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #14171b;
+  }
 }
