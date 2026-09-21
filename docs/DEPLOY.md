@@ -87,15 +87,20 @@ lost the stanza and took the deploy down with it (#488, #496). Nothing that
 runs unattended may depend on a file like that.
 
 What you type by hand is still `ssh rails49`, here and further down the page.
-The stanza is kept in the dotfiles repository as `~/.ssh/config.d/rails49` and
-pulled in by an `Include ~/.ssh/config.d/*` line at the top of
-`~/.ssh/config`, which stays untracked. On a machine that has neither, add it:
+The stanza sits in `~/.ssh/config` itself and is in no repository at all, which
+is the reason the paragraph above exists rather than an oversight: a machine
+that has never seen it deploys anyway. On one that wants the alias, add it:
 
 ```ssh-config
-Host rails49
+Host gleis49 rails49
     HostName gleis49.org
     User ttmetro
 ```
+
+Two names for one box. `gleis49` is what the box is called and is what to
+reach for; `rails49` is the project's name and is what this page and years of
+typing already say, so dropping it would break a line somebody has written
+down.
 
 `HostName` is the DNS name rather than `rails49.local` on purpose: the record
 is independent of what the box calls itself, so renaming the machine cannot cut
