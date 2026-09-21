@@ -214,10 +214,13 @@ unless the origin's host is the router's own host. A handshake with no
 and a native client on 1883 does not pass this way at all. A WebSocket has no
 preflight, so this check is the whole of what stands between a page somebody's
 browser visits and the gestures above. Mosquitto has no `Origin` setting, so
-the rule is stated in front of it as a proxy middleware on `/mqtt`
-(`deploy/routes/*/site.yaml`) rather than in an app
+the rule is stated in front of it as a router and middleware on `/mqtt` rather
+than in an app
 ([ADR-0056](adr/0056-the-browsers-way-onto-the-bus-refuses-a-foreign-origin.md),
-[ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)).
+[ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)):
+as labels on the broker's own container, which the door in front of the box
+reads, and in `deploy/routes/*/site.yaml` for as long as that is still served
+([DEPLOY.md](DEPLOY.md#what-the-containers-declare)).
 
 **Which topics a page publishes on is convention, not enforcement.** With
 anonymous clients a broker cannot tell a page from an app, and the LAN is
