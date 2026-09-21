@@ -1,9 +1,9 @@
 # Architecture
 
 How the repository is organized and how it is tested. The contracts *between*
-apps — bus, event inventory, time, asset store, footprints — are
-[SYSTEM.md](SYSTEM.md)'s and are not repeated here. Each app's internals are
-its own page: the dispatcher's are
+apps — the bus, the event inventory and time in [BUS.md](BUS.md), the asset
+store and the footprints in [SYSTEM.md](SYSTEM.md) — are those pages' and are
+not repeated here. Each app's internals are its own page: the dispatcher's are
 [dispatcher/INTERNALS.md](dispatcher/INTERNALS.md), the metrics derivations
 [bench/METRICS.md](bench/METRICS.md). Terminology follows
 [CONTEXT.md](../CONTEXT.md).
@@ -44,10 +44,13 @@ Apps import `tc49.lib` and themselves, **never each other**. They meet only
 over the event bus and the asset store's CRUD contract, so each one can be
 read, tested and eventually deployed without the others.
 
-[SYSTEM.md](SYSTEM.md) is the normative definition of those contracts;
-`lib/` is its Python binding. A TypeScript UI gets a sibling language binding
-of the same spec ([ADR-0014](adr/0014-python-apps-typescript-ui.md)), so
-nothing an app depends on is defined only in Python.
+[BUS.md](BUS.md) and [SYSTEM.md](SYSTEM.md) are the normative definition of
+those contracts; `lib/bus.py` and `lib/mqtt.py` are the bus's Python binding,
+and `lib/documents.py` the store's. A TypeScript UI gets a sibling language
+binding of the same spec
+([ADR-0014](adr/0014-python-apps-typescript-ui.md)), so nothing an app depends
+on is defined only in Python. `BUS.md` says what such a binding implements and
+what it does not.
 
 `src/tc49/bench/` is not an app. It is the research harness, and the only code
 that wires apps together. Top-level `bench/` is the fixture data it roots
@@ -57,10 +60,10 @@ itself at, and is not code at all.
 
 ```
 src/tc49/
-  lib/          the Python binding of SYSTEM.md's contracts
+  lib/          the Python binding of BUS.md's and SYSTEM.md's contracts
     bus.py        the bus every app is handed — the interface, and the
                   in-process binding of it: queued FIFO, run-to-completion,
-                  prefix-filter subscriptions (SYSTEM.md#the-bus)
+                  prefix-filter subscriptions (BUS.md#the-bus)
     mqtt.py       the other binding, over an MQTT broker — retained state
                   topics, a wall-time stamp, the network thread queueing and
                   `drain()` delivering (ADR-0059)
@@ -261,7 +264,8 @@ docs/
   GOALS.md         assets and the operations on them
   MILESTONE-1.md   scope: what is built first, what is not
   MILESTONE-2.md   scope: the physical layout, and what running decides
-  SYSTEM.md        the apps and the contracts between them
+  SYSTEM.md        the apps, the store's contract, the footprints, the trace
+  BUS.md           the bus contract: topics, payloads, time, device vocabulary
   ARCHITECTURE.md  this page: repo organization and tests
   adr/             every decision, one numbered sequence
   dispatcher/      DISPATCH.md  SAFETY.md  INTERNALS.md

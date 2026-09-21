@@ -15,8 +15,8 @@ already named as components with contracts in
 [SYSTEM.md](../SYSTEM.md#component-footprints); this decision says the file
 tree should say so too, and that nothing else earns a folder.
 
-`lib` is not an app and neither is `bench`. **`SYSTEM.md` is the normative
-definition of the contracts; `lib` is its Python binding.** A TypeScript UI
+`lib` is not an app and neither is `bench`. **`BUS.md` and `SYSTEM.md` are
+the normative definition of the contracts; `lib` is their Python binding.** A TypeScript UI
 gets a sibling binding of the same spec, so nothing an app depends on is
 defined only in Python, and the two bindings answer to the spec rather than to
 each other. `bench` is the research harness: it assembles the apps on one bus

@@ -15,8 +15,10 @@ This repo (eventually) implements the features described in the docs:
   what is deliberately still out of scope.
 - [Milestone 2](docs/MILESTONE-2.md) — not reached: trains on a physical
   layout, what is built for it, and what only a running railroad decides.
-- [System](docs/SYSTEM.md) — the apps and the contracts between them: the
-  event bus and its inventory, time, and the asset store.
+- [System](docs/SYSTEM.md) — the apps: the asset store's contract, each
+  component's footprint, and the trace.
+- [Bus](docs/BUS.md) — the bus contract: what it promises, every topic and
+  payload, time, and the device vocabulary the hardware speaks.
 - [Architecture](docs/ARCHITECTURE.md) — how the repository is organized and
   how it is tested.
 - [Glossary](CONTEXT.md) — canonical terms; decisions in [docs/adr](docs/adr).

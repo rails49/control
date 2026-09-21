@@ -1,7 +1,8 @@
 # Python for the apps, TypeScript for the UI
 
 The five apps stay Python. The UI, when it arrives, is TypeScript. The two meet
-as language bindings of the contracts [SYSTEM.md](../SYSTEM.md) fixes
+as language bindings of the contracts [BUS.md](../BUS.md) and
+[SYSTEM.md](../SYSTEM.md) fix
 ([ADR-0013](0013-apps-are-deployment-units.md)).
 
 Python keeps the apps for three reasons. Hypothesis carries the
@@ -21,7 +22,7 @@ store takes `dict[str, Any]`), but a schema types the boundary in both
 languages, and also survives MQTT and a REST store.
 
 The cost is field-level payload schemas, generated into each language rather
-than written twice. The event inventory of [SYSTEM.md](../SYSTEM.md#event-inventory)
+than written twice. The event inventory of [BUS.md](../BUS.md#event-inventory)
 already defers those "until a second consumer exists", and a TypeScript UI is
 that second consumer, so this decision calls the cost in rather than adding it.
 

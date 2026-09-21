@@ -25,7 +25,7 @@ everything at once.
 - **Implementation** — work inside one component. Title `<component>: <what>`,
   e.g. `dispatcher: …`, `simulator: …`. The discussion stays inside that
   component; other components appear only as the contracts they expose
-  (SYSTEM.md).
+  (BUS.md, SYSTEM.md).
 - **Communication** — one new or changed contract element: a bus topic or a
   REST route. Title `bus: <topic> — <what>` or `rest: <path> — <what>`. The
   body carries the draft contract element itself — topic, kind, publisher,
@@ -78,8 +78,9 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
   browser surfaces and no decision about them may re-center it: whether a new
   thing is a UI of its own or a view of an existing one, what one system is
   binding on, where shared UI code lives, what serves each UI and how a person
-  reaches it, and where the bus contract lives now that `docs/SYSTEM.md` names
-  publishers in repositories that hold no copy of it.
+  reaches it, and where the bus contract lives, which
+  [ADR-0006 there](https://github.com/rails49/.github/blob/main/docs/adr/0006-the-bus-contract-is-controls-and-travels-when-something-reads-it.md)
+  settled on this repository, as `docs/BUS.md`.
 
 ### Completed maps
 
