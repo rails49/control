@@ -29,10 +29,10 @@ commit; it goes red on an edit here, which is the one thing it is for. The day
 a new copy lands with a value this app has not followed yet, it goes red until
 the code follows.
 
-**It runs in the ordinary gate**, which is where the assertions the issue asked
-for already live (`test/styles.test.ts`). ADR-0005 says the check runs outside
-the required gate, and the reason it gives is the one that does not apply here:
-a check that fetched the source could go red on somebody else's commit and
-red-light every open pull request until someone synced. This one reads a file
-in this repository. Keeping it out of the gate would only mean a drift that
-lands.
+**It runs in the ordinary gate**, inside `scripts/check.sh` with the rest of
+this app's tests. A check that reads only files in the repository it runs in
+runs where that repository's other tests run, and in a required gate if it has
+one
+([ADR-0010](https://github.com/rails49/.github/blob/main/docs/adr/0010-the-values-check-runs-in-the-consumers-gate-because-it-fetches-nothing.md)).
+This one fetches nothing, so there it goes red before the edit lands rather
+than after.
