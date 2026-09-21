@@ -26,6 +26,8 @@
  * unnoticed until the module has grown back into the file it came out of.
  */
 
+import { readFileSync } from "node:fs";
+
 import type { CSSResult } from "lit";
 import { describe, expect, it } from "vitest";
 
@@ -182,6 +184,59 @@ describe("the height the rail turns at", () => {
         turn.replace(/\s+/g, ""),
       );
     }
+  });
+});
+
+/**
+ * The values the look rules bind, against the copy they came from (#548).
+ *
+ * Four colours and two sizes are one system across rails49's UIs
+ * ([ADR-0003](https://github.com/rails49/.github/blob/main/docs/adr/0003-the-look-rules-bind-place-colour-and-small-screens-not-code.md)),
+ * and this app keeps them in its own form: the colours in the table that holds
+ * every other colour it draws with, the sizes beside them as numbers a media
+ * query and a stylesheet can be interpolated from. `ui/look/tokens.css` is the
+ * copy of what they are, verbatim and pinned to a commit (ADR-0005), and this
+ * is the assertion that the two agree.
+ *
+ * It reads the copy and nothing else. A check that fetched the source would go
+ * red on somebody else's commit, and under this repository's rule that `main`
+ * moves only by a green required check with no bypass, that red-lights every
+ * open pull request here until someone syncs.
+ */
+describe("the values the look rules bind", () => {
+  /** The copy, as the tokens it declares. Comments out first: they carry a
+   *  `--rail-button` or two in prose, and a regex reading declarations cannot
+   *  tell those from the real ones. */
+  const bound = Object.fromEntries(
+    [
+      ...readFileSync(new URL("../look/tokens.css", import.meta.url), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g),
+    ].map(([, name, value]) => [name!, value!.trim()]),
+  );
+
+  /** Every token in the copy, so that one added over there fails here rather
+   *  than passing unnoticed: a value this app has not followed yet is the
+   *  whole point of keeping the copy. */
+  it("are the six the copy holds", () => {
+    expect(Object.keys(bound).sort()).toEqual([
+      "--band",
+      "--band-ink",
+      "--rail",
+      "--rail-button",
+      "--rail-group",
+      "--rail-turns",
+    ]);
+  });
+
+  it("paint the band and the rail", () => {
+    for (const token of ["--band", "--band-ink", "--rail", "--rail-group"]) {
+      expect(COLOURS[token], token).toBe(bound[token]);
+    }
+  });
+
+  it("turn the rail into a strip at the height the copy gives", () => {
+    expect(`${RAIL_TURNS_PX}px`).toBe(bound["--rail-turns"]);
   });
 });
 
