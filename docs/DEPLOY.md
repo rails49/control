@@ -33,9 +33,16 @@ The zone's id is not a secret and stands in `scripts/dns.sh` beside the zone's
 name, so the token needs no permission to look one up.
 
 ```
+docker network create rails49
 scripts/dns.sh dev 127.0.0.1
 op run --env-file=deploy/op.env -- docker compose -f deploy/compose.yaml up -d
 ```
+
+The first line is once per box, and only until the box installs the
+installation, which makes that network itself — see
+[What the containers declare](#what-the-containers-declare). Without it
+compose refuses to start anything: "network rails49 declared as external, but
+could not be found".
 
 The first request for the name is what makes Traefik ask for the certificate,
 so give it a few seconds and then open <https://dev.rails49.org>. Renewal is
@@ -121,6 +128,12 @@ The deploy carries that line itself rather than calling a script under
 and what is under `scripts/` on the box is whatever the box last pulled —
 which on a box that cannot pull is nothing
 ([#543](https://github.com/rails49/control/issues/543)).
+
+**The shared network is made once on the box**, and only until the box
+installs the installation, which makes it itself — see
+[What the containers declare](#what-the-containers-declare). Three of the
+containers below join it and compose starts none of them without it:
+`ssh rails49 docker network create rails49`.
 
 ```
 ssh rails49
@@ -394,10 +407,11 @@ needs no maintenance when the box changes networks.
 The three containers a browser reaches — the built ui, the store and the
 broker — carry their own routers as labels on themselves
 ([#556](https://github.com/rails49/control/issues/556)). What reads them is
-the installation's door, one per box in front of every stack on it, which
-takes its routers off containers rather than out of a file. A UI's paths then
-change in the same commit as the UI, and this repository stops owning the
-routing for UIs it does not build.
+the door: one reverse proxy per box, the installation's rather than this
+repository's, in front of every stack on the box, taking its routers off
+containers rather than out of a file. A UI's paths then change in the same
+commit as the UI, and this repository stops owning the routing for UIs it does
+not build.
 
 | container | router | what it claims |
 | --- | --- | --- |
@@ -435,6 +449,11 @@ and `http://`, TLS terminating at the door — are named exactly, and anything
 else carrying an `Origin` is refused. A handshake with no `Origin` is a native
 client and still goes through.
 
+The pattern also admitted the app's own name with a port after it. That is
+dropped rather than written out twice more: the door listens on 443 and 80,
+and a browser leaves a scheme's default port out of `Origin`, so no page the
+door serves sends one.
+
 **Only what the door reaches joins the shared network.** `web`, `store` and
 `broker` join `rails49`, the network the installation creates and every stack
 on the box shares; `scheduler`, `dispatcher`, `driver`, the layout interface,
@@ -454,10 +473,10 @@ docker network create rails49
 
 **Both ways are live for one release.** The labels are read by a door that is
 not on this box yet, and `proxy` below goes on serving the same routing out of
-its route file and reads no label. That is the expand half of an
-expand–contract pair: the route file, `TC49_SITE` and `proxy` itself go in the
-contract half, and until then `tests/system/test_router_labels.py` holds the
-two to the same paths.
+its route file and reads no label. The routing arrives before the old way
+leaves, so that a box keeps working while it is cut over; the route file,
+`TC49_SITE` and `proxy` itself go in the release after this one, and until
+then `tests/system/test_router_labels.py` holds the two to the same paths.
 
 ## What the proxy carries
 
