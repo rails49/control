@@ -1,6 +1,6 @@
 import { css, unsafeCSS } from "lit";
 
-import { RAIL_TURNS_PX } from "../render/units.js";
+import { RAIL_BUTTON_PX, RAIL_TURNS_PX } from "../render/units.js";
 
 /**
  * The rail down the left (tc-rail): the views, then the current view's
@@ -11,21 +11,35 @@ import { RAIL_TURNS_PX } from "../render/units.js";
  * look like one system. The group is what says which commands belong together
  * once their labels are gone, which is why there are two greens and not one.
  *
- * The width and the button are sized against each other and against the
- * editor's fifteen buttons: four views, then eleven verbs. At the 44px an
- * occupancy button takes that column is 720px tall and does not fit a laptop,
- * so the button is 35px here. The device this app is driven from is a mouse
- * for everything on the rail — the throttle is the touch surface and it has no
- * commands at all — so the touch target the labelling app needs is not what
- * this one is sized to.
+ * The button is `RAIL_BUTTON_PX`, which the look rules bind across the
+ * project's UIs (`ui/look/tokens.css`, ADR-0003), and the column's width is
+ * that plus the padding either side of it. This app would have picked smaller
+ * — the rail is driven with a mouse in every view but the throttle — and the
+ * size is not its to pick.
+ *
+ * **What that costs is height**, and the answer is a scroll. The editor's rail
+ * is fifteen buttons — four views, then eleven verbs — which at this size is
+ * about 710px of column and taller than the work in a laptop window. So the
+ * spacing is as tight as the buttons will sit, and what is left over scrolls.
+ * The views are pinned while it does: a person scrolled to the bottom of the
+ * verbs can still leave the view, which is the one press that must not be the
+ * one scrolled away. Folding the groups was the alternative and costs two
+ * presses for every command to save a scroll on a short window.
+ *
+ * Scrolling is not what `RAIL_TURNS_PX` answers. That height is a window too
+ * short for a column at all — a phone held sideways — and there the rail lies
+ * down along the top of the work instead.
  */
 export const railStyles = css`
   :host {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 4px;
     align-items: center;
-    padding: 0.35rem 0.25rem;
+    /* No padding above the first group and none below the last: the column is
+       long enough already, and a pinned group has to sit flush against the top
+       of the scroll or the buttons under it show in the gap. */
+    padding: 0 4px;
     width: var(--rail-width);
     box-sizing: border-box;
     background: var(--rail);
@@ -41,12 +55,22 @@ export const railStyles = css`
     display: flex;
     flex: none;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 2px;
     align-items: center;
     width: 100%;
-    padding: 0.2rem 0;
+    padding: 2px 0;
     border-radius: 6px;
     background: var(--rail-group);
+  }
+
+  /* The views, pinned to the top of the scroll. The way to another view is
+     always the same press whatever the column has been scrolled to, and the
+     group's own ground is opaque, so the verbs pass under it rather than
+     through it. */
+  .group.views {
+    position: sticky;
+    top: 0;
+    z-index: 1;
   }
 
   button {
@@ -54,8 +78,8 @@ export const railStyles = css`
     flex: none;
     align-items: center;
     justify-content: center;
-    width: 2.2rem;
-    height: 2.2rem;
+    width: ${RAIL_BUTTON_PX}px;
+    height: ${RAIL_BUTTON_PX}px;
     border: none;
     border-radius: 5px;
     background: none;
@@ -65,10 +89,10 @@ export const railStyles = css`
 
   /* The glyphs are drawn at 16 units square (ui/icons.ts) and the rail wants
      them bigger than the band does, so the size is the button's rather than
-     the drawing's. */
+     the drawing's: a fraction of it, so the two cannot come apart. */
   button svg {
-    width: 1.35rem;
-    height: 1.35rem;
+    width: ${0.6 * RAIL_BUTTON_PX}px;
+    height: ${0.6 * RAIL_BUTTON_PX}px;
   }
 
   button:hover:not(:disabled) {
@@ -132,14 +156,21 @@ export const railStyles = css`
     :host {
       flex-direction: row;
       width: auto;
-      padding: 0.25rem 0.4rem;
+      padding: 4px 6px;
       overflow: auto hidden;
     }
 
     .group {
       flex-direction: row;
       width: auto;
-      padding: 0 0.2rem;
+      padding: 0 2px;
+    }
+
+    /* Nothing is pinned in the strip: it scrolls sideways, and a group stuck
+       to the top of a row it is already at the top of would only cover the
+       group beside it. */
+    .group.views {
+      position: static;
     }
 
     button.run {

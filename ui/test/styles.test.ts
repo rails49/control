@@ -31,7 +31,11 @@ import { readFileSync } from "node:fs";
 import type { CSSResult } from "lit";
 import { describe, expect, it } from "vitest";
 
-import { COLOURS, RAIL_TURNS_PX } from "../src/render/units.js";
+import {
+  COLOURS,
+  RAIL_BUTTON_PX,
+  RAIL_TURNS_PX,
+} from "../src/render/units.js";
 import * as shared from "../src/ui/shared.styles.js";
 import {
   dismiss,
@@ -237,6 +241,19 @@ describe("the values the look rules bind", () => {
 
   it("turn the rail into a strip at the height the copy gives", () => {
     expect(`${RAIL_TURNS_PX}px`).toBe(bound["--rail-turns"]);
+  });
+
+  it("size every button on the rail", () => {
+    expect(`${RAIL_BUTTON_PX}px`).toBe(bound["--rail-button"]);
+  });
+
+  /** And the number is what the sheet draws with, not a constant beside it: a
+   *  button sized in `rem` next to a `RAIL_BUTTON_PX` nothing reads would pass
+   *  the assertion above with the rule broken. */
+  it("are what the rail's own sheet is written in", () => {
+    const flat = railStyles.cssText.replace(/\s+/g, "");
+    expect(flat).toContain(`width:${RAIL_BUTTON_PX}px`);
+    expect(flat).toContain(`height:${RAIL_BUTTON_PX}px`);
   });
 });
 

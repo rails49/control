@@ -1,6 +1,6 @@
 import { css, unsafeCSS } from "lit";
 
-import { RAIL_TURNS_PX } from "../render/units.js";
+import { RAIL_BUTTON_PX, RAIL_TURNS_PX } from "../render/units.js";
 import { palette } from "./shared.styles.js";
 
 /**
@@ -34,8 +34,10 @@ export const appStyles = css`
 
     /* The rail's own width, which is the column the work starts after. Stated
        here as well as read there, the grid being what has to leave room for
-       it. */
-    --rail-width: 3rem;
+       it: a button and the 4px of padding either side of it
+       (tc-rail.styles.ts), so the bound button size is the whole of what
+       decides it. */
+    --rail-width: ${RAIL_BUTTON_PX + 8}px;
 
     display: grid;
     grid-template-columns: auto 1fr;

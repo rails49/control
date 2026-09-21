@@ -82,7 +82,7 @@ export class TcRail extends LitElement {
    */
   private chooser() {
     return html`
-      <div class="group" role="group" aria-label="views">
+      <div class="group views" role="group" aria-label="views">
         ${VIEWS.map((view) => {
           const current = view.id === this.view;
           return html`
