@@ -79,18 +79,6 @@ TOPICS: dict[str, Topic] = {
     "tc49/layout/mode_wanted": Topic(("train", "mode"), browser=True),
     "tc49/layout/throttle_wanted": Topic(("train", "speed"), browser=True),
     "tc49/layout/state/mode": Topic((AT, "modes")),
-    # Writing a released firmware build onto the command station: the gesture
-    # asking the app that holds the device to do it, that being the only
-    # thing able to hand the device over (ADR-0065). `tag` names a build and
-    # never where to fetch it — the LAN is the trust boundary and carries no
-    # authentication on purpose (ADR-0042), so a field naming a repository or
-    # a URL would let anyone on the wifi have the station fetch and run an
-    # arbitrary binary, where a tag can only choose among builds already
-    # published to the one place the responder is configured to look. An
-    # event, so rule 2 already forbids replay; it is worth saying on this row
-    # because a retained flash request reflashes the station every time the
-    # responder reconnects to the broker.
-    "tc49/layout/firmware_wanted": Topic(("tag",), browser=True),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
     "tc49/schedule/state/exhausted": Topic((AT, "exhausted")),
@@ -140,9 +128,7 @@ DEVICE_TOPICS: dict[str, Topic] = {
     ),
     "tc49/layout/state/device/point": Topic((AT, "addr", "position"), address="addr"),
     "tc49/layout/state/device/track": Topic((AT, "power", "reason")),
-    "tc49/layout/state/device/link": Topic(
-        (AT, "id", "link", "detail", "build"), address="id"
-    ),
+    "tc49/layout/state/device/link": Topic((AT, "id", "link", "detail"), address="id"),
     "tc49/layout/state/device/refused": Topic(
         (AT, "id", "addr", "detail"), address="id"
     ),
@@ -193,14 +179,7 @@ to a person who can act on it, which is where verifying a link belongs
 appears in no drawing, no configuration and no list of ours; it is a key
 because two participants publishing on one row would erase each other, and
 `layout` folds the supply to `off` for any id it has heard say `down` without
-ever waiting for one it has not heard (ADR-0058, ADR-0059). Its ``build`` is
-the identifier the hardware on the far end reports for the firmware it is
-running, optional and free text: a link that is `down` has no build to report
-and hardware that reports none at all is ordinary. It carries the build alone
-and never the banner it was read out of — a banner's shape is one vendor's,
-where this row is device-neutral — and what reads it is a client that asked
-for a build on `tc49/layout/firmware_wanted` and wants to see which one
-answered, there being no reply and no correlation id (ADR-0065). `device/track`
+ever waiting for one it has not heard (ADR-0058, ADR-0059). `device/track`
 carries the free-text `reason` for the same person: the participant that
 reports the supply and cannot reach it says why on the row itself, rather than
 leaving them a second row to find.

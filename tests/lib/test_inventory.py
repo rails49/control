@@ -36,7 +36,6 @@ POWER_WANTED = "tc49/layout/power_wanted"
 POWER = "tc49/layout/state/power"
 RAILROAD_WANTED = "tc49/layout/railroad_wanted"
 RAILROAD = "tc49/layout/state/railroad"
-FIRMWARE_WANTED = "tc49/layout/firmware_wanted"
 
 
 @pytest.mark.parametrize("topic", sorted(TOPICS))
@@ -145,33 +144,6 @@ def test_the_railroad_a_person_loads_is_a_gesture_of_its_own() -> None:
     assert RAILROAD not in INBOUND
 
 
-def test_flashing_the_command_station_is_a_gesture_of_its_own() -> None:
-    """Writing a released build onto the command station is a gesture like
-    every other (ADR-0065): an event row a page may write, carrying the one
-    field `tag`. It sits under `layout` because hardware hangs under the
-    layout interface (ADR-0043), and what answers it is the app that holds
-    the device, that being the only thing able to hand the device over.
-
-    **A tag and never a source.** The LAN is the trust boundary and carries
-    no authentication on purpose (ADR-0042), so a field naming a repository
-    or a URL would let anyone on the wifi have the station fetch and run an
-    arbitrary binary; a tag can only choose among builds already published to
-    the one place the responder is configured to look, which is a flag on
-    that app and not a value on the wire."""
-    assert FIRMWARE_WANTED in INBOUND
-    assert TOPICS[FIRMWARE_WANTED].fields == ("tag",)
-
-
-def test_a_flash_request_is_never_retained() -> None:
-    """Which is rule 2 and nothing new — an event topic is published
-    unretained, read off the name (`lib/mqtt.py`) — and worth a test of its
-    own on this row alone, because this is the row where breaking the rule
-    costs a command station: a retained flash request reflashes it every time
-    the responder reconnects to the broker, on every restart, every deploy
-    and every blip (ADR-0065)."""
-    assert not is_state_topic(FIRMWARE_WANTED)
-
-
 def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
     """What a broker's ACL would grant a page is the inventory's
     browser-writable rows (#263): the set is read off the rows' marks rather
@@ -196,7 +168,6 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
         THROTTLE_WANTED,
         POWER_WANTED,
         RAILROAD_WANTED,
-        FIRMWARE_WANTED,
     }
     assert not any(is_state_topic(topic) for topic in INBOUND)
 
@@ -217,7 +188,7 @@ def test_the_observed_rows_state_their_fields_in_order() -> None:
     assert DEVICE_TOPICS[SENSOR].fields == (AT, "addr", "occupancy", "reason")
     assert DEVICE_TOPICS[OBSERVED_POINT].fields == (AT, "addr", "position")
     assert DEVICE_TOPICS[OBSERVED_TRACK].fields == (AT, "power", "reason")
-    assert DEVICE_TOPICS[LINK].fields == (AT, "id", "link", "detail", "build")
+    assert DEVICE_TOPICS[LINK].fields == (AT, "id", "link", "detail")
     assert DEVICE_TOPICS[REFUSED].fields == (AT, "id", "addr", "detail")
 
 
@@ -239,27 +210,6 @@ def test_a_link_is_keyed_by_whatever_the_publisher_calls_itself() -> None:
     it (ADR-0059)."""
     assert split_device(device_topic(LINK, "the shed")) == (LINK, "the shed")
     assert DEVICE_TOPICS[LINK].address == "id"
-
-
-def test_a_link_says_which_build_answers() -> None:
-    """The row already reads the thing: a participant calls the link `up` on
-    what the hardware answered back, and what it answered names the firmware
-    it is running (ADR-0065). Carrying it puts *which build is on the box* on
-    the bus, where a client that asked for a tag on `firmware_wanted` sees
-    whether the build it asked for is the build that answered — a desired
-    half and an observed half, with no correlation id and no reply.
-
-    **Optional, and free text.** A link that is `down` has no build to
-    report, and hardware that reports none at all is ordinary, which is the
-    kind of reason `detail` beside it is optional for. It is the build
-    identifier alone and never the whole banner it was read out of: a
-    banner's shape is one vendor's, where this row is device-neutral and
-    another publisher reports whatever its own hardware calls its build.
-
-    It obliges no consumer. `layout` reads the row today and goes on reading
-    it with the field absent, a consumer validating every payload and never
-    raising on one (BUS.md, rule 4)."""
-    assert DEVICE_TOPICS[LINK].fields[-1] == "build"
 
 
 def test_a_refusal_is_keyed_by_the_publisher_and_not_by_the_device() -> None:
