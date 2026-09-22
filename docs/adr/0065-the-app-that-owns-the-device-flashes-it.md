@@ -1,10 +1,14 @@
 # The app that owns the device flashes it
 
+**Amended for [#567](https://github.com/rails49/control/issues/567), 2026-09-22:** the mirror is [`rails49/dccex`](https://github.com/rails49/dccex) now and serves a private face, so the rows this decision put on the bus go with it. **Decision 1's first clause stands** — the app that owns a device is the app that flashes it — and the subscription named after it does not: there is no `tc49/layout/firmware_wanted` to subscribe. **Decisions 2, 5 and 6 go with the rows**: the gesture, the optional `build` on `tc49/layout/state/device/link/<id>` and the reading of the result off those two rows. **Decision 7's obligation is amended.** The client that flashes cannot read `dispatch/state/run` or `device/track`, the dcc-ex UI not being on the bus at all ([rails49/.github ADR-0002](https://github.com/rails49/.github/blob/main/docs/adr/0002-a-ui-talks-to-the-bus-the-store-and-its-own-apps-face.md)), so the operator is the guard and the page confirms rather than checks — which is the arrangement ADR-0051 and ADR-0062 already have for track power. The rest of the reasoning below stands as the record of why it was done this way, and no passage of it is rewritten.
+
+**And one claim below was never true.** The consequences say SYSTEM.md gained rows for an app that had none. It did not: the rows were in [BUS.md](../BUS.md), which is where every topic is declared, and they were there from the day they landed.
+
 Records the decision behind [#519](https://github.com/rails49/control/issues/519),
 [#520](https://github.com/rails49/control/issues/520),
 [#521](https://github.com/rails49/control/issues/521) and
 [#522](https://github.com/rails49/control/issues/522). Amends
-[docs/dccex_usb/README.md](../dccex_usb/README.md): its claim that the app has
+[dccex_usb/README.md](https://github.com/rails49/dccex): its claim that the app has
 no bus topic, no state and no contract in [SYSTEM.md](../SYSTEM.md). Amends
 [docs/MILESTONE-2.md](../MILESTONE-2.md): its out-of-scope row placing a way to
 flash the command station outside this repository.
