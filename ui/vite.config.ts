@@ -15,13 +15,13 @@ export default defineConfig({
     // the tab already open on 5173 keeps fetching its own origin, and when the
     // first server goes away every call there dies as `Failed to fetch`.
     strictPort: true,
-    // Every interface, not just loopback: a container beside this one — a
-    // door, a browser on the LAN — reaches the host by address and not
-    // through its loopback (docs/DEPLOY.md). Vite refuses a request whose
-    // `Host` header it has not been told about, and allows `localhost` and a
-    // bare address without being told, so only a name is named here.
+    // Every interface, not just loopback: a browser on the LAN has exactly
+    // one way to a UI under development and this is it, and it reaches this
+    // host by address (../scripts/dev.sh). An address and `localhost` are
+    // what vite allows without being told, and a development machine is
+    // reached at one or the other, so there is no host to allow here
+    // (https://github.com/rails49/.github/blob/main/docs/adr/0011-a-development-machine-runs-the-installation-or-is-reached-at-localhost.md).
     host: true,
-    allowedHosts: ["dev.rails49.org"],
     // `changeOrigin: false` on every store route, which the string shorthand
     // does not give: vite turns `"/x": "http://…"` into `changeOrigin: true`
     // and rewrites `Host` to the target, so the store saw the page's origin
