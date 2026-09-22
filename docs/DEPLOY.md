@@ -287,9 +287,22 @@ for itself and takes the address of an empty repository the person made. That ke
 docker volume — outside the store, so no commit can carry it, and on no host
 path — and GitHub's host keys are in the image, so the first push is checked
 against them rather than asked about ([store/BACKUP.md](store/BACKUP.md)).
-The volume is made writable by that uid in the image, and the host's passwd
-and group tables come into the store read-only, because ssh will not run for
-a uid it cannot name.
+The volume is made writable by that uid in the image.
+
+**What the uid is called, the image answers.** ssh will not run for a uid it
+cannot name — `No user exists for uid 501` — and the store makes its key with
+`ssh-keygen` and pushes with `ssh`, so a nameless uid is a backup that cannot
+be made at all. The box's own passwd and group tables came into the store
+read-only for this, which answered it only on a box that keeps its people in
+those files: a mac keeps them in Open Directory, hands the store uid 501, and
+the feature was unreachable there
+([#566](https://github.com/rails49/control/issues/566)). The image's own
+tables are group-writable to root's group instead, the store is in that group,
+and `deploy/entrypoint.sh` gives whatever uid it was handed a name before the
+service's command runs. **The uid is still the person's** — nothing about
+whose the documents are changes — and a container that cannot write its tables
+says so in the deploy log and serves anyway, the backup being the one thing
+that then does not work.
 
 **A box deployed before the store ran as the person is fixed by removing that
 volume once.** Docker fills a named volume from the image only while the
