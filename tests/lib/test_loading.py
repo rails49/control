@@ -6,22 +6,31 @@ which is the five apps that are told; `Answering` watches
 that is running — the one app bound to a railroad, the writer of that row,
 and so the one that answers the picker rather than following it.
 
+Under both of them, the railroad an app is **built on**: the one it was
+started on where the store has it, and otherwise whatever the bus names next,
+the app standing with no railroad until then (#564).
+
 At the bus seam and in one process, because what is under test is the rules
 each applies to a payload and not the containers around them:
 `tests/system/test_reload.py` is where the six of them are started and a
 railroad is loaded under them for real.
 """
 
+import threading
+
 import pytest
 
 from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tc49.lib.loading import (
+    NO_RAILROAD,
     POWER,
     RAILROAD,
     RAILROAD_WANTED,
     Answering,
     Loaded,
+    named,
+    standing,
     taken,
 )
 
@@ -363,3 +372,100 @@ def test_what_an_app_reads_is_the_only_thing_it_says() -> None:
     pair = taken(loaded, WAS, lambda _line: None, lambda name: (name, len(name)))
 
     assert pair == (NOW, len(NOW))
+
+
+# -- the documents an app comes up on --------------------------------------
+
+
+def standing_on(
+    loaded: Loaded, reading: Reading, said: list[str], bus: InProcessBus
+) -> str | None:
+    """`standing` as an app's `serve` calls it, on a bus a test has already
+    published to: a period of nothing, because the retained row is in the
+    queue before the wait begins and the drain in that loop is what hands it
+    over."""
+    return standing(bus, loaded, threading.Event(), said.append, reading, 0.0)
+
+
+def test_the_railroad_a_box_named_is_what_the_app_comes_up_on() -> None:
+    """The ordinary case: the store has the railroad the process was started
+    on, and nothing waits for anything."""
+    said: list[str] = []
+    reading = Reading()
+
+    documents = standing_on(Loaded(WAS), reading, said, bused())
+
+    assert documents == f"the documents of {WAS}"
+    assert (reading.asked, said) == ([WAS], [])
+
+
+def test_an_app_that_was_named_no_railroad_waits_for_one() -> None:
+    """A box that has chosen none passes `NO_RAILROAD` — `TC49_RAILROAD` has
+    no default (#564) — so there is nothing to read and nothing to fail on:
+    the app stands, and the row naming a railroad is what builds it."""
+    bus = bused()
+    bus.publish(RAILROAD, {"name": NOW})
+    said: list[str] = []
+    reading = Reading()
+    loaded = Loaded(NO_RAILROAD)
+
+    documents = standing_on(loaded, reading, said, bus)
+
+    assert documents == f"the documents of {NOW}"
+    assert reading.asked == [NOW]
+    assert said == ["standing: no railroad to come up on, waiting for one to be named"]
+
+
+def test_a_railroad_the_store_does_not_have_leaves_the_app_standing() -> None:
+    """The defect (#564): four apps exited where the store had no such
+    railroad, which on a box whose store is empty — an ordinary state, by
+    decision — is a restart loop. It says what the store said and stands
+    instead, and the railroad named next is what it comes up on."""
+    bus = bused()
+    bus.publish(RAILROAD, {"name": NOW})
+    refused = FileNotFoundError(f"no drawing '{WAS}'")
+    reading = Reading(refuses=refused, of=WAS)
+    said: list[str] = []
+    loaded = Loaded(WAS)
+
+    documents = standing_on(loaded, reading, said, bus)
+
+    assert said[0] == f"'{WAS}': {refused}"
+    assert documents == f"the documents of {NOW}"
+    assert (loaded.name, reading.asked) == (NOW, [WAS, NOW])
+
+
+def test_a_stop_ends_the_wait_with_no_railroad() -> None:
+    """A signal is what ends a container, and one arriving while an app is
+    standing ends it there: nothing comes back, and the caller publishes
+    nothing (`lib/startup.py`, `connected`)."""
+    stopped = threading.Event()
+    stopped.set()
+    said: list[str] = []
+
+    assert standing(bused(), Loaded(WAS), stopped, said.append, Reading(), 0.0) is None
+    assert said == []
+
+
+def test_an_app_that_is_standing_answers_the_picker_with_the_rails_live() -> None:
+    """The precondition binds a railroad that is loaded. An app standing has
+    none: no turnout can throw under it and there is no drawing for the rails
+    to disagree with, so the first railroad a box loads is answerable —
+    otherwise a redeploy is the only way to name one, which is what ADR-0060
+    says choosing a railroad is not."""
+    bus = bused()
+    answering = Answering(NO_RAILROAD)
+    answering.follow(bus)
+    live(bus)
+
+    picking(bus, NOW)
+    bus.drain()
+
+    assert (answering.name, answering.moved) == (NOW, True)
+
+
+def test_a_railroad_is_named_in_a_log_line_or_said_to_be_absent() -> None:
+    """One spelling of the sentence an app prints when it is up, the driver
+    being the one that prints it with no railroad: it reads no documents, so
+    it never stands."""
+    assert (named(WAS), named(NO_RAILROAD)) == (f"'{WAS}'", "no railroad")
