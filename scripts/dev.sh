@@ -33,16 +33,26 @@
 # working on the app wants are those. Export TC49_STORE to work on your own
 # instead, and pass the same store URL to whatever apps you start.
 #
-# The store and vite bind every interface rather than loopback, because a
-# container cannot reach a macOS host's loopback (ADR-0042, docs/DEPLOY.md) —
-# which is what a developer running the installation's door beside these needs.
-# They are still reached here as loopback, which is one of the interfaces
-# bound. The broker publishes its two ports the same way.
+# Each of the three binds differently, for a reason of its own. The store
+# binds loopback — `tc49 serve`'s default, so the flag is one this script does
+# not pass. Nothing off this host dials it: a browser on the LAN reaches the
+# store's routes through vite, which proxies them from the host itself, and the
+# store's write face asks nobody who they are, which the LAN as the trust
+# boundary (ADR-0042) stops covering the moment a laptop leaves the house. Vite
+# binds every interface because a browser on the LAN has exactly one way to a
+# UI under development and this is it: the development names resolve to
+# 127.0.0.1 and the installation's door routes by `Host`, so an address matches
+# no router of the door's and reaches only what this host serves itself. The
+# broker publishes its two ports from `docker run` rather than coming up
+# through `deploy/compose.yaml`, whose `broker` joins the installation's
+# `rails49` network as external: compose refuses before starting anything on a
+# machine that has never installed the installation — which this script has to
+# keep working — and on a machine that has, the project name would make the
+# container `tc49-broker-1`, so `stop` here would take the installation's own
+# broker down.
 #
 # The broker is a container and not a process: mosquitto is nobody's Python
-# dependency and the deployment runs the stock image (deploy/compose.yaml). It
-# is started with `docker run` rather than through that file, which starts a
-# railroad's worth of services and wants the box's declaration to do it.
+# dependency and the deployment runs the stock image (deploy/compose.yaml).
 #
 # Running it twice is running it once: vite holds its port strictly, so a
 # second `pnpm dev` would fail rather than move to 5174, and a tab already open
