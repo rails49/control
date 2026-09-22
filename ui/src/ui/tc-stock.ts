@@ -15,6 +15,16 @@
  * remove, and why a length may not be corrected are rules, and a rule lives
  * where it can be driven from plain values (ui/README.md).
  *
+ * **No press is answered with silence.** A press either does what it says or
+ * says why it cannot. The two that write — New model and New train — are dead
+ * with `unwritable()` on them until the documents are read, the `+` buttons
+ * are dead with *make a train up first* until a train is made up, and the
+ * guard left inside a handler either sits behind such a press or answers in
+ * words.
+ * New model was live with no railroad loaded and Create returned without a
+ * word, which is a dialog that takes a product and drops it
+ * ([#565](https://github.com/rails49/control/issues/565)).
+ *
  * **Composing a train and placing it are two actions**
  * ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)): a
  * rake is durable and lives in the roster, and where it stands belongs to the
@@ -77,6 +87,17 @@ export interface Draft {
 function draft(): Draft {
   return { model: "", kind: "freight", length: "", functions: [] };
 }
+
+/** What a press that writes is dead with where no railroad is loaded: this
+ *  view is one of the app's views of the loaded railroad (ADR-0038), so
+ *  without one there is no roster and no catalogue to write into
+ *  ([#565](https://github.com/rails49/control/issues/565)). */
+const UNLOADED = "load a railroad first";
+
+/** What it is dead with where a railroad is loaded and its documents have not
+ *  arrived: which of the three ways the read failed is the line under the
+ *  trains' to say (#411), and a read still in flight is a moment. */
+const UNREAD = "the roster and the catalogue are not read yet";
 
 @customElement("tc-stock")
 export class TcStock extends LitElement {
@@ -364,7 +385,12 @@ export class TcStock extends LitElement {
       <section class="models">
         <header class="head">
           <h2>Models</h2>
-          <button class="new-model" @click=${() => (this.making = draft())}>
+          <button
+            class="new-model"
+            title=${this.unwritable() ?? nothing}
+            ?disabled=${this.stock === null}
+            @click=${() => (this.making = draft())}
+          >
             New model…
           </button>
         </header>
@@ -426,7 +452,14 @@ export class TcStock extends LitElement {
       <section class="trains">
         <header class="head">
           <h2>Trains</h2>
-          <button class="new-train" @click=${this.newTrain}>New train…</button>
+          <button
+            class="new-train"
+            title=${this.unwritable() ?? nothing}
+            ?disabled=${this.stock === null}
+            @click=${this.newTrain}
+          >
+            New train…
+          </button>
           <sl-button
             class="save"
             size="small"
@@ -551,13 +584,39 @@ export class TcStock extends LitElement {
 
   // --- the presses ----------------------------------------------------------
 
+  /**
+   * Why there is nothing here to write into, or `null` where there is.
+   *
+   * The two documents are what a press that writes writes into, and until
+   * they are read there are none: New model and New train are dead with this
+   * on them, and the handler behind each says it rather than returning. One
+   * answer for the button's title and the refusal, because they are the same
+   * sentence said at two moments — before the press and after it (#565).
+   */
+  private unwritable(): string | null {
+    if (this.stock !== null) return null;
+    return this.railroad === null ? UNLOADED : UNREAD;
+  }
+
   /** A one-field prompt, as the app names a railroad with: a dialog for a
-   *  single word would be more of the app than naming a train is worth. */
+   *  single word would be more of the app than naming a train is worth.
+   *
+   *  With no roster read there is nothing to make a train in, and the press
+   *  is dead, so the guard here is the second answer rather than the way in.
+   *  It says why before the prompt: asking for a name and then doing nothing
+   *  with it is the shape #565 was reported as. The prompt cancelled or left
+   *  empty is a person's own no, and the app answers its own prompts the same
+   *  way. */
   private newTrain = (): void => {
+    const stock = this.stock;
+    if (stock === null) {
+      this.did(this.unwritable());
+      return;
+    }
     const said = window.prompt("New train", "");
     const name = said === null ? "" : said.trim();
-    if (name === "" || this.stock === null) return;
-    const refused = this.stock.addTrain(name);
+    if (name === "") return;
+    const refused = stock.addTrain(name);
     this.did(refused);
     if (refused === null) this.train = name;
   };
@@ -623,7 +682,11 @@ export class TcStock extends LitElement {
 
   /** A car or a model put at the tail of the current train: the whole of
    *  composing right from left. Named for what it does to the train rather
-   *  than for the list press, `append` being `HTMLElement`'s. */
+   *  than for the list press, `append` being `HTMLElement`'s.
+   *
+   *  With no train to name, the `+` that would reach here is dead and says
+   *  *make a train up first*, so the guard below is a second answer and not
+   *  a press met with silence. */
   private coupled(what: { car: string } | { model: string }): void {
     const train = this.pointed();
     if (train === null) return;
@@ -638,6 +701,7 @@ export class TcStock extends LitElement {
    * shown here rather than left to be discovered later.
    */
   private save = async (): Promise<void> => {
+    // Save is dead with no roster read, so nobody is waiting on this return.
     const stock = this.stock;
     if (stock === null) return;
     // Asked before the `PUT` so the words are this screen's own and the saved
@@ -659,7 +723,9 @@ export class TcStock extends LitElement {
   };
 
   /** An edit that cannot refuse. It still goes through `did`, so the screen
-   *  redraws and whatever the last refusal said is taken down. */
+   *  redraws and whatever the last refusal said is taken down. The presses
+   *  that reach here are on rows the two documents drew, so with no documents
+   *  there is no row and no press. */
   private changed(edit: (stock: Stock) => void): void {
     if (this.stock === null) return;
     edit(this.stock);
@@ -831,9 +897,19 @@ export class TcStock extends LitElement {
    * to it (#392).
    */
   private create = async (): Promise<void> => {
+    // The dialog is drawn from `making`, so there is no dialog to press this
+    // in while it is `null` and nobody is waiting on the return.
     const making = this.making;
+    if (making === null) return;
+    // A dialog that opened is a dialog that answers when its button is
+    // pressed. The button that opens it is dead without the documents, so the
+    // way here is the railroad moving under an open dialog — `forget` takes
+    // the documents and leaves what somebody is writing (#565).
     const stock = this.stock;
-    if (making === null || stock === null) return;
+    if (stock === null) {
+      this.refusal = this.unwritable();
+      return;
+    }
     const refused = this.wrong(making, stock);
     if (refused !== null) {
       this.refusal = refused;
