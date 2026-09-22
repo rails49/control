@@ -19,7 +19,9 @@ of what the dispatcher knows about stock, and being on it is what makes a
 train **known** (ADR-0039). **One row of its own to adopt**, the picture it
 already holds (`tc49/dispatch/state/allocation`) — missing it would lose the
 hold that picture imposes, and a restored session comes up held whatever the
-steel has been doing meanwhile.
+steel has been doing meanwhile. A railroad the store does not have leaves it
+**standing** — up, with no railroad, built on the first one the row names that
+the store can give (#564, `lib/loading.py`).
 
 What the layout says about the supply is *not* waited for: `state/power`
 arrives on the dispatcher's own filter at the first drain, and the run comes
@@ -44,7 +46,7 @@ from tc49.dispatcher.dispatch import ALLOCATION, Dispatcher
 from tc49.dispatcher.locking import Incremental
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
-from tc49.lib.loading import Loaded, dropped, taken
+from tc49.lib.loading import Loaded, dropped, named, standing, taken
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
 from tc49.lib.startup import (
@@ -106,10 +108,15 @@ def serve(
     comes up empty and the trains are put on it by hand.
     """
     loaded = Loaded(railroad)
-    layout, roster = _documents(documents, loaded.name)
-    log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
     if not connected(bus, stop, log):
         return
+    read = standing(
+        bus, loaded, stop, log, lambda name: _documents(documents, name), period_s
+    )
+    if read is None:
+        return
+    layout, roster = read
+    log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
     while not stop.is_set():
         retained(bus, ALLOCATION, stop, retained_s)
         # No placement: a run an operator drives comes up with an empty layout
@@ -127,7 +134,7 @@ def serve(
         # and that instant is not one to lengthen (ADR-0059, decision 5).
         loaded.follow(bus)
         built = loaded.name
-        log(f"up on '{built}', draining every {period_s}s")
+        log(f"up on {named(built)}, draining every {period_s}s")
         while not stop.is_set() and not loaded.moved:
             bus.drain()
             stop.wait(period_s)

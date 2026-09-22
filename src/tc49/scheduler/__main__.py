@@ -15,7 +15,9 @@ same tenth of a second whoever started the container.
 
 The startup order is `lib/startup.py`'s, and this app runs all three of its
 steps with nothing of its own to add: one document, the layout, and one row it
-already owns, the facing (`tc49/schedule/state/facing`).
+already owns, the facing (`tc49/schedule/state/facing`). A railroad the store
+does not have leaves it **standing** — up, with no railroad, built on the
+first one the row names that the store can give (#564, `lib/loading.py`).
 
 Then the loop, which is a drain and a sleep. `Scheduler` is handed a `Bus` and
 nothing else changes in the package: what a run an operator drives has is a
@@ -30,7 +32,7 @@ import threading
 from collections.abc import Callable
 
 from tc49.lib.documents import Documents
-from tc49.lib.loading import Loaded, dropped, taken
+from tc49.lib.loading import Loaded, dropped, named, standing, taken
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.startup import (
     PERIOD_S,
@@ -87,10 +89,12 @@ def serve(
     (ADR-0050, `lib/loading.py`).
     """
     loaded = Loaded(railroad)
-    layout = documents.layout(loaded.name)
-    log(f"'{loaded.name}': {len(layout.blocks)} blocks")
     if not connected(bus, stop, log):
         return
+    layout = standing(bus, loaded, stop, log, documents.layout, period_s)
+    if layout is None:
+        return
+    log(f"'{loaded.name}': {len(layout.blocks)} blocks")
     while not stop.is_set():
         retained(bus, FACING, stop, retained_s)
         Scheduler(bus, layout)
@@ -101,7 +105,7 @@ def serve(
         # and that instant is not one to lengthen (ADR-0059, decision 5).
         loaded.follow(bus)
         built = loaded.name
-        log(f"up on '{built}', draining every {period_s}s")
+        log(f"up on {named(built)}, draining every {period_s}s")
         while not stop.is_set() and not loaded.moved:
             bus.drain()
             stop.wait(period_s)

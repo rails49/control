@@ -9,13 +9,18 @@ words, so a reader had no one place to learn it and a change to it had six
 places to miss (#440). **The order is stated here.** It is settled, and it is
 what the code does (#432):
 
-1. **The documents, first and blocking.** An app with no layout has nothing
-   to do, and the store is the thing most likely not to be up yet. The retry
-   and what it says on stderr are `lib/documents.py`'s.
-2. **The broker**, waited for the same way (`connected` below), because a
-   publish made to a broker that is not there is dropped rather than queued
-   (ADR-0050) — and what an app publishes first are its opening rows, so the
-   wait comes before them.
+1. **The broker, first and blocking** (`connected` below). A publish made to
+   a broker that is not there is dropped rather than queued (ADR-0050), and
+   what an app publishes first are its opening rows, so the wait comes before
+   them. Before the documents as well, because the railroad they are read for
+   is named on the bus where the one a box named is not one the store has
+   (`lib/loading.py`, `standing`): an app that cannot hear the row has
+   nothing to stand for and no way out of a railroad that was never drawn
+   (#564).
+2. **The documents of the railroad it comes up on**, waited for the same way.
+   An app with no layout has nothing to do, and there are two things to wait
+   for: a store that is not up yet, which is `lib/documents.py`'s retry, and
+   a railroad it has not got, which is `standing`.
 3. **The rows this app already owns**, if the broker is holding any
    (`retained` below), and then the loop. A row a process of its own left
    behind is what an app restarted under a running railroad adopts rather
@@ -153,6 +158,14 @@ def command_line(
     handed here — a station, a startup file, an id — it adds to the parser this
     returns.
 
+    **The railroad may be empty, and is on a box that has named none.**
+    `TC49_RAILROAD` has no default — an empty store is an ordinary state and
+    the railroads in this repository are fixtures on no box — so a compose
+    service passes the flag with nothing in it and the app comes up standing,
+    built on whatever the bus names (`lib/loading.py`, #564). Not an app
+    taking the flag or leaving it: one app, one command line, and which
+    railroad is running is not a fact about which app this is.
+
     Taking fewer flags was what let two apps declare their own and drift from
     the words here while a commit said six of them shared these (#430, #456).
     An app's own flags are a difference; `--broker` spelled out a second time
@@ -172,7 +185,8 @@ def command_line(
         parser.add_argument(
             "--railroad",
             required=True,
-            help="the railroad this broker runs, as the store lists it",
+            help="the railroad this broker runs, as the store lists it; empty"
+            " where the box has named none, and the app waits for one",
         )
     if store:
         parser.add_argument(

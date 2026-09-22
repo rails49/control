@@ -12,7 +12,10 @@ and the two speeds being between them every field `move` needs. The railroad's
 name is here because one broker runs one railroad and every app process is
 given its name at start (ADR-0059, decision 2); the driver holds nothing keyed
 to a railroad, so the name is what a person watching six containers reads and
-nothing this app looks anything up by. The drain period is not a flag either —
+nothing this app looks anything up by. It is the one app that comes up with
+**no railroad at all** and says so, a box having named none: the four that
+read documents stand until one is named and this one has nothing to stand for
+(#564, `lib/loading.py`). The drain period is not a flag either —
 nothing outside this process has an opinion about how often it takes what the
 broker's network thread left waiting, and it is short enough that a grant is
 commanded in the same tenth of a second whoever started the container.
@@ -46,7 +49,7 @@ import threading
 from collections.abc import Callable
 
 from tc49.driver.driver import Driver
-from tc49.lib.loading import Loaded
+from tc49.lib.loading import Loaded, named
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.startup import PERIOD_S, command_line, connected
 
@@ -99,7 +102,7 @@ def serve(
         # instant is not one to lengthen (ADR-0059, decision 5).
         loaded.follow(bus)
         built = loaded.name
-        log(f"up on '{built}', draining every {period_s}s")
+        log(f"up on {named(built)}, draining every {period_s}s")
         while not stop.is_set() and not loaded.moved:
             bus.drain()
             stop.wait(period_s)

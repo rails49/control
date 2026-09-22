@@ -23,7 +23,9 @@ that answers it rather than following the state row (ADR-0060), what it
 carries is a gesture, and an event is not retained, so a press landing before
 the subscription is gone; the supply the gesture is conditional on comes with
 it (`lib/loading.py`). **The rows it adopts** are the traction rows a previous
-process left, which the constructor zeroes as it runs.
+process left, which the constructor zeroes as it runs. A railroad the store
+does not have leaves it **standing** — up, with no railroad, built on the
+first one a person picks that the store can give (#564, `lib/loading.py`).
 
 Then the loop, which is this app's own and not the drain the other apps run:
 advance the clock to wall time, `settle()`, drain, once per period. It moves
@@ -53,7 +55,7 @@ from tc49.layout.interface import WANTED_TRACTION, LayoutInterface
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
-from tc49.lib.loading import Answering, dropped, taken
+from tc49.lib.loading import Answering, dropped, named, standing, taken
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
@@ -122,10 +124,15 @@ def serve(
     not have, and nothing would ever republish either.
     """
     loaded = Answering(railroad)
-    layout, roster = _documents(documents, loaded.name)
-    log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
     if not connected(bus, stop, log):
         return
+    read = standing(
+        bus, loaded, stop, log, lambda name: _documents(documents, name), period_s
+    )
+    if read is None:
+        return
+    layout, roster = read
+    log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
     while not stop.is_set():
         # First of all, where the five apps that follow the state row
         # subscribe after they are built: what this one watches is a
@@ -139,7 +146,7 @@ def serve(
         clock = Clock()
         app = LayoutInterface(bus, layout, roster, clock)
         built = loaded.name
-        log(f"up on '{built}', draining every {period_s}s")
+        log(f"up on {named(built)}, draining every {period_s}s")
         started = time.monotonic()
         while not stop.is_set() and not loaded.moved:
             clock.advance(time.monotonic() - started)
