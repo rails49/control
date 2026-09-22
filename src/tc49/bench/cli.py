@@ -172,9 +172,10 @@ def _ratio(value: float | None) -> str:
 
 
 LOOPBACK = "127.0.0.1"
-"""What the store binds unless told otherwise. Loopback was the whole of the
-authorization until a reverse proxy stood in front of it, and that proxy runs
-in a container, which cannot reach a macOS host's loopback (ADR-0042)."""
+"""What the store binds unless told otherwise. Its write face asks nobody who
+they are, so the bind is the whole of the authorization, and the LAN as the
+trust boundary (ADR-0042) stops covering that the moment a laptop leaves the
+house."""
 
 
 def reachable(host: str) -> str:
