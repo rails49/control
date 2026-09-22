@@ -777,8 +777,10 @@ them apart is what keeps a page reload from being sized like a power cut
 ([ADR-0032](docs/adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
 A **cold start** sits among them without being one of them: it is what an app
 does about the loss rather than a way of losing, and it also happens with
-nothing lost at all. The two hardware controls below are a fourth thing again:
-the apps stay up throughout, so nothing is lost and nothing is recovered.
+nothing lost at all. **Standing** is a fourth: an app with no railroad to be
+built from, which is a state to be in rather than anything that happened. The
+two hardware controls below are a fifth thing again: the apps stay up
+throughout, so nothing is lost and nothing is recovered.
 
 **Rejoin**:
 A client reconnecting to a run that never stopped. Nothing was lost: the
@@ -806,6 +808,19 @@ only their owner can drop them, so an app that hears another name on
 `tc49/layout/state/railroad` clears its own and rebuilds. Every **restart**
 contains one; not every cold start is a restart.
 _Avoid_: reset, reload (a page reload is a **rejoin**), reboot, restart
+
+**Standing**:
+An app that is **up with no railroad**: the one it was started on is not one
+the store has, or the box named none. It publishes nothing, follows the row
+or the gesture it follows anyway, and is built on the first railroad named
+that the store can give, which is a **cold start**
+([ADR-0060](docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
+[#564](https://github.com/rails49/control/issues/564)). Not a fault: an empty
+store is an ordinary state and what an app standing waits for is a person
+drawing a railroad, where waiting for the store is waiting for a process that
+is not up yet. The driver never stands, reading no documents.
+_Avoid_: idle, waiting (the store's own retry), down, held (the run's state,
+which a person moves)
 
 **Recovery**:
 Coming back after the layout lost power. Everything a restart lost, and what
