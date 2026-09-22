@@ -1,4 +1,4 @@
-"""The seven apps that come up on a broker take their shared flags from one
+"""The six apps that come up on a broker take their shared flags from one
 place, and `lib` says how many they are (#430, #456, #528).
 
 `lib/startup.py::command_line` writes `--broker`, `--railroad` and `--store`
@@ -12,11 +12,7 @@ An app's own flags are untouched by it — the station and the startup file are
 the translator's, and are added to the parser `lib` hands back.
 
 One package is not here: the store's face is a subcommand of the `tc49`
-script rather than a `__main__` (ADR-0014). `dccex_usb` is, since it gained a
-broker — the app that owns the command station's device is the one that
-writes its firmware, so it answers a gesture like the others (ADR-0065) — and
-its own flags, the device and the port, are its own on the same terms as the
-translator's station.
+script rather than a `__main__` (ADR-0014).
 
 **The number in `lib/startup.py`'s prose is checked here as well.** It says in
 present tense how many apps start there, and that sentence went stale twice
@@ -43,7 +39,6 @@ ON_THE_BROKER = (
     "simulator",
     "layout",
     "dccex",
-    "dccex_usb",
 )
 """The apps a compose service starts with a broker to run on, each a
 `python -m tc49.<app>` whose `__main__` parses that line."""
