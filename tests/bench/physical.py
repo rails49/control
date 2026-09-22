@@ -1,6 +1,6 @@
 """The harness a suite on the physical binding drives it through (#314).
 
-A plain TCP listener stands in for `dccex-usb`, so the station is reached by
+A plain TCP listener stands in for the mirror, so the station is reached by
 **address** — an address is what `--station` gives and opening it is what a
 session has to get right — and nothing needs hardware, which is the rule the
 whole gate sits under.

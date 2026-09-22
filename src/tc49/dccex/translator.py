@@ -4,9 +4,9 @@ The first of the thin apps that hang under `layout` (ADR-0043). Above it the
 bus carries the **device vocabulary** — what each device should do, and what
 each is observed to do — and below it is one TCP connection to `dccex-usb`,
 which owns the command station's serial device and serves it on port 2560 so
-that JMRI and hand-held throttles share the same command station
-(docs/dccex_usb/README.md). Not the USB device: `dccex-usb` owns that, and
-this app is one client of the port beside the others.
+that JMRI and hand-held throttles share the same command station. That mirror
+is another repository's app (rails49/dccex) and this one is a client of its
+port beside the others; the USB device is never opened here.
 
 **The boundary this app exists to hold.** Every other component is oblivious
 to what powers the layout, and nothing above the layout interface expects

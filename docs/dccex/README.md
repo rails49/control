@@ -23,8 +23,9 @@ and nowhere else.
 
 ## What it connects to
 
-TCP **2560**, which the `dccex-usb` app serves from the USB device
-([dccex_usb/README.md](../dccex_usb/README.md)). Not the USB device directly:
+TCP **2560**, which the `dccex-usb` mirror serves from the USB device
+([`rails49/dccex`](https://github.com/rails49/dccex), a project of its own on
+the same box). Not the USB device directly:
 `dccex-usb` owns it, and the port is what lets JMRI and hand-held throttles
 share the same command station. This app is one client of that port beside
 the others, and every client is a peer — nothing in the firmware ranks them.
@@ -375,9 +376,7 @@ $ nc gleis49.org 2560
 ```
 
 The banner naming the firmware, the board and the motor shield is the station
-answering through the mirror, which is what `device/link: up` is made of — and
-its last field is what the row's `build` carries, `G-devel-202504182148Z`
-publishing as `devel-202504182148Z`; the
+answering through the mirror, which is what `device/link: up` is made of; the
 `<p…>` lines are what `device/track` is folded from; and the `<l>` line is the
 station saying what the locomotive is now doing, speed byte 191 being the
 forward bit over step 63.

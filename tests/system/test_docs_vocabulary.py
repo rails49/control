@@ -28,7 +28,6 @@ ALLOWED_DIRS = frozenset(
         "layout",
         "dccex",
         "jmri",
-        "dccex_usb",
     }
 )
 

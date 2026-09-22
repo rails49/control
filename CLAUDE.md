@@ -21,9 +21,11 @@ app, never a field, a topic or a branch in any other app
 
 An **app** is a unit that will run as its own container: `store`, `scheduler`,
 `dispatcher`, `driver`, `simulator`, `layout` with the hardware translators
-`dccex` and `jmri` and the `dccex-usb` port mirror under it
+`dccex` and `jmri` under it
 ([ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)),
-and a `ui` later. Each gets one package in
+and a `ui` later. The `dccex-usb` port mirror was one of them until #567 and
+is [`rails49/dccex`](https://github.com/rails49/dccex) now; what this
+repository sees of it is the 2560 it publishes. Each gets one package in
 `src/tc49/`. Apps import `tc49.lib` and themselves, **never each other**; they
 meet over the event bus and the store's CRUD contract.
 
