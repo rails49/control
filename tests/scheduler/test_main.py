@@ -120,8 +120,12 @@ class App:
         return self._thread.is_alive()
 
     def stop(self) -> None:
+        """Stoppable having never been started. A test whose body raised
+        before `start()` is torn down all the same, and joining a thread that
+        never ran raises on the way out and buries the cause (#560)."""
         self._stop.set()
-        self._thread.join(timeout=10)
+        if self._thread.ident is not None:  # started, running or finished
+            self._thread.join(timeout=10)
         self.bus.close()
 
 
@@ -152,6 +156,21 @@ def watching(broker: Broker) -> tuple[MqttBus, list[tuple[str, Payload]]]:
 def rows(heard: list[tuple[str, Payload]], topic: str) -> list[Payload]:
     """What arrived on one topic, in the order it arrived."""
     return [payload for said, payload in heard if said == topic]
+
+
+def test_an_app_is_stoppable_having_never_been_started(
+    tmp_path: Path, store: Store
+) -> None:
+    """A test whose body raised before `app.start()` is torn down all the
+    same, and the fixture may not turn that one failure into a failure and an
+    error on top of it (#560): joining a thread that was never started raises
+    on the way out and buries the cause.
+
+    No broker is started here — an app that never ran never reached one, and
+    that is the state the teardown found. The dispatcher, layout and
+    simulator suites hold their app the same way and carry the same guard.
+    """
+    App(Broker(tmp_path / "mosquitto.conf"), store).stop()
 
 
 def test_a_cold_start_publishes_the_apps_own_rows(

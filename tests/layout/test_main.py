@@ -124,7 +124,8 @@ class App:
 
     def stop(self) -> None:
         self._stop.set()
-        self._thread.join(timeout=10)
+        if self._thread.ident is not None:  # started, and so joinable (#560)
+            self._thread.join(timeout=10)
         self.bus.close()
 
 
