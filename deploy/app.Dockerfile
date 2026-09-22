@@ -41,6 +41,21 @@ COPY deploy/github.known_hosts /etc/ssh/ssh_known_hosts
 # and the private half ssh-keygen writes into it is 0600 on its own.
 RUN mkdir /keys && chmod 1777 /keys
 
+# A name for whatever uid this turns out to run as. The store runs as the
+# person who deployed the box (#387), and OpenSSH — which makes the deploy key
+# and pushes with it — refuses to run for a uid with no passwd entry. The
+# tables are made writable by root's group here and `entrypoint.sh` adds the
+# entry at startup, so the image answers what the uid is called rather than
+# the box: the host's own tables named it only where the host keeps its people
+# in a file, which a mac does not (#566).
+#
+# Group-writable rather than world-writable, and the one service that runs as
+# somebody this image does not know joins that group in `compose.yaml`.
+# Nothing else in the container may rewrite the tables, and nothing secret is
+# in them: this image has no logins and no shadow entries to go with them.
+COPY deploy/entrypoint.sh /entrypoint.sh
+RUN chmod g+w /etc/passwd /etc/group
+
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
@@ -64,4 +79,10 @@ ENV PYTHONUNBUFFERED=1
 # for the CLI's commands and `python -m tc49.dccex_usb` for the mirror, which
 # has a command line of its own rather than a subcommand.
 ENV PATH="/app/.venv/bin:$PATH"
+
+# Every service runs through the entrypoint, which names the uid and then
+# execs the command the service gave: a service's command line stays the one
+# written in `compose.yaml`, and a uid that has a name already — root, which
+# is every service but the store — passes straight through.
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["tc49", "--help"]
