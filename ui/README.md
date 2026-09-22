@@ -32,9 +32,9 @@ view.
 `../scripts/dev.sh` does all of it and starts only what is not already up,
 which is worth having because vite holds 5173 strictly: a second `pnpm dev`
 fails rather than moving to 5174, leaving an open tab talking to a server that
-has gone. The page is reached as `localhost`; every server the script starts
-binds each interface, because a container cannot reach a macOS host's loopback
-and a door running beside them would have nothing to dial (../docs/DEPLOY.md).
+has gone. The page is reached as `localhost`; vite also binds every interface,
+because a browser on the LAN has exactly one way to a UI under development and
+an address is it, while the store stays on loopback behind vite's proxy.
 
 It also brings up the broker the run view is a client of — mosquitto in a
 container of its own, `1883` for native clients and `9001` for the browser,
