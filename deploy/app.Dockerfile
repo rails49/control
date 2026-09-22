@@ -76,8 +76,8 @@ RUN uv sync --frozen --no-dev
 ENV PYTHONUNBUFFERED=1
 
 # The environment is the venv's, so a service names its own program: `tc49`
-# for the CLI's commands and `python -m tc49.dccex_usb` for the mirror, which
-# has a command line of its own rather than a subcommand.
+# for the CLI's commands and `python -m tc49.<app>` for an app, which has a
+# command line of its own rather than a subcommand.
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Every service runs through the entrypoint, which names the uid and then

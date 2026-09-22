@@ -131,28 +131,6 @@ services:
       - traefik.http.middlewares.tc49-mqtt-refused.ipallowlist.sourcerange=255.255.255.255/32
     networks: [default, rails49]
 
-  # The one container that owns the command station's USB device, mirroring it
-  # to TCP 2560 so the dccex translator, JMRI and hand-held throttles share one
-  # command station (ADR-0043, #219). The device is named by its `by-id` path
-  # rather than `/dev/ttyUSB0`, which renumbers, and lands inside as
-  # `/dev/dccex` so the command line says nothing about which chip is in the
-  # cable.
-  dccex-usb:
-    build: &app
-      context: ..
-      dockerfile: deploy/app.Dockerfile
-    profiles: [hardware]
-    restart: unless-stopped
-    ports:
-      - "2560:2560"
-    devices:
-      - "${TC49_STATION_DEVICE:-/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0}:/dev/dccex"
-    command:
-      ["python", "-m", "tc49.dccex_usb",
-       "--broker", "broker:1883",
-       "--device", "/dev/dccex",
-       "--port", "2560"]
-
   # The store's HTTP face, always on, because the documents are the one thing
   # here that is nobody's run: the editor reads and writes them whether or not
   # a railroad is moving (#354). The layout box holds the authoritative copy —
@@ -167,7 +145,9 @@ services:
   # container; what limits its reach is the LAN (ADR-0042), and a page on
   # another origin is refused at the face itself (ADR-0057).
   store:
-    build: *app
+    build: &app
+      context: ..
+      dockerfile: deploy/app.Dockerfile
     profiles: [layout]
     restart: unless-stopped
     # The person who deployed the box, not root (#387). Every drawing the
@@ -325,6 +305,14 @@ services:
   # with the software — and it takes no railroad and no store, hardware
   # needing no layout (ADR-0059, decision 5).
   #
+  # The mirror is not in this file: it is `rails49/dccex`, a stack of its own
+  # on the same box, and what this stack sees of it is the 2560 it publishes.
+  # So `--station` names a host and not a service — `host.docker.internal`,
+  # which `extra_hosts` points at the box, and `TC49_STATION` names another
+  # machine where the station hangs off one. This translator is a client of
+  # that port exactly as JMRI and the hand-held throttles are, which is how
+  # ADR-0043 always described it.
+  #
   # `--startup` is this installation's per-district trip currents (#217), the
   # one hardware fact that reaches no bus topic and no document. Passed here
   # because for as long as nothing passed it the values reached the station by
@@ -348,10 +336,12 @@ services:
     restart: unless-stopped
     volumes:
       - /etc/rails49/dccex-startup.txt:/etc/rails49/dccex-startup.txt:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command:
       ["python", "-m", "tc49.dccex",
        "--broker", "broker:1883",
-       "--station", "${TC49_STATION:-dccex-usb:2560}",
+       "--station", "${TC49_STATION:-host.docker.internal:2560}",
        "--startup", "/etc/rails49/dccex-startup.txt"]
 
 # The one network every stack on the box shares, created by the installation

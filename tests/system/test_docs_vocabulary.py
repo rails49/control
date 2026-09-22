@@ -49,7 +49,7 @@ or a class versus writing about hardware, and it does not depend on which
 file you are in: listing the pages that may name a package was a per-file
 allowlist that every new mention had to be added to, for no gain."""
 
-ALLOWED_PACKAGES = frozenset({"dccex", "dccex_usb", "jmri"})
+ALLOWED_PACKAGES = frozenset({"dccex", "jmri"})
 """The hardware apps' own packages under `src/tc49/`. A translator's own code
 is about hardware, on the same terms as its own docs directory."""
 
