@@ -240,6 +240,16 @@ services:
   # them follows the row that says so without a restart (ADR-0060), so
   # changing it here is not how a railroad is chosen.
   #
+  # **It has no default**, and the flag below is passed empty where a box
+  # has named none: an app with no railroad **stands** — up, publishing
+  # nothing, built on the first one named that the store can give
+  # (`lib/loading.py`). A default naming a railroad is a default that cannot
+  # resolve. An empty store is an ordinary state and nothing seeds it
+  # (docs/DEPLOY.md), the railroads in this repository are fixtures under
+  # `bench/` on nobody's box, and `gotthard` — what stood here — named no
+  # drawing anywhere, so it put four of these into a restart loop on the
+  # first box booted against an empty store (#564).
+  #
   # `layout` and `simulator` are two bindings of one interface and never run
   # together: one writing role (ADR-0035) means the box wired to steel runs
   # `layout` under the `layout` profile, and a box with none runs `simulator`
@@ -251,7 +261,7 @@ services:
     command:
       ["python", "-m", "tc49.scheduler",
        "--broker", "broker:1883",
-       "--railroad", "${TC49_RAILROAD:-gotthard}",
+       "--railroad", "${TC49_RAILROAD:-}",
        "--store", "http://store:8765"]
 
   dispatcher:
@@ -261,7 +271,7 @@ services:
     command:
       ["python", "-m", "tc49.dispatcher",
        "--broker", "broker:1883",
-       "--railroad", "${TC49_RAILROAD:-gotthard}",
+       "--railroad", "${TC49_RAILROAD:-}",
        "--store", "http://store:8765"]
 
   # No `--store`: the driver reads no documents. The railroad is named all
@@ -273,7 +283,7 @@ services:
     command:
       ["python", "-m", "tc49.driver",
        "--broker", "broker:1883",
-       "--railroad", "${TC49_RAILROAD:-gotthard}"]
+       "--railroad", "${TC49_RAILROAD:-}"]
 
   # The layout interface: the one app bound to a railroad, and the writer of
   # what the hardware is asked to do. On the box wired to steel, so it is in
@@ -285,7 +295,7 @@ services:
     command:
       ["python", "-m", "tc49.layout",
        "--broker", "broker:1883",
-       "--railroad", "${TC49_RAILROAD:-gotthard}",
+       "--railroad", "${TC49_RAILROAD:-}",
        "--store", "http://store:8765"]
 
   # The simulator standing in for the steel, on a box that has none: the
@@ -298,7 +308,7 @@ services:
     command:
       ["python", "-m", "tc49.simulator",
        "--broker", "broker:1883",
-       "--railroad", "${TC49_RAILROAD:-gotthard}",
+       "--railroad", "${TC49_RAILROAD:-}",
        "--store", "http://store:8765"]
 
   # The translator: the device vocabulary turned into the command station's
