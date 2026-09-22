@@ -15,9 +15,16 @@ subscribes next, keyed to addresses and blocks the new railroad may not have,
 and nothing republishes a row for a block that no longer exists. One writing
 role (ADR-0035) is what lets each app say exactly which rows are its own.
 
+An app started on a railroad the store cannot give **stands**: it stays up
+with no railroad, watches the bus and is built on the first one named that
+the store can give. A name a process was started on is a starting point and
+not a binding, so an app that exited over one was treating it as binding —
+and on a box whose store is empty, which is an ordinary state and not a fault
+(docs/DEPLOY.md), that was four containers in a restart loop (#564).
+
 This module is the seam the six apps share: the two topics, the follower that
 watches the row, the **answerer** that watches the gesture behind it, the
-documents the app is rebuilt on, and the clearing. An app's `__main__` names
+documents an app comes up on and the ones it is rebuilt on, and the clearing. An app's `__main__` names
 the filters it owns and what it reads, and nothing else here knows either — what a row is about is the app's business, and the rule is only
 that it is the row's owner who drops it.
 """
@@ -46,6 +53,16 @@ commands the supply: turning the power off is a gesture a person already has
 and is already two steps, and the layout interface "never writes `off` of its
 own accord" (ADR-0060, ADR-0051)."""
 
+NO_RAILROAD = ""
+"""No railroad: the name an app holds while none is running under it.
+
+A box that has not chosen one passes it — `TC49_RAILROAD` has no default, an
+empty store being an ordinary state and the fixtures in this repository being
+on no box (#564) — and `standing` puts it back where the one that was named
+is a railroad the store cannot give. It is not a railroad called nothing: an
+app holding it has nothing to be built on and is **standing**, waiting for
+the bus to name one (ADR-0060, as amended)."""
+
 
 class Loaded:
     """The railroad an app is running, and whether the bus has named another.
@@ -59,7 +76,9 @@ class Loaded:
     def __init__(self, name: str) -> None:
         """`name` is what the process was started on: the `--railroad` a
         compose service passes, which is where a railroad with no row on the
-        broker yet comes from."""
+        broker yet comes from. `NO_RAILROAD` where the box named none, which
+        is an app that comes up **standing** and is built on whatever the bus
+        names next (#564)."""
         self._name = name
         self._moved = False
         self._took: tuple[str, object] = (name, None)
@@ -207,11 +226,21 @@ class Answering(Loaded):
         readable, where it names the railroad already running, or where the
         supply does not read `off` — a refusal with nowhere to go, this app
         answering nothing (ADR-0034), and the picker is what says why while
-        the track has power."""
+        the track has power.
+
+        **The precondition binds a railroad that is loaded.** An app that is
+        standing holds `NO_RAILROAD`: nothing is bound to the steel, no
+        turnout can throw under it, and there is no drawing for the rails in
+        front of a person to disagree with — which is the whole of what the
+        precondition asks them to confirm. Waiting for `off` there would
+        refuse the first railroad a box ever loads, leaving a redeploy as the
+        only way to name one, which is what ADR-0060 says choosing a railroad
+        is not (#564).
+        """
         railroad = payload.get("railroad")
         if not isinstance(railroad, str) or not railroad or railroad == self._name:
             return
-        if self._precondition is not None and self._power != OFF:
+        if self._name and self._precondition is not None and self._power != OFF:
             return
         self._take(railroad, (railroad, None))
 
@@ -226,6 +255,72 @@ class Answering(Loaded):
         """
         self._name = name
         self._moved = False
+
+
+def standing[Read](
+    bus: Bus,
+    loaded: Loaded,
+    stop: threading.Event,
+    log: Callable[[str], None],
+    reading: Callable[[str], Read],
+    period_s: float,
+) -> Read | None:
+    """The documents an app comes up on, waited for: what a **cold start**
+    does where `taken` is what a reload does.
+
+    An app is started on a railroad and the store may not have it — the box
+    named none, or named one that was never drawn, or the store is empty
+    because nothing seeds it and nobody has drawn yet (docs/DEPLOY.md, #564).
+    A railroad is a starting point rather than a binding (ADR-0060), so an
+    app in that state **stands**: it stays up, holds `NO_RAILROAD`, watches
+    the bus, and is built on the first railroad named that the store can
+    give. Exiting instead put four of the six containers on a fresh box into
+    a restart loop that this repository's own deploy page calls an ordinary
+    state.
+
+    It is the same rule `taken` states, with nothing to fall back on: an app
+    still running the railroad it had is worth more than one running none
+    (ADR-0050), and where it never had one, standing is what is left. A store
+    that is not answering at all is waited for rather than refused, which is
+    `lib/documents.py`'s own retry and not a case here.
+
+    **The broker comes before this**, which is why `bus` is an argument: an
+    app that cannot hear the row has nothing to stand for. `lib/startup.py`
+    states that order.
+
+    What is watched is `loaded`'s own: the row for the five apps that follow
+    it, the gesture for the binding of the layout interface that answers it,
+    and neither is this function's business. The subscription is dropped at
+    the top of each turn and before the documents are read, so that the app
+    built next subscribes once and on its own terms — and so that a railroad
+    named while the store is being read cannot leave this returning one
+    railroad's documents under another's name.
+    """
+    while not stop.is_set():
+        bus.forget()
+        if loaded.name:
+            try:
+                return reading(loaded.name)
+            except (OSError, ValueError, TypeError) as refused:
+                log(f"'{loaded.name}': {refused}")
+                loaded.keep(NO_RAILROAD)
+        log("standing: no railroad to come up on, waiting for one to be named")
+        loaded.follow(bus)
+        while not stop.is_set() and not loaded.moved:
+            bus.drain()
+            stop.wait(period_s)
+    return None
+
+
+def named(railroad: str) -> str:
+    """A railroad as an app's log names it: quoted, or said to be absent.
+
+    One spelling for the sentence every app prints when it is up, the driver
+    being the one that can print it holding `NO_RAILROAD` — it reads no
+    documents, so there is nothing for it to stand for and a grant names the
+    train it is about (`driver/__main__.py`).
+    """
+    return f"'{railroad}'" if railroad else "no railroad"
 
 
 def taken[Read](
