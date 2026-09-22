@@ -377,9 +377,11 @@ def make_server(
     reader. Handing the server back rather than running it is what lets a test
     start and stop one.
 
-    Loopback unless told otherwise: it is the only client that ever needed to
-    reach this, and the proxy that now does runs in a container, which cannot
-    reach a macOS host's loopback (ADR-0042, docs/DEPLOY.md).
+    Loopback unless told otherwise: the write face asks nobody who they are,
+    so the bind is the whole of the authorization. A deployment is what says
+    otherwise — `deploy/compose.yaml` passes `--host 0.0.0.0` so the door on
+    the stack's own network can dial this, and the door is where the LAN as
+    the trust boundary is drawn (ADR-0042).
 
     The backup is taken rather than made where the caller has one — `tc49
     serve` holds it so that its watch thread and its own quit commit drive
