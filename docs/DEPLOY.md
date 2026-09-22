@@ -199,6 +199,19 @@ a starting point and not a binding: a person loads another railroad from the
 app while they run, and every app follows without a restart
 ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
 
+**It has no default, and a box that names none comes up with no railroad.**
+An app with none **stands**: it is up, it publishes nothing, and it is built
+on the first railroad named that the store can give. So a box that has done
+nothing but install reaches a steady state with nothing restarting, and what
+it is waiting for is a railroad to exist — see
+[the store, and the documents it serves](#the-store-and-the-documents-it-serves).
+A default naming a railroad would be a default that cannot resolve: nothing
+seeds a store, and the railroads in this repository are fixtures under
+`bench/` that are on nobody's box. `gotthard` was that default until
+[#564](https://github.com/rails49/control/issues/564), and it named no drawing
+anywhere, so a box following this page ended with four containers in a restart
+loop.
+
 `--remove-orphans` is there because a container whose service was renamed
 keeps running under the old name and keeps its published port. After
 [#299](https://github.com/rails49/control/issues/299) the `station` container
@@ -259,10 +272,18 @@ owned by the same person.
 
 A fresh box has no `~/tc49`, and an empty store is an ordinary state and not
 a fault — nothing seeds it, by decision — so the server comes up, answers,
-and lists nothing until somebody draws. Turning the store into a git
-repository is offered through the app rather than needing a terminal (#355):
-the backup dialog shows the key the store made for itself and takes the
-address of an empty repository the person made. That key lives in the `keys`
+and lists nothing until somebody draws. **The apps in the same profile are up
+too**, standing with no railroad rather than exiting over one they cannot
+read: draw a railroad in the editor and they are built on it the moment one is
+named, and nothing has to be restarted for it
+([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
+[#564](https://github.com/rails49/control/issues/564)). Until then the only
+thing on the bus is the store, which is what makes the editor the way a first
+railroad is drawn.
+
+Turning the store into a git repository is offered through the app rather
+than needing a terminal (#355): the backup dialog shows the key the store made
+for itself and takes the address of an empty repository the person made. That key lives in the `keys`
 docker volume — outside the store, so no commit can carry it, and on no host
 path — and GitHub's host keys are in the image, so the first push is checked
 against them rather than asked about ([store/BACKUP.md](store/BACKUP.md)).
@@ -317,7 +338,7 @@ about it wants restarting (ADR-0059, decision 5, #379):
 ssh rails49
 cd ~/control
 uv run tc49 readings --broker 127.0.0.1:1883 \
-  --railroad gotthard --store http://127.0.0.1:8765
+  --railroad <the railroad the box is running> --store http://127.0.0.1:8765
 ```
 
 Type `<block>.<end> <level>` a line at a time; `ctrl-c` ends it, and the

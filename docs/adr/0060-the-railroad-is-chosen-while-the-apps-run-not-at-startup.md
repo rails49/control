@@ -133,6 +133,44 @@ at power-on resolves it, as it does after a broker restart.
 No trains are placed. A person puts them back through the stock view and drag
 placement, the same path as a railroad opened for the first time.
 
+## An app with no railroad stands
+
+*Added 2026-09-22, after the first box ever booted against an empty store
+([#564](https://github.com/rails49/control/issues/564)).*
+
+A railroad named on a command line is where an app starts and not what binds
+it. An app that **exited** because the store had no such railroad was treating
+a starting point as a binding, which is the thing this page is about. On a box
+whose store is empty — an ordinary state, nothing seeds a store
+([docs/DEPLOY.md](../DEPLOY.md)) — four of the six containers exited 1 and were
+restarted for ever, while the store beside them came up and answered.
+
+**An app with no railroad stands.** It stays up, publishes nothing, watches
+the row or the gesture it watches anyway, and is built on the first railroad
+named that the store can give. It is the rule already written for a reload —
+an app still running the railroad it had is worth more than one running none
+([ADR-0050](0050-broken-hardware-is-reported-never-worked-around.md)) —
+applied where there is nothing to fall back on.
+
+**`TC49_RAILROAD` has no default.** A default that resolves on a box which has
+done nothing but install does not exist: nothing seeds a store, and the
+railroads in this repository are fixtures on nobody's box. So a box that has
+named no railroad passes none, and its apps stand until one is named.
+
+**The precondition binds a railroad that is loaded.** An app standing has
+nothing bound to the steel: no turnout throws under it, it has published no
+supply, and there is no drawing for the rails in front of a person to disagree
+with, which is the whole of what the operator is being asked to confirm above.
+Waiting for `off` there would refuse the first railroad a box ever loads and
+leave a redeploy as the only way to name one, which is what this page says
+choosing a railroad is not. The exemption is the absence of a **railroad** and
+not the absence of hardware: they are separate, and the binding that drives
+hardware waits for `off` again the moment it has one.
+
+The broker is waited for **before** the documents, where the order used to be
+the other way round (`lib/startup.py`): an app that cannot hear the row has no
+way out of a railroad that was never drawn.
+
 ## What was rejected
 
 **Restarting the containers from the UI.** The same operation on the person's
@@ -165,3 +203,10 @@ with a high chance of being wrong.
   previous railroad's retained rows are gone rather than only that new ones
   appeared.
 - The picker is inert while the track has power, and says why.
+- An app started on a railroad the store does not have stands, and
+  `TC49_RAILROAD` carries no default (#564).
+- **The band's picker cannot yet ask on a box that has never loaded one.** It
+  is dead while `tc49/layout/state/power` reads nothing (`ui/src/ui/tc-header.ts`,
+  "no railroad is running to ask"), and a standing binding publishes no supply,
+  so the first railroad on a box is still named in `TC49_RAILROAD` and
+  deployed. The apps answer the gesture; what cannot send it is the page.
