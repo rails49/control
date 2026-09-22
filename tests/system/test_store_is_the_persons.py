@@ -87,10 +87,24 @@ def test_the_git_settings_are_counted_as_they_are_given(name: str) -> None:
 
 def test_the_store_can_name_the_uid_it_pushes_as() -> None:
     """OpenSSH refuses to run for a uid with no passwd entry — "No user
-    exists for uid" — and the backup pushes over ssh."""
+    exists for uid" — and the backup makes its key with `ssh-keygen` and
+    pushes over `ssh`.
+
+    The name is the image's answer, for whatever uid the box hands it: root's
+    group is what lets the entrypoint write the tables, which are the image's
+    own. What the script does with them is
+    `tests/system/test_the_uid_has_a_name.py`."""
+    assert service("store").get("group_add") == ["0"]
+    assert "ENTRYPOINT" in DOCKERFILE
+    assert "chmod g+w /etc/passwd /etc/group" in DOCKERFILE
+
+
+def test_the_store_does_not_ask_the_box_what_the_uid_is_called() -> None:
+    """The box's own tables came in read-only here, and answered only where
+    the box keeps its people in a file — which a mac does not, so the backup
+    was unreachable on one (#566)."""
     volumes: list[str] = service("store")["volumes"]
-    assert "/etc/passwd:/etc/passwd:ro" in volumes
-    assert "/etc/group:/etc/group:ro" in volumes
+    assert [where for where in volumes if where.startswith("/etc/")] == []
 
 
 def test_the_image_carries_the_directory_the_keys_volume_lands_on() -> None:

@@ -177,17 +177,24 @@ services:
     # from `id -u` and `id -g` there; the default is the account an Ubuntu
     # install makes for the person who installed it.
     user: "${TC49_UID:-1000}:${TC49_GID:-1000}"
+    # Root's group, as a supplementary group and never as the one it writes
+    # files under. It is what lets `entrypoint.sh` give that uid a name in the
+    # image's own tables, which are group-writable there and nowhere else: the
+    # backup makes its deploy key with `ssh-keygen` and pushes with `ssh`, and
+    # OpenSSH refuses to run for a uid it cannot name (#566). This is the only
+    # service that runs as somebody the image does not know — every other one
+    # is root, which it does.
+    group_add: ["0"]
     # What git needs to commit here: an identity, because a container has none
     # and git will not commit without one; the commits are the app's, made on
     # the person's behalf, and are named so. No `safe.directory` — this
     # process is the person now, so git is not looking at a repository owned
     # by somebody else (#387).
     #
-    # `HOME` because the passwd file below names a home this image does not
-    # have, and ssh says so on stderr when it cannot make `~/.ssh` there —
-    # git's words are what the backup dialog shows, so they are kept about
-    # the push. Nothing is kept in it: the host keys are in the image and the
-    # deploy key is in `keys`.
+    # `HOME` because the entry the entrypoint writes names `/tmp` as this
+    # uid's home, and git and ssh would otherwise disagree about where it is.
+    # Nothing is kept in it: the host keys are in the image and the deploy key
+    # is in `keys`.
     environment:
       GIT_CONFIG_COUNT: "2"
       GIT_CONFIG_KEY_0: user.name
@@ -201,15 +208,16 @@ services:
     # so that nothing on the host is made or pointed at. It outlives the
     # container, which is rebuilt on every deploy.
     #
-    # OpenSSH refuses to run for a uid with no passwd entry — "No user exists
-    # for uid" — and the backup pushes over ssh, so the host's own tables come
-    # in read-only to give this uid a name. `nss_wrapper` would answer the
-    # same question inside the image; this asks nothing of the image.
+    # The host's own `/etc/passwd` and `/etc/group` came in read-only here to
+    # give the uid a name. They are gone: that answered the question only on a
+    # box that keeps its people in those files, and a mac keeps them in Open
+    # Directory — it hands the store uid 501 and a passwd file that has never
+    # heard of it, so no key could be made and the feature was unreachable
+    # there (#566). What the uid is called is the image's answer now
+    # (`entrypoint.sh`), for whatever uid the box hands it.
     volumes:
       - ${TC49_STORE:-~/tc49}:/store
       - keys:/keys
-      - /etc/passwd:/etc/passwd:ro
-      - /etc/group:/etc/group:ro
     command:
       ["tc49", "serve", "--host", "0.0.0.0", "--store", "/store", "--keys", "/keys"]
     # The store's six path prefixes, on the app's own origin. They are the
