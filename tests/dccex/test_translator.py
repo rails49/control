@@ -616,19 +616,16 @@ async def _link_is_up_only_once_the_station_has_answered() -> None:
         assert [value["link"] for value in tap.values(DEVICE_LINK)] == ["down"]
 
 
-def test_the_link_row_carries_the_build_the_station_names() -> None:
-    asyncio.run(_link_row_carries_the_build_the_station_names())
+def test_the_banner_raises_the_link_and_rides_on_it_no_further() -> None:
+    asyncio.run(_banner_raises_the_link_and_rides_on_it_no_further())
 
 
-async def _link_row_carries_the_build_the_station_names() -> None:
-    """The banner is what the poll asks for and what the link is made of, and
-    its last field is the build on the box. Publishing it puts *which build
-    is running* on the bus, where a client that asked for one on
-    `tc49/layout/firmware_wanted` can see which answered (ADR-0065).
-
-    It goes out on the row that says the link is up, the banner being read
-    before the row is published: one `up` naming the build, rather than one
-    without it and a second with it.
+async def _banner_raises_the_link_and_rides_on_it_no_further() -> None:
+    """The banner is what the poll asks for and what the link is made of: the
+    station spoke, so the link is `up`. What it names of the firmware on the
+    box goes no further than this app — the row carries the link and the
+    reason and nothing about a build, a microcontroller's flash not being
+    the railroad's business (#567).
     """
     bus, tap = bus_and_tap()
     port = Port()
@@ -641,17 +638,17 @@ async def _link_row_carries_the_build_the_station_names() -> None:
         bus.drain()
         said = tap.values(DEVICE_LINK)
         assert [value["link"] for value in said] == ["down", "up"]
-        assert said[-1]["build"] == "v5.6.4-rails49.1"
+        assert set(said[-1]) == {"at", "id", "link", "detail"}
 
 
-def test_a_banner_with_no_build_is_still_the_station_answering() -> None:
-    asyncio.run(_banner_with_no_build_is_still_the_station_answering())
+def test_an_answer_this_app_cannot_parse_is_still_the_station_answering() -> None:
+    asyncio.run(_answer_this_app_cannot_parse_is_still_the_station_answering())
 
 
-async def _banner_with_no_build_is_still_the_station_answering() -> None:
-    """A field that failed to parse is not a link failure: the station spoke,
-    so the link is `up`, and the row says nothing about the build rather than
-    saying something invented."""
+async def _answer_this_app_cannot_parse_is_still_the_station_answering() -> None:
+    """A message this app reads nothing out of is not a link failure: the
+    link is made of the station having answered and never of the parse, so a
+    banner of a shape this app does not recognise raises it just the same."""
     bus, tap = bus_and_tap()
     port = Port()
     async with running(bus, port):
@@ -661,34 +658,6 @@ async def _banner_with_no_build_is_still_the_station_answering() -> None:
         bus.drain()
         said = tap.values(DEVICE_LINK)
         assert [value["link"] for value in said] == ["down", "up"]
-        assert "build" not in said[-1]
-
-
-def test_a_link_that_is_down_carries_no_build() -> None:
-    asyncio.run(_link_that_is_down_carries_no_build())
-
-
-async def _link_that_is_down_carries_no_build() -> None:
-    """What cannot be read is not what was last read. A station this app
-    cannot reach is reporting no build, and the station on the far end of the
-    next link may be one that has just been written."""
-    bus, tap = bus_and_tap()
-    port = Port()
-    async with running(bus, port):
-        station = await port.opened()
-        station.says(
-            b"<iDCC-EX V-5.6.4 / ESP32 / EXCSB1_WITH_EX8874 G-v5.6.4-rails49.1>"
-        )
-        await asyncio.sleep(QUIET_S)
-        bus.drain()
-        assert tap.values(DEVICE_LINK)[-1]["build"] == "v5.6.4-rails49.1"
-
-        station.hangs_up()
-        await port.opened(2)
-        bus.drain()
-        gone = tap.values(DEVICE_LINK)[-1]
-        assert gone["link"] == "down"
-        assert "build" not in gone
 
 
 def test_a_status_reporting_an_overload_reads_the_track_off() -> None:
@@ -867,33 +836,6 @@ async def _station_that_stops_answering_lowers_the_link() -> None:
         assert dark["reason"] == gone["detail"]
 
 
-def test_a_link_lowered_by_silence_carries_no_build() -> None:
-    asyncio.run(_link_lowered_by_silence_carries_no_build())
-
-
-async def _link_lowered_by_silence_carries_no_build() -> None:
-    """A station that has stopped answering is reporting no build, whatever
-    it last said it was running — the box may since have been written."""
-    bus, tap = bus_and_tap()
-    port = Port()
-    clock = [0.0]
-    async with running(bus, port, poll_s=FAST_POLL_S, now=lambda: clock[0]):
-        station = await port.opened()
-        station.says(
-            b"<iDCC-EX V-5.6.4 / ESP32 / EXCSB1_WITH_EX8874 G-v5.6.4-rails49.1>"
-        )
-        await asyncio.sleep(QUIET_S)
-        bus.drain()
-        assert tap.values(DEVICE_LINK)[-1]["build"] == "v5.6.4-rails49.1"
-
-        clock[0] = 10 * FAST_POLL_S
-        await asyncio.sleep(QUIET_S)
-        bus.drain()
-        gone = tap.values(DEVICE_LINK)[-1]
-        assert gone["link"] == "down"
-        assert "build" not in gone
-
-
 def test_a_station_answering_inside_the_window_keeps_the_link_up() -> None:
     asyncio.run(_station_answering_inside_the_window_keeps_the_link_up())
 
@@ -927,8 +869,7 @@ def test_a_station_that_answers_again_raises_the_link() -> None:
 
 async def _station_that_answers_again_raises_the_link() -> None:
     """Nothing was torn down, so nothing has to be rebuilt: the message that
-    comes back raises the link by the path every message raises it, with
-    whatever build the station names *now*."""
+    comes back raises the link by the path every message raises it."""
     bus, tap = bus_and_tap()
     port = Port()
     clock = [0.0]
@@ -947,9 +888,7 @@ async def _station_that_answers_again_raises_the_link() -> None:
         )
         await asyncio.sleep(QUIET_S)
         bus.drain()
-        back = tap.values(DEVICE_LINK)[-1]
-        assert back["link"] == "up"
-        assert back["build"] == "v5.6.4-rails49.1"
+        assert tap.values(DEVICE_LINK)[-1]["link"] == "up"
 
 
 def test_a_station_that_has_never_answered_is_not_lowered_again() -> None:

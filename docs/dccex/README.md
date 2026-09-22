@@ -231,10 +231,9 @@ their bytes, and a station that is powered, enumerated and mute — wedged
 firmware — leaves the mirror a device it holds and nothing to report. So the
 far end counts: ten intervals of `poll_s` with nothing read at all says the
 station has stopped answering, and the row goes `down` naming it and how long
-it has been silent. Everything the station told us goes with it, the build
-included, exactly as it does when a link closes — a station that is not
-answering is reporting no build, and the box may since have been written
-over. Nothing is torn down for it: the connection stays, the poll goes on
+it has been silent. Everything the station told us goes with it, exactly as
+it does when a link closes: a reading nobody can take is not the last one
+taken. Nothing is torn down for it: the connection stays, the poll goes on
 asking, and the next message read raises the link by the path every message
 raises it. Ten is counted off the poll rather than kept as a second number, so
 the two cannot drift apart, and it is generous on purpose — `layout` folds any
@@ -243,20 +242,14 @@ mid-session, and the mirror closing its clients is what reports the outages
 that actually happen
 ([ADR-0066](../adr/0066-the-link-is-the-station-answering-not-the-socket-being-open.md)).
 
-**`build`** rides on that same row, where the station's banner names one. The
-banner is what `<s>` is answered with and what raises the link, and its last
-field is the build the firmware was made from: `G-v5.6.4-rails49.1` publishes
-as `v5.6.4-rails49.1` — the identifier alone and never the whole line, whose
-shape is this vendor's where the row is device-neutral. On this railroad's
-firmware that is the release tag, so the row names exactly which build is on
-the box, which is what a client that asked for one on
-`tc49/layout/firmware_wanted` reads to see which answered
-([ADR-0065](../adr/0065-the-app-that-owns-the-device-flashes-it.md)); older
-firmware puts the commit it was built from there instead, and that goes out as
-it stands, the field being free text this app does not interpret. A banner with
-no build this app can find carries none and the link is `up` all the same — a
-field that failed to parse is not a link failure — and a link that is `down`
-carries none either, a station that cannot be reached reporting nothing.
+**The banner raises the link and goes no further.** It is what `<s>` is
+answered with, so a station that sends one is a station answering — and that
+is the whole of what this app makes of it. Which build is on the box rode on
+this row until #567 and does not any more: the flash gesture went with the
+mirror to `rails49/dccex`, and a microcontroller's firmware is not the
+railroad (rails49/.github ADR-0002). A banner this app can read no field off
+raises the link just the same, a message this app reads nothing out of being
+the station answering as much as one it does.
 
 **No `device/point`.** This railroad's turnouts have no feedback and the
 station's answer to a throw is one it faked
