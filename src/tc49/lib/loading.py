@@ -24,9 +24,10 @@ and on a box whose store is empty, which is an ordinary state and not a fault
 
 This module is the seam the six apps share: the two topics, the follower that
 watches the row, the **answerer** that watches the gesture behind it, the
-documents an app comes up on and the ones it is rebuilt on, and the clearing. An app's `__main__` names
-the filters it owns and what it reads, and nothing else here knows either — what a row is about is the app's business, and the rule is only
-that it is the row's owner who drops it.
+documents an app comes up on and the ones it is rebuilt on, and the clearing.
+An app's `__main__` names the filters it owns and what it reads, and nothing
+else here knows either — what a row is about is the app's business, and the
+rule is only that it is the row's owner who drops it.
 """
 
 import threading
@@ -136,7 +137,10 @@ class Loaded:
         """Go back to running `name`: the railroad just named cannot be
         built — the store does not have it, or its drawing does not derive —
         and an app with nothing to run on is worse than one still running the
-        railroad it had (ADR-0050)."""
+        railroad it had (ADR-0050).
+
+        `NO_RAILROAD` where there is nothing to go back to, which is a cold
+        start refused rather than a reload: the app stands (`standing`)."""
         self._refused = self._took
         self._name = name
         self._moved = False
@@ -315,10 +319,9 @@ def standing[Read](
 def named(railroad: str) -> str:
     """A railroad as an app's log names it: quoted, or said to be absent.
 
-    One spelling for the sentence every app prints when it is up, the driver
-    being the one that can print it holding `NO_RAILROAD` — it reads no
-    documents, so there is nothing for it to stand for and a grant names the
-    train it is about (`driver/__main__.py`).
+    One spelling for the sentence every app prints when it is up. The driver
+    is the one that can print it holding `NO_RAILROAD`: it reads no documents,
+    so there is nothing for it to stand for (`driver/__main__.py`).
     """
     return f"'{railroad}'" if railroad else "no railroad"
 
