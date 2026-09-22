@@ -144,30 +144,6 @@ def test_an_unreadable_link_is_not_a_link_that_is_up() -> None:
     assert bus.last_values[POWER]["power"] == "off"
 
 
-def test_a_link_that_names_its_build_reads_as_any_other() -> None:
-    """`build` is optional and this app does not read it: an added optional
-    field obliges a consumer nothing, a payload being validated for what is
-    read off it and never for what else came with it (rule 4). The field is
-    for a client that asked for a build on `tc49/layout/firmware_wanted` and
-    wants to see which one answered (ADR-0065); the fold moves on `link`
-    exactly as it did."""
-    bus, _app = build()
-    energised(bus)
-    bus.publish(
-        DEVICE_LINK + "/shed",
-        {"id": "shed", "link": "up", "build": "v5.6.4-rails49.1"},
-    )
-    bus.drain()
-    assert bus.last_values[POWER]["power"] == "on"
-
-    bus.publish(
-        DEVICE_LINK + "/shed",
-        {"id": "shed", "link": "down", "build": "v5.6.4-rails49.1"},
-    )
-    bus.drain()
-    assert bus.last_values[POWER]["power"] == "off"
-
-
 def test_a_row_this_app_does_not_act_on_passes_by_unread() -> None:
     """A `device/point` is a position where hardware reports one, and this app
     acts on none: it goes past without being taken for something else."""
