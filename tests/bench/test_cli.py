@@ -6,7 +6,6 @@ import io
 import json
 import os
 import signal
-import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -25,6 +24,7 @@ from tc49.bench.metrics import metrics
 from tc49.bench.runner import find_assets, find_root
 from tc49.store import STORE_ENV, AssetStore, Backup, store_root
 from tests.harness import ASSETS, ROOT, railroads
+from tests.ports import free_port
 
 
 def run_cli(*argv: str) -> str:
@@ -130,14 +130,6 @@ def test_find_root_locates_the_railroads_from_anywhere_and_says_so_if_not() -> N
     assert find_assets(ROOT / "src" / "tc49" / "cli.py") == ASSETS
     with pytest.raises(FileNotFoundError, match="not usable from an installed wheel"):
         find_root(Path("/"))
-
-
-def free_port() -> int:
-    """A port nothing is listening on, so a server started here does not fight
-    whatever else on the machine wants the default one."""
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        return int(probe.getsockname()[1])
 
 
 def test_serve_reads_the_installations_store_by_default() -> None:

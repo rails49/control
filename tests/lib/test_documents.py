@@ -6,7 +6,6 @@ faces meeting — the route the store serves and what `lib` makes of the reply
 """
 
 import shutil
-import socket
 import threading
 import time
 from collections.abc import Iterator
@@ -19,14 +18,9 @@ from tc49.lib.documents import Documents
 from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.harness import ASSETS, catalogued
+from tests.ports import free_port
 
 RAILROAD = "crossover-yard"
-
-
-def _free_port() -> int:
-    with socket.socket() as held:
-        held.bind(("127.0.0.1", 0))
-        return int(held.getsockname()[1])
 
 
 @pytest.fixture
@@ -118,7 +112,7 @@ def test_it_returns_once_the_store_comes_up_after_it_was_asked(root: Path) -> No
     waits, says so on stderr, and is answered when the store opens its socket
     (ADR-0059 decision 5, ADR-0050). No `depends_on` anywhere in compose,
     which is what this makes safe."""
-    port = _free_port()
+    port = free_port()
     said: list[str] = []
     answer: list[Any] = []
     asking = threading.Thread(

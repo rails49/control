@@ -27,7 +27,7 @@ from tc49.dccex_usb.firmware import Flasher
 from tc49.dccex_usb.station import HOST, Station
 from tc49.lib.bus import Bus, InProcessBus
 from tc49.lib.clock import Clock
-from tests.brokers import free_port
+from tests.ports import free_port
 
 DEVICE = "/dev/dccex-that-is-not-there"
 PORT = 2560
