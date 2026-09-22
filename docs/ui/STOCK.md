@@ -201,6 +201,31 @@ throttle's cabs take. A second browser editing stock during a run is not
 covered, and closing that properly is the same hole as
 [#390](https://github.com/rails49/control/issues/390).
 
+## With nothing loaded to write into
+
+This view is one of the app's views of the loaded railroad (ADR-0038), and
+nothing is loaded until the broker names a railroad
+([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+Until then there is no roster and no catalogue, and **the two presses that
+write are dead with the reason on them**: *load a railroad first* where none
+has been named, and *the roster and the catalogue are not read yet* where one
+has and its read has not landed — which of the three ways that read failed
+being the line under the Trains heading's to say, below. It is the answer Save
+already gave, and the one the `+` buttons give with no train made up.
+
+New model was the press left open. On a box with an empty store the button was
+live, the dialog opened, every field took input, and **Create did nothing at
+all**: no document written, no refusal shown, and no request out of the
+browser ([#565](https://github.com/rails49/control/issues/565)). So **a press
+on this screen either does what it says or says why it cannot**. The guard
+inside Create sets the dialog's refusal rather than returning — a dialog that
+opened is a dialog that answers when its button is pressed, and the way in is
+still there: the broker moves the railroad while the dialog is open, and the
+screen forgets the documents and keeps what somebody is writing. New train
+says its reason before it asks for a name rather than after; a prompt
+cancelled or left empty stays a person's own no, as it is everywhere in the
+app.
+
 ## When the store does not answer with a document
 
 A read or a write fails in **three ways, and the words say which**
@@ -305,7 +330,9 @@ train made up here without a reload, the row an older roster's train draws and
 the first entry converting it, the current train moving when the one it named
 is unmade and carried when that one is renamed, the dialog's refusal staying
 out of the trains and going with the dialog, the field a refusal puts back, the edit standing in a field that a
-frame about the railroad leaves alone, and the three ways a call to the
+frame about the railroad leaves alone, the two presses that write being dead
+with nothing loaded and Create saying why where the documents go from under an
+open dialog (#565), and the three ways a call to the
 store fails as this screen shows them. The words themselves are
 `ui/test/asking.test.ts`'s, at the helper that decides them.
 
