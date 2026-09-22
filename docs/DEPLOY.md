@@ -566,15 +566,6 @@ this way at all.
 The built UI needs nginx behind the door because the door proxies and does not
 read files. That is the whole of what `web` is.
 
-## Why the apps bind wider than loopback
-
-`scripts/dev.sh` starts the store with `--host 0.0.0.0`, vite with
-`server.host`, and publishes the broker container's ports. A container cannot
-reach a macOS host's loopback — Docker Desktop is a virtual machine, and
-`host.docker.internal` reaches an interface nothing was listening on — so a
-door running beside them in a container would have nothing to dial. Both
-default to `127.0.0.1` and only `dev.sh` widens them.
-
 ## When it does not work
 
 **`network rails49 declared as external, but could not be found`** — the
@@ -588,10 +579,6 @@ that serves a UI joins it.
 is not, or its containers are not on the shared network. `docker compose
 --env-file /etc/rails49/box.env --env-file /etc/rails49/deploy.env -f
 deploy/compose.yaml ps` says which.
-
-**`Blocked request. This host is not allowed.`** — vite 6 refuses a request
-whose `Host` header it does not know. `localhost` and a bare LAN address it
-allows; a name belongs in `server.allowedHosts` in `ui/vite.config.ts`.
 
 **The name resolves to nothing, or to `0.0.0.0`** — DNS rebind protection at
 the router, above. `dig control.gleis49.org @1.1.1.1` answers correctly while
