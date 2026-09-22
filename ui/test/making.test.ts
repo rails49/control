@@ -178,6 +178,71 @@ async function ore(shell: TcApp): Promise<void> {
   await add(shell, "product", 1);
 }
 
+/**
+ * Nothing is loaded until the broker names a railroad (ADR-0060), and this
+ * screen is one of the app's views of the one that is: with none there is no
+ * roster and no catalogue, so the two presses that write have nothing to write
+ * into.
+ *
+ * New model was live all the same. The dialog opened, every field took input,
+ * and Create returned at its guard: no document written, no refusal shown, and
+ * no request out of the browser — a dialog that takes a product and drops it
+ * ([#565](https://github.com/rails49/control/issues/565)).
+ */
+describe("with no railroad loaded", () => {
+  /** The app mounted on this view with nothing loaded: `mounted` alone, the
+   *  retained row the other suites replay being what loads a railroad. */
+  async function empty(): Promise<TcApp> {
+    return await mounted("stock");
+  }
+
+  it("leaves New model… dead, and says what to do first", async () => {
+    const shell = await empty();
+    const button = parts(shell, "button.new-model")[0] as HTMLButtonElement;
+
+    expect(button.disabled).toBe(true);
+    expect(button.title).toBe("load a railroad first");
+
+    await pressed(shell, "button.new-model");
+
+    expect(dialog(shell)).toBeNull();
+    expect(store.saved).toEqual([]);
+  });
+
+  it("leaves New train… dead, and asks for no name it would drop", async () => {
+    const shell = await empty();
+    const button = parts(shell, "button.new-train")[0] as HTMLButtonElement;
+    const asked = vi.spyOn(window, "prompt").mockReturnValue("ore");
+
+    expect(button.disabled).toBe(true);
+    expect(button.title).toBe("load a railroad first");
+
+    await pressed(shell, "button.new-train");
+
+    expect(asked).not.toHaveBeenCalled();
+    expect(parts(shell, "li.train")).toHaveLength(0);
+  });
+
+  /** The way into the guard now that the button is dead: the broker moves the
+   *  railroad while the dialog is open, so the screen forgets the documents
+   *  and keeps what somebody is writing. A railroad is loaded here and its
+   *  read did not land, which is the other half of the sentence. */
+  it("says why Create cannot proceed when the documents go from under it", async () => {
+    const shell = await opened();
+    await pressed(shell, "button.new-model");
+    between((path) => path === "/catalogue");
+
+    await loads(shell, "other");
+    (dialog(shell)!.querySelector(".create") as HTMLElement).click();
+    await settled(shell);
+
+    expect(beside(shell)).toBe("the roster and the catalogue are not read yet");
+    expect(store.saved).toEqual([]);
+    // The dialog's refusal is the dialog's; the failed read is the screen's.
+    expect(trouble(shell)).toBe("GET /catalogue answered 404");
+  });
+});
+
 describe("a fresh box", () => {
   it("draws nothing to begin with and says what to do first", async () => {
     const shell = await opened();
