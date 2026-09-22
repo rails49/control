@@ -95,15 +95,6 @@ words go on `device/track` as its `reason` while the station is unreachable,
 so a person reading why the railroad is dark reads it off the supply itself
 rather than off a second row (ADR-0059).
 
-**The row also says which build answered**, where the station's banner names
-one: `build` is the identifier alone, read out of the line the poll asks for
-and never the whole banner, which is one vendor's shape (ADR-0065). It is
-what a client that asked for a build on `tc49/layout/firmware_wanted` reads
-to see which one is on the box, there being no reply and no correlation id.
-A link that is `down` carries none — a station this app cannot reach is
-reporting nothing — and neither does a banner this app could not find one in,
-which is not a link failure: the link is made of the station having answered.
-
 The framing and the mapping are pure and live in `replies` and `commands`;
 what is here is the connection and the state that a connection is made of.
 """
@@ -257,7 +248,6 @@ class DccEx:
         self._tracks: dict[str, bool] = {}
         self._every: bool | None = None
         self._paused = False
-        self._build: str | None = None
         # Whether this app has switched this station's track on, which is
         # what makes the startup file a transition rather than a level.
         self._powered_on = False
@@ -265,7 +255,7 @@ class DccEx:
         # supply carries why it is off where this app cannot reach the
         # station, so what is held is the pair rather than the word.
         self._track: tuple[str, str | None] | None = None
-        self._link: tuple[bool, str, str | None] | None = None
+        self._link: tuple[bool, str] | None = None
         # The railroad is dark and the station unreached, which is what is
         # true before anything is connected, and a client joining now is
         # served that rather than an absence (ADR-0032).
@@ -534,9 +524,7 @@ class DccEx:
 
         What goes is everything the station told us, the same `_forget` a
         link that closed runs: a reading nobody can take is not the last one
-        taken, and the build goes with it, which is what keeps a row that is
-        `down` from naming a build that may since have been written over.
-        The session itself stays — this is an observation being published,
+        taken. The session itself stays — this is an observation being published,
         not the transport being torn down — so an answer arriving afterwards
         raises the link by the one path that raises it, a message read.
 
@@ -557,15 +545,13 @@ class DccEx:
         self._publish_track()
 
     def _heard(self, message: bytes) -> None:
-        """One whole message from the station: the link is up, and the three
+        """One whole message from the station: the link is up, and the two
         facts this app reads may have moved. Everything else on the port is
         another client's conversation and is passed over.
 
-        Read before either row goes out, so the first message being the
-        banner puts the build on the same `up` that reports the link rather
-        than on a second one after it. The link is the station having
-        answered and never the parse: a message this app reads nothing out of
-        raises it just the same.
+        The link is the station having answered and never the parse: a
+        message this app reads nothing out of — the banner among them, which
+        this app reads no field off — raises it just the same.
         """
         told = replies.reply(message)
         if isinstance(told, replies.Power):
@@ -582,10 +568,6 @@ class DccEx:
             # somebody's hand-held throttle is a railroad no train may move
             # over, and that is a fact about the supply whoever caused it.
             self._paused = told.locked
-        elif isinstance(told, replies.Build):
-            # What the station says it is running, which changes only over a
-            # link that went away and came back — a flash resets the station.
-            self._build = told.build
         self._answered = True
         self._last_heard = self._now()
         self._publish_link(True, f"connected to {self._where}")
@@ -600,16 +582,13 @@ class DccEx:
         otherwise stand as an observation nobody made. The power-on is the
         same kind of staleness pointing the other way — the station on the
         next link may be one that has just come up — so the next `on` sends
-        the startup file again rather than assume the last one took. The
-        build goes with them: the station on the far end of the next link may
-        be the one this one was just written into (ADR-0065)."""
+        the startup file again rather than assume the last one took."""
         self._answered = False
         self._last_heard = None
         self._tracks.clear()
         self._every = None
         self._paused = False
         self._powered_on = False
-        self._build = None
 
     def _send(self, message: bytes) -> None:
         """One whole message to the station, or nothing at all because the
@@ -684,24 +663,15 @@ class DccEx:
 
     def _publish_link(self, up: bool, detail: str) -> None:
         """This app's link to the station, keyed by the id it was started
-        with. Republished when the reason or the build changes as well as the
-        word: while an outage lasts the row goes on saying so, and *why* is
-        what a person reads (ADR-0050); a station that names its build only
-        after the link came up says so on the row rather than at the next
-        outage.
-
-        A link that is `down` carries no build whatever was last read off the
-        far end — `_forget` has dropped it by the time this is reached, and
-        the row would otherwise stand as an observation nobody made.
+        with. Republished when the reason changes as well as the word: while
+        an outage lasts the row goes on saying so, and *why* is what a person
+        reads (ADR-0050).
         """
-        build = self._build if up else None
-        said = (up, detail, build)
+        said = (up, detail)
         if said == self._link:
             return
         self._link = said
         frame: Payload = {"id": self._id, "link": UP if up else DOWN, "detail": detail}
-        if build is not None:
-            frame["build"] = build
         self._bus.publish(device_topic(DEVICE_LINK, self._id), frame)
 
 
