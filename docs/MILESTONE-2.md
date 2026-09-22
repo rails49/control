@@ -33,9 +33,11 @@ over by hand.
   table anywhere.
 - **Translators, thin and optional.** One per command station, named for the
   system it speaks to and hanging under `layout` by address; the one this
-  railroad uses is `dccex`, with `dccex-usb` mirroring the station's USB port
-  onto a TCP port so other software and hand-held throttles reach the same
-  station ([dccex/](dccex/README.md)). A translator publishes its own link as
+  railroad uses is `dccex`, a client of the TCP port the station's USB device
+  is mirrored on so that other software and hand-held throttles reach the same
+  station ([dccex/](dccex/README.md)). The mirror is
+  [`rails49/dccex`](https://github.com/rails49/dccex) and no app of this
+  repository's. A translator publishes its own link as
   observed state, which is where verifying a physical connection belongs — at
   runtime, not in a gate that would need a powered layout.
 - **A driver that turns an aspect into a speed on a real locomotive.** `move`
@@ -160,7 +162,7 @@ Each ruled out deliberately, and each binds unless its row says otherwise:
 | Authored schedules — named operations run by hand, at a time, or at random | takes the rules for special cars (crane, camera, track cleaner) with it |
 | A traffic generator inventing continual arrivals from block roles | two sources of requests already exist and suffice ([#210](https://github.com/rails49/control/issues/210)) |
 | Splitting and merging trains on the layout | dropping cars in a siding mints a train from a train. **Milestone 3**, with the runtime writer of stock it needs ([#209](https://github.com/rails49/control/issues/209)); nothing in the stock document forecloses it |
-| **Building** the patched command-station firmware — the per-district trip currents in it | a separate project against the station's own source. Writing a released build onto the station is this repository's work: a gesture on the bus, answered by the app that owns the device ([ADR-0065](adr/0065-the-app-that-owns-the-device-flashes-it.md)). What this repository also does is send a file of raw station commands when power comes on ([#205](https://github.com/rails49/control/issues/205)) |
+| **Building** the patched command-station firmware — the per-district trip currents in it — **and writing it onto the station** | a separate project against the station's own source, and the writing is the mirror's, which owns the device and is [`rails49/dccex`](https://github.com/rails49/dccex). It went onto this repository's bus as a gesture for as long as a gesture was the only mechanism there was ([ADR-0065](adr/0065-the-app-that-owns-the-device-flashes-it.md)), and came back off it with #567. What this repository does send is a file of raw station commands when power comes on ([#205](https://github.com/rails49/control/issues/205)) |
 | Linking a running instance from a public page | the UI is deployed and is not linkable: a private address, no authentication on purpose, and a store, a broker and a layout server needed beside it ([#231](https://github.com/rails49/control/issues/231)) |
 | Decoder programming | DecoderPro reaches the station on 2560 and the app never knows |
 | A train standing across two blocks | real and common, and capacity the model declines rather than a way it is wrong: `no_fit` keeps a long train off a short track and the railroad runs without it. **Milestone 3**, and the version wanted is the dispatcher *routing to* such a stand ([#201](https://github.com/rails49/control/issues/201)) |

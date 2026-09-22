@@ -11,9 +11,9 @@ not repeated here. Each app's internals are its own page: the dispatcher's are
 ## Apps
 
 An **app** is a unit that will run as its own container
-([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are eight in
-Python — store, scheduler, dispatcher, driver, simulator, layout, dccex-usb,
-dccex — and one in the browser: `ui/`, which is **one** app, one page holding
+([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are seven in
+Python — store, scheduler, dispatcher, driver, simulator, layout, dccex — and
+one in the browser: `ui/`, which is **one** app, one page holding
 one loaded railroad and a list of views of it
 ([ADR-0038](adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
 
@@ -26,19 +26,15 @@ railroad with steel on it runs `layout`, a box with no hardware runs the
 `simulator` container in its place, and the bench harness assembles the
 simulator inside one process.
 
-`dccex-usb` and `dccex` hang under `layout`. `dccex-usb` owns the command
-station's serial device and serves it on a TCP port; it is an app by the same
-rule as the rest — its own container, on the machine the device is plugged
-into — and it meets the store not at all and the bus in one place only: it
-answers the gesture to write a released firmware build onto the station,
-which no other process can do while it holds the device
-([ADR-0065](adr/0065-the-app-that-owns-the-device-flashes-it.md),
-docs/dccex_usb/README.md). `dccex` is the first
-**translator**: it subscribes to the device vocabulary, turns it into the
-command station's own language over that port, and publishes back the supply
-and its own link (docs/dccex/README.md). Zero, one or more translators run,
-per what is wired, and each recognises its own addresses so no ownership table
-exists anywhere (ADR-0043).
+`dccex` hangs under `layout` and is the first **translator**: it subscribes
+to the device vocabulary, turns it into the command station's own language
+over a TCP port, and publishes back the supply and its own link
+(docs/dccex/README.md). The port is the command station's, mirrored off its
+USB device by `dccex-usb`, which was an app here until #567 and is
+[`rails49/dccex`](https://github.com/rails49/dccex) now: this translator is
+one client of that port among several. Zero, one or more
+translators run, per what is wired, and each recognises its own addresses so
+no ownership table exists anywhere (ADR-0043).
 
 Apps import `tc49.lib` and themselves, **never each other**. They meet only
 over the event bus and the asset store's CRUD contract, so each one can be
@@ -160,16 +156,6 @@ src/tc49/
                               the broker, the traction rows the last process
                               left, then a loop that advances the clock,
                               settles and drains until a signal (ADR-0059)
-  dccex_usb/    station.py  Station — the command station's serial device
-                            mirrored on a TCP port: every byte fanned out to
-                            every client, a client's bytes written whole
-                framing.py  frame() — bytes in, whole `<…>` messages out
-                firmware.py Flasher — the one gesture this app answers: a
-                            released build fetched, checked and written to the
-                            station, the device let go for it (ADR-0065)
-                __main__.py `python -m tc49.dccex_usb --broker … --device …
-                            --port …`, the command line
-                            deploy/app.Dockerfile runs
   dccex/        translator.py  the translator between the device vocabulary
                                and the command station: the desired state out
                                over one connection to `dccex-usb`, the supply
@@ -273,7 +259,6 @@ docs/
   bench/           BENCHMARKS.md  METRICS.md
   ui/              EDITOR.md  PANEL.md  THROTTLE.md — a page per view
   layout/          README.md
-  dccex_usb/       README.md
   dccex/           README.md
   agents/          how agent skills should consume this repo
   research/        background reading
@@ -284,10 +269,8 @@ An app gets a folder when it has internals worth writing down. `scheduler`,
 in [SYSTEM.md](SYSTEM.md#component-footprints), and an empty folder would
 suggest otherwise. `layout` has one because it is a second binding of a
 footprint the simulator also implements, and what each does with the same
-commands is its own. `dccex-usb` has one for the opposite reason — it has no
-footprint there at all, so its page is the only place its behaviour is
-written down. `dccex` has one for both reasons at once: its bus footprint is
-the device vocabulary, and its page is the only place in the repository where
+commands is its own. `dccex` has one for both reasons at once: its bus
+footprint is the device vocabulary, and its page is the only place in the repository where
 the command station's own syntax is written, product names staying out of the
 normative documents.
 
@@ -322,7 +305,6 @@ tests/
   layout/      test_align  test_move  test_aspects  test_power  test_reading
                test_occupancy  test_traction  test_mode  test_throttle
                test_railroad  test_main
-  dccex_usb/   test_framing  test_station  test_firmware
   dccex/       test_commands  test_replies  test_translator  test_main
   system/      test_skeleton  test_properties  test_safety_conditions
                test_app_boundaries  test_cold_start  test_reload

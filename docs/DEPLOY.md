@@ -189,8 +189,8 @@ on the missing name rather than on anything to do with what was asked.
 `layout` is the software of a running railroad: the store, the built ui, and
 the scheduler, dispatcher, driver and layout interface, each its own
 container (ADR-0059, decision 5). `hardware` is what this box owns because of
-what is plugged into it — the command station's mirror and the translator that
-speaks to it. A box with no steel under it asks for `sim` in place
+what is plugged into it, which here is the translator that speaks to the
+command station. A box with no steel under it asks for `sim` in place
 of `hardware`, which runs the simulator where the layout interface's hardware
 binding would be, and `tests/system/test_compose.py` holds the split.
 
@@ -243,7 +243,10 @@ name, and what the containers below publish is on the LAN beside it.
 | the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue` under that name |
 | the broker, native clients | 1883 | the LAN address |
 | the broker, a browser | 9001, and `/mqtt` | plaintext on the LAN, or through the door from a TLS page |
-| `dccex-usb`, the command station mirrored | 2560 | the LAN address |
+
+The command station is mirrored on 2560 at the LAN address, and that port is
+not this file's: it is published by [`rails49/dccex`](https://github.com/rails49/dccex),
+a stack of its own on the same box.
 
 ### The store, and the documents it serves
 
@@ -361,28 +364,33 @@ runs is what makes it steel or a simulation, and neither is started by hand.
 
 ### The command station
 
-A DCC-EX EX-CSB1 with an EX8874 on a CH340 cable. Which firmware build is on
-it is not written here: the station names it in the banner it answers `<s>`
-with, the `dccex` translator publishes that as `build` on
-`tc49/layout/state/device/link/dccex`, and a page kept by hand would go stale
-the first time somebody wrote a new one
-([ADR-0065](adr/0065-the-app-that-owns-the-device-flashes-it.md)). The device
-is named by
+A DCC-EX EX-CSB1 with an EX8874 on a CH340 cable. **The mirror that owns its
+USB device is [`rails49/dccex`](https://github.com/rails49/dccex)**, a compose
+project of its own on this box, and what is deployed from here is a client of
+the 2560 it publishes. Which firmware build is on the station, and writing a
+new one onto it, are that project's and are not written here: a page kept by
+hand would go stale the first time somebody wrote a new one.
+
+Deploying this stack for the first time after the split takes the old
+`dccex-usb` container with it, `--remove-orphans` being the flag above that
+sweeps a service this file no longer has. Bring the mirror's own project up
+first, or the railroad comes back with no station on 2560. The device is
+named by
 
 ```
 /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
 ```
 
-rather than `/dev/ttyUSB0`, which renumbers, and arrives inside the
-`dccex-usb` container as `/dev/dccex`. The chip carries no serial number, so
-that path is stable only while it is the only CH340 on the box; a second one
-would want `TC49_STATION_DEVICE` set to whatever `ls /dev/serial/by-id/` then
-says.
+rather than `/dev/ttyUSB0`, which renumbers, and is what the mirror's project
+is given. The chip carries no serial number, so that path is stable only
+while it is the only CH340 on the box.
 
-Only `dccex-usb` opens the device. Everything else — the `dccex` translator,
+Only the mirror opens the device. Everything else — the `dccex` translator,
 JMRI, hand-held throttles — is a client of 2560, and they coexist: every byte
 the command station sends reaches every client, and a client's bytes go to it
-only as whole `<…>` messages (ADR-0043).
+only as whole `<…>` messages (ADR-0043). The translator reaches that port at
+`host.docker.internal`, the box from inside its container, and
+`TC49_STATION` names another machine where the station hangs off one.
 
 **This railroad's per-district trip currents live on the box**, in
 `/etc/rails49/dccex-startup.txt`, and nowhere else: a district is a hardware fact
