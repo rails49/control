@@ -35,7 +35,9 @@ dropped for the same reason a stale one is — the train is not standing at the
 transit's near end (ADR-0047) — and never a train invented under a command.
 Decision 3 answers #123 for every row the broker holds; this one is on no
 topic by ADR-0030, so where the steel's memory lives in a container is open,
-and not this command line's to invent.
+and not this command line's to invent. A railroad the store does not have
+leaves it **standing** — up, with no railroad, built on the first one a person
+picks that the store can give (#564, `lib/loading.py`).
 
 Then the loop, which is this app's own and older than its command line: the
 discrete-event queue slept on a wall clock (`run_live`). Where every other
@@ -62,7 +64,7 @@ from collections.abc import Callable
 
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
-from tc49.lib.loading import Answering, dropped, taken
+from tc49.lib.loading import Answering, dropped, named, standing, taken
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
 from tc49.simulator.sim import Simulator
@@ -126,10 +128,12 @@ def serve(
     # just loaded, so there is nothing for a person to confirm (ADR-0060 as
     # amended).
     loaded = Answering(railroad, precondition=None)
-    layout = documents.layout(loaded.name)
-    log(f"'{loaded.name}': {len(layout.blocks)} blocks")
     if not connected(bus, stop, log):
         return
+    layout = standing(bus, loaded, stop, log, documents.layout, period_s)
+    if layout is None:
+        return
+    log(f"'{loaded.name}': {len(layout.blocks)} blocks")
     while not stop.is_set():
         # Before the app's opening rows and not after, where the five apps
         # that follow the state row subscribe afterwards: what this one
@@ -145,7 +149,7 @@ def serve(
         clock = Clock()
         simulator = Simulator(bus, layout, clock, transit_s=transit_s, clear_s=clear_s)
         built = loaded.name
-        log(f"up on '{built}', waiting at most {period_s}s a turn")
+        log(f"up on {named(built)}, waiting at most {period_s}s a turn")
         # The loop the app already owns, ended by a signal or by the railroad
         # moving under it — this binding's steel is the drawing it was built
         # from, so another railroad is another simulator (ADR-0030).

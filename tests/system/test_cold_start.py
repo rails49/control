@@ -16,6 +16,12 @@ and being handed it is what a browser opened an hour into a run depends on
 broker holds is this app's, and the assertion is on the whole of it — an app
 that leaves a row it does not own behind fails here.
 
+A box whose store is **empty** is the same rule again and is here too: the
+store comes up and answers, nothing seeds it, and an app whose railroad the
+store has not got stands rather than exiting (#564). That was four of the six
+containers in a restart loop on the first box ever booted against an empty
+store.
+
 Loading another railroad while the apps run is the other half of the same
 rule and is `test_reload.py`.
 """
@@ -28,6 +34,7 @@ from pathlib import Path
 
 import pytest
 
+from tc49.lib.loading import NO_RAILROAD
 from tc49.lib.mqtt import MqttBus
 from tests.apps import APPS, App, Process, Store
 from tests.brokers import Broker, drained, settle, until
@@ -50,19 +57,43 @@ store client's own backoff, which doubles from half a second
 nothing is shortened to suit the suite."""
 
 
+READING = tuple(app for app in APPS if app.store)
+"""The apps that read documents, which are the four that exited on a store
+with no such railroad: the two that drive nothing of their own read none and
+had nothing to fail on (#564)."""
+
+
+def drawn(root: Path) -> None:
+    """One railroad put in the store, as a person draws one: a drawing, a
+    roster and the catalogue its cars name. Called on a root that is already
+    being served as well as on one that is not — the store reads the
+    documents off the disk as it is asked for them, which is what makes a box
+    that draws its first railroad an hour after booting an ordinary one."""
+    catalogued(root)
+    (root / "layouts").mkdir(exist_ok=True)
+    for suffix in ("drawing", "roster"):
+        shutil.copy(
+            ASSETS / "layouts" / f"{RAILROAD}.{suffix}.yaml",
+            root / "layouts" / f"{RAILROAD}.{suffix}.yaml",
+        )
+
+
 @pytest.fixture
 def root(tmp_path: Path) -> Path:
     """An installation with one railroad on it, as the store on the layout
     box holds one: a drawing, a roster and the catalogue its cars name."""
     root = tmp_path / "store"
     root.mkdir()
-    catalogued(root)
-    (root / "layouts").mkdir()
-    for suffix in ("drawing", "roster"):
-        shutil.copy(
-            ASSETS / "layouts" / f"{RAILROAD}.{suffix}.yaml",
-            root / "layouts" / f"{RAILROAD}.{suffix}.yaml",
-        )
+    drawn(root)
+    return root
+
+
+@pytest.fixture
+def fresh(tmp_path: Path) -> Path:
+    """A box that has done nothing but install: `scripts/deploy.sh` made the
+    directory and nobody has drawn (docs/DEPLOY.md)."""
+    root = tmp_path / "fresh"
+    root.mkdir()
     return root
 
 
@@ -130,4 +161,54 @@ def test_the_stores_face_comes_up_on_an_empty_root(tmp_path: Path) -> None:
             listed = loads(answer.read())
         assert listed == {"drawings": []}
     finally:
+        serving.stop()
+
+
+@pytest.mark.parametrize("app", READING, ids=[app.name for app in READING])
+def test_an_app_stands_on_a_box_whose_store_is_empty(
+    app: App, broker: Broker, fresh: Path, tmp_path: Path
+) -> None:
+    """The defect (#564): started with no railroad named and a store holding
+    none, an app stays up and says so, and the railroad drawn afterwards is
+    what it is built on.
+
+    `NO_RAILROAD` is what a compose service passes where the box has chosen
+    none — `TC49_RAILROAD` has no default — so this is the out-of-box command
+    line and not a case invented for the suite. What it used to do is exit 1
+    on the store's 404 and be restarted for ever, on a box in exactly the
+    state `docs/DEPLOY.md` calls ordinary.
+    """
+    serving = Store(fresh, tmp_path / "store.log")
+    serving.start()
+    running: Process = app.process(broker, serving, NO_RAILROAD, tmp_path)
+    running.start()
+    try:
+        assert not until(
+            lambda: not running.running, ALONE_S
+        ), f"'{app.name}' exited over an empty store:\n{running.said()}"
+        late = MqttBus(port=broker.port)
+        assert late.wait_connected(), "the witness never reached the broker"
+        late.subscribe("tc49/#", lambda topic, payload: None)
+        settle(late)
+        assert set(late.last_values) == set(), f"'{app.name}' published standing"
+        assert "standing" in running.said(), (
+            f"'{app.name}' did not say it was waiting for a railroad:"
+            f"\n{running.said()}"
+        )
+
+        # A person draws one and loads it, which is the whole of what a box
+        # with an empty store is waiting for (ADR-0060).
+        drawn(fresh)
+        topic, payload = app.naming(RAILROAD)
+        late.publish(topic, payload)
+
+        assert drained(
+            late,
+            lambda: set(app.rows) <= set(late.last_values),
+            timeout=UP_S,
+        ), f"'{app.name}' never came up on the railroad drawn:\n{running.said()}"
+        assert running.running, f"'{app.name}' stopped on its own:\n{running.said()}"
+        late.close()
+    finally:
+        running.stop()
         serving.stop()
