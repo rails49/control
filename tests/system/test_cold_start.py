@@ -59,8 +59,9 @@ nothing is shortened to suit the suite."""
 
 READING = tuple(app for app in APPS if app.store)
 """The apps that read documents, which are the four that exited on a store
-with no such railroad: the two that drive nothing of their own read none and
-had nothing to fail on (#564)."""
+with no such railroad. The driver and the translator read none — one holds no
+state and the other is told about no railroad at all — so neither had anything
+to fail on (#564)."""
 
 
 def drawn(root: Path) -> None:
