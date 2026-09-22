@@ -220,8 +220,7 @@ fi
 [ -d ui/node_modules ] || (cd ui && pnpm install)
 
 echo "servers:"
-serve store "$STORE" "$STORE_URL" \
-  uv run tc49 serve --host 0.0.0.0 --store "$STORE_ROOT"
+serve store "$STORE" "$STORE_URL" uv run tc49 serve --store "$STORE_ROOT"
 serve ui "$UI" "$UI_URL" pnpm --dir ui dev
 broker_up
 
