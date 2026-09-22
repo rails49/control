@@ -302,11 +302,13 @@ live in. Each spec page links the ADRs that bind it.
 tests that drive the real assembly over the bus, with `harness.py`,
 `brokers.py` — a real broker, for the apps that come up against one —
 `apps.py` — the apps as processes, for the suites that start what a compose
-service starts — and `generate.py` shared at the top.
+service starts — `ports.py` — a port to listen on, picked from below the
+range the kernel hands out so nothing else can take it (#560) — and
+`generate.py` shared at the top.
 
 ```
 tests/
-  harness.py  brokers.py  apps.py  generate.py
+  harness.py  brokers.py  apps.py  ports.py  generate.py
   lib/         test_layout  test_bus  test_trace
   store/       test_store  test_drawing  test_server  test_symbols
   scheduler/   test_scheduler  test_main
