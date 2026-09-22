@@ -22,8 +22,9 @@ from tc49.lib.documents import Documents
 from tc49.lib.mqtt import MqttBus
 from tc49.lib.startup import RETAINED_S
 from tc49.store.server import make_server
-from tests.brokers import Broker, drained, free_port, settle, until
+from tests.brokers import Broker, drained, settle, until
 from tests.harness import ASSETS, catalogued
+from tests.ports import free_port
 from tests.startup import WINDOW_S, a_stop_in_the_window_is_acted_on_there
 
 RAILROAD = "crossover-yard"

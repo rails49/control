@@ -29,7 +29,8 @@ import pytest
 from tc49.dccex.__main__ import serve
 from tc49.lib.bus import Payload
 from tc49.lib.mqtt import MqttBus
-from tests.brokers import Broker, drained, free_port, settle
+from tests.brokers import Broker, drained, settle
+from tests.ports import free_port
 
 WANTED_TRACK = "tc49/layout/state/wanted/track"
 WANTED_TRACTION = "tc49/layout/state/wanted/traction/10"

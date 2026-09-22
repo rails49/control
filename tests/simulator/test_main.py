@@ -30,8 +30,9 @@ from tc49.lib.documents import Documents
 from tc49.lib.mqtt import MqttBus
 from tc49.simulator.__main__ import serve
 from tc49.store.server import make_server
-from tests.brokers import Broker, drained, free_port, settle
+from tests.brokers import Broker, drained, settle
 from tests.harness import ASSETS
+from tests.ports import free_port
 
 RAILROAD_NAME = "crossover-yard"
 RAILROAD = "tc49/layout/state/railroad"

@@ -24,12 +24,7 @@ from typing import NoReturn
 import pytest
 
 from tc49.lib.mqtt import MqttBus
-
-
-def free_port() -> int:
-    with socket.socket() as held:
-        held.bind(("127.0.0.1", 0))
-        return int(held.getsockname()[1])
+from tests.ports import free_port
 
 
 def listening(port: int) -> bool:

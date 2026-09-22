@@ -16,7 +16,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from tests.brokers import Broker, free_port, listening, until
+from tests.brokers import Broker, listening, until
+from tests.ports import free_port
 
 START_S = 30.0
 """How long a process is given to be answering. It covers a store client's
