@@ -1,5 +1,7 @@
 # The layout interface is a core app, and hardware hangs under it by address
 
+**Amended for [#567](https://github.com/rails49/control/issues/567), 2026-09-22:** the mirror named below is no app of this repository's. `dccex-usb` — the package `tc49.dccex_usb`, the compose service and the image — is [`rails49/dccex`](https://github.com/rails49/dccex) now, and what this repository sees of it is the 2560 it publishes. The mechanism below stands unchanged, and this is what it always said: hardware hangs under the layout interface by address, and the translator is one client of that port exactly as JMRI and the hand-held throttles are. The links to the page that described the mirror point at the repository that holds it; no sentence below has moved.
+
 **Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** an address no longer names its system as its first level, and a translator no longer subscribes its own system: whatever is wired acts on the addresses it recognises, and the link row is keyed by an id the publisher chooses. The rest of the mechanism below stands.
 
 **Amended by [ADR-0063](0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md), 2026-09-05:** two claims below are withdrawn. "JMRI reports power as on or off only" names the wrong thing: `PowerManager` in JMRI's core has `IDLE`, which is track power alive with the command station broadcasting stop to all mobile decoders, and several command stations implement it — the limit is in the JSON servlet, which neither writes nor reports that value. And a translator is no longer configured by its connection alone: one that publishes `device/sensor` reads the drawing from the store for the name its hardware knows each sensor by, so it has a railroad identity. The mechanism below — hardware under the layout interface by address, no ownership table, whatever recognises an address acts on it — stands.
@@ -13,7 +15,7 @@ hardware and any layout.
 [#299](https://github.com/rails49/control/issues/299), 2026-09-02:** the small
 app called `station` below is now `dccex-usb` — the package `tc49.dccex_usb`,
 the compose service and the image `dccex-usb`, its page
-[docs/dccex_usb/README.md](../dccex_usb/README.md). The word `station` was a
+[dccex_usb/README.md](https://github.com/rails49/dccex). The word `station` was a
 block's role as well ([CONTEXT.md](../../CONTEXT.md), **Role**), and one name
 could not be both. Nothing it does changed, so the text below is left as it
 was written and the old name read as the new one.

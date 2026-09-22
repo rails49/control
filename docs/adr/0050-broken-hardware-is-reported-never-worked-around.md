@@ -88,7 +88,7 @@ client sends the station is dropped, and the client is let go once the outage
 outlasts the grace; a queue that flushes on reconnect is a train that moves
 minutes after someone asked for it, which is why the broker keeps nothing
 across a restart either
-([docs/dccex_usb/README.md](../dccex_usb/README.md),
+([rails49/dccex](https://github.com/rails49/dccex),
 [#219](https://github.com/rails49/control/issues/219),
 [#202](https://github.com/rails49/control/issues/202)). The drop *is* the
 least it can do that stays truthful, and the outage says on stderr that it is
@@ -119,7 +119,7 @@ picture over the railroad.
 verified at runtime.** The station's tests use a pty as the device, so the
 gate is green on a laptop with nothing plugged in, and the actual link is one
 command against the running mirror
-([docs/dccex_usb/README.md](../dccex_usb/README.md), *Checking it against a real
+([rails49/dccex](https://github.com/rails49/dccex), *Checking it against a real
 station*; [#217](https://github.com/rails49/control/issues/217)). Both halves
 are this rule. A gate that reached for the cable would report a hardware
 failure as a software one; a gate that faked the cable and passed would report

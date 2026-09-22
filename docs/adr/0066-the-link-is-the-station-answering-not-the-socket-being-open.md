@@ -1,8 +1,12 @@
 # The link is the station answering, not the socket being open
 
+**Amended for [#567](https://github.com/rails49/control/issues/567), 2026-09-22:** **decision 5 goes with `build`**, which is off the contract: the mirror is [`rails49/dccex`](https://github.com/rails49/dccex) now and a microcontroller's flash is not the railroad ([rails49/.github ADR-0002](https://github.com/rails49/.github/blob/main/docs/adr/0002-a-ui-talks-to-the-bus-the-store-and-its-own-apps-face.md)), so there is no field to clear with the link. What clears with the link is everything else the station said, and that is decision 1 and unaffected. **Decision 6's verification path goes with it**, ADR-0065's flash being answered off this repository's bus no longer; its own instruction — that the passages stating it are correct and are not rewritten — is why nothing below has moved, and two of the three passages it names left with the app.
+
+**And one claim there was never true.** Decision 6 calls a SYSTEM.md passage correct. The passage is in [BUS.md](../BUS.md) and always was, that being where every topic is declared.
+
 Records the decision behind [#531](https://github.com/rails49/control/issues/531)
 and [#527](https://github.com/rails49/control/issues/527). Amends
-[docs/dccex_usb/README.md](../dccex_usb/README.md): its claim that while the
+[dccex_usb/README.md](https://github.com/rails49/dccex): its claim that while the
 device is away a client's messages are dropped and the client stays connected.
 
 [ADR-0065](0065-the-app-that-owns-the-device-flashes-it.md) said a flash is
@@ -120,7 +124,7 @@ does not add a second guard, and the responder still knows nothing about runs.
    being reported.
 6. ADR-0065's verification path stands as written and becomes true. The
    passages stating it in [SYSTEM.md](../SYSTEM.md), `dccex_usb/firmware.py`
-   and [docs/dccex_usb/README.md](../dccex_usb/README.md) are correct and are
+   and [dccex_usb/README.md](https://github.com/rails49/dccex) are correct and are
    not rewritten.
 
 ## Alternatives not taken
