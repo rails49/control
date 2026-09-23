@@ -15,7 +15,7 @@ hardware and any layout.
 [#299](https://github.com/rails49/control/issues/299), 2026-09-02:** the small
 app called `station` below is now `dccex-usb` — the package `tc49.dccex_usb`,
 the compose service and the image `dccex-usb`, its page
-[dccex_usb/README.md](https://github.com/rails49/dccex). The word `station` was a
+[rails49/dccex](https://github.com/rails49/dccex). The word `station` was a
 block's role as well ([CONTEXT.md](../../CONTEXT.md), **Role**), and one name
 could not be both. Nothing it does changed, so the text below is left as it
 was written and the old name read as the new one.

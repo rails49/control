@@ -8,7 +8,7 @@ Records the decision behind [#519](https://github.com/rails49/control/issues/519
 [#520](https://github.com/rails49/control/issues/520),
 [#521](https://github.com/rails49/control/issues/521) and
 [#522](https://github.com/rails49/control/issues/522). Amends
-[dccex_usb/README.md](https://github.com/rails49/dccex): its claim that the app has
+[rails49/dccex](https://github.com/rails49/dccex): its claim that the app has
 no bus topic, no state and no contract in [SYSTEM.md](../SYSTEM.md). Amends
 [docs/MILESTONE-2.md](../MILESTONE-2.md): its out-of-scope row placing a way to
 flash the command station outside this repository.

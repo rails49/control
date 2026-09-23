@@ -6,7 +6,7 @@
 
 Records the decision behind [#531](https://github.com/rails49/control/issues/531)
 and [#527](https://github.com/rails49/control/issues/527). Amends
-[dccex_usb/README.md](https://github.com/rails49/dccex): its claim that while the
+[rails49/dccex](https://github.com/rails49/dccex): its claim that while the
 device is away a client's messages are dropped and the client stays connected.
 
 [ADR-0065](0065-the-app-that-owns-the-device-flashes-it.md) said a flash is
@@ -124,7 +124,7 @@ does not add a second guard, and the responder still knows nothing about runs.
    being reported.
 6. ADR-0065's verification path stands as written and becomes true. The
    passages stating it in [SYSTEM.md](../SYSTEM.md), `dccex_usb/firmware.py`
-   and [dccex_usb/README.md](https://github.com/rails49/dccex) are correct and are
+   and [rails49/dccex](https://github.com/rails49/dccex) are correct and are
    not rewritten.
 
 ## Alternatives not taken
