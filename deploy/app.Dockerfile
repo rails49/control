@@ -41,21 +41,6 @@ COPY deploy/github.known_hosts /etc/ssh/ssh_known_hosts
 # and the private half ssh-keygen writes into it is 0600 on its own.
 RUN mkdir /keys && chmod 1777 /keys
 
-# A name for whatever uid this turns out to run as. The store runs as the
-# person who deployed the box (#387), and OpenSSH — which makes the deploy key
-# and pushes with it — refuses to run for a uid with no passwd entry. The
-# tables are made writable by root's group here and `entrypoint.sh` adds the
-# entry at startup, so the image answers what the uid is called rather than
-# the box: the host's own tables named it only where the host keeps its people
-# in a file, which a mac does not (#566).
-#
-# Group-writable rather than world-writable, and the one service that runs as
-# somebody this image does not know joins that group in `compose.yaml`.
-# Nothing else in the container may rewrite the tables, and nothing secret is
-# in them: this image has no logins and no shadow entries to go with them.
-COPY deploy/entrypoint.sh /entrypoint.sh
-RUN chmod g+w /etc/passwd /etc/group
-
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
@@ -80,9 +65,23 @@ ENV PYTHONUNBUFFERED=1
 # command line of its own rather than a subcommand.
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Every service runs through the entrypoint, which names the uid and then
-# execs the command the service gave: a service's command line stays the one
-# written in `compose.yaml`, and a uid that has a name already — root, which
-# is every service but the store — passes straight through.
-ENTRYPOINT ["/entrypoint.sh"]
+# A name for the uid the store runs as. The store runs as the person who
+# deployed the box (#387), and OpenSSH — which makes the deploy key and pushes
+# with it — refuses to run for a uid with no passwd entry. `deploy.sh` hands
+# the build that uid, so the entry is written here, as root, and the tables
+# stay root's: nothing that runs in the container can add a line to them
+# (#570, ADR-0067). A uid the image names already — root, or one the base
+# image ships — is left alone. `/tmp` is the home because ssh reads the home
+# out of this entry and writes its `~/.ssh` there; nothing is kept in it.
+#
+# Last, because a build argument invalidates every layer after it, and the
+# uid of a box does not change between deploys while the source does.
+ARG TC49_UID=1000
+ARG TC49_GID=1000
+RUN (getent group "$TC49_GID" >/dev/null \
+    || groupadd --gid "$TC49_GID" tc49) \
+    && (getent passwd "$TC49_UID" >/dev/null \
+    || useradd --uid "$TC49_UID" --gid "$TC49_GID" --no-create-home \
+    --no-log-init --home-dir /tmp --shell /usr/sbin/nologin tc49)
+
 CMD ["tc49", "--help"]

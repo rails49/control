@@ -9,7 +9,7 @@ or drop a catalogue in. A `chown -R` cures it until the next save.
 
 What cures it for good is three lines in three files that have nothing to do
 with each other — the directory made ahead of compose, the uid the services
-run as, and what an image has to carry for a uid it does not know — so they
+run as, and the name the image builds in for that uid — so they
 are checked together here rather than each being remembered on its own.
 
 Making the *wrong* directory is the same fault (#442), so the answer the
@@ -90,13 +90,24 @@ def test_the_store_can_name_the_uid_it_pushes_as() -> None:
     exists for uid" — and the backup makes its key with `ssh-keygen` and
     pushes over `ssh`.
 
-    The name is the image's answer, for whatever uid the box hands it: root's
-    group is what lets the entrypoint write the tables, which are the image's
-    own. What the script does with them is
-    `tests/system/test_the_uid_has_a_name.py`."""
-    assert service("store").get("group_add") == ["0"]
-    assert "ENTRYPOINT" in DOCKERFILE
-    assert "chmod g+w /etc/passwd /etc/group" in DOCKERFILE
+    The name is the image's answer, built in for the uid the store runs as:
+    the build arguments are the same two values `user` is made of."""
+    assert service("store")["build"]["args"] == {
+        "TC49_UID": "${TC49_UID:-1000}",
+        "TC49_GID": "${TC49_GID:-1000}",
+    }
+    assert "ARG TC49_UID=1000" in DOCKERFILE
+    assert 'useradd --uid "$TC49_UID"' in DOCKERFILE
+
+
+def test_nothing_in_the_container_can_add_a_user() -> None:
+    """The store is the one service not running as root, and a passwd table
+    it could write is one it could add root to. So the tables are written at
+    build and left as the base image has them, root's alone, and the store
+    joins no group that could change that (#570, ADR-0067)."""
+    assert "group_add" not in service("store")
+    assert "chmod g+w /etc/passwd" not in DOCKERFILE
+    assert "ENTRYPOINT" not in DOCKERFILE
 
 
 def test_the_store_does_not_ask_the_box_what_the_uid_is_called() -> None:

@@ -299,13 +299,15 @@ be made at all. The box's own passwd and group tables came into the store
 read-only for this, which answered it only on a box that keeps its people in
 those files: a mac keeps them in Open Directory, hands the store uid 501, and
 the feature was unreachable there
-([#566](https://github.com/rails49/control/issues/566)). The image's own
-tables are group-writable to root's group instead, the store is in that group,
-and `deploy/entrypoint.sh` gives whatever uid it was handed a name before the
-service's command runs. **The uid is still the person's** — nothing about
-whose the documents are changes — and a container that cannot write its tables
-says so in the deploy log and serves anyway, the backup being the one thing
-that then does not work.
+([#566](https://github.com/rails49/control/issues/566)). The image names it
+instead: compose builds it with `TC49_UID` and `TC49_GID` as build arguments,
+and the build adds a passwd and a group entry for them where the base image
+has none. The tables stay root's and read-only to the store, so nothing running
+in the container can add a user to them
+([ADR-0067](adr/0067-the-image-names-the-store-uid-at-build.md)). **The uid is
+still the person's** — nothing about whose the documents are changes. A box
+whose account changes uid gets the new name on its next deploy, which rebuilds
+the image anyway.
 
 **A box deployed before the store ran as the person is fixed by removing that
 volume once.** Docker fills a named volume from the image only while the
