@@ -127,7 +127,7 @@ value and not a contract — the id is whatever the publisher calls itself, it
 appears in no drawing, no configuration and no list of ours, and nothing but
 `layout` reads the row it keys (ADR-0059)."""
 
-HOST = "dccex-usb"
+HOST = "host.docker.internal"
 PORT = 2560
 
 WANTED = "tc49/layout/state/wanted/#"
