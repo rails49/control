@@ -321,7 +321,7 @@ The app is also constructed on the bus directly, with where the station is
 served:
 
 ```python
-DccEx(bus, "dccex-usb", 2560, startup=Path("/etc/rails49/dccex-startup.txt"))
+DccEx(bus, "host.docker.internal", 2560, startup=Path("/etc/rails49/dccex-startup.txt"))
 ```
 
 That is what `--startup` on this app's own command line does, and what the
