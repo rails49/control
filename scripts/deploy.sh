@@ -109,8 +109,9 @@ if [ ! -f "$DCCEX_STARTUP" ]; then
     "'$remedy' is run on the box" >&2
 fi
 # The uid and gid are this account's, and compose reads them as the user the
-# store and a session run as — the shell's environment wins over the
-# `--env-file` below, which is what makes exporting them here enough.
+# store and a session run as, and as the uid the image names (ADR-0067) — the
+# shell's environment wins over the `--env-file` below, which is what makes
+# exporting them here enough.
 TC49_UID=$(id -u)
 TC49_GID=$(id -g)
 export TC49_UID TC49_GID
