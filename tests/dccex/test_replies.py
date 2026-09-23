@@ -1,4 +1,4 @@
-"""What the station says, framed and read: the three facts, and everything
+"""What the station says, framed and read: the two facts, and everything
 else.
 
 The port carries the whole conversation — this app's replies, and every
@@ -55,30 +55,17 @@ def test_the_lock_is_read_off_what_the_station_broadcasts() -> None:
     assert replies.reply(b"<!RESUMED>") == replies.Lock(locked=False)
 
 
-def test_the_banner_names_the_build_the_station_is_running() -> None:
-    """The station answers `<s>` with a banner whose last field is the build
-    it was made from, and this railroad's firmware puts the release tag
-    there: the row then names exactly which build is on the box, which is
-    what makes a flash verifiable (ADR-0065)."""
-    assert replies.reply(
-        b"<iDCC-EX V-5.6.4 / ESP32 / EXCSB1_WITH_EX8874 G-v5.6.4-rails49.1>"
-    ) == replies.Build(build="v5.6.4-rails49.1")
-
-
-def test_an_older_station_names_a_commit_and_that_is_a_build_too() -> None:
-    """Firmware built from a checkout rather than a release reports the
-    commit it came from. That is still a build identifier and goes out as it
-    stands: the field is free text and this app does not interpret it."""
-    assert replies.reply(
-        b"<iDCC-EX V-5.4.16 / ESP32 / EXCSB1_WITH_EX8874 G-9db8d0e>"
-    ) == replies.Build(build="9db8d0e")
-
-
-def test_a_banner_with_no_build_in_it_names_none() -> None:
-    """A banner this app cannot read a build out of says nothing about the
-    build, and is not thereby a link failure: what the link is made of is the
-    station having answered at all."""
-    assert replies.reply(b"<iDCC-EX V-5.6.4 / ESP32>") is None
+def test_the_banner_reads_as_nothing() -> None:
+    """The banner names the build the station runs, and this app reads none
+    of it: the build left the contract with the mirror (#567). The banner
+    still raises the link, the station having answered, but that is the
+    translator's reading and not a fact out of this line."""
+    assert (
+        replies.reply(
+            b"<iDCC-EX V-5.6.4 / ESP32 / EXCSB1_WITH_EX8874 G-v5.6.4-rails49.1>"
+        )
+        is None
+    )
     assert replies.reply(b"<iDCC-EX>") is None
     assert replies.reply(b"<i>") is None
 
