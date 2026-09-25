@@ -138,9 +138,12 @@ def test_nothing_is_written_while_the_rails_are_dead() -> None:
     assert speeds(written) == []
 
 
-def test_a_throttle_for_a_train_the_app_does_not_hold_writes_nothing() -> None:
-    """A train standing nowhere this app knows of is one it will not drive:
-    the `move`'s refusal, arriving here for the `move`'s reason."""
+def test_a_throttle_drives_a_train_the_app_holds_no_position_for() -> None:
+    """Where a manual train stands is the person's to know, not this app's
+    (#579). After a restart this app holds no position until a train is
+    dispatched or dragged, and a lever that went dead for that long is a
+    person pushing it and nothing moving. The facing is still asked: it is
+    how the lever's sign reaches each car."""
     bus, _app = build()
     energised(bus)
     faces(bus, single="up_w.A-to-B")
@@ -148,7 +151,7 @@ def test_a_throttle_for_a_train_the_app_does_not_hold_writes_nothing() -> None:
     written = commanded(bus)
     turns(bus, "single", 0.6)
 
-    assert speeds(written) == []
+    assert speeds(written) == [("3", 0.6)]
 
 
 def test_a_throttle_for_a_train_with_no_facing_writes_nothing() -> None:

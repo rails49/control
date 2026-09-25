@@ -325,7 +325,7 @@ direction outright. So a person pushes forward and the train moves nose-first,
 whichever way round the locomotives are wired and however many of them there
 are.
 
-Four things drop a gesture, and none of them is answered:
+Three things drop a gesture, and none of them is answered:
 
 - **A train that is not manual.** The grant is what moves an automatic train,
   and a lever nobody is holding does not get to overtake it.
@@ -333,12 +333,16 @@ Four things drop a gesture, and none of them is answered:
   (ADR-0041). Nothing is written rather than a zero: the row holds whatever it
   last held, and a gesture that could not be acted on has said nothing about
   it.
-- **A train this app does not hold**, standing nowhere it knows of.
 - **A train it has no facing for** — none published, or one it cannot spell.
   Which **block** that facing names is not asked, where a `move` asks it: the
   sign here is the lever's own, a facing lags the train it is about — another
   app publishes it, on another topic — and a lever that went dead for as long
   as the lag lasted would be a person pulling back to stop and not being heard.
+
+**Where the train stands is not asked** (#579). A manual train is where the
+person driving it can see it, and this app holds no position after a restart
+until a train is dispatched or dragged: asking for one left the lever dead on
+a live railroad for exactly that long.
 
 ## Alignment
 

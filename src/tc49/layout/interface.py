@@ -912,7 +912,7 @@ class LayoutInterface:
         forward and the train moves nose-first, whichever way round the
         locomotives are wired and however many of them there are.
 
-        Four things drop a gesture, and none of them is an error to answer:
+        Three things drop a gesture, and none of them is an error to answer:
 
         A train that is **not manual** is not a person's to drive. The grant
         is what moves an automatic train, and a lever a nobody is holding does
@@ -923,18 +923,20 @@ class LayoutInterface:
         holds whatever the last move left, and a gesture that could not be
         acted on has said nothing about it.
 
-        A train this app **does not hold** — one standing nowhere it knows of
-        — and one with **no facing** are the `move`'s two refusals, arriving
-        here for the `move`'s reason: this app will not drive a train the rest
-        of the system is not holding the geometry of (#296). Which block the
-        facing names is not asked, and `_faces` says why.
+        A train with **no facing** is the `move`'s refusal, arriving here for
+        the `move`'s reason: without it the lever's sign cannot be composed
+        onto each car (#296). Which block the facing names is not asked, and
+        `_faces` says why. **Where the train stands is not asked either**
+        (#579): a manual train is where the person driving it can see it, and
+        this app holds no position after a restart until a train is dispatched
+        or dragged, which left the lever dead for exactly that long.
         """
         turned = wanted_throttle(payload)
         if turned is None:
             return
         if self._mode.get(turned.train) != MANUAL or self._power != ON:
             return
-        if turned.train not in self._position or self._points(turned.train) is None:
+        if self._points(turned.train) is None:
             return
         wheels = _composed(
             self._addressed(turned.train), turned.speed >= 0.0, abs(turned.speed)
