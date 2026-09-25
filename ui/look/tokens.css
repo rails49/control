@@ -18,6 +18,8 @@
   --band-ink: #ffffff;
   --rail: #064e3b;
   --rail-group: #059669;
+  --stop: #f7dcdf;
+  --stop-ink: #cc2936;
 
   /* Every button on the rail: the minimum a thumb needs. */
   --rail-button: 44px;
