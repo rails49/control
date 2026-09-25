@@ -375,8 +375,11 @@ hand would go stale the first time somebody wrote a new one.
 
 Deploying this stack for the first time after the split takes the old
 `dccex-usb` container with it, `--remove-orphans` being the flag above that
-sweeps a service this file no longer has. Bring the mirror's own project up
-first, or the railroad comes back with no station on 2560. The device is
+sweeps a service this file no longer has. Moving 2560 from that old container
+to the mirror's own project follows that project's
+[`docs/cutover.md`](https://github.com/rails49/dccex/blob/main/docs/cutover.md):
+the order of the steps, when to stop, how to go back, and the checks. They are
+not repeated here. The device is
 named by
 
 ```
