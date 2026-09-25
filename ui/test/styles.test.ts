@@ -274,7 +274,7 @@ describe("what a pane paints its ground with", () => {
 /**
  * The values the look rules bind, against the copy they came from (#548).
  *
- * Four colours and two sizes are one system across rails49's UIs
+ * Six colours and two sizes are one system across rails49's UIs
  * ([ADR-0003](https://github.com/rails49/.github/blob/main/docs/adr/0003-the-look-rules-bind-place-colour-and-small-screens-not-code.md)),
  * and this app keeps them in its own form: the colours in the table that holds
  * every other colour it draws with, the sizes beside them as numbers a media
@@ -299,10 +299,14 @@ describe("the values the look rules bind", () => {
     ].map(([, name, value]) => [name!, value!.trim()]),
   );
 
+  /** The colours among them: the chrome's, which keep one value in both
+   *  themes. */
+  const chrome = Object.keys(bound).filter((name) => bound[name]!.startsWith("#"));
+
   /** Every token in the copy, so that one added over there fails here rather
    *  than passing unnoticed: a value this app has not followed yet is the
    *  whole point of keeping the copy. */
-  it("are the six the copy holds", () => {
+  it("are the eight the copy holds", () => {
     expect(Object.keys(bound).sort()).toEqual([
       "--band",
       "--band-ink",
@@ -310,13 +314,25 @@ describe("the values the look rules bind", () => {
       "--rail-button",
       "--rail-group",
       "--rail-turns",
+      "--stop",
+      "--stop-ink",
     ]);
   });
 
   it("paint the band and the rail", () => {
-    for (const token of ["--band", "--band-ink", "--rail", "--rail-group"]) {
+    for (const token of chrome) {
       expect(COLOURS[token], token).toBe(bound[token]);
     }
+  });
+
+  /** STOP and every fault on the band are drawn with the copy's red and
+   *  nothing else, so the band's red is the same one in both themes and in
+   *  every app (#582). */
+  it("are the only red the band draws with", () => {
+    const flat = headerStyles.cssText.replace(/\s+/g, "");
+    expect(flat).toContain("background:var(--stop)");
+    expect(flat).toContain("color:var(--stop-ink)");
+    expect(flat).not.toMatch(/var\(--wrong/);
   });
 
   it("turn the rail into a strip at the height the copy gives", () => {
@@ -338,11 +354,10 @@ describe("the values the look rules bind", () => {
 
   /** The chrome keeps one value in both themes and the work pane follows the
    *  theme, which is the division LOOK.md draws and this is it in code: the
-   *  four colours the copy binds have no dark value, and every other colour
+   *  six colours the copy binds have no dark value, and every other colour
    *  the app draws with has one. A colour added to the palette without one
    *  fails here rather than painting in its light value on a dark page. */
   it("are the colours that keep one value in both themes", () => {
-    const chrome = ["--band", "--band-ink", "--rail", "--rail-group"];
     for (const name of Object.keys(COLOURS)) {
       expect(name in DARK, `${name} in the dark palette`).toBe(
         !chrome.includes(name),
@@ -491,12 +506,13 @@ describe("the two weights a fault is marked in", () => {
   });
 
   /** The band's indicator is the coarse counterpart to the canvas's marks and
-   *  shows only for what stopped derivation, so it wears that weight (#91). An
-   *  overlap and a missing address leave it clean, and nothing there should
-   *  ever read in the quiet one. */
+   *  shows only for what stopped derivation, so it wears that weight (#91) —
+   *  in the chrome's red, which is the light theme's and stays put on a dark
+   *  page (#582). An overlap and a missing address leave it clean, and nothing
+   *  there should ever read in the quiet one. */
   it("marks the band in the weight that stops derivation", () => {
     const mark = rule(headerStyles.cssText, ".refused");
-    expect(mark).toContain("var(--wrong)");
+    expect(mark).toContain("var(--stop-ink)");
     expect(mark).not.toContain("var(--unfinished)");
   });
 

@@ -14,8 +14,8 @@ import { dismiss, menuBox, menuRow, menuRowChosen } from "./shared.styles.js";
 const alarm = css`
   padding: 0 0.35rem;
   border-radius: 0.2rem;
-  background: var(--wrong-body);
-  color: var(--wrong);
+  background: var(--stop);
+  color: var(--stop-ink);
 `;
 
 /**
@@ -198,8 +198,8 @@ export const headerStyles = css`
      the press a hand reaches for without reading, and the one whose cost of
      being pressed late is a train on the floor. */
   button.press.stopped {
-    border-color: var(--wrong-body);
-    color: var(--wrong-body);
+    border-color: var(--stop);
+    color: var(--stop);
   }
 
   /* Where the supply stands, marked on the press that names it: the same mark
@@ -216,9 +216,9 @@ export const headerStyles = css`
      mark above. */
   button.press.stopped.at,
   button.press.off.at {
-    background: var(--wrong-body);
-    border-color: var(--wrong-body);
-    color: var(--wrong);
+    background: var(--stop);
+    border-color: var(--stop);
+    color: var(--stop-ink);
   }
 
   /* Nothing to command, or the press would be swallowed: a dead button and

@@ -276,6 +276,12 @@ export const COLOURS: Record<string, string> = {
   "--band-ink": "#ffffff",
   "--rail": "#064e3b",
   "--rail-group": "#059669",
+  // Red on the chrome, which means stop or a fault and nothing else: STOP on
+  // the band and the chips a fault reads as there. The same values as the
+  // light theme's --wrong-body and --wrong, but these stay put on a dark page
+  // (#582).
+  "--stop": "#f7dcdf",
+  "--stop-ink": "#cc2936",
 };
 
 /**
@@ -283,11 +289,11 @@ export const COLOURS: Record<string, string> = {
  *
  * Both Shoelace themes are linked and `prefers-color-scheme` decides, with no
  * toggle in the page (LOOK.md, ADR-0003). The work pane follows that; the
- * chrome does not, which is why the band and the rail have no entry here — they
- * are what says *this is the same project* as a person moves between the
- * project's apps, and a colour that moved with the theme would say it twice
- * over. `test/styles.test.ts` asserts that division against the copy: every
- * colour that is not one of the four has a value here.
+ * chrome does not, which is why the band, the rail and their red have no
+ * entry here — they are what says *this is the same project* as a person
+ * moves between the project's apps, and a colour that moved with the theme
+ * would say it twice over. `test/styles.test.ts` asserts that division against the copy: every
+ * colour that is not one of the six has a value here.
  *
  * The values are not inversions. Track and ink swap ends, because the paper
  * does; a signal lamp, a route's green and cyan, and the two weights a fault is

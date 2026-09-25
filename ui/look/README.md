@@ -9,8 +9,8 @@ What each token means and who is bound by it is
 there.
 
     source   rails49/.github, docs/tokens.css
-    commit   c91e9bea6680808edab65675998ab49ea6309cd3
-    copied   2026-09-21, from that repository at 710f23fe
+    commit   eead9fc5afb75a971acb1d3979aad83802a14f16
+    copied   2026-09-25, from that repository at eead9fc5
 
 The commit is the pin: the one that last wrote the file, so that diffing this
 copy against it is a diff of the same thing. Nothing is installed and nothing
