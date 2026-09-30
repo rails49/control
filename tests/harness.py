@@ -19,6 +19,7 @@ from tc49.bench.runner import (
     assemble_live,
     find_assets,
     find_root,
+    railroad,
     run_scenario,
 )
 from tc49.bench.runner import load as load_scenario
@@ -35,6 +36,7 @@ __all__ = [
     "RUN_WANTED",
     "Assembly",
     "StrategyFactory",
+    "a_railroad",
     "build",
     "catalogued",
     "events",
@@ -117,6 +119,17 @@ def railroads() -> list[str]:
     is not its own.
     """
     return AssetStore(ASSETS).list()
+
+
+def a_railroad() -> tuple[Layout, Roster]:
+    """Some railroad this checkout has: its layout and the stock it owns.
+
+    The pair a suite that does not care which railroad it runs on is handed:
+    `railroads()` above picks the name, and this is what a run is built from
+    (#171). It stood in `tests/bench/physical.py` beside the harness for a
+    run on the physical binding, and outlived it (#587).
+    """
+    return railroad(AssetStore(ASSETS), railroads()[0])
 
 
 def stock(**lengths: int) -> Roster:

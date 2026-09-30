@@ -36,9 +36,8 @@ from tc49.lib.bus import Payload
 from tc49.lib.layout import Layout
 from tc49.lib.mqtt import MqttBus
 from tc49.store.server import make_server
-from tests.bench.physical import a_railroad
 from tests.brokers import Broker, drained, settle, until
-from tests.harness import ASSETS, railroads
+from tests.harness import ASSETS, a_railroad, railroads
 from tests.ports import free_port
 
 PERIOD_S = 0.01
