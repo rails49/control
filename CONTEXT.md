@@ -29,7 +29,9 @@ is a headshunt rather than a contradiction. Absent it, a block is a station
 ([ADR-0046](docs/adr/0046-a-blocks-role-and-filter-are-advice-to-the-generator.md)).
 **Station** is this role and nothing else here: the app that owns the command
 station's USB device and mirrors it on TCP 2560 is `dccex-usb`, and it lives
-in [`rails49/dccex`](https://github.com/rails49/dccex) rather than here.
+in [`rails49/dccex`](https://github.com/rails49/dccex) rather than here. So
+does the **translator** that speaks to that station, `dccex`, which was an app
+of this repository until #587.
 _Avoid_: transient (one letter from **transit**), type, category, purpose
 
 **Admits**:
