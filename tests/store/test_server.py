@@ -34,8 +34,8 @@ def store(tmp_path: Path) -> AssetStore:
 
 @pytest.fixture
 def backup(tmp_path: Path) -> Backup:
-    """The backup over the same root. Every route below is a drawing's or a
-    roster's, and what a save does to it is arm a timer nothing here lets
+    """The backup over the same root. Every route below is a drawing's, a
+    roster's or a script's, and what a save does is arm a timer nothing here lets
     fire: the store is no git repository and automation is off, which is the
     state a fresh installation is in."""
     return Backup(tmp_path, log=lambda _: None)
@@ -364,6 +364,74 @@ def test_a_model_cannot_be_saved_under_another_name(
     assert status == 400
     assert "re460" in body["error"]
     assert handle(store, backup, "GET", "/catalogue", None)[1] == {"models": {}}
+
+
+SCRIPT = 'def point(addr: str) -> str:\n\treturn f"<T {addr} 1>"  # kürzer\\n'
+"""A script with everything a JSON round trip can lose: quotes, a backslash
+that is not an escape, a tab, non-ASCII and no trailing newline."""
+
+
+def test_a_script_is_written_and_read_back(tmp_path: Path, backup: Backup) -> None:
+    """The route is the document, so `GET` and `PUT` are inverses here as they
+    are on a roster — and the text comes back as it went in, because it is
+    source the translator loads and nothing in the store reads it.
+
+    Under a railroad with no drawing, as a roster's `PUT` is: a box is
+    commissioned before anybody has drawn it."""
+    store = AssetStore(tmp_path)
+    doc = {"script": "shed", "text": SCRIPT}
+    assert handle(store, backup, "PUT", "/scripts/shed", doc) == (
+        200,
+        {"saved": "shed"},
+    )
+    assert handle(store, backup, "GET", "/scripts/shed", None) == (
+        200,
+        {"script": "shed", "text": SCRIPT},
+    )
+
+
+def test_a_railroad_with_no_script_is_not_found(
+    store: AssetStore, backup: Backup
+) -> None:
+    """A translator handed nothing has nothing to run, and an empty document
+    would read as a railroad whose script says nothing."""
+    status, body = handle(store, backup, "GET", "/scripts/crossover-yard", None)
+    assert status == 404
+    assert "crossover-yard" in body["error"]
+
+
+def test_a_script_must_name_the_railroad_it_is_saved_under(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """The name in the path is the railroad the translator asks for, so a
+    document naming another one is refused rather than filed under this."""
+    store = AssetStore(tmp_path)
+    status, body = handle(
+        store, backup, "PUT", "/scripts/shed", {"script": "yard", "text": SCRIPT}
+    )
+    assert status == 400
+    assert "yard" in body["error"]
+    assert not (tmp_path / "layouts").exists()
+
+
+def test_a_script_document_carries_text_and_nothing_else_will_do(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Every way the document can be wrong, and none of them writes a file:
+    the store keeps text it never reads, so the shape is the whole of what it
+    can check."""
+    store = AssetStore(tmp_path)
+    for body in (None, [SCRIPT], {"script": "shed"}, {"script": "shed", "text": 3}):
+        assert handle(store, backup, "PUT", "/scripts/shed", body)[0] == 400
+    assert not (tmp_path / "layouts").exists()
+
+
+def test_a_name_with_a_slash_in_it_is_no_script_route(
+    store: AssetStore, backup: Backup
+) -> None:
+    """As for a drawing and a model: one script per railroad, and nothing
+    hangs below it."""
+    assert handle(store, backup, "GET", "/scripts/crossover-yard/meet", None)[0] == 404
 
 
 def test_the_layout_a_drawing_derives_to_is_served(
@@ -895,6 +963,23 @@ def test_saving_a_roster_arms_the_idle_timer(
         "trains": {"t1": {"cars": [{"car": "t1_car"}]}},
     }
     assert handle(store, driven, "PUT", "/rosters/facing-pair-2", doc)[0] == 200
+    assert [call for call in driving.calls if call[0] == "commit"] == []
+
+    clock[0] += 20.0
+    driven.due()
+    assert [call[0] for call in driving.calls if call[0] == "commit"] == ["commit"]
+
+
+def test_saving_a_script_arms_the_idle_timer(
+    store: AssetStore, driven: Backup, driving: FakeGit, clock: list[float]
+) -> None:
+    """A script written over the route is a document of the store that moved,
+    so it arms the timer the way a drawing, a model and a roster do: the
+    translator's script is backed up and restored with everything else and
+    not by itself (#586)."""
+    driven.switch(True)
+    doc = {"script": "facing-pair-2", "text": SCRIPT}
+    assert handle(store, driven, "PUT", "/scripts/facing-pair-2", doc)[0] == 200
     assert [call for call in driving.calls if call[0] == "commit"] == []
 
     clock[0] += 20.0
