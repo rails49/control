@@ -196,10 +196,11 @@ services:
       - keys:/keys
     command:
       ["tc49", "serve", "--host", "0.0.0.0", "--store", "/store", "--keys", "/keys"]
-    # The store's six path prefixes, on the app's own origin. They are the
-    # store's own list and nothing else's, which is the point of stating them
-    # here: `tests/system/test_store_routes_are_proxied.py` reads them off the
-    # server's route list and holds every place a request has to pass to it.
+    # The path prefixes pages call, on the app's own origin. They are not the
+    # store's whole list: a prefix only apps call reaches no browser, so it is
+    # named `SERVER_SIDE` in `tests/system/test_store_routes_are_proxied.py`
+    # rather than here. That test reads the prefixes off the server's route
+    # list and holds every place a request has to pass to it.
     labels:
       - traefik.enable=true
       - traefik.docker.network=rails49
