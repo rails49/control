@@ -1,10 +1,11 @@
 """Which railroad an app is running, and what moves it (ADR-0060).
 
 Two followers of one shape. `Loaded` watches `tc49/layout/state/railroad`,
-which is the five apps that are told; `Answering` watches
-`tc49/layout/railroad_wanted`, which is the binding of the layout interface
-that is running — the one app bound to a railroad, the writer of that row,
-and so the one that answers the picker rather than following it.
+which is the apps that are told (the scheduler, the dispatcher and the
+driver); `Answering` watches `tc49/layout/railroad_wanted`, which is the
+binding of the layout interface that is running — the one app bound to a
+railroad, the writer of that row, and so the one that answers the picker
+rather than following it.
 
 Under both of them, the railroad an app is **built on**: the one it was
 started on where the store has it, and otherwise whatever the bus names next,
@@ -12,8 +13,8 @@ the app standing with no railroad until then (#564).
 
 At the bus seam and in one process, because what is under test is the rules
 each applies to a payload and not the containers around them:
-`tests/system/test_reload.py` is where the six of them are started and a
-railroad is loaded under them for real.
+`tests/system/test_reload.py` is where the apps are started and a railroad
+is loaded under them for real.
 """
 
 import threading
