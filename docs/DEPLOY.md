@@ -402,7 +402,8 @@ no document ([#217](https://github.com/rails49/control/issues/217)), the file
 of raw station commands is the translator's, and the translator is
 [`rails49/dccex`](https://github.com/rails49/dccex) (#587). Which file it is,
 how it is mounted, what may go in it and how a limit is changed are that
-project's page. What is left here is the operational consequence of the split,
+project's page,
+[`docs/dccex/README.md`](https://github.com/rails49/dccex/blob/main/docs/dccex/README.md#the-startup-file). What is left here is the operational consequence of the split,
 the same one the mirror's had: the first deploy after it takes the old
 translator container with it, `--remove-orphans` above sweeping a service this
 file no longer has, and the trip currents on the box are left alone for that

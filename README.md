@@ -46,7 +46,8 @@ Each app's implementation details live beside it:
   vocabulary the hardware hangs under. The translator between that vocabulary
   and a command station is no app of this repository's: it was until #587 and
   is [`rails49/dccex`](https://github.com/rails49/dccex) now, a client of this
-  bus like any other.
+  bus like any other; its page there is
+  [`docs/dccex/README.md`](https://github.com/rails49/dccex/blob/main/docs/dccex/README.md).
 - [UI](docs/ui) — one app with four views of the loaded railroad, the [layout
   editor](docs/ui/EDITOR.md), the [run view](docs/ui/PANEL.md), the
   [throttle](docs/ui/THROTTLE.md) a person drives a train from and the [stock

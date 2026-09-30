@@ -452,8 +452,9 @@ that was seconds away. Nothing republishes a retained row for a late reader.
 **physical binding** — the `layout` app with the `dccex` translator beside
 it, where a simulated box runs `simulator` instead
 ([layout](../layout/README.md),
-[rails49/dccex](https://github.com/rails49/dccex), which is where the
-translator lives) — and the railroad is then the station's, a
+[`docs/dccex/README.md`](https://github.com/rails49/dccex/blob/main/docs/dccex/README.md) in
+[`rails49/dccex`](https://github.com/rails49/dccex), where the translator
+lives) — and the railroad is then the station's, a
 station being one physical railroad. It is required on the command line for
 the same reason: the
 railroad is not the first client to connect's to pin. Ctrl-C sends zero to

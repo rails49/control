@@ -37,7 +37,9 @@ over by hand.
   is mirrored on so that other software and hand-held throttles reach the same
   station. Both it and the mirror are
   [`rails49/dccex`](https://github.com/rails49/dccex) and no app of this
-  repository's, the translator having left with #587 and the mirror with #567.
+  repository's, the translator having left with #587 and the mirror with #567;
+  the translator's page is
+  [`docs/dccex/README.md`](https://github.com/rails49/dccex/blob/main/docs/dccex/README.md).
   A translator publishes its own link as
   observed state, which is where verifying a physical connection belongs — at
   runtime, not in a gate that would need a powered layout.
