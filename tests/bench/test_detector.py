@@ -30,7 +30,7 @@ from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import DEVICE_TOPICS
 from tc49.lib.layout import Layout, block_of, opposite_end
-from tests.bench.physical import a_railroad
+from tests.harness import a_railroad
 
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
