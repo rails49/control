@@ -327,7 +327,7 @@ without a restart ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run
 so the rows of the railroad that left have to be gone rather than merely
 added to, which is what a page opened afterwards would read. The third reads
 `deploy/compose.yaml`: one service per app, none ordered after another, and
-the hardware a box owns in a profile of its own. `tests/apps.py` is what all
+no service claiming a device. `tests/apps.py` is what all
 three start their processes with.
 
 pytest, with Hypothesis for the deadlock hunt. **All four properties drive

@@ -296,15 +296,14 @@ services:
        "--railroad", "${TC49_RAILROAD:-}",
        "--store", "http://store:8765"]
 
-  # A translator was the sixth service and the only one in the `hardware`
-  # profile: the device vocabulary turned into the command station's own
-  # language, over the mirror rather than the device (ADR-0043). It is
-  # `rails49/dccex` now, a stack of its own on the same box with the mirror
-  # (#587), and it is given this installation's per-district trip currents
-  # there — the file under `/etc/rails49` that was mounted here is that
-  # project's to make and to mount. The profile is kept for whatever hangs
-  # under `layout` by address next, and the deploy's `--remove-orphans` takes
-  # the container this file used to start (docs/DEPLOY.md).
+  # A translator was the sixth service: the device vocabulary turned into the
+  # command station's own language, over the mirror rather than the device
+  # (ADR-0043). No translator is this repository's — that one and the mirror
+  # are `rails49/dccex`, a stack of its own on the same box (#587) — and it is
+  # given this installation's per-district trip currents there, the file under
+  # `/etc/rails49` that was mounted here being that project's to make and to
+  # mount. The deploy's `--remove-orphans` takes the container this file used
+  # to start (docs/DEPLOY.md).
 
 # The one network every stack on the box shares, created by the installation
 # under a fixed name four repositories hardcode and joined here by the three

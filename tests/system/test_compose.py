@@ -10,13 +10,13 @@ on the store answering, which is not the same thing and is not what any of
 them was written to survive.
 
 So the file is read here and four rules are asserted on what it says: one
-service per app, no app run twice, nothing ordered, and the hardware a box
-owns in a profile of its own. The last is what makes one file both boxes':
-`docker compose up` on a machine with no steel under it starts nothing that
-claims a device, and a box wired to a command station asks for that profile
-by name. Nothing is in that profile today — the translator that spoke to the
-command station was, and is [`rails49/dccex`](https://github.com/rails49/dccex)
-now (#587) — so what is left of the rule is that nothing else may be.
+service per app, no app run twice, nothing ordered, and no service claiming a
+device. The last is what makes one file both boxes': `docker compose up` on a
+machine with no steel under it starts nothing that reaches for a cable,
+because nothing here reaches for one at all. The services that did were
+translators, and no translator is this repository's — each lives in a
+repository of its own, as the one that spoke to the command station does in
+[`rails49/dccex`](https://github.com/rails49/dccex) (#587, #595).
 """
 
 from itertools import pairwise
@@ -36,20 +36,6 @@ the command line each app's `__main__` parses."""
 FACE = ("tc49", "serve")
 """The one app started by name rather than by module: the store's face is a
 subcommand of the `tc49` script, which is what a wheel installs (ADR-0014)."""
-
-HARDWARE: frozenset[str] = frozenset()
-"""The services that exist because of what is wired to a box, listed here
-because hardware is a fact about a machine rather than something readable off
-a command line — what puts a service here is a cable, not a flag.
-
-It is empty, and the profile is kept for the next translator that hangs under
-`layout` by address (ADR-0043). Three services have left it: JMRI with #557,
-an operator's tool with a compose project of its own (rails49/installation
-ADR-0002); the mirror that owns the command station's device with #567; and
-the translator that spoke to the station over the 2560 the mirror publishes
-with #587. The last two are `rails49/dccex`."""
-
-PROFILE = "hardware"
 
 
 def services() -> dict[str, dict[str, Any]]:
@@ -133,34 +119,13 @@ def test_nothing_depends_on_anything() -> None:
     )
 
 
-def test_the_hardware_services_are_in_a_profile_of_their_own() -> None:
-    """The hardware a box owns is that box's choice: the services that answer
-    for it are in the `hardware` profile, that profile holds nothing else,
-    and none of them is in a second profile that would bring it up on a
-    machine with no cable in it. With the list empty what it holds is the
-    second half: a service that is not hardware's may not be in there."""
-    found = services()
-    elsewhere = sorted(
-        name
-        for name in HARDWARE
-        if list(found[name].get("profiles") or []) != [PROFILE]
-    )
-    assert not elsewhere, f"{elsewhere} are hardware and not that profile alone"
-    software = sorted(
-        name
-        for name, service in found.items()
-        if name not in HARDWARE and PROFILE in (service.get("profiles") or [])
-    )
-    assert not software, f"{software} are not hardware and are in '{PROFILE}'"
-
-
-def test_nothing_owns_a_device_outside_that_profile() -> None:
-    """The rule underneath the list above, read off the file rather than off
-    a name: a service that claims a device claims one this machine may not
-    have, so it can only be in the profile a person asks for by name."""
+def test_nothing_claims_a_device() -> None:
+    """A service that claims a device claims one the box it comes up on may
+    not have, and nothing here answers for what is wired to a box: the
+    services that did were translators and a device mirror, and each of those
+    is a repository of its own (#595). Read off the file rather than off a
+    name, so a `devices:` written back fails here whatever it is called."""
     loose = sorted(
-        name
-        for name, service in services().items()
-        if service.get("devices") and PROFILE not in (service.get("profiles") or [])
+        name for name, service in services().items() if service.get("devices")
     )
-    assert not loose, f"{loose} own a device outside '{PROFILE}'"
+    assert not loose, f"{loose} claim a device; no service here owns hardware"
