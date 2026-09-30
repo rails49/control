@@ -180,6 +180,8 @@ def document(path: str) -> str:
             return name.removesuffix(".drawing.yaml")
         if name.endswith(".roster.yaml"):
             return f"{name.removesuffix('.roster.yaml')} roster"
+        if name.endswith(".script.py"):
+            return f"{name.removesuffix('.script.py')} script"
     if path.startswith("catalogue/") and path.endswith(".yaml"):
         return f"{path.removeprefix('catalogue/').removesuffix('.yaml')} model"
     if path.startswith("scenarios/") and path.endswith(".scenario.yaml"):

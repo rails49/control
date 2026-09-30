@@ -300,6 +300,27 @@ def test_a_roster_file_must_name_the_railroad_it_is_filed_under(
         scratch_store.roster("crossover-yard")
 
 
+def test_a_script_is_filed_beside_the_railroads_drawing(
+    scratch_store: AssetStore, tmp_path: Path
+) -> None:
+    """The translator's script is the railroad's, so it is filed under the
+    railroad's name where its drawing and its roster are, and it comes back as
+    it went in: the store keeps text it never reads."""
+    text = 'def turnout(addr: str) -> str:\n\treturn f"<T {addr}>"  # kürzer\\n'
+    scratch_store.put_script(text, "crossover-yard")
+
+    assert (tmp_path / "layouts" / "crossover-yard.script.py").exists()
+    assert scratch_store.script("crossover-yard") == text
+
+
+def test_a_railroad_with_no_script_has_none(scratch_store: AssetStore) -> None:
+    """Unlike a roster, which answers empty: a railroad owning no stock yet is
+    an ordinary state a screen draws, and a translator handed no script has
+    nothing to run and has to hear so."""
+    with pytest.raises(FileNotFoundError):
+        scratch_store.script("crossover-yard")
+
+
 def test_a_scenario_may_only_place_trains_the_roster_has(
     scratch_store: AssetStore,
 ) -> None:
