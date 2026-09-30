@@ -22,9 +22,11 @@ not a binding, so an app that exited over one was treating it as binding —
 and on a box whose store is empty, which is an ordinary state and not a fault
 (docs/DEPLOY.md), that was four containers in a restart loop (#564).
 
-This module is the seam the six apps share: the two topics, the follower that
-watches the row, the **answerer** that watches the gesture behind it, the
-documents an app comes up on and the ones it is rebuilt on, and the clearing.
+This module is the seam the apps share: the two topics, the follower that
+watches the row (the scheduler, the dispatcher and the driver), the
+**answerer** that watches the gesture behind it (`layout` or `simulator`,
+whichever binding of the layout interface is running), the documents an app
+comes up on and the ones it is rebuilt on, and the clearing.
 An app's `__main__` names the filters it owns and what it reads, and nothing
 else here knows either — what a row is about is the app's business, and the
 rule is only that it is the row's owner who drops it.
@@ -151,10 +153,10 @@ class Answering(Loaded):
     binding of the layout interface, which is the one app bound to a railroad
     and the writer of the state row (ADR-0060).
 
-    It follows `tc49/layout/railroad_wanted` where the five other apps follow
-    the state row. Loading is the same cold start either way — the rows this
-    app owns go and it is built again — so everything below `moved` is
-    `Loaded`'s and only what moves it differs.
+    It follows `tc49/layout/railroad_wanted` where the scheduler, the
+    dispatcher and the driver follow the state row. Loading is the same cold
+    start either way — the rows this app owns go and it is built again — so
+    everything below `moved` is `Loaded`'s and only what moves it differs.
 
     **Track power off is the precondition, for a binding that drives
     hardware.** The gesture is answered where `tc49/layout/state/power` reads
@@ -292,13 +294,14 @@ def standing[Read](
     app that cannot hear the row has nothing to stand for. `lib/startup.py`
     states that order.
 
-    What is watched is `loaded`'s own: the row for the five apps that follow
-    it, the gesture for the binding of the layout interface that answers it,
-    and neither is this function's business. The subscription is dropped at
-    the top of each turn and before the documents are read, so that the app
-    built next subscribes once and on its own terms — and so that a railroad
-    named while the store is being read cannot leave this returning one
-    railroad's documents under another's name.
+    What is watched is `loaded`'s own: the row for the scheduler, the
+    dispatcher and the driver, which follow it, and the gesture for the
+    binding of the layout interface that answers it — neither of which is
+    this function's business. The subscription is dropped at the top of each
+    turn and before the documents are read, so that the app built next
+    subscribes once and on its own terms — and so that a railroad named while
+    the store is being read cannot leave this returning one railroad's
+    documents under another's name.
     """
     while not stop.is_set():
         bus.forget()
