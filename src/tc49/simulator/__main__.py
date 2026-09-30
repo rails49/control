@@ -135,16 +135,16 @@ def serve(
         return
     log(f"'{loaded.name}': {len(layout.blocks)} blocks")
     while not stop.is_set():
-        # Before the app's opening rows and not after, where the five apps
-        # that follow the state row subscribe afterwards: what this one
-        # watches is a **gesture**, and an event is not retained, so a press
-        # landing in the instant between the rows and the subscription would
-        # simply be gone (ADR-0059, decision 5). It also picks up the supply
-        # this app is about to state, which is the precondition on the
-        # gesture — and simulated rails are always live, so what this
-        # binding hears is `on` and the gesture is refused. A power cut is a
-        # physical act, and simulating one would be the branch ADR-0030
-        # keeps out of every app (ADR-0060).
+        # Before the app's opening rows and not after, where the scheduler,
+        # the dispatcher and the driver subscribe to the state row
+        # afterwards: what this one watches is a **gesture**, and an event is
+        # not retained, so a press landing in the instant between the rows
+        # and the subscription would simply be gone (ADR-0059, decision 5).
+        # It also picks up the supply this app is about to state, which is
+        # the precondition on the gesture — and simulated rails are always
+        # live, so what this binding hears is `on` and the gesture is
+        # refused. A power cut is a physical act, and simulating one would
+        # be the branch ADR-0030 keeps out of every app (ADR-0060).
         loaded.follow(bus)
         clock = Clock()
         simulator = Simulator(bus, layout, clock, transit_s=transit_s, clear_s=clear_s)

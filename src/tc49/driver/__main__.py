@@ -11,14 +11,15 @@ holds no state and reads no assets (SYSTEM.md, driver footprint), the grant
 and the two speeds being between them every field `move` needs. The railroad's
 name is here because one broker runs one railroad and every app process is
 given its name at start (ADR-0059, decision 2); the driver holds nothing keyed
-to a railroad, so the name is what a person watching six containers reads and
+to a railroad, so the name is what a person watching the containers reads and
 nothing this app looks anything up by. It is the one app that comes up with
-**no railroad at all** and says so, a box having named none: the four that
-read documents stand until one is named and this one has nothing to stand for
-(#564, `lib/loading.py`). The drain period is not a flag either —
-nothing outside this process has an opinion about how often it takes what the
-broker's network thread left waiting, and it is short enough that a grant is
-commanded in the same tenth of a second whoever started the container.
+**no railroad at all** and says so, a box having named none: the scheduler,
+the dispatcher, `layout` and `simulator` read documents and stand until one
+is named, and this one has nothing to stand for (#564, `lib/loading.py`).
+The drain period is not a flag either — nothing outside this process has an
+opinion about how often it takes what the broker's network thread left
+waiting, and it is short enough that a grant is commanded in the same tenth
+of a second whoever started the container.
 
 The startup order is `lib/startup.py`'s, shortened at both ends. **No
 documents**, so nothing to wait for from the store: an app that reads nothing

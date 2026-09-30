@@ -80,7 +80,8 @@ def address(text: str) -> tuple[str, int]:
 
     Here rather than in an app, because every app has the same flag: each one
     comes up alone against a broker somebody named on its command line
-    (ADR-0059 decision 5), and a parser per app would be six copies of this.
+    (ADR-0059 decision 5), and a parser per app would be a copy of this in
+    each of them.
 
     One argument and not two, because an address is one thing a person copies
     or a compose file states. The port is split off the right, so an IPv6 host

@@ -134,13 +134,13 @@ def serve(
     layout, roster = read
     log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
     while not stop.is_set():
-        # First of all, where the five apps that follow the state row
-        # subscribe after they are built: what this one watches is a
-        # **gesture**, and an event is not retained, so a press landing
-        # anywhere before the subscription — in the window below, or between
-        # the app's opening rows and its own handlers — would simply be gone
-        # (ADR-0059, decision 5). It also picks up the supply this app is
-        # about to state, which is the precondition on the gesture.
+        # First of all, where the scheduler, the dispatcher and the driver
+        # subscribe to the state row after they are built: what this one
+        # watches is a **gesture**, and an event is not retained, so a press
+        # landing anywhere before the subscription — in the window below, or
+        # between the app's opening rows and its own handlers — would simply
+        # be gone (ADR-0059, decision 5). It also picks up the supply this
+        # app is about to state, which is the precondition on the gesture.
         loaded.follow(bus)
         _retained(bus, stop)
         clock = Clock()
