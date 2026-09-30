@@ -75,6 +75,14 @@ const sheets: Record<string, CSSResult> = {
   throttleStyles,
 };
 
+/** The block of a rule, by its selector, out of a sheet's text. */
+function rule(sheet: string, selector: string): string {
+  const escaped = selector.replace(/[.]/g, "\\.");
+  const found = sheet.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
+  expect(found, `no rule for ${selector}`).not.toBeNull();
+  return found![1]!;
+}
+
 /**
  * The limit, executable (#132): a block only one component wears is that
  * component's own and does not belong in the shared module. Mechanical and
@@ -452,14 +460,6 @@ describe("the two colours a route's state is read in", () => {
  * without an address — takes the same mark.
  */
 describe("the two weights a fault is marked in", () => {
-  /** The block of a rule, by its selector, out of a sheet's text. */
-  function rule(sheet: string, selector: string): string {
-    const escaped = selector.replace(/[.]/g, "\\.");
-    const found = sheet.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
-    expect(found, `no rule for ${selector}`).not.toBeNull();
-    return found![1]!;
-  }
-
   it("are two colours, not one used twice", () => {
     expect(COLOURS["--unfinished"]).toBeDefined();
     expect(COLOURS["--unfinished"]).not.toBe(COLOURS["--wrong"]);
