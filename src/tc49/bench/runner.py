@@ -14,7 +14,6 @@ when the translator left for [`rails49/dccex`](https://github.com/rails49/dccex)
 """
 
 import io
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -166,20 +165,6 @@ class Assembly:
         engine itself goes through — the batch loop, and a live loop a test
         paces turn by turn rather than on a wall clock."""
         return self.simulator
-
-    def run(
-        self,
-        period_s: float,
-        sleep: Callable[[float], None] = time.sleep,
-        stop: Callable[[], bool] = lambda: False,
-    ) -> None:
-        """Work this run on a wall clock until `stop`: the simulator's
-        discrete-event queue, slept on that clock.
-
-        `sleep` is how a caller cuts a pending transit delay short when the
-        panel names another railroad.
-        """
-        self.simulator.run_live(period_s, sleep=sleep, stop=stop)
 
 
 def assemble(
