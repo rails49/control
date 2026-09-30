@@ -64,7 +64,7 @@ def tick_until(assembly: Assembly, done: Callable[[], bool], limit: int = 50) ->
         ticks += 1
         return done() or ticks > limit
 
-    assembly.simulation.run_live(3600.0, sleep=lambda _: None, stop=stop)
+    assembly.simulator.run_live(3600.0, sleep=lambda _: None, stop=stop)
 
 
 def reason(assembly: Assembly, rid: str) -> str:

@@ -36,7 +36,7 @@ def tick_until(assembly: Assembly, done: Callable[[], bool], limit: int = 60) ->
         ticks += 1
         return done() or ticks > limit
 
-    assembly.simulation.run_live(3600.0, sleep=lambda _: None, stop=stop)
+    assembly.simulator.run_live(3600.0, sleep=lambda _: None, stop=stop)
 
 
 def replayed() -> Assembly:
@@ -169,7 +169,7 @@ def test_the_replayed_run_is_the_one_the_document_produced() -> None:
     """
     layout, roster, scenario = load(SCENARIO)
     document = assemble(layout, roster, scenario, Incremental)
-    document.simulation.run()
+    document.simulator.run()
 
     replay = replayed()
 

@@ -159,13 +159,6 @@ class Assembly:
     def trace(self) -> str:
         return self._out.getvalue()
 
-    @property
-    def simulation(self) -> Simulator:
-        """The simulator this run is bound to: what a caller that wants the
-        engine itself goes through — the batch loop, and a live loop a test
-        paces turn by turn rather than on a wall clock."""
-        return self.simulator
-
 
 def assemble(
     layout: Layout,
@@ -275,5 +268,5 @@ def run_scenario(
 ) -> str:
     """Wire everything on one bus, run to quiescence, return the trace."""
     assembly = assemble(layout, roster, scenario, make_strategy, k)
-    assembly.simulation.run(event_limit)
+    assembly.simulator.run(event_limit)
     return assembly.trace
