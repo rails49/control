@@ -87,18 +87,18 @@ class HandFed:
     retype.
 
     Lines are read on **a thread of its own** and published on the loop's.
-    A blocking read is not something the physical branch's loop can await
-    without owning a thread it cannot abandon at Ctrl-C, and putting stdin on
-    the loop with `connect_read_pipe` would leave the operator's terminal
-    non-blocking after the session ended. So the thread does the one thing
-    that blocks and hands the line over; `typed()` is what publishes, on the
-    thread that drains the bus, which is what keeps a state topic off every
-    thread but that one (`lib/inventory.py`, `INBOUND`).
+    `serve`'s loop cannot do the reading itself: a turn blocked until
+    somebody types is a turn that publishes nothing and never looks at
+    `stop`, and making the input non-blocking instead would leave the
+    operator's terminal that way after the process ended. So the thread does
+    the one thing that blocks and hands the line over; `typed()` is what
+    publishes, on the loop's own thread, which is what keeps a state topic off
+    every thread but that one (`lib/inventory.py`, `INBOUND`).
     """
 
     def __init__(self, bus: Bus, layout: Layout, lines: TextIO, out: TextIO) -> None:
         """`lines` is where a person types them and `out` is where a line that
-        is not one is said — the session's own input and banner."""
+        is not one is said — the process's own input and banner."""
         self._bus = bus
         self._layout = layout
         self._lines = lines
@@ -109,17 +109,16 @@ class HandFed:
         # and it reports it the way it hands a line over.
         self._unreadable: str | None = None
         # Set once that thread is finished — the input ended, or could not be
-        # read at all — and every line it took is on the queue. A standalone
-        # `tc49 readings` ends with its input and reads this; a session's loop
-        # is the railroad's and goes on with or without a keyboard, so it does
-        # not.
+        # read at all — and every line it took is on the queue. `tc49 readings`
+        # reads this to end with its input: the keyboard is the whole of its
+        # work, and the railroad it publishes to runs on without one.
         self.ended = threading.Event()
 
     def opens(self) -> None:
         """Start reading, which the loop's owner does once it is running.
 
         A daemon thread, and never joined: at the end of a run it is blocked
-        in a read on the session's own input, and the process is ending. A
+        in a read on the process's own input, and that process is ending. A
         line that arrives after that is left in the queue, which is the same
         as one typed a moment later still.
         """
@@ -130,9 +129,9 @@ class HandFed:
         cannot be read at all.
 
         An input that raises is **handed over** like a line rather than said
-        here: a session whose input cannot be read is one nobody is typing at
-        and goes on driving, and the saying belongs on the turn with
-        everything else this writes.
+        here: a process whose input cannot be read is one nobody is typing
+        at, and the railroad runs on without a keyboard either way, so the
+        saying belongs on the turn with everything else this writes.
         """
         try:
             while line := self._lines.readline():
@@ -148,8 +147,8 @@ class HandFed:
         """Every line typed since the last turn, published or reported.
 
         Called on the loop's turn, so a level typed between two of them is
-        seen where a camera's would have been: published now, delivered by
-        this turn's drain, and settled on a later one.
+        seen where a camera's would have been: published now, and settled by
+        `layout` on a turn of its own later.
         """
         trouble, self._unreadable = self._unreadable, None
         if trouble is not None:
