@@ -5,9 +5,9 @@ The apps are not restarted. A person publishes `tc49/layout/railroad_wanted`,
 the binding of the layout interface that is running answers it — that being
 the one app bound to a railroad, and the writer of the row — and
 `tc49/layout/state/railroad` moves. Every other app follows the **state** row
-and never the gesture, so the five of them are driven here by moving the row
-directly and the two bindings by the gesture, each the way a running system
-reaches it.
+and never the gesture, so the scheduler, the dispatcher and the driver are
+driven here by moving the row directly and the two bindings by the gesture,
+each the way a running system reaches it.
 
 Whichever way it arrives: the app built on the railroad that is leaving stops
 answering, the retained rows it owns are **cleared**, and it is built again on
@@ -149,10 +149,11 @@ def load(bus: MqttBus, railroad: str) -> None:
     every state row is, so an app that is restarted afterwards comes up on
     the railroad the row names.
 
-    This is how the **followers** are driven: the five apps that watch the
-    row and never the gesture behind it. The binding of the layout interface
-    that is running is the row's writer and answers `railroad_wanted`
-    instead, so it is driven by `pick` below (ADR-0060)."""
+    This is how the **followers** are driven: the scheduler, the dispatcher
+    and the driver, which watch the row and never the gesture behind it. The
+    binding of the layout interface that is running is the row's writer and
+    answers `railroad_wanted` instead, so it is driven by `pick` below
+    (ADR-0060)."""
     bus.publish(RAILROAD, {"name": railroad})
 
 
@@ -389,10 +390,10 @@ def test_the_dispatcher_clears_the_picture_it_held_and_rebuilds(
 def test_the_layout_interface_answers_the_gesture_and_rebuilds(
     broker: Broker, store: Store, tmp_path: Path
 ) -> None:
-    """This app **answers** the picker where the four others follow the row
-    it writes: it is the one app bound to a railroad, so a person's
-    `railroad_wanted` is what moves `state/railroad` and nothing else is
-    (ADR-0060).
+    """This app **answers** the picker where the scheduler, the dispatcher
+    and the driver follow the row it writes: it is the one app bound to a
+    railroad, so a person's `railroad_wanted` is what moves `state/railroad`
+    and nothing else is (ADR-0060).
 
     One gesture is enough. It is an event and nothing hands it over a second
     time, so the app is subscribed to it before its own opening rows go out;
