@@ -16,6 +16,8 @@ rather than to an app of its own — a `ui` package could not import
     GET  /catalogue             every model the installation knows, by name
     GET  /catalogue/<name>      one model, as the document it is
     PUT  /catalogue/<name>      save it, keeping what the file says
+    GET  /scripts/<railroad>    the translator script that railroad carries
+    PUT  /scripts/<railroad>    save it, as the text it is
     GET  /backup                whether the store can be backed up, is being,
                                 and what there is to restore to
     PUT  /backup                turn automated backup on or off
@@ -77,6 +79,20 @@ every car names a model the installation has not got, so no roster can be
 written at all (#392). There is **no `DELETE`** — this face has no DELETE verb
 for any document, and an unused model costs nothing.
 
+The **script** routes are one railroad's translator script: the text a
+translator loads to speak to that railroad's command station, filed beside its
+drawing as `layouts/<railroad>.script.py` and answered as the text it is. The
+store keeps it and reads none of it — it does not parse, compile or run the
+text, and the only thing it refuses is the shape of the document, so a script
+that will not compile is still one somebody can save and come back to. No
+`ETag` and no `304`: a translator holding a script compares the text itself.
+No `DELETE`, as for every document here.
+
+**Both callers are apps rather than pages** — the translator that loads the
+script, and the face that edits it — each reaching this server over the stack's
+own network, which is why these two prefixes are on no proxy in front of a page
+and the origin rule is untouched (ADR-0055).
+
 `review` takes a *document* rather than a name because the interesting drawing is
 the one being edited, which has not been saved and may not derive. Work in
 progress is answered with 200 and a refusal inside; only a document that will
@@ -89,8 +105,8 @@ that is not a repository is answered rather than initialized, and what git
 said comes back as it came (ADR-0053, #321). It becomes one by adopting an
 empty repository the person made, cloned at the address they give (#355). A
 save is what arms the idle timer, which is why every `PUT` — a drawing's, a
-model's, a roster's — tells the backup it happened, the one place the two
-meet.
+model's, a roster's, a script's — tells the backup it happened, the one place
+the two meet.
 
 **Every route is refused to a page on another origin.** A request carrying an
 `Origin` header that is not this server's own `Host` is answered 403 and
@@ -190,6 +206,16 @@ def _route(
                 return 200, store.roster_document(railroad)
             if method == "PUT":
                 return _put_roster(store, backup, railroad, body)
+
+    script = route.removeprefix("/scripts/")
+    if script != route and "/" not in script:
+        if method == "GET":
+            try:
+                return 200, {"script": script, "text": store.script(script)}
+            except FileNotFoundError:
+                return 404, {"error": f"no script '{script}'"}
+        if method == "PUT":
+            return _put_script(store, backup, script, body)
 
     railroad = route.removeprefix("/layouts/")
     if method == "GET" and railroad != route and "/" not in railroad:
@@ -345,6 +371,34 @@ def _put_roster(store: AssetStore, backup: Backup, name: str, body: Any) -> Resp
     store.put_roster(cast(dict[str, Any], body), name)
     # As a drawing's save does, and for the same reason: a roster written is a
     # document of the store that has moved (#388).
+    backup.saved()
+    return 200, {"saved": name}
+
+
+def _put_script(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
+    """One railroad's translator script, created or replaced.
+
+    The shape is the whole of what is checked, because the text is not this
+    store's to read: a document that is not an object, one naming another
+    railroad than the path does, and one whose `text` is missing or is not a
+    string are refused, and everything that gets past those is written as
+    given. Whether it compiles is settled where it is authored, and a script
+    that does not is still one somebody has to be able to save and come back
+    to.
+    """
+    if not isinstance(body, dict):
+        return 400, {"error": "a script document is required"}
+    doc = cast(dict[str, Any], body)
+    if doc.get("script") != name:
+        return 400, {
+            "error": f"script '{doc.get('script')}' cannot be saved as '{name}'"
+        }
+    text = doc.get("text")
+    if not isinstance(text, str):
+        return 400, {"error": f"script '{name}': 'text' is the script, as a string"}
+    store.put_script(text, name)
+    # As a drawing's save does, and for the same reason: a script written is a
+    # document of the store that has moved.
     backup.saved()
     return 200, {"saved": name}
 
