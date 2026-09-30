@@ -20,8 +20,7 @@ app, never a field, a topic or a branch in any other app
 ## Apps
 
 An **app** is a unit that will run as its own container: `store`, `scheduler`,
-`dispatcher`, `driver`, `simulator`, `layout` with a hardware translator such
-as `jmri` under it
+`dispatcher`, `driver`, `simulator`, `layout`
 ([ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)),
 and a `ui` later. Two of them have left: the `dccex-usb` port mirror with #567
 and the `dccex` translator with #587, both
