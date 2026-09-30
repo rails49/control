@@ -560,6 +560,30 @@ def test_a_modified_document_is_named_in_full(repository: Path) -> None:
     assert backup.outstanding() == ["reversing-loops"]
 
 
+def test_a_script_is_backed_up_and_restored_with_the_rest(repository: Path) -> None:
+    """A railroad's translator script is a document of the store like its
+    drawing: it goes into the same commit, is named for its railroad in the
+    message a person reads, and comes back with everything else (#586). The
+    backup has nothing of its own to do about it — which is the whole of what
+    is being claimed here."""
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    script = repository / "layouts" / "reversing-loops.script.py"
+    script.write_text("SPEED_STEPS = 128\n")
+    backup = Backup(repository, log=lambda _: None)
+
+    assert backup.outstanding() == ["reversing-loops", "reversing-loops script"]
+    assert backup.commit().ok
+    assert "backup: reversing-loops, reversing-loops script" in run_git(
+        repository, "log", "--format=%s"
+    )
+    yesterday = backup.backups()[0]["commit"]
+
+    script.write_text("SPEED_STEPS = 28\n")
+    assert backup.commit().ok
+    assert backup.restore(yesterday).ok
+    assert script.read_text() == "SPEED_STEPS = 128\n"
+
+
 def test_the_backups_are_offered_newest_first(repository: Path) -> None:
     """What a person picks from to restore: the message names what moved, so
     the list reads as the editing sessions it records."""
