@@ -26,6 +26,7 @@ describe are in [GOALS.md](../GOALS.md) and
 catalogue/<model>.yaml                          # what a product is
 layouts/<layout>.drawing.yaml                   # the railroad, drawn
 layouts/<layout>.roster.yaml                    # the cars it owns, and its trains
+layouts/<layout>.script.py                      # the script its translator loads
 scenarios/<layout>/<scenario>.scenario.yaml     # e.g. reversing-loops/meet
 ```
 
