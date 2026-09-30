@@ -5,28 +5,22 @@ Nothing here is a contract — the components find each other by topic, not by
 this module — but the order matters for the trace: the tap subscribes first,
 so it sees every event (BUS.md, the bus).
 
-A live run is built on **one** binding of the layout interface: the simulator,
-or `layout` with the `dccex` translator under it where a command station is
-named (#314, ADR-0030). The branch is the last step of `assemble_live` and the
-one loop `Assembly.run` picks; everything above it is wired the same either
-way and none of it knows which it got.
+A run assembled here is built on the **simulator**, which is the binding of
+the layout interface that lives in one process with the apps it is wired to.
+The physical binding is two processes on a broker — `layout` and a translator
+— and is assembled by nothing: it was a branch of `assemble_live` until #587,
+when the translator left for [`rails49/dccex`](https://github.com/rails49/dccex)
+(dccex ADR-0014).
 """
 
-import asyncio
-import contextlib
 import io
-import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TextIO
 
-from tc49.bench.detector import HandFed
-from tc49.dccex import DccEx
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental, LockingStrategy
 from tc49.driver import Driver
-from tc49.layout import LayoutInterface
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout, connected_facing
@@ -147,30 +141,20 @@ def facing(layout: Layout, trains: dict[str, TrainSpec]) -> dict[str, str]:
 class Assembly:
     """Everything wired on one bus, held so a caller can peek at live state.
 
-    **One binding of the layout interface, and never both** (ADR-0030): a run
-    holds either a `simulator` or the `interface`/`dccex` pair that drives
-    steel, and the fields say which by being there. Nothing above them knows
-    the difference, and neither one knows the other exists.
+    The binding of the layout interface here is the `simulator`, the one that
+    runs in the same process as the apps it is wired to (ADR-0030). A run on
+    steel is `layout` and a translator as processes of their own on a broker
+    (dccex ADR-0014 d.6), which nothing assembles.
     """
 
     bus: InProcessBus
     dispatcher: Dispatcher
-    simulator: Simulator | None
+    simulator: Simulator
     layout: Layout
     roster: Roster
     k: int
     _out: io.StringIO
     clock: Clock
-    # The physical binding, both present or both absent: the core app that
-    # answers the commands, and the translator that puts its device rows on a
-    # command station (ADR-0043).
-    interface: LayoutInterface | None = None
-    dccex: DccEx | None = None
-    # The hand-fed detector, where a physical run was given an input to read:
-    # nothing publishes a level on steel yet, so a person types them (#315).
-    # Only ever beside the pair above — a simulated run has its own sensors
-    # and must not grow a second source of them.
-    detector: HandFed | None = None
 
     @property
     def trace(self) -> str:
@@ -178,15 +162,9 @@ class Assembly:
 
     @property
     def simulation(self) -> Simulator:
-        """The simulator this run is bound to.
-
-        What a caller that wants the engine itself goes through: the batch
-        loop, and a live loop a test paces turn by turn rather than on a wall
-        clock. It asserts rather than answering nothing, because there is no
-        second thing to do — a caller reaching here has already decided which
-        binding it is looking at.
-        """
-        assert self.simulator is not None, "this run has no simulator"
+        """The simulator this run is bound to: what a caller that wants the
+        engine itself goes through — the batch loop, and a live loop a test
+        paces turn by turn rather than on a wall clock."""
         return self.simulator
 
     def run(
@@ -195,93 +173,13 @@ class Assembly:
         sleep: Callable[[float], None] = time.sleep,
         stop: Callable[[], bool] = lambda: False,
     ) -> None:
-        """Work this run on a wall clock until `stop`, whichever binding it
-        was built on.
+        """Work this run on a wall clock until `stop`: the simulator's
+        discrete-event queue, slept on that clock.
 
-        Two loops with a signature in common and **nothing else** — no
-        protocol over them, deliberately. The simulator's is a discrete-event
-        queue slept on a wall clock; the physical one is asyncio owning a TCP
-        session to a command station. An interface spanning the two would send
-        a reader looking for simulation behind something that is not there
-        (ADR-0030).
-
-        `sleep` is the simulator branch's, and is how a session cuts a pending
-        transit delay short when the panel names another railroad. The
-        physical branch waits on its own loop instead: a session with a
-        station switches to no other railroad, the station being one physical
-        railroad.
+        `sleep` is how a caller cuts a pending transit delay short when the
+        panel names another railroad.
         """
-        if self.simulator is not None:
-            self.simulator.run_live(period_s, sleep=sleep, stop=stop)
-            return
-        asyncio.run(self._driven(period_s, stop))
-
-    async def _driven(self, period_s: float, stop: Callable[[], bool]) -> None:
-        """The physical run: the link to the command station and the pacer
-        beside it, and the railroad stood down when either ends.
-
-        **asyncio owns this branch and only this branch.** `DccEx._send`
-        writes to an `asyncio.StreamWriter` from inside a bus subscriber, so
-        whichever thread drains the bus is the thread that writes to the
-        station. With the loop owning the process every subscriber runs on the
-        loop thread and that write is already where it belongs; a daemon
-        thread under a sync owner would mean marshalling a cross-thread write
-        that does not exist today.
-
-        Ctrl-C arrives here as a cancellation, `asyncio.run` cancelling the
-        task it is waiting on, so the stand-down is in a `finally` and the
-        interrupt goes on out to the command that catches it. Standing down
-        comes **before** the link is let go: cancelling `DccEx.run` closes the
-        writer, and zeros sent after that have nowhere to go.
-        """
-        dccex, interface = self.dccex, self.interface
-        assert dccex is not None and interface is not None, "this run drives nothing"
-        if self.detector is not None:
-            # Reading starts with the run and not with the assembly: a line
-            # typed at a session that is not running yet would sit in a queue
-            # nothing drains, and every construction but a session's reads
-            # nothing at all.
-            self.detector.opens()
-        link = asyncio.create_task(dccex.run())
-        try:
-            await self._pace(interface, period_s, stop)
-        finally:
-            await dccex.shutdown()
-            link.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await link
-
-    async def _pace(
-        self, interface: LayoutInterface, period_s: float, stop: Callable[[], bool]
-    ) -> None:
-        """A turn of the physical loop: the three jobs the simulator's does
-        besides popping events it scheduled itself, and the readings a person
-        typed since the last one.
-
-        Advance the run clock to wall time — steel keeps its own time and
-        nothing else here moves the clock. Publish whatever was typed, which
-        is where a detector's levels come from until a camera publishes them
-        (#315): a line typed between two turns is seen on this one, delivered
-        by this turn's drain and settled on a later one, exactly as a level
-        that arrived off a wire between turns would be. Settle:
-        `LayoutInterface.settle()` acts on a level that has stood long enough
-        and **nothing schedules it**, so a session that never called it would
-        never notice an arrival. Drain, which is what carries a gesture from a
-        client's handler thread into the run.
-
-        `period_s` is what bounds the resolution: 0.1 s against 300 ms of
-        settling has a settled level acted on between 0.3 s and 0.4 s after
-        it stood.
-        """
-        started = time.monotonic()
-        self.bus.drain()  # the startup cascade, as the other loop opens with
-        while not stop():
-            await asyncio.sleep(period_s)
-            self.clock.advance(time.monotonic() - started)
-            if self.detector is not None:
-                self.detector.typed()
-            interface.settle()
-            self.bus.drain()
+        self.simulator.run_live(period_s, sleep=sleep, stop=stop)
 
 
 def assemble(
@@ -320,10 +218,6 @@ def assemble_live(
     make_strategy: StrategyFactory = Incremental,
     k: int = DEFAULT_K,
     retained: dict[str, Payload] | None = None,
-    station: tuple[str, int] | None = None,
-    startup: Path | None = None,
-    readings: TextIO | None = None,
-    reports: TextIO | None = None,
 ) -> Assembly:
     """The live wiring (#71): **a railroad and its roster**, and no timetable.
     That is the whole of what a run an operator drives is built from (#171) —
@@ -351,28 +245,12 @@ def assemble_live(
     (ADR-0059 decision 3). Placement and facing are then that picture's rather
     than the seed's.
 
-    `station` is where a command station is served, `host` and `port`, and its
-    presence is what puts the **physical binding** where the simulator would
-    be: `LayoutInterface` answering the commands and `DccEx` putting its
-    device rows on the station (#314, ADR-0043). A run has one binding of the
-    layout interface and neither knows the other exists, so no simulator is
-    constructed in this mode and nothing branches on which mode it is past
-    this line. `startup` is the file of raw station commands `DccEx` sends on
-    powering the rails — the per-district trip currents (docs/dccex/README.md)
-    — and is the station's to carry, so it means nothing without one.
-
-    `readings` is where a person types a detector's levels and `reports` is
-    where a line that is not one is said (#315). Nothing publishes
-    `device/sensor` on steel yet, so a physical run given an input reads it and
-    one given none is blind — which is every construction but a session's, the
-    suite included. It is the station's to carry too: a simulated run has its
-    own sensors, and a second source of them would be two things saying what
-    one block end reads.
-
-    One function and not two, branching only at the last step: a sibling would
-    duplicate the scheduler, dispatcher and driver wiring above, or need a
-    third helper to hold this docstring. `bench` is the one place in the tree
-    allowed to wire apps to each other.
+    The binding is the **simulator**, and a station is no longer something
+    this can be handed: naming one put `LayoutInterface` and the `DccEx`
+    translator where the simulator would be until #587, and the translator is
+    [`rails49/dccex`](https://github.com/rails49/dccex) now. A run on steel is
+    those two as processes of their own on a broker, with the typed readings a
+    third (`tc49 readings`), and `bench` assembles none of it.
     """
     document = trains or {}
     stood = placement(document)
@@ -390,32 +268,15 @@ def assemble_live(
     Scheduler(bus, layout, facing(layout, document), nonce=NONCE)
     dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
-    simulator: Simulator | None = None
-    interface: LayoutInterface | None = None
-    dccex: DccEx | None = None
-    detector: HandFed | None = None
-    if station is None:
-        simulator = Simulator(bus, layout, clock, stood)
-    else:
-        # The interface first, so the dark railroad it opens by wanting is
-        # already retained when the translator subscribes and is the first
-        # thing a fresh link is handed.
-        interface = LayoutInterface(bus, layout, roster, clock)
-        dccex = DccEx(bus, station[0], station[1], startup=startup)
-        if readings is not None:
-            detector = HandFed(bus, layout, readings, reports or sys.stdout)
     return Assembly(
         bus,
         dispatcher,
-        simulator,
+        Simulator(bus, layout, clock, stood),
         layout,
         roster,
         k,
         out,
         clock,
-        interface,
-        dccex,
-        detector,
     )
 
 

@@ -2,11 +2,15 @@
 (#315).
 
 Nothing publishes `tc49/layout/state/device/sensor` on a physical railroad, so
-a `move` on the steel has nothing to complete it. A line typed at a run on the
-physical binding is published as the row a detector would write
-— and what these assert is that it is *that* row, indistinguishable downstream:
-`layout` folds a typed pair into `block_occupied` and `block_vacated` exactly
-as it folds a camera's, debounce and all.
+a `move` on the steel has nothing to complete it. A line a person types is
+published as the row a detector would write — and what these assert is that it
+is *that* row, indistinguishable downstream: `layout` folds a typed pair into
+`block_occupied` and `block_vacated` exactly as it folds a camera's, debounce
+and all.
+
+The reader itself is a client of the broker, `tc49 readings`, and what it does
+against a real one is `test_readings.py`'s. What is read here is the reading
+and the fold.
 
 The railroad is whichever the checkout has and the crossing is read off it, the
 library railroads being renamed and moved under #319: a name spelled here would
@@ -20,20 +24,13 @@ from dataclasses import dataclass
 import pytest
 
 from tc49.bench.detector import ENDS, LEVELS, SENSOR, SHAPE, HandFed
-from tc49.bench.runner import assemble_live
 from tc49.layout import LayoutInterface
 from tc49.layout.interface import SETTLING_S
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import DEVICE_TOPICS
 from tc49.lib.layout import Layout, block_of, opposite_end
-from tests.bench.physical import (
-    HOST,
-    PERIOD_S,
-    a_railroad,
-    closed_port,
-    until,
-)
+from tests.bench.physical import a_railroad
 
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
@@ -237,35 +234,6 @@ def test_an_input_that_cannot_be_read_is_said_and_the_run_goes_on() -> None:
     assert out.getvalue() == said  # once, and not once a turn
 
 
-# -- only where the physical binding is --------------------------------------
-
-
-def test_a_simulated_run_grows_no_second_source_of_sensors() -> None:
-    """The simulator publishes its own, so a run on it is handed no reader at
-    all — not even one nobody types at. Two things saying what one block end
-    reads is the one thing a stand-in must not become."""
-    layout, roster = a_railroad()
-    simulated = assemble_live(layout, roster, readings=io.StringIO("what\n"))
-    assert simulated.detector is None and simulated.simulator is not None
-
-
-def test_a_physical_run_nobody_types_at_reads_nothing() -> None:
-    """Every construction but a session's, the suite included: the input is
-    the caller's to hand over, and a run given none is blind as it was."""
-    layout, roster = a_railroad()
-    driven = assemble_live(layout, roster, station=(HOST, closed_port()))
-    assert driven.detector is None
-
-    typed = assemble_live(
-        layout,
-        roster,
-        station=(HOST, closed_port()),
-        readings=io.StringIO(),
-        reports=io.StringIO(),
-    )
-    assert typed.detector is not None
-
-
 # -- the pair that follows a real crossing -----------------------------------
 
 
@@ -368,23 +336,3 @@ def test_a_typed_pair_completes_a_move_the_way_a_detectors_would() -> None:
         (BLOCK_OCCUPIED, {"block": crossing.into}),
         (BLOCK_VACATED, {"block": crossing.origin}),
     ]
-
-
-def test_the_loop_publishes_what_was_typed_at_a_run_that_is_up() -> None:
-    """The wiring the acceptance rides on: a line typed at a physical session
-    is taken on the pacer's turn and published, so a level reaches the row
-    between one turn and the next exactly as a camera's would (#314)."""
-    layout, roster = a_railroad()
-    end = f"{a_block(layout)}.A"
-    driven = assemble_live(
-        layout,
-        roster,
-        station=(HOST, closed_port()),
-        readings=io.StringIO(f"{end} occupied\n"),
-        reports=io.StringIO(),
-    )
-    row = f"{SENSOR}/{end}"
-
-    driven.run(PERIOD_S, stop=until(lambda: row in driven.bus.last_values))
-
-    assert driven.bus.last_values[row]["occupancy"] == "occupied"
