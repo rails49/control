@@ -166,7 +166,7 @@ mkdir -p "$(scripts/store-root.sh /etc/rails49/deploy.env)"
 export TC49_UID=$(id -u) TC49_GID=$(id -g)
 docker compose --env-file /etc/rails49/box.env \
   --env-file /etc/rails49/deploy.env \
-  -f deploy/compose.yaml --profile layout --profile hardware \
+  -f deploy/compose.yaml --profile layout \
   up -d --remove-orphans
 ```
 
@@ -182,18 +182,18 @@ missing rather than given routers under a blank name.
 reads the whole file before it runs any subcommand, so one without them stops
 on the missing name rather than on anything to do with what was asked.
 
-**Two profiles, because a box is software plus whatever is wired to it.**
-`layout` is the software of a running railroad: the store, the built ui, and
-the scheduler, dispatcher, driver and layout interface, each its own
-container (ADR-0059, decision 5). `hardware` is what this box owns because of
-what is plugged into it, and **nothing is in it**: the translator that speaks
-to the command station was the one service there, and it is
-[`rails49/dccex`](https://github.com/rails49/dccex) now — a stack of its own
-on this box, beside the mirror ([#587](https://github.com/rails49/control/issues/587)).
-It is asked for anyway, for whatever hangs under the layout interface by
-address next. A box with no steel under it asks for `sim` in place
-of `hardware`, which runs the simulator where the layout interface's hardware
-binding would be, and `tests/system/test_compose.py` holds the split.
+**Two profiles, because a box either has steel under it or stands in for
+it.** `layout` is the software of a running railroad: the store, the built ui,
+and the scheduler, dispatcher, driver and layout interface, each its own
+container (ADR-0059, decision 5). On a box wired to a command station that is
+the whole of what this stack starts — **no translator is this repository's**,
+the one that speaks to that station being
+[`rails49/dccex`](https://github.com/rails49/dccex) now, a stack of its own on
+this box beside the mirror ([#587](https://github.com/rails49/control/issues/587)).
+A box with no steel under it asks for `sim` as well as `layout`, which runs
+the simulator where the layout interface's hardware binding would be, and
+`tests/system/test_compose.py` holds what is left underneath: no service in
+this file claims a device.
 
 Which railroad the apps come up on is `TC49_RAILROAD` in that env file. It is
 a starting point and not a binding: a person loads another railroad from the
