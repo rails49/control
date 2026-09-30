@@ -86,6 +86,14 @@ once. `commanded_power` is the reader for `wanted/track`, the same word on
 the same axis as the gesture that moved it, so the desired power is not read
 twice.
 
+**No translator is an app of this repository any more**, and those four
+readers have no caller in `src/tc49`: `desired_speed`, `desired_function`,
+`desired_position` and `desired_aspect` are imported through this package by
+`dccex`, which left for
+[`rails49/dccex`](https://github.com/rails49/dccex) with #587. They are the
+reading of rows `layout` here writes, and a second copy of it over there
+would be the drift this module exists to prevent.
+
 The scheduler's **retained facing** is read here for a third reason (#277):
 it is the first payload here whose reader is also its writer. A retained value
 is handed back at construction by a broker that outlived the app, it can be

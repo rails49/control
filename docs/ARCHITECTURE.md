@@ -11,8 +11,8 @@ not repeated here. Each app's internals are its own page: the dispatcher's are
 ## Apps
 
 An **app** is a unit that will run as its own container
-([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are seven in
-Python — store, scheduler, dispatcher, driver, simulator, layout, dccex — and
+([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are six in
+Python — store, scheduler, dispatcher, driver, simulator, layout — and
 one in the browser: `ui/`, which is **one** app, one page holding
 one loaded railroad and a list of views of it
 ([ADR-0038](adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
@@ -26,15 +26,20 @@ railroad with steel on it runs `layout`, a box with no hardware runs the
 `simulator` container in its place, and the bench harness assembles the
 simulator inside one process.
 
-`dccex` hangs under `layout` and is the first **translator**: it subscribes
-to the device vocabulary, turns it into the command station's own language
-over a TCP port, and publishes back the supply and its own link
-(docs/dccex/README.md). The port is the command station's, mirrored off its
-USB device by `dccex-usb`, which was an app here until #567 and is
-[`rails49/dccex`](https://github.com/rails49/dccex) now: this translator is
-one client of that port among several. Zero, one or more
-translators run, per what is wired, and each recognises its own addresses so
-no ownership table exists anywhere (ADR-0043).
+A **translator** hangs under `layout`: it subscribes to the device
+vocabulary, turns it into one hardware system's own language, and publishes
+back what that system observes and its own link. Zero, one or more of them
+run, per what is wired, and each recognises its own addresses so no ownership
+table exists anywhere (ADR-0043).
+
+**None of them is an app of this repository.** The first was `dccex`, over the
+2560 the command station's USB device is mirrored on; the mirror left with
+#567 and the translator with #587, and both are
+[`rails49/dccex`](https://github.com/rails49/dccex)
+([its ADR-0014](https://github.com/rails49/dccex/blob/main/docs/adr/0014-the-translator-is-on-the-bus-through-controls-package.md)).
+That repository depends on this one as a package, for `tc49.lib` and nothing
+else: a translator meets these apps on the bus and over the store's face, on
+the terms every app meets them on.
 
 Apps import `tc49.lib` and themselves, **never each other**. They meet only
 over the event bus and the asset store's CRUD contract, so each one can be
@@ -156,21 +161,6 @@ src/tc49/
                               the broker, the traction rows the last process
                               left, then a loop that advances the clock,
                               settles and drains until a signal (ADR-0059)
-  dccex/        translator.py  the translator between the device vocabulary
-                               and the command station: the desired state out
-                               over one connection to `dccex-usb`, the supply
-                               and the link back (docs/dccex/README.md)
-                commands.py    the mapping — one desired value in, the exact
-                               bytes out, pure
-                replies.py     the framing, and the two facts this app reads
-                               out of what the station says
-                __main__.py    `python -m tc49.dccex --broker … --station …
-                               [--startup …] [--id …]`, the command line a
-                               container runs: the broker, the desired rows it
-                               has retained, then asyncio owning the link and
-                               the drain until a signal, which stands the
-                               railroad down. No railroad and no store —
-                               hardware needs no layout (ADR-0059)
 
   bench/        runner.py   assemble the apps on one bus and run a scenario
                             to quiescence — the one wiring, shared by the
@@ -259,7 +249,6 @@ docs/
   bench/           BENCHMARKS.md  METRICS.md
   ui/              EDITOR.md  PANEL.md  THROTTLE.md — a page per view
   layout/          README.md
-  dccex/           README.md
   agents/          how agent skills should consume this repo
   research/        background reading
 ```
@@ -269,10 +258,11 @@ An app gets a folder when it has internals worth writing down. `scheduler`,
 in [SYSTEM.md](SYSTEM.md#component-footprints), and an empty folder would
 suggest otherwise. `layout` has one because it is a second binding of a
 footprint the simulator also implements, and what each does with the same
-commands is its own. `dccex` has one for both reasons at once: its bus
-footprint is the device vocabulary, and its page is the only place in the repository where
-the command station's own syntax is written, product names staying out of the
-normative documents.
+commands is its own. `dccex/` was a folder here for both reasons at once, and
+went with the app it was named for (#587): a translator's page is where one
+hardware system's own syntax is written, which is how product names stay out
+of the normative documents, and that page is
+[`rails49/dccex`](https://github.com/rails49/dccex)'s now.
 
 **ADRs are not split by app.** They stay one numbered sequence in `adr/`,
 because the numbering is a chronological record rather than a filing system,
@@ -305,7 +295,6 @@ tests/
   layout/      test_align  test_move  test_aspects  test_power  test_reading
                test_occupancy  test_traction  test_mode  test_throttle
                test_railroad  test_main
-  dccex/       test_commands  test_replies  test_translator  test_main
   system/      test_skeleton  test_properties  test_safety_conditions
                test_app_boundaries  test_cold_start  test_reload
                test_compose

@@ -163,9 +163,6 @@ git remote set-url origin https://github.com/rails49/control.git
 git pull
 pnpm --dir ui build
 mkdir -p "$(scripts/store-root.sh /etc/rails49/deploy.env)"
-[ -f /etc/rails49/dccex-startup.txt ] ||
-  { sudo rm -rf /etc/rails49/dccex-startup.txt &&
-    sudo install -m 644 /dev/null /etc/rails49/dccex-startup.txt; }
 export TC49_UID=$(id -u) TC49_GID=$(id -g)
 docker compose --env-file /etc/rails49/box.env \
   --env-file /etc/rails49/deploy.env \
@@ -189,8 +186,12 @@ on the missing name rather than on anything to do with what was asked.
 `layout` is the software of a running railroad: the store, the built ui, and
 the scheduler, dispatcher, driver and layout interface, each its own
 container (ADR-0059, decision 5). `hardware` is what this box owns because of
-what is plugged into it, which here is the translator that speaks to the
-command station. A box with no steel under it asks for `sim` in place
+what is plugged into it, and **nothing is in it**: the translator that speaks
+to the command station was the one service there, and it is
+[`rails49/dccex`](https://github.com/rails49/dccex) now — a stack of its own
+on this box, beside the mirror ([#587](https://github.com/rails49/control/issues/587)).
+It is asked for anyway, for whatever hangs under the layout interface by
+address next. A box with no steel under it asks for `sim` in place
 of `hardware`, which runs the simulator where the layout interface's hardware
 binding would be, and `tests/system/test_compose.py` holds the split.
 
@@ -393,50 +394,20 @@ while it is the only CH340 on the box.
 Only the mirror opens the device. Everything else — the `dccex` translator,
 JMRI, hand-held throttles — is a client of 2560, and they coexist: every byte
 the command station sends reaches every client, and a client's bytes go to it
-only as whole `<…>` messages (ADR-0043). The translator reaches that port at
-`host.docker.internal`, the box from inside its container, and
-`TC49_STATION` names another machine where the station hangs off one.
+only as whole `<…>` messages (ADR-0043).
 
-**This railroad's per-district trip currents live on the box**, in
-`/etc/rails49/dccex-startup.txt`, and nowhere else: a district is a hardware fact
-that reaches no bus topic and no document
-([#217](https://github.com/rails49/control/issues/217)). The `dccex` service
-is given it with `--startup` and the file itself is mounted read-only —
-**the file, not `/etc/rails49`**, which also holds the door's `acme.env`, so
-a directory mount would hand the translator this box's one secret. What may go in it is
-[dccex/README.md](dccex/README.md#the-startup-file); it is sent on every
-power-on and on nothing else, and a station whose limits are compiled into
-its firmware needs none of it.
-
-An empty file is an ordinary state, and a box with no values to set deploys
-and runs on the limits its firmware was built with (ADR-0050). It is made
-empty rather than left out, because a bind mount whose source is missing is
-created by the daemon as a root-owned *directory* and the translator would
-then open a directory as its startup file — the fault `~/tc49` had (#387).
-`scripts/deploy.sh` makes it where this account can write `/etc/rails49`, and
-says what to run by hand where it cannot rather than stopping the deploy over
-a file that is allowed to be empty. What it says to run is the line above,
-and it removes what is at the path first: against a directory `install`
-writes a file called `null` inside it and reports success, leaving the
-directory there for the translator to open
-([#529](https://github.com/rails49/control/issues/529)).
-
-**Edit it in place.** A single-file bind mount binds the inode, so an editor
-that replaces the file leaves the container reading the values it was created
-with — the fault the old proxy had, going on serving the route table it
-started with while `git pull` replaced the file under it
-([#353](https://github.com/rails49/control/issues/353)). The directory mount
-that cured that one is not available here. A container that has lost the file
-this way is recreated:
-
-```
-docker compose --env-file /etc/rails49/box.env \
-  --env-file /etc/rails49/deploy.env -f deploy/compose.yaml \
-  up -d --force-recreate --no-deps dccex
-```
-
-Then power the railroad off and on: the file is read at that transition, so
-the edit and the power cycle together are the whole of changing a limit.
+**This railroad's per-district trip currents live on the box**, and they are
+not this stack's: a district is a hardware fact that reaches no bus topic and
+no document ([#217](https://github.com/rails49/control/issues/217)), the file
+of raw station commands is the translator's, and the translator is
+[`rails49/dccex`](https://github.com/rails49/dccex) (#587). Which file it is,
+how it is mounted, what may go in it and how a limit is changed are that
+project's page. What is left here is the operational consequence of the split,
+the same one the mirror's had: the first deploy after it takes the old
+translator container with it, `--remove-orphans` above sweeping a service this
+file no longer has, and the trip currents on the box are left alone for that
+project to mount. Bring its stack up, or the railroad comes back with a
+station nothing is translating for.
 
 ### JMRI
 

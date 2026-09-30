@@ -43,11 +43,10 @@ Each app's implementation details live beside it:
   the [metrics derivations](docs/bench/METRICS.md).
 - [Layout](docs/layout) — the [layout interface as a core
   app](docs/layout/README.md): the three rules a command meets, and the device
-  vocabulary the hardware hangs under.
-- [DCC-EX](docs/dccex) — the [translator](docs/dccex/README.md) between the
-  device vocabulary and the command station: the mapping a row at a time, the
-  latched stop and the zeros that precede its release, and the only page here
-  that writes the station's own syntax down.
+  vocabulary the hardware hangs under. The translator between that vocabulary
+  and a command station is no app of this repository's: it was until #587 and
+  is [`rails49/dccex`](https://github.com/rails49/dccex) now, a client of this
+  bus like any other.
 - [UI](docs/ui) — one app with four views of the loaded railroad, the [layout
   editor](docs/ui/EDITOR.md), the [run view](docs/ui/PANEL.md), the
   [throttle](docs/ui/THROTTLE.md) a person drives a train from and the [stock

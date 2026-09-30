@@ -20,12 +20,14 @@ app, never a field, a topic or a branch in any other app
 ## Apps
 
 An **app** is a unit that will run as its own container: `store`, `scheduler`,
-`dispatcher`, `driver`, `simulator`, `layout` with the hardware translators
-`dccex` and `jmri` under it
+`dispatcher`, `driver`, `simulator`, `layout` with a hardware translator such
+as `jmri` under it
 ([ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)),
-and a `ui` later. The `dccex-usb` port mirror was one of them until #567 and
-is [`rails49/dccex`](https://github.com/rails49/dccex) now; what this
-repository sees of it is the 2560 it publishes. Each gets one package in
+and a `ui` later. Two of them have left: the `dccex-usb` port mirror with #567
+and the `dccex` translator with #587, both
+[`rails49/dccex`](https://github.com/rails49/dccex) now. What this repository
+sees of them is the 2560 the mirror publishes and the bus the translator joins
+like any other client. Each gets one package in
 `src/tc49/`. Apps import `tc49.lib` and themselves, **never each other**; they
 meet over the event bus and the store's CRUD contract.
 
@@ -35,7 +37,10 @@ interface every app is handed, and its two transports — so a TypeScript UI
 gets a sibling binding written against `BUS.md`, as `ui/src/model/trace.ts`
 is. `lib/payload.py` is not part of that: it is this repository's own
 defensive reading, organised by which of our apps reads which frame and
-importing `lib.layout`, so none of it carries over. `src/tc49/bench/` is the
+importing `lib.layout`, so none of it carries over — except the desired half
+of the device vocabulary, which the translator reads through the package and
+which is why `desired_speed`, `desired_position`, `desired_aspect` and
+`desired_function` are here with no caller in `src/tc49` (#587). `src/tc49/bench/` is the
 research harness, not an app, and is the only code that wires apps together;
 top-level `bench/` is the fixture data it roots itself at, while a session and
 the store server read an installation's own store. `tests/` mirrors the same
