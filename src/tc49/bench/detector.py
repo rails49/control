@@ -2,10 +2,8 @@
 
 Nothing publishes `tc49/layout/state/device/sensor/<block>.<end>` on a
 physical railroad. The detector is a camera that lives outside this repository
-and publishes nothing yet, and there is no broker in the loop besides — the
-bus is a Python object in one process (BUS.md, *the bus*). So a `move` on
-the steel has nothing to complete it, and the first train would cross into a
-block the system never hears about.
+and publishes nothing yet, so a `move` on the steel has nothing to complete
+it, and the first train would cross into a block the system never hears about.
 
 For the first train a person supplies the readings. A line typed on the input
 this is given is published as the row the detector it stands in for would
@@ -24,17 +22,16 @@ already and this writes what a detector writes, on the writing role a detector
 holds (ADR-0035). **Not a panel gesture** either: a device row carries no
 browser mark and is nothing a page publishes (ADR-0034). This
 stands in for hardware until a camera publishes, and it is meant to be as easy
-to delete as it was to write — one module, one branch of the physical wiring,
-and nothing above the layout interface touched.
+to delete as it was to write — this module, the `tc49 readings` entry point
+below it and their tests, and nothing above the layout interface touched.
 
 **A client of the broker, and not an app** (ADR-0059, decision 5). `serve`
 below is `tc49 readings`: a process that connects to the broker the railroad
 runs on, reads the railroad's layout off the store's HTTP face to know which
 block ends there are, and publishes what a person types — the same rows on the
-same topic, reaching `layout` from another process now rather than from the
-session that used to hold both. It stays in `bench` because what it stands in
-for is hardware: a camera on a box of its own is what replaces it, and an app
-is not (CLAUDE.md, *Apps*).
+same topic, reaching `layout` over the broker like the camera will. It stays
+in `bench` because what it stands in for is hardware: a camera on a box of
+its own is what replaces it, and an app is not (CLAUDE.md, *Apps*).
 
 Where a camera would exit on nothing but a signal, this ends when its input
 does: the whole of its work is that input, so a person pressing Ctrl-D and a
