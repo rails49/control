@@ -73,41 +73,6 @@ DEPLOY_ENV=/etc/rails49/deploy.env
 # file, which this shell knows nothing about — so the path is resolved the
 # way compose resolves it rather than expanded here.
 mkdir -p "$(scripts/store-root.sh "$DEPLOY_ENV")"
-# The translator's startup file — this installation's per-district trip
-# currents (#217) — made here for the same reason and never written over: the
-# values in it are edited on the box, and the deploy that truncated them would
-# move every district to the firmware's default without saying so.
-#
-# `/etc/rails49` is root's, holding the box's declaration and the door's
-# credential, so this account may not be able to make a file in it. A deploy
-# that stopped there would take the whole railroad down over a file that is
-# allowed to be empty — a railroad with none powers on at the firmware's own
-# limits (ADR-0050) — so it says what to run by hand and goes on. The second
-# test catches a directory the daemon made there before this line existed,
-# which `touch` updates rather than replaces.
-DCCEX_STARTUP=/etc/rails49/dccex-startup.txt
-# What that second test advises, built here so docs/DEPLOY.md can give the
-# same line and tests/system/test_startup_file_is_mounted.py can hold the two
-# together. It removes what is at the path before making the file: `install`
-# takes a directory as a *destination*, so against the directory this test
-# exists to catch it wrote a file called `null` inside it and reported
-# success — nothing to see, the translator still opening a directory as its
-# startup file, and the next deploy printing this line again (#529). `rm -rf`
-# and not `rmdir`, because a run of that old advice left the `null` behind.
-# The guard goes with it. Nothing is at the path at the moment this is
-# printed, but the line is run whenever the operator gets to it — pasted out
-# of a deploy log an hour later, after a colleague made the file — and
-# unguarded `rm -rf` would take this installation's trip currents with it
-# (#536). It also makes this line and the page's literally the same.
-remedy="[ -f $DCCEX_STARTUP ] || { sudo rm -rf $DCCEX_STARTUP && sudo install -m 644 /dev/null $DCCEX_STARTUP; }"
-if [ ! -f "$DCCEX_STARTUP" ]; then
-  touch "$DCCEX_STARTUP" 2>/dev/null || true
-fi
-if [ ! -f "$DCCEX_STARTUP" ]; then
-  echo "no $DCCEX_STARTUP and this account cannot make one: the districts" \
-    "run at the limits the station's firmware was built with until" \
-    "'$remedy' is run on the box" >&2
-fi
 # The uid and gid are this account's, and compose reads them as the user the
 # store and a session run as, and as the uid the image names (ADR-0067) — the
 # shell's environment wins over the `--env-file` below, which is what makes
@@ -121,10 +86,14 @@ export TC49_UID TC49_GID
 # `src/` reaches none of them without it (#365).
 # Two profiles: `layout` is the software of a running railroad — the store,
 # the built ui and the four apps — and `hardware` is what this box owns
-# because of what is plugged into it (ADR-0059, decision 5). A box with no
-# command station on it asks for the first alone. JMRI is neither: it is an
-# operator's tool with a compose project of its own, started once by hand from
-# the installation's checkout (rails49/installation ADR-0002).
+# because of what is plugged into it (ADR-0059, decision 5). Nothing is in
+# `hardware` today: the translator that spoke to the command station was the
+# one service in it and is `rails49/dccex` now, a stack of its own on the box
+# (#587), so `--remove-orphans` below is what takes the container this stack
+# used to start. It is asked for all the same, for whatever hangs under
+# `layout` by address next. JMRI is neither: it is an operator's tool with a
+# compose project of its own, started once by hand from the installation's
+# checkout (rails49/installation ADR-0002).
 docker compose --env-file "$BOX_ENV" --env-file "$DEPLOY_ENV" \
   -f deploy/compose.yaml --profile layout --profile hardware \
   up -d --build --remove-orphans

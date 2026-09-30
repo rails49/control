@@ -1,15 +1,18 @@
-"""The six apps that come up on a broker take their shared flags from one
-place, and `lib` says how many they are (#430, #456, #528).
+"""The five apps that come up on a broker take their shared flags from one
+place, and `lib` says how many they are (#430, #456, #528, #587).
 
 `lib/startup.py::command_line` writes `--broker`, `--railroad` and `--store`
 once and says which of the three an app takes. An app declaring one of them
 itself gets away with it for exactly as long as the two spellings agree, and
-nothing goes red when they stop agreeing: #430 unified four of the six and
-left `driver` and `dccex` each holding a `--broker` of its own, word for word
-the same as this one. So the rule is checked rather than reviewed.
+nothing goes red when they stop agreeing: #430 unified four of the six there
+were then and left `driver` and the translator each holding a `--broker` of
+its own, word for word the same as this one. So the rule is checked rather
+than reviewed.
 
-An app's own flags are untouched by it — the station and the startup file are
-the translator's, and are added to the parser `lib` hands back.
+An app's own flags are untouched by it, and are added to the parser `lib`
+hands back. The translator's station and startup file were the only ones and
+left with it for [`rails49/dccex`](https://github.com/rails49/dccex) (#587),
+which starts there still: what this file counts is the apps in this tree.
 
 One package is not here: the store's face is a subcommand of the `tc49`
 script rather than a `__main__` (ADR-0014).
@@ -38,7 +41,6 @@ ON_THE_BROKER = (
     "driver",
     "simulator",
     "layout",
-    "dccex",
 )
 """The apps a compose service starts with a broker to run on, each a
 `python -m tc49.<app>` whose `__main__` parses that line."""
