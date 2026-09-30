@@ -131,6 +131,8 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     GET  /catalogue             the models the installation knows, by name
     GET  /catalogue/<name>      one model, whole
     PUT  /catalogue/<name>      create or replace it
+    GET  /scripts/<railroad>    the translator script that railroad carries
+    PUT  /scripts/<railroad>    create or replace it
     GET  /backup                what backup can do here, and what it needs
     PUT  /backup                turn automated backup on or off
     POST /backup/commit         back the store up now, and attempt a push
@@ -211,8 +213,8 @@ LAN is still the trust boundary and a browser is not on it
   on the network — a push runs on the store's own timer, never on the thread
   serving a request — so an unreachable remote costs a save nothing.
 
-- **Four document types** — `drawing`, `roster`, `scenario` and the
-  catalogue's `model` — each fetched and stored whole. Symbols, wires, trains and requests live inside a
+- **Five document types** — `drawing`, `roster`, `scenario`, the catalogue's
+  `model` and a railroad's `script` — each fetched and stored whole. Symbols, wires, trains and requests live inside a
   document and cannot be addressed on their own. A layout is **derived** from
   a drawing at `get` rather than being a document type of its own
   ([ADR-0015](adr/0015-drawing-is-the-source-of-truth.md)), so a railroad has
@@ -241,6 +243,26 @@ LAN is still the trust boundary and a browser is not on it
   one entry: an empty `cars` list is refused, so a roster the store takes is
   always one `/rosters/<name>/trains` can answer
   ([#412](https://github.com/rails49/control/issues/412)).
+- **A railroad carries its translator script** — the text a translator loads
+  to speak to that railroad's command station, one per railroad, kept beside
+  its drawing as `layouts/<railroad>.script.py` and **writable over HTTP**
+  ([ADR-0043](adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
+  The store keeps it and reads none of it: it does not parse, compile or run
+  the text, and what it refuses is the shape of the document — a body that is
+  not an object, a `script` naming another railroad than the path does, a
+  `text` that is not a string. Whether the script compiles is settled where it
+  is authored, and one that does not is still one somebody can save and come
+  back to. A railroad with no script is a **404**, where a railroad with no
+  roster file answers an empty roster: owning no stock is a state the screen
+  that writes the first car has to read, and a translator handed nothing has
+  nothing to run. Both callers are apps rather than pages — the translator that
+  loads the script, and the face that edits it, each reaching the store over
+  the stack's own network — so these two prefixes are on no proxy in front of a
+  page, no browser reaches one, and the origin rule below is untouched
+  ([ADR-0055](adr/0055-a-browser-is-not-on-the-lan-and-the-store-refuses-it.md)).
+  There is no `DELETE`, as for every document, and no `ETag`: a translator
+  holding a script compares the text itself
+  ([#586](https://github.com/rails49/control/issues/586)).
 - **The catalogue is the installation's, and it is writable over HTTP** — the
   models it knows, one document per model, named for itself and read by every
   railroad on the box: a model is what a product is, and a product does not
