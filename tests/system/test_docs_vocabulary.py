@@ -9,6 +9,8 @@ word so the fix is legible to whoever tripped it.
 The rule reads `src/` on the same terms as `docs/`. A docstring is prose and
 leaks exactly as a page does, and the leaks it found were in prose: `lib`
 naming the protocol a function number belongs to, where the number said it.
+Every module under `src/tc49/` is read and none is exempt: no translator is
+an app of this repository (#595), so no package here is a hardware app.
 """
 
 import re
@@ -24,10 +26,9 @@ ALLOWED_DIRS = frozenset(
     {
         "adr",  # a decision may name what it decides about
         "research",  # research notes about hardware are about hardware
-        # The hardware apps' own docs, once they exist (ADR-0043).
+        # The layout interface's docs describe the device vocabulary, which
+        # is where the hardware systems behind it are named (ADR-0043).
         "layout",
-        "dccex",
-        "jmri",
     }
 )
 
@@ -39,18 +40,17 @@ ALLOWED_FILES = frozenset(
 )
 
 PACKAGES = frozenset({"dccex", "jmri", "DccEx", "Jmri"})
-"""Package and class names, and never a leak wherever they appear. A
-translator is named for the system it speaks to (ADR-0043), so neither a page
-nor an import can say which app does the work without spelling it. `DCC-EX`,
-`DCC` and `JMRI` — the product and protocol names the rule exists to keep out
-— still leak everywhere they leak today. The difference is naming a directory
-or a class versus writing about hardware, and it does not depend on which
-file you are in: listing the pages that may name a package was a per-file
+"""Names, and never a leak wherever they appear. A translator is named for
+the system it speaks to (ADR-0043), so nothing can say which one does the
+work without spelling it — and none of them is an app of this repository
+(#595), so these are the names of other repositories, of the address
+prefixes that reach them (`dccex/12`, `jmri/LS3`), and of classes there that
+prose here still names, `DccEx` among them. `DCC-EX`, `DCC` and `JMRI` — the
+product and protocol names the rule exists to keep out — still leak
+everywhere they leak today. The difference is naming a repository, an
+address or a class versus writing about hardware, and it does not depend on
+which file you are in: listing the pages that may name one was a per-file
 allowlist that every new mention had to be added to, for no gain."""
-
-ALLOWED_PACKAGES = frozenset({"dccex", "jmri"})
-"""The hardware apps' own packages under `src/tc49/`. A translator's own code
-is about hardware, on the same terms as its own docs directory."""
 
 
 def test_hardware_protocols_stay_in_hardware_docs() -> None:
@@ -74,8 +74,6 @@ def test_hardware_protocols_stay_in_hardware_apps() -> None:
     leaks: list[str] = []
     for module in sorted(SRC.rglob("*.py")):
         rel = module.relative_to(SRC)
-        if rel.parts[0] in ALLOWED_PACKAGES:
-            continue
         for number, line in enumerate(module.read_text().splitlines(), 1):
             for found in PROTOCOLS.finditer(line):
                 if found.group(0) in PACKAGES:
@@ -88,8 +86,8 @@ def test_hardware_protocols_stay_in_hardware_apps() -> None:
 
 
 def test_a_package_name_passes_and_the_product_name_does_not() -> None:
-    """The allowance is on the spelling, not the page. `dccex` is a directory
-    and passes anywhere; `DCC-EX` is a command station and leaks anywhere."""
+    """The allowance is on the spelling, not the page. `dccex` is a name and
+    passes anywhere; `DCC-EX` is a command station and leaks anywhere."""
     matched = [
         m.group(0)
         for m in PROTOCOLS.finditer("the dccex translator speaks DCC-EX over 2560")
