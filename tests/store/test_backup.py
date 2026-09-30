@@ -125,6 +125,7 @@ def test_a_changed_path_is_named_as_the_document_it_is() -> None:
     what the store calls the document and not what git calls the file."""
     assert document("layouts/reversing-loops.drawing.yaml") == "reversing-loops"
     assert document("layouts/reversing-loops.roster.yaml") == "reversing-loops roster"
+    assert document("layouts/reversing-loops.script.py") == "reversing-loops script"
     assert document("catalogue/re460.yaml") == "re460 model"
     assert document("scenarios/reversing-loops/meet.scenario.yaml") == (
         "reversing-loops/meet"

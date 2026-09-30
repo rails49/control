@@ -21,6 +21,11 @@ has one length however many scenarios place it. ``_load_scenario`` joins the
 two, which is why a :class:`~tc49.lib.scenario.Scenario` carries placement
 alone and the length comes back on the :class:`~tc49.lib.roster.Roster`.
 
+The **script** is the railroad's as well, and the one document here that is
+not YAML: the text a translator loads to speak to that railroad's command
+station (ADR-0043). It is kept and never read — nothing here parses, compiles
+or runs it, so what the text means stays the translator's.
+
 The **catalogue** is the installation's and belongs to no railroad, a model
 being what a product is (ADR-0045); a roster is read against it, since a car
 names a model and is complete only once merged onto one. Both stock documents
@@ -117,6 +122,36 @@ class AssetStore:
         if roster.railroad != name:
             raise ValueError(f"roster '{name}': file names itself '{roster.railroad}'")
         return roster
+
+    def script(self, name: str) -> str:
+        """One railroad's translator script, as the text it is.
+
+        A document of the railroad like its roster, filed beside the drawing:
+        what the translator has to say to this railroad's command station is
+        the railroad's own, and one railroad has one of them (ADR-0043).
+
+        A railroad with no script file raises, where a roster answers empty:
+        owning no stock is a state the screen that writes the first car has to
+        read, and a translator handed nothing has nothing to run and has to
+        hear so.
+
+        Not parsed, compiled or run here. The store keeps what it is given —
+        what the text means is the translator's, and whether it compiles is
+        settled by the face that writes it, so a script this store cannot make
+        sense of is still a script it can hand back for somebody to fix.
+        """
+        return self._script_path(name).read_bytes().decode()
+
+    def put_script(self, text: str, name: str) -> None:
+        """Create or replace one railroad's translator script.
+
+        Bytes rather than `write_text`, and `read_bytes` on the way out: the
+        text is handed back as it arrived, down to a line ending, because it
+        is source somebody wrote and this store is not the author of it.
+        """
+        path = self._script_path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(text.encode())
 
     def catalogue(self) -> dict[str, Model]:
         """The models this installation knows, by name.
@@ -220,6 +255,9 @@ class AssetStore:
 
     def _roster_path(self, name: str) -> Path:
         return self._root / "layouts" / f"{name}.roster.yaml"
+
+    def _script_path(self, name: str) -> Path:
+        return self._root / "layouts" / f"{name}.script.py"
 
     def _scenario_path(self, name: str) -> Path:
         layout, _, scenario = name.partition("/")
