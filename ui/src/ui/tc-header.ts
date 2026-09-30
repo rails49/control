@@ -215,9 +215,11 @@ export class TcHeader extends LitElement {
    * the same mark the rail puts on the current view: the list is what the
    * supply can be doing and the current one is one of them, so the three
    * buttons are the reading as well as the presses and the band needs no word
-   * beside them. The two that are somebody's to act on — an emergency stop to
-   * clear, a supply switched off — wear the alarm while they are the one
-   * marked, because they are not states to leave a railroad in.
+   * beside them. STOP wears the alarm while it is the one marked, an emergency
+   * stop being somebody's to clear and not a state to leave a railroad in. ON
+   * and OFF marked wear the plain mark: red on the chrome is a stop or a fault
+   * and nothing else, and a supply switched off is neither — it is where the
+   * railroad rests and comes up (ADR-0054, #585).
    *
    * **One press each and no confirmation.** An emergency stop that asks "are
    * you sure?" is not one, `stopped` is cheap to recover from with the points

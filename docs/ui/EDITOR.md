@@ -100,9 +100,11 @@ power is the **mark on the press that names where it stands**
 ([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md),
 [Supply](#the-band)) — three buttons plus a word repeating one of them was the
 same fact twice, and the marked one carries which of the two ways of standing
-still it is in what it says when it is hovered. STOP and OFF wear the alarm
-while they are the one marked; STOP is told apart from its neighbours whatever
-the supply is doing.
+still it is in what it says when it is hovered. STOP wears the alarm while it
+is the one marked; ON and OFF wear the plain mark, red on the chrome being a
+stop or a fault and nothing else and a supply switched off being neither
+([ADR-0054](../adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
+STOP is told apart from its neighbours whatever the supply is doing.
 
 Beside them, one coarse indicator: this drawing derives, or it does not. It
 names no fault and counts nothing, the canvas being where you find out where. A

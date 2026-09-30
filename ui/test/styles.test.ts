@@ -84,6 +84,28 @@ function rule(sheet: string, selector: string): string {
 }
 
 /**
+ * What a button wearing these classes is drawn with: the blocks of every rule
+ * whose selector its classes satisfy, in the order the sheet gives them. It is
+ * the cascade as far as a class list decides it, which is what a mark is — the
+ * sheet's pseudo-class rules are about the pointer and the press's own state
+ * and are left out.
+ */
+function worn(sheet: string, classes: string[]): string {
+  const written = sheet.replace(/\/\*[\s\S]*?\*\//g, "");
+  return [...written.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+    .filter(([, selector]) =>
+      selector!.split(",").some((one) => {
+        const named = one.trim().match(/^button((?:\.[a-z-]+)+)$/);
+        if (named === null) return false;
+        const on = named[1]!.split(".").filter(Boolean);
+        return on.every((it) => classes.includes(it));
+      }),
+    )
+    .map(([, , block]) => block)
+    .join("");
+}
+
+/**
  * The limit, executable (#132): a block only one component wears is that
  * component's own and does not belong in the shared module. Mechanical and
  * over every export, because the point is to catch the block nobody thought
@@ -372,6 +394,50 @@ describe("the values the look rules bind", () => {
       );
     }
     expect(Object.keys(DARK).every((name) => name in COLOURS)).toBe(true);
+  });
+});
+
+/**
+ * What the band marks the track-power press the supply stands at with (#585).
+ *
+ * Red on the chrome is a stop or a fault and nothing else (LOOK.md), so the
+ * alarm is the marked STOP's alone. A supply that is off is neither: off is
+ * where the railroad rests and comes up (ADR-0054), and the marked OFF press
+ * falls to the plain mark the marked ON press wears. A trip is a fault, but it
+ * is somebody's own chip on the band and would still not colour OFF.
+ */
+describe("the mark on the press the supply stands at", () => {
+  /** The plain mark, which is the same one the rail puts on the current
+   *  view: a light fill and a bolder word, and no colour of its own. */
+  const plain = rule(headerStyles.cssText, "button.press.at");
+
+  it("wears the alarm on a marked STOP", () => {
+    const marked = worn(headerStyles.cssText, ["press", "stopped", "at"]);
+    expect(marked).toContain("var(--stop)");
+    expect(marked).toContain("var(--stop-ink)");
+  });
+
+  /** And on the STOP that is not marked, the outline and the word alone: the
+   *  press is told apart from its neighbours whatever the supply is doing. */
+  it("keeps an unmarked STOP its red outline and word", () => {
+    const stop = rule(headerStyles.cssText, "button.press.stopped");
+    expect(stop).toContain("border-color: var(--stop)");
+    expect(stop).toContain("color: var(--stop)");
+  });
+
+  it("leaves a marked OFF the plain mark and no red at all", () => {
+    const marked = worn(headerStyles.cssText, ["press", "off", "at"]);
+    expect(marked).toContain(plain);
+    expect(marked).not.toContain("var(--stop)");
+    expect(marked).not.toContain("var(--stop-ink)");
+  });
+
+  /** Which is the marked ON press's mark, and now nothing more: the two that
+   *  are not a stop read the same. */
+  it("marks ON and OFF alike", () => {
+    expect(worn(headerStyles.cssText, ["press", "off", "at"])).toBe(
+      worn(headerStyles.cssText, ["press", "on", "at"]),
+    );
   });
 });
 

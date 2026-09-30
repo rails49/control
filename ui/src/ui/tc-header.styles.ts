@@ -210,12 +210,13 @@ export const headerStyles = css`
     font-weight: 600;
   }
 
-  /* The two that are somebody's to act on. Standing at either is not a state
-     to leave a railroad in, so the marked button wears the alarm the reading
-     beside it used to wear; ON marked is the ordinary case and wears the plain
-     mark above. */
-  button.press.stopped.at,
-  button.press.off.at {
+  /* STOP is the one that is somebody's to act on. Standing there is not a
+     state to leave a railroad in, so the marked button wears the alarm the
+     reading beside it used to wear. ON and OFF marked wear the plain mark
+     above: red on the chrome is a stop or a fault and nothing else, and a
+     supply switched off is neither — it is where the railroad rests and comes
+     up (ADR-0054, #585). */
+  button.press.stopped.at {
     background: var(--stop);
     border-color: var(--stop);
     color: var(--stop-ink);
