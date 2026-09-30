@@ -59,9 +59,8 @@ nothing is shortened to suit the suite."""
 
 READING = tuple(app for app in APPS if app.store)
 """The apps that read documents, which are the four that exited on a store
-with no such railroad. The driver and the translator read none — one holds no
-state and the other is told about no railroad at all — so neither had anything
-to fail on (#564)."""
+with no such railroad. The driver reads none, holding no state, so it had
+nothing to fail on (#564)."""
 
 
 def drawn(root: Path) -> None:
@@ -117,8 +116,8 @@ def test_an_app_comes_up_alone_and_leaves_its_rows_retained(
     running: Process = app.process(broker, store, RAILROAD, tmp_path)
     running.start()
     try:
-        # Nothing is up but the broker, and for the two apps that read no
-        # documents not even that is missing: either way the app stays.
+        # Nothing is up but the broker, and for the driver, which reads no
+        # documents, not even that is missing: either way the app stays.
         assert not until(
             lambda: not running.running, ALONE_S
         ), f"'{app.name}' exited rather than waiting:\n{running.said()}"

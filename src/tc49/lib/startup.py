@@ -32,9 +32,14 @@ the row, and `simulator` has no rows of a previous process to adopt.
 
 Here rather than in an app, for the reason `lib.mqtt.address` is here: an app
 imports `lib` and itself and never another app (ADR-0013), so `lib` is the
-only place a shape six of them share can live. Beside `loading.py` rather
+only place a shape five of them share can live. Beside `loading.py` rather
 than inside it — what an app does when the railroad moves under it is that
 module's whole subject, and the way in is this one's.
+
+The translator is a sixth, and is not in this tree: `dccex` left for
+[`rails49/dccex`](https://github.com/rails49/dccex) with #587 and comes up
+through this module as a package dependency, which is why what it alone asks
+of `command_line` is still here with no caller beside it.
 
 **Not every wait that looks alike is here, and the reason they differ is.**
 `retained` below names the row it is waiting for and comes back the instant
@@ -144,10 +149,11 @@ def command_line(
     railroad it runs, and where the store serves the documents that railroad
     is built from.
 
-    **All six start here**, and the two arguments say which of the three an
-    app takes rather than which apps write a parser of their own. Every app
-    is given a broker, having nowhere to publish and nothing to read without
-    one. `railroad=False` is the translator's, which is told about no
+    **All five start here**, the translator in another repository with them,
+    and the two arguments say which of the three an app takes rather than
+    which apps write a parser of their own. Every app is given a broker,
+    having nowhere to publish and nothing to read without one.
+    `railroad=False` is the translator's alone, which is told about no
     railroad at all — hardware needs no layout, and an address is the string
     the hardware answers to rather than something looked up (ADR-0059,
     decisions 5 and 6). `store=False` is the driver's as well, which reads no

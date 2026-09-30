@@ -11,9 +11,8 @@
 # Two files, both the box's and neither in this clone. The first is the box's
 # declaration of itself, which every stack on the box is started against, so
 # that two stacks cannot come to different answers about the box's name. The
-# second is this stack's own settings — which railroad it comes up on, where
-# its store is, which device the command station is on. `scripts/deploy.sh` is
-# that command run over ssh.
+# second is this stack's own settings — which railroad it comes up on and
+# where its store is. `scripts/deploy.sh` is that command run over ssh.
 #
 # The name in every label comes from the declaration by compose substitution —
 # no template is rendered and no file is copied — so a box is named in one
@@ -212,7 +211,7 @@ services:
       - traefik.http.routers.tc49-store.tls.certresolver=le
     networks: [default, rails49]
 
-  # The six apps, one service each (ADR-0059, decision 5). Every one of them
+  # The five apps, one service each (ADR-0059, decision 5). Every one of them
   # comes up alone: started against nothing, it connects, publishes the rows
   # it owns and stays up, and one that reads the railroad's documents retries
   # the store until it answers. **No `depends_on` anywhere** — an order here
@@ -296,50 +295,15 @@ services:
        "--railroad", "${TC49_RAILROAD:-}",
        "--store", "http://store:8765"]
 
-  # The translator: the device vocabulary turned into the command station's
-  # own language, over the mirror rather than the device (ADR-0043). Hardware
-  # by what it talks to, so it comes up with the rest of the hardware and not
-  # with the software — and it takes no railroad and no store, hardware
-  # needing no layout (ADR-0059, decision 5).
-  #
-  # The mirror is not in this file: it is `rails49/dccex`, a stack of its own
-  # on the same box, and what this stack sees of it is the 2560 it publishes.
-  # So `--station` names a host and not a service — `host.docker.internal`,
-  # which `extra_hosts` points at the box, and `TC49_STATION` names another
-  # machine where the station hangs off one. This translator is a client of
-  # that port exactly as JMRI and the hand-held throttles are, which is how
-  # ADR-0043 always described it.
-  #
-  # `--startup` is this installation's per-district trip currents (#217), the
-  # one hardware fact that reaches no bus topic and no document. Passed here
-  # because for as long as nothing passed it the values reached the station by
-  # not existing: the flag was whole, documented and connected to nothing
-  # (#523).
-  #
-  # The **file**, not `/etc/rails49`, which also holds `acme.env` — the box's
-  # ACME credential, which the door alone reads (docs/DEPLOY.md) — and a
-  # directory mount would put that inside the translator's container. So the
-  # inode a single-file mount binds is what it costs: an editor that replaces
-  # the file rather than writing through it leaves this container reading the
-  # values it was created with, so the file is edited in place and a container
-  # that has lost it is recreated (docs/DEPLOY.md). `scripts/deploy.sh` makes
-  # the file before compose runs, because a missing source is made by the
-  # daemon as a root-owned directory (#387) and the translator would then open
-  # a directory as its startup file. An empty one is an ordinary state: a
-  # railroad with no file powers on at the firmware's own limits (ADR-0050).
-  dccex:
-    build: *app
-    profiles: [hardware]
-    restart: unless-stopped
-    volumes:
-      - /etc/rails49/dccex-startup.txt:/etc/rails49/dccex-startup.txt:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    command:
-      ["python", "-m", "tc49.dccex",
-       "--broker", "broker:1883",
-       "--station", "${TC49_STATION:-host.docker.internal:2560}",
-       "--startup", "/etc/rails49/dccex-startup.txt"]
+  # A translator was the sixth service and the only one in the `hardware`
+  # profile: the device vocabulary turned into the command station's own
+  # language, over the mirror rather than the device (ADR-0043). It is
+  # `rails49/dccex` now, a stack of its own on the same box with the mirror
+  # (#587), and it is given this installation's per-district trip currents
+  # there — the file under `/etc/rails49` that was mounted here is that
+  # project's to make and to mount. The profile is kept for whatever hangs
+  # under `layout` by address next, and the deploy's `--remove-orphans` takes
+  # the container this file used to start (docs/DEPLOY.md).
 
 # The one network every stack on the box shares, created by the installation
 # under a fixed name four repositories hardcode and joined here by the three

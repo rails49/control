@@ -110,12 +110,11 @@ class Store:
 
 @dataclass(frozen=True)
 class App:
-    """One of ADR-0059's six: how it is started, and what it leaves retained
-    on the way up.
+    """One app that comes up on a broker: how it is started, and what it
+    leaves retained on the way up.
 
-    The flags are the app's own — `dccex` takes a station and no railroad
-    (hardware needs no layout, decision 5), the driver reads no documents and
-    so takes no store. A table rather than six of everything, because what is
+    The flags are the app's own — the driver reads no documents and so takes
+    no store. A table rather than five of everything, because what is
     asserted is one rule and the differences between the apps are the rule's
     own consequences.
     """
@@ -124,7 +123,6 @@ class App:
     rows: tuple[str, ...]
     railroad: bool = True
     store: bool = False
-    station: bool = False
     answers: bool = False
     """Whether it **answers** the picker rather than following the row: the
     binding of the layout interface that is running, which is the one app
@@ -140,11 +138,6 @@ class App:
             args += ["--railroad", railroad]
         if self.store:
             args += ["--store", store.url]
-        if self.station:
-            # An address nothing answers on: a translator whose command
-            # station is not there reports the link it cannot make and stays
-            # up (ADR-0050), and no test of ours needs hardware.
-            args += ["--station", f"127.0.0.1:{free_port()}"]
         return args
 
     def process(self, broker: Broker, store: Store, railroad: str, at: Path) -> Process:
@@ -154,7 +147,7 @@ class App:
     def naming(self, railroad: str) -> tuple[str, Payload]:
         """The frame that names a railroad to this app: the gesture for the
         binding of the layout interface, which answers the picker, and the
-        row for the five apps that are told (ADR-0060)."""
+        row for the apps that are told (ADR-0060)."""
         if self.answers:
             return RAILROAD_WANTED, {"railroad": railroad}
         return RAILROAD, {"name": railroad}
@@ -194,17 +187,12 @@ APPS = (
         answers=True,
         rows=("tc49/layout/state/railroad", "tc49/layout/state/power"),
     ),
-    App(
-        "dccex",
-        railroad=False,
-        station=True,
-        rows=(
-            "tc49/layout/state/device/track",
-            "tc49/layout/state/device/link/dccex",
-        ),
-    ),
 )
-"""The six apps of ADR-0059, and the rows each opens with.
+"""The apps that come up on a broker, and the rows each opens with.
+
+Five of ADR-0059's six. The sixth was the translator, which took a station
+and no railroad — hardware needs no layout (decision 5) — and is
+[`rails49/dccex`](https://github.com/rails49/dccex) now (#587).
 
 `driver` opens with none: it holds no state and reads no documents, so
 silence is its cold start. `layout` writes no desired speed here although it

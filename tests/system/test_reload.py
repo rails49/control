@@ -25,8 +25,7 @@ knows the reload has finished.
 The one thing here that is not a process is the publisher of `device/sensor`:
 there is none to start, and what it stands in for is the rule ADR-0063 states
 — the names it publishes its sensors under are the drawing's, so it follows
-the row like every other app that reads the store, while a translator that
-reads nothing does not.
+the row like every other app that reads the store.
 """
 
 import json
@@ -121,7 +120,7 @@ def store(root: Path, tmp_path: Path) -> Iterator[Store]:
 
 
 def named(app: str) -> App:
-    """One of the six by name, so a test reads as the app it is about."""
+    """One of the five by name, so a test reads as the app it is about."""
     return next(one for one in APPS if one.name == app)
 
 
@@ -390,7 +389,7 @@ def test_the_dispatcher_clears_the_picture_it_held_and_rebuilds(
 def test_the_layout_interface_answers_the_gesture_and_rebuilds(
     broker: Broker, store: Store, tmp_path: Path
 ) -> None:
-    """This app **answers** the picker where the five others follow the row
+    """This app **answers** the picker where the four others follow the row
     it writes: it is the one app bound to a railroad, so a person's
     `railroad_wanted` is what moves `state/railroad` and nothing else is
     (ADR-0060).
@@ -583,35 +582,3 @@ def test_a_publisher_that_reads_the_store_builds_its_sensor_names_again(
     left = sorted(name for name in watching.names if name.split(".")[0] in WAS_BLOCKS)
     assert not left, f"it still watches {left} of '{WAS}'"
     writing.close()
-
-
-def test_a_translator_that_reads_nothing_is_not_a_railroads_and_does_not_reload(
-    broker: Broker, store: Store, tmp_path: Path
-) -> None:
-    """What decides is whether the app reads the store, not that it is
-    hardware's: this one takes no `--railroad` and reads no documents, and its
-    two rows are the command station's rather than a railroad's — the link it
-    has and the supply it reports. A railroad loaded under it changes nothing
-    it could publish, so it stands, and its rows stand with it (ADR-0059,
-    decision 5).
-
-    A translator that published `device/sensor` would read the drawing for the
-    names the hardware knows those sensors by and would follow the row, which
-    is the test above (ADR-0063). The rule narrows to the apps that read the
-    store rather than gaining an exception."""
-    running = named("dccex").process(broker, store, WAS, tmp_path)
-    running.start()
-    assert until(lambda: "up as" in running.said(), UP_S), running.said()
-    try:
-        writing = hand(broker)
-        before = picture(broker)
-        load(writing, NOW)
-        settle(writing)
-
-        held = picture(broker)
-        assert set(held) == set(before) | {RAILROAD}, "it answered a railroad"
-        assert held["tc49/layout/state/device/link/dccex"]["link"] == "down"
-        assert running.running, f"the translator stopped:\n{running.said()}"
-        writing.close()
-    finally:
-        running.stop()
