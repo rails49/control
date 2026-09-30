@@ -877,10 +877,10 @@ thing), idle, quiet
 
 **Railroad**:
 One person's railroad, and what every document is keyed by: a **drawing**, the
-**roster** of the stock it owns, and the scenarios drawn on it, all filed under
-one name — `crossover-yard` — which is the name the store lists. An
-installation may hold many; **one broker runs one**, so every topic on a bus is
-about that one and topics stay flat
+**roster** of the stock it owns, the scenarios drawn on it, and the script its
+translator loads, all filed under one name — `crossover-yard` — which is the
+name the store lists. An installation may hold many; **one broker runs one**, so
+every topic on a bus is about that one and topics stay flat
 ([ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
 A view learns which from `tc49/layout/state/railroad`, published retained by
 whichever binding of the layout interface is running — the one app bound to a
