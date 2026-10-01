@@ -306,6 +306,17 @@ export class Panel {
    *  a session that has joined has been told; silence is a page that has not
    *  joined one, and not a claim that the rails are dead. */
   private powerWord: Power | null = null;
+  /** What the hardware says is wrong with the supply, in its own words,
+   *  `null` where it says nothing (BUS.md, device vocabulary). Read off
+   *  `device/track`, which is the one device row a view reads: `power` there
+   *  is folded into `state/power` above and `powerWord` is what the picture
+   *  draws, and the free-text `reason` beside it is the only place a tripped
+   *  district or a participant that cannot reach the supply can be said — a
+   *  district reaches no topic of its own, so that frame reads like a
+   *  railroad with nothing wrong with it unless this is read
+   *  ([ADR-0050](../../../docs/adr/0050-broken-hardware-is-reported-never-worked-around.md),
+   *  [#602](https://github.com/rails49/control/issues/602)). */
+  private faultWord: string | null = null;
   /** train → who turns its throttle, as `layout` last said. Only the trains
    *  the map named: `automatic` is the resting value, so a train that is not
    *  in it is automatic and there is nothing to record for it (CONTEXT.md,
@@ -359,6 +370,7 @@ export class Panel {
     this.runWord = null;
     this.movingWord = null;
     this.powerWord = null;
+    this.faultWord = null;
     this.driven.clear();
     this.requests.clear();
     this.started = false;
@@ -519,6 +531,27 @@ export class Panel {
         this.powerWord = power;
         return;
       }
+      case "device/track": {
+        // What the hardware says about the supply, and why where it says
+        // why. Only the reason is kept: `power` here is one translator's
+        // reading of its own hardware, and what a page draws is the
+        // railroad-wide `state/power` that `layout` folds it into (BUS.md).
+        //
+        // The reason is what nothing else carries. A command station that
+        // cuts one district by itself goes on reading `power: on` while the
+        // rest of the railroad is powered, and a district reaches no topic,
+        // so the sentence is the whole of what says a trip is standing
+        // (ADR-0050). It is read whichever way `power` stands, for that
+        // reason.
+        //
+        // Free text, so a reason that is not a sentence is nothing to show:
+        // a frame without one is the hardware saying nothing is wrong, an
+        // empty string is a chip with nothing in it, and a value that is not
+        // a string is a publisher this page cannot read.
+        const { reason } = event as unknown as { reason?: unknown };
+        this.faultWord = typeof reason === "string" && reason !== "" ? reason : null;
+        return;
+      }
       case "mode": {
         // Who drives each train, whole from the topic: `layout` holds it and
         // publishes it, and the throttle view reads it rather than its own
@@ -660,6 +693,17 @@ export class Panel {
    *  is greyed. */
   get power(): Power | null {
     return this.powerWord;
+  }
+
+  /** What the hardware says is wrong with the supply, in its own words,
+   *  `null` where it says nothing — before it has spoken, and again once it
+   *  publishes a frame without a reason (BUS.md, device vocabulary). The band
+   *  shows it as a fault, whichever way `power` stands: a trip with the other
+   *  districts still powered reads `on`, and the sentence is the whole of
+   *  what says so (ADR-0050, #602). Nothing branches on it — it is read by a
+   *  person and never by this model. */
+  get fault(): string | null {
+    return this.faultWord;
   }
 
   /** What the detectors dispute, as the dispatcher last said (#153): trains
