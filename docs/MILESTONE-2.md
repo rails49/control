@@ -133,10 +133,11 @@ from here:
   immediately, by being told speed 0, and that is the driver's concern alone
   ([GOALS.md](GOALS.md#driving)).
 - **Which of the "hardware that lies" answers earn their cost.** The transit
-  watchdog is answered, the dispute check half-answered. What is *expected* to
-  lie: a detector reporting occupied for a locomotive somebody put on the
-  track by hand, a turnout reporting thrown because the station fakes the
-  reply, a power state reading `on` while a district has tripped. Everything
+  watchdog is answered, and so is a power state reading `on` while a district
+  has tripped ([#601](https://github.com/rails49/control/issues/601)); the
+  dispute check is half-answered. What is *expected* to lie: a detector
+  reporting occupied for a locomotive somebody put on the track by hand, a
+  turnout reporting thrown because the station fakes the reply. Everything
   else on the list is a guess until a train has run.
 - **An unexpected sensor.** [SYSTEM.md](SYSTEM.md)'s unenforced assumption is
   that every sensor event explains a granted move, and a real layout fires a
