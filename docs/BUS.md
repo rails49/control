@@ -722,6 +722,28 @@ without a second row to find. Free text and optional, on the same terms as
 the sensor's — nothing branches on it, and a supply that reads `off` with no
 reason is no less `off`.
 
+**It also names a district the hardware cut itself.** A district reaches no
+topic, so a trip the publisher can see has nowhere else to be said: while one
+is tripped the `reason` names it, `{power: on, reason: "district B tripped"}`
+where another district is still powered and `power` `off` where none is
+([`rails49/dccex`](https://github.com/rails49/dccex) ADR-0016,
+[#601](https://github.com/rails49/control/issues/601)). The `on` case is why
+the row carries it at all: the supply really is on, so without the reason that
+frame reads exactly like a railroad with nothing wrong with it, which is the
+one failure nobody can act on
+([ADR-0050](adr/0050-broken-hardware-is-reported-never-worked-around.md)).
+`power` does not change with it and neither does the fold — `layout` reads
+`power` alone, so a trip holds no run and `tc49/layout/state/power` goes on
+saying what the rails carry.
+
+**A reason about the link takes precedence.** One free-text field and two
+conditions that can hold at once, so what it says is the participant that
+cannot reach the supply: a publisher that has lost its station cannot see
+which district tripped either, and naming one it can no longer observe is the
+stand-in ADR-0050 refuses. The trip is named again once the link is back, the
+row being a retained level and a trip a condition that holds until somebody
+resets it.
+
 **A sensor is addressed by the block end it watches**, `<block>.<end>`, one
 topic per sensor, and never by a camera's own identifier
 ([#194](https://github.com/rails49/control/issues/194)). The topic is that on
