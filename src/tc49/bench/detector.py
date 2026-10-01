@@ -137,7 +137,7 @@ class HandFed:
             while line := self._lines.readline():
                 self._typed.put(line)
         except (OSError, ValueError) as unreadable:
-            self._unreadable = f"nothing can be read from this session: {unreadable}"
+            self._unreadable = f"nothing can be read from this process: {unreadable}"
         finally:
             # After the last line is on the queue, so a reader of `ended` that
             # takes one more turn takes everything that was typed.
@@ -148,7 +148,8 @@ class HandFed:
 
         Called on the loop's turn, so a level typed between two of them is
         seen where a camera's would have been: published now, and settled by
-        `layout` on a turn of its own later.
+        the binding of the layout interface that is running, on a turn of its
+        own later.
         """
         trouble, self._unreadable = self._unreadable, None
         if trouble is not None:
@@ -166,7 +167,7 @@ class HandFed:
         """One line published as a reading: `None` where it went, or what was
         wrong with it in words.
 
-        Reported and never raised, and the session runs on either way: this is
+        Reported and never raised, and the process runs on either way: this is
         a person typing beside a running railroad, and a typo is not a reason
         to stop one.
 
