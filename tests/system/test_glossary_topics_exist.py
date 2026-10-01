@@ -7,7 +7,7 @@ that does not exist. It named `tc49/layout/railroad_wanted` two batches
 before the topic reached the inventory — right in advance rather than wrong,
 and nothing would have caught it had the topic never arrived.
 
-The shape is `test_state_leaves.py`'s and `test_store_routes_are_proxied.py`'s:
+The shape is `test_state_names.py`'s and `test_store_routes_are_proxied.py`'s:
 both sides are read at run time and this file carries no copy of either list.
 One direction only — a topic the prose names is a topic that exists — and not
 the reverse, which would be a much larger claim and a wrong one: the glossary

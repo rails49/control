@@ -20,7 +20,7 @@ import {
   REVERSAL_WANTED,
   RUN_WANTED,
   runWanted,
-  STATE_LEAVES,
+  STATE_NAMES,
   THROTTLE_WANTED,
   throttleWanted,
 } from "../src/model/trace.js";
@@ -208,7 +208,7 @@ describe("powerWanted", () => {
    *  reaches the hardware itself (ADR-0043, ADR-0051). */
   it("is the layout's topic and not a translator's", () => {
     expect(POWER_WANTED.startsWith("tc49/layout/")).toBe(true);
-    expect(STATE_LEAVES.has("power_wanted")).toBe(false);
+    expect(STATE_NAMES.has("power_wanted")).toBe(false);
   });
 });
 
@@ -280,7 +280,7 @@ describe("Ordering", () => {
    *  not leave a trip on the band after the hardware has stopped saying so
    *  (#602). */
   it("names every state topic a view is shown", () => {
-    expect([...STATE_LEAVES].sort()).toEqual([
+    expect([...STATE_NAMES].sort()).toEqual([
       "allocation",
       "aspects",
       "device/track",
