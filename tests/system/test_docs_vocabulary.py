@@ -1,4 +1,4 @@
-"""Hardware protocol names stay in hardware docs and hardware apps (#255, #466).
+"""Hardware protocol names stay in hardware docs and out of the source (#255, #466).
 
 Components meet over the bus and the store's contract, and hardware exists
 only behind the layout interface (ADR-0030, ADR-0043). Stated in prose the
@@ -70,7 +70,7 @@ def test_hardware_protocols_stay_in_hardware_docs() -> None:
     )
 
 
-def test_hardware_protocols_stay_in_hardware_apps() -> None:
+def test_no_module_names_a_hardware_protocol() -> None:
     leaks: list[str] = []
     for module in sorted(SRC.rglob("*.py")):
         rel = module.relative_to(SRC)
@@ -80,9 +80,7 @@ def test_hardware_protocols_stay_in_hardware_apps() -> None:
                     continue
                 leaks.append(f"src/tc49/{rel}:{number}: {found.group(0)}")
                 break
-    assert not leaks, "hardware protocol names outside hardware apps:\n" + "\n".join(
-        leaks
-    )
+    assert not leaks, "hardware protocol names in src/tc49:\n" + "\n".join(leaks)
 
 
 def test_a_package_name_passes_and_the_product_name_does_not() -> None:
