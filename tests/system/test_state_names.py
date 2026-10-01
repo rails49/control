@@ -35,19 +35,19 @@ is here under the name `Live` gives it, and the rest of the vocabulary is
 absent because no view reads it (ADR-0043)."""
 
 DECLARATION = re.compile(
-    r"export const STATE_LEAVES: ReadonlySet<string> = new Set\(\[(.*?)\]\)", re.DOTALL
+    r"export const STATE_NAMES: ReadonlySet<string> = new Set\(\[(.*?)\]\)", re.DOTALL
 )
 
 
 def declared() -> set[str]:
-    """The leaves `ui/src/model/trace.ts` names."""
+    """The state names `ui/src/model/trace.ts` declares."""
     source = (ROOT / TRACE_TS).read_text()
     found = DECLARATION.search(source)
-    assert found is not None, f"no STATE_LEAVES declaration in {TRACE_TS}"
+    assert found is not None, f"no STATE_NAMES declaration in {TRACE_TS}"
     return set(re.findall(r'"([^"]+)"', found.group(1)))
 
 
-def test_the_browsers_state_leaves_are_the_inventorys_state_rows() -> None:
+def test_the_browsers_state_names_are_the_inventorys_state_rows() -> None:
     """Every transit-level state row, and the device rows a view reads. The
     rest of the device vocabulary is absent and is not missing either: a
     device topic is named by its row and the address under it rather than by
