@@ -703,6 +703,24 @@ the other back on, which are different actions
 With no session joined it says nothing, a drawing having no rails to have
 power.
 
+**The band shows what the hardware says is wrong with the supply**, in the
+health area beside the store and the broker
+([#602](https://github.com/rails49/control/issues/602)). The run view reads
+`tc49/layout/state/device/track`, which is the one device row any view reads,
+and keeps the free-text `reason` alone: `power` there is one translator's
+reading of its own hardware, and what the picture draws is the railroad-wide
+`state/power` that `layout` folds it into. The reason is what nothing else
+carries. A district reaches no topic, so a trip the command station cut itself
+is said there or not at all, and that frame reads `power: on` while the rest of
+the railroad is powered
+([ADR-0050](../adr/0050-broken-hardware-is-reported-never-worked-around.md),
+[BUS.md](../BUS.md#device-vocabulary)). So it is read whichever way the supply
+stands, shown verbatim, and cleared by a frame that carries no reason. It is
+ordered like every other state row — the row is named `device/track` the way
+`tc49.lib.trace` names a device row, where `track` alone would not tell it from
+the `wanted/track` that `layout` writes on a press (`model/trace.ts`,
+[ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
+
 **ON, STOP and OFF command the supply**, on `tc49/layout/power_wanted`
 ([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
 They stand in the band beside the reading they act on, because track power is

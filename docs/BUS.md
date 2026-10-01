@@ -734,7 +734,10 @@ one failure nobody can act on
 ([ADR-0050](adr/0050-broken-hardware-is-reported-never-worked-around.md)).
 `power` does not change with it and neither does the fold — `layout` reads
 `power` alone, so a trip holds no run and `tc49/layout/state/power` goes on
-saying what the rails carry.
+saying what the rails carry. The reader of the reason is a person: the band
+shows it as a fault, whichever way `power` stands, and nothing branches on it
+([ui/EDITOR.md](ui/EDITOR.md#the-band),
+[#602](https://github.com/rails49/control/issues/602)).
 
 **A reason about the link takes precedence.** One free-text field and two
 conditions that can hold at once, so what it says is the participant that

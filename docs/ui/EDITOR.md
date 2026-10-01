@@ -89,6 +89,22 @@ region with room in it rather than a string, because per-container and
 eventually hardware reachability belong beside those, and the slot in it is
 where they go.
 
+**And what the hardware says is wrong with the supply**, in the sentence it
+published, beside the trouble above and in the same weight
+([#602](https://github.com/rails49/control/issues/602)). The two are wrong in
+the same way and differ only in whose: the app could not do something, or the
+railroad has a fault on it. A district reaches no bus topic, so a trip the
+command station cut itself is named in the free text of
+`tc49/layout/state/device/track` and nowhere else — and with the other
+districts still carrying trains that frame reads `power: on`, which is what a
+railroad with nothing wrong with it reads as
+([ADR-0050](../adr/0050-broken-hardware-is-reported-never-worked-around.md),
+[BUS.md](../BUS.md#device-vocabulary)). So it reads whichever way the supply
+stands: the mark on the presses says where it stands and can say nothing about
+this, a marked OFF being a railroad at rest since #585. It is shown verbatim
+and nothing branches on it, and it clears when a frame arrives carrying no
+reason, the trip being a condition that holds until somebody resets it.
+
 **Nothing that is going right reads in it**
 ([#517](https://github.com/rails49/control/issues/517)). The band was six
 entries with five of them saying the ordinary thing — `drawing frozen connected
