@@ -278,7 +278,7 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The stamps a view holds, one per state leaf: what it takes to keep the
+ * The stamps a view holds, one per state name: what it takes to keep the
  * later of two values of one state topic whichever order they arrive in
  * (#240).
  *
@@ -294,7 +294,7 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
  * stamp must not go on refusing values whose own stamp is gone. A boolean is
  * not a stamp — JSON `true` is not one second.
  *
- * State leaves only. An event reports something that happened and is never
+ * State names only. An event reports something that happened and is never
  * replayed, so there is no held value for a late one to lose to, and a
  * repeated sensor reading must go on arriving.
  */
