@@ -27,15 +27,38 @@ export interface Frame {
   payload: Record<string, unknown>;
 }
 
+/** What a device row's name starts past: the layout interface's own state
+ *  prefix, which a device topic carries two levels under where every other
+ *  row carries one (`tc49.lib.inventory`,
+ *  [ADR-0043](../../../docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)). */
+const DEVICE = "tc49/layout/state/";
+
+/** What the model calls the event a message carries: the topic's leaf, except
+ *  under the device vocabulary, where it is the two levels past
+ *  `tc49/layout/state/`.
+ *
+ *  The same name `tc49.lib.trace` gives a device row, and for the same reason:
+ *  the address is trailing levels a railroad's wiring decides, so the leaf of
+ *  `tc49/layout/state/device/sensor/b.A` is `b.A` and says nothing, and
+ *  `track` alone would not say which half of the vocabulary a frame is from —
+ *  `wanted/track` is what `layout` asked the hardware for and `device/track`
+ *  is what the hardware answered (ADR-0043). */
+function named(topic: string): string {
+  if (topic.startsWith(DEVICE)) {
+    const [row, under] = topic.slice(DEVICE.length).split("/");
+    if (under !== undefined) return `${row}/${under}`;
+  }
+  return topic.slice(topic.lastIndexOf("/") + 1);
+}
+
 /**
  * The live feed: one message off the broker, read as the event the panel model
  * applies (ui/PANEL.md, #72).
  *
- * A message is a topic and a payload already, and the topic leaf is the
- * event, exactly as BUS.md's inventory has it — so the whole of the
- * browser's side of the contract is here. Retained values arrive as the
- * subscription lands (ADR-0032), which is what a page joining mid-run is
- * fed.
+ * A message is a topic and a payload already, and the topic names the event,
+ * exactly as BUS.md's inventory has it — so the whole of the browser's side
+ * of the contract is here. Retained values arrive as the subscription lands
+ * (ADR-0032), which is what a page joining mid-run is fed.
  *
  * A payload that is not a JSON object is dropped rather than thrown — an
  * empty payload is how a retained row is cleared, and a page must not go dark
@@ -51,7 +74,7 @@ export class Live {
     }
     if (typeof body !== "object" || body === null || Array.isArray(body)) return null;
     return {
-      event: topic.slice(topic.lastIndexOf("/") + 1),
+      event: named(topic),
       ...(body as Record<string, unknown>),
     };
   }
@@ -229,16 +252,18 @@ export interface Submission {
 }
 
 
-/** The leaves of the state topics: the events that carry a last value rather
+/** The names of the state topics: the events that carry a last value rather
  *  than reporting something that happened (BUS.md, rule 2).
  *
- *  A leaf and not a topic because the relay hands the model the leaf alone,
+ *  A name and not a topic because the relay hands the model the name alone,
  *  which is all `Live` keeps of a frame. The list is the state rows of
  *  `tc49.lib.inventory` and cannot drift from them: a Python test reads it
- *  out of this file and asserts the two match. The device rows under
- *  `tc49/layout/state/wanted/` are not here — a device topic is named by its
- *  row and its address rather than by a leaf, and no view reads one
- *  ([ADR-0043](../../../docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)). */
+ *  out of this file and asserts the two match. The device rows are here only
+ *  where a view reads one, which is `device/track` and nothing else — a
+ *  device topic is named by its row and the address under it rather than by a
+ *  leaf, so the one a view reads is named as `Live` names it
+ *  ([ADR-0043](../../../docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md),
+ *  [#602](https://github.com/rails49/control/issues/602)). */
 export const STATE_LEAVES: ReadonlySet<string> = new Set([
   "railroad",
   "power",
@@ -249,6 +274,7 @@ export const STATE_LEAVES: ReadonlySet<string> = new Set([
   "aspects",
   "disputed",
   "allocation",
+  "device/track",
 ]);
 
 /**

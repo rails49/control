@@ -41,6 +41,50 @@ describe("Live", () => {
     expect(heard).toEqual({ event: "block_occupied", block: "b" });
   });
 
+  /** A device row is named by two levels where every other row is named by
+   *  one, exactly as `tc49.lib.trace` names one (ADR-0043): the address is
+   *  trailing levels a railroad's wiring decides, and `track` alone would not
+   *  say which half of the vocabulary a frame is from. */
+  it("names a device row the way the inventory does", () => {
+    const live = new Live();
+    expect(
+      live.read(
+        "tc49/layout/state/device/track",
+        JSON.stringify({ power: "on", reason: "district B tripped" }),
+      ),
+    ).toEqual({ event: "device/track", power: "on", reason: "district B tripped" });
+  });
+
+  /** What `layout` asked the hardware for and what the hardware answered are
+   *  two rows under one leaf, and a page is handed both: the desired half
+   *  carries no reason, so a page that read them as one name would clear a
+   *  trip on the next power press. */
+  it("tells the desired supply from the observed one", () => {
+    const live = new Live();
+    expect(live.read("tc49/layout/state/wanted/track", JSON.stringify({ power: "off" })))
+      .toEqual({ event: "wanted/track", power: "off" });
+  });
+
+  /** The address says nothing, so the name stops where the row does. */
+  it("names an addressed device row without its address", () => {
+    const live = new Live();
+    expect(
+      live.read(
+        "tc49/layout/state/device/sensor/b.A",
+        JSON.stringify({ addr: "b.A", occupancy: "occupied" }),
+      )!.event,
+    ).toBe("device/sensor");
+  });
+
+  /** Only the device vocabulary is named that way. Everything else under the
+   *  layout interface is one level and reads as its leaf. */
+  it("reads the layout's own state rows as leaves", () => {
+    const live = new Live();
+    expect(live.read("tc49/layout/state/power", JSON.stringify({ power: "on" }))).toEqual(
+      { event: "power", power: "on" },
+    );
+  });
+
   /** A retained row is cleared by publishing an empty payload on it, which is
    *  a message like any other as far as this is concerned: nothing to apply,
    *  and nothing to fall over. */
@@ -229,12 +273,17 @@ describe("Ordering", () => {
     expect(ordering.accepts(power(1, "on"))).toBe(true);
   });
 
-  /** The leaves are the state rows of `tc49.lib.inventory`, and a Python
-   *  test reads this list out of the file to keep the two from drifting. */
-  it("names every state leaf a view is shown", () => {
+  /** The names are the state rows of `tc49.lib.inventory`, and a Python
+   *  test reads this list out of the file to keep the two from drifting. The
+   *  one device row a view reads is among them under the name `Live` gives
+   *  it: it is a state row like the rest, so a pair delivered backwards must
+   *  not leave a trip on the band after the hardware has stopped saying so
+   *  (#602). */
+  it("names every state topic a view is shown", () => {
     expect([...STATE_LEAVES].sort()).toEqual([
       "allocation",
       "aspects",
+      "device/track",
       "disputed",
       "exhausted",
       "facing",
@@ -243,5 +292,19 @@ describe("Ordering", () => {
       "railroad",
       "run",
     ]);
+  });
+
+  /** The device row is ordered like every other state row, the stamp being
+   *  what tells two values of one topic apart (#240). */
+  it("orders the device row it is shown", () => {
+    const ordering = new Ordering();
+    const track = (at: number, reason?: string) => ({
+      event: "device/track",
+      at,
+      power: "on",
+      ...(reason === undefined ? {} : { reason }),
+    });
+    expect(ordering.accepts(track(20))).toBe(true);
+    expect(ordering.accepts(track(10, "district B tripped"))).toBe(false);
   });
 });
