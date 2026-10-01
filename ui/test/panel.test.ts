@@ -1244,6 +1244,73 @@ describe("whether the rails have power", () => {
   });
 });
 
+/**
+ * What the hardware says is wrong with the supply, in its own words
+ * (BUS.md, device vocabulary; #602).
+ *
+ * The one device row a view reads. `power` on it is the translator's own
+ * reading and `layout` folds it into `state/power`, which is what the picture
+ * draws; what only this row carries is the free-text `reason`, and a tripped
+ * district has nowhere else to be said — a district reaches no topic, so the
+ * frame reads like a railroad with nothing wrong with it unless the reason is
+ * read ([ADR-0050](../../docs/adr/0050-broken-hardware-is-reported-never-worked-around.md)).
+ */
+describe("what the hardware says about the supply", () => {
+  it("says nothing before the hardware has", () => {
+    expect(panel().fault).toBeNull();
+  });
+
+  /** Whichever way `power` stands. A trip while the other districts are
+   *  powered reads `on`, and the reason is the whole of what says so. */
+  it("keeps the reason the row carries, powered or dark", () => {
+    const model = panel();
+    feed(model, { event: "device/track", power: "on", reason: "district B tripped" });
+    expect(model.fault).toBe("district B tripped");
+    feed(model, { event: "device/track", power: "off", reason: "no station on /dev/ttyACM0" });
+    expect(model.fault).toBe("no station on /dev/ttyACM0");
+  });
+
+  /** A row without one is a supply with nothing wrong with it: the trip is a
+   *  condition that holds until somebody resets it, and the frame that stops
+   *  naming it is the hardware saying it is over. */
+  it("clears on a frame that carries no reason", () => {
+    const model = panel();
+    feed(model, { event: "device/track", power: "on", reason: "district B tripped" });
+    feed(model, { event: "device/track", power: "on" });
+    expect(model.fault).toBeNull();
+  });
+
+  /** Free text, so anything that is not a sentence says nothing: an empty
+   *  string is a chip with nothing in it, and a number is a publisher this
+   *  page cannot read. */
+  it("reads nothing off a reason that is not words", () => {
+    const model = panel();
+    feed(model, { event: "device/track", power: "on", reason: "district B tripped" });
+    feed(model, { event: "device/track", power: "on", reason: "" });
+    expect(model.fault).toBeNull();
+    feed(model, { event: "device/track", power: "on", reason: "district B tripped" });
+    feed(model, { event: "device/track", power: "on", reason: 7 });
+    expect(model.fault).toBeNull();
+  });
+
+  /** The desired supply is a different row under the same leaf, and it
+   *  carries no reason: `layout` writing what it wants of the hardware must
+   *  not read as the hardware answering (`model/trace.ts`). */
+  it("is untouched by what the supply was asked for", () => {
+    const model = panel();
+    feed(model, { event: "device/track", power: "on", reason: "district B tripped" });
+    feed(model, { event: "wanted/track", power: "off" });
+    expect(model.fault).toBe("district B tripped");
+  });
+
+  it("is forgotten when the model starts over", () => {
+    const model = panel();
+    feed(model, { event: "device/track", power: "on", reason: "district B tripped" });
+    model.reset();
+    expect(model.fault).toBeNull();
+  });
+});
+
 /** How the run stands (ADR-0037): the dispatcher's own value, read and never
  *  derived. The button that moves it draws what this says, so a press that
  *  did not land leaves the value where it was. */
