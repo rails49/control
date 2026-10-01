@@ -182,7 +182,11 @@ because two participants publishing on one row would erase each other, and
 ever waiting for one it has not heard (ADR-0058, ADR-0059). `device/track`
 carries the free-text `reason` for the same person: the participant that
 reports the supply and cannot reach it says why on the row itself, rather than
-leaving them a second row to find.
+leaving them a second row to find. It also names a district the hardware cut
+itself, with `power` `on` while the other districts are powered — a district
+reaches no topic, and that frame would otherwise read like a railroad with
+nothing wrong with it (ADR-0050, BUS.md). A reason about the link takes
+precedence, and `layout` reads `power` alone either way.
 
 `device/refused` is no device state at all, which is why it is the one
 observed row nothing folds: it is the publisher's report on its own last
