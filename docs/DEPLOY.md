@@ -166,7 +166,7 @@ mkdir -p "$(scripts/store-root.sh /etc/rails49/deploy.env)"
 export TC49_UID=$(id -u) TC49_GID=$(id -g)
 docker compose --env-file /etc/rails49/box.env \
   --env-file /etc/rails49/deploy.env \
-  -f deploy/compose.yaml --profile layout \
+  -f deploy/compose.yaml --profile layout --profile steel \
   up -d --remove-orphans
 ```
 
@@ -183,17 +183,17 @@ reads the whole file before it runs any subcommand, so one without them stops
 on the missing name rather than on anything to do with what was asked.
 
 **Two profiles, because a box either has steel under it or stands in for
-it.** `layout` is the software of a running railroad: the store, the built ui,
-and the scheduler, dispatcher, driver and layout interface, each its own
-container (ADR-0059, decision 5). On a box wired to a command station that is
-the whole of what this stack starts — **no translator is this repository's**,
-the one that speaks to that station being
+it.** `layout` is the software every box runs: the store, the built ui, and
+the scheduler, dispatcher and driver, each its own container (ADR-0059,
+decision 5). `steel` adds the layout interface bound to the hardware, on a box
+wired to a command station. `sim` adds the simulator in its place, on a box
+with nothing attached. Those two are never asked for together, and
+`tests/system/test_compose.py` asserts that `layout` and `simulator` share no
+profile, so neither ask can start both. Whichever a box asks for is the whole
+of what this stack starts — **no translator is this repository's**, the one
+that speaks to the command station being
 [`rails49/dccex`](https://github.com/rails49/dccex) now, a stack of its own on
 this box beside the mirror ([#587](https://github.com/rails49/control/issues/587)).
-A box with no steel under it asks for `sim` as well as `layout`, which runs
-the simulator where the layout interface's hardware binding would be, and
-`tests/system/test_compose.py` holds what is left underneath: no service in
-this file claims a device.
 
 Which railroad the apps come up on is `TC49_RAILROAD` in that env file. It is
 a starting point and not a binding: a person loads another railroad from the
@@ -276,7 +276,7 @@ owned by the same person.
 
 A fresh box has no `~/tc49`, and an empty store is an ordinary state and not
 a fault — nothing seeds it, by decision — so the server comes up, answers,
-and lists nothing until somebody draws. **The apps in the same profile are up
+and lists nothing until somebody draws. **The apps the deploy starts are up
 too**, standing with no railroad rather than exiting over one they cannot
 read: draw a railroad in the editor and they are built on it the moment one is
 named, and nothing has to be restarted for it
