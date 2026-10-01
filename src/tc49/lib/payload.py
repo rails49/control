@@ -545,12 +545,13 @@ def detected(payload: object) -> str:
 def reported_reason(payload: object) -> str | None:
     """Why the hardware reports what it does, or None where it gives no
     reason — free text and optional, on the two observed rows that carry one:
-    a detector's `unknown`, and a supply the participant reporting it cannot
-    reach (`{power: off, reason: "…"}`, ADR-0059).
+    a detector's `unknown`, and the supply, where it says why the participant
+    reporting it cannot reach it (`{power: off, reason: "…"}`, ADR-0059) or
+    names a district the hardware cut itself (`{power: on, reason: "district B
+    tripped"}`, #601).
 
-    Read so that `layout` can put it in front of a person, which is the whole
-    of what it is for: nothing branches on it, and a reason that is not a
-    string is no reason.
+    Read so that a person sees it, which is the whole of what it is for:
+    nothing branches on it, and a reason that is not a string is no reason.
     """
     if not isinstance(payload, dict):
         return None
