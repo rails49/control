@@ -148,8 +148,7 @@ class HandFed:
 
         Called on the loop's turn, so a level typed between two of them is
         seen where a camera's would have been: published now, and settled by
-        the binding of the layout interface that is running, on a turn of its
-        own later.
+        `layout` on a turn of its own later.
         """
         trouble, self._unreadable = self._unreadable, None
         if trouble is not None:
