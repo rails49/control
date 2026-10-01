@@ -9,9 +9,10 @@ deployment, and an app then waits on a store's container being up rather than
 on the store answering, which is not the same thing and is not what any of
 them was written to survive.
 
-So the file is read here and four rules are asserted on what it says: one
-service per app, no app run twice, nothing ordered, and no service claiming a
-device. The last is what makes one file both boxes': `docker compose up` on a
+So the file is read here and five rules are asserted on what it says: one
+service per app, no app run twice, nothing ordered, no service claiming a
+device, and the two bindings of the layout interface sharing no profile. The
+device rule is what makes one file both boxes': `docker compose up` on a
 machine with no steel under it starts nothing that reaches for a cable,
 because nothing here reaches for one at all. The services that did were
 translators, and no translator is this repository's — each lives in a
@@ -36,6 +37,12 @@ the command line each app's `__main__` parses."""
 FACE = ("tc49", "serve")
 """The one app started by name rather than by module: the store's face is a
 subcommand of the `tc49` script, which is what a wheel installs (ADR-0014)."""
+
+SOFTWARE = "layout"
+"""The profile every box asks for: the software of a running railroad, which
+is the same on a box wired to a command station and on one standing in for
+it. A binding of the layout interface in this profile is a binding on both
+boxes, which is what the rule below refuses."""
 
 
 def services() -> dict[str, dict[str, Any]]:
@@ -129,3 +136,29 @@ def test_nothing_claims_a_device() -> None:
         name for name, service in services().items() if service.get("devices")
     )
     assert not loose, f"{loose} claim a device; no service here owns hardware"
+
+
+def test_the_two_bindings_share_no_profile() -> None:
+    """`layout` and `simulator` are two bindings of one interface and one role
+    writes it (ADR-0035), so each is asked for by a profile of its own and a
+    box asks for exactly one of them: `steel` where a command station is
+    wired, `sim` where nothing is. Neither may be the profile every box asks
+    for either — the layout interface among the software is the layout
+    interface on the box standing in for steel, which is the same two writers
+    by another route (#604)."""
+    found = services()
+    bindings = {
+        name: list(found[name].get("profiles", [])) for name in ("layout", "simulator")
+    }
+    loose = {name: said for name, said in bindings.items() if len(said) != 1}
+    assert not loose, f"{loose}: a binding is asked for by one profile and no other"
+    asked = {name: said[0] for name, said in bindings.items()}
+    shared = sorted(name for name, profile in asked.items() if profile == SOFTWARE)
+    assert not shared, (
+        f"{shared} in the `{SOFTWARE}` profile, which every box asks for; a box"
+        " with no steel under it would start both bindings"
+    )
+    assert asked["layout"] != asked["simulator"], (
+        f"layout and simulator share the profile `{asked['layout']}`; the box"
+        " that asks for it would start both bindings"
+    )
