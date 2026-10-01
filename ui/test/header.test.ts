@@ -212,11 +212,13 @@ describe("the status the band takes over", () => {
       power: "on",
       derives: false,
       trouble: "the store is not answering",
+      fault: "district B tripped",
     });
     const health = header.renderRoot.querySelector(".health")!;
     expect([...health.querySelectorAll("span")].map((one) => one.className)).toEqual([
       "refused",
       "trouble",
+      "fault",
       "session",
     ]);
     expect(health.querySelector("slot[name=health]")).not.toBeNull();
@@ -238,6 +240,7 @@ describe("the status the band takes over", () => {
       power: "on",
       derives: true,
       frozen: false,
+      fault: null,
     });
     const health = header.renderRoot.querySelector(".health")!;
     expect([...health.querySelectorAll("span")].map((one) => one.className)).toEqual([
@@ -326,6 +329,66 @@ describe("whether the drawing derives", () => {
     });
     expect(reads(header, ".refused")).toBe("does not derive");
     expect(reads(header, ".trouble")).toBe("the store is not answering");
+  });
+});
+
+/**
+ * What the hardware says is wrong with the supply, in its own words
+ * (BUS.md, device vocabulary; #602).
+ *
+ * A fault and not a reading of the supply: a command station that cuts one
+ * district by itself goes on reporting the railroad as powered, and a district
+ * reaches no topic of its own, so the sentence the hardware publishes is the
+ * whole of what says a trip is standing
+ * ([ADR-0050](../../docs/adr/0050-broken-hardware-is-reported-never-worked-around.md)).
+ * The mark on the presses says where the supply stands and cannot say this —
+ * since #585 a marked OFF wears the plain mark, so a dark railroad reads as
+ * one at rest.
+ */
+describe("a fault the hardware reports", () => {
+  it("says what the hardware said", async () => {
+    const header = await band({ joined: true, fault: "district B tripped" });
+    expect(reads(header, ".fault")).toBe("district B tripped");
+  });
+
+  /** The reading and the fault are two things, and the loud one is the fault:
+   *  a trip while the other districts are powered is a railroad that looks
+   *  entirely well. */
+  it("shows whichever way the supply stands", async () => {
+    for (const power of ["on", "stopped", "off"] as const) {
+      const header = await band({
+        joined: true,
+        linked: true,
+        power,
+        fault: "district B tripped",
+      });
+      expect(reads(header, ".fault")).toBe("district B tripped");
+    }
+  });
+
+  it("says nothing where the hardware reports none", async () => {
+    expect(reads(await band({ joined: true, power: "on" }), ".fault")).toBeNull();
+  });
+
+  /** One is the app's and the other is the railroad's, so neither stands in
+   *  for the other and both can show at once — a participant that has lost
+   *  its station says so on the row while the broker is still answering. */
+  it("is a mark of its own, beside the trouble the app is in", async () => {
+    const header = await band({
+      trouble: "the store is not answering",
+      fault: "no station on /dev/ttyACM0",
+    });
+    expect(reads(header, ".trouble")).toBe("the store is not answering");
+    expect(reads(header, ".fault")).toBe("no station on /dev/ttyACM0");
+  });
+
+  /** It is the whole sentence the hardware published, so a long one is read
+   *  by hovering rather than guessed at from what the band had room for. */
+  it("carries the sentence as its own title", async () => {
+    const header = await band({ fault: "district B tripped" });
+    expect(header.renderRoot.querySelector(".fault")!.getAttribute("title")).toBe(
+      "district B tripped",
+    );
   });
 });
 

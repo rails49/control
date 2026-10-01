@@ -117,6 +117,13 @@ export interface RunStatus {
   /** What a session refused, or the store not answering. Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
   trouble: string | null;
+  /** What the hardware says is wrong with the supply, in its own words,
+   *  `null` where it says nothing (BUS.md, device vocabulary). The band shows
+   *  it as a fault beside the trouble: that one is the app's and this one is
+   *  the railroad's, and a tripped district is said nowhere else
+   *  ([ADR-0050](../../../docs/adr/0050-broken-hardware-is-reported-never-worked-around.md),
+   *  [#602](https://github.com/rails49/control/issues/602)). */
+  fault: string | null;
   /** The trains the run has on the layout, by name. The rail reads how many
    *  there are as the rule that trains on the layout freeze the drawing
    *  (`model/commands.ts`, ADR-0038), and the stock screen reads which they
@@ -922,6 +929,10 @@ export class TcPanel extends LitElement {
       power: this.session === null ? null : (this.panel?.power ?? null),
       draining: this.draining,
       trouble: this.trouble,
+      // Nothing, with no session joined: it is the hardware's report on the
+      // railroad this page is watching, as the supply's own reading is, and a
+      // page that has left a session is being told nothing.
+      fault: this.session === null ? null : (this.panel?.fault ?? null),
       placed: this.standing.map(({ train }) => train),
     };
   }
@@ -1020,6 +1031,7 @@ export class TcPanel extends LitElement {
       was.power === now.power &&
       was.draining === now.draining &&
       was.trouble === now.trouble &&
+      was.fault === now.fault &&
       same(was.placed, now.placed)
     ) {
       return;

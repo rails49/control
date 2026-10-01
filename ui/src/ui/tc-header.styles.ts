@@ -5,8 +5,9 @@ import { dismiss, menuBox, menuRow, menuRowChosen } from "./shared.styles.js";
 /**
  * What a fault reads as on a coloured band: a pale chip carrying its own
  * ground, rather than red text that fights the blue behind it. One block, worn
- * by the four things that are wrong in the same way — the store not answering,
- * a broker that is not, a name no drawing can wear, and rails that are dead.
+ * by everything that is wrong in the same way — the store not answering, a
+ * broker that is not, a name no drawing can wear, a drawing that does not
+ * derive, and what the hardware says is wrong with the supply (#602).
  *
  * Here and not in shared.styles.ts: nothing lives in that module that fewer
  * than two component stylesheets wear (#132), and this is one sheet's.
@@ -16,6 +17,22 @@ const alarm = css`
   border-radius: 0.2rem;
   background: var(--stop);
   color: var(--stop-ink);
+`;
+
+/**
+ * An alarm carrying a whole sentence: what the app could not do, and what the
+ * hardware says is wrong with the supply. One line whatever it says — the
+ * band's height is a row of the page's grid, and a wrapped message would take
+ * the wrap out of the canvas — so a long one is cut off here and read whole by
+ * hovering. The two wear it and the two coarse marks beside them do not: a
+ * mark names nothing and never shrinks.
+ */
+const sentence = css`
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  ${alarm}
 `;
 
 /**
@@ -157,14 +174,17 @@ export const headerStyles = css`
     opacity: 0.75;
   }
 
-  /* One line, whatever the store said: the band's height is a row of the
-     page's grid, and a wrapped message would take the wrap out of the canvas. */
+  /* What the app could not do, in the store's or the broker's words. */
   .trouble {
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    ${alarm}
+    ${sentence}
+  }
+
+  /* What the hardware says is wrong with the supply, in its own words
+     (ADR-0050, #602). The same weight the trouble beside it wears, the two
+     being wrong in the same way and differing only in whose: the app could
+     not do something, or the railroad has a fault on it. */
+  .fault {
+    ${sentence}
   }
 
   /* ON, STOP and OFF (ADR-0051). They read as the rail's HOLD/GO reads —
