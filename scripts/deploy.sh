@@ -84,15 +84,19 @@ export TC49_UID TC49_GID
 # service and would otherwise keep one from before the pull. The store, the
 # session and the mirror all build from one context now, so a change under
 # `src/` reaches none of them without it (#365).
-# One profile: `layout` is the software of a running railroad — the store,
-# the built ui and the four apps (ADR-0059, decision 5). Nothing here answers
-# for what is plugged into the box: the translator that spoke to the command
-# station is `rails49/dccex` now, a stack of its own on the box (#587), so
-# `--remove-orphans` below is what takes the container this stack used to
-# start. JMRI is another again: an operator's tool with a compose project of
-# its own, started once by hand from the installation's checkout
+# Two profiles, because two things are being asked for. `layout` is the
+# software of a running railroad — the store, the built ui, and the scheduler,
+# dispatcher and driver (ADR-0059, decision 5), the same on every box. `steel`
+# adds the layout interface bound to the hardware, which only a box wired to a
+# command station runs; a box with nothing attached asks for `sim` in its
+# place and never for both (#604). This deploy is the wired box's.
+# Nothing here answers for what is plugged into the box: the translator that
+# spoke to the command station is `rails49/dccex` now, a stack of its own on
+# the box (#587), so `--remove-orphans` below is what takes the container this
+# stack used to start. JMRI is another again: an operator's tool with a compose
+# project of its own, started once by hand from the installation's checkout
 # (rails49/installation ADR-0002).
 docker compose --env-file "$BOX_ENV" --env-file "$DEPLOY_ENV" \
-  -f deploy/compose.yaml --profile layout \
+  -f deploy/compose.yaml --profile layout --profile steel \
   up -d --build --remove-orphans
 REMOTE
