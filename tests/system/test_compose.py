@@ -9,17 +9,19 @@ deployment, and an app then waits on a store's container being up rather than
 on the store answering, which is not the same thing and is not what any of
 them was written to survive.
 
-So the file is read here and five rules are asserted on what it says: one
+So the file is read here and six rules are asserted on what it says: one
 service per app, no app run twice, nothing ordered, no service claiming a
-device, and the two bindings of the layout interface sharing no profile. The
-device rule is what makes one file both boxes': `docker compose up` on a
-machine with no steel under it starts nothing that reaches for a cable,
-because nothing here reaches for one at all. The services that did were
-translators, and no translator is this repository's — each lives in a
-repository of its own, as the one that spoke to the command station does in
+device, the two bindings of the layout interface sharing no profile, and the
+deploy asking only for profiles the file declares. The device rule is what
+makes one file both boxes': `docker compose up` on a machine with no steel
+under it starts nothing that reaches for a cable, because nothing here reaches
+for one at all. The services that did were translators, and no translator is
+this repository's — each lives in a repository of its own, as the one that
+spoke to the command station does in
 [`rails49/dccex`](https://github.com/rails49/dccex) (#587, #595).
 """
 
+import re
 from itertools import pairwise
 from pathlib import Path
 from typing import Any, cast
@@ -28,7 +30,20 @@ import yaml
 
 from tests.system.test_app_boundaries import APPS
 
-COMPOSE = Path(__file__).resolve().parents[2] / "deploy/compose.yaml"
+ROOT = Path(__file__).resolve().parents[2]
+
+COMPOSE = ROOT / "deploy/compose.yaml"
+
+ASKS = ("scripts/deploy.sh", "docs/DEPLOY.md")
+"""The files that ask compose for profiles by name: the deploy and the page
+that gives the same sequence to anyone running it by hand."""
+
+DEPLOY = ASKS[0]
+"""The ask a box actually runs, and so the one held to starting a binding."""
+
+PROFILE = re.compile(r"--profile\s+(\S+)")
+"""How either file asks for one. A flag and a name, never `--profile=<name>`:
+the sequence is written the way it is typed."""
 
 MODULE = "tc49."
 """What a service's command says to run one of ours: `python -m tc49.<app>`,
@@ -85,6 +100,20 @@ def running() -> dict[str, list[str]]:
         if app is not None:
             found.setdefault(app, []).append(name)
     return found
+
+
+def asked_by(name: str) -> set[str]:
+    """Every profile a file asks compose for, by name."""
+    return set(PROFILE.findall((ROOT / name).read_text()))
+
+
+def declared() -> set[str]:
+    """Every profile some service in the file declares."""
+    return {
+        str(profile)
+        for service in services().values()
+        for profile in service.get("profiles", [])
+    }
 
 
 def test_one_service_per_app() -> None:
@@ -161,4 +190,32 @@ def test_the_two_bindings_share_no_profile() -> None:
     assert asked["layout"] != asked["simulator"], (
         f"layout and simulator share the profile `{asked['layout']}`; the box"
         " that asks for it would start both bindings"
+    )
+
+
+def test_the_deploy_asks_for_declared_profiles() -> None:
+    """A profile no service declares is not an error: compose starts every
+    other service and exits 0 (#616). So a renamed or misspelled `steel`
+    deploys a railroad with no layout interface under it and reports success,
+    which is what the names being read off both files refuses. The profiles
+    asked for here and the `profiles:` lists there are one thing said twice,
+    and the page is held to it beside the script because somebody running the
+    sequence by hand asks with whatever it says."""
+    known = declared()
+    for name in ASKS:
+        unknown = sorted(asked_by(name) - known)
+        assert not unknown, (
+            f"{name} asks for {unknown}, which no service in deploy/compose.yaml"
+            " declares; compose starts the rest and exits 0"
+        )
+    found = services()
+    wanted = asked_by(DEPLOY)
+    started = sorted(
+        name
+        for name in ("layout", "simulator")
+        if wanted.intersection(found[name].get("profiles", []))
+    )
+    assert len(started) == 1, (
+        f"{DEPLOY} asks for {sorted(wanted)}, which starts {started}; a box"
+        " runs exactly one binding of the layout interface"
     )
