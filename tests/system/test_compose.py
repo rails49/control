@@ -41,9 +41,10 @@ that gives the same sequence to anyone running it by hand."""
 DEPLOY = ASKS[0]
 """The ask a box actually runs, and so the one held to starting a binding."""
 
-PROFILE = re.compile(r"--profile\s+(\S+)")
-"""How either file asks for one. A flag and a name, never `--profile=<name>`:
-the sequence is written the way it is typed."""
+PROFILE = re.compile(r"--profile[\s=]+([A-Za-z0-9][A-Za-z0-9_.-]*)")
+"""How either file asks for one: `--profile <name>` or `--profile=<name>`, the
+name read as compose reads it, so punctuation after it in prose is not part of
+it."""
 
 MODULE = "tc49."
 """What a service's command says to run one of ours: `python -m tc49.<app>`,
@@ -219,3 +220,9 @@ def test_the_deploy_asks_for_declared_profiles() -> None:
         f"{DEPLOY} asks for {sorted(wanted)}, which starts {started}; a box"
         " runs exactly one binding of the layout interface"
     )
+
+
+def test_a_profile_is_read_as_compose_reads_its_name() -> None:
+    """Prose around the flag is not part of the name (#621)."""
+    assert PROFILE.findall("passes `--profile sim` instead.") == ["sim"]
+    assert PROFILE.findall("--profile=steel") == ["steel"]
