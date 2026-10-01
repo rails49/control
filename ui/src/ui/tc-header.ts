@@ -75,6 +75,22 @@ export class TcHeader extends LitElement {
    *  itself: those are marked where they are (ADR-0024). */
   @property() trouble: string | null = null;
 
+  /** What the hardware says is wrong with the supply, in its own words,
+   *  `null` where it says nothing (BUS.md, device vocabulary). The run view
+   *  reads it off `tc49/layout/state/device/track`, whose free-text `reason`
+   *  is the only place a tripped district can be said — a district reaches no
+   *  topic of its own
+   *  ([ADR-0050](../../../docs/adr/0050-broken-hardware-is-reported-never-worked-around.md),
+   *  [#602](https://github.com/rails49/control/issues/602)).
+   *
+   *  Not the supply's reading, which is the mark on the presses and cannot
+   *  carry this: a station that cuts one district by itself goes on reporting
+   *  the railroad as powered, and a marked OFF wears the plain mark since
+   *  #585, so a dark railroad reads as one at rest. So it reads whichever way
+   *  `power` stands, and it is the hardware's sentence verbatim — nothing
+   *  here branches on it. */
+  @property() fault: string | null = null;
+
   /** Whether the drawing derives, which is the one thing the band says about
    *  the drawing itself (ADR-0024). The mark names no fault and counts
    *  nothing: the canvas is where you find out where. */
@@ -175,9 +191,17 @@ export class TcHeader extends LitElement {
    *   state of a railroad being run, and nothing is wrong with it, so in the
    *   run view it is a warning about nothing.
    *
-   * What is left is the two things that are somebody's mistake — the store not
-   * answering or a broker that is not, and a drawing that does not derive —
-   * and the session clock.
+   * - **A fault the hardware reports** speaks wherever it is standing, and the
+   *   mark on the presses cannot say it: a station that cuts one district by
+   *   itself goes on reporting the railroad as powered, and a district reaches
+   *   no topic of its own, so the row's free-text `reason` is the whole of
+   *   what says a trip is standing (ADR-0050, #602). It is the railroad's own
+   *   and the trouble above is the app's, so the two stand beside each other
+   *   rather than one standing in for the other.
+   *
+   * What is left is the three things that are somebody's mistake — the store
+   * not answering or a broker that is not, a drawing that does not derive, and
+   * hardware saying what is wrong with the supply — and the session clock.
    *
    * A region rather than a string, with room in it: per-container reachability
    * and eventually the hardware's belong here too, and what fills the slot is
@@ -199,6 +223,9 @@ export class TcHeader extends LitElement {
         ${this.trouble === null
           ? nothing
           : html`<span class="trouble" title=${this.trouble}>${this.trouble}</span>`}
+        ${this.fault === null
+          ? nothing
+          : html`<span class="fault" title=${this.fault}>${this.fault}</span>`}
         ${this.sessionS === null
           ? nothing
           : html`<span class="session">session ${clocked(this.sessionS)}</span>`}

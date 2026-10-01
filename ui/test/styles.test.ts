@@ -582,6 +582,17 @@ describe("the two weights a fault is marked in", () => {
     expect(mark).not.toContain("var(--unfinished)");
   });
 
+  /** A fault the hardware reports wears the same weight as the trouble beside
+   *  it, the two being wrong in the same way (#602): a chip carrying its own
+   *  ground, rather than red text fighting the band behind it. It is cut off
+   *  rather than wrapped, the band's height being a row of the page's grid. */
+  it("gives the hardware's fault the weight the trouble wears", () => {
+    const fault = rule(headerStyles.cssText, ".fault");
+    expect(fault).toContain("var(--stop-ink)");
+    expect(fault).toContain("text-overflow: ellipsis");
+    expect(fault).toBe(rule(headerStyles.cssText, ".trouble"));
+  });
+
   /** The ghost draws the same mark on the squares a drop cannot have, and that
    *  drop places nothing at all: a refusal, so it stays red. */
   it("leaves the squares a blocked drop wants red", () => {

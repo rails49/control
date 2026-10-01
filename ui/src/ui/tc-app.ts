@@ -90,6 +90,7 @@ const QUIET: RunStatus = {
   power: null,
   draining: false,
   trouble: null,
+  fault: null,
   placed: [],
 };
 
@@ -182,6 +183,7 @@ export class TcApp extends LitElement {
         .unsaved=${!this.filing.saved}
         .derives=${this.filing.derives}
         .trouble=${this.filing.trouble ?? this.status.trouble}
+        .fault=${this.status.fault}
         .joined=${this.status.joined}
         .linked=${this.status.linked}
         .power=${this.status.power}

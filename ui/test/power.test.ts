@@ -18,6 +18,13 @@
  * nothing about `moving` at all never ends the wait, an older dispatcher's
  * silence being no licence to cut.
  *
+ * The other direction is here too: what the hardware says back about the
+ * supply on `tc49/layout/state/device/track`, which the band shows as a fault
+ * (#602). It is the same band and the same railroad-wide supply, and the one
+ * thing the presses cannot say — a station that cuts one district by itself
+ * goes on reporting the railroad as powered
+ * ([ADR-0050](../../docs/adr/0050-broken-hardware-is-reported-never-worked-around.md)).
+ *
  * A DOM test because it crosses the band, the app and the run view's socket.
  * The session itself is `support/session.ts`, shared with the other suites.
  */
@@ -36,6 +43,11 @@ afterEach(unbrokered);
 const POWER_WANTED = "tc49/layout/power_wanted";
 const RUN_WANTED = "tc49/dispatch/run_wanted";
 const STATE_RUN = "tc49/dispatch/state/run";
+/** What the hardware reports about the supply it drives, and what `layout`
+ *  asks of it: two rows of the device vocabulary, and only the observed one
+ *  carries a reason (BUS.md). */
+const DEVICE_TRACK = "tc49/layout/state/device/track";
+const WANTED_TRACK = "tc49/layout/state/wanted/track";
 
 /** ON, STOP and OFF, in the order the band draws them. */
 function presses(shell: TcApp): HTMLButtonElement[] {
@@ -51,6 +63,13 @@ async function press(shell: TcApp, which: 0 | 1 | 2): Promise<void> {
 /** What the band's OFF is saying. */
 function off(shell: TcApp): string {
   return presses(shell)[2]!.textContent!.trim();
+}
+
+/** What the band says is wrong with the supply, `null` while it says
+ *  nothing. */
+function fault(shell: TcApp): string | null {
+  const said = band(shell).renderRoot.querySelector(".fault");
+  return said === null ? null : said.textContent!.trim();
 }
 
 describe("the presses that are one frame", () => {
@@ -257,5 +276,65 @@ describe("OFF is the drain trigger", () => {
       { topic: POWER_WANTED, payload: { power: "on" } },
     ]);
     expect(off(shell)).toBe("OFF");
+  });
+});
+
+/**
+ * What the hardware says is wrong with the supply, read off the row it says it
+ * on (#602). A district reaches no topic of its own, so a trip the station cut
+ * itself is named in the free text of `device/track` and nowhere else — and
+ * with the other districts still powered that frame reads `power: on`, which
+ * is a railroad with nothing wrong with it to anything reading `power` alone
+ * (ADR-0050).
+ */
+describe("what the hardware says about the supply", () => {
+  /** The whole of what says a trip is standing, so the band says it where the
+   *  supply is reading as it would with nothing wrong. */
+  it("shows a trip as a fault while the rails have power", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/layout/state/power", { power: "on" });
+    await said(shell, DEVICE_TRACK, { power: "on", reason: "district B tripped" });
+
+    expect(fault(shell)).toBe("district B tripped");
+    expect(presses(shell)[0]!.classList.contains("at")).toBe(true);
+  });
+
+  /** And where the supply is gone: a dark railroad reads as one at rest since
+   *  #585, so why it is dark is said here or not at all. */
+  it("shows one with the supply gone as well", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+    await said(shell, DEVICE_TRACK, { power: "off", reason: "no station on /dev/ttyACM0" });
+
+    expect(fault(shell)).toBe("no station on /dev/ttyACM0");
+  });
+
+  /** The trip holds until somebody resets it, and the frame that stops naming
+   *  it is the hardware saying it is over. */
+  it("clears the fault on a frame that carries no reason", async () => {
+    const shell = await joined();
+    await said(shell, DEVICE_TRACK, { power: "on", reason: "district B tripped" });
+    await said(shell, DEVICE_TRACK, { power: "on" });
+
+    expect(fault(shell)).toBeNull();
+  });
+
+  /** A press writes `power_wanted` and `layout` answers by writing the
+   *  desired row, which carries no reason: the two rows share a leaf, and a
+   *  page that read them as one would clear the trip on the next press. */
+  it("is untouched by what the supply is asked for", async () => {
+    const shell = await joined();
+    await said(shell, DEVICE_TRACK, { power: "on", reason: "district B tripped" });
+    await press(shell, 0);
+    await said(shell, WANTED_TRACK, { power: "on" });
+
+    expect(fault(shell)).toBe("district B tripped");
+  });
+
+  it("says nothing while the hardware reports nothing wrong", async () => {
+    const shell = await joined();
+    await said(shell, DEVICE_TRACK, { power: "on" });
+
+    expect(fault(shell)).toBeNull();
   });
 });
