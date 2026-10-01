@@ -236,9 +236,12 @@ services:
   # first box booted against an empty store (#564).
   #
   # `layout` and `simulator` are two bindings of one interface and never run
-  # together: one writing role (ADR-0035) means the box wired to steel runs
-  # `layout` under the `layout` profile, and a box with none runs `simulator`
-  # under `sim` in its place.
+  # together: one writing role (ADR-0035) means each is asked for by a profile
+  # of its own, and never by the `layout` profile the software of a running
+  # railroad is in. A box with a layout attached runs
+  # `--profile layout --profile steel`, a box without one runs
+  # `--profile layout --profile sim`, and `layout` and `simulator` share no
+  # profile, so no ask starts both (#604).
   scheduler:
     build: *app
     profiles: [layout]
@@ -271,11 +274,12 @@ services:
        "--railroad", "${TC49_RAILROAD:-}"]
 
   # The layout interface: the one app bound to a railroad, and the writer of
-  # what the hardware is asked to do. On the box wired to steel, so it is in
-  # the `layout` profile with the store it reads.
+  # what the hardware is asked to do. Only the box wired to steel runs it, so
+  # it is alone in the `steel` profile rather than among the software every
+  # box runs.
   layout:
     build: *app
-    profiles: [layout]
+    profiles: [steel]
     restart: unless-stopped
     command:
       ["python", "-m", "tc49.layout",
@@ -284,8 +288,8 @@ services:
        "--store", "http://store:8765"]
 
   # The simulator standing in for the steel, on a box that has none: the
-  # milestone-1 binding of the same interface (ADR-0030). A profile of its
-  # own, because it and `layout` are alternatives.
+  # milestone-1 binding of the same interface (ADR-0030). Alone in the `sim`
+  # profile, which a box asks for in place of `steel`.
   simulator:
     build: *app
     profiles: [sim]
