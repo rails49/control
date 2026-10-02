@@ -84,6 +84,13 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 
 ### Completed maps
 
+- [Model photos map: a photo on each catalogue model](https://github.com/rails49/control/issues/624)
+  — the way to a person taking a model's photo from the stock view with a
+  fixed camera. Reached on 2026-10-02 as three issues to build: the camera
+  route ([#629](https://github.com/rails49/control/issues/629)), the store's
+  photo route ([#630](https://github.com/rails49/control/issues/630)) and the
+  stock view's thumbnail and dialog
+  ([#631](https://github.com/rails49/control/issues/631)).
 - [Milestone 2 map: connect hardware and run trains](https://github.com/rails49/control/issues/193)
   — the way to `docs/MILESTONE-2.md`: a physical binding of the layout
   interface, a driver that turns an aspect into a speed, stock a real railroad
