@@ -63,6 +63,9 @@ import {
   type ModelFn,
 } from "../model/store.js";
 import { stockStyles } from "./tc-stock.styles.js";
+// PROTOTYPE (#628): model photos, three variants.
+import { PhotoProto, gallery, pane, photoDialog, photoStyles, thumb, variant } from "./prototype-photo/photo.js";
+import "./prototype-photo/switcher.js";
 
 /**
  * A model being written in the dialog, before it is a document.
@@ -101,7 +104,9 @@ const UNREAD = "the roster and the catalogue are not read yet";
 
 @customElement("tc-stock")
 export class TcStock extends LitElement {
-  static override styles = stockStyles;
+  static override styles = [stockStyles, photoStyles];
+
+  private photos = new PhotoProto(this);
 
   /** The loaded railroad, whose roster this edits. `null` while none is
    *  loaded, which is a screen with nothing to edit and not a fault. */
@@ -278,13 +283,30 @@ export class TcStock extends LitElement {
 
   override render() {
     const stock = this.stock;
+    const v = variant();
+    this.toggleAttribute("photo-c", v === "C");
+    const rows = stock?.modelRows(this.placed) ?? [];
+    this.photos.seed(rows.map((r) => r.model));
+    const picked = rows.find((r) => r.model === this.photos.open) ?? null;
     return html`
       <section class="parts">
         ${this.carList(stock?.cars(this.placed) ?? [])}
-        ${this.modelList(stock?.modelRows(this.placed) ?? [])}
+        ${v === "B"
+          ? gallery(
+              this.photos,
+              rows,
+              this.modelHead(),
+              (model) => this.coupled({ model }),
+              this.pointed() === null ? "make a train up first" : `add to '${this.pointed()}'`,
+              this.pointed() !== null,
+            )
+          : this.modelList(rows)}
       </section>
+      ${v === "C" ? pane(this.photos, picked) : nothing}
       ${this.trainList(stock?.trains(this.placed) ?? [])}
       ${this.dialog()}
+      ${v === "A" ? photoDialog(this.photos) : nothing}
+      ${import.meta.env.DEV ? html`<proto-switcher></proto-switcher>` : nothing}
     `;
   }
 
@@ -311,7 +333,11 @@ export class TcStock extends LitElement {
 
   private car(car: CarRow) {
     return html`
-      <li class="car">
+      <li
+        class=${`car ${variant() === "A" ? "thumbed" : ""} ${variant() === "C" ? "pickable" : ""} ${variant() === "C" && this.photos.open === car.model ? "picked" : ""}`}
+        @click=${() => variant() === "C" && this.photos.show(car.model)}
+      >
+        ${variant() === "A" ? thumb(this.photos, car.model, () => this.photos.show(car.model)) : nothing}
         <span class="what">
           <input
             class="name"
@@ -383,17 +409,7 @@ export class TcStock extends LitElement {
   private modelList(models: ModelRow[]) {
     return html`
       <section class="models">
-        <header class="head">
-          <h2>Models</h2>
-          <button
-            class="new-model"
-            title=${this.unwritable() ?? nothing}
-            ?disabled=${this.stock === null}
-            @click=${() => (this.making = draft())}
-          >
-            New model…
-          </button>
-        </header>
+        ${this.modelHead()}
         ${models.length === 0
           ? html`<p class="hint">
               no models yet — a train is made of them, so write the first one
@@ -405,9 +421,28 @@ export class TcStock extends LitElement {
     `;
   }
 
+  private modelHead() {
+    return html`<header class="head">
+          <h2>Models</h2>
+          <button
+            class="new-model"
+            title=${this.unwritable() ?? nothing}
+            ?disabled=${this.stock === null}
+            @click=${() => (this.making = draft())}
+          >
+            New model…
+          </button>
+        </header>`;
+  }
+
   private model(model: ModelRow) {
+    const v = variant();
     return html`
-      <li class="product">
+      <li
+        class=${`product ${v === "A" ? "thumbed" : ""} ${v === "C" ? "pickable" : ""} ${v === "C" && this.photos.open === model.model ? "picked" : ""}`}
+        @click=${() => v === "C" && this.photos.show(model.model)}
+      >
+        ${v === "A" ? thumb(this.photos, model.model, () => this.photos.show(model.model)) : nothing}
         <span class="what">
           ${model.model}
           <span class="of">
