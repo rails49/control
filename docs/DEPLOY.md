@@ -244,10 +244,15 @@ name, and what the containers below publish is on the LAN beside it.
 | the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue` under that name |
 | the broker, native clients | 1883 | the LAN address |
 | the broker, a browser | 9001, and `/mqtt` | plaintext on the LAN, or through the door from a TLS page |
+| a camera app's picture route | 8766, and not this stack's | `/camera` under that name, claimed by the camera's own stack |
 
 The command station is mirrored on 2560 at the LAN address, and that port is
 not this file's: it is published by [`rails49/dccex`](https://github.com/rails49/dccex),
-a stack of its own on the same box.
+a stack of its own on the same box. `/camera` is the same arrangement: a
+camera app — the first is a small server in `rails49/camera` — claims the
+prefix under the box's name with a door label of its own, and neither its
+container nor that label is in this repository's compose file
+([#629](https://github.com/rails49/control/issues/629)).
 
 ### The store, and the documents it serves
 
@@ -535,7 +540,13 @@ of the page's own on both.
 | --- | --- | --- |
 | `/mqtt` | the broker container's websocket listener on `:9001` | the same, as the `broker` container |
 | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue` | vite's own proxy to the store | the store, `:8765` |
+| `/camera` | vite's own proxy to a camera app on `:8766` | the camera's own stack, under the same name |
 | everything else | vite, `:5173` | `ui/dist` through nginx |
+
+`/camera` is the one row no container of this stack answers: the picture route
+is a camera app's, outside this repository ([SYSTEM.md](SYSTEM.md)), and vite's
+entry for it lands with the view that fetches it
+([#631](https://github.com/rails49/control/issues/631)).
 
 **A handshake from a page on another origin is answered 403 before the
 upgrade**, so a foreign page gets no socket at all. A WebSocket has no
