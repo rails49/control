@@ -139,8 +139,14 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     POST /backup/restore        put the store back as a backup held it
     POST /backup/repository     back up to an empty repository the person made
 
-Every route is a store operation, which is why the server lives in the store
-rather than in an app of its own
+**One more route sits beside those and is not the store's.** A camera app
+answers it, and no app of this repository does
+([#629](https://github.com/rails49/control/issues/629)):
+
+    GET  /camera/snapshot       take one picture now
+
+Every route the store serves is a store operation, which is why the server
+lives in the store rather than in an app of its own
 ([ADR-0013](adr/0013-apps-are-deployment-units.md)). `review` is the one
 route that is not CRUD: it takes an unsaved document and answers what it
 derives to, so the editor holds no second copy of the derivation
@@ -277,6 +283,21 @@ LAN is still the trust boundary and a browser is not on it
   against, because what reads them is the screen that edits them. There is no
   `DELETE`: an unused model costs nothing, and one a car still names could not
   be removed anyway.
+- **The picture route is a camera app's, and the store never answers it** —
+  `GET /camera/snapshot` takes one picture now. The responder is not code of
+  this repository: the first is a small server in `rails49/camera`, and a
+  different camera is a different image answering the same route. A **200**
+  carries `image/jpeg`, the picture as the camera took it, and any other
+  status means no picture — there is nothing else for a caller to read out of
+  it. No body and no parameters: a camera's own settings are its environment
+  rather than the route's. No `Access-Control-*` header either, because the
+  browser reaches it on its own origin, as it reaches the store's routes — on
+  a box the camera's stack claims `/camera` on `control.$BOX_DOMAIN` with a
+  door label of its own, the way the store's container claims its paths, and
+  in development vite proxies `/camera` to `http://127.0.0.1:8766`, the port a
+  camera app listens on ([DEPLOY.md](DEPLOY.md)). What fetches it is the stock
+  view, which puts the picture on a model
+  ([#631](https://github.com/rails49/control/issues/631)).
 - **A name is the id** — `crossover-yard` for a railroad and its roster, and
   `crossover-yard/meet`, qualified by layout, for one of the harness's
   scenarios. The verbs are `get`, `put` (create or replace a whole document),
