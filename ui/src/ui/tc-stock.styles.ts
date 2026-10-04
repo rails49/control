@@ -22,6 +22,11 @@ import { css } from "lit";
  * the length guard has killed keeps its box and takes the hint colour, with
  * the reason beside it — a field that vanished while a train was placed would
  * leave a person looking for it (ui/STOCK.md#the-length-guard).
+ *
+ * **A thumbnail starts every row**, a fixed column wide enough to tell two
+ * products apart and small enough that the fields keep the width they had: a
+ * photo answers *which one is that* faster than a name does, and the picture
+ * itself is a dialog away (ui/STOCK.md#a-models-photo).
  */
 export const stockStyles = css`
   :host {
@@ -79,12 +84,14 @@ export const stockStyles = css`
     border-top: 1px solid var(--rule);
   }
 
-  /* One car and one model read as the same row: what it is, then the numbers,
-     then the two presses. */
+  /* One car and one model read as the same row: the photo, what it is, then
+     the numbers, then the two presses. The thumbnail is the first column on
+     both because a car's photo is its model's, so the two lists read down one
+     edge (ADR-0061). */
   li.car,
   li.product {
     display: grid;
-    grid-template-columns: 1fr 5rem 5rem auto auto;
+    grid-template-columns: 3.2rem 1fr 5rem 5rem auto auto;
     column-gap: 0.4rem;
     align-items: center;
     padding: 0.25rem 0.2rem;
@@ -220,5 +227,75 @@ export const stockStyles = css`
     column-gap: 0.4rem;
     align-items: center;
     padding: 0.15rem 0;
+  }
+
+  /* A model's photo. The thumbnail is a press, so it is a button and not an
+     image with a handler on it: what it opens is a dialog, and the keyboard
+     reaches it the way it reaches the + beside it. */
+  button.thumb {
+    width: 3.2rem;
+    height: 1.9rem;
+    padding: 0;
+    overflow: hidden;
+    font-size: 0.55rem;
+    line-height: 1;
+    color: var(--hint);
+  }
+
+  button.thumb img,
+  .picture img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* The frame the photo is shown in, at a fixed shape whether there is a
+     picture in it, none, or a camera being waited on: a dialog whose height
+     moved under the presses would move the press being aimed at. */
+  .picture {
+    aspect-ratio: 4 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    overflow: hidden;
+    font-size: 0.8rem;
+    color: var(--hint);
+    text-align: center;
+  }
+
+  .picture.waiting {
+    border-style: dashed;
+  }
+
+  /* A picture nothing has been told to keep, marked so it is not mistaken for
+     the photo the model has. */
+  .picture.unsaved {
+    outline: 2px dashed var(--ink);
+    outline-offset: 2px;
+  }
+
+  .presses {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+  }
+
+  .unkept {
+    margin: 0.3rem 0 0;
+    font-size: 0.75rem;
+    color: var(--hint);
+  }
+
+  /* Why there is no picture, or what the store said about keeping one. Not
+     the dialog's trouble line: that one is the New model dialog's own refusal,
+     and a camera that answered something other than a picture is no refusal of
+     the product being written (#446). */
+  .no-picture {
+    margin: 0.3rem 0 0;
+    font-size: 0.75rem;
+    color: var(--wrong);
   }
 `;
