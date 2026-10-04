@@ -366,6 +366,126 @@ def test_a_model_cannot_be_saved_under_another_name(
     assert handle(store, backup, "GET", "/catalogue", None)[1] == {"models": {}}
 
 
+JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF" + bytes(range(64))
+"""Bytes that open as a JPEG does. Not a picture: the store keeps what it is
+handed and reads none of it (#626)."""
+
+
+def test_a_photo_is_written_and_read_back(tmp_path: Path, backup: Backup) -> None:
+    """The route is the picture, so `GET` and `PUT` are inverses here as they
+    are on a document — and the body is the JPEG itself rather than a document
+    carrying it, these being the first routes on this face that are not JSON
+    either way (#626)."""
+    catalogued(tmp_path)
+    store = AssetStore(tmp_path)
+    assert handle(store, backup, "PUT", "/catalogue/arnold-ce68/photo", JPEG) == (
+        200,
+        {"saved": "arnold-ce68"},
+    )
+    assert handle(store, backup, "GET", "/catalogue/arnold-ce68/photo", None) == (
+        200,
+        {"jpeg": JPEG},
+    )
+    assert (tmp_path / "catalogue" / "arnold-ce68.jpg").read_bytes() == JPEG
+
+
+def test_a_model_with_no_photo_is_not_found(store: AssetStore, backup: Backup) -> None:
+    """Nothing on the document says whether there is a picture — the photo
+    exists when the file does — so the 404 is how a screen learns there is
+    none to draw."""
+    status, body = handle(store, backup, "GET", "/catalogue/arnold-ce68/photo", None)
+    assert status == 404
+    assert "arnold-ce68" in body["error"]
+
+
+def test_a_second_photo_replaces_the_one_before_it(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """One model has one photo, as one name has one document: a better picture
+    is the same route written again."""
+    catalogued(tmp_path)
+    store = AssetStore(tmp_path)
+    handle(store, backup, "PUT", "/catalogue/arnold-ce68/photo", JPEG)
+    better = JPEG + b"\xff\xd9"
+    assert handle(store, backup, "PUT", "/catalogue/arnold-ce68/photo", better) == (
+        200,
+        {"saved": "arnold-ce68"},
+    )
+    assert handle(store, backup, "GET", "/catalogue/arnold-ce68/photo", None) == (
+        200,
+        {"jpeg": better},
+    )
+
+
+def test_a_body_that_is_not_a_jpeg_is_refused(tmp_path: Path, backup: Backup) -> None:
+    """The file is named `.jpg` and what reads it reads the name, so the magic
+    number is checked and nothing is written where it is wrong — a document
+    arriving on this route included, the body here being bytes."""
+    catalogued(tmp_path)
+    store = AssetStore(tmp_path)
+    for body in (b"\x89PNG\r\n\x1a\n", {"photo": "arnold-ce68"}):
+        status, said = handle(
+            store, backup, "PUT", "/catalogue/arnold-ce68/photo", body
+        )
+        assert status == 400
+        assert "arnold-ce68" in said["error"]
+    assert not (tmp_path / "catalogue" / "arnold-ce68.jpg").exists()
+
+
+def test_a_photo_of_a_model_the_installation_has_not_is_refused(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """400 rather than 404: the request names a route that is there and hands
+    it a picture of a product nothing in the catalogue knows, which is the
+    client's mistake and not a missing page."""
+    catalogued(tmp_path)
+    store = AssetStore(tmp_path)
+    status, body = handle(store, backup, "PUT", "/catalogue/atlantis/photo", JPEG)
+    assert status == 400
+    assert "atlantis" in body["error"]
+    assert not (tmp_path / "catalogue" / "atlantis.jpg").exists()
+
+
+def test_a_photo_is_served_over_http_as_the_bytes_it_is(tmp_path: Path) -> None:
+    """End to end, because this is the one reply on this face that is not JSON
+    and the headers are the whole of what says so: the PUT carries the JPEG as
+    its body, the GET answers those bytes under `image/jpeg`, and a
+    cache-buster on the way back is no new route (#626)."""
+    catalogued(tmp_path)
+    server = make_server(tmp_path, port=0)
+    url = f"http://127.0.0.1:{server.server_port}"
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        saved = Request(f"{url}/catalogue/arnold-ce68/photo", data=JPEG, method="PUT")
+        with urlopen(saved) as stored:
+            assert json.load(stored) == {"saved": "arnold-ce68"}
+
+        with urlopen(f"{url}/catalogue/arnold-ce68/photo?v=2") as served_photo:
+            assert served_photo.headers.get("Content-Type") == "image/jpeg"
+            assert served_photo.read() == JPEG
+
+        with pytest.raises(HTTPError) as missing:
+            urlopen(f"{url}/catalogue/conrad-e10/photo")
+        assert missing.value.code == 404
+
+        # And the page on another origin that would write over it.
+        foreign = Request(
+            f"{url}/catalogue/arnold-ce68/photo",
+            data=JPEG,
+            headers={"Origin": "http://evil.example"},
+            method="PUT",
+        )
+        with pytest.raises(HTTPError) as refused:
+            urlopen(foreign)
+        assert refused.value.code == 403
+        assert refused.value.headers.get("Access-Control-Allow-Origin") is None
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 SCRIPT = 'def point(addr: str) -> str:\n\treturn f"<T {addr} 1>"  # kürzer\\n'
 """A script with everything a JSON round trip can lose: quotes, a backslash
 that is not an escape, a tab, non-ASCII and no trailing newline."""
@@ -980,6 +1100,21 @@ def test_saving_a_script_arms_the_idle_timer(
     driven.switch(True)
     doc = {"script": "facing-pair-2", "text": SCRIPT}
     assert handle(store, driven, "PUT", "/scripts/facing-pair-2", doc)[0] == 200
+    assert [call for call in driving.calls if call[0] == "commit"] == []
+
+    clock[0] += 20.0
+    driven.due()
+    assert [call[0] for call in driving.calls if call[0] == "commit"] == ["commit"]
+
+
+def test_saving_a_photo_arms_the_idle_timer(
+    store: AssetStore, driven: Backup, driving: FakeGit, clock: list[float]
+) -> None:
+    """A photo written over the route is a file of the store that moved, so it
+    arms the timer the way every document does: the picture is kept beside the
+    model's document and backed up with it (#626)."""
+    driven.switch(True)
+    assert handle(store, driven, "PUT", "/catalogue/arnold-ce68/photo", JPEG)[0] == 200
     assert [call for call in driving.calls if call[0] == "commit"] == []
 
     clock[0] += 20.0

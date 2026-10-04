@@ -16,6 +16,8 @@ rather than to an app of its own — a `ui` package could not import
     GET  /catalogue             every model the installation knows, by name
     GET  /catalogue/<name>      one model, as the document it is
     PUT  /catalogue/<name>      save it, keeping what the file says
+    GET  /catalogue/<name>/photo that model's photo, as the JPEG it is
+    PUT  /catalogue/<name>/photo save it, replacing any before it
     GET  /scripts/<railroad>    the translator script that railroad carries
     PUT  /scripts/<railroad>    save it, as the text it is
     GET  /backup                whether the store can be backed up, is being,
@@ -78,6 +80,19 @@ drawing's, and it is the one a fresh box needs: with no `catalogue/` directory
 every car names a model the installation has not got, so no roster can be
 written at all (#392). There is **no `DELETE`** — this face has no DELETE verb
 for any document, and an unused model costs nothing.
+
+A model's **photo** hangs below its document, the way a roster's trains do, and
+it is the one thing here that is not a document: the JPEG itself, kept as
+`catalogue/<name>.jpg` beside the YAML and backed up with it. **These are the
+only routes on this face whose body is not JSON** — the `PUT` is the picture's
+bytes, stored byte for byte, and the `GET` answers them under `image/jpeg`;
+every other route is JSON both ways. The document says nothing about a photo,
+so a model that has none is a 404 and `GET /catalogue` does not say which
+models have one. Refused with a 400 where the bytes do not open as a JPEG or
+where the installation has no such model, both of them the client's mistake
+rather than a missing page. No `DELETE`, as for every document, and the origin
+rule is the same one: a page on another origin writes no picture either
+(#626).
 
 The **script** routes are one railroad's translator script: the text a
 translator loads to speak to that railroad's command station, filed beside its
@@ -161,10 +176,29 @@ def handle(
         return 400, {"error": str(bad)}
 
 
+def asked(path: str) -> str:
+    """The route a request names: the path itself, a cache-buster dropped.
+
+    A query string is no part of any route here, which is what lets a page
+    fetch a photo again after saving one by asking for `?v=<n>`. Named rather
+    than inlined because the request handler reads it too — which routes take
+    a body that is not JSON is a question about the route and not about the
+    socket.
+    """
+    return unquote(path.split("?", 1)[0])
+
+
+def takes_bytes(path: str) -> bool:
+    """Whether the body of a request to `path` is the bytes it arrived as
+    rather than a JSON document: the photo routes, and nothing else on this
+    face (#626)."""
+    return asked(path).endswith("/photo")
+
+
 def _route(
     store: AssetStore, backup: Backup, method: str, path: str, body: Any
 ) -> Response:
-    route = unquote(path.split("?", 1)[0])  # a cache-buster is not a new route
+    route = asked(path)
 
     if method == "GET" and route == "/drawings":
         return 200, {"drawings": store.list()}
@@ -182,15 +216,24 @@ def _route(
         # which is every fresh box: an empty map rather than a 404.
         return 200, {"models": store.models()}
 
-    model = route.removeprefix("/catalogue/")
-    if model != route and "/" not in model:
-        if method == "GET":
-            try:
-                return 200, store.model(model)
-            except FileNotFoundError:
-                return 404, {"error": f"no model '{model}'"}
-        if method == "PUT":
-            return _put_model(store, backup, model, body)
+    entry = route.removeprefix("/catalogue/")
+    if entry != route:
+        # The document is the route, so `/catalogue/<name>` alone is the model
+        # itself and its photo hangs below it, as a roster's trains do.
+        model, _, part = entry.partition("/")
+        if part == "photo":
+            if method == "GET":
+                return _photo(store, model)
+            if method == "PUT":
+                return _put_photo(store, backup, model, body)
+        if not part:
+            if method == "GET":
+                try:
+                    return 200, store.model(model)
+                except FileNotFoundError:
+                    return 404, {"error": f"no model '{model}'"}
+            if method == "PUT":
+                return _put_model(store, backup, model, body)
 
     rest = route.removeprefix("/rosters/")
     if rest != route:
@@ -420,6 +463,42 @@ def _put_model(store: AssetStore, backup: Backup, name: str, body: Any) -> Respo
     return 200, {"saved": name}
 
 
+def _photo(store: AssetStore, name: str) -> Response:
+    """One model's photo, as the bytes it is.
+
+    The payload carries them under `jpeg` rather than being them, because
+    `handle` answers a mapping on every route: what reaches the wire is those
+    bytes alone, under `image/jpeg`, and the key is where the HTTP face reads
+    them (`_respond`).
+
+    A model with no photo is a 404 — nothing on the document says whether
+    there is one, the picture existing when the file does, so this is how a
+    screen learns there is none to draw.
+    """
+    try:
+        return 200, {"jpeg": store.photo(name)}
+    except FileNotFoundError:
+        return 404, {"error": f"no photo for model '{name}'"}
+
+
+def _put_photo(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
+    """One model's photo, created or replaced.
+
+    The body is the JPEG rather than a document carrying it, so what arrives
+    as something else — a JSON document on this route, or a body this face
+    could not read at all — is refused in the same words as bytes that do not
+    open as a JPEG: either way nothing here has a picture to keep. Byte for
+    byte, the store scaling and cropping nothing.
+    """
+    if not isinstance(body, bytes):
+        return 400, {"error": f"photo '{name}': the body is the JPEG's own bytes"}
+    store.put_photo(body, name)
+    # As a drawing's save does, and for the same reason: a photo written is a
+    # file of the store that has moved (#626).
+    backup.saved()
+    return 200, {"saved": name}
+
+
 def make_server(
     root: Path,
     port: int = 8765,
@@ -481,16 +560,36 @@ def make_server(
             return is_own_page(self.headers.get("Origin"), self.headers.get("Host"))
 
         def _body(self) -> Any:
+            """What was sent, read as the route takes it: the bytes
+            themselves where a photo is being saved, and a JSON document
+            everywhere else (`takes_bytes`). A length this face cannot read is
+            a body it cannot find the end of, so nothing is read at all and
+            the route answers what a missing body is worth."""
             try:
                 length = int(self.headers.get("Content-Length") or 0)
-                return json.loads(self.rfile.read(length) or b"null")
-            except ValueError:  # a bad length, or a body that is not JSON
+                sent = self.rfile.read(length)
+            except ValueError:  # a bad length: there is no body to find
+                return None
+            if takes_bytes(self.path):
+                return sent
+            try:
+                return json.loads(sent or b"null")
+            except ValueError:  # a body that is not JSON
                 return None
 
         def _respond(self, status: int, payload: dict[str, Any]) -> None:
-            encoded = json.dumps(payload).encode()
+            """The reply, JSON unless the payload carries a picture: a
+            `jpeg` key is the one answer on this face that is not a document,
+            and it goes out as those bytes and nothing else (`_photo`)."""
+            jpeg = payload.get("jpeg")
+            if isinstance(jpeg, bytes):
+                self._send(status, "image/jpeg", jpeg)
+                return
+            self._send(status, "application/json", json.dumps(payload).encode())
+
+        def _send(self, status: int, media_type: str, encoded: bytes) -> None:
             self.send_response(status)
-            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Type", media_type)
             self.send_header("Content-Length", str(len(encoded)))
             # No `Access-Control-*` at all: the app fetches these routes on
             # its own origin, in development through vite's proxy and on a
