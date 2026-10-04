@@ -34,6 +34,13 @@
  * the page that has any: the length guard reads it, and a second browser
  * editing stock during a run is not covered (ui/STOCK.md#the-length-guard,
  * [#390](https://github.com/rails49/control/issues/390)).
+ *
+ * **A model's photo is on every row**, and the camera behind Take photo is the
+ * one thing this screen fetches that the store does not answer: a camera app
+ * does, outside this repository, and a `200` is a picture while any other
+ * status is none (ui/STOCK.md#a-models-photo, docs/SYSTEM.md,
+ * [#629](https://github.com/rails49/control/issues/629),
+ * [#630](https://github.com/rails49/control/issues/630)).
  */
 
 import { LitElement, html, nothing } from "lit";
@@ -52,15 +59,19 @@ import {
   type TrainRow,
 } from "../model/stock.js";
 import {
+  photoUrl,
   readCatalogue,
   readRoster,
   RETRY_MS,
   said,
   saveModel,
+  savePhoto,
   saveRoster,
+  takePicture,
   Unanswered,
   type ModelDoc,
   type ModelFn,
+  type Picture,
 } from "../model/store.js";
 import { stockStyles } from "./tc-stock.styles.js";
 
@@ -87,6 +98,26 @@ export interface Draft {
 function draft(): Draft {
   return { model: "", kind: "freight", length: "", functions: [] };
 }
+
+/**
+ * What the camera has been asked for and what came of it, while a dialog with
+ * a photo in it is open; `null` where it has not been asked.
+ *
+ * One of these at a time, because one such dialog is open at a time: the
+ * photo dialog a thumbnail opens, or the New model dialog, which takes a
+ * picture for a product that does not exist yet (ui/STOCK.md).
+ */
+type Shot =
+  /** Asked, and nothing back yet: the frame says so and the press is dead. */
+  | { phase: "taking" }
+  /** A picture nothing has been told to keep. `refused` is a Save the store
+   *  would not take, said beside the picture — which is still there to save
+   *  again — and `null` where nothing has been refused. */
+  | { phase: "took"; picture: Picture; refused: string | null }
+  /** No picture: what the camera answered, or what `fetch` said. Any status
+   *  but 200 means no picture and there is nothing else to read out of it
+   *  (docs/SYSTEM.md), so the press stays live and says *Try again*. */
+  | { phase: "failed"; why: string };
 
 /** What a press that writes is dead with where no railroad is loaded: this
  *  view is one of the app's views of the loaded railroad (ADR-0038), so
@@ -143,6 +174,31 @@ export class TcStock extends LitElement {
    *  state said a refusal about the dialog under the Trains heading as well,
    *  and left it standing there once the dialog was gone (#446). */
   @state() private refusal: string | null = null;
+
+  /** The model whose photo dialog is open, `null` while none is. A car's
+   *  thumbnail opens its model's: the photo is the product's, ten identical
+   *  hoppers having one picture between them (ADR-0061). */
+  @state() private showing: string | null = null;
+
+  /** What the camera was asked for and what came of it, `null` where it has
+   *  not been asked. Whichever dialog is open owns it, and opening or putting
+   *  away either takes it down: a picture nobody kept is a picture nobody
+   *  wanted. */
+  @state() private shot: Shot | null = null;
+
+  /** How many times a model's photo has been saved from this screen, by model.
+   *  It is what the `?v=<n>` on a thumbnail carries: the bytes at that URL have
+   *  changed and the browser is holding the ones from before, and the store
+   *  drops a query string so the route is the same one (#630). */
+  @state() private saves: Record<string, number> = {};
+
+  /** The models whose photo the browser could not load, which is the route
+   *  answering anything but 200: the thumbnail is the empty box rather than a
+   *  broken picture. Nothing on a model's document says whether there is a
+   *  photo, so an `<img>` that failed is the whole of how this screen learns
+   *  (docs/SYSTEM.md). Not `@state`: it is read on the render the `error`
+   *  event asks for with `beat`. */
+  private absent = new Set<string>();
 
   /** Bumped after each edit: `Stock` keeps its identity across one, so
    *  rendering is asked for rather than observed. */
@@ -284,7 +340,7 @@ export class TcStock extends LitElement {
         ${this.modelList(stock?.modelRows(this.placed) ?? [])}
       </section>
       ${this.trainList(stock?.trains(this.placed) ?? [])}
-      ${this.dialog()}
+      ${this.dialog()} ${this.photoDialog()}
     `;
   }
 
@@ -312,6 +368,7 @@ export class TcStock extends LitElement {
   private car(car: CarRow) {
     return html`
       <li class="car">
+        ${this.thumbnail(car.model)}
         <span class="what">
           <input
             class="name"
@@ -408,6 +465,7 @@ export class TcStock extends LitElement {
   private model(model: ModelRow) {
     return html`
       <li class="product">
+        ${this.thumbnail(model.model)}
         <span class="what">
           ${model.model}
           <span class="of">
@@ -443,6 +501,216 @@ export class TcStock extends LitElement {
         ${model.held === null ? nothing : html`<span class="why">${model.held}</span>`}
       </li>
     `;
+  }
+
+  // --- a model's photo ------------------------------------------------------
+
+  /**
+   * The small picture at the head of a row, and the press that opens the
+   * photo. A car's is its **model's**: a photo is what the product looks like,
+   * and ten identical hoppers have one picture between them (ADR-0061).
+   *
+   * An `<img>` on the route, because the browser is the thing that fetches
+   * pictures: nothing on a model's document says whether there is one, so the
+   * route answering anything but 200 is what puts the empty box there
+   * (docs/SYSTEM.md, #630).
+   */
+  private thumbnail(model: string) {
+    return html`
+      <button
+        class="thumb"
+        title=${`the photo of '${model}'`}
+        @click=${() => this.opens(model)}
+      >
+        ${this.absent.has(model)
+          ? html`<span>no photo</span>`
+          : html`<img
+              src=${photoUrl(model, this.saves[model] ?? 0)}
+              alt=""
+              @error=${() => this.none(model)}
+            />`}
+      </button>
+    `;
+  }
+
+  /** The dialog a thumbnail opens: the photo large, and the camera. Titled for
+   *  the model even where a car's thumbnail opened it, so a person pressing a
+   *  car sees whose picture they are looking at. */
+  private photoDialog() {
+    const model = this.showing;
+    if (model === null) return nothing;
+    return html`
+      <sl-dialog
+        open
+        class="photo"
+        label=${`Photo — ${model}`}
+        @sl-after-hide=${this.closes}
+      >
+        ${this.frame(model)}
+      </sl-dialog>
+    `;
+  }
+
+  /**
+   * The photo, or what the camera is doing, and the presses that go with it.
+   *
+   * `model` is the model the picture is of, and `null` in the New model dialog
+   * where there is no model yet: a picture taken there has no Save of its own
+   * and is kept by Create, the store refusing a photo for a model it has not
+   * got (#630).
+   *
+   * **The press is never dead for want of a camera.** A box with none answers
+   * something, and whatever that is becomes *Try again* rather than a control
+   * nobody can use: a camera plugged in a minute later is a picture a minute
+   * later (#629).
+   */
+  private frame(model: string | null) {
+    const shot = this.shot;
+    if (shot?.phase === "taking") {
+      return html`
+        <div class="shot">
+          <div class="picture waiting"><span>taking a picture…</span></div>
+          <div class="presses">
+            <button class="take" disabled>Take photo</button>
+          </div>
+        </div>
+      `;
+    }
+    if (shot?.phase === "took") {
+      return html`
+        <div class="shot">
+          <div class="picture unsaved"><img src=${shot.picture.shown} alt="" /></div>
+          <p class="unkept">not saved yet</p>
+          ${shot.refused === null
+            ? nothing
+            : html`<p class="no-picture">${shot.refused}</p>`}
+          <div class="presses">
+            ${model === null
+              ? nothing
+              : html`<button class="keep" @click=${() => void this.keeps(model)}>
+                  Save
+                </button>`}
+            <button class="take" @click=${() => void this.takes()}>Retake</button>
+            <button class="drop" @click=${this.drops}>Cancel</button>
+          </div>
+        </div>
+      `;
+    }
+    if (shot?.phase === "failed") {
+      return html`
+        <div class="shot">
+          ${this.picture(model)}
+          <p class="no-picture">no picture: ${shot.why}</p>
+          <div class="presses">
+            <button class="take" @click=${() => void this.takes()}>Try again</button>
+            <button class="drop" @click=${this.drops}>Cancel</button>
+          </div>
+        </div>
+      `;
+    }
+    return html`
+      <div class="shot">
+        ${this.picture(model)}
+        <div class="presses">
+          <button class="take" @click=${() => void this.takes()}>
+            ${model !== null && !this.absent.has(model)
+              ? "Retake photo"
+              : "Take photo"}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  /** The photo the model has, large, or the empty box saying it has none —
+   *  which is what the New model dialog shows throughout, there being no model
+   *  to have one. */
+  private picture(model: string | null) {
+    if (model === null || this.absent.has(model)) {
+      return html`<div class="picture"><span>no photo</span></div>`;
+    }
+    return html`
+      <div class="picture">
+        <img
+          src=${photoUrl(model, this.saves[model] ?? 0)}
+          alt=""
+          @error=${() => this.none(model)}
+        />
+      </div>
+    `;
+  }
+
+  /** The photo dialog opened on one model, with nothing taken yet. */
+  private opens(model: string): void {
+    this.showing = model;
+    this.shot = null;
+  }
+
+  /** The photo dialog put away, and the camera's answer with it. */
+  private closes(): void {
+    this.showing = null;
+    this.shot = null;
+  }
+
+  /** The picture, or the reason there is none, dropped: whatever the frame was
+   *  showing goes and the photo the model has is back. */
+  private drops(): void {
+    this.shot = null;
+  }
+
+  /**
+   * A picture, now.
+   *
+   * While the camera is being waited on the frame says so and the press is
+   * dead, there being nothing to press twice. What comes back is either the
+   * picture or the reason there is none, which is the camera's status and its
+   * text — any answer but 200 means no picture (docs/SYSTEM.md).
+   */
+  private takes = async (): Promise<void> => {
+    this.shot = { phase: "taking" };
+    let took: Shot;
+    try {
+      took = { phase: "took", picture: await takePicture(), refused: null };
+    } catch (trouble) {
+      took = { phase: "failed", why: said(trouble) };
+    }
+    // The dialog can have been put away while the camera was being waited on,
+    // and then nobody is waiting for this picture: a shot that is no longer
+    // the one asked for is one to drop rather than to answer.
+    if (this.shot?.phase !== "taking") return;
+    this.shot = took;
+  };
+
+  /** The picture kept: the camera's own bytes to the store, and the thumbnail
+   *  pointed at a URL the browser has no answer of its own for. */
+  private keeps = async (model: string): Promise<void> => {
+    const shot = this.shot;
+    if (shot?.phase !== "took") return;
+    try {
+      await savePhoto(model, shot.picture.jpeg);
+    } catch (trouble) {
+      // The picture is still there to save again, so it stays on the screen
+      // with what the store said beside it.
+      this.shot = { ...shot, refused: said(trouble) };
+      return;
+    }
+    this.shot = null;
+    this.fetched(model);
+  };
+
+  /** One model's photo fetched again: it has one now, and the bytes at its URL
+   *  are not the bytes the browser was given for it. */
+  private fetched(model: string): void {
+    this.absent.delete(model);
+    this.saves = { ...this.saves, [model]: (this.saves[model] ?? 0) + 1 };
+  }
+
+  /** One model's photo the browser could not load, which is the route
+   *  answering anything but 200: there is none to draw. */
+  private none(model: string): void {
+    if (this.absent.has(model)) return;
+    this.absent.add(model);
+    this.beat++;
   }
 
   // --- the trains -----------------------------------------------------------
@@ -829,6 +1097,10 @@ export class TcStock extends LitElement {
             Add a function
           </button>
         </div>
+        <div class="field">
+          <label>Photo</label>
+          ${this.frame(null)}
+        </div>
         ${this.refusal === null ? nothing : html`<p class="trouble">${this.refusal}</p>`}
         <sl-button slot="footer" @click=${this.shut}>Cancel</sl-button>
         <sl-button slot="footer" variant="primary" class="create" @click=${this.create}>
@@ -877,10 +1149,13 @@ export class TcStock extends LitElement {
   }
 
   /** The dialog put away, and what it was refused with put away in the same
-   *  breath: a sentence about a dialog that is gone is about nothing (#446). */
+   *  breath: a sentence about a dialog that is gone is about nothing (#446).
+   *  A picture taken in it goes the same way — nothing was told to keep it,
+   *  and the next product written is not the one it is of. */
   private shut(): void {
     this.making = null;
     this.refusal = null;
+    this.shot = null;
   }
 
   private drafting(part: Partial<Draft>): void {
@@ -925,14 +1200,33 @@ export class TcStock extends LitElement {
     };
     try {
       await saveModel(model);
-      stock.putModel(model);
-      this.shut();
-      // The catalogue has a row it had not got, so this is an edit that cannot
-      // refuse: the screen redraws and what it last said is taken down.
-      this.did(null);
     } catch (trouble) {
       this.refusal = said(trouble);
+      return;
     }
+    stock.putModel(model);
+    // The picture goes after the document and never with it: the store refuses
+    // a photo for a model it has not got, so the product has to exist first
+    // (#630). A photo that does not land leaves the model written — two
+    // writes, and this is the second — so the dialog stays open to say which
+    // of them is missing, and the model's own row is where to take it again.
+    const shot = this.shot;
+    if (shot?.phase === "took") {
+      try {
+        await savePhoto(model.model, shot.picture.jpeg);
+        this.fetched(model.model);
+      } catch (trouble) {
+        this.refusal =
+          `'${model.model}' is written, but its photo was not saved: ` +
+          said(trouble);
+        this.did(null);
+        return;
+      }
+    }
+    this.shut();
+    // The catalogue has a row it had not got, so this is an edit that cannot
+    // refuse: the screen redraws and what it last said is taken down.
+    this.did(null);
   };
 
   /** What is wrong with the dialog as it stands, in the words the store would

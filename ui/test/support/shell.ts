@@ -85,7 +85,9 @@ export interface Answers {
    *  and not a fault (#392). */
   catalogue: Record<string, ModelDoc>;
   /** Every document a `PUT` has been given, in the order they arrived: what a
-   *  suite about a screen that writes reads to see what was written. */
+   *  suite about a screen that writes reads to see what was written. A photo's
+   *  body is the bytes it arrived as, that route being the only one whose body
+   *  is not JSON (`sent`, docs/SYSTEM.md). */
   saved: { path: string; body: unknown }[];
   /** What `/drawings/<name>` answers with. */
   read: (name: string) => Drawing;
@@ -104,7 +106,26 @@ export interface Answers {
    *  words. `null` for a path the store itself answers, which is every path
    *  by default. */
   intercepted: (path: string) => { status: number; statusText: string } | null;
+  /** What the camera answers `GET /camera/snapshot` with. **Not the store**: a
+   *  camera app answers that route and no app of this repository does, so it is
+   *  its own answer here (docs/SYSTEM.md, #629). A **200** carries the picture
+   *  it took and any other status is no picture, there being nothing else to
+   *  read out of it. A promise for a suite that wants to look at the screen
+   *  while the camera is being waited on. */
+  camera: () => Take | Promise<Take>;
 }
+
+/** One answer from the camera: the status, the words the browser puts on it,
+ *  and the JPEG where the status is 200. */
+export interface Take {
+  status: number;
+  statusText?: string;
+  jpeg?: Uint8Array;
+}
+
+/** The route the camera answers, which the page fetches on its own origin as
+ *  it fetches the store's (docs/DEPLOY.md). */
+const SNAPSHOT = "/camera/snapshot";
 
 /** How often the store has been asked anything. `quiet` watches this instead
  *  of counting turns, so what it waits for is the shell falling silent. */
@@ -126,18 +147,21 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     backup: UNBACKED,
     broken: null,
     intercepted: () => null,
+    // A box with no camera, which is most of them: the press that asks for a
+    // picture has to answer in words whatever comes back (#629).
+    camera: () => ({ status: 502, statusText: "Bad Gateway" }),
     ...answers,
   };
   globalThis.fetch = ((path: string, init?: RequestInit) => {
     asked += 1;
+    // Before `broken`, which is the store not running: the camera is another
+    // app on another port, and a store that is down says nothing about it.
+    if (path === SNAPSHOT) return Promise.resolve(store.camera()).then(pictured);
     if (store.broken !== null) return Promise.reject(store.broken);
     const between = store.intercepted(path);
     if (between !== null) return Promise.resolve(interposed(between));
     if ((init?.method ?? "GET") === "PUT") {
-      store.saved.push({
-        path,
-        body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
-      });
+      store.saved.push({ path, body: sent(init?.body) });
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ saved: path }),
@@ -149,6 +173,30 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     );
   }) as unknown as typeof fetch;
   return store;
+}
+
+/** What a `PUT` carried, as the route takes it: a photo's own bytes, which is
+ *  the one body this app sends that is not a document, and the document
+ *  everywhere else. */
+function sent(body: BodyInit | null | undefined): unknown {
+  if (body === undefined || body === null) return undefined;
+  if (body instanceof Uint8Array) return body;
+  return JSON.parse(String(body));
+}
+
+/** What the camera answers: the picture it took under `image/jpeg`, or a status
+ *  that is not 200 and no picture at all. Its body is read with
+ *  `arrayBuffer`, the picture being bytes and not a document. */
+function pictured(took: Take): Response {
+  const jpeg = took.jpeg ?? new Uint8Array();
+  return {
+    ok: took.status < 400,
+    status: took.status,
+    statusText: took.statusText ?? "",
+    headers: new Headers({ "content-type": "image/jpeg" }),
+    arrayBuffer: () => Promise.resolve(jpeg.buffer),
+    json: () => Promise.reject(new SyntaxError("Unexpected token 'ÿ'")),
+  } as unknown as Response;
 }
 
 /** What something in front of the store answers with: the status it chose and
