@@ -376,6 +376,95 @@ export async function saveModel(model: ModelDoc): Promise<void> {
 }
 
 /**
+ * Where one model's photo is, which is what an `<img>` on a row is pointed at.
+ *
+ * The picture hangs below the model's document and nothing on that document
+ * says whether there is one: a model with no photo answers **404**, and that
+ * is the whole of how a screen learns there is none to draw
+ * ([#630](https://github.com/rails49/control/issues/630)).
+ *
+ * `version` is a cache-buster and no part of the route — the store drops a
+ * query string — so asking for `?v=1` after a save is what makes the browser
+ * fetch the picture it has just been given instead of the one it is holding.
+ * `0` is the photo as it stands and asks for nothing.
+ */
+export function photoUrl(model: string, version = 0): string {
+  const path = `/catalogue/${encodeURIComponent(model)}/photo`;
+  return version === 0 ? path : `${path}?v=${version}`;
+}
+
+/** Create or replace one model's photo: the picture's own bytes under
+ *  `image/jpeg`, the one body this app sends that is not a document. The store
+ *  refuses a photo for a model it has not got — a file beside a document that
+ *  is not there is a photo of nothing — so this follows the model's own save
+ *  rather than going with it (#630). */
+export async function savePhoto(
+  model: string,
+  jpeg: Uint8Array<ArrayBuffer>,
+): Promise<void> {
+  await called("PUT", photoUrl(model), {
+    headers: { "Content-Type": "image/jpeg" },
+    body: jpeg,
+  });
+}
+
+/** A picture the camera has taken and nothing has been told to keep: the bytes
+ *  to send, and somewhere to show them from while they are unsaved. */
+export interface Picture {
+  /** The buffer is a plain `ArrayBuffer` and not a shared one, which is what
+   *  `fetch` takes as a body. */
+  jpeg: Uint8Array<ArrayBuffer>;
+  /** A `data:` URL rather than an object URL: an object URL is a handle that
+   *  has to be given back, and a dialog where three pictures are taken and one
+   *  is kept would leak the other two. */
+  shown: string;
+}
+
+/** The route a picture comes from. A **camera app** answers it and no app of
+ *  this repository does, on the page's own origin as the store's routes are —
+ *  in development vite proxies it to the port a camera listens on
+ *  (docs/SYSTEM.md, [#629](https://github.com/rails49/control/issues/629)). */
+const SNAPSHOT = "/camera/snapshot";
+
+/**
+ * One picture, taken now.
+ *
+ * Not a store call, so the three ways one of those fails are not these: a
+ * **200** carries the JPEG and **any other status means no picture**, there
+ * being nothing else for a caller to read out of it (docs/SYSTEM.md). The
+ * words are still the words a store call that came back without a document
+ * gets — what was asked and what came back — so a screen shows `said(failure)`
+ * here as it does everywhere else. Where `fetch` itself rejects it is the
+ * fetch's own words and not `NOT_ANSWERING`: the store is up and has nothing
+ * to do with the picture.
+ */
+export async function takePicture(): Promise<Picture> {
+  let response: Response;
+  try {
+    response = await fetch(SNAPSHOT);
+  } catch (failure) {
+    throw new Unanswered(said(failure));
+  }
+  if (response.status !== 200) {
+    throw new Unanswered(answered("GET", SNAPSHOT, response));
+  }
+  const jpeg = new Uint8Array(await response.arrayBuffer());
+  return { jpeg, shown: shows(jpeg) };
+}
+
+/** The bytes as something an `<img>` can be pointed at, which is a `data:`
+ *  URL (`Picture`). Written in chunks because `String.fromCharCode` takes one
+ *  argument per byte and a photo's worth of them at once overflows the
+ *  stack. */
+function shows(jpeg: Uint8Array): string {
+  let text = "";
+  for (let at = 0; at < jpeg.length; at += 8192) {
+    text += String.fromCharCode(...jpeg.subarray(at, at + 8192));
+  }
+  return `data:image/jpeg;base64,${btoa(text)}`;
+}
+
+/**
  * One backup: what to name to come back to it, the message naming the
  * documents that moved, and when it was made. Straight off `git log`, which is
  * where the app's knowledge of history begins and ends
@@ -508,17 +597,30 @@ const NOT_ANSWERING = "the store is not answering — run `tc49 serve`";
  * a 404 page did.
  */
 async function ask<T>(method: string, path: string, body?: unknown): Promise<T> {
+  return await called<T>(
+    method,
+    path,
+    body === undefined
+      ? {}
+      : {
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+  );
+}
+
+/** The same call with the body already made up, for the one route whose body
+ *  is not a document: a photo's bytes go out under `image/jpeg` and come back
+ *  answered for in JSON like anything else, so the three failures above are
+ *  read once and `savePhoto` is not a second reading of them. */
+async function called<T>(
+  method: string,
+  path: string,
+  sent: Pick<RequestInit, "headers" | "body">,
+): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(path, {
-      method,
-      ...(body === undefined
-        ? {}
-        : {
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          }),
-    });
+    response = await fetch(path, { method, ...sent });
   } catch {
     throw new Unanswered(NOT_ANSWERING);
   }
