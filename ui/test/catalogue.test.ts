@@ -3,15 +3,22 @@
  * answer (#392).
  *
  * At the client rather than through the screen that now writes them
- * (`test/making.test.ts`): what is under test is the shape of the request — a
- * model is the installation's and is addressed by its own name, with no
- * railroad in the path (ADR-0045) — and the unwrapping of the answer.
+ * (`test/making.test.ts`, `test/photos.test.ts`): what is under test is the
+ * shape of the request — a model is the installation's and is addressed by its
+ * own name, with no railroad in the path (ADR-0045) — and the unwrapping of
+ * the answer.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { ModelDoc } from "../src/model/store.js";
-import { readCatalogue, readModel, saveModel } from "../src/model/store.js";
+import {
+  photoUrl,
+  readCatalogue,
+  readModel,
+  saveModel,
+  savePhoto,
+} from "../src/model/store.js";
 
 const RE460: ModelDoc = {
   model: "sbb-re460",
@@ -25,6 +32,10 @@ interface Asked {
   path: string;
   method: string;
   body: unknown;
+  /** What the body was labelled, where the call labelled it: `sent` keeps a
+   *  photo's bytes as they are, and the label is the whole of what says a body
+   *  is a picture rather than a document. */
+  type?: string;
 }
 
 const asked: Asked[] = [];
@@ -35,10 +46,14 @@ beforeEach(() => {
   real = globalThis.fetch;
   asked.length = 0;
   globalThis.fetch = ((path: string, init?: RequestInit) => {
+    const labelled = init?.headers as Record<string, string> | undefined;
     asked.push({
       path,
       method: init?.method ?? "GET",
-      body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+      body: sent(init?.body),
+      ...(labelled?.["Content-Type"] === undefined
+        ? {}
+        : { type: labelled["Content-Type"] }),
     });
     return Promise.resolve({
       ok: answer.ok,
@@ -50,6 +65,14 @@ beforeEach(() => {
 afterEach(() => {
   globalThis.fetch = real;
 });
+
+/** What a call carried, as the route takes it: a photo's own bytes, the one
+ *  body here that is not a document, and the document everywhere else. */
+function sent(body: BodyInit | null | undefined): unknown {
+  if (body === undefined || body === null) return undefined;
+  if (body instanceof Uint8Array) return body;
+  return JSON.parse(String(body));
+}
 
 describe("the installation's catalogue", () => {
   it("reads every model it knows, by name and with no railroad named", async () => {
@@ -75,7 +98,44 @@ describe("the installation's catalogue", () => {
     answer = { ok: true, body: { saved: "sbb-re460" } };
     await saveModel(RE460);
     expect(asked).toEqual([
-      { path: "/catalogue/sbb-re460", method: "PUT", body: RE460 },
+      {
+        path: "/catalogue/sbb-re460",
+        method: "PUT",
+        body: RE460,
+        type: "application/json",
+      },
+    ]);
+  });
+
+  /** The picture hangs below the model's document and is addressed by the
+   *  model's own name, as the document is. Nothing on the document says
+   *  whether there is one, so the route is the whole of the question (#630). */
+  it("points at one model's photo below that model's own route", () => {
+    expect(photoUrl("sbb-re460")).toBe("/catalogue/sbb-re460/photo");
+  });
+
+  /** A cache-buster and no part of the route: the store drops a query string,
+   *  so this is the same picture asked for again rather than another one. */
+  it("asks for the photo again under a version, and for nothing where none", () => {
+    expect(photoUrl("sbb-re460", 2)).toBe("/catalogue/sbb-re460/photo?v=2");
+    expect(photoUrl("sbb-re460", 0)).toBe("/catalogue/sbb-re460/photo");
+  });
+
+  /** The body is the JPEG itself, byte for byte, under `image/jpeg`: the one
+   *  thing this app sends that is not a document (docs/SYSTEM.md). */
+  it("saves a photo as the picture's own bytes", async () => {
+    answer = { ok: true, body: { saved: "sbb-re460" } };
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0x2a]);
+
+    await savePhoto("sbb-re460", jpeg);
+
+    expect(asked).toEqual([
+      {
+        path: "/catalogue/sbb-re460/photo",
+        method: "PUT",
+        body: jpeg,
+        type: "image/jpeg",
+      },
     ]);
   });
 

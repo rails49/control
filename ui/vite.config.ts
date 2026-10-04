@@ -9,6 +9,13 @@ import { defineConfig } from "vitest/config";
 // one page with a view in its hash (ADR-0038).
 const STORE = "http://127.0.0.1:8765";
 
+// The picture route is a camera app's and the store never answers it: the
+// responder is not code of this repository, and on a box its own stack claims
+// `/camera` with a door label of its own. Here it is a second port on
+// loopback, so the page fetches `/camera/snapshot` on its own origin either
+// way (docs/SYSTEM.md, docs/DEPLOY.md, #629).
+const CAMERA = "http://127.0.0.1:8766";
+
 export default defineConfig({
   server: {
     // A second `pnpm dev` must fail rather than move to the next free port:
@@ -35,6 +42,10 @@ export default defineConfig({
       "/layouts": { target: STORE, changeOrigin: false },
       "/rosters": { target: STORE, changeOrigin: false },
       "/catalogue": { target: STORE, changeOrigin: false },
+      // Not the store, and `changeOrigin: false` all the same: the door in
+      // front of a box passes the host header through for this prefix as for
+      // the others, so development behaves the way deployment does.
+      "/camera": { target: CAMERA, changeOrigin: false },
       // The broker's WebSocket listener under a path of the app's own origin,
       // which is what lets the panel build one URL whether TLS is terminated
       // in front of it or not. The door in front of a box strips the same
