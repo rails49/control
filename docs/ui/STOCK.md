@@ -182,6 +182,65 @@ DELETE for any document** and an unused model costs nothing
 the store, and the bus carries nothing about what a railroad owns
 ([ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)).
 
+## A model's photo
+
+**Every row on the left starts with a thumbnail of the model's photo** — an
+`<img>` on `GET /catalogue/<name>/photo`, which is where one model's picture
+hangs below its document
+([#630](https://github.com/rails49/control/issues/630)). Where that answers
+anything but `200` the thumbnail is an empty box reading *no photo*: nothing on
+a model's document says whether there is one, the photo existing exactly where
+the file does, so an image that did not load is the whole of how this screen
+learns there is none to draw. **A car shows its model's photo.** The picture
+says what the product looks like, and ten identical hoppers have one between
+them
+([ADR-0061](../adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
+A photo answers *which one is that* faster than a name does, which is why it is
+on the row and not a screen away ([#628](https://github.com/rails49/control/issues/628)).
+
+**Pressing the thumbnail opens a dialog titled `Photo — <model>`**: the photo
+large, or *no photo*, and a **Take photo** press — **Retake photo** where the
+model has one. A car's thumbnail opens the model's dialog, titled for the
+model, so a person pressing a car sees whose picture they are looking at.
+
+**Take photo fetches `GET /camera/snapshot`.** That route is a **camera app's
+and the store never answers it**: the responder is not code of this repository,
+and on a box its own stack claims `/camera`, while in development vite proxies
+the prefix to the port a camera listens on
+([SYSTEM.md](../SYSTEM.md), [DEPLOY.md](../DEPLOY.md),
+[#629](https://github.com/rails49/control/issues/629)). While the camera is
+being waited on the frame reads *taking a picture…* and the press is dead,
+there being nothing to press twice. On `200` the dialog shows the picture
+marked *not saved yet*, with **Save**, **Retake** and **Cancel**. Save sends
+the camera's own bytes with `PUT /catalogue/<name>/photo` under `image/jpeg`,
+byte for byte — nothing here scales or crops a picture — and the thumbnail then
+asks for `?v=<n>`, because the bytes at that URL have changed and the browser
+is holding the ones from before. The store drops a query string, so that is the
+same route and not another one (#630).
+
+**Any other answer from the camera, and a fetch that rejected, say so and
+offer to try again**: *no picture:* followed by the status and its text, or by
+what the fetch said. A `200` carries the picture and **any other status means
+no picture** — there is nothing else for a caller to read out of it (#629) — so
+there is nothing to interpret and nothing to retry automatically. **The press
+is never dead for want of a camera**: a box with none answers something, and a
+camera plugged in a minute later is a picture a minute later.
+
+**The New model dialog has the same Take photo, Retake and Cancel**, and no
+Save: a picture taken there is written with the `PUT` **right after Create
+succeeds**, because the store refuses a photo for a model it has not got — a
+file beside a document that is not there is a photo of nothing (#630). So the
+two writes go in that order and never together. If that second one fails **the
+model stays created** and the dialog's refusal line says so — *'hopper' is
+written, but its photo was not saved: …* — and the product's own row is where
+to take the picture again. That line is the dialog's own refusal; what the
+camera said sits beside the picture and is not one
+([#446](https://github.com/rails49/control/issues/446)).
+
+**A photo is the model's and never the car's.** An item with a photo of its own
+would be a second kind of picture to keep, and what a person is telling apart
+on this screen is products (#628).
+
 ## The length guard
 
 A length lives on the **model** as well as on the **car** — `stock._car` takes
@@ -302,6 +361,17 @@ The rows are the browser's own `input` and `select` and the new-model dialog is
 Shoelace's, the way the properties dialog is: a dense grid of three fields per
 row is a table, and a form is a form.
 
+The photo's three calls are `ui/src/model/store.ts`'s, beside the routes the
+rest of this screen reads: where a model's photo is, saving one, and taking a
+picture. The last of those is not a store call and is the only call in the app
+that is not, which is why what it does with a status is its own: a `200` is the
+picture and anything else is none. A picture waiting to be saved is held as a
+`data:` URL rather than an object URL — an object URL is a handle that has to
+be given back, and a dialog where three pictures are taken and one is kept
+would leak the other two. In development `ui/vite.config.ts` proxies `/camera`
+the way it proxies the store's prefixes, so the page fetches both on its own
+origin.
+
 The view is not in the shell's left-pane slot. `--pane` is the width of the
 strip beside a drawing surface — the editor's palette, the run view's roster
 ([#169](https://github.com/rails49/control/issues/169)) — and this view has no
@@ -335,6 +405,16 @@ with nothing loaded and Create saying why where the documents go from under an
 open dialog (#565), and the three ways a call to the
 store fails as this screen shows them. The words themselves are
 `ui/test/asking.test.ts`'s, at the helper that decides them.
+
+`ui/test/photos.test.ts` mounts the same app against a camera: the thumbnail a
+model row and a car row carry and the dialog a car's opens, the frame while the
+camera is being waited on and the dead press with it, the picture a `200` brings
+and the bytes Save sends, the `?v=<n>` the thumbnail then asks for, what a `502`
+reads as, and a product written with a picture reaching the store as the
+document and then the photo — including the model standing written where the
+second of those did not land. What the camera answers is the shell's
+(`ui/test/support/shell.ts`, `camera`), that route being no app of this
+repository's.
 
 The question over unsaved roster edits is `ui/test/opening.test.ts`'s, beside
 the drawing's: it is the app's question about the app's railroad, and what the
