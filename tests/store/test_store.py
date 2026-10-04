@@ -321,6 +321,62 @@ def test_a_railroad_with_no_script_has_none(scratch_store: AssetStore) -> None:
         scratch_store.script("crossover-yard")
 
 
+JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF" + bytes(range(64))
+"""Bytes that open as a JPEG does. Not a picture: the store keeps what it is
+given and reads none of it, so what is past the magic number is noise."""
+
+
+def test_a_models_photo_is_kept_beside_its_document(
+    scratch_store: AssetStore, tmp_path: Path
+) -> None:
+    """Under the model's own name, so the name is the whole of what finds it,
+    and byte for byte: the store does not scale, crop or re-encode a picture
+    somebody took (#626)."""
+    scratch_store.put_photo(JPEG, "arnold-ce68")
+
+    assert (tmp_path / "catalogue" / "arnold-ce68.jpg").read_bytes() == JPEG
+    assert scratch_store.photo("arnold-ce68") == JPEG
+
+
+def test_a_model_with_no_photo_has_none(scratch_store: AssetStore) -> None:
+    """The document does not say whether there is one — the photo exists when
+    the file does — so reading one that was never taken raises, the way a
+    railroad with no script does."""
+    with pytest.raises(FileNotFoundError):
+        scratch_store.photo("arnold-ce68")
+
+
+def test_a_second_photo_replaces_the_first(scratch_store: AssetStore) -> None:
+    """One model has one photo: a better picture is the same file written
+    again, and there is no verb for the one before it."""
+    scratch_store.put_photo(JPEG, "arnold-ce68")
+    better = JPEG + b"\xff\xd9"
+    scratch_store.put_photo(better, "arnold-ce68")
+
+    assert scratch_store.photo("arnold-ce68") == better
+
+
+def test_a_photo_of_a_model_the_installation_has_not_is_refused(
+    scratch_store: AssetStore, tmp_path: Path
+) -> None:
+    """A file beside a document that is not there is a photo of nothing, which
+    no screen would read."""
+    with pytest.raises(ValueError, match="atlantis"):
+        scratch_store.put_photo(JPEG, "atlantis")
+    assert not (tmp_path / "catalogue" / "atlantis.jpg").exists()
+
+
+def test_bytes_that_are_not_a_jpeg_are_refused(
+    scratch_store: AssetStore, tmp_path: Path
+) -> None:
+    """The file is named `.jpg` and what reads it reads the name, so the magic
+    number is checked and nothing else is: what the picture shows is the
+    person's."""
+    with pytest.raises(ValueError, match="JPEG"):
+        scratch_store.put_photo(b"\x89PNG\r\n\x1a\n", "arnold-ce68")
+    assert not (tmp_path / "catalogue" / "arnold-ce68.jpg").exists()
+
+
 def test_a_scenario_may_only_place_trains_the_roster_has(
     scratch_store: AssetStore,
 ) -> None:
