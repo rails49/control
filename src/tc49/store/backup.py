@@ -172,7 +172,9 @@ def document(path: str) -> str:
     `reversing-loops` where git says `layouts/reversing-loops.drawing.yaml`.
     A path this store does not recognise is passed through as it stands: it is
     something a person put there, and inventing a name for it would say less
-    than the path does.
+    than the path does. A model's photo is no document and is named all the
+    same — a picture that changed is something the person reading the list
+    wants to see, and `re460 photo` is what they would call it (#626).
     """
     if path.startswith("layouts/"):
         name = path.removeprefix("layouts/")
@@ -182,8 +184,12 @@ def document(path: str) -> str:
             return f"{name.removesuffix('.roster.yaml')} roster"
         if name.endswith(".script.py"):
             return f"{name.removesuffix('.script.py')} script"
-    if path.startswith("catalogue/") and path.endswith(".yaml"):
-        return f"{path.removeprefix('catalogue/').removesuffix('.yaml')} model"
+    if path.startswith("catalogue/"):
+        name = path.removeprefix("catalogue/")
+        if name.endswith(".yaml"):
+            return f"{name.removesuffix('.yaml')} model"
+        if name.endswith(".jpg"):
+            return f"{name.removesuffix('.jpg')} photo"
     if path.startswith("scenarios/") and path.endswith(".scenario.yaml"):
         return path.removeprefix("scenarios/").removesuffix(".scenario.yaml")
     return path
