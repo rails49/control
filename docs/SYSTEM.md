@@ -131,6 +131,8 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     GET  /catalogue             the models the installation knows, by name
     GET  /catalogue/<name>      one model, whole
     PUT  /catalogue/<name>      create or replace it
+    GET  /catalogue/<name>/photo that model's photo, as the JPEG it is
+    PUT  /catalogue/<name>/photo create or replace it
     GET  /scripts/<railroad>    the translator script that railroad carries
     PUT  /scripts/<railroad>    create or replace it
     GET  /backup                what backup can do here, and what it needs
@@ -282,7 +284,13 @@ LAN is still the trust boundary and a browser is not on it
   the documents as written rather than the merged models a roster is read
   against, because what reads them is the screen that edits them. There is no
   `DELETE`: an unused model costs nothing, and one a car still names could not
-  be removed anyway.
+  be removed anyway. **A model's photo hangs below its document** and is kept
+  as `catalogue/<name>.jpg` beside it, backed up with the rest of the store;
+  the document names no photo, so a model has one exactly where the file is
+  there. The two photo routes are the only ones the store serves whose body is
+  not JSON — `image/jpeg` both ways, the bytes stored as they arrive and
+  answered as they were stored — and a model with no photo is a **404**
+  ([#626](https://github.com/rails49/control/issues/626)).
 - **The picture route is a camera app's, and the store never answers it** —
   `GET /camera/snapshot` takes one picture now. The responder is not code of
   this repository: the first is a small server in `rails49/camera`, and a
