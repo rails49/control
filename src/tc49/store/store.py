@@ -29,7 +29,9 @@ or runs it, so what the text means stays the translator's.
 The **catalogue** is the installation's and belongs to no railroad, a model
 being what a product is (ADR-0045); a roster is read against it, since a car
 names a model and is complete only once merged onto one. Both stock documents
-are validated in :mod:`tc49.lib.stock`.
+are validated in :mod:`tc49.lib.stock`. A model's **photo** is the one thing
+here that is not a document: the JPEG beside its document, kept because the
+file is there and named by nothing inside it (#626).
 """
 
 from pathlib import Path
@@ -200,6 +202,38 @@ class AssetStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         yamlfile.save(path, doc)
 
+    def photo(self, name: str) -> bytes:
+        """One model's photo, as the bytes it was given.
+
+        Kept as `catalogue/<name>.jpg` beside the model's document, so a
+        model's name is the whole of what finds it and the picture is backed
+        up with the rest of the store. The document does not name the file:
+        the photo exists when the file does, which is what keeps a model
+        nobody has photographed from carrying a field saying so (#626).
+
+        A model with no photo raises, the way a railroad with no script does:
+        there is nothing to show, and the surface that would show it has to
+        hear that rather than draw an empty frame.
+        """
+        return self._photo_path(name).read_bytes()
+
+    def put_photo(self, jpeg: bytes, name: str) -> None:
+        """Create or replace one model's photo, byte for byte.
+
+        Refused where the installation has no model `<name>`: the photo hangs
+        off the document, and a file beside one that is not there is a photo
+        of nothing that no screen would ever read. Refused too where the bytes
+        do not open as a JPEG does, the file being named `.jpg` and what reads
+        it reading the name. The magic number is the whole of the check —
+        scaling, cropping and what the picture shows stay the camera's and the
+        person's, and this store re-encodes nothing.
+        """
+        if not self._model_path(name).exists():
+            raise ValueError(f"no model '{name}' to hang a photo on")
+        if not jpeg.startswith(b"\xff\xd8\xff"):
+            raise ValueError(f"photo '{name}': the bytes do not open as a JPEG")
+        self._photo_path(name).write_bytes(jpeg)
+
     def get(self, name: str) -> Layout | Scenario:
         if "/" in name:
             return self._load_scenario(name)
@@ -244,6 +278,9 @@ class AssetStore:
 
     def _model_path(self, name: str) -> Path:
         return self._root / "catalogue" / f"{name}.yaml"
+
+    def _photo_path(self, name: str) -> Path:
+        return self._root / "catalogue" / f"{name}.jpg"
 
     def _model_paths(self) -> dict[str, Path]:
         """The catalogue's files by the name each is filed under, which is
