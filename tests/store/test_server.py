@@ -19,7 +19,7 @@ import pytest
 from tc49.lib.layout import Layout
 from tc49.store import AssetStore, Backup
 from tc49.store.backup import Said
-from tc49.store.server import handle, make_server
+from tc49.store.server import handle, make_server, takes_bytes
 from tests.harness import ASSETS, catalogued
 
 
@@ -480,6 +480,57 @@ def test_a_photo_is_served_over_http_as_the_bytes_it_is(tmp_path: Path) -> None:
             urlopen(foreign)
         assert refused.value.code == 403
         assert refused.value.headers.get("Access-Control-Allow-Origin") is None
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_only_the_catalogue_photo_route_takes_bytes() -> None:
+    """Which routes take a body that is not JSON is a question about the
+    route, and `photo` is a document name like any other.
+
+    A path merely ending in `/photo` was read as raw bytes, so a drawing, a
+    model, a roster or a script by that name had its document handed on as
+    bytes and was refused (#635).
+    """
+    assert takes_bytes("/catalogue/arnold-ce68/photo")
+    assert takes_bytes("/catalogue/arnold-ce68/photo?v=2")
+    for route in (
+        "/drawings/photo",
+        "/catalogue/photo",
+        "/rosters/photo",
+        "/scripts/photo",
+        "/catalogue/arnold-ce68/left/photo",
+    ):
+        assert not takes_bytes(route), route
+
+
+def test_a_document_named_photo_is_a_document(tmp_path: Path) -> None:
+    """Over the socket, because reading the body is the HTTP face's: a
+    document named `photo` goes out and comes back as JSON on a document
+    route, and the catalogue's photo route is the only one it does not
+    (#635)."""
+    catalogued(tmp_path)
+    documents: dict[str, dict[str, Any]] = {
+        "/drawings/photo": {"drawing": "photo", "symbols": {}},
+        "/catalogue/photo": {"model": "photo", "kind": "locomotive", "length": 220},
+    }
+    server = make_server(tmp_path, port=0)
+    url = f"http://127.0.0.1:{server.server_port}"
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for route, doc in documents.items():
+            saved = Request(
+                f"{url}{route}", data=json.dumps(doc).encode(), method="PUT"
+            )
+            with urlopen(saved) as stored:
+                assert json.load(stored) == {"saved": "photo"}
+
+            with urlopen(f"{url}{route}") as served:
+                assert served.headers.get("Content-Type") == "application/json"
+                assert json.load(served) == doc
     finally:
         server.shutdown()
         server.server_close()
