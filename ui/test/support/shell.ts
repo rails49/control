@@ -113,6 +113,13 @@ export interface Answers {
    *  read out of it. A promise for a suite that wants to look at the screen
    *  while the camera is being waited on. */
   camera: () => Take | Promise<Take>;
+  /** A write held in flight: the promise a `PUT` on that path waits on before
+   *  it is answered, which is what a suite that wants to look at the screen
+   *  while a write is still outstanding holds it with — the way a promise from
+   *  `camera` holds a picture. `null` for a write answered at once, which is
+   *  every write by default. What the answer then **is** stays `intercepted`'s,
+   *  so a held write the store refuses is the two of them together. */
+  held: (path: string) => Promise<void> | null;
 }
 
 /** One answer from the camera: the status, the words the browser puts on it,
@@ -150,6 +157,7 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     // A box with no camera, which is most of them: the press that asks for a
     // picture has to answer in words whatever comes back (#629).
     camera: () => ({ status: 502, statusText: "Bad Gateway" }),
+    held: () => null,
     ...answers,
   };
   globalThis.fetch = ((path: string, init?: RequestInit) => {
@@ -158,15 +166,22 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     // app on another port, and a store that is down says nothing about it.
     if (path === SNAPSHOT) return Promise.resolve(store.camera()).then(pictured);
     if (store.broken !== null) return Promise.reject(store.broken);
+    // Read on the call rather than on the answer: what is in front of the
+    // store is in front of it when the call arrives, whenever it is answered.
     const between = store.intercepted(path);
-    if (between !== null) return Promise.resolve(interposed(between));
     if ((init?.method ?? "GET") === "PUT") {
-      store.saved.push({ path, body: sent(init?.body) });
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ saved: path }),
-      } as unknown as Response);
+      const written = (): Response => {
+        if (between !== null) return interposed(between);
+        store.saved.push({ path, body: sent(init?.body) });
+        return {
+          ok: true,
+          json: () => Promise.resolve({ saved: path }),
+        } as unknown as Response;
+      };
+      const holding = store.held(path);
+      return holding === null ? Promise.resolve(written()) : holding.then(written);
     }
+    if (between !== null) return Promise.resolve(interposed(between));
     return answered(store, path).then(
       (body) =>
         ({ ok: true, json: () => Promise.resolve(body) }) as unknown as Response,
