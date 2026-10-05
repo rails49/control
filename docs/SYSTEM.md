@@ -290,7 +290,15 @@ LAN is still the trust boundary and a browser is not on it
   there. The two photo routes are the only ones the store serves whose body is
   not JSON — `image/jpeg` both ways, the bytes stored as they arrive and
   answered as they were stored — and a model with no photo is a **404**
-  ([#626](https://github.com/rails49/control/issues/626)).
+  ([#626](https://github.com/rails49/control/issues/626)). **Which body is not
+  JSON is the route's to say**, and neither the shape of a path nor the shape
+  of a document: `photo` is a document name like any other, so
+  `/drawings/photo`, `/catalogue/photo`, `/rosters/photo` and `/scripts/photo`
+  are a drawing, a model, a roster and a script named `photo`, read and
+  written as JSON like their neighbours, and a model document with a `jpeg:`
+  field is answered as the document it is. The photo of a model named `photo`
+  is `/catalogue/photo/photo`
+  ([#635](https://github.com/rails49/control/issues/635)).
 - **The picture route is a camera app's, and the store never answers it** —
   `GET /camera/snapshot` takes one picture now. The responder is not code of
   this repository: the first is a small server in `rails49/camera`, and a
