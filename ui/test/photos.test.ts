@@ -98,6 +98,11 @@ function thumbnail(shell: TcApp, row: string): string | null {
   return part(shell, `${row} button.thumb img`)?.getAttribute("src") ?? null;
 }
 
+/** Whether a control in the New model dialog is dead. */
+function dead(shell: TcApp, selector: string): boolean {
+  return (part(shell, `sl-dialog ${selector}`) as HTMLInputElement).disabled;
+}
+
 async function pressed(shell: TcApp, selector: string): Promise<void> {
   part(shell, selector)!.click();
   await settled(shell);
@@ -319,5 +324,48 @@ describe("a product written with a picture", () => {
     expect(text(shell, "sl-dialog p.trouble")).toContain(
       "'hopper' is written, but its photo was not saved",
     );
+  });
+});
+
+/** The dialog Create has written a model in: a second state of the same dialog,
+ *  where one of its two writes is done and the other is not
+ *  ([#644](https://github.com/rails49/control/issues/644)). */
+describe("the New model dialog about the model it wrote", () => {
+  /** A Create whose photo did not land, a function row filled in so that there
+   *  is one to be dead. */
+  async function wrote(shell: TcApp): Promise<void> {
+    await pressed(shell, "button.new-model");
+    await takes(shell, "sl-dialog");
+    await pressed(shell, "sl-dialog button.add-function");
+    await typed(shell, "sl-dialog li.function input.number", "0");
+    await typed(shell, "sl-dialog li.function input.name", "headlights");
+    await created(shell, "hopper");
+  }
+
+  /** Every control the dialog edits the draft with. */
+  const FIELDS = [
+    "#model",
+    "#kind",
+    "#length",
+    "li.function input.number",
+    "li.function input.name",
+    "li.function button.remove",
+    "button.add-function",
+  ];
+
+  /** Create is dead from the write on and nothing else reads the draft, so an
+   *  edit typed into one of these cannot be saved — and a different name typed
+   *  there while Save still sends the picture to the written model says nothing
+   *  about which model it goes to. */
+  it("leaves every control that edits the model dead, and the photo's Save live", async () => {
+    store.camera = WORKING;
+    store.intercepted = (path) =>
+      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
+    const shell = await opened();
+
+    await wrote(shell);
+
+    expect(FIELDS.filter((one) => !dead(shell, one))).toEqual([]);
+    expect(dead(shell, "button.keep")).toBe(false);
   });
 });
