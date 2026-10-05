@@ -321,6 +321,62 @@ def test_a_railroad_with_no_script_has_none(scratch_store: AssetStore) -> None:
         scratch_store.script("crossover-yard")
 
 
+def test_a_date_in_a_document_is_read_as_text(
+    scratch_store: AssetStore, tmp_path: Path
+) -> None:
+    """An unquoted `2026-10-05` in a field nothing here reads is the text
+    somebody typed.
+
+    YAML resolves one to a `datetime.date`, which is a value no document can
+    hold: every face of this store hands documents on as JSON, and a date in
+    one left `GET /catalogue/<model>` with nothing it could send (#641). This
+    is the store's one reader, so the Python binding and the HTTP face see the
+    same string in the same field.
+    """
+    document = tmp_path / "catalogue" / "arnold-ce68.yaml"
+    document.write_text(f"{document.read_text().rstrip()}\nbought: 2026-10-05\n")
+
+    assert scratch_store.model("arnold-ce68")["bought"] == "2026-10-05"
+
+
+def test_a_date_written_back_is_quoted_and_reads_the_same(
+    scratch_store: AssetStore, tmp_path: Path
+) -> None:
+    """The round trip the catalogue screen makes of a field it does not edit:
+    text out, text in, and the file saying so once it has been through a save
+    — `'2026-10-05'` quoted, which is the same string however it is read."""
+    document = tmp_path / "catalogue" / "arnold-ce68.yaml"
+    document.write_text(f"{document.read_text().rstrip()}\nbought: 2026-10-05\n")
+
+    scratch_store.put_model(scratch_store.model("arnold-ce68"), "arnold-ce68")
+
+    assert "'2026-10-05'" in document.read_text()
+    assert scratch_store.model("arnold-ce68")["bought"] == "2026-10-05"
+
+
+@pytest.mark.parametrize(
+    "held",
+    ["jpeg: !!binary |\n  /9j/4AAQ", "shelves: !!set\n  ? top\n  ? bottom"],
+    ids=["binary", "set"],
+)
+def test_a_document_holding_what_no_document_can_hold_is_refused(
+    scratch_store: AssetStore, tmp_path: Path, held: str
+) -> None:
+    """Bytes and a set are YAML's own vocabulary rather than a document's, and
+    a file hand-edited to hold one is refused naming the file — the fault is in
+    the document, and whoever has to fix it has to be told which (#641).
+
+    Refused here rather than where a face serialises, so the Python binding and
+    the HTTP face agree about what a document is and no reply is ever built out
+    of a value that cannot be sent.
+    """
+    document = tmp_path / "catalogue" / "arnold-ce68.yaml"
+    document.write_text(f"{document.read_text().rstrip()}\n{held}\n")
+
+    with pytest.raises(ValueError, match="arnold-ce68"):
+        scratch_store.model("arnold-ce68")
+
+
 JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF" + bytes(range(64))
 """Bytes that open as a JPEG does. Not a picture: the store keeps what it is
 given and reads none of it, so what is past the magic number is noise."""

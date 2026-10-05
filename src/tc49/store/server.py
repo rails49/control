@@ -90,7 +90,8 @@ every other route is JSON both ways. **The route says which**, and neither the
 shape of a path nor the shape of a payload does: `photo` is a document name
 like any other, so a drawing and a model called `photo` are JSON like their
 neighbours, and a model document holding a `jpeg:` field is answered as the
-document it is (#635). The document says nothing about a photo, so a model
+document it is (#635) — or refused with a 400 naming the file, where what the
+field holds is a value no document can hold (#641). The document says nothing about a photo, so a model
 that has none is a 404 and `GET /catalogue` does not say which models have
 one. Refused with a 400 where the bytes do not open as a JPEG or where the
 installation has no such model, both of them the client's mistake
@@ -171,9 +172,12 @@ class Picture(dict[str, Any]):
 
     The type is how the route that made it says the reply is a picture
     (`_photo`, `media_type`). Read off the payload instead, a `jpeg` key was
-    a thing any document could hold — `yaml.safe_load` turns `!!binary` into
-    `bytes`, so a hand-edited model document with a `jpeg:` field came back
-    as a JPEG of that field rather than as the document it is (#635).
+    a thing any document could hold, so a hand-edited model document with a
+    `jpeg:` field came back as a JPEG of that field rather than as the
+    document it is (#635). Those bytes reach here no longer — the store's
+    reader refuses a document holding a value no document can hold (#641) —
+    and the rule stays the route's all the same: what a reply is, is not a
+    guess about what it carries.
     """
 
     def __init__(self, jpeg: bytes) -> None:
@@ -200,7 +204,12 @@ def handle(
 
     Every way a document can be wrong answers with a status. A drawing that
     will not load is the client's problem or the file's, and either way the
-    editor wants to read the reason rather than lose the connection.
+    editor wants to read the reason rather than lose the connection. A
+    document holding a value no document can hold — `!!binary` in a
+    hand-edited model file — is the store's own refusal and arrives here as
+    the 400 a model that does not validate gets, naming the file (#641): a
+    stored document's faults become statuses in this one place, so the
+    in-process caller and the socket cannot read one differently.
     """
     try:
         return _route(store, backup, method, path, body)
