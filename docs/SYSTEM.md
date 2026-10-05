@@ -356,7 +356,11 @@ LAN is still the trust boundary and a browser is not on it
   same way, because they reach every binding as the tokens `Infinity`,
   `-Infinity` and `NaN`, which JSON's own readers reject — and a request body
   holding one of those tokens is a body that is not JSON
-  ([#649](https://github.com/rails49/control/issues/649)).
+  ([#649](https://github.com/rails49/control/issues/649)). It is the value and
+  not the spelling that is refused, so a number written as a numeric literal
+  the double it is read into cannot hold — `1e400` — is a body that is not
+  JSON either: the face accepts no document it would then refuse to serve
+  ([#654](https://github.com/rails49/control/issues/654)).
 
 ## Component footprints
 
