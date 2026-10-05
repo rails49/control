@@ -245,7 +245,7 @@ describe("a product written with a picture", () => {
 
   /** The model is written and the photo is not, so the dialog stays open and
    *  says which of the two is missing: the product is in the catalogue either
-   *  way, and its own row is where to take the picture again. */
+   *  way, and the picture is still there to save again (#638). */
   it("leaves the model written where its photo does not land", async () => {
     store.camera = WORKING;
     store.intercepted = (path) =>
@@ -260,5 +260,62 @@ describe("a product written with a picture", () => {
     const said = text(shell, "sl-dialog p.trouble")!;
     expect(said).toContain("'hopper' is written, but its photo was not saved");
     expect(said).toContain("PUT /catalogue/hopper/photo answered 404");
+  });
+
+  /** Create has written the product, so the dialog's frame is drawn for it and
+   *  the picture nothing kept has the photo dialog's own Save — the same bytes
+   *  to the same route, and no second Save written for this dialog (#638). */
+  it("offers Save for the picture its failed photo left unsaved", async () => {
+    store.camera = WORKING;
+    // The `PUT` Create makes is refused and the one Save makes is taken, which
+    // is the camera's bytes reaching the route on the second press.
+    let refuse = true;
+    store.intercepted = (path) => {
+      if (!path.endsWith("/photo") || !refuse) return null;
+      refuse = false;
+      return { status: 404, statusText: "" };
+    };
+    const shell = await opened();
+    await pressed(shell, "button.new-model");
+    await takes(shell, "sl-dialog");
+    await created(shell, "hopper");
+
+    expect(text(shell, "sl-dialog button.keep")).toBe("Save");
+
+    await pressed(shell, "sl-dialog button.keep");
+
+    expect(store.saved.map((one) => one.path)).toEqual([
+      "/catalogue/hopper",
+      "/catalogue/hopper/photo",
+    ]);
+    expect(store.saved[1]!.body).toEqual(TOOK);
+    // The photo is saved, so the line that said it was not is answered.
+    expect(text(shell, "sl-dialog p.trouble")).toBeNull();
+  });
+
+  /** One product is written per New model dialog. Pressing Create again
+   *  reached the duplicate-name check and replaced the refusal with *there is
+   *  already a model 'hopper'* — a sentence about this dialog's own write
+   *  (#638). */
+  it("leaves Create dead once the model is written", async () => {
+    store.camera = WORKING;
+    store.intercepted = (path) =>
+      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
+    const shell = await opened();
+    await pressed(shell, "button.new-model");
+    await takes(shell, "sl-dialog");
+    await created(shell, "hopper");
+
+    expect(
+      (part(shell, "sl-dialog .create") as HTMLElement & { disabled: boolean })
+        .disabled,
+    ).toBe(true);
+
+    await pressed(shell, "sl-dialog .create");
+
+    expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper"]);
+    expect(text(shell, "sl-dialog p.trouble")).toContain(
+      "'hopper' is written, but its photo was not saved",
+    );
   });
 });

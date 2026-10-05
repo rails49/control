@@ -105,7 +105,8 @@ function draft(): Draft {
  *
  * One of these at a time, because one such dialog is open at a time: the
  * photo dialog a thumbnail opens, or the New model dialog, which takes a
- * picture for a product that does not exist yet (ui/STOCK.md).
+ * picture for a product that does not exist yet and goes on holding it where
+ * Create wrote the product and the photo did not land (ui/STOCK.md).
  */
 type Shot =
   /** Asked, and nothing back yet: the frame says so and the press is dead. */
@@ -174,6 +175,15 @@ export class TcStock extends LitElement {
    *  state said a refusal about the dialog under the Trains heading as well,
    *  and left it standing there once the dialog was gone (#446). */
   @state() private refusal: string | null = null;
+
+  /** The model the New-model dialog has written, `null` until Create has
+   *  succeeded and again once the dialog is shut. The dialog outlives the
+   *  write where the picture did not land, and then the product **is** in the
+   *  catalogue: so the frame is drawn for it, the picture on screen has the
+   *  photo dialog's own Save, and Create is dead — one dialog writes one
+   *  product, and a second press reached the duplicate-name check and said
+   *  *there is already a model '…'* about this dialog's own write (#638). */
+  @state() private wrote: string | null = null;
 
   /** The model whose photo dialog is open, `null` while none is. A car's
    *  thumbnail opens its model's: the photo is the product's, ten identical
@@ -554,10 +564,12 @@ export class TcStock extends LitElement {
   /**
    * The photo, or what the camera is doing, and the presses that go with it.
    *
-   * `model` is the model the picture is of, and `null` in the New model dialog
-   * where there is no model yet: a picture taken there has no Save of its own
-   * and is kept by Create, the store refusing a photo for a model it has not
-   * got (#630).
+   * `model` is the model the picture is of, and `null` where there is none yet:
+   * the New model dialog until Create has written one, where a picture is
+   * kept by Create and has no Save of its own, the store refusing a photo for
+   * a model it has not got (#630). Once Create has written the product the
+   * dialog hands the written name down, and the picture has the same Save a
+   * photo dialog's has (#638).
    *
    * **The press is never dead for want of a camera.** A box with none answers
    * something, and whatever that is becomes *Try again* rather than a control
@@ -623,8 +635,8 @@ export class TcStock extends LitElement {
   }
 
   /** The photo the model has, large, or the empty box saying it has none —
-   *  which is what the New model dialog shows throughout, there being no model
-   *  to have one. */
+   *  which is what the New model dialog shows until Create has written a
+   *  product, there being no model to have one. */
   private picture(model: string | null) {
     if (model === null || this.absent.has(model)) {
       return html`<div class="picture"><span>no photo</span></div>`;
@@ -695,6 +707,10 @@ export class TcStock extends LitElement {
       return;
     }
     this.shot = null;
+    // Where this is the New model dialog saving the picture its Create left
+    // unsaved, the photo has landed and the line saying it had not is answered
+    // (#638). The photo dialog has no refusal of its own to take down.
+    this.refusal = null;
     this.fetched(model);
   };
 
@@ -1099,11 +1115,17 @@ export class TcStock extends LitElement {
         </div>
         <div class="field">
           <label>Photo</label>
-          ${this.frame(null)}
+          ${this.frame(this.wrote)}
         </div>
         ${this.refusal === null ? nothing : html`<p class="trouble">${this.refusal}</p>`}
         <sl-button slot="footer" @click=${this.shut}>Cancel</sl-button>
-        <sl-button slot="footer" variant="primary" class="create" @click=${this.create}>
+        <sl-button
+          slot="footer"
+          variant="primary"
+          class="create"
+          ?disabled=${this.wrote !== null}
+          @click=${this.create}
+        >
           Create
         </sl-button>
       </sl-dialog>
@@ -1156,6 +1178,7 @@ export class TcStock extends LitElement {
     this.making = null;
     this.refusal = null;
     this.shot = null;
+    this.wrote = null;
   }
 
   private drafting(part: Partial<Draft>): void {
@@ -1176,6 +1199,10 @@ export class TcStock extends LitElement {
     // in while it is `null` and nobody is waiting on the return.
     const making = this.making;
     if (making === null) return;
+    // The product is written, so there is nothing left to create: what is left
+    // is the picture, and it has its own Save. The press is dead with it, so
+    // nobody is waiting on this return (#638).
+    if (this.wrote !== null) return;
     // A dialog that opened is a dialog that answers when its button is
     // pressed. The button that opens it is dead without the documents, so the
     // way here is the railroad moving under an open dialog — `forget` takes
@@ -1205,11 +1232,14 @@ export class TcStock extends LitElement {
       return;
     }
     stock.putModel(model);
+    // The product exists from here on, so the dialog is a dialog about a
+    // written model: its frame is drawn for it and Create is dead (#638).
+    this.wrote = model.model;
     // The picture goes after the document and never with it: the store refuses
     // a photo for a model it has not got, so the product has to exist first
     // (#630). A photo that does not land leaves the model written — two
     // writes, and this is the second — so the dialog stays open to say which
-    // of them is missing, and the model's own row is where to take it again.
+    // of them is missing, with the picture still on it to save again.
     const shot = this.shot;
     if (shot?.phase === "took") {
       try {
