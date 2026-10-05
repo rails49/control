@@ -86,7 +86,10 @@ it is the one thing here that is not a document: the JPEG itself, kept as
 `catalogue/<name>.jpg` beside the YAML and backed up with it. **These are the
 only routes on this face whose body is not JSON** — the `PUT` is the picture's
 bytes, stored byte for byte, and the `GET` answers them under `image/jpeg`;
-every other route is JSON both ways. The document says nothing about a photo,
+every other route is JSON both ways. **The route says which**, and not the
+shape of a path: `photo` is a document name like any other, so a drawing and a
+model called `photo` are JSON like their neighbours (#635). The document says
+nothing about a photo,
 so a model that has none is a 404 and `GET /catalogue` does not say which
 models have one. Refused with a 400 where the bytes do not open as a JPEG or
 where the installation has no such model, both of them the client's mistake
@@ -188,11 +191,30 @@ def asked(path: str) -> str:
     return unquote(path.split("?", 1)[0])
 
 
+def photo_of(path: str) -> str | None:
+    """The model whose photo `path` names, and `None` where it names no
+    photo: `/catalogue/<name>/photo` and nothing else on this face.
+
+    The route is what decides, which is why `_route` and the request handler
+    ask the same question of it. A path whose last segment is `photo` is a
+    document by that name — `/drawings/photo`, `/catalogue/photo`,
+    `/rosters/photo` and `/scripts/photo` are a drawing, a model, a roster
+    and a script called `photo`, and every one of them had its document
+    handed on as raw bytes and refused while the suffix was the test (#635).
+    """
+    route = asked(path)
+    entry = route.removeprefix("/catalogue/")
+    if entry == route:
+        return None
+    model, _, part = entry.partition("/")
+    return model if model and part == "photo" else None
+
+
 def takes_bytes(path: str) -> bool:
     """Whether the body of a request to `path` is the bytes it arrived as
-    rather than a JSON document: the photo routes, and nothing else on this
-    face (#626)."""
-    return asked(path).endswith("/photo")
+    rather than a JSON document: the catalogue's photo route, and nothing
+    else on this face (#626, #635)."""
+    return photo_of(path) is not None
 
 
 def _route(
@@ -216,24 +238,26 @@ def _route(
         # which is every fresh box: an empty map rather than a 404.
         return 200, {"models": store.models()}
 
-    entry = route.removeprefix("/catalogue/")
-    if entry != route:
-        # The document is the route, so `/catalogue/<name>` alone is the model
-        # itself and its photo hangs below it, as a roster's trains do.
-        model, _, part = entry.partition("/")
-        if part == "photo":
-            if method == "GET":
-                return _photo(store, model)
-            if method == "PUT":
-                return _put_photo(store, backup, model, body)
-        if not part:
-            if method == "GET":
-                try:
-                    return 200, store.model(model)
-                except FileNotFoundError:
-                    return 404, {"error": f"no model '{model}'"}
-            if method == "PUT":
-                return _put_model(store, backup, model, body)
+    # The document is the route, so `/catalogue/<name>` alone is the model
+    # itself and its photo hangs below it, as a roster's trains do. The photo
+    # route is `photo_of`'s to name, the request handler reading the body as
+    # that one route takes it (`takes_bytes`).
+    photographed = photo_of(route)
+    if photographed is not None:
+        if method == "GET":
+            return _photo(store, photographed)
+        if method == "PUT":
+            return _put_photo(store, backup, photographed, body)
+
+    model = route.removeprefix("/catalogue/")
+    if model != route and "/" not in model:
+        if method == "GET":
+            try:
+                return 200, store.model(model)
+            except FileNotFoundError:
+                return 404, {"error": f"no model '{model}'"}
+        if method == "PUT":
+            return _put_model(store, backup, model, body)
 
     rest = route.removeprefix("/rosters/")
     if rest != route:
