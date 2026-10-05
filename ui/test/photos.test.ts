@@ -98,6 +98,13 @@ function thumbnail(shell: TcApp, row: string): string | null {
   return part(shell, `${row} button.thumb img`)?.getAttribute("src") ?? null;
 }
 
+/** Where every model row's thumbnail is pointed, whichever row is first. */
+function thumbnails(shell: TcApp): string[] {
+  return [
+    ...screen(shell).renderRoot.querySelectorAll("li.product button.thumb img"),
+  ].map((img) => img.getAttribute("src") ?? "");
+}
+
 /** Whether a control in the New model dialog is dead. */
 function dead(shell: TcApp, selector: string): boolean {
   return (part(shell, `sl-dialog ${selector}`) as HTMLInputElement).disabled;
@@ -296,7 +303,8 @@ describe("a product written with a picture", () => {
       "/catalogue/hopper/photo",
     ]);
     expect(store.saved[1]!.body).toEqual(TOOK);
-    // The photo is saved, so the line that said it was not is answered.
+    // The photo is saved, so both of the dialog's writes are done: it is put
+    // away, and the line that said the photo was not saved goes with it (#644).
     expect(text(shell, "sl-dialog p.trouble")).toBeNull();
   });
 
@@ -367,5 +375,44 @@ describe("the New model dialog about the model it wrote", () => {
 
     expect(FIELDS.filter((one) => !dead(shell, one))).toEqual([]);
     expect(dead(shell, "button.keep")).toBe(false);
+  });
+
+  /** Both writes are done, so there is nothing left for the dialog to say and
+   *  it goes the way a Create whose photo landed first time takes it: the
+   *  catalogue row is drawn with the photo it now has. */
+  it("is put away when the photo Save lands", async () => {
+    store.camera = WORKING;
+    // The `PUT` Create makes is refused and the one Save makes is taken.
+    let refuse = true;
+    store.intercepted = (path) => {
+      if (!path.endsWith("/photo") || !refuse) return null;
+      refuse = false;
+      return { status: 404, statusText: "" };
+    };
+    const shell = await opened();
+    await wrote(shell);
+
+    await pressed(shell, "sl-dialog button.keep");
+
+    expect(part(shell, "sl-dialog")).toBeNull();
+    expect(thumbnails(shell)).toContain("/catalogue/hopper/photo?v=1");
+  });
+
+  /** A Save the store will not take is a write that did not happen, so the
+   *  dialog stays where it was with the picture still on it to save again, and
+   *  the store's wording beside the picture. */
+  it("stays open where the photo Save is refused, and says what the store said", async () => {
+    store.camera = WORKING;
+    store.intercepted = (path) =>
+      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
+    const shell = await opened();
+    await wrote(shell);
+
+    await pressed(shell, "sl-dialog button.keep");
+
+    expect(part(shell, "sl-dialog")).not.toBeNull();
+    const said = text(shell, "sl-dialog p.no-picture")!;
+    expect(said).toContain("PUT /catalogue/hopper/photo answered 404");
+    expect(text(shell, "sl-dialog button.keep")).toBe("Save");
   });
 });
