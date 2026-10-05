@@ -877,16 +877,16 @@ class KeptAllocation:
     policy's rather than the reading's: a restart rebuilds the lock table one
     block per train and comes up with an empty queue (ADR-0033, #123), so
     nothing reads those two and a reader that asked their shape would refuse
-    a picture over a part nobody adopts.
+    an allocation over a part nobody adopts.
     """
 
-    trains: dict[str, str]  # train -> the block the picture stands it in
+    trains: dict[str, str]  # train -> the block it is standing in
     crossing: dict[str, str]  # train -> the transit taking it out of there
 
 
 def kept_allocation(payload: object) -> KeptAllocation | None:
-    """The picture a retained allocation value states, or None where it
-    states none.
+    """The allocation a restart takes from a retained allocation value, or
+    None where that value states none.
 
     The dispatcher's own last value, and the second payload here whose reader
     is also its writer (#278): a bus binding that outlived the app hands it
@@ -898,10 +898,10 @@ def kept_allocation(payload: object) -> KeptAllocation | None:
     to be damaged.
 
     Both maps have to be maps, and a value stating either otherwise states no
-    picture: the two are one statement about where the railroad stood, and a
-    value carrying half of it was written by something other than the
+    allocation: the two are one statement about where the railroad stood,
+    and a value carrying half of it was written by something other than the
     contract. Within each, entries are read one train at a time as
-    `kept_facing` reads them, so a picture naming one train badly loses that
+    `kept_facing` reads them, so a value naming one train badly loses that
     train and keeps the rest. Whether a block or a transit named here is on
     this railroad is the layout's question and the dispatcher's, as it is for
     `placement`.
