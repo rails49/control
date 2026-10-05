@@ -19,7 +19,7 @@ import pytest
 from tc49.lib.layout import Layout
 from tc49.store import AssetStore, Backup
 from tc49.store.backup import Said
-from tc49.store.server import handle, make_server, takes_bytes
+from tc49.store.server import handle, make_server, media_type, takes_bytes
 from tests.harness import ASSETS, catalogued
 
 
@@ -535,6 +535,33 @@ def test_a_document_named_photo_is_a_document(tmp_path: Path) -> None:
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_a_document_holding_binary_is_answered_as_a_document(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """The media type of a reply is the route's to say.
+
+    `!!binary` in a hand-edited model document reads back as the same `bytes`
+    a photo's reply carries, so a payload read for a `jpeg` key answered
+    `GET /catalogue/<model>` with a JPEG of whatever that field held (#635).
+    What JSON makes of those bytes is another question and not this one's.
+    """
+    catalogued(tmp_path)
+    document = tmp_path / "catalogue" / "arnold-ce68.yaml"
+    document.write_text(
+        f"{document.read_text().rstrip()}\njpeg: !!binary |\n  /9j/4AAQ\n"
+    )
+    store = AssetStore(tmp_path)
+
+    status, body = handle(store, backup, "GET", "/catalogue/arnold-ce68", None)
+    assert status == 200
+    assert isinstance(body["jpeg"], bytes)
+    assert media_type(body) == "application/json"
+
+    handle(store, backup, "PUT", "/catalogue/arnold-ce68/photo", JPEG)
+    photo = handle(store, backup, "GET", "/catalogue/arnold-ce68/photo", None)
+    assert media_type(photo[1]) == "image/jpeg"
 
 
 SCRIPT = 'def point(addr: str) -> str:\n\treturn f"<T {addr} 1>"  # kürzer\\n'

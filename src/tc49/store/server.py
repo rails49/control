@@ -86,13 +86,14 @@ it is the one thing here that is not a document: the JPEG itself, kept as
 `catalogue/<name>.jpg` beside the YAML and backed up with it. **These are the
 only routes on this face whose body is not JSON** — the `PUT` is the picture's
 bytes, stored byte for byte, and the `GET` answers them under `image/jpeg`;
-every other route is JSON both ways. **The route says which**, and not the
-shape of a path: `photo` is a document name like any other, so a drawing and a
-model called `photo` are JSON like their neighbours (#635). The document says
-nothing about a photo,
-so a model that has none is a 404 and `GET /catalogue` does not say which
-models have one. Refused with a 400 where the bytes do not open as a JPEG or
-where the installation has no such model, both of them the client's mistake
+every other route is JSON both ways. **The route says which**, and neither the
+shape of a path nor the shape of a payload does: `photo` is a document name
+like any other, so a drawing and a model called `photo` are JSON like their
+neighbours, and a model document holding a `jpeg:` field is answered as the
+document it is (#635). The document says nothing about a photo, so a model
+that has none is a 404 and `GET /catalogue` does not say which models have
+one. Refused with a 400 where the bytes do not open as a JPEG or where the
+installation has no such model, both of them the client's mistake
 rather than a missing page. No `DELETE`, as for every document, and the origin
 rule is the same one: a page on another origin writes no picture either
 (#626).
@@ -159,6 +160,36 @@ from tc49.store.drawing import Drawing
 from tc49.store.store import AssetStore
 
 Response = tuple[int, dict[str, Any]]
+
+JSON = "application/json"
+"""What every route on this face answers but one."""
+
+
+class Picture(dict[str, Any]):
+    """A reply that is a picture rather than a document: the JPEG's bytes,
+    carried under `jpeg` because `handle` answers a mapping on every route.
+
+    The type is how the route that made it says the reply is a picture
+    (`_photo`, `media_type`). Read off the payload instead, a `jpeg` key was
+    a thing any document could hold — `yaml.safe_load` turns `!!binary` into
+    `bytes`, so a hand-edited model document with a `jpeg:` field came back
+    as a JPEG of that field rather than as the document it is (#635).
+    """
+
+    def __init__(self, jpeg: bytes) -> None:
+        super().__init__(jpeg=jpeg)
+        self.jpeg = jpeg
+
+
+def media_type(payload: dict[str, Any]) -> str:
+    """How a reply goes out: `image/jpeg` where the route that produced it
+    answers a picture, and JSON for every document, whatever values it holds.
+
+    One rule, read by the HTTP face (`_respond`) and askable of a reply the
+    in-process `handle` gave back, so a test of what a route answers as needs
+    no socket.
+    """
+    return "image/jpeg" if isinstance(payload, Picture) else JSON
 
 
 def handle(
@@ -491,16 +522,16 @@ def _photo(store: AssetStore, name: str) -> Response:
     """One model's photo, as the bytes it is.
 
     The payload carries them under `jpeg` rather than being them, because
-    `handle` answers a mapping on every route: what reaches the wire is those
-    bytes alone, under `image/jpeg`, and the key is where the HTTP face reads
-    them (`_respond`).
+    `handle` answers a mapping on every route — a `Picture`, which is this
+    route saying the reply is a picture: what reaches the wire is those bytes
+    alone, under `image/jpeg` (`media_type`, `_respond`).
 
     A model with no photo is a 404 — nothing on the document says whether
     there is one, the picture existing when the file does, so this is how a
     screen learns there is none to draw.
     """
     try:
-        return 200, {"jpeg": store.photo(name)}
+        return 200, Picture(store.photo(name))
     except FileNotFoundError:
         return 404, {"error": f"no photo for model '{name}'"}
 
@@ -602,18 +633,19 @@ def make_server(
                 return None
 
         def _respond(self, status: int, payload: dict[str, Any]) -> None:
-            """The reply, JSON unless the payload carries a picture: a
-            `jpeg` key is the one answer on this face that is not a document,
-            and it goes out as those bytes and nothing else (`_photo`)."""
-            jpeg = payload.get("jpeg")
-            if isinstance(jpeg, bytes):
-                self._send(status, "image/jpeg", jpeg)
+            """The reply, in the media type the route that produced the
+            payload says (`media_type`): the one picture on this face goes
+            out as those bytes and nothing else, and every document as JSON —
+            whatever values the document holds (#635)."""
+            kind = media_type(payload)
+            if isinstance(payload, Picture):
+                self._send(status, kind, payload.jpeg)
                 return
-            self._send(status, "application/json", json.dumps(payload).encode())
+            self._send(status, kind, json.dumps(payload).encode())
 
-        def _send(self, status: int, media_type: str, encoded: bytes) -> None:
+        def _send(self, status: int, kind: str, encoded: bytes) -> None:
             self.send_response(status)
-            self.send_header("Content-Type", media_type)
+            self.send_header("Content-Type", kind)
             self.send_header("Content-Length", str(len(encoded)))
             # No `Access-Control-*` at all: the app fetches these routes on
             # its own origin, in development through vite's proxy and on a
