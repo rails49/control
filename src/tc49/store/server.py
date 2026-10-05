@@ -220,9 +220,9 @@ def handle(
     Every way a document can be wrong answers with a status. A drawing that
     will not load is the client's problem or the file's, and either way the
     editor wants to read the reason rather than lose the connection. A
-    document holding a value no document can hold — `!!binary` in a
+    document holding a value no document can hold — `!!binary` or `.inf` in a
     hand-edited model file — is the store's own refusal and arrives here as
-    the 400 a model that does not validate gets, naming the file (#641): a
+    the 400 a model that does not validate gets, naming the file (#641, #649): a
     stored document's faults become statuses in this one place, so the
     in-process caller and the socket cannot read one differently.
     """
@@ -533,6 +533,20 @@ def _put_script(store: AssetStore, backup: Backup, name: str, body: Any) -> Resp
     return 200, {"saved": name}
 
 
+def _refused(constant: str) -> Any:
+    """`NaN`, `Infinity` and `-Infinity` in a request body, refused.
+
+    `json.loads` reads those three bare tokens as floats, and nothing else
+    reading this contract has a word for them: they are not JSON, a browser
+    will not write one, and the store would have filed `.nan`/`.inf` into a
+    YAML file that the next `GET` then refuses (`_check_values`, #649). So a
+    body holding one is a body that is not JSON, and the route answers what a
+    missing body is worth rather than writing something no reader can read
+    back.
+    """
+    raise ValueError(f"a document cannot hold {constant}")
+
+
 def _put_model(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
     """One model, created or replaced.
 
@@ -652,7 +666,9 @@ def make_server(
             themselves where a photo is being saved, and a JSON document
             everywhere else (`takes_bytes`). A length this face cannot read is
             a body it cannot find the end of, so nothing is read at all and
-            the route answers what a missing body is worth."""
+            the route answers what a missing body is worth — as does a body
+            that is not JSON, which is what a body holding one of JSON's
+            three bare non-finite tokens is (`_refused`, #649)."""
             try:
                 length = int(self.headers.get("Content-Length") or 0)
                 sent = self.rfile.read(length)
@@ -661,7 +677,7 @@ def make_server(
             if takes_bytes(self.path):
                 return sent
             try:
-                return json.loads(sent or b"null")
+                return json.loads(sent or b"null", parse_constant=_refused)
             except ValueError:  # a body that is not JSON
                 return None
 
