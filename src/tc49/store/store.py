@@ -9,7 +9,9 @@ Validation — schema and referential integrity — runs at ``put`` and again
 at ``get``, because the YAML files are hand-authored and never passed
 through ``put``. A ``get`` never returns an invalid document; all
 derivation (conflict matrix, terminals, arrival-end expansion, fit
-pruning) stays consumer-side.
+pruning) stays consumer-side. What a document may *hold* is checked at the
+read as well, these files being hand-written in a language that can say more
+than a document can (`_read`, #641).
 
 A layout is not a document type: ``get`` derives it from the drawing
 (ADR-0015, DRAWING.md) and hands it to the validator, so a railroad has
@@ -47,6 +49,70 @@ from tc49.lib.roster import Model, Roster
 from tc49.lib.scenario import Scenario, named, validate_scenario
 from tc49.store import yamlfile
 from tc49.store.drawing import Drawing
+
+_TIMESTAMP = "tag:yaml.org,2002:timestamp"
+"""The one implicit tag this store's reader does not resolve (`_Reader`)."""
+
+
+class _Reader(yaml.SafeLoader):
+    """`yaml.SafeLoader` with the date dropped out of it.
+
+    **A date is text.** `bought: 2026-10-05` in a field nothing here reads is
+    the string somebody typed, not a `datetime.date`: a document is handed on
+    as JSON by every face of this store, and a date is a value JSON cannot
+    carry, so an unquoted one in a hand-written catalogue entry answered
+    `GET /catalogue/<model>` — and `GET /catalogue` with it — by dropping the
+    connection (#641). Quoting it would be the person's workaround for a bug
+    of ours, and a `date` is nothing this software has a use for anyway: what
+    reads a model's fields is the screen that shows them.
+
+    Dropping the resolver rather than reading the document and converting
+    after, so the value never exists: a conversion would have to find dates
+    at every depth of two document types and would turn `!!timestamp` into
+    text as well, where an explicit tag asks for exactly what
+    `_check_values` refuses.
+    """
+
+
+_Reader.yaml_implicit_resolvers = {
+    first: [(tag, pattern) for tag, pattern in resolvers if tag != _TIMESTAMP]
+    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+
+
+def _check_values(value: Any, path: Path, field: str = "") -> None:
+    """Refuse a value no document can hold, naming the file and the field.
+
+    A document holds text, numbers, booleans, nothing, lists and mappings —
+    what these YAML files are written in and what every binding of the CRUD
+    contract carries. YAML's own vocabulary reaches further: `!!binary` is
+    `bytes` and `!!set` is a `set`, and a file hand-edited to hold one is
+    refused here, the way a model that does not validate is refused naming the
+    model.
+
+    Refused at the read rather than where a face serialises, because this is
+    where such a value comes into being: `handle` turns the refusal into the
+    400 a wrong document already gets, and no reply on that face is ever built
+    out of something it cannot send (#641). A photo is the one thing the store
+    keeps that is not a document, and it is a file beside one rather than a
+    field in it (#626).
+    """
+    if isinstance(value, dict):
+        for key, held in cast(dict[Any, Any], value).items():
+            where = f"{field}.{key}" if field else str(key)
+            _check_values(key, path, where)
+            _check_values(held, path, where)
+        return
+    if isinstance(value, list):
+        for index, held in enumerate(cast(list[Any], value)):
+            _check_values(held, path, f"{field}[{index}]")
+        return
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return
+    raise ValueError(
+        f"{path.name}: '{field}' is a {type(value).__name__}, which is not"
+        " something a document can hold"
+    )
 
 
 class AssetStore:
@@ -301,7 +367,16 @@ class AssetStore:
         return self._root / "scenarios" / layout / f"{scenario}.scenario.yaml"
 
     def _read(self, path: Path) -> Any:
-        return yaml.safe_load(path.read_text())
+        """One of this store's YAML files, read as the document it is.
+
+        The store's one reader, which is why both rules about what a document
+        holds are here: the Python binding an app uses and the HTTP face the
+        editor talks to read the same file through this, so neither can see a
+        value the other cannot (#641).
+        """
+        doc: Any = yaml.load(path.read_text(), Loader=_Reader)
+        _check_values(doc, path)
+        return doc
 
     def _load_scenario(self, name: str) -> Scenario:
         scenario = self.validate_scenario(self._read(self._scenario_path(name)))

@@ -577,31 +577,102 @@ def test_a_document_named_photo_is_a_document(tmp_path: Path) -> None:
         thread.join(timeout=5)
 
 
-def test_a_document_holding_binary_is_answered_as_a_document(
+def test_a_document_holding_a_jpeg_field_is_answered_as_a_document(
     tmp_path: Path, backup: Backup
 ) -> None:
     """The media type of a reply is the route's to say.
 
-    `!!binary` in a hand-edited model document reads back as the same `bytes`
-    a photo's reply carries, so a payload read for a `jpeg` key answered
-    `GET /catalogue/<model>` with a JPEG of whatever that field held (#635).
-    What JSON makes of those bytes is another question and not this one's.
+    A `jpeg` key was a thing any document could hold, so a payload read for
+    one answered `GET /catalogue/<model>` with a JPEG of whatever that field
+    held (#635). The field holds text here because the store refuses a
+    document holding bytes outright (#641), and the rule under test is the
+    same one: what the reply is, is the route's.
+    """
+    catalogued(tmp_path)
+    document = tmp_path / "catalogue" / "arnold-ce68.yaml"
+    document.write_text(f"{document.read_text().rstrip()}\njpeg: on the shelf\n")
+    store = AssetStore(tmp_path)
+
+    status, body = handle(store, backup, "GET", "/catalogue/arnold-ce68", None)
+    assert status == 200
+    assert body["jpeg"] == "on the shelf"
+    assert media_type(body) == "application/json"
+
+    handle(store, backup, "PUT", "/catalogue/arnold-ce68/photo", JPEG)
+    photo = handle(store, backup, "GET", "/catalogue/arnold-ce68/photo", None)
+    assert media_type(photo[1]) == "image/jpeg"
+
+
+def test_a_model_holding_a_date_is_served_as_the_text_it_was_typed_as(
+    tmp_path: Path,
+) -> None:
+    """Over the socket, because what went wrong was the reply rather than the
+    routing: an unquoted `bought: 2026-10-05` read back as a `datetime.date`,
+    `json.dumps` raised in `_respond` outside `handle`'s hands, and the model
+    and the whole catalogue answered nothing at all — one hand-edited file
+    blanking the catalogue screen (#641).
+    """
+    catalogued(tmp_path)
+    document = tmp_path / "catalogue" / "arnold-ce68.yaml"
+    document.write_text(f"{document.read_text().rstrip()}\nbought: 2026-10-05\n")
+    server = make_server(tmp_path, port=0)
+    url = f"http://127.0.0.1:{server.server_port}"
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urlopen(f"{url}/catalogue/arnold-ce68") as served:
+            assert served.status == 200
+            assert served.headers.get("Content-Type") == "application/json"
+            assert json.load(served)["bought"] == "2026-10-05"
+
+        with urlopen(f"{url}/catalogue") as listed:
+            assert listed.status == 200
+            models = json.load(listed)["models"]
+            assert models["arnold-ce68"]["bought"] == "2026-10-05"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_a_model_holding_bytes_is_a_bad_request_and_not_a_dropped_one(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Over the socket as well as in process, because the two have to agree:
+    a document holding what JSON cannot carry is the status a model file that
+    does not validate already gets, and the error names the document so the
+    person can find the file and quote what they meant.
+
+    `GET /catalogue` is answered too: the list reads every model, and one
+    unreadable file is a 400 for the list rather than a connection dropped
+    mid-reply (#641).
     """
     catalogued(tmp_path)
     document = tmp_path / "catalogue" / "arnold-ce68.yaml"
     document.write_text(
         f"{document.read_text().rstrip()}\njpeg: !!binary |\n  /9j/4AAQ\n"
     )
-    store = AssetStore(tmp_path)
+    in_process = handle(
+        AssetStore(tmp_path), backup, "GET", "/catalogue/arnold-ce68", None
+    )
+    assert in_process[0] == 400
+    assert "arnold-ce68" in in_process[1]["error"]
 
-    status, body = handle(store, backup, "GET", "/catalogue/arnold-ce68", None)
-    assert status == 200
-    assert isinstance(body["jpeg"], bytes)
-    assert media_type(body) == "application/json"
-
-    handle(store, backup, "PUT", "/catalogue/arnold-ce68/photo", JPEG)
-    photo = handle(store, backup, "GET", "/catalogue/arnold-ce68/photo", None)
-    assert media_type(photo[1]) == "image/jpeg"
+    server = make_server(tmp_path, port=0)
+    url = f"http://127.0.0.1:{server.server_port}"
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for route in (f"{url}/catalogue/arnold-ce68", f"{url}/catalogue"):
+            with pytest.raises(HTTPError) as refused:
+                urlopen(route)
+            assert refused.value.code == 400, route
+            assert refused.value.headers.get("Content-Type") == "application/json"
+            assert "arnold-ce68" in json.load(refused.value)["error"]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 SCRIPT = 'def point(addr: str) -> str:\n\treturn f"<T {addr} 1>"  # kürzer\\n'
