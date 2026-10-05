@@ -141,6 +141,19 @@ async function created(shell: TcApp, model: string): Promise<void> {
   await pressed(shell, "sl-dialog .create");
 }
 
+/** The first photo `PUT` held in flight, and the press that lets it answer:
+ *  what a Save outstanding while a person goes on pressing looks like. */
+function holding(): () => void {
+  let answer: () => void = () => {};
+  let first = true;
+  store.held = (path) => {
+    if (!path.endsWith("/photo") || !first) return null;
+    first = false;
+    return new Promise<void>((resolve) => (answer = resolve));
+  };
+  return () => answer();
+}
+
 describe("the thumbnail on a row", () => {
   it("is an image on the model's photo route, on a model row and a car row", async () => {
     const shell = await opened();
@@ -422,19 +435,6 @@ describe("the New model dialog about the model it wrote", () => {
  *  screen is somebody else's
  *  ([#651](https://github.com/rails49/control/issues/651)). */
 describe("a photo Save that resolves after its dialog has gone", () => {
-  /** The first photo `PUT` held in flight, and the press that lets it answer:
-   *  what a Save outstanding while a person goes on pressing looks like. */
-  function holding(): () => void {
-    let answer: () => void = () => {};
-    let first = true;
-    store.held = (path) => {
-      if (!path.endsWith("/photo") || !first) return null;
-      first = false;
-      return new Promise<void>((resolve) => (answer = resolve));
-    };
-    return () => answer();
-  }
-
   /** The photo dialog put away the way its own close press puts it away, with
    *  whatever the frame was showing. */
   async function closed(shell: TcApp): Promise<void> {
