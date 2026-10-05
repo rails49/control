@@ -721,6 +721,37 @@ def test_a_model_holding_a_number_with_a_fraction_is_served_as_the_number(
         thread.join(timeout=5)
 
 
+def test_a_put_body_holding_nan_is_refused_and_writes_nothing(
+    tmp_path: Path,
+) -> None:
+    """`json.loads` reads the bare tokens `NaN`, `Infinity` and `-Infinity`
+    that no other reader of this contract has a word for, so a body holding
+    one is a body that is not JSON: the route answers what a missing body
+    gets and the model's file is never written (#649).
+
+    Over the socket, because reading the body is the HTTP face's.
+    """
+    catalogued(tmp_path)
+    filed = tmp_path / "catalogue" / "re460.yaml"
+    server = make_server(tmp_path, port=0)
+    url = f"http://127.0.0.1:{server.server_port}"
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        body = b'{"model": "re460", "kind": "locomotive", "length": 220, "weight": NaN}'
+        with pytest.raises(HTTPError) as refused:
+            urlopen(Request(f"{url}/catalogue/re460", data=body, method="PUT"))
+        assert refused.value.code == 400
+        assert not filed.exists()
+
+        with urlopen(f"{url}/catalogue") as listed:
+            assert "re460" not in json.load(listed)["models"]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 SCRIPT = 'def point(addr: str) -> str:\n\treturn f"<T {addr} 1>"  # kürzer\\n'
 """A script with everything a JSON round trip can lose: quotes, a backslash
 that is not an escape, a tab, non-ASCII and no trailing newline."""
