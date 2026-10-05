@@ -721,13 +721,24 @@ def test_a_model_holding_a_number_with_a_fraction_is_served_as_the_number(
         thread.join(timeout=5)
 
 
-def test_a_put_body_holding_nan_is_refused_and_writes_nothing(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    "held",
+    ["NaN", "Infinity", "-Infinity", "1e400", "-1e400"],
+    ids=["nan", "infinity", "minus-infinity", "overflow", "minus-overflow"],
+)
+def test_a_put_body_holding_a_number_that_is_not_finite_is_refused(
+    tmp_path: Path, held: str
 ) -> None:
     """`json.loads` reads the bare tokens `NaN`, `Infinity` and `-Infinity`
     that no other reader of this contract has a word for, so a body holding
     one is a body that is not JSON: the route answers what a missing body
     gets and the model's file is never written (#649).
+
+    `1e400` is the same fault spelled as a numeric literal: the tokens come
+    past `parse_constant` and this one comes past `parse_float`, both of them
+    arriving as a float that is not finite, and the store would have answered
+    200, written `.inf` and then refused every later read of the model and of
+    the whole catalogue (#654).
 
     Over the socket, because reading the body is the HTTP face's.
     """
@@ -738,7 +749,10 @@ def test_a_put_body_holding_nan_is_refused_and_writes_nothing(
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        body = b'{"model": "re460", "kind": "locomotive", "length": 220, "weight": NaN}'
+        body = (
+            '{"model": "re460", "kind": "locomotive", "length": 220,'
+            f' "weight": {held}}}'
+        ).encode()
         with pytest.raises(HTTPError) as refused:
             urlopen(Request(f"{url}/catalogue/re460", data=body, method="PUT"))
         assert refused.value.code == 400
@@ -746,6 +760,37 @@ def test_a_put_body_holding_nan_is_refused_and_writes_nothing(
 
         with urlopen(f"{url}/catalogue") as listed:
             assert "re460" not in json.load(listed)["models"]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_a_put_body_holding_a_large_finite_number_is_saved(tmp_path: Path) -> None:
+    """The other side of that refusal: what the overflow is refused for is
+    being infinite and not for being large, so `1e300` is a number a document
+    holds and the save lands (#654).
+
+    What the file then says it is belongs to the writer rather than to this
+    face, so that is all this asserts.
+    """
+    catalogued(tmp_path)
+    filed = tmp_path / "catalogue" / "re460.yaml"
+    server = make_server(tmp_path, port=0)
+    url = f"http://127.0.0.1:{server.server_port}"
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        body = (
+            b'{"model": "re460", "kind": "locomotive", "length": 220,'
+            b' "weight": 1e300}'
+        )
+        with urlopen(Request(f"{url}/catalogue/re460", data=body, method="PUT")) as put:
+            assert json.load(put) == {"saved": "re460"}
+        assert filed.exists()
+
+        with urlopen(f"{url}/catalogue") as listed:
+            assert "re460" in json.load(listed)["models"]
     finally:
         server.shutdown()
         server.server_close()
