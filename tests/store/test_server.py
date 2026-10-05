@@ -486,6 +486,46 @@ def test_a_photo_is_served_over_http_as_the_bytes_it_is(tmp_path: Path) -> None:
         thread.join(timeout=5)
 
 
+def test_a_photo_of_a_model_whose_name_carries_a_percent_is_served(
+    tmp_path: Path,
+) -> None:
+    """Over the socket, because the decode is the point: `a%2Fb` is a legal
+    model name (`check_name` bars only '.' and '/'), so the route naming its
+    photo is `/catalogue/a%252Fb/photo` and the escape has to survive being
+    read once.
+
+    The request handler asked whether the body was bytes of the raw path and
+    `_route` asked `photo_of` of a route already read, so the path was decoded
+    twice on one side and once on the other: the body went on as raw bytes and
+    the reply was `404 no route` (#640).
+    """
+    catalogued(tmp_path)
+    server = make_server(tmp_path, port=0)
+    url = f"http://127.0.0.1:{server.server_port}"
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        document = {"model": "a%2Fb", "kind": "locomotive", "length": 220}
+        filed = Request(
+            f"{url}/catalogue/a%252Fb", data=json.dumps(document).encode(), method="PUT"
+        )
+        with urlopen(filed) as stored:
+            assert json.load(stored) == {"saved": "a%2Fb"}
+
+        saved = Request(f"{url}/catalogue/a%252Fb/photo", data=JPEG, method="PUT")
+        with urlopen(saved) as stored:
+            assert json.load(stored) == {"saved": "a%2Fb"}
+
+        with urlopen(f"{url}/catalogue/a%252Fb/photo") as served_photo:
+            assert served_photo.status == 200
+            assert served_photo.headers.get("Content-Type") == "image/jpeg"
+            assert served_photo.read() == JPEG
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_only_the_catalogue_photo_route_takes_bytes() -> None:
     """Which routes take a body that is not JSON is a question about the
     route, and `photo` is a document name like any other.

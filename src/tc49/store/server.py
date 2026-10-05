@@ -222,9 +222,15 @@ def asked(path: str) -> str:
     return unquote(path.split("?", 1)[0])
 
 
-def photo_of(path: str) -> str | None:
-    """The model whose photo `path` names, and `None` where it names no
+def photo_of(route: str) -> str | None:
+    """The model whose photo `route` names, and `None` where it names no
     photo: `/catalogue/<name>/photo` and nothing else on this face.
+
+    The argument is a route — a path already read by `asked` — and is not
+    read again: decoding it here as well meant `_route` decoded a photo's
+    path twice where the request handler decoded it once, so a model whose
+    name carries a `%` had its body handed on as raw bytes and the route
+    itself refused (#640).
 
     The route is what decides, which is why `_route` and the request handler
     ask the same question of it. A path whose last segment is `photo` is a
@@ -233,7 +239,6 @@ def photo_of(path: str) -> str | None:
     and a script called `photo`, and every one of them had its document
     handed on as raw bytes and refused while the suffix was the test (#635).
     """
-    route = asked(path)
     entry = route.removeprefix("/catalogue/")
     if entry == route:
         return None
@@ -244,8 +249,11 @@ def photo_of(path: str) -> str | None:
 def takes_bytes(path: str) -> bool:
     """Whether the body of a request to `path` is the bytes it arrived as
     rather than a JSON document: the catalogue's photo route, and nothing
-    else on this face (#626, #635)."""
-    return photo_of(path) is not None
+    else on this face (#626, #635).
+
+    The raw request path, as the socket read it: `asked` is what turns it
+    into the route `photo_of` names."""
+    return photo_of(asked(path)) is not None
 
 
 def _route(
