@@ -24,6 +24,7 @@ describe are in [GOALS.md](../GOALS.md) and
 
 ```
 catalogue/<model>.yaml                          # what a product is
+catalogue/<model>.jpg                           # its photo, where one was taken
 layouts/<layout>.drawing.yaml                   # the railroad, drawn
 layouts/<layout>.roster.yaml                    # the cars it owns, and its trains
 layouts/<layout>.script.py                      # the script its translator loads
@@ -31,13 +32,19 @@ scenarios/<layout>/<scenario>.scenario.yaml     # e.g. reversing-loops/meet
 ```
 
 Those paths are the store's, read from wherever it is rooted, and there are
-**two roots that never meet**.
+**two roots that never meet**. Every one of them but the photo names a
+document — the YAML somebody edits, or the Python a railroad's translator
+loads. `catalogue/<model>.jpg` is the JPEG itself, kept beside the model's
+document and answered byte for byte, and it is the one thing the store holds
+that is not a document ([SYSTEM.md](../SYSTEM.md#asset-store),
+[#630](https://github.com/rails49/control/issues/630)).
 
 An **installation's store is `~/tc49/`**, and holds the documents somebody's
-own railroad is made of. Visible and stable rather than an XDG data directory:
-it is a repository a person clones, pushes and looks at, not a cache a system
-may throw away and rebuild. `--store <path>` and `TC49_STORE` override it, the
-flag winning, and `tc49 serve` reads no other root
+own railroad is made of, with the photos hanging off them. Visible and stable
+rather than an XDG data directory: it is a repository a person clones, pushes
+and looks at, not a cache a system may throw away and rebuild.
+`--store <path>` and `TC49_STORE` override it, the flag winning, and
+`tc49 serve` reads no other root
 ([#320](https://github.com/rails49/control/issues/320)).
 
 The **fixtures are the harness's**, under this checkout's `bench/`: what the
@@ -185,6 +192,15 @@ functions:                # function number -> what it does on this product
   rarely ([CONTEXT.md](../../CONTEXT.md#stock), **Catalogue**). The file names
   itself, and that name is what every car refers to it by, so a `model:` that
   disagrees with the path is refused.
+- **A model's photo is a second file, and the only one here that is not a
+  document.** The picture is kept as `catalogue/<model>.jpg` beside the YAML,
+  the bytes as the camera took them and re-encoded by nothing. The document
+  says nothing about it, so a model has a photo exactly where the file is
+  there and one nobody has photographed carries no field saying so. The photo
+  is the model's and never a car's: two cars of one product show one picture,
+  as they read one length
+  ([SYSTEM.md](../SYSTEM.md#asset-store),
+  [#630](https://github.com/rails49/control/issues/630)).
 - **`functions` is a name on a number**, and the names are the installation's
   own. What model trains implement varies enormously and cars have functions
   too — a track-cleaning car's vacuum, coach lighting — so what a number is
