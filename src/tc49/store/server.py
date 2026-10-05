@@ -189,11 +189,26 @@ def media_type(payload: dict[str, Any]) -> str:
     """How a reply goes out: `image/jpeg` where the route that produced it
     answers a picture, and JSON for every document, whatever values it holds.
 
-    One rule, read by the HTTP face (`_respond`) and askable of a reply the
+    One rule, read by the HTTP face (`on_the_wire`) and askable of a reply the
     in-process `handle` gave back, so a test of what a route answers as needs
     no socket.
     """
     return "image/jpeg" if isinstance(payload, Picture) else JSON
+
+
+def on_the_wire(payload: dict[str, Any]) -> tuple[str, bytes]:
+    """A reply as it is sent: its media type, and the bytes under it.
+
+    The one place a reply is serialised, and the request handler runs it inside
+    the same guard the routing is under (`_answer`): a payload that cannot be
+    encoded is then answered with a status, where `json.dumps` reached after
+    that guard ended the request with no reply at all — which is what a stored
+    document holding a date did (#641).
+    """
+    kind = media_type(payload)
+    if isinstance(payload, Picture):
+        return kind, payload.jpeg
+    return kind, json.dumps(payload).encode()
 
 
 def handle(
@@ -617,9 +632,10 @@ def make_server(
                 return
             try:
                 status, payload = handle(store, backing, method, self.path, body)
+                reply = on_the_wire(payload)
             except Exception as failure:  # noqa: BLE001 — a reply beats a reset
-                status, payload = 500, {"error": repr(failure)}
-            self._respond(status, payload)
+                status, reply = 500, on_the_wire({"error": repr(failure)})
+            self._send(status, *reply)
 
         def _same_origin(self) -> bool:
             """Whether this request comes from the page this server is part
@@ -650,15 +666,13 @@ def make_server(
                 return None
 
         def _respond(self, status: int, payload: dict[str, Any]) -> None:
-            """The reply, in the media type the route that produced the
-            payload says (`media_type`): the one picture on this face goes
-            out as those bytes and nothing else, and every document as JSON —
-            whatever values the document holds (#635)."""
-            kind = media_type(payload)
-            if isinstance(payload, Picture):
-                self._send(status, kind, payload.jpeg)
-                return
-            self._send(status, kind, json.dumps(payload).encode())
+            """A refusal this handler makes of its own, sent as `on_the_wire`
+            puts it (`media_type`, #635): the origin rule's, which is the one
+            reply here that no route produced.
+
+            What a route produced goes out through `_answer`, where the
+            serialising sits inside the guard rather than after it (#641)."""
+            self._send(status, *on_the_wire(payload))
 
         def _send(self, status: int, kind: str, encoded: bytes) -> None:
             self.send_response(status)
