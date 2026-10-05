@@ -17,9 +17,9 @@ from tc49.lib.payload import (
     Command,
     Gesture,
     Grant,
+    KeptAllocation,
     Mode,
     Ordering,
-    Picture,
     Placement,
     Run,
     Throttle,
@@ -793,7 +793,7 @@ def test_a_retained_picture_reads_as_the_two_maps_a_restart_takes() -> None:
             "locks": {"up_w": "express_2"},
             "requests": [{"id": "freight_1-1"}],
         }
-    ) == Picture(
+    ) == KeptAllocation(
         {"express_2": "up_w", "freight_1": "dn_e"},
         {"freight_1": "crossover.dn_straight"},
     )
@@ -807,7 +807,7 @@ def test_a_picture_that_states_two_empty_maps_is_still_a_picture() -> None:
     is not the same claim as one that says nowhere."""
     assert kept_allocation(
         {"trains": {}, "crossing": {}, "locks": {}, "requests": []}
-    ) == Picture({}, {})
+    ) == KeptAllocation({}, {})
 
 
 def test_a_value_stating_no_picture_reads_as_none() -> None:
@@ -848,7 +848,7 @@ def test_a_train_a_picture_names_unreadably_loses_itself_and_no_other() -> None:
             "trains": {"express_2": "up_w", "freight_1": 7, "local_3": "station_c_2"},
             "crossing": {"express_2": None, "local_3": "crossover.up_straight"},
         }
-    ) == Picture(
+    ) == KeptAllocation(
         {"express_2": "up_w", "local_3": "station_c_2"},
         {"local_3": "crossover.up_straight"},
     )
