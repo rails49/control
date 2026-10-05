@@ -780,7 +780,7 @@ def test_an_entry_that_cannot_be_read_loses_that_train_and_no_other() -> None:
     ) == {"express_2": "up_e.B-to-A"}
 
 
-def test_a_retained_picture_reads_as_the_two_maps_a_restart_takes() -> None:
+def test_a_retained_allocation_reads_as_the_two_maps_a_restart_takes() -> None:
     """The dispatcher's own last value, handed back at construction by a bus
     binding that outlived it: where each train stood, and which transit was
     taking it out of there (#278). `locks` and `requests` are in the payload
@@ -799,18 +799,18 @@ def test_a_retained_picture_reads_as_the_two_maps_a_restart_takes() -> None:
     )
 
 
-def test_a_picture_that_states_two_empty_maps_is_still_a_picture() -> None:
-    """An idle railroad nothing has placed a train on: the picture states two
-    maps and both are empty, which is a picture and not the absence of one.
-    The dispatcher does the same with it either way, and the reader still has
-    to tell them apart — a value that says nothing about where the trains are
-    is not the same claim as one that says nowhere."""
+def test_an_allocation_that_states_two_empty_maps_is_still_an_allocation() -> None:
+    """An idle railroad nothing has placed a train on: the allocation states
+    two maps and both are empty, which is an allocation and not the absence of
+    one. The dispatcher does the same with it either way, and the reader still
+    has to tell them apart — a value that says nothing about where the trains
+    are is not the same claim as one that says nowhere."""
     assert kept_allocation(
         {"trains": {}, "crossing": {}, "locks": {}, "requests": []}
     ) == KeptAllocation({}, {})
 
 
-def test_a_value_stating_no_picture_reads_as_none() -> None:
+def test_a_value_stating_no_allocation_reads_as_none() -> None:
     """Rule 4 exempts no payload for having once been the reader's own, and
     the moment this one is read is the recovery after a power cut. Every one
     of these was an `AttributeError` out of the dispatcher's constructor
@@ -836,7 +836,7 @@ def test_a_value_stating_no_picture_reads_as_none() -> None:
         assert kept_allocation(payload) is None, payload
 
 
-def test_a_train_a_picture_names_unreadably_loses_itself_and_no_other() -> None:
+def test_a_train_an_allocation_names_unreadably_loses_itself_and_no_other() -> None:
     """Each map is read one train at a time, as a retained facing is: the
     whole of a session's placement is in this one value, and dropping all of
     it for one bad entry would cold-start every train a good entry names.
