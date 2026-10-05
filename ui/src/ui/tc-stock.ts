@@ -708,12 +708,22 @@ export class TcStock extends LitElement {
       await savePhoto(model, shot.picture.jpeg);
     } catch (trouble) {
       // The picture is still there to save again, so it stays on the screen
-      // with what the store said beside it.
-      this.shot = { ...shot, refused: said(trouble) };
+      // with what the store said beside it — unless it is not the picture on
+      // screen any more, and then a refusal of this save is a sentence about
+      // nothing beside a picture it is not about (#446, #651).
+      if (this.shot === shot) this.shot = { ...shot, refused: said(trouble) };
       return;
     }
-    this.shot = null;
+    // The write landed, so the model has its photo whoever is still watching:
+    // the thumbnail asks for the bytes again either way.
     this.fetched(model);
+    // The dialog can have been put away while the `PUT` was in flight, and a
+    // picture taken in a dialog opened since is not the one this save is
+    // about: an answer to a shot that is no longer the one on screen is one to
+    // drop rather than one to take the current picture down with, and no
+    // dialog goes for it (#651). The same guard `takes` keeps over the camera.
+    if (this.shot !== shot) return;
+    this.shot = null;
     // Where this is the New model dialog saving the picture its Create left
     // unsaved, both of that dialog's writes are done — the model and its photo
     // — so there is nothing left for it to say: it goes the way a Create whose

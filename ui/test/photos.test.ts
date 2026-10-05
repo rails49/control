@@ -416,3 +416,76 @@ describe("the New model dialog about the model it wrote", () => {
     expect(text(shell, "sl-dialog button.keep")).toBe("Save");
   });
 });
+
+/** A Save whose `PUT` is still in flight when its dialog is put away: the
+ *  answer is about a picture nobody is looking at any more, and the picture on
+ *  screen is somebody else's
+ *  ([#651](https://github.com/rails49/control/issues/651)). */
+describe("a photo Save that resolves after its dialog has gone", () => {
+  /** The first photo `PUT` held in flight, and the press that lets it answer:
+   *  what a Save outstanding while a person goes on pressing looks like. */
+  function holding(): () => void {
+    let answer: () => void = () => {};
+    let first = true;
+    store.held = (path) => {
+      if (!path.endsWith("/photo") || !first) return null;
+      first = false;
+      return new Promise<void>((resolve) => (answer = resolve));
+    };
+    return () => answer();
+  }
+
+  /** The photo dialog put away the way its own close press puts it away, with
+   *  whatever the frame was showing. */
+  async function closed(shell: TcApp): Promise<void> {
+    part(shell, "sl-dialog.photo")!.dispatchEvent(new CustomEvent("sl-after-hide"));
+    await settled(shell);
+  }
+
+  /** A Save pressed on a picture, its `PUT` held, the dialog then put away and
+   *  a fresh picture taken in a dialog opened again. */
+  async function retaken(shell: TcApp): Promise<void> {
+    await dialog(shell);
+    await takes(shell);
+    await pressed(shell, "sl-dialog.photo button.keep");
+    await closed(shell);
+    await dialog(shell);
+    await takes(shell);
+  }
+
+  /** The write happened, so the model has its photo and the thumbnail asks for
+   *  the bytes again — whoever is still watching. */
+  it("takes the thumbnail to the saved photo and leaves the new picture", async () => {
+    store.camera = WORKING;
+    const shell = await opened();
+    const lands = holding();
+
+    await retaken(shell);
+    lands();
+    await settled(shell);
+
+    expect(text(shell, "sl-dialog.photo p.unkept")).toBe("not saved yet");
+    expect(text(shell, "sl-dialog.photo button.keep")).toBe("Save");
+    expect(thumbnail(shell, "li.product")).toBe("/catalogue/sbb-re460/photo?v=1");
+  });
+
+  /** A refusal of a save nobody is waiting for is a sentence about nothing, and
+   *  the picture it would be written beside is not the picture it is about
+   *  (#446). */
+  it("says nothing about the picture it was refused, the dialog having gone", async () => {
+    store.camera = WORKING;
+    store.intercepted = (path) =>
+      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
+    const shell = await opened();
+    const refuses = holding();
+
+    await retaken(shell);
+    refuses();
+    await settled(shell);
+
+    expect(text(shell, "sl-dialog.photo p.no-picture")).toBeNull();
+    expect(text(shell, "sl-dialog.photo p.unkept")).toBe("not saved yet");
+    expect(text(shell, "sl-dialog.photo button.keep")).toBe("Save");
+    expect(thumbnail(shell, "li.product")).toBe("/catalogue/sbb-re460/photo");
+  });
+});

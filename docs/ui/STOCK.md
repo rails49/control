@@ -218,6 +218,17 @@ asks for `?v=<n>`, because the bytes at that URL have changed and the browser
 is holding the ones from before. The store drops a query string, so that is the
 same route and not another one (#630).
 
+**A Save whose answer comes back after its dialog has gone changes nothing on
+the screen.** The `PUT` can still be in flight when the dialog is put away, and
+a picture taken in a dialog opened since is not the one that Save is about: it
+stays where it is, marked *not saved yet* with its own Save live, whether that
+write lands or the store refuses it — a refusal of a Save nobody is waiting
+for is a sentence about nothing, and it is not about the picture it would be
+written beside ([#446](https://github.com/rails49/control/issues/446)). The
+write itself stands either way, so a Save that lands still takes the thumbnail
+to `?v=<n>`: the model has its photo whoever is still watching
+([#651](https://github.com/rails49/control/issues/651)).
+
 **Any other answer from the camera, and a fetch that rejected, say so and
 offer to try again**: *no picture:* followed by the status and its text, or by
 what the fetch said. A `200` carries the picture and **any other status means
@@ -438,9 +449,12 @@ document and then the photo — including the model standing written where the
 second of those did not land, the Save that then sends the same bytes, and
 Create dead from the write on (#638) — with every control that edits the draft
 dead beside it, the dialog put away when that Save lands, and the dialog left
-standing where the store refuses it (#644). What the camera answers is the shell's
-(`ui/test/support/shell.ts`, `camera`), that route being no app of this
-repository's.
+standing where the store refuses it (#644). Two of them hold a Save's `PUT` in
+flight, put the dialog away under it and take a fresh picture, so that what the
+answer lands on is a picture it is not about — once landing and once refused
+(#651). What the camera answers is the shell's (`ui/test/support/shell.ts`,
+`camera`), that route being no app of this repository's, and a write held in
+flight is the shell's too (`held`).
 
 The question over unsaved roster edits is `ui/test/opening.test.ts`'s, beside
 the drawing's: it is the app's question about the app's railroad, and what the
