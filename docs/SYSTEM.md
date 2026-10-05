@@ -334,6 +334,16 @@ LAN is still the trust boundary and a browser is not on it
   the consumer: the conflict matrix by inversion
   ([ADR-0006](adr/0006-conflicts-declared-by-inversion.md)), terminal blocks,
   arrival-end expansion and fit pruning.
+- **A document holds only what a document can hold** — text, numbers,
+  booleans, nothing, lists and mappings, which is what every binding of this
+  contract can carry. The milestone-1 YAML binding reads a hand-written date
+  as the text it was typed as, so `bought: 2026-10-05` is `"2026-10-05"` to
+  the Python library and over HTTP alike, and refuses a value further out in
+  YAML's vocabulary — `!!binary`, a set — naming the file it read, the way it
+  refuses a document that does not validate. Over HTTP both are the 400 a
+  wrong document gets: a reply the face could not serialise ended the request
+  with nothing at all, so one hand-edited file blanked the catalogue screen
+  ([#641](https://github.com/rails49/control/issues/641)).
 
 ## Component footprints
 
