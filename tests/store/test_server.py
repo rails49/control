@@ -766,13 +766,19 @@ def test_a_put_body_holding_a_number_that_is_not_finite_is_refused(
         thread.join(timeout=5)
 
 
-def test_a_put_body_holding_a_large_finite_number_is_saved(tmp_path: Path) -> None:
+@pytest.mark.parametrize("held", ["1e300", "1e-5"], ids=["large", "small"])
+def test_a_put_body_holding_a_large_finite_number_is_saved(
+    tmp_path: Path, held: str
+) -> None:
     """The other side of that refusal: what the overflow is refused for is
-    being infinite and not for being large, so `1e300` is a number a document
-    holds and the save lands (#654).
+    being infinite and not for being large, so a number a double holds is a
+    number a document holds — saved, and read back as the number it was
+    (#654).
 
-    What the file then says it is belongs to the writer rather than to this
-    face, so that is all this asserts.
+    The whole round trip over the socket, because being accepted is only half
+    of it: the store wrote these two with an exponent and no dot, which its
+    own reader then read as text, so a `PUT` the face answered 200 to left a
+    string in the field (`yamlfile._Writer`).
     """
     catalogued(tmp_path)
     filed = tmp_path / "catalogue" / "re460.yaml"
@@ -782,15 +788,18 @@ def test_a_put_body_holding_a_large_finite_number_is_saved(tmp_path: Path) -> No
     thread.start()
     try:
         body = (
-            b'{"model": "re460", "kind": "locomotive", "length": 220,'
-            b' "weight": 1e300}'
-        )
+            '{"model": "re460", "kind": "locomotive", "length": 220,'
+            f' "weight": {held}}}'
+        ).encode()
         with urlopen(Request(f"{url}/catalogue/re460", data=body, method="PUT")) as put:
             assert json.load(put) == {"saved": "re460"}
         assert filed.exists()
 
+        with urlopen(f"{url}/catalogue/re460") as served:
+            assert json.load(served)["weight"] == float(held)
+
         with urlopen(f"{url}/catalogue") as listed:
-            assert "re460" in json.load(listed)["models"]
+            assert json.load(listed)["models"]["re460"]["weight"] == float(held)
     finally:
         server.shutdown()
         server.server_close()

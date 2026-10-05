@@ -354,6 +354,26 @@ def test_a_date_written_back_is_quoted_and_reads_the_same(
     assert scratch_store.model("arnold-ce68")["bought"] == "2026-10-05"
 
 
+@pytest.mark.parametrize("value", [1e300, 1e-5, 1e16], ids=["large", "small", "whole"])
+def test_a_number_written_with_an_exponent_reads_back_as_a_number(
+    scratch_store: AssetStore, value: float
+) -> None:
+    """The round trip a number makes through a save, for the ones Python
+    writes with an exponent.
+
+    `repr(1e300)` is `1e+300`, a mantissa with no dot, and the dot is what
+    YAML 1.1's float resolver looks for — so the file said `1e+300` and this
+    reader read the text `'1e+300'` back out of it: a save turned a number
+    into something that is not one, and the face that saved it was answered
+    200 (#654). Written with the dot in, both readers of these files agree it
+    is a number (`yamlfile._Writer`).
+    """
+    doc = scratch_store.model("arnold-ce68")
+    scratch_store.put_model({**doc, "weight": value}, "arnold-ce68")
+
+    assert scratch_store.model("arnold-ce68")["weight"] == value
+
+
 @pytest.mark.parametrize(
     "held",
     [

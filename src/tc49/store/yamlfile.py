@@ -23,7 +23,39 @@ from typing import Any, cast
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.error import CommentMark
+from ruamel.yaml.representer import RoundTripRepresenter
 from ruamel.yaml.tokens import CommentToken
+
+
+class _Writer(RoundTripRepresenter):
+    """The round-trip representer, writing a float YAML 1.1 reads as a float.
+
+    `repr(1e300)` is `1e+300` and `repr(1e-5)` is `1e-05`, mantissas with no
+    dot in them, which the implicit float resolver of YAML 1.1 does not match
+    — and YAML 1.1 is what these files are read back in (`store._Reader`, a
+    `yaml.SafeLoader`). So a weight saved as `1e300` came back as the *text*
+    `'1e+300'`: a number went in and something that is not one came out
+    (#654). ruamel has the fix and gates it on a `%YAML 1.1` directive these
+    files do not carry, so the dot goes in here instead.
+
+    Only a plain `float` passes through: a number read off the file is a
+    `ScalarFloat`, represented by its own method and keeping the spelling its
+    author chose, which is the whole point of this module.
+    """
+
+    def represent_float(self, data: Any) -> Any:
+        node = cast(Any, super().represent_float(data))  # pyright: ignore
+        written = str(node.value)
+        if "." not in written and "e" in written:
+            node.value = written.replace("e", ".0e", 1)
+        return node
+
+
+_Writer.add_representer(  # pyright: ignore[reportUnknownMemberType]
+    float, _Writer.represent_float
+)
+"""Registered as well as overridden: a representer is looked up by type in a
+table of plain functions, so a subclass's method alone is never reached."""
 
 
 def _round_trip() -> YAML:
@@ -37,6 +69,7 @@ def _round_trip() -> YAML:
     behind, and a handful of files a session cannot notice the cost.
     """
     yaml = YAML()
+    yaml.Representer = _Writer  # before `representer`, which builds one
     yaml.preserve_quotes = True
     yaml.width = 4096  # never rewrap a line that was already written
     yaml.indent(mapping=2, sequence=4, offset=2)  # as the drawings are written
