@@ -218,6 +218,18 @@ asks for `?v=<n>`, because the bytes at that URL have changed and the browser
 is holding the ones from before. The store drops a query string, so that is the
 same route and not another one (#630).
 
+**Save is dead from the press until its own `PUT` answers.** One picture has at
+most one write of it in flight: a second press would send bytes the store
+already has and bring back a second answer about a picture the first has
+already spoken for — and where the first was refused and the second landed, the
+answer the screen kept was the refusal, beside a picture the store had
+([#655](https://github.com/rails49/control/issues/655)). A Save the store
+refuses is a write that did not happen, so Save is live again with the refusal
+beside the picture. **Retake and Cancel stay live** while that write goes on:
+the picture can be taken again or put away under it, and a picture taken next
+has its own Save live — the write still in flight is the earlier picture's, and
+what its answer may touch is #651's.
+
 **A Save whose answer comes back after its dialog has gone changes nothing on
 the screen.** The `PUT` can still be in flight when the dialog is put away, and
 a picture taken in a dialog opened since is not the one that Save is about: it
@@ -263,7 +275,9 @@ picture to `PUT /catalogue/hopper/photo` says nothing about which model that
 picture is of. Editing a written model is the model row's own business, not
 this dialog's. Take photo, Retake and Cancel stay live, and Cancel still
 discards a picture nothing kept
-([#644](https://github.com/rails49/control/issues/644)).
+([#644](https://github.com/rails49/control/issues/644)). Save is dead while its
+own `PUT` is in flight here as anywhere else, and a second press on it was how
+the dialog was left standing with both writes done (#655).
 
 **A Save that lands puts the dialog away.** Both of its writes are done, so it
 has nothing left to say: it goes the way a Create whose photo landed first time
@@ -452,9 +466,13 @@ dead beside it, the dialog put away when that Save lands, and the dialog left
 standing where the store refuses it (#644). Two of them hold a Save's `PUT` in
 flight, put the dialog away under it and take a fresh picture, so that what the
 answer lands on is a picture it is not about — once landing and once refused
-(#651). What the camera answers is the shell's (`ui/test/support/shell.ts`,
-`camera`), that route being no app of this repository's, and a write held in
-flight is the shell's too (`held`).
+(#651). Three more hold one under the press that made it: Save dead with
+Retake and Cancel live beside it and a second press sending nothing, Save live
+again where that write was refused and sending on the press after, and the same
+in the New model dialog, where the write that lands is the one that puts the
+dialog away (#655). What the camera answers is the shell's
+(`ui/test/support/shell.ts`, `camera`), that route being no app of this
+repository's, and a write held in flight is the shell's too (`held`).
 
 The question over unsaved roster edits is `ui/test/opening.test.ts`'s, beside
 the drawing's: it is the app's question about the app's railroad, and what the

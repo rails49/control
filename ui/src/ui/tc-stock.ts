@@ -202,6 +202,19 @@ export class TcStock extends LitElement {
    *  wanted. */
   @state() private shot: Shot | null = null;
 
+  /** The picture whose photo `PUT` is in flight, `null` where none is. Save is
+   *  dead while its own write goes on, the way Create is dead from the write on
+   *  (#638): one shot has at most one `PUT` of it in flight, and two presses on
+   *  the same picture are a second write of bytes the store already has and an
+   *  answer about a picture the first answer has already spoken for (#655).
+   *
+   *  The shot itself rather than a flag, because the write is one picture's and
+   *  not the screen's: Retake stays live, so the picture taken next has its own
+   *  Save live while the one before it is still being written — and #651's
+   *  guard reads `shot` by identity, which a flag kept inside the shot would
+   *  cost it. */
+  @state() private keeping: Shot | null = null;
+
   /** How many times a model's photo has been saved from this screen, by model.
    *  It is what the `?v=<n>` on a thumbnail carries: the bytes at that URL have
    *  changed and the browser is holding the ones from before, and the store
@@ -605,7 +618,11 @@ export class TcStock extends LitElement {
           <div class="presses">
             ${model === null
               ? nothing
-              : html`<button class="keep" @click=${() => void this.keeps(model)}>
+              : html`<button
+                  class="keep"
+                  ?disabled=${this.keeping === shot}
+                  @click=${() => void this.keeps(model)}
+                >
                   Save
                 </button>`}
             <button class="take" @click=${() => void this.takes()}>Retake</button>
@@ -703,7 +720,10 @@ export class TcStock extends LitElement {
    *  pointed at a URL the browser has no answer of its own for. */
   private keeps = async (model: string): Promise<void> => {
     const shot = this.shot;
-    if (shot?.phase !== "took") return;
+    if (shot?.phase !== "took" || this.keeping === shot) return;
+    // Dead from here until the answer, so a second press is nothing to answer.
+    // The guard above says the same to a press that reached the handler anyway.
+    this.keeping = shot;
     try {
       await savePhoto(model, shot.picture.jpeg);
     } catch (trouble) {
@@ -713,6 +733,12 @@ export class TcStock extends LitElement {
       // nothing beside a picture it is not about (#446, #651).
       if (this.shot === shot) this.shot = { ...shot, refused: said(trouble) };
       return;
+    } finally {
+      // This picture's write has answered, so Save is live for it again: a
+      // refused one is a picture to save again, and one that landed takes the
+      // frame down below. Only this picture's, a shot taken since having a
+      // write of its own to be dead with (#655).
+      if (this.keeping === shot) this.keeping = null;
     }
     // The write landed, so the model has its photo whoever is still watching:
     // the thumbnail asks for the bytes again either way.

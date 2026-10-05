@@ -411,6 +411,44 @@ describe("the New model dialog about the model it wrote", () => {
     expect(thumbnails(shell)).toContain("/catalogue/hopper/photo?v=1");
   });
 
+  /** The dialog's Save is the photo dialog's Save, so it is dead from the press
+   *  until its `PUT` answers too — and the dialog goes when that write lands,
+   *  which is the press that a second one would have skipped (#655). */
+  it("leaves Save dead while its own PUT is in flight, and is put away when it lands", async () => {
+    store.camera = WORKING;
+    store.intercepted = (path) =>
+      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
+    const shell = await opened();
+    await wrote(shell);
+
+    // Held from here rather than from the start: Create's own photo `PUT` has
+    // been refused and answered, so the one that is held is the Save's.
+    let lands: () => void = () => {};
+    store.intercepted = () => null;
+    store.held = (path) =>
+      path.endsWith("/photo")
+        ? new Promise<void>((resolve) => (lands = resolve))
+        : null;
+
+    await pressed(shell, "sl-dialog button.keep");
+
+    expect(dead(shell, "button.keep")).toBe(true);
+
+    await pressed(shell, "sl-dialog button.keep");
+
+    expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper"]);
+
+    lands();
+    await settled(shell);
+
+    expect(store.saved.map((one) => one.path)).toEqual([
+      "/catalogue/hopper",
+      "/catalogue/hopper/photo",
+    ]);
+    expect(part(shell, "sl-dialog")).toBeNull();
+    expect(thumbnails(shell)).toContain("/catalogue/hopper/photo?v=1");
+  });
+
   /** A Save the store will not take is a write that did not happen, so the
    *  dialog stays where it was with the picture still on it to save again, and
    *  the store's wording beside the picture. */
@@ -427,6 +465,87 @@ describe("the New model dialog about the model it wrote", () => {
     const said = text(shell, "sl-dialog p.no-picture")!;
     expect(said).toContain("PUT /catalogue/hopper/photo answered 404");
     expect(text(shell, "sl-dialog button.keep")).toBe("Save");
+  });
+});
+
+/** A Save from the press until its `PUT` answers: one shot has at most one
+ *  write of it in flight, so the control is dead meanwhile and a second press
+ *  is nothing to answer
+ *  ([#655](https://github.com/rails49/control/issues/655)). */
+describe("a photo Save whose own PUT is in flight", () => {
+  /** Retake and Cancel are not dead with it: the picture can be put away or
+   *  taken again while the write goes on, and #651 covers what the answer then
+   *  lands on. */
+  it("leaves Save dead from the press on, so a second press sends no second PUT", async () => {
+    store.camera = WORKING;
+    const shell = await opened();
+    const lands = holding();
+    await dialog(shell);
+    await takes(shell);
+
+    await pressed(shell, "sl-dialog.photo button.keep");
+
+    expect(part(shell, "sl-dialog.photo button.keep")).toHaveProperty(
+      "disabled",
+      true,
+    );
+    expect(part(shell, "sl-dialog.photo button.take")).toHaveProperty(
+      "disabled",
+      false,
+    );
+    expect(part(shell, "sl-dialog.photo button.drop")).toHaveProperty(
+      "disabled",
+      false,
+    );
+
+    // Only the first photo `PUT` is held, so a second would be in `saved`
+    // before this press has returned.
+    await pressed(shell, "sl-dialog.photo button.keep");
+
+    expect(store.saved).toEqual([]);
+
+    lands();
+    await settled(shell);
+
+    expect(store.saved).toEqual([
+      { path: "/catalogue/sbb-re460/photo", body: TOOK },
+    ]);
+    expect(text(shell, "sl-dialog.photo p.unkept")).toBeNull();
+  });
+
+  /** A refused Save is a write that did not happen, so the picture is still
+   *  there to save again and the control it is saved with is live again, with
+   *  the store's wording beside the picture as before. */
+  it("brings Save back where the held PUT is refused, and sends again on the next press", async () => {
+    store.camera = WORKING;
+    store.intercepted = (path) =>
+      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
+    const shell = await opened();
+    const refuses = holding();
+    await dialog(shell);
+    await takes(shell);
+    await pressed(shell, "sl-dialog.photo button.keep");
+
+    refuses();
+    await settled(shell);
+
+    expect(part(shell, "sl-dialog.photo button.keep")).toHaveProperty(
+      "disabled",
+      false,
+    );
+    expect(text(shell, "sl-dialog.photo p.no-picture")).toContain(
+      "PUT /catalogue/sbb-re460/photo answered 404",
+    );
+
+    // Nothing in front of the store this time, and the second `PUT` is not
+    // held: the press that follows the refusal writes the picture.
+    store.intercepted = () => null;
+    await pressed(shell, "sl-dialog.photo button.keep");
+
+    expect(store.saved).toEqual([
+      { path: "/catalogue/sbb-re460/photo", body: TOOK },
+    ]);
+    expect(text(shell, "sl-dialog.photo p.unkept")).toBeNull();
   });
 });
 
