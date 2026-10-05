@@ -868,7 +868,7 @@ def kept_facing(payload: object) -> dict[str, str] | None:
 
 
 @dataclass(frozen=True)
-class Picture:
+class KeptAllocation:
     """The two maps a retained `tc49/dispatch/state/allocation` value states
     that a restart takes: where each train stood, and which transit was
     taking it out of the block it stands in.
@@ -884,7 +884,7 @@ class Picture:
     crossing: dict[str, str]  # train -> the transit taking it out of there
 
 
-def kept_allocation(payload: object) -> Picture | None:
+def kept_allocation(payload: object) -> KeptAllocation | None:
     """The picture a retained allocation value states, or None where it
     states none.
 
@@ -912,7 +912,7 @@ def kept_allocation(payload: object) -> Picture | None:
     trains, crossing = fields.get("trains"), fields.get("crossing")
     if not isinstance(trains, dict) or not isinstance(crossing, dict):
         return None
-    return Picture(
+    return KeptAllocation(
         _named(cast(dict[object, object], trains)),
         _named(cast(dict[object, object], crossing)),
     )
