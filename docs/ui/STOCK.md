@@ -230,15 +230,16 @@ the picture can be taken again or put away under it, and a picture taken next
 has its own Save live — the write still in flight is the earlier picture's, and
 what its answer may touch is #651's.
 
-**A Save whose answer comes back after its dialog has gone changes nothing on
-the screen.** The `PUT` can still be in flight when the dialog is put away, and
-a picture taken in a dialog opened since is not the one that Save is about: it
-stays where it is, marked *not saved yet* with its own Save live, whether that
-write lands or the store refuses it — a refusal of a Save nobody is waiting
-for is a sentence about nothing, and it is not about the picture it would be
-written beside ([#446](https://github.com/rails49/control/issues/446)). The
-write itself stands either way, so a Save that lands still takes the thumbnail
-to `?v=<n>`: the model has its photo whoever is still watching
+**A Save whose answer comes back after its dialog has gone leaves the picture
+in the frame alone.** The `PUT` can still be in flight when the dialog is put
+away, and a picture taken in a dialog opened since is not the one that Save is
+about: it stays where it is, marked *not saved yet* with its own Save live,
+whether that write lands or the store refuses it — a refusal of a Save nobody
+is waiting for is a sentence about nothing, and it is not about the picture it
+would be written beside
+([#446](https://github.com/rails49/control/issues/446)). The write itself
+stands either way, so a Save that lands still takes the thumbnail to `?v=<n>`:
+the model has its photo whoever is still watching
 ([#651](https://github.com/rails49/control/issues/651)).
 
 **Any other answer from the camera, and a fetch that rejected, say so and
