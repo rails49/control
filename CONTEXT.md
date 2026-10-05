@@ -693,7 +693,8 @@ say, and the free-text `reason` carries that for a person to read, while a
 consumer treats it as no information about that end. Two of them watch a
 block, and folding the pair into `block_occupied` and `block_vacated` is
 `layout`'s.
-_Avoid_: camera (one kind of detector), block detector; and not the **sensor**
+_Avoid_: camera (the device one kind of detector is built on; the **camera
+app** is something else), block detector; and not the **sensor**
 itself, which is the block end watched and is what the topic is addressed by
 
 **Link**:
@@ -943,3 +944,18 @@ in its own app, free to grow there but never a field, a topic or a branch
 anywhere else
 ([ADR-0030](docs/adr/0030-the-physical-railroad-is-the-normative-binding.md)).
 _Avoid_: backend, mode, target
+
+**Camera app**:
+What answers `GET /camera/snapshot` with one picture. It is a binding of the
+one route [SYSTEM.md](docs/SYSTEM.md) defines that no app of this repository
+answers: the responder is not code here — the first is a small server in
+[`rails49/camera`](https://github.com/rails49/camera), and a different camera
+is a different image answering the same route. A **200** carries `image/jpeg`,
+the picture as the camera took it, and any other status means no picture.
+One of them answers per box: its own stack claims `/camera` beside the paths
+the store's container claims, and in development vite proxies the prefix to
+the port it listens on
+([#629](https://github.com/rails49/control/issues/629)).
+_Avoid_: snapshot service, photo app, camera server; and not the **camera** a
+detector is built on, which is a device under the layout interface rather than
+a responder on a route
