@@ -113,17 +113,19 @@ async function takes(shell: TcApp, where = "sl-dialog.photo"): Promise<void> {
   await pressed(shell, `${where} button.take`);
 }
 
+/** What was typed into one of the dialog's fields. */
+async function typed(shell: TcApp, selector: string, value: string): Promise<void> {
+  const field = part(shell, selector) as HTMLInputElement;
+  field.value = value;
+  field.dispatchEvent(new Event("change"));
+  await settled(shell);
+}
+
 /** Write a product in the New model dialog and press Create, the photo in it
  *  left as it stands. */
 async function created(shell: TcApp, model: string): Promise<void> {
-  const typed = async (selector: string, value: string): Promise<void> => {
-    const field = part(shell, selector) as HTMLInputElement;
-    field.value = value;
-    field.dispatchEvent(new Event("change"));
-    await settled(shell);
-  };
-  await typed("sl-dialog #model", model);
-  await typed("sl-dialog #length", "120");
+  await typed(shell, "sl-dialog #model", model);
+  await typed(shell, "sl-dialog #length", "120");
   await pressed(shell, "sl-dialog .create");
 }
 
