@@ -239,12 +239,10 @@ one ([#446](https://github.com/rails49/control/issues/446)).
 **Once Create has written the model the dialog is a dialog about that model**,
 so its frame is drawn for it and the picture nobody kept gets the **Save** a
 photo dialog's has: the same bytes to `PUT /catalogue/hopper/photo` under
-`image/jpeg`, and a Save the store refuses keeps the picture with the store's
-wording beside it. **Create is dead from the write on** — one dialog writes one
-product, and a second press reached the duplicate-name check and answered
+`image/jpeg`. **Create is dead from the write on** — one dialog writes one
+model, and a second press reached the duplicate-name check and answered
 *there is already a model 'hopper'* about the write this very dialog had just
-made. Retake and Cancel are unchanged, and Cancel still discards a picture
-nothing kept ([#638](https://github.com/rails49/control/issues/638)).
+made ([#638](https://github.com/rails49/control/issues/638)).
 
 **Name, Kind, Length and the function rows are dead with it** — the rows'
 number and name, the × that takes a row away, and Add a function. Create is the
@@ -252,7 +250,15 @@ only thing that reads what any of them holds, so an edit typed there cannot be
 saved, and a name typed over the written one while Save goes on sending the
 picture to `PUT /catalogue/hopper/photo` says nothing about which model that
 picture is of. Editing a written model is the model row's own business, not
-this dialog's ([#644](https://github.com/rails49/control/issues/644)).
+this dialog's. Take photo, Retake and Cancel stay live, and Cancel still
+discards a picture nothing kept
+([#644](https://github.com/rails49/control/issues/644)).
+
+**A Save that lands puts the dialog away.** Both of its writes are done, so it
+has nothing left to say: it goes the way a Create whose photo landed first time
+takes it, and the catalogue row is drawn with the photo the model now has. A
+Save the store refuses leaves the dialog where it was — the store's wording
+beside the picture, and the picture still there to save again (#644).
 
 **A photo is the model's and never the car's.** An item with a photo of its own
 would be a second kind of picture to keep, and what a person is telling apart
@@ -430,7 +436,9 @@ and the bytes Save sends, the `?v=<n>` the thumbnail then asks for, what a `502`
 reads as, and a product written with a picture reaching the store as the
 document and then the photo — including the model standing written where the
 second of those did not land, the Save that then sends the same bytes, and
-Create dead from the write on (#638). What the camera answers is the shell's
+Create dead from the write on (#638) — with every control that edits the draft
+dead beside it, the dialog put away when that Save lands, and the dialog left
+standing where the store refuses it (#644). What the camera answers is the shell's
 (`ui/test/support/shell.ts`, `camera`), that route being no app of this
 repository's.
 

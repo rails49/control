@@ -713,11 +713,17 @@ export class TcStock extends LitElement {
       return;
     }
     this.shot = null;
-    // Where this is the New model dialog saving the picture its Create left
-    // unsaved, the photo has landed and the line saying it had not is answered
-    // (#638). The photo dialog has no refusal of its own to take down.
-    this.refusal = null;
     this.fetched(model);
+    // Where this is the New model dialog saving the picture its Create left
+    // unsaved, both of that dialog's writes are done — the model and its photo
+    // — so there is nothing left for it to say: it goes the way a Create whose
+    // photo landed first time takes it, and the line saying the photo had not
+    // landed goes with it (#638, #644). The photo dialog has no refusal of its
+    // own to take down and stays open on the picture the model has now.
+    if (this.making !== null && model === this.wrote) {
+      this.shut();
+      this.did(null);
+    }
   };
 
   /** One model's photo fetched again: it has one now, and the bytes at its URL
