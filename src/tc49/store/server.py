@@ -148,8 +148,9 @@ operation and does not live here.
 
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from math import isfinite
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 from urllib.parse import unquote
 
 from yaml import YAMLError
@@ -533,7 +534,7 @@ def _put_script(store: AssetStore, backup: Backup, name: str, body: Any) -> Resp
     return 200, {"saved": name}
 
 
-def _refused(constant: str) -> Any:
+def _refused(constant: str) -> NoReturn:
     """`NaN`, `Infinity` and `-Infinity` in a request body, refused.
 
     `json.loads` reads those three bare tokens as floats, and nothing else
@@ -543,8 +544,28 @@ def _refused(constant: str) -> Any:
     body holding one is a body that is not JSON, and the route answers what a
     missing body is worth rather than writing something no reader can read
     back.
+
+    A number that overflows a double is the same value spelled as a numeric
+    literal, and `_number` refuses it here for the same reason (#654).
     """
     raise ValueError(f"a document cannot hold {constant}")
+
+
+def _number(literal: str) -> float:
+    """A number in a request body, refused where it is no finite number.
+
+    `parse_constant` sees the three bare tokens and nothing else, so `1e400`
+    came past it into `float()` and became `inf`: the face answered 200, the
+    store wrote `.inf`, and from then on both the model and the whole
+    catalogue were refused on the way out (#654). What is wrong with it is the
+    value and not how it was written, so the overflow is refused where the
+    token is — and `1e300`, which is a number a double holds, is a number a
+    document holds.
+    """
+    value = float(literal)
+    if not isfinite(value):
+        _refused(literal)
+    return value
 
 
 def _put_model(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
@@ -667,8 +688,9 @@ def make_server(
             everywhere else (`takes_bytes`). A length this face cannot read is
             a body it cannot find the end of, so nothing is read at all and
             the route answers what a missing body is worth — as does a body
-            that is not JSON, which is what a body holding one of JSON's
-            three bare non-finite tokens is (`_refused`, #649)."""
+            that is not JSON, which is what a body holding a number that is
+            no finite number is, however it was written (`_refused`, #649;
+            `_number`, #654)."""
             try:
                 length = int(self.headers.get("Content-Length") or 0)
                 sent = self.rfile.read(length)
@@ -677,7 +699,9 @@ def make_server(
             if takes_bytes(self.path):
                 return sent
             try:
-                return json.loads(sent or b"null", parse_constant=_refused)
+                return json.loads(
+                    sent or b"null", parse_constant=_refused, parse_float=_number
+                )
             except ValueError:  # a body that is not JSON
                 return None
 
