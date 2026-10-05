@@ -227,15 +227,24 @@ is never dead for want of a camera**: a box with none answers something, and a
 camera plugged in a minute later is a picture a minute later.
 
 **The New model dialog has the same Take photo, Retake and Cancel**, and no
-Save: a picture taken there is written with the `PUT` **right after Create
-succeeds**, because the store refuses a photo for a model it has not got — a
-file beside a document that is not there is a photo of nothing (#630). So the
-two writes go in that order and never together. If that second one fails **the
-model stays created** and the dialog's refusal line says so — *'hopper' is
-written, but its photo was not saved: …* — and the product's own row is where
-to take the picture again. That line is the dialog's own refusal; what the
-camera said sits beside the picture and is not one
-([#446](https://github.com/rails49/control/issues/446)).
+Save until the product exists: a picture taken there is written with the `PUT`
+**right after Create succeeds**, because the store refuses a photo for a model
+it has not got — a file beside a document that is not there is a photo of
+nothing (#630). So the two writes go in that order and never together. If that
+second one fails **the model stays created** and the dialog's refusal line says
+so — *'hopper' is written, but its photo was not saved: …*. That line is the
+dialog's own refusal; what the camera said sits beside the picture and is not
+one ([#446](https://github.com/rails49/control/issues/446)).
+
+**Once Create has written the model the dialog is a dialog about that model**,
+so its frame is drawn for it and the picture nobody kept gets the **Save** a
+photo dialog's has: the same bytes to `PUT /catalogue/hopper/photo` under
+`image/jpeg`, and a Save the store refuses keeps the picture with the store's
+wording beside it. **Create is dead from the write on** — one dialog writes one
+product, and a second press reached the duplicate-name check and answered
+*there is already a model 'hopper'* about the write this very dialog had just
+made. Retake and Cancel are unchanged, and Cancel still discards a picture
+nothing kept ([#638](https://github.com/rails49/control/issues/638)).
 
 **A photo is the model's and never the car's.** An item with a photo of its own
 would be a second kind of picture to keep, and what a person is telling apart
@@ -412,7 +421,8 @@ camera is being waited on and the dead press with it, the picture a `200` brings
 and the bytes Save sends, the `?v=<n>` the thumbnail then asks for, what a `502`
 reads as, and a product written with a picture reaching the store as the
 document and then the photo — including the model standing written where the
-second of those did not land. What the camera answers is the shell's
+second of those did not land, the Save that then sends the same bytes, and
+Create dead from the write on (#638). What the camera answers is the shell's
 (`ui/test/support/shell.ts`, `camera`), that route being no app of this
 repository's.
 
