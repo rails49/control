@@ -249,7 +249,11 @@ def test_it_answers_a_gesture_it_finds_on_the_broker(
 
     assert drained(witness, lambda: rows(heard, PLACED) != []), "the drag was dropped"
     assert rows(heard, PLACED)[-1] == {"train": "freight_1", "block": "yard_e"}
-    assert rows(heard, ALLOCATION)[-1]["trains"] == {"freight_1": "yard_e"}
+    # The picture follows the event, from the grant phase, not with it.
+    assert drained(
+        witness,
+        lambda: rows(heard, ALLOCATION)[-1]["trains"] == {"freight_1": "yard_e"},
+    ), "the picture never carried the placement"
     hand.close()
     witness.close()
 
