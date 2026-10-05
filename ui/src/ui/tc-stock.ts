@@ -182,7 +182,13 @@ export class TcStock extends LitElement {
    *  catalogue: so the frame is drawn for it, the picture on screen has the
    *  photo dialog's own Save, and Create is dead — one dialog writes one
    *  product, and a second press reached the duplicate-name check and said
-   *  *there is already a model '…'* about this dialog's own write (#638). */
+   *  *there is already a model '…'* about this dialog's own write (#638).
+   *
+   *  The fields that edit the draft are dead with Create, because Create is
+   *  the only thing that reads what they hold: an edit typed into one of them
+   *  could not be saved, and a name typed over the written one while Save goes
+   *  on sending the picture to the written model says nothing about which
+   *  model the picture is of (#644). */
   @state() private wrote: string | null = null;
 
   /** The model whose photo dialog is open, `null` while none is. A car's
@@ -1064,6 +1070,7 @@ export class TcStock extends LitElement {
   private dialog() {
     const making = this.making;
     if (making === null) return nothing;
+    const wrote = this.wrote !== null;
     return html`
       <sl-dialog open label="New model" @sl-after-hide=${this.shut}>
         <div class="field">
@@ -1071,6 +1078,7 @@ export class TcStock extends LitElement {
           <input
             id="model"
             .value=${making.model}
+            ?disabled=${wrote}
             @change=${(event: Event) => this.drafting({ model: value(event) })}
           />
         </div>
@@ -1079,6 +1087,7 @@ export class TcStock extends LitElement {
           <select
             id="kind"
             .value=${making.kind}
+            ?disabled=${wrote}
             @change=${(event: Event) => this.drafting({ kind: value(event) })}
           >
             ${KINDS.map(
@@ -1095,6 +1104,7 @@ export class TcStock extends LitElement {
             id="length"
             class="length"
             .value=${making.length}
+            ?disabled=${wrote}
             @change=${(event: Event) => this.drafting({ length: value(event) })}
           />
         </div>
@@ -1105,6 +1115,7 @@ export class TcStock extends LitElement {
           </ul>
           <button
             class="add-function"
+            ?disabled=${wrote}
             @click=${() =>
               this.drafting({
                 functions: [...making.functions, { number: "", name: "" }],
@@ -1134,6 +1145,7 @@ export class TcStock extends LitElement {
 
   private functionRow(fn: { number: string; name: string }, at: number) {
     const making = this.making!;
+    const wrote = this.wrote !== null;
     const changed = (part: { number?: string; name?: string }): void => {
       this.drafting({
         functions: making.functions.map((one, index) =>
@@ -1148,6 +1160,7 @@ export class TcStock extends LitElement {
           .value=${fn.number}
           placeholder="0"
           aria-label="function number"
+          ?disabled=${wrote}
           @change=${(event: Event) => changed({ number: value(event) })}
         />
         <input
@@ -1155,10 +1168,12 @@ export class TcStock extends LitElement {
           .value=${fn.name}
           placeholder="headlights"
           aria-label="function name"
+          ?disabled=${wrote}
           @change=${(event: Event) => changed({ name: value(event) })}
         />
         <button
           class="remove"
+          ?disabled=${wrote}
           @click=${() =>
             this.drafting({
               functions: making.functions.filter((_, index) => index !== at),

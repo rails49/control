@@ -246,6 +246,14 @@ product, and a second press reached the duplicate-name check and answered
 made. Retake and Cancel are unchanged, and Cancel still discards a picture
 nothing kept ([#638](https://github.com/rails49/control/issues/638)).
 
+**Name, Kind, Length and the function rows are dead with it** — the rows'
+number and name, the × that takes a row away, and Add a function. Create is the
+only thing that reads what any of them holds, so an edit typed there cannot be
+saved, and a name typed over the written one while Save goes on sending the
+picture to `PUT /catalogue/hopper/photo` says nothing about which model that
+picture is of. Editing a written model is the model row's own business, not
+this dialog's ([#644](https://github.com/rails49/control/issues/644)).
+
 **A photo is the model's and never the car's.** An item with a photo of its own
 would be a second kind of picture to keep, and what a person is telling apart
 on this screen is products (#628).
