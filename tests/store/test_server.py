@@ -635,8 +635,13 @@ def test_a_model_holding_a_date_is_served_as_the_text_it_was_typed_as(
         thread.join(timeout=5)
 
 
-def test_a_model_holding_bytes_is_a_bad_request_and_not_a_dropped_one(
-    tmp_path: Path, backup: Backup
+@pytest.mark.parametrize(
+    "held",
+    ["jpeg: !!binary |\n  /9j/4AAQ", "bought: .inf"],
+    ids=["bytes", "infinity"],
+)
+def test_a_model_holding_what_no_document_can_hold_is_a_bad_request(
+    tmp_path: Path, backup: Backup, held: str
 ) -> None:
     """Over the socket as well as in process, because the two have to agree:
     a document holding what JSON cannot carry is the status a model file that
@@ -646,12 +651,15 @@ def test_a_model_holding_bytes_is_a_bad_request_and_not_a_dropped_one(
     `GET /catalogue` is answered too: the list reads every model, and one
     unreadable file is a 400 for the list rather than a connection dropped
     mid-reply (#641).
+
+    Bytes JSON has no word for at all; `.inf` it writes as `Infinity`, which
+    is a word no reader of this contract has — the reply left the socket with
+    200 on it and a browser's `JSON.parse` threw, blanking the catalogue
+    screen exactly as an unquoted date had (#649).
     """
     catalogued(tmp_path)
     document = tmp_path / "catalogue" / "arnold-ce68.yaml"
-    document.write_text(
-        f"{document.read_text().rstrip()}\njpeg: !!binary |\n  /9j/4AAQ\n"
-    )
+    document.write_text(f"{document.read_text().rstrip()}\n{held}\n")
     in_process = handle(
         AssetStore(tmp_path), backup, "GET", "/catalogue/arnold-ce68", None
     )
@@ -669,6 +677,44 @@ def test_a_model_holding_bytes_is_a_bad_request_and_not_a_dropped_one(
             assert refused.value.code == 400, route
             assert refused.value.headers.get("Content-Type") == "application/json"
             assert "arnold-ce68" in json.load(refused.value)["error"]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_a_model_holding_a_number_with_a_fraction_is_served_as_the_number(
+    tmp_path: Path,
+) -> None:
+    """The other side of the refusal above: a float JSON can write is a number
+    a document holds, out over the socket and back in through a save unchanged
+    (#649). In a field nothing here branches on, which is where a fraction
+    turns up — a length is counted in millimetres and is a whole number of
+    them (`check_length`).
+    """
+    catalogued(tmp_path)
+    document = tmp_path / "catalogue" / "arnold-ce68.yaml"
+    document.write_text(f"{document.read_text().rstrip()}\nweight: 1.5\n")
+    server = make_server(tmp_path, port=0)
+    url = f"http://127.0.0.1:{server.server_port}"
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urlopen(f"{url}/catalogue/arnold-ce68") as served:
+            assert served.status == 200
+            model = json.load(served)
+            assert model["weight"] == 1.5
+
+        saved = Request(
+            f"{url}/catalogue/arnold-ce68",
+            data=json.dumps(model).encode(),
+            method="PUT",
+        )
+        with urlopen(saved) as stored:
+            assert json.load(stored) == {"saved": "arnold-ce68"}
+
+        with urlopen(f"{url}/catalogue/arnold-ce68") as again:
+            assert json.load(again)["weight"] == 1.5
     finally:
         server.shutdown()
         server.server_close()

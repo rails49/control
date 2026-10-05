@@ -36,6 +36,7 @@ here that is not a document: the JPEG beside its document, kept because the
 file is there and named by nothing inside it (#626).
 """
 
+import math
 from pathlib import Path
 from typing import Any, cast
 
@@ -90,6 +91,15 @@ def _check_values(value: Any, path: Path, field: str = "") -> None:
     refused here, the way a model that does not validate is refused naming the
     model.
 
+    **A number is a finite number.** `.inf`, `-.inf` and `.nan` resolve to a
+    `float`, so they are the far end of YAML's vocabulary that arrives as a
+    type a document does hold; `json.dumps` writes them as the tokens
+    `Infinity`, `-Infinity` and `NaN`, which a browser's `JSON.parse` rejects,
+    so `bought: .inf` in one hand-edited catalogue file blanked the catalogue
+    screen the way an unquoted date did (#649). Refused rather than taken off
+    the reader the way the date is (`_Reader`): the float resolver is the one
+    that reads `weight: 1.5`, and a document holds that.
+
     Refused at the read rather than where a face serialises, because this is
     where such a value comes into being: `handle` turns the refusal into the
     400 a wrong document already gets, and no reply on that face is ever built
@@ -107,6 +117,11 @@ def _check_values(value: Any, path: Path, field: str = "") -> None:
         for index, held in enumerate(cast(list[Any], value)):
             _check_values(held, path, f"{field}[{index}]")
         return
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(
+            f"{path.name}: '{field}' is {value}, which is not a finite number"
+            " and so not something a document can hold"
+        )
     if value is None or isinstance(value, (str, bool, int, float)):
         return
     raise ValueError(

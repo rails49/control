@@ -356,19 +356,28 @@ def test_a_date_written_back_is_quoted_and_reads_the_same(
 
 @pytest.mark.parametrize(
     "held",
-    ["jpeg: !!binary |\n  /9j/4AAQ", "shelves: !!set\n  ? top\n  ? bottom"],
-    ids=["binary", "set"],
+    [
+        "jpeg: !!binary |\n  /9j/4AAQ",
+        "shelves: !!set\n  ? top\n  ? bottom",
+        "bought: .inf",
+        "bought: -.inf",
+        "bought: .nan",
+    ],
+    ids=["binary", "set", "infinity", "negative-infinity", "nan"],
 )
 def test_a_document_holding_what_no_document_can_hold_is_refused(
     scratch_store: AssetStore, tmp_path: Path, held: str
 ) -> None:
-    """Bytes and a set are YAML's own vocabulary rather than a document's, and
-    a file hand-edited to hold one is refused naming the file — the fault is in
-    the document, and whoever has to fix it has to be told which (#641).
+    """Bytes, a set and a float that is not finite are YAML's own vocabulary
+    rather than a document's, and a file hand-edited to hold one is refused
+    naming the file — the fault is in the document, and whoever has to fix it
+    has to be told which (#641, #649).
 
     Refused here rather than where a face serialises, so the Python binding and
     the HTTP face agree about what a document is and no reply is ever built out
-    of a value that cannot be sent.
+    of a value that cannot be sent. `.inf` and `.nan` are the two that read as
+    a type a document does hold: `json.dumps` writes them as `Infinity` and
+    `NaN`, which no other binding of this contract reads back (#649).
     """
     document = tmp_path / "catalogue" / "arnold-ce68.yaml"
     document.write_text(f"{document.read_text().rstrip()}\n{held}\n")
