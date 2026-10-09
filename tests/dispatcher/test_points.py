@@ -11,9 +11,10 @@ addresses: `mover` stands in C4, and a route out of it goes through j2 and
 then j1. The address `align`s ride on are read off the trace.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from tc49.bench.runner import Assembly
+from tc49.lib.bus import Payload
 from tests.harness import RUN_WANTED, events, live, press, ticks
 
 POINT_WANTED = "tc49/dispatch/point_wanted"
@@ -169,6 +170,6 @@ def test_a_malformed_payload_is_dropped_and_nothing_raises() -> None:
         "113",
         None,
     ):
-        press(assembly, POINT_WANTED, payload)  # type: ignore[arg-type]
+        press(assembly, POINT_WANTED, cast(Payload, payload))
 
     assert events(assembly.trace, "align") == []
