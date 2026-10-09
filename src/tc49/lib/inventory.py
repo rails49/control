@@ -342,6 +342,14 @@ information** about that end and keeps whatever level it last had
 (CONTEXT.md, **detector**)."""
 
 
+CLOSED = "closed"
+THROWN = "thrown"
+"""The two positions a person may ask a point for, ``position`` on
+``tc49/dispatch/point_wanted``: the same two a way wants its points in on
+``tc49/layout/align``. The gesture is read against them, so a word outside
+the two is dropped there rather than carried on to a point (ADR-0068)."""
+
+
 def is_state_topic(topic: str) -> bool:
     """Whether a topic is a state topic, read off the path: state is marked
     structurally by a ``state`` level under the component, so the split is a
