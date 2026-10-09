@@ -964,11 +964,31 @@ class LayoutInterface:
     def _on_removed(self, topic: str, payload: Payload) -> None:
         """A hand lifted a train off the layout: it stands nowhere, so it
         stands at no transit's near end and no `move` naming it is acted on.
+
+        It may come off running — a person lifts a train in any run state
+        (ADR-0069) — and a decoder in a hand still holds the last speed it was
+        told, so it would run the moment it is set down anywhere. Each
+        addressed car is told `0.0`, manual or not and **whatever the power**:
+        dead rails refuse a speed, not a stop, and a row left standing over
+        them is a train that starts when the power comes back.
+
+        Any move of the train's in flight is forgotten with it. The readings
+        that crossing was waiting on are now about whatever the detectors see,
+        which is not this train, so its arrival writes no speed for it and its
+        tail releases nothing: the block behind reads clear on its own
+        detectors, as any block does.
         """
         train = named_train(payload)
         if train is None:
             return
         self._position.pop(train, None)
+        self._crossing = {
+            block: crossing
+            for block, crossing in self._crossing.items()
+            if crossing.train != train
+        }
+        for addr, _orientation in self._addressed(train):
+            self._traction_write(addr, 0.0)
 
     # -- which way each train points ----------------------------------------
 
