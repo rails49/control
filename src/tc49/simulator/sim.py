@@ -58,7 +58,7 @@ inventory names (ADR-0030, ADR-0059 decision 3, `tc49/simulator/__main__.py`).
 
 import time
 from collections.abc import Callable
-from heapq import heappop, heappush
+from heapq import heapify, heappop, heappush
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
@@ -104,6 +104,11 @@ class Simulator:
         self._events: list[_Event] = []
         self._seq = 0
         self._rolling: set[str] = set()  # trains between blocks, mid-move
+        # Per train, the blocks this binding's own detectors last read
+        # occupied for it, in the order they were read: what a hand lifting it
+        # clears (ADR-0069 decision 7). A block a train was put in and never
+        # read occupied for it is not here.
+        self._occupied: dict[str, list[str]] = {}
         # The commands, subscribed **before** a word is published. A publish
         # is asynchronous where a subscribe waits to be acknowledged, so an
         # app that published first would be deaf for as long as its own
@@ -157,17 +162,27 @@ class Simulator:
         self._position[placed.train] = placed.block
 
     def _on_removed(self, topic: str, payload: Payload) -> None:
-        """A hand lifted a train off the layout (#170).
+        """A hand lifted a train off the layout (#170), in any run state
+        (ADR-0069).
 
         The other half of `_on_placed`: the steel is no longer there, so the
-        simulator forgets where it was. Its detectors say nothing about it —
-        the binding reports occupancy when a train crosses, and this train
-        crosses nothing now.
+        simulator forgets where it was, and stands in for the hand that took
+        it (decision 7). Every block its own detectors last read occupied for
+        the train reads clear, and the readings it had scheduled for it are
+        dropped — a head lifted short of the far detector never reaches it,
+        and a tail lifted off the near one has nothing left to clear. A block
+        the train was put in and never read occupied for reads nothing: no
+        detector here ever said it was there.
         """
         train = named_train(payload)
         if train is None:
             return
         self._position.pop(train, None)
+        self._rolling.discard(train)
+        self._events = [event for event in self._events if event[3] != train]
+        heapify(self._events)
+        for block in self._occupied.pop(train, []):
+            self._bus.publish("tc49/layout/block_vacated", {"block": block})
 
     def _near_end(self, commanded: Command) -> str | None:
         """The block a train must stand in to take this move's transit: the
@@ -224,10 +239,14 @@ class Simulator:
         position moves, and the tail clearing is when it stops rolling and
         stands again."""
         _at, _seq, leaf, train, block = event
+        read = self._occupied.setdefault(train, [])
         if leaf == "block_occupied":
             self._position[train] = block
+            read.append(block)
         else:
             self._rolling.discard(train)
+            if block in read:
+                read.remove(block)
         self._bus.publish(f"tc49/layout/{leaf}", {"block": block})
 
     def run(self, event_limit: int = 100_000) -> None:
