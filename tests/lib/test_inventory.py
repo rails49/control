@@ -22,6 +22,7 @@ REVERSAL_WANTED = "tc49/schedule/reversal_wanted"
 RUN_WANTED = "tc49/dispatch/run_wanted"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
+POINT_WANTED = "tc49/dispatch/point_wanted"
 POINT = "tc49/layout/state/wanted/point"
 TRACK = "tc49/layout/state/wanted/track"
 SENSOR = "tc49/layout/state/device/sensor"
@@ -164,6 +165,7 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
         RUN_WANTED,
         PLACEMENT_WANTED,
         CANCEL_WANTED,
+        POINT_WANTED,
         MODE_WANTED,
         THROTTLE_WANTED,
         POWER_WANTED,

@@ -93,6 +93,7 @@ export const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
 export const RUN_WANTED = "tc49/dispatch/run_wanted";
 export const PLACEMENT_WANTED = "tc49/dispatch/placement_wanted";
 export const CANCEL_WANTED = "tc49/dispatch/cancel_wanted";
+export const POINT_WANTED = "tc49/dispatch/point_wanted";
 export const POWER_WANTED = "tc49/layout/power_wanted";
 export const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
 

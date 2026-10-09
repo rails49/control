@@ -295,6 +295,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/dispatch/run_wanted` | event | any (browser) | hold the run, release it, or drain it |
 | `tc49/dispatch/placement_wanted` | event | any (browser) | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
 | `tc49/dispatch/cancel_wanted` | event | any (browser) | end a train's request without arriving ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)) |
+| `tc49/dispatch/point_wanted` | event | any (browser) | a person asks for a point's position ([ADR-0068](adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)) |
 | `tc49/dispatch/request_admitted` | event | dispatcher | admission accepted it, with what survived pruning |
 | `tc49/dispatch/request_rejected` | event | dispatcher | admission refused it, and why |
 | `tc49/dispatch/request_completed` | event | dispatcher | the train arrived |
@@ -521,6 +522,16 @@ payload is read defensively, and one that fails the read is dropped.
   a train with nothing in flight is dropped like any other gesture the
   dispatcher cannot act on
   ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
+- `tc49/dispatch/point_wanted` — browser-writable — `addr`: the point's
+  address, a non-empty string; `position`: enum `closed` or `thrown`, the
+  position wanted. The dispatcher drops it with no reply when `addr` is not
+  a non-empty string or `position` is neither enum value, when no point on
+  the loaded railroad wears `addr`, or when any point wearing `addr` lies on
+  the way of a transit that is locked or committed. Otherwise it publishes
+  `tc49/layout/align` with `connection` and `transit` `null` and the one
+  point `{addr, position}`. It is accepted in every run state and with track
+  power on or off
+  ([ADR-0068](adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)).
 - `tc49/dispatch/request_admitted` — `id`; `dest`: the arrival ends that
   survived pruning; `pruned`: list of `{end, reason}`, `reason` one of
   `no_fit`, `no_entry`, `unreachable`.
