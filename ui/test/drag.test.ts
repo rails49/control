@@ -16,6 +16,7 @@ import {
 import type { Drawing } from "../src/model/drawing.js";
 import type { BlockView } from "../src/model/panel.js";
 import type { Review } from "../src/model/store.js";
+import type { PointWanted } from "../src/model/trace.js";
 
 /**
  * Two blocks side by side, each six squares long with A at its west end:
@@ -226,6 +227,7 @@ describe("the run view's machine", () => {
     review: REVIEW,
     blocks: BLOCKS,
     crossings: [],
+    offered: new Map(),
   };
 
   /** Where the roster pane is, in the screen pixels the machine reads: a drop
@@ -238,6 +240,7 @@ describe("the run view's machine", () => {
   function machine(painting: Painted | null = PAINTED) {
     const sent: Drop[] = [];
     const lifted: string[] = [];
+    const thrown: PointWanted[] = [];
     const it = schedulingMachine(new Drag(), {
       painted: () => painting,
       submit: (drop) => {
@@ -246,9 +249,12 @@ describe("the run view's machine", () => {
       remove: (train) => {
         lifted.push(train);
       },
+      throwPoint: (wanted) => {
+        thrown.push(wanted);
+      },
       onRoster: (screen) => screen.x === OVER_ROSTER.x && screen.y === OVER_ROSTER.y,
     });
-    return { sent, lifted, it };
+    return { sent, lifted, thrown, it };
   }
 
   const press = { button: 0, shift: false, screen: { x: 0, y: 0 } };
@@ -321,6 +327,114 @@ describe("the run view's machine", () => {
     it.down(on("a", 0.5), press);
     it.moved(on("b", 0.5), { x: 0, y: 0 });
     expect(it.shift("a")).toEqual({ x: 0, y: 0 });
+  });
+
+  /**
+   * A click on a point asks for its other position (ADR-0068, #666): a press
+   * released without moving, on a point the panel offers. Which points those
+   * are, and what each asks for, is `scene.pointsOffered`'s; the machine only
+   * tells a click from a drag.
+   */
+  describe("a click on a point", () => {
+    /** Between the two blocks: `sw` at x 7…8 on row 0, which the panel
+     *  offers, and `held` at x 7…8 on row 2, which it does not — a lit point,
+     *  one sharing a lit point's address and one with none all look like
+     *  this to the machine. */
+    const POINTS: Painted = {
+      ...PAINTED,
+      drawing: {
+        ...DRAWING,
+        symbols: {
+          ...DRAWING.symbols,
+          sw: { kind: "turnout", at: [7, 0], addr: "7" },
+          held: { kind: "turnout", at: [7, 2], addr: "8" },
+        },
+      },
+      offered: new Map([["sw", { addr: "7", position: "thrown" }]]),
+    };
+    const SW = { x: 7.5, y: 0.5 };
+    const HELD = { x: 7.5, y: 2.5 };
+    const at = (screen: { x: number; y: number }) => ({ ...press, screen });
+
+    it("asks for what the panel offers on a press released in place", () => {
+      const { thrown, sent, it } = machine(POINTS);
+      it.down(SW, at(OVER_CANVAS));
+      expect(it.up(SW, OVER_CANVAS)).toBe("quiet");
+      expect(thrown).toEqual([{ addr: "7", position: "thrown" }]);
+      expect(sent).toEqual([]);
+    });
+
+    it("asks for nothing on a point the panel does not offer", () => {
+      const { thrown, it } = machine(POINTS);
+      it.down(HELD, at(OVER_CANVAS));
+      it.up(HELD, OVER_CANVAS);
+      expect(thrown).toEqual([]);
+    });
+
+    it("asks for nothing where the point stopped being offered mid-press", () => {
+      // A route was committed through it between the press and the release:
+      // what is on screen at the release is what is asked of.
+      let painting: Painted = POINTS;
+      const thrown: PointWanted[] = [];
+      const it = schedulingMachine(new Drag(), {
+        painted: () => painting,
+        submit: () => undefined,
+        remove: () => undefined,
+        throwPoint: (wanted) => {
+          thrown.push(wanted);
+        },
+        onRoster: () => false,
+      });
+      it.down(SW, at(OVER_CANVAS));
+      painting = { ...POINTS, offered: new Map() };
+      it.up(SW, OVER_CANVAS);
+      expect(thrown).toEqual([]);
+    });
+
+    it("is no click once the pointer has moved away, or off the point", () => {
+      const { thrown, it } = machine(POINTS);
+      it.down(SW, at(OVER_CANVAS));
+      it.moved(SW, { x: OVER_CANVAS.x + 20, y: OVER_CANVAS.y });
+      it.up(SW, { x: OVER_CANVAS.x + 20, y: OVER_CANVAS.y });
+      it.down(SW, at(OVER_CANVAS));
+      it.up(HELD, OVER_CANVAS);
+      expect(thrown).toEqual([]);
+    });
+
+    it("is only a plain left press", () => {
+      const { thrown, it } = machine(POINTS);
+      it.down(SW, { button: 2, shift: false, screen: OVER_CANVAS });
+      it.up(SW, OVER_CANVAS);
+      it.down(SW, { button: 0, shift: true, screen: OVER_CANVAS });
+      it.up(SW, OVER_CANVAS);
+      expect(thrown).toEqual([]);
+    });
+
+    it("is dropped by the pointer leaving or a right-click", () => {
+      const { thrown, it } = machine(POINTS);
+      it.down(SW, at(OVER_CANVAS));
+      it.left();
+      it.up(SW, OVER_CANVAS);
+      it.down(SW, at(OVER_CANVAS));
+      it.menu(SW);
+      it.up(SW, OVER_CANVAS);
+      expect(thrown).toEqual([]);
+    });
+
+    it("is never what dragging a train across a point does", () => {
+      // The press took hold of the train, so the release is a drop: let go on
+      // the point it is a cancel, and carried on to a block it is a request.
+      const { thrown, sent, it } = machine(POINTS);
+      it.down(on("a", 0.5), at(OVER_CANVAS));
+      it.moved(SW, { x: 600, y: 500 });
+      it.up(SW, { x: 600, y: 500 });
+      it.down(on("a", 0.5), at(OVER_CANVAS));
+      it.moved(SW, { x: 600, y: 500 });
+      it.moved(on("b", 0.5), { x: 500, y: 600 });
+      it.up(on("b", 0.5), { x: 500, y: 600 });
+      expect(thrown).toEqual([]);
+      expect(sent).toEqual([{ train: "t1", block: "b", dest: ["b.A", "b.B"] }]);
+    });
   });
 
   /**

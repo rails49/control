@@ -27,6 +27,7 @@ import {
   type UnpairedPortal,
 } from "../src/model/store.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
+import { canvasStyles } from "../src/ui/tc-canvas.styles.js";
 
 /**
  * A pair, both halves wearing `p1`, their mouths facing outwards at either end
@@ -561,6 +562,7 @@ describe("what each mode draws", () => {
     lit: { legs: new Map(), state: new Map(), wires: new Map() },
     aspects: new Map([["west.B", "clear"]]),
     positions: new Map(),
+    offered: new Map(),
     crossings: [],
     markers: [{ id: "goods-1", train: "goods", at: "east.A", role: "arrival" }],
   };
@@ -577,6 +579,7 @@ describe("what each mode draws", () => {
       painted: () => null,
       submit: () => undefined,
       remove: () => undefined,
+      throwPoint: () => undefined,
       onRoster: () => false,
     });
     document.body.append(canvas);
@@ -694,6 +697,10 @@ describe("a point on a run", () => {
       ["lit", "thrown"],
       ["known", "thrown"],
     ]),
+    offered: new Map([
+      ["known", { addr: "8", position: "closed" }],
+      ["unknown", { addr: "9", position: "thrown" }],
+    ]),
     crossings: [],
     markers: [],
   };
@@ -708,6 +715,7 @@ describe("a point on a run", () => {
       painted: () => null,
       submit: () => undefined,
       remove: () => undefined,
+      throwPoint: () => undefined,
       onRoster: () => false,
     });
     document.body.append(canvas);
@@ -736,6 +744,22 @@ describe("a point on a run", () => {
     const run = await running();
     expect(strokes(run, "known")).toEqual(["track against", "track"]);
     expect(strokes(run, "unknown")).toEqual(["track", "track"]);
+    run.remove();
+  });
+
+  it("puts the click cursor on the points offered a throw, and no other", async () => {
+    // Which points those are is `scene.pointsOffered`'s; the canvas wears
+    // the answer, so a lit point shows before the click that it throws
+    // nothing (ADR-0068).
+    const run = await running();
+    const offered = [
+      ...run.renderRoot.querySelectorAll("g.symbol.offered"),
+    ].map((group) => group.getAttribute("data-symbol"));
+    expect(offered).toEqual(["known", "unknown"]);
+    const rules = canvasStyles.cssText
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .match(/[^{}]*\.offered[^{}]*\{[^{}]*\}/g);
+    expect(rules?.some((rule) => /cursor:\s*pointer/.test(rule))).toBe(true);
     run.remove();
   });
 });

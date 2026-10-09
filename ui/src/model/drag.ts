@@ -27,7 +27,13 @@ import type { Machine } from "./machine.js";
 import type { BlockView, Crossing, EndRef } from "./panel.js";
 import { anchorAt } from "./scene.js";
 import type { Review } from "./store.js";
+import type { PointWanted } from "./trace.js";
 import { under } from "./under.js";
+
+/** How far the pointer may travel, in screen pixels, between the press on a
+ *  point and the release that throws it: a click, and a shaky hand is still
+ *  one. The editor allows the same before a press on a pin is a drag. */
+const SLOP = 4;
 
 /** What a drop asks for: one block, and the ends the train may enter through
  *  — one for an outer third, both for the middle. */
@@ -148,6 +154,9 @@ export interface Painted {
   blocks: Map<string, BlockView>;
   /** The trains between two blocks, whose markers are on a connection. */
   crossings: readonly Crossing[];
+  /** symbol → what a click on it asks for, the points the panel offers a
+   *  throw on (`scene.pointsOffered`). */
+  offered: ReadonlyMap<string, PointWanted>;
 }
 
 /**
@@ -169,6 +178,8 @@ export interface Gestures {
   submit(drop: Drop): void;
   /** A drop on the roster pane: the train comes off the layout. */
   remove(train: string): void;
+  /** A click on a point the panel offers: one `point_wanted`. */
+  throwPoint(wanted: PointWanted): void;
   /** Whether a screen point is over the roster pane. */
   onRoster(screen: Point): boolean;
 }
@@ -182,21 +193,49 @@ export interface Gestures {
  * handlers are handed in — this model names the train and the ends and
  * nothing else (ADR-0036).
  *
+ * A plain left press that takes hold of no train and lands on a point the
+ * panel offers is a click on it, if it is released on that point without
+ * moving: the point's other position is asked for
+ * ([ADR-0068](../../../docs/adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)).
+ * A train is taken hold of first, so dragging one across a point throws
+ * nothing. What is offered is read again at the release, the bus having
+ * moved under the press.
+ *
  * `painted` answers `null` while there is nothing to gesture at: no railroad
  * on screen, or no session to submit to. Every call is then quiet, which is
  * the whole of the gate.
  */
 export function schedulingMachine(drag: Drag, view: Gestures): Machine {
   const painted = view.painted.bind(view);
+  /** The point pressed on and where on screen, while the press may still be
+   *  a click on it. */
+  let pressed: { symbol: string; screen: Point } | null = null;
   return {
-    down: (point) => {
+    down: (point, input) => {
+      pressed = null;
       const now = painted();
       if (now === null) return "quiet";
-      return drag.down(now.drawing, now.review, now.blocks, point, now.crossings)
-        ? "render"
-        : "quiet";
+      if (drag.down(now.drawing, now.review, now.blocks, point, now.crossings)) {
+        return "render";
+      }
+      const { symbol } = under(now.drawing, now.review, point);
+      if (
+        input.button === 0 &&
+        !input.shift &&
+        symbol !== null &&
+        now.offered.has(symbol)
+      ) {
+        pressed = { symbol, screen: input.screen };
+      }
+      return "quiet";
     },
-    moved: (point) => {
+    moved: (point, screen) => {
+      if (
+        pressed !== null &&
+        Math.hypot(screen.x - pressed.screen.x, screen.y - pressed.screen.y) > SLOP
+      ) {
+        pressed = null;
+      }
       const now = painted();
       if (now === null || drag.train === null) return "quiet";
       drag.moved(now.drawing, now.review, point);
@@ -204,6 +243,14 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
     },
     up: (point, screen) => {
       const now = painted();
+      const click = pressed;
+      pressed = null;
+      if (now !== null && click !== null) {
+        const wanted = now.offered.get(click.symbol);
+        const { symbol } = under(now.drawing, now.review, point);
+        if (wanted !== undefined && symbol === click.symbol) view.throwPoint(wanted);
+        return "quiet";
+      }
       if (now === null || drag.train === null) return "quiet";
       // Let go over the roster pane, and the train comes off the layout: the
       // marker was dragged out of the picture rather than to somewhere in it.
@@ -220,6 +267,7 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       return "render";
     },
     left: () => {
+      pressed = null;
       if (drag.train === null) return "quiet";
       drag.cancel();
       return "render";
@@ -230,6 +278,7 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
     menu: (point) => {
       const now = painted();
       drag.cancel();
+      pressed = null;
       const standing =
         now === null
           ? null

@@ -325,6 +325,14 @@ const running = css`
     opacity: 0.25;
   }
 
+  /* A point a click throws (ADR-0068). The cursor alone, so a lit point, or
+     one sharing an address with a lit one, says before the click that it
+     throws nothing; nothing else about the point changes until layout's
+     wanted/point row does. */
+  .symbol.offered {
+    cursor: pointer;
+  }
+
   /* Signal aspects, as the Swiss standard sets them: stop is red alone,
      caution is green with amber, clear is green alone. The artwork draws
      every lamp and the aspect lights a set of them, so the aspect is a class

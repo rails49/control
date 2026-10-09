@@ -29,6 +29,7 @@ import {
   Ordering,
   type Gesture,
   type Mode,
+  type PointWanted,
   type Power,
   type Run,
   type Submission,
@@ -164,16 +165,20 @@ export interface BlockView {
  * and nothing it works out for itself (ui/PANEL.md, #168).
  *
  * One object because the canvas takes it in one go and because the parts move
- * together — every one of them is the next frame's answer. Point positions are
- * the one entry that is not this model's own: they arrive by address and the
- * drawing is what turns an address back into a symbol
- * (`scene.positionsBySymbol`, ADR-0022).
+ * together — every one of them is the next frame's answer. Point positions,
+ * and the throws offered on points, are the entries that are not this model's
+ * own: they arrive by address and the drawing is what turns an address back
+ * into a symbol (`scene.positionsBySymbol`, `scene.pointsOffered`, ADR-0022).
  */
 export interface Overlay {
   blocks: Map<string, BlockView>;
   lit: LitRoute;
   aspects: ReadonlyMap<EndRef, Aspect>;
   positions: ReadonlyMap<string, Position>;
+  /** symbol → what a click on that point asks for, the points the panel
+   *  offers a throw on (`scene.pointsOffered`, ADR-0068). Like positions, the
+   *  drawing's answer as much as this model's. */
+  offered: ReadonlyMap<string, PointWanted>;
   crossings: Crossing[];
   markers: Marker[];
 }
