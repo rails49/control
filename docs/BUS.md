@@ -282,7 +282,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/layout/block_vacated` | event | layout | a block is empty: both its ends read clear, or the move this app carried out named it the block behind a train now fully into the block ahead ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
 | `tc49/layout/power_wanted` | event | any (browser) | give the track power, stop every locomotive, or remove the supply ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)) |
 | `tc49/layout/state/power` | state | layout | whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
-| `tc49/layout/align` | command | any | set the route: throw these points |
+| `tc49/layout/align` | command | any | throw these points, and authorise the transit it names, if any |
 | `tc49/layout/move` | command | any | take the train across, this fast |
 | `tc49/layout/mode_wanted` | event | any (browser) | a train is driven automatically, or by a person |
 | `tc49/layout/throttle_wanted` | event | any (browser) | how fast a person is driving a train |
@@ -459,7 +459,11 @@ its two names, as each topic states.
   stop (ADR-0063).
 - `tc49/layout/align` — `connection`; `transit`: bare name within the
   connection; `points`: list of `{addr, position}`, `position` enum `closed`
-  or `thrown`; `[]` where nothing needs throwing.
+  or `thrown`; `[]` where nothing needs throwing. `connection` and `transit`
+  may both be `null`, for a throw by hand: the frame names no transit and
+  `points` carries the points to set, any number of them. A frame with only
+  one of the two `null` is unreadable and dropped whole
+  ([ADR-0068](adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)).
 - `tc49/layout/move` — `train`; `connection`; `transit`: bare name, the
   grant's qualified transit split; `into`: the block entered; `speed`: a
   magnitude, `0.0` … `1.0`, the fraction of that locomotive's maximum to run
