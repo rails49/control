@@ -93,7 +93,8 @@ describe("a point drawn in a position", () => {
 
 /**
  * The panel's whole alignment path, end to end (#130): the address-and-position
- * pairs `align` carries, the address-keyed ledger they populate, the drawing
+ * pairs `align` carries, as the `wanted/point` rows `layout` writes for them
+ * (#666), the address-keyed ledger they populate, the drawing
  * that turns an address back into a symbol, and the class the artwork puts on
  * the road the point does not offer.
  *
@@ -132,25 +133,25 @@ const YARD: Drawing = {
 const NOTHING: Layout = { layout: "yard", blocks: {}, connections: {} };
 const UNEXPLAINED: Explained = { layout: "yard", connections: {} };
 
-/** An `align` as the dispatcher publishes it: the points one transit's way
- *  needs, by address (ADR-0022). */
-function align(...points: [string, Position][]): Partial<TraceEvent> {
-  return {
-    event: "align",
-    connection: "j1",
-    transit: "A2_A__CE2_B",
-    points: points.map(([addr, position]) => ({ addr, position })),
-  };
+/** What `layout` writes for an `align` as the dispatcher publishes it: one
+ *  retained `wanted/point` row for each point the transit's way needs, by
+ *  address (ADR-0022, ADR-0068). The panel reads the rows and never the
+ *  command. */
+function align(...points: [string, Position][]): Partial<TraceEvent>[] {
+  return points.map(([addr, position]) => ({
+    event: "wanted/point",
+    addr,
+    position,
+  }));
 }
 
 /** Which of a turnout's legs the drawing shows set against, by name, after a
  *  run of alignments. The class carries no leg name and `roads` draws a lit
  *  stroke last, so the leg is read off where its stroke ends: every leg runs
  *  from the toe to the pin it is named for. */
-function against(symbol: string, ...commands: Partial<TraceEvent>[]): string[] {
+function against(symbol: string, ...commands: Partial<TraceEvent>[][]): string[] {
   const model = new Panel(NOTHING, UNEXPLAINED, []);
-  for (const command of commands)
-    model.apply({ ...command } as TraceEvent);
+  for (const row of commands.flat()) model.apply({ ...row } as TraceEvent);
   const position = positionsBySymbol(YARD, model.positionsByAddress()).get(
     symbol,
   );

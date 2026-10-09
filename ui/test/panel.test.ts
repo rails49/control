@@ -11,6 +11,7 @@ import { WHOLE } from "../src/model/inspect.js";
 import { outstanding, Panel, roster } from "../src/model/panel.js";
 import type { Explained, Layout } from "../src/model/store.js";
 import type { TraceEvent } from "../src/model/trace.js";
+import type { Position } from "../src/symbols.generated.js";
 
 /**
  * A toy railroad: block `a` faces a turnout `sw1` whose two ways lead to `b`
@@ -865,22 +866,20 @@ describe("a request in flight", () => {
 });
 
 /**
- * Where each point lies, as the alignment command says (ADR-0022, #98). The
- * panel works nothing out: the dispatcher sends the addresses and positions
- * the transit's way needs, and this is the ledger of what it last said.
+ * Where each point lies, as `layout`'s `wanted/point` rows say (ADR-0068,
+ * #666). The panel works nothing out: `layout` writes a row for each point an
+ * `align` names, and this is the ledger of what those rows last said.
  */
 describe("point positions", () => {
-  it("reads them off the alignment command, address by address", () => {
+  /** A `wanted/point` row as `Live` reads it: the two levels past
+   *  `tc49/layout/state/`, then the payload. */
+  function wanted(addr: string, position: Position): Partial<TraceEvent> {
+    return { event: "wanted/point", addr, position };
+  }
+
+  it("reads them off the wanted/point rows, address by address", () => {
     const model = panel();
-    feed(model, {
-      event: "align",
-      connection: "sw",
-      transit: "side",
-      points: [
-        { addr: "12", position: "thrown" },
-        { addr: "13", position: "closed" },
-      ],
-    });
+    feed(model, wanted("12", "thrown"), wanted("13", "closed"));
     expect(model.positionsByAddress()).toEqual(
       new Map([
         ["12", "thrown"],
@@ -889,30 +888,13 @@ describe("point positions", () => {
     );
   });
 
-  it("leaves a point where the last command naming it left it", () => {
-    // A point stays thrown until something throws it back: `align` names the
-    // points one transit needs, and says nothing about the rest of them.
+  it("leaves a point where the last row for its address left it", () => {
     const model = panel();
     feed(
       model,
-      {
-        event: "align",
-        connection: "sw",
-        transit: "side",
-        points: [{ addr: "12", position: "thrown" }],
-      },
-      {
-        event: "align",
-        connection: "jt",
-        transit: "back",
-        points: [{ addr: "13", position: "closed" }],
-      },
-      {
-        event: "align",
-        connection: "sw",
-        transit: "main",
-        points: [{ addr: "12", position: "closed" }],
-      },
+      wanted("12", "thrown"),
+      wanted("13", "closed"),
+      wanted("12", "closed"),
     );
     expect(model.positionsByAddress()).toEqual(
       new Map([
@@ -922,9 +904,9 @@ describe("point positions", () => {
     );
   });
 
-  it("forgets where they lie when a replay starts over", () => {
-    // A run's points belong to that run: replaying from the top shows a
-    // railroad nothing has commanded yet, not the last run's last word.
+  it("no longer reads them off the alignment command", () => {
+    // `align` is the dispatcher asking `layout`; the row is what `layout`
+    // asked the hardware for, and is retained where the command is not.
     const model = panel();
     feed(model, {
       event: "align",
@@ -932,23 +914,16 @@ describe("point positions", () => {
       transit: "side",
       points: [{ addr: "12", position: "thrown" }],
     });
-    model.reset();
     expect(model.positionsByAddress()).toEqual(new Map());
   });
 
-  it("takes a transit needing nothing thrown as saying nothing", () => {
+  it("forgets where they lie when a replay starts over", () => {
+    // A run's points belong to that run: replaying from the top shows a
+    // railroad nothing has commanded yet, not the last run's last word.
     const model = panel();
-    feed(
-      model,
-      {
-        event: "align",
-        connection: "sw",
-        transit: "side",
-        points: [{ addr: "12", position: "thrown" }],
-      },
-      { event: "align", connection: "jt", transit: "back", points: [] },
-    );
-    expect(model.positionsByAddress()).toEqual(new Map([["12", "thrown"]]));
+    feed(model, wanted("12", "thrown"));
+    model.reset();
+    expect(model.positionsByAddress()).toEqual(new Map());
   });
 });
 
