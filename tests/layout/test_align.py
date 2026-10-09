@@ -6,7 +6,16 @@ dispatcher, which is what lets a railroad be rewired by redrawing it.
 """
 
 from tc49.lib.bus import InProcessBus, Payload
-from tests.layout.railroad import WANTED_POINT, align, build, heard
+from tests.layout.railroad import (
+    ALIGN,
+    WANTED_POINT,
+    align,
+    build,
+    energised,
+    heard,
+    move,
+    stand,
+)
 
 
 def points(bus: InProcessBus) -> list[tuple[str, Payload]]:
@@ -101,3 +110,70 @@ def test_the_way_back_moves_the_shared_point_the_other_way() -> None:
         "thrown",
         "closed",
     ]
+
+
+def by_hand(bus: InProcessBus, payload: Payload) -> None:
+    """An `align` as the dispatcher sends a throw by hand (ADR-0068)."""
+    bus.publish(ALIGN, payload)
+    bus.drain()
+
+
+def test_a_throw_by_hand_writes_its_point_retained() -> None:
+    """An `align` naming no transit is a person's throw the dispatcher passed
+    on: the point is written as asked, and the row is retained, so whatever
+    drives the point, and a panel opened later, reads it (ADR-0068)."""
+    bus, _app = build()
+    by_hand(
+        bus,
+        {
+            "connection": None,
+            "transit": None,
+            "points": [{"addr": "12", "position": "closed"}],
+        },
+    )
+    late = points(bus)
+    bus.drain()
+
+    assert late == [
+        (
+            WANTED_POINT + "/12",
+            {"at": 0.0, "addr": "12", "position": "closed"},
+        )
+    ]
+
+
+def test_a_throw_by_hand_lets_no_waiting_move_through() -> None:
+    """It names no transit, so it authorises none: a `move` held for its
+    `align` keeps waiting, and crosses only on the one naming its transit."""
+    bus, app = build()
+    energised(bus)
+    stand(bus, "freight_1", "up_w")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+    by_hand(
+        bus,
+        {
+            "connection": None,
+            "transit": None,
+            "points": [
+                {"addr": "12", "position": "thrown"},
+                {"addr": "13", "position": "thrown"},
+            ],
+        },
+    )
+
+    assert app.position == {"freight_1": "up_w"}
+
+    align(bus, "crossover", "to_dn")
+    assert app.position == {"freight_1": "dn_e"}
+
+
+def test_an_align_with_only_one_of_the_two_null_writes_nothing() -> None:
+    """Half a route is no route and not a throw either: the frame is dropped
+    whole, and dropping it raises nothing (BUS.md)."""
+    bus, _app = build()
+    written = points(bus)
+    pair = [{"addr": "12", "position": "thrown"}]
+    by_hand(bus, {"connection": None, "transit": "to_dn", "points": pair})
+    by_hand(bus, {"connection": "crossover", "transit": None, "points": pair})
+
+    assert written == []

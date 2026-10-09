@@ -516,6 +516,13 @@ class LayoutInterface:
         no table of points and the command carries its own — and marking a
         transit it does not hold costs nothing, a `move` naming one being
         dropped anyway.
+
+        An `align` naming no transit is a throw by hand the dispatcher let
+        through (ADR-0068): its points are written like any other's, and it
+        authorises no crossing, so no waiting `move` is let through. Nothing
+        else is checked — no lock, no power, no run state — because this app
+        holds none of what a check would need, and with the rails dead the
+        row is stored for when they come back (ADR-0054).
         """
         aligning = alignment(payload)
         if aligning is None:
@@ -527,6 +534,8 @@ class LayoutInterface:
             self._bus.publish(
                 device_topic(WANTED_POINT, addr), {"addr": addr, "position": position}
             )
+        if aligning.connection is None or aligning.transit is None:
+            return
         transit = f"{aligning.connection}.{aligning.transit}"
         self._aligned.add(transit)
         waiting = self._held.pop(transit, None)
