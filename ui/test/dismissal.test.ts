@@ -135,7 +135,7 @@ describe("a right-click while a canvas menu is open", () => {
     expect(await rightClicked(shell, surface(shell), MIDDLE.a)).toEqual({
       native: false,
     });
-    expect(offered(shell)).toEqual(["Turn around"]);
+    expect(offered(shell)).toEqual(["Turn around", "Cancel request"]);
 
     underneath(shell);
     const menu = running(shell).renderRoot.querySelector("tc-menu")!;
@@ -145,7 +145,7 @@ describe("a right-click while a canvas menu is open", () => {
 
     // The second train's menu, not the first's still standing there: choosing
     // it turns around the train that was clicked second.
-    expect(offered(shell)).toEqual(["Turn around"]);
+    expect(offered(shell)).toEqual(["Turn around", "Cancel request"]);
     await chose(shell, "Turn around");
     expect(written()).toEqual([
       { topic: "tc49/schedule/reversal_wanted", payload: { train: "shunter" } },
@@ -173,7 +173,7 @@ describe("a right-click while a canvas menu is open", () => {
 
     underneath(shell);
     await rightClicked(shell, overlay(menu), MIDDLE.b);
-    expect(offered(shell)).toEqual(["Turn around"]);
+    expect(offered(shell)).toEqual(["Turn around", "Cancel request"]);
     expect(overlay(menu).style.pointerEvents).toBe("");
 
     overlay(menu).dispatchEvent(
@@ -202,7 +202,7 @@ describe("a right-click while the band's picker is open", () => {
     });
 
     expect(down(shell)).toBe(false);
-    expect(offered(shell)).toEqual(["Turn around"]);
+    expect(offered(shell)).toEqual(["Turn around", "Cancel request"]);
   });
 });
 
@@ -261,7 +261,7 @@ describe("a right-click while two menus are open", () => {
     const menu = running(shell).renderRoot.querySelector("tc-menu")!;
     await picking(shell);
     expect(down(shell)).toBe(true);
-    expect(offered(shell)).toEqual(["Turn around"]);
+    expect(offered(shell)).toEqual(["Turn around", "Cancel request"]);
 
     // Topmost first, which is the order the hit test answers in.
     const overlays = [overlay(band(shell)), overlay(menu)];

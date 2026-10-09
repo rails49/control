@@ -1,7 +1,7 @@
 /**
  * The run view (ui/PANEL.md): the drawing with the railroad's state painted on
  * top, fed by the broker it is a client of, and scheduling by drag and
- * turning a train around by right-click.
+ * turning a train around or cancelling its request by right-click.
  *
  * The railroad it is painting is not its own — the app holds it and hands over
  * the drawing and the review
@@ -68,6 +68,7 @@ import {
 } from "../model/store.js";
 import { cabs, type Cab } from "../model/throttle.js";
 import {
+  cancellation,
   DRAINING,
   gesture,
   Live,
@@ -143,9 +144,10 @@ interface Clicked {
   train: string;
 }
 
-/** The one action the panel's menu offers, named once so the item and the
+/** The actions the panel's menu offers, named once so the items and the
  *  handler cannot drift apart. */
 const TURN_AROUND = "turn-around";
+const CANCEL_REQUEST = "cancel-request";
 
 /** Where the broker is, as the page it is asked from says.
  *
@@ -829,7 +831,7 @@ export class TcPanel extends LitElement {
     return within(this.canvas, screen);
   }
 
-  // --- turning a train around -----------------------------------------------
+  // --- the right-click menu -------------------------------------------------
 
   /**
    * The right-click, as the canvas passes it on: the menu over the block a
@@ -846,35 +848,36 @@ export class TcPanel extends LitElement {
   }
 
   /**
-   * The one item the panel offers, greyed while that train has a request in
-   * flight: the panel's only pre-judgement of a gesture, against the
-   * filter-free drag where every drop submits (ui/PANEL.md). "Turn around"
-   * and not "Reverse", which is the throttle's word, this moving nothing.
+   * The two items the panel offers, each greyed by whether that train has a
+   * request in flight: the panel's only pre-judgement of a gesture, against
+   * the filter-free drag where every drop submits (ui/PANEL.md). "Turn
+   * around" is greyed while it has one and "Cancel request" while it has
+   * none, the dispatcher dropping a cancel with nothing to end (ADR-0049).
+   * "Turn around" and not "Reverse", which is the throttle's word, this
+   * moving nothing.
    *
-   * Worked out afresh on every event, so the item ungreys the moment the
+   * Worked out afresh on every event, so the items change the moment the
    * request is answered.
    */
   private get offered(): MenuItem[] {
     const at = this.menu;
     if (at === null || this.panel === null) return [];
+    const busy = this.panel.inFlight(at.train);
     return [
-      {
-        label: "Turn around",
-        action: TURN_AROUND,
-        disabled: this.panel.inFlight(at.train),
-      },
+      { label: "Turn around", action: TURN_AROUND, disabled: busy },
+      { label: "Cancel request", action: CANCEL_REQUEST, disabled: !busy },
     ];
   }
 
-  /** Chosen: one `reversal_wanted` naming the train. The scheduler flips its
-   *  facing and the arrow follows, which is the whole of the feedback. The
-   *  action is read rather than assumed, a throttle being the leaf this menu
-   *  grows next (ui/PANEL.md). */
+  /** Chosen: one `reversal_wanted` naming the train, the scheduler flipping
+   *  its facing and the arrow following, or one `cancel_wanted`, the lit
+   *  route going out when the dispatcher's picture drops the request. */
   private chose(event: CustomEvent<string>): void {
     const train = this.menu?.train;
     this.menu = null;
-    if (train === undefined || event.detail !== TURN_AROUND) return;
-    this.send(reversal(train));
+    if (train === undefined) return;
+    if (event.detail === TURN_AROUND) this.send(reversal(train));
+    if (event.detail === CANCEL_REQUEST) this.send(cancellation(train));
   }
 
   // --- painting -------------------------------------------------------------
