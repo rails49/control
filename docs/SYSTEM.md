@@ -560,10 +560,12 @@ what a release asks for. A hold is honoured whatever the power is doing
 
 **It alone reads `tc49/dispatch/placement_wanted`**, a person saying where a train
 actually is. Only the dispatcher knows whether a block is free, so a second
-reader would have to agree with it on every precondition. Two preconditions
-hold whichever way the gesture points: the run is **held**, and the train is
-known. A gesture that fails one of them is dropped without an answer, and is
-in the trace. A request in flight was a third and is not one any more: the
+reader would have to agree with it on every precondition. The train has to be
+known either way, and naming a block needs the run **held**; taking a train off
+is accepted in any run state
+([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
+A gesture that fails a precondition is dropped without an answer, and is in
+the trace. A request in flight was a third and is not one any more: the
 placement **cancels** it first
 ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)),
 so `request_cancelled` precedes `train_placed` or `train_removed` and both of
@@ -591,8 +593,12 @@ Naming **`block: null`** takes the train off the layout
 ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). It is one gesture
 that works in both directions, because putting a locomotive on the track and
 lifting it off are the same act with a different destination. The train leaves
-`block_of`, whatever it held is released as one `lock_released`, and
-`train_removed` says so. The scheduler drops its facing on it and the layout
+`block_of` and `train_removed` says so. What it held is released as one
+`lock_released`, except each block a detector last read occupied: that stays
+held by the train until it reads clear, and the transit it was crossing stays
+until both its blocks have opened. That clear reading is explained, releases
+the block and does not hold the run. The removed train may be put back into a
+block it still holds; any other train is refused there. The scheduler drops its facing on it and the layout
 interface forgets it.
 
 This is not deletion: the train stays on the roster and can be placed again. A
