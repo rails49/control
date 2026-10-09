@@ -680,10 +680,14 @@ class Alignment:
     The points are `lib.layout.Point`, the pair the layout document already
     carries — an address and the position a way wants the point wearing in —
     since what rides on `align` is exactly what was read off the layout.
+
+    Both names are None for a throw by hand: the frame names no transit and
+    carries the points a person asked for, which the dispatcher let through
+    (ADR-0068). One None without the other is never read.
     """
 
-    connection: str
-    transit: str
+    connection: str | None
+    transit: str | None
     points: tuple[Point, ...]
 
 
@@ -708,6 +712,10 @@ def alignment(payload: object) -> Alignment | None:
     payload. `points` is always present, `[]` where the way needs nothing
     thrown: the document is quiet and the wire explicit, so an absent list is
     a frame that lost a field rather than a way with no points on it.
+
+    `connection` and `transit` are both strings, or both `null` for a throw
+    by hand (ADR-0068). A frame with only one of them `null` is half a route
+    and not a throw either, so it reads as None like any other.
     """
     if not isinstance(payload, dict):
         return None
@@ -715,7 +723,8 @@ def alignment(payload: object) -> Alignment | None:
     connection, transit, stated = (
         fields.get(key) for key in ("connection", "transit", "points")
     )
-    if not isinstance(connection, str) or not isinstance(transit, str):
+    named = isinstance(connection, str) and isinstance(transit, str)
+    if not named and (connection is not None or transit is not None):
         return None
     if not isinstance(stated, list):
         return None
@@ -728,7 +737,9 @@ def alignment(payload: object) -> Alignment | None:
         if not isinstance(addr, str) or not isinstance(position, str):
             return None
         points.append(Point(addr, position))
-    return Alignment(connection, transit, tuple(points))
+    return Alignment(
+        cast(str | None, connection), cast(str | None, transit), tuple(points)
+    )
 
 
 def wanted_point(payload: object) -> Point | None:

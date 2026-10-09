@@ -587,6 +587,19 @@ def test_an_alignment_needing_nothing_thrown_carries_an_empty_list() -> None:
     )
 
 
+def test_an_alignment_naming_no_transit_is_a_throw_by_hand() -> None:
+    """`connection` and `transit` both `null`: the points a person asked for,
+    which the dispatcher let through, and no transit to authorise
+    (ADR-0068)."""
+    assert alignment(
+        {
+            "connection": None,
+            "transit": None,
+            "points": [{"addr": "dccex/12", "position": "closed"}],
+        }
+    ) == Alignment(None, None, (Point("dccex/12", "closed"),))
+
+
 def test_a_pair_that_cannot_be_read_fails_the_whole_alignment() -> None:
     """Unlike a retained map, which is read an entry at a time: an alignment
     is one route, and throwing the points that read while dropping the ones
@@ -608,6 +621,9 @@ def test_a_payload_setting_no_route_reads_as_none() -> None:
         {"connection": "crossover", "transit": "up_to_dn"},  # no points
         {"connection": "crossover", "transit": "up_to_dn", "points": {}},
         {"connection": "crossover", "transit": 7, "points": []},
+        {"connection": None, "transit": "up_to_dn", "points": []},  # half
+        {"connection": "crossover", "transit": None, "points": []},  # half
+        {"connection": None, "transit": None},  # a throw with no points
         {"connection": "crossover", "transit": "up_to_dn", "points": ["dccex/12"]},
         {
             "connection": "crossover",
