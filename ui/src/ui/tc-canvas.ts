@@ -392,7 +392,8 @@ export class TcCanvas extends LitElement {
    * and a junction symbol the strongest claim any transit through it carries,
    * and a block being on no transit's way, the two never meet on one symbol.
    * Occupancy outranks both, which is what reading the block's state first
-   * says (ui/PANEL.md).
+   * says (ui/PANEL.md). A point a click would throw wears `offered`, which is
+   * the click cursor (ADR-0068).
    */
   private worn(
     name: string,
@@ -410,6 +411,7 @@ export class TcCanvas extends LitElement {
             live.blocks.get(name)?.state ?? live.lit.state.get(name) ?? "",
             live.blocks.get(name)?.dispute === undefined ? "" : "disputed",
             name === target ? "target" : "",
+            live.offered.has(name) ? "offered" : "",
           ];
     return ["symbol", ...marked]
       .filter((one) => one !== "" && one !== "free")

@@ -13,6 +13,8 @@ import {
   MODE_WANTED,
   modeWanted,
   Ordering,
+  POINT_WANTED,
+  pointWanted,
   POWER_WANTED,
   powerWanted,
   REQUEST_WANTED,
@@ -124,6 +126,18 @@ describe("reversal", () => {
       payload: { train: "t1" },
     });
     expect(REVERSAL_WANTED).toBe("tc49/schedule/reversal_wanted");
+  });
+});
+
+/** Throwing a point by hand (ADR-0068, #666): a click on a point asks the
+ *  dispatcher for a position, and it is the one that judges it. */
+describe("pointWanted", () => {
+  it("names the address and the position and nothing else", () => {
+    expect(pointWanted({ addr: "7", position: "thrown" })).toEqual({
+      topic: "tc49/dispatch/point_wanted",
+      payload: { addr: "7", position: "thrown" },
+    });
+    expect(POINT_WANTED).toBe("tc49/dispatch/point_wanted");
   });
 });
 

@@ -1,14 +1,15 @@
 /**
  * What the drawing alone answers: the frame a fit and an export are drawn in,
- * the pose of a direction arrow, and which symbol an address is worn by. Pure
- * reading of the document — no DOM, so it lives here and not in the component
- * (README.md).
+ * the pose of a direction arrow, which symbol an address is worn by, and what
+ * a click on a point would ask for. Pure reading of the document — no DOM, so
+ * it lives here and not in the component (README.md).
  */
 
 import type { Position } from "../symbols.generated.js";
-import { pinsOf, type Drawing, type SymbolSpec } from "./drawing.js";
+import { motorised, pinsOf, type Drawing, type SymbolSpec } from "./drawing.js";
 import { anchorOf, centreOf, type Point } from "./geometry.js";
 import { blockOf, endOf, type EndRef } from "./panel.js";
+import type { PointWanted } from "./trace.js";
 
 export interface Box {
   x: number;
@@ -109,4 +110,37 @@ export function positionsBySymbol(
     if (position !== undefined) found.set(name, position);
   }
   return found;
+}
+
+/**
+ * What a click on each point would ask for, keyed by symbol: its address and
+ * the other position from the one it lies in, `thrown` where nothing has
+ * commanded it
+ * ([ADR-0068](../../../docs/adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)).
+ *
+ * A point is left out where the dispatcher would drop the request: on a lit
+ * road, or wearing an address a lit point also wears, the two answering to
+ * one accessory output (ADR-0031). So is a point with no address, which
+ * nothing could throw. The dispatcher still judges what is sent — the
+ * picture here can be a moment old — and this is only what the panel
+ * offers, so the drop is visible before the click.
+ */
+export function pointsOffered(
+  drawing: Drawing,
+  lit: ReadonlyMap<string, unknown>,
+  commanded: ReadonlyMap<string, Position>,
+): Map<string, PointWanted> {
+  const points = Object.entries(drawing.symbols).filter(
+    ([, spec]) => motorised(spec.kind) && spec.addr !== undefined,
+  );
+  const held = new Set(
+    points.filter(([name]) => lit.has(name)).map(([, spec]) => spec.addr),
+  );
+  const offered = new Map<string, PointWanted>();
+  for (const [name, { addr }] of points) {
+    if (addr === undefined || held.has(addr)) continue;
+    const position = commanded.get(addr) === "thrown" ? "closed" : "thrown";
+    offered.set(name, { addr, position });
+  }
+  return offered;
 }

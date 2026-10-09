@@ -7,6 +7,8 @@
  * byte-identical replays — and the browser no longer reads one.
  */
 
+import type { Position } from "../symbols.generated.js";
+
 /** One bus event as the model reads it: the topic leaf, and the payload's
  *  own fields flattened beside it. The shape the bench tap writes a trace
  *  line in, minus the tap's own `time` stamp — observation the tap adds for
@@ -172,6 +174,21 @@ export function placement(train: string, block: string | null): Frame {
  *  ([ADR-0049](../../../docs/adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)). */
 export function cancellation(train: string): Frame {
   return { topic: CANCEL_WANTED, payload: { train } };
+}
+
+/** What a person asks of a point: the position it should be thrown to, by
+ *  the address its motor answers to (ADR-0068). */
+export interface PointWanted {
+  addr: string;
+  position: Position;
+}
+
+/** A `point_wanted` frame: throw the point at this address. The dispatcher
+ *  is the one that judges it, and drops it with no reply where any point
+ *  wearing the address is lit
+ *  ([ADR-0068](../../../docs/adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)). */
+export function pointWanted(wanted: PointWanted): Frame {
+  return { topic: POINT_WANTED, payload: { ...wanted } };
 }
 
 /** A `run_wanted` frame: hold the run, release it, or drain it. It says where

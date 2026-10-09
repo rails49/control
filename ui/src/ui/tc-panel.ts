@@ -57,7 +57,7 @@ import {
   type Placed,
   type RosterRow,
 } from "../model/panel.js";
-import { positionsBySymbol } from "../model/scene.js";
+import { pointsOffered, positionsBySymbol } from "../model/scene.js";
 import {
   readTrains,
   RETRY_MS,
@@ -74,6 +74,7 @@ import {
   Live,
   modeWanted,
   placement,
+  pointWanted,
   powerWanted,
   railroadWanted,
   reversal,
@@ -300,6 +301,7 @@ export class TcPanel extends LitElement {
     painted: () => this.painted,
     submit: (drop) => this.submit(drop),
     remove: (train) => this.lift(train),
+    throwPoint: (wanted) => this.send(pointWanted(wanted)),
     onRoster: (screen) => this.overRoster(screen),
   });
 
@@ -756,6 +758,7 @@ export class TcPanel extends LitElement {
       review: this.review ?? UNREVIEWED,
       blocks: model.blocks(),
       crossings: model.crossings(),
+      offered: pointsOffered(drawing, model.lit().legs, model.positionsByAddress()),
     };
   }
 
@@ -1057,19 +1060,22 @@ export class TcPanel extends LitElement {
    * What the run has painted over the drawing, for the canvas to draw (#168).
    *
    * Every entry is the panel model's own answer, worked out afresh on each
-   * render because each is the last frame's. Point positions are the one thing
-   * the model cannot answer alone: they are commanded by address, and the
-   * drawing is what turns an address back into a symbol (ADR-0022,
-   * ui/PANEL.md).
+   * render because each is the last frame's. Point positions, and the throws
+   * a click on a point would ask for, are what the model cannot answer alone:
+   * they are commanded by address, and the drawing is what turns an address
+   * back into a symbol (ADR-0022, ADR-0068, ui/PANEL.md).
    */
   private get overlay(): Overlay | null {
     const model = this.panel;
     if (model === null || this.drawing === null) return null;
+    const lit = model.lit();
+    const commanded = model.positionsByAddress();
     return {
       blocks: model.blocks(),
-      lit: model.lit(),
+      lit,
       aspects: model.aspects(),
-      positions: positionsBySymbol(this.drawing, model.positionsByAddress()),
+      positions: positionsBySymbol(this.drawing, commanded),
+      offered: pointsOffered(this.drawing, lit.legs, commanded),
       crossings: model.crossings(),
       markers: model.markers(),
     };

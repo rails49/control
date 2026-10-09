@@ -7,7 +7,12 @@ import { describe, expect, it } from "vitest";
 
 import type { Drawing } from "../src/model/drawing.js";
 import type { Position } from "../src/symbols.generated.js";
-import { arrowPose, fitBox, positionsBySymbol } from "../src/model/scene.js";
+import {
+  arrowPose,
+  fitBox,
+  pointsOffered,
+  positionsBySymbol,
+} from "../src/model/scene.js";
 
 describe("fitBox", () => {
   it("frames every pin with a margin and headroom for notes", () => {
@@ -90,5 +95,53 @@ describe("positionsBySymbol", () => {
 
   it("says nothing about a point no command has named", () => {
     expect(positionsBySymbol(drawing, new Map()).size).toBe(0);
+  });
+});
+
+/**
+ * What a click on each point asks for (ADR-0068, #666): the other position
+ * from the one it is drawn in, `thrown` from one nothing has commanded, and
+ * nothing at all from a point the dispatcher would drop it for.
+ */
+describe("pointsOffered", () => {
+  const drawing: Drawing = {
+    drawing: "yard",
+    symbols: {
+      sw1: { kind: "turnout", at: [0, 0], addr: "12" },
+      sw2: { kind: "turnout", at: [3, 0], addr: "12" },
+      sw3: { kind: "single_slip", at: [6, 0], addr: "13" },
+      sw4: { kind: "turnout", at: [9, 0], addr: "14" },
+      sw5: { kind: "turnout", at: [12, 0] },
+      x1: { kind: "crossing", at: [15, 0] },
+      b1: { kind: "block", at: [0, 3], length: 1000, addr: "15" },
+    },
+    wires: [],
+  };
+
+  const commanded = new Map<string, Position>([
+    ["12", "thrown"],
+    ["13", "closed"],
+  ]);
+
+  it("asks for the other position, and thrown where none is known", () => {
+    expect(pointsOffered(drawing, new Map(), commanded)).toEqual(
+      new Map([
+        ["sw1", { addr: "12", position: "closed" }],
+        ["sw2", { addr: "12", position: "closed" }],
+        ["sw3", { addr: "13", position: "thrown" }],
+        ["sw4", { addr: "14", position: "thrown" }],
+      ]),
+    );
+  });
+
+  it("offers nothing on a lit point, nor on one sharing its address", () => {
+    // sw1 is on a lit road and sw2 wears the same address, so a throw of
+    // either would throw sw1 under the route: the dispatcher drops it, and
+    // the panel offers no click to be dropped.
+    const lit = new Map([["sw1", new Set(["straight"])]]);
+    expect([...pointsOffered(drawing, lit, commanded).keys()]).toEqual([
+      "sw3",
+      "sw4",
+    ]);
   });
 });
