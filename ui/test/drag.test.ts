@@ -225,6 +225,7 @@ describe("the run view's machine", () => {
     drawing: DRAWING,
     review: REVIEW,
     blocks: BLOCKS,
+    crossings: [],
   };
 
   /** Where the roster pane is, in the screen pixels the machine reads: a drop
@@ -320,5 +321,56 @@ describe("the run view's machine", () => {
     it.down(on("a", 0.5), press);
     it.moved(on("b", 0.5), { x: 0, y: 0 });
     expect(it.shift("a")).toEqual({ x: 0, y: 0 });
+  });
+
+  /**
+   * A crossing train stands in no block, so its marker is the name drawn on
+   * the connection it is crossing (ADR-0069). It is picked up through the
+   * same machine, and the drop on the roster pane is the only one that does
+   * anything: there is no block of its own a drop on another could move it
+   * from.
+   */
+  describe("a crossing train", () => {
+    const CROSSING: Painted = {
+      ...PAINTED,
+      blocks: new Map<string, BlockView>([
+        ["a", { state: "free" }],
+        ["b", { state: "free" }],
+      ]),
+      crossings: [{ train: "t2", between: ["a.B", "b.A"] }],
+    };
+
+    /** Where its name is drawn: midway between the two ends its transit joins. */
+    const MARKER = { x: 3, y: 1.5 };
+
+    it("is taken hold of by a press on its marker", () => {
+      const { it } = machine(CROSSING);
+      expect(it.down(MARKER, press)).toBe("render");
+      expect(it.marks).toEqual({ reach: { from: MARKER, to: MARKER } });
+    });
+
+    it("comes off the layout when dropped on the roster pane", () => {
+      const { sent, lifted, it } = machine(CROSSING);
+      it.down(MARKER, press);
+      it.moved(on("b", 0.5), { x: 0, y: 0 });
+      expect(it.up(on("b", 0.5), OVER_ROSTER)).toBe("render");
+      expect(lifted).toEqual(["t2"]);
+      expect(sent).toEqual([]);
+    });
+
+    it("asks for nothing when dropped on a block", () => {
+      const { sent, lifted, it } = machine(CROSSING);
+      it.down(MARKER, press);
+      it.moved(on("b", 0.5), { x: 0, y: 0 });
+      expect(it.marks).toEqual({ reach: { from: MARKER, to: on("b", 0.5) } });
+      expect(it.up(on("b", 0.5), OVER_CANVAS)).toBe("render");
+      expect(sent).toEqual([]);
+      expect(lifted).toEqual([]);
+    });
+
+    it("is not taken hold of away from its marker", () => {
+      const { it } = machine(CROSSING);
+      expect(it.down({ x: 3, y: 5 }, press)).toBe("quiet");
+    });
   });
 });
