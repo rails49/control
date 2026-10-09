@@ -262,6 +262,16 @@ does not wait for the vacate: the train is in the block it was sent to, and the
 tail clearing is a fact about the block behind. Exactly the addresses that were
 commanded, since a car nothing was sent for is a car nothing may be sent for.
 
+### Removal
+
+A train may be taken off running
+([ADR-0069](../adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)),
+and a decoder in a hand keeps the last speed it was told. So `train_removed`
+writes `0.0` to every addressed car of the train, manual or automatic and
+whatever the power, and forgets any move of that train in flight: its later
+readings write no speed for it, and the block behind reads clear on its own
+detectors like any other.
+
 ## Who drives, and a person's throttle
 
 A train is **automatic** or **manual**: taking it in a throttle makes it manual
