@@ -318,9 +318,8 @@ const running = css`
      drawn faint, so a turnout on a run shows which way it is set and the
      editor's plain drawing keeps saying only what a point is. Fading rather
      than recolouring, because this is not a fault and not a way lit: the road
-     is simply not on offer. A lit leg the points are not yet set for fades
-     with it, which is the honest picture — the route is chosen and the
-     alignment has not happened yet. */
+     is simply not on offer. A point on a lit road is drawn with no fade at
+     all: the lit road is the position it is being set to (ADR-0068). */
   .symbol .track.against,
   .symbol .tick.against {
     opacity: 0.25;

@@ -59,6 +59,7 @@ import { UNREVIEWED, type Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
 import { artwork, DEFS } from "../render/artwork.js";
 import { BLOCK, FACE, PIN, PORTAL, RING, fitted } from "../render/units.js";
+import type { Position } from "../symbols.generated.js";
 import { canvasStyles, exportStyles } from "./tc-canvas.styles.js";
 
 /** Which of the two surfaces this is. */
@@ -353,7 +354,6 @@ export class TcCanvas extends LitElement {
 
   private symbols(lighting: LitWay): unknown {
     const review = this.review ?? UNREVIEWED;
-    const live = this.running;
     const blind = dark(review);
     const lone = unpaired(review);
     const unset = new Set(this.editing?.unaddressed() ?? []);
@@ -374,7 +374,7 @@ export class TcCanvas extends LitElement {
               lighting.legs.get(name),
               blind.get(name),
               this.showing(name),
-              live?.positions.get(name),
+              this.lying(name, lighting),
             )}
           </g>
           ${this.label(name, spec, lone.get(name))}
@@ -414,6 +414,15 @@ export class TcCanvas extends LitElement {
     return ["symbol", ...marked]
       .filter((one) => one !== "" && one !== "free")
       .join(" ");
+  }
+
+  /** Where a point is drawn lying, `undefined` for a symbol drawn with every
+   *  road plain. A point on a lit road is one: the road says how it lies, and
+   *  a lit leg the `align` has not reached yet is the route chosen rather than
+   *  a road not on offer (ADR-0068). Edit mode has no positions at all. */
+  private lying(name: string, lighting: LitWay): Position | undefined {
+    if (lighting.legs.has(name)) return undefined;
+    return this.running?.positions.get(name);
   }
 
   /** The aspects a block's two signals show, keyed by end letter, which is what

@@ -663,3 +663,79 @@ describe("what each mode draws", () => {
     run.remove();
   });
 });
+
+/**
+ * A point on a run (ADR-0068, #666). The lit road says how a point on it lies,
+ * so nothing on a lit point is drawn set against; an unlit point whose
+ * position is known fades the road it does not offer.
+ */
+describe("a point on a run", () => {
+  /** Three turnouts in a row: `lit` on a locked transit, `known` lying thrown
+   *  off any lit road, and `unknown` nothing has commanded. */
+  const POINTS: Drawing = {
+    drawing: "points",
+    symbols: {
+      lit: { kind: "turnout", at: [0, 0], addr: "7" },
+      known: { kind: "turnout", at: [4, 0], addr: "8" },
+      unknown: { kind: "turnout", at: [8, 0], addr: "9" },
+    },
+    wires: [],
+  };
+
+  const LIVE: Overlay = {
+    blocks: new Map(),
+    lit: {
+      legs: new Map([["lit", new Set(["straight"])]]),
+      state: new Map([["lit", "locked"]]),
+      wires: new Map(),
+    },
+    aspects: new Map(),
+    positions: new Map([
+      ["lit", "thrown"],
+      ["known", "thrown"],
+    ]),
+    crossings: [],
+    markers: [],
+  };
+
+  async function running(live: Overlay = LIVE): Promise<TcCanvas> {
+    const canvas = document.createElement("tc-canvas");
+    canvas.mode = "run";
+    canvas.drawing = structuredClone(POINTS);
+    canvas.review = reviewed([]);
+    canvas.live = live;
+    canvas.machine = schedulingMachine(new Drag(), {
+      painted: () => null,
+      submit: () => undefined,
+      remove: () => undefined,
+      onRoster: () => false,
+    });
+    document.body.append(canvas);
+    await canvas.updateComplete;
+    return canvas;
+  }
+
+  /** The classes of every stroke a symbol draws. */
+  function strokes(canvas: TcCanvas, name: string): string[] {
+    return [
+      ...canvas.renderRoot.querySelectorAll(`g[data-symbol="${name}"] path`),
+    ].map((path) => path.getAttribute("class")!);
+  }
+
+  it("draws nothing set against on a point a lit road crosses", async () => {
+    // Its lit leg is not the one its position offers — the align is still on
+    // its way — and the road shows how it will lie, not a fade over it.
+    const run = await running();
+    expect(strokes(run, "lit").some((one) => one.includes("against"))).toBe(
+      false,
+    );
+    run.remove();
+  });
+
+  it("fades the road an unlit point does not offer, and nothing unknown", async () => {
+    const run = await running();
+    expect(strokes(run, "known")).toEqual(["track against", "track"]);
+    expect(strokes(run, "unknown")).toEqual(["track", "track"]);
+    run.remove();
+  });
+});
