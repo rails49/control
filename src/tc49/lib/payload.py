@@ -114,6 +114,10 @@ plain `off` is made where the command is answered rather than trusted to
 whoever sent it (ADR-0062). The run word and `moving` are one reading,
 because the guard wants the pair.
 
+A person's **throw by hand**, `tc49/dispatch/point_wanted`, is read here for
+the first reason of all (ADR-0068): a page writes it and the dispatcher
+answers nothing back. `wanted_point` reads it as the `Point` a way carries.
+
 The **stamp** a state payload carries is read here for the first reason of
 all (#240): it is a field like any other, arriving from another process,
 and a reader that subscripted it would be taken down by whatever wrote it.
@@ -129,6 +133,7 @@ from tc49.lib.inventory import (
     AT,
     AUTOMATIC,
     CLEAR,
+    CLOSED,
     DRAINING,
     HELD,
     MANUAL,
@@ -138,6 +143,7 @@ from tc49.lib.inventory import (
     RUNNING,
     STOPPED,
     SUPPLY,
+    THROWN,
     UNKNOWN,
     is_state_topic,
 )
@@ -723,6 +729,29 @@ def alignment(payload: object) -> Alignment | None:
             return None
         points.append(Point(addr, position))
     return Alignment(connection, transit, tuple(points))
+
+
+def wanted_point(payload: object) -> Point | None:
+    """The point a `tc49/dispatch/point_wanted` asks for, or None where it
+    asks for none.
+
+    A person's page writes it, so it is read here for this module's first
+    reason (ADR-0068). The address must be a non-empty string and the
+    position one of the two a point can be in: the gesture is a person's, and
+    a word a way never wants is dropped here rather than handed on to a
+    point. Whether any point on the railroad wears the address is the
+    dispatcher's question, against the layout — a name is all there is to
+    read in a payload.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    addr, position = fields.get("addr"), fields.get("position")
+    if not isinstance(addr, str) or not addr:
+        return None
+    if position not in (CLOSED, THROWN):
+        return None
+    return Point(addr, cast(str, position))
 
 
 def shown_aspects(payload: object) -> dict[str, str] | None:
