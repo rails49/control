@@ -20,10 +20,11 @@ trains still move only on granted routes ([GOALS.md](../GOALS.md)).
    offers no click. Slips behave as turnouts do, both being points.
 2. **The panel asks the dispatcher.** `tc49/dispatch/point_wanted`,
    browser-writable, `{addr, position}`.
-3. **The dispatcher drops it on a lit road.** If any point wearing that
-   address lies on the way of a transit that is locked or committed, the
-   request is dropped with no reply. Otherwise the dispatcher publishes
-   `tc49/layout/throw`, `{addr, position}`.
+3. **The dispatcher drops it on a lit road.** If no point on the loaded
+   railroad wears that address, or any point wearing it lies on the way of a
+   transit that is locked or committed, the request is dropped with no
+   reply. Otherwise the dispatcher publishes `tc49/layout/throw`,
+   `{addr, position}`.
 4. **`layout` writes `wanted/point`** on `throw` as it does on `align`, and
    checks nothing. Whatever drives the point acts on that row.
 5. **The panel reads point positions from `wanted/point`**, not from `align`.
@@ -62,6 +63,9 @@ panel: a point on a road the panel lights does not throw.
 
 - The inventory gains two rows: `tc49/dispatch/point_wanted` (event,
   browser-writable) and `tc49/layout/throw` (command, the dispatcher's).
+- An address no point wears is dropped. Points and signals share the
+  accessory addresses on the hardware, so a throw sent to a signal's address
+  would change its aspect.
 - A dropped request leaves no trace beyond the request itself. The panel
   shows no click cursor on a lit point, so the drop is visible before the
   click.
@@ -73,4 +77,5 @@ panel: a point on a road the panel lights does not throw.
   next route through it.
 - The panel still shows the commanded position, not a measured one
   ([ADR-0017](0017-turnout-position-is-inferred-by-the-panel.md)).
-- Under the simulator no point carries an address, so nothing is offered.
+- Under the simulator no point carries an address, so nothing is offered,
+  and a request sent anyway is dropped.
