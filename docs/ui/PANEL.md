@@ -186,15 +186,23 @@ The value is the run the train would make across its block, `<block>.A-to-B`
 or `<block>.B-to-A` (CONTEXT.md, **Facing**), and the arrow points at the end
 that run comes out at — B for `A-to-B` — which is the whole of the reading.
 
-**Point positions are read off `align`.** The command carries the points it
-needs as address-and-position pairs
+**Point positions are read off `wanted/point`.** `layout` writes a retained
+`tc49/layout/state/wanted/point/<addr>` row, `addr` and `position`, for each
+point every `align` names, a route's and a person's throw alike
+([ADR-0068](../adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)),
+and the panel reads those rows and not `align`. A page opened mid-session is
+therefore handed every position commanded since the broker came up. An address
+is the one a symbol wears
 ([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), and the
 panel holds the drawing, so an address maps back to the symbol wearing it. Two
 points wearing one address lie the same way, and an address no symbol wears is
-ignored. A point stays where the last command naming it left it, `align`
-speaking for one transit only. Each is drawn in its position, the road the
-other position offers faint, so a turnout shows its straight road or its
-diverging one and a slip's tick says which road it has. The panel infers
+ignored. A point stays where its row last left it. An unlit point whose
+position is known is drawn in it, the road the other position offers faint, so
+a turnout shows its straight road or its diverging one and a slip's tick says
+which road it has; one whose position is unknown draws every road plainly. A
+**lit** point (CONTEXT.md) is drawn with nothing faint: the lit road is the
+position it is being set to, and a lit leg the `align` has not reached yet is
+a route chosen, not a road the point does not offer. The panel infers
 nothing, which supersedes the inference
 [ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md) put here.
 It still shows commanded position, not measured position, so a point that
@@ -417,13 +425,23 @@ The panel is mouse-and-keyboard. Touch works where the browser gives it, iOS
 Safari raising `contextmenu` on a long press, but is not designed for; the one
 care taken is cancelling the drag that same press began.
 
-Manual turnout throwing is not offered. RocRail allows it because it owns
-manual shunting, which this model excludes: trains move only on granted
-routes and reversal happens only between requests, at rest. A turnout now has
-an address a command could name
-([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)), so what
-rules this out is no longer the absence of one: a second authority deciding
-what is safe would sit alongside the dispatcher.
+**A click on a point throws it**
+([ADR-0068](../adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)),
+for testing: that an address moves the point it is wired to, and throwing
+again a point that stuck. A plain left press on an unlit point that carries an
+address, released on it without moving, publishes `tc49/dispatch/point_wanted`
+with the address and the other position from the one drawn — `thrown` where
+none is known. A press on a train takes hold of the train first, so dragging
+one across a point throws nothing. A lit point, a point wearing an address a
+lit point also wears (two symbols may share one), and a point with no address
+offer no click: no pointer cursor, and a click publishes nothing. That is the
+dispatcher's own rule, which drops the request when any point wearing the
+address is lit; the dispatcher is still the one that judges, the panel's
+picture of the lit roads being able to be a moment old, and a request it drops
+is not reported. The panel does not move the drawn position itself: it follows
+`wanted/point` when `layout` writes it. Shunting a train off its route is not
+what this is for — trains still move only on granted routes, and reversal
+happens only between requests, at rest.
 
 ## Implementation
 
