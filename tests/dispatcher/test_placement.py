@@ -7,8 +7,9 @@ accepted it announces `tc49/dispatch/train_placed` for everyone else to
 follow. The scheduler follows that event and carries the train's facing
 into the new block; it never reads the gesture.
 
-Only while held, and only a block the train can actually be in. Anything else
-is dropped, in silence and to the trace: a gesture carries no id and there is
+Placing only while held, and only a block the train can actually be in;
+taking a train off is accepted running too (ADR-0069, `test_remove_running`).
+Anything else is dropped, in silence and to the trace: a gesture carries no id and there is
 nothing to address an answer to (ADR-0034).
 """
 
@@ -585,19 +586,6 @@ def test_a_removal_releases_everything_the_train_held(tmp_path: Path) -> None:
     assert "freight_1" not in after["trains"]
     assert after["crossing"] == {}
     assert "freight_1" not in after["locks"].values()
-
-
-def test_a_removal_is_dropped_while_the_run_is_running() -> None:
-    """The same precondition as placing, for the same reason: the dispatcher
-    is granting against the picture, and a block that empties under it
-    invalidates what it has already granted."""
-    layout, _roster, _ = load("crossover-yard/meet")
-    running = assemble_live(layout, STOCK, two_trains())
-
-    remove(running, "freight_1")
-
-    assert removals(running) == []
-    assert last(running, "allocation")["trains"]["freight_1"] == "yard_w"
 
 
 def test_a_removal_cancels_the_request_in_flight_and_then_lifts_the_train(

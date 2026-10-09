@@ -34,7 +34,7 @@ not read. The one thing left that could take the app off the bus was a sensor
 reading no granted move accounts for; it holds the run instead (ADR-0048).
 """
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 
 from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
@@ -162,6 +162,13 @@ class State:
     # reading, and a binding that reports nothing disputes nothing rather
     # than the whole railroad.
     reported: dict[str, bool] = field(default_factory=dict[str, bool])
+    # What a train taken off the layout still holds, because a detector last
+    # read it occupied (ADR-0069): each block, and the transit it was crossing
+    # while either of that transit's blocks is here. The lock table names the
+    # holder; this is what says the lock waits for a clear reading rather
+    # than for a move, so that reading is explained and a clear reading under
+    # a standing train still is not (ADR-0048).
+    residue: set[str] = field(default_factory=set[str])
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None:
         """Why `train` cannot lock `resource`: (reason, resource, holder),
@@ -180,7 +187,7 @@ class State:
                     return ("transit_conflict", locked, by)
         return None
 
-    def free(self, block: str) -> bool:
+    def free(self, block: str, train: str | None = None) -> bool:
         """Whether nothing at all has a claim on `block`.
 
         Both claims a route carries, not just the stronger one: a resource is
@@ -198,8 +205,13 @@ class State:
         (ADR-0049) — the cancellation releases what that train held, and what
         is left here is another train's claim, which a placement may not walk
         into.
+
+        `train` asking, a block it still holds as residue of its own removal
+        is free to it (ADR-0069): the claim is its own, and putting it back
+        there is the person saying the loco never left.
         """
-        if block in self.locks:
+        holder = self.locks.get(block)
+        if holder is not None and not (holder == train and block in self.residue):
             return False
         return not any(
             block in active.route.blocks[active.cur_index :]
@@ -229,6 +241,12 @@ def effective_departure(origin: str, depart: str, remembered: str | None) -> str
     if not departs_elsewhere(depart, origin):
         return resolve_departure(depart, origin)
     return remembered
+
+
+def transit_blocks(layout: Layout, transit: str) -> set[str]:
+    """The two blocks a transit (as 'connection.transit') joins."""
+    connection, _, name = transit.partition(".")
+    return {block_of(end) for end in layout.connections[connection].transits[name]}
 
 
 def locked_ahead(state: State, train: str, route: Route, standing: int) -> int:
@@ -908,9 +926,13 @@ class Dispatcher:
         destination, so `block: null` is a placement whose answer is *off the
         layout* rather than a leaf of its own.
 
-        Two preconditions are the same either way: the run is held, and the
-        train is known. A **request in flight was a third** and is not one any
-        more (ADR-0049): the gesture cancels it first and then places the
+        The train has to be known either way. **Putting it on a block needs
+        the run held**, since that direction takes a lock; **taking it off
+        does not** (ADR-0069): a person lifts a train whenever they need to,
+        and what the removal frees is freed the way a cancellation frees it,
+        with the track a loco still stands on kept until it reads clear. A
+        **request in flight was a precondition** and is not one any more
+        (ADR-0049): the gesture cancels it first and then places the
         train, so `request_cancelled` precedes `train_placed` or
         `train_removed` and those two always describe a train with no request.
         The reason says which direction the gesture pointed — `removed` off
@@ -940,24 +962,21 @@ class Dispatcher:
         """
         wanted = placement(payload)
         state = self._state
-        if wanted is None or state.run != HELD:
+        if wanted is None or wanted.train not in state.roster:
             return
-        if wanted.train not in state.roster:
-            return
-        self._cancel(
-            wanted.train,
-            Cancellation.REMOVED if wanted.block is None else Cancellation.DISPLACED,
-        )
         if wanted.block is None:
             self._remove(wanted.train)
-        else:
+        elif state.run == HELD:
+            self._cancel(wanted.train, Cancellation.DISPLACED)
             self._stand(wanted.train, wanted.block)
 
     def _stand(self, train: str, block: str) -> None:
         """A train put on the layout, or moved by hand from where it was.
 
-        The block has to exist, be free of every claim, and fit the train.
-        Having accepted, the dispatcher moves the train's standing
+        The block has to exist, be free of every claim, and fit the train. A
+        block the train still holds as residue of its own removal is free to
+        it, and becomes its standing lock (ADR-0069); whatever else it holds
+        that way stays until it reads clear. Having accepted, the dispatcher moves the train's standing
         lock and announces `train_placed`. That event is the ledger line for a
         placement: a `lock_released` and a `lock_granted` would say a route
         gave a block up and took another, which is not what happened — a hand
@@ -967,10 +986,11 @@ class Dispatcher:
         state = self._state
         if block not in state.layout.blocks:
             return
-        if not state.free(block):
+        if not state.free(block, train):
             return
         if state.roster[train] > state.layout.blocks[block]:
             return
+        state.residue.discard(block)
         # A train that is off the layout holds no standing lock and has none
         # to give up: this gesture is what puts it back on (ADR-0039, #164).
         # Placing one is otherwise the same act.
@@ -987,6 +1007,10 @@ class Dispatcher:
         # out, that block not being free.
         state.crossing.pop(train, None)
         self._publish("train_placed", {"train": train, "block": block})
+        # A transit kept for this block alone has nothing left to wait for:
+        # the block is a standing lock now, and no clear reading will come
+        # for it as residue.
+        self._open(train, self._spent(train))
         self._settled()
 
     def _remove(self, train: str) -> None:
@@ -996,28 +1020,90 @@ class Dispatcher:
         again; what it loses is its place on the rails, which is absence from
         `block_of` and not a sentinel (ADR-0039).
 
-        **What it held is released**, all of it. A train at rest holds its
-        standing block, and a restored crossing train holds the transit it
-        was on and the block behind it as well (#154) — which is exactly the
-        train an operator most wants to lift out, so the sweep is by holder
-        rather than of one block. `lock_released` is the ledger line, because
-        that is what happened: the resources are free and nothing took them.
+        Accepted in any run state (ADR-0069). Its requests are cancelled
+        first, `removed`, so `train_removed` describes a train with none.
+
+        **What it held is released**, except what a loco may still be
+        standing on: each block a detector last read occupied stays held by
+        the train, and so does the transit it was crossing while either of
+        that transit's blocks does. Those wait in `residue` for a clear
+        reading (`_lifted`). Everything else goes in one `lock_released` —
+        the sweep is by holder, because a restored crossing train holds the
+        transit it was on and the block behind it as well (#154), and a
+        train mid-request holds its route. A block the layout has said
+        nothing about has nothing to wait for and is released, as everywhere
+        else in the dispatcher.
+
+        Computed before the cancellation, which forgets which transit the
+        train was crossing. Track a removal frees is what a cancellation
+        frees, so a run not held sweeps for it.
 
         A train that is already off the layout is left alone. The gesture
         asks for a state it is in, and there is no fact to announce.
         """
         state = self._state
+        kept = self._kept(train)
+        self._cancel(train, Cancellation.REMOVED, keep=kept)
         if train not in state.block_of and train not in state.crossing:
             return
-        self._release(train)
+        self._release(train, keep=kept)
+        state.residue |= kept
         state.block_of.pop(train, None)
         # A crossing train stands in no block, and off the layout it is not on
         # a transit either: the hint goes with the placement it belonged to.
         state.crossing.pop(train, None)
         self._publish("train_removed", {"train": train})
-        self._settled()
+        if state.run == HELD:
+            self._settled()
+        else:
+            self._sweep()
 
-    def _release(self, train: str, keep: str | None = None) -> list[str]:
+    def _kept(self, train: str) -> set[str]:
+        """What a removal of `train` leaves held: each block it holds that a
+        detector last read occupied, and the transit it is crossing if either
+        of that transit's blocks is among them (ADR-0069)."""
+        state = self._state
+        kept = {
+            resource
+            for resource, holder in state.locks.items()
+            if holder == train and state.reported.get(resource) is True
+        }
+        transit = state.crossing.get(train)
+        if (
+            transit is not None
+            and state.locks.get(transit) == train
+            and kept & transit_blocks(state.layout, transit)
+        ):
+            kept.add(transit)
+        return kept
+
+    def _spent(self, train: str) -> list[str]:
+        """The transits `train` holds as residue that no residual block of its
+        own is left to keep."""
+        state = self._state
+        return [
+            resource
+            for resource in state.residue
+            if resource not in state.layout.blocks
+            and state.locks.get(resource) == train
+            and not any(
+                state.locks.get(block) == train and block in state.residue
+                for block in transit_blocks(state.layout, resource)
+            )
+        ]
+
+    def _open(self, train: str, resources: list[str]) -> None:
+        """Residue given up, as one `lock_released`."""
+        state = self._state
+        for resource in resources:
+            del state.locks[resource]
+            state.residue.discard(resource)
+        if resources:
+            self._publish(
+                "lock_released", {"train": train, "resources": sorted(resources)}
+            )
+
+    def _release(self, train: str, keep: Collection[str] = ()) -> list[str]:
         """Everything the train holds, given up as one `lock_released` — all
         of it, or all of it but `keep`.
 
@@ -1029,16 +1115,20 @@ class Dispatcher:
         by **holder** rather than of a named set, and a caller that knew the
         set would be re-deriving the lock table.
 
-        `keep` is the block a train goes on standing in. A cancellation
-        releases everything the request took and leaves the train where it
-        is, which is a train at rest and its standing lock (ADR-0049); a
-        removal keeps nothing, the train being off the rails.
+        `keep` is what the train goes on holding. A cancellation releases
+        everything the request took and leaves the train where it is, which is
+        a train at rest and its standing lock (ADR-0049); a removal keeps what
+        still reads occupied (ADR-0069). Residue of an earlier removal is
+        never released here: it waits for its clear reading whatever the
+        train does next.
         """
         state = self._state
         released = sorted(
             resource
             for resource, holder in state.locks.items()
-            if holder == train and resource != keep
+            if holder == train
+            and resource not in keep
+            and resource not in state.residue
         )
         for resource in released:
             del state.locks[resource]
@@ -1075,7 +1165,13 @@ class Dispatcher:
             # with it, and neither belongs to a gesture that did nothing.
             self._sweep()
 
-    def _cancel(self, train: str, reason: Cancellation, defer: bool = False) -> bool:
+    def _cancel(
+        self,
+        train: str,
+        reason: Cancellation,
+        defer: bool = False,
+        keep: Collection[str] | None = None,
+    ) -> bool:
         """Every request the train has, retired without the train arriving.
         Answers whether the lock table or the waiting set moved.
 
@@ -1106,6 +1202,9 @@ class Dispatcher:
         (ADR-0048), which is the right answer to a detector firing under a
         train somebody has just moved by hand.
 
+        `keep` overrides the standing lock as what the active request leaves
+        held, for a removal, which keeps what still reads occupied instead.
+
         The answer is what a caller sweeps on: a deferred cancellation frees
         nothing and dequeues nothing, so there is nothing for a sweep to hand
         anybody, and a train with nothing in flight moves nothing at all.
@@ -1117,7 +1216,7 @@ class Dispatcher:
             if defer and active.outstanding is not None:
                 active.request.cancelled = True
             else:
-                self._retire(train, active, reason)
+                self._retire(train, active, reason, keep)
                 moved = True
         for req in [req for req in self._pending if req.train == train]:
             self._pending.remove(req)
@@ -1127,7 +1226,13 @@ class Dispatcher:
             self._settled()
         return moved
 
-    def _retire(self, train: str, active: Active, reason: Cancellation) -> None:
+    def _retire(
+        self,
+        train: str,
+        active: Active,
+        reason: Cancellation,
+        keep: Collection[str] | None = None,
+    ) -> None:
         """The active request ended: what it holds released, the train
         dropped out of everything that says it is running one, and the one
         event that says so.
@@ -1137,7 +1242,10 @@ class Dispatcher:
         of it is the duplicate it looks like.
         """
         state = self._state
-        self._release(train, keep=state.block_of.get(train))
+        if keep is None:
+            standing = state.block_of.get(train)
+            keep = () if standing is None else (standing,)
+        self._release(train, keep=keep)
         del state.active[train]
         state.crossing.pop(train, None)
         state.departure.pop(train, None)
@@ -1274,7 +1382,8 @@ class Dispatcher:
         state = self._state
         found = self._explained(block)
         if found is None or found[2].from_block != block:
-            self._unexplained()
+            if not self._lifted(block):
+                self._unexplained()
             return
         train, active, move = found
         active.outstanding = None
@@ -1291,6 +1400,28 @@ class Dispatcher:
                 del state.active[train]
                 self._publish("request_completed", {"id": active.request.id})
         self._sweep()
+
+    def _lifted(self, block: str) -> bool:
+        """A clear reading on a block a removed train still holds: the hand
+        has lifted the loco, and the block opens (ADR-0069). Answers whether
+        the reading was that.
+
+        The reading is explained, so the run does not hold. It releases the
+        block, and the transit kept for it once neither of that transit's
+        blocks is still residue, in one `lock_released` — and what it frees is
+        why a sweep runs here, as at the end of any move. A clear reading
+        under a train that stands in its block is still unexplained
+        (ADR-0048): a detector dropping out under a dirty wheel reads the
+        same, and only a removal says it was a lift.
+        """
+        state = self._state
+        if block not in state.residue:
+            return False
+        train = state.locks[block]
+        state.residue.discard(block)
+        self._open(train, [block, *self._spent(train)])
+        self._sweep()
+        return True
 
     def _on_power(self, payload: Payload) -> None:
         """What the layout says about whether a train may move at all.
