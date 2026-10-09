@@ -202,3 +202,58 @@ def test_a_train_lifted_where_it_was_placed_reads_nothing() -> None:
     seen = occupancy(bus)
     remove(bus, "freight_1")
     assert seen == []
+
+
+def place(bus: InProcessBus, train: str, block: str) -> None:
+    bus.publish("tc49/dispatch/train_placed", {"train": train, "block": block})
+    bus.drain()
+
+
+def test_a_train_placed_after_a_move_clears_nothing_when_lifted() -> None:
+    """Its detector read it occupied in `dn_w`, then a hand put it in `up_w`:
+    the detector under `dn_w` no longer reports it, so lifting it off reads
+    nothing clear (#677)."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    sim = timed(bus, layout, placement(scenario.trains))
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    step(sim, 2)
+    place(bus, "freight_1", "up_w")
+
+    seen = occupancy(bus)
+    remove(bus, "freight_1")
+    assert seen == []
+
+
+def test_a_train_placed_between_blocks_reaches_no_detector() -> None:
+    """Placed after the `move` and before its head reading: the head never
+    reaches the far detector and the tail has nothing left to clear, so
+    neither reading fires and the train stays where it was put (#677)."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    sim = timed(bus, layout, placement(scenario.trains))
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    place(bus, "freight_1", "up_w")
+
+    seen = occupancy(bus)
+    step(sim, 2)
+    assert seen == []
+    assert sim._position["freight_1"] == "up_w"  # pyright: ignore[reportPrivateUsage]
+
+
+def test_a_train_placed_between_blocks_takes_its_next_move() -> None:
+    """It is no longer mid-move once a hand has put it down, so a `move`
+    from the block it was put in is accepted and its readings fire (#677)."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    sim = timed(bus, layout, placement(scenario.trains))
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    place(bus, "freight_1", "up_w")
+
+    seen = occupancy(bus)
+    move(bus, "freight_1", "crossover.up_to_dn", "dn_e")
+    step(sim, 2)
+    assert seen == [
+        ("tc49/layout/block_occupied", {"block": "dn_e"}),
+        ("tc49/layout/block_vacated", {"block": "up_w"}),
+    ]
