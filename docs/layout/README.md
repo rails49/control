@@ -370,6 +370,12 @@ reported, not the wire.
 The points are written **again on every `align`**, never only on change: a hand
 may have flipped one since, and a translator throws what it is told (ADR-0043).
 
+An `align` whose `connection` and `transit` are both `null` is a throw by hand
+the dispatcher let through (ADR-0068). Its points are written like any other's,
+and it authorises no crossing, so a held `move` keeps waiting. Nothing else is
+checked: no lock, no power state, no run state. A frame with only one of the
+two `null` is dropped whole.
+
 ## Aspects
 
 On every `tc49/dispatch/state/aspects` this app writes `wanted/signal` for each
