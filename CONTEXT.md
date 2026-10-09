@@ -446,6 +446,11 @@ locks is. Of a route: chosen, and so fixed
 committed and locked at once, and the lock is then what it shows.
 _Avoid_: planned, plan, pending (a request pends, a resource does not)
 
+**Lit**:
+Of a transit: locked or committed, which is what the panel draws green or cyan
+dashed. Of a point: on a lit transit. A person's throw of a lit point is dropped
+([ADR-0068](docs/adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)).
+
 **Held**:
 Of a **run**: the dispatcher will commit nothing — no route chosen, no move
 granted, no lock taken — until a person releases it. One of the run's own

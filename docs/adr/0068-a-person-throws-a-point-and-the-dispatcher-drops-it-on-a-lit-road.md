@@ -56,8 +56,9 @@ panel: a point on a road the panel lights does not throw.
 
 ## Alternatives not taken
 
-- **The panel checks and publishes `align` itself.** `align` is browser-sendable
-  today. This puts a second judge of safety beside the dispatcher, and the
+- **The panel checks and publishes `align` itself.** `align` is not
+  browser-writable, and making it so would let any page throw a point under a
+  train. It also puts a second judge of safety beside the dispatcher, and the
   panel's picture can be out of date.
 - **A topic of its own, `tc49/layout/throw`.** The bus keeps no order across
   topics, so a route's `align` published after the throw could reach `layout`
@@ -72,8 +73,8 @@ panel: a point on a road the panel lights does not throw.
   accessory addresses on the hardware, so a throw sent to a signal's address
   would change its aspect.
 - A dropped request leaves no trace beyond the request itself. The panel
-  shows no click cursor on a lit point, so the drop is visible before the
-  click.
+  shows no click cursor on a lit point, nor on any point sharing an address
+  with a lit one, so the drop is visible before the click.
 - A throw while the run is held or the power is off is accepted. With power
   off the row is stored, and the point moves when power returns
   ([ADR-0054](0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
