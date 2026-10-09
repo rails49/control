@@ -87,6 +87,7 @@ TOPICS: dict[str, Topic] = {
     "tc49/dispatch/run_wanted": Topic(("run",), browser=True),
     "tc49/dispatch/placement_wanted": Topic(("train", "block"), browser=True),
     "tc49/dispatch/cancel_wanted": Topic(("train",), browser=True),
+    "tc49/dispatch/point_wanted": Topic(("addr", "position"), browser=True),
     "tc49/dispatch/request_admitted": Topic(("id", "dest", "pruned")),
     "tc49/dispatch/request_rejected": Topic(("id", "reason")),
     "tc49/dispatch/request_completed": Topic(("id",)),
