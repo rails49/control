@@ -73,7 +73,7 @@ export class TcRoster extends LitElement {
           `}
       ${this.run === "running"
         ? html`<p class="hint">
-            the run is running — hold it to place trains or take them off
+            the run is running — hold it to place trains
           </p>`
         : nothing}
     `;
