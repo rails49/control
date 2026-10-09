@@ -103,3 +103,102 @@ def test_the_placement_reaches_no_topic() -> None:
     inventory names no simulator topic, and where the steel stands is the
     app's own."""
     assert not [topic for topic in TOPICS if "simul" in topic]
+
+
+def timed(bus: InProcessBus, layout: Layout, stood: dict[str, str]) -> Simulator:
+    """The binding with a delay on each reading, so a test can stop a move
+    between its head and its tail: each `step` fires exactly one of them."""
+    return Simulator(bus, layout, Clock(), stood, transit_s=10.0, clear_s=10.0)
+
+
+def step(sim: Simulator, readings: int) -> None:
+    """Turns of the live loop, each sleeping one delay and so firing the one
+    reading due at its end."""
+    ticks = 0
+
+    def stop() -> bool:
+        nonlocal ticks
+        ticks += 1
+        return ticks > readings
+
+    sim.run_live(10.0, sleep=lambda _: None, stop=stop)
+
+
+def remove(bus: InProcessBus, train: str) -> None:
+    bus.publish("tc49/dispatch/train_removed", {"train": train})
+    bus.drain()
+
+
+def occupancy(bus: InProcessBus) -> list[tuple[str, Payload]]:
+    """The two detector readings alone."""
+    seen: list[tuple[str, Payload]] = []
+    for topic in ("tc49/layout/block_occupied", "tc49/layout/block_vacated"):
+        bus.subscribe(topic, lambda topic, payload: seen.append((topic, payload)))
+    return seen
+
+
+def test_a_lifted_train_clears_the_block_it_moved_into() -> None:
+    """The simulator stands in for the hand (ADR-0069 decision 7): its own
+    detector last read the train occupied in `dn_w`, so lifting it off reads
+    that block clear."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    sim = timed(bus, layout, placement(scenario.trains))
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    step(sim, 2)
+
+    seen = occupancy(bus)
+    remove(bus, "freight_1")
+    assert seen == [("tc49/layout/block_vacated", {"block": "dn_w"})]
+
+
+def test_a_train_lifted_across_a_transit_clears_both_blocks() -> None:
+    """Head in `dn_e`, tail still over `dn_w`: both read occupied for it, so
+    both read clear when it comes off, and the tail reading it had scheduled
+    never fires — there is no tail left to clear the near detector."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    sim = timed(bus, layout, placement(scenario.trains))
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    step(sim, 2)
+    move(bus, "freight_1", "crossover.dn_straight", "dn_e")
+    step(sim, 1)
+
+    seen = occupancy(bus)
+    remove(bus, "freight_1")
+    step(sim, 2)
+    assert sorted(seen, key=str) == [
+        ("tc49/layout/block_vacated", {"block": "dn_e"}),
+        ("tc49/layout/block_vacated", {"block": "dn_w"}),
+    ]
+
+
+def test_a_train_lifted_before_its_head_reading_clears_its_origin_alone() -> None:
+    """It moved into `dn_w` and has set off again, but the head has not
+    reached `dn_e`: only `dn_w` was read occupied for it, so only `dn_w`
+    reads clear, and neither of the move's readings fires afterwards."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    sim = timed(bus, layout, placement(scenario.trains))
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    step(sim, 2)
+    move(bus, "freight_1", "crossover.dn_straight", "dn_e")
+
+    seen = occupancy(bus)
+    remove(bus, "freight_1")
+    step(sim, 2)
+    assert seen == [("tc49/layout/block_vacated", {"block": "dn_w"})]
+
+
+def test_a_train_lifted_where_it_was_placed_reads_nothing() -> None:
+    """A train placed and never moved was never read occupied by this
+    binding's detectors, so lifting it reads nothing clear either."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    timed(bus, layout, placement(scenario.trains))
+    bus.publish("tc49/dispatch/train_placed", {"train": "freight_1", "block": "up_w"})
+    bus.drain()
+
+    seen = occupancy(bus)
+    remove(bus, "freight_1")
+    assert seen == []
