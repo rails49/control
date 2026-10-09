@@ -271,8 +271,8 @@ export class Panel {
   private locks = new Map<string, string>();
   /** block end → the aspect its signal shows, last as the dispatcher said. */
   private shown = new Map<EndRef, Aspect>();
-  /** address → the position the last `align` naming it commanded. Commanded,
-   *  not measured: nothing on the bus reports where a point actually lies. */
+  /** address → the position its `wanted/point` row last said. Commanded,
+   *  not measured: nothing this reads reports where a point actually lies. */
   private lyingByAddress = new Map<string, Position>();
   /** block → the train standing in it. */
   private standing = new Map<string, string>();
@@ -438,12 +438,15 @@ export class Panel {
         this.standing.delete(block);
         return;
       }
-      case "align": {
-        const { points } = event as unknown as {
-          points: { addr: string; position: Position }[];
+      case "wanted/point": {
+        // What `layout` asked the point at this address for, on a retained
+        // row (ADR-0068): every `align` lands here, a person's throw as much
+        // as a route's, and a page opened mid-session is handed the lot.
+        const { addr, position } = event as unknown as {
+          addr: string;
+          position: Position;
         };
-        for (const { addr, position } of points)
-          this.lyingByAddress.set(addr, position);
+        this.lyingByAddress.set(addr, position);
         return;
       }
       case "allocation": {
@@ -803,12 +806,13 @@ export class Panel {
    * Where each point lies, by the address its motor answers to
    * ([ADR-0022](../../../docs/adr/0022-a-symbol-carries-its-hardware-address.md)).
    *
-   * The dispatcher sends the points a transit's way needs with the alignment
-   * command, so this is a ledger of what it last said rather than anything
-   * derived: the panel neither knows which points a transit traverses nor
-   * works out how each must lie. An address stays where the last command
-   * naming it left it — `align` speaks for one transit and says nothing about
-   * the rest of the railroad.
+   * `layout` writes a retained `wanted/point` row for each point every
+   * `align` names, a route's or a person's throw
+   * ([ADR-0068](../../../docs/adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)),
+   * so this is a ledger of those rows rather than anything derived: the panel
+   * neither knows which points a transit traverses nor works out how each
+   * must lie. An address stays where its row last left it, and a page opened
+   * mid-session is handed every row since the broker came up.
    */
   positionsByAddress(): ReadonlyMap<string, Position> {
     return this.lyingByAddress;
