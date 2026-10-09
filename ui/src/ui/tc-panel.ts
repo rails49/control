@@ -755,6 +755,7 @@ export class TcPanel extends LitElement {
       drawing,
       review: this.review ?? UNREVIEWED,
       blocks: model.blocks(),
+      crossings: model.crossings(),
     };
   }
 
