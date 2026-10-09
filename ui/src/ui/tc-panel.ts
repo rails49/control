@@ -852,7 +852,7 @@ export class TcPanel extends LitElement {
    * request in flight: the panel's only pre-judgement of a gesture, against
    * the filter-free drag where every drop submits (ui/PANEL.md). "Turn
    * around" is greyed while it has one and "Cancel request" while it has
-   * none, the dispatcher dropping a cancel with nothing to end (ADR-0049).
+   * none (ADR-0049).
    * "Turn around" and not "Reverse", which is the throttle's word, this
    * moving nothing.
    *
