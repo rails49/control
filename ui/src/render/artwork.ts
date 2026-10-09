@@ -50,9 +50,10 @@ const RESTING: ReadonlyMap<string, Aspect> = new Map();
  * stays lit and the symbol says what a signal is rather than what one is
  * doing.
  *
- * `position` is where a point lies, as the alignment command commanded it
+ * `position` is where a point lies, as `layout`'s `wanted/point` row says
  * (ui/PANEL.md): the roads only the other position offers are drawn set
- * against. It defaults to none, which is edit mode and a symbol nothing has
+ * against. The run view hands none for a point on a lit road, the road being
+ * the position. It defaults to none, which is edit mode and a symbol nothing has
  * commanded yet — a drawing says what a point is, never where it lies.
  */
 export function artwork(
