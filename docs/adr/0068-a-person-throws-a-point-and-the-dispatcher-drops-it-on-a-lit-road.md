@@ -23,10 +23,11 @@ trains still move only on granted routes ([GOALS.md](../GOALS.md)).
 3. **The dispatcher drops it on a lit road.** If no point on the loaded
    railroad wears that address, or any point wearing it lies on the way of a
    transit that is locked or committed, the request is dropped with no
-   reply. Otherwise the dispatcher publishes `tc49/layout/throw`,
-   `{addr, position}`.
-4. **`layout` writes `wanted/point`** on `throw` as it does on `align`, and
-   checks nothing. Whatever drives the point acts on that row.
+   reply. Otherwise the dispatcher publishes `tc49/layout/align` with
+   `connection` and `transit` `null` and the one point in `points`.
+4. **`layout` writes `wanted/point`** for the points of every `align`, and
+   marks a transit aligned only where one is named. It checks nothing.
+   Whatever drives the point acts on that row.
 5. **The panel reads point positions from `wanted/point`**, not from `align`.
    The row is retained, so a panel opened mid-session knows every position
    commanded since the broker came up.
@@ -37,10 +38,13 @@ It already holds the locks and the committed routes, and handles requests one
 at a time. A click and a route commit therefore cannot overlap: either the
 throw is published before the commit, and the commit's own `align` sets the
 point again before the train moves, or the commit comes first and the throw is
-dropped. The panel's picture of the lit roads can be a moment old, so a panel
-that decided would let a throw through under a route committed a moment
-before. The dispatcher stays the one party that judges safety, which is what
-PANEL.md's objection protected.
+dropped. The throw and the route's `align` go on one topic from one publisher,
+which is the order the bus keeps
+([ADR-0008](0008-bus-contract-is-the-mqtt-safe-intersection.md)), so `layout`
+receives them in the order they were decided. The panel's picture of the lit
+roads can be a moment old, so a panel that decided would let a throw through
+under a route committed a moment before. The dispatcher stays the one party
+that judges safety, which is what PANEL.md's objection protected.
 
 ## Why committed counts as well as locked
 
@@ -55,14 +59,15 @@ panel: a point on a road the panel lights does not throw.
 - **The panel checks and publishes `align` itself.** `align` is browser-sendable
   today. This puts a second judge of safety beside the dispatcher, and the
   panel's picture can be out of date.
-- **The dispatcher publishes `align` for the throw.** `align` names a
-  connection and a transit, and a throw by hand has neither.
+- **A topic of its own, `tc49/layout/throw`.** The bus keeps no order across
+  topics, so a route's `align` published after the throw could reach `layout`
+  first, and the throw would then set the point under the train.
 - **`layout` checks.** It holds no locks and no routes.
 
 ## Consequences
 
-- The inventory gains two rows: `tc49/dispatch/point_wanted` (event,
-  browser-writable) and `tc49/layout/throw` (command, the dispatcher's).
+- The inventory gains one row, `tc49/dispatch/point_wanted` (event,
+  browser-writable). `align`'s `connection` and `transit` may be `null`.
 - An address no point wears is dropped. Points and signals share the
   accessory addresses on the hardware, so a throw sent to a signal's address
   would change its aspect.
