@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
 
 /**
- * Turning a train around: the right-click over the block it stands in, and the
- * one frame choosing *Turn around* writes
+ * Turning a train around and cancelling its request: the right-click over the
+ * block it stands in, and the one frame choosing *Turn around* or *Cancel
+ * request* writes
  * ([#124](https://github.com/rails49/control/issues/124),
+ * [#660](https://github.com/rails49/control/issues/660),
  * [ui/PANEL.md](../../docs/ui/PANEL.md)).
  *
  * A DOM suite because none of it is a model's. `Drag.trainAt` answers which
@@ -89,7 +91,10 @@ describe("what the right-click offers", () => {
   it("offers Turn around over the block a train stands in", async () => {
     const shell = await standing();
     expect(await clicked(shell, MIDDLE.a)).toEqual({ native: false });
-    expect(offered(shell)).toEqual([{ label: "Turn around", greyed: false }]);
+    expect(offered(shell)).toEqual([
+      { label: "Turn around", greyed: false },
+      { label: "Cancel request", greyed: true },
+    ]);
   });
 
   it("offers nothing over a block no train stands in", async () => {
@@ -126,7 +131,10 @@ describe("what the right-click offers", () => {
       { id: "r1", train: "goods", depart: "a.B", dest: ["b.A"] },
     ]);
     await clicked(shell, MIDDLE.a);
-    expect(offered(shell)).toEqual([{ label: "Turn around", greyed: true }]);
+    expect(offered(shell)).toEqual([
+      { label: "Turn around", greyed: true },
+      { label: "Cancel request", greyed: false },
+    ]);
   });
 });
 
@@ -143,6 +151,24 @@ describe("choosing Turn around", () => {
   });
 });
 
+/** Ending a train's request without it arriving (#660, ADR-0049). The
+ *  gesture names the train and no request, and the dispatcher ends whatever
+ *  that train has. */
+describe("choosing Cancel request", () => {
+  it("writes one cancel_wanted naming the train, and no more", async () => {
+    const shell = await standing([
+      { id: "r1", train: "goods", depart: "a.B", dest: ["b.A"] },
+    ]);
+    await clicked(shell, MIDDLE.a);
+    await chose(shell, "Cancel request");
+
+    expect(written()).toEqual([
+      { topic: "tc49/dispatch/cancel_wanted", payload: { train: "goods" } },
+    ]);
+    expect(offered(shell)).toEqual([]);
+  });
+});
+
 /**
  * The menu is about one train in one block, and the run can end both. Both
  * bugs #124 found running a live session were here: a menu that stayed up over
@@ -152,7 +178,7 @@ describe("a menu the run has outlived", () => {
   it("takes it down when the train leaves the block it was opened over", async () => {
     const shell = await standing();
     await clicked(shell, MIDDLE.a);
-    expect(offered(shell)).toHaveLength(1);
+    expect(offered(shell)).toHaveLength(2);
 
     await said(shell, ALLOCATION, {
       trains: { goods: "b" },
@@ -171,7 +197,7 @@ describe("a menu the run has outlived", () => {
   it("takes it down when the session goes", async () => {
     const shell = await standing();
     await clicked(shell, MIDDLE.a);
-    expect(offered(shell)).toHaveLength(1);
+    expect(offered(shell)).toHaveLength(2);
 
     Broker.last!.closes();
     await settled(shell);
@@ -185,7 +211,7 @@ describe("a menu the run has outlived", () => {
   it("takes it down when the app loads another railroad", async () => {
     const shell = await standing();
     await clicked(shell, MIDDLE.a);
-    expect(offered(shell)).toHaveLength(1);
+    expect(offered(shell)).toHaveLength(2);
 
     await loads(shell, "other");
 

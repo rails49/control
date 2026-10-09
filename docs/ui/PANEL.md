@@ -258,7 +258,7 @@ request the dispatcher then answers with `request_admitted` or
 `request_rejected`. The block's outer thirds name one arrival end — the end
 the train enters through, as [CONTEXT.md](../../CONTEXT.md) defines it — and
 the middle third names both, "either way round". Dropping on the train's own
-block cancels. The departure end is never part of the gesture: it is the
+block abandons the drag and writes nothing. The departure end is never part of the gesture: it is the
 train's **facing** end, which the scheduler holds and the dispatcher never
 sees ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)). Neither is the
 request id, which the scheduler mints. One drag names one
@@ -326,11 +326,18 @@ being released so the railroad can run it somewhere it is no longer going.
 Dropping it back into a block is the same act pointed the other way, and
 cancels the same request — `displaced` where `removed` was.
 
-The gesture that ends a request **without** moving the train,
-`tc49/dispatch/cancel_wanted`, is the panel's to place and is not drawn yet.
-Neither is `tc49/dispatch/request_cancelled` read yet: a request the panel is
-following and somebody ends stays in its list until the train is dragged
-again, which is the reading to add with the gesture.
+The gesture that ends a request **without** moving the train is **Cancel
+request** on the block's right-click menu, which publishes
+`tc49/dispatch/cancel_wanted` (`{train}`) and ends whatever that train has,
+active and queued
+([#660](https://github.com/rails49/control/issues/660), ADR-0049). The
+dispatcher republishes its picture when it cancels, and the lit route and
+markers go out with the request it no longer holds; `request_cancelled` is
+not read. A cancel that lands while the train is between blocks waits for the
+train to enter the block it was granted, and until then the route stays lit,
+because the train still holds it. A second press in that window does nothing.
+There is no confirmation: a menu is already two steps, and a new drag asks
+again.
 
 The two gestures a **throttle** rides on,
 `tc49/layout/mode_wanted` and `tc49/layout/throttle_wanted`, are drawn — in a
@@ -342,8 +349,8 @@ throttle and turning it are a person's actions on a UI like any other, and
 view's: there is one connection per page and this is what holds it, so the
 throttle asks and the run view publishes.
 
-**Right-clicking** the block a train stands in opens a menu with one item,
-**Turn around**, which publishes `tc49/schedule/reversal_wanted` (`{train}`). The
+**Right-clicking** the block a train stands in opens a menu with two items,
+**Turn around** and **Cancel request**. **Turn around** publishes `tc49/schedule/reversal_wanted` (`{train}`). The
 scheduler flips that train's **facing** to the other run across the block —
 `A-to-B` becomes `B-to-A` — and the arrow turns. That is the whole of the feedback: nothing
 moves, no request is composed, and no `tc49/dispatch` topic carries anything.
@@ -383,9 +390,10 @@ underneath, exactly as after a first right-click. Worth saying because it is
 the *same* overlay, the two menus falling and rising too fast for the one in
 between to be drawn ([#186](https://github.com/rails49/control/issues/186)).
 
-The item is **greyed while that train has a request in flight**, meaning any
-request from submit to completion. This is the panel's one pre-judgement of a
-gesture, against the filter-free drag, and it earns the exception: a disabled
+**Turn around** is **greyed while that train has a request in flight**,
+meaning any request from submit to completion, and **Cancel request** is
+greyed while it has none, the dispatcher dropping a cancel with nothing to end.
+This is the panel's one pre-judgement of a gesture, against the filter-free drag, and it earns the exception: a disabled
 item says the train is busy, where silence says nothing. Reversing under a
 queued request would produce a lie, since the request still departs the end the
 facing named when it was composed: the train the arrow now points one way would

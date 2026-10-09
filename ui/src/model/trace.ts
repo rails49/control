@@ -92,6 +92,7 @@ export const MODE_WANTED = "tc49/layout/mode_wanted";
 export const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
 export const RUN_WANTED = "tc49/dispatch/run_wanted";
 export const PLACEMENT_WANTED = "tc49/dispatch/placement_wanted";
+export const CANCEL_WANTED = "tc49/dispatch/cancel_wanted";
 export const POWER_WANTED = "tc49/layout/power_wanted";
 export const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
 
@@ -162,6 +163,14 @@ export function reversal(train: string): Frame {
  *  without it is not a train taken off the layout. */
 export function placement(train: string, block: string | null): Frame {
   return { topic: PLACEMENT_WANTED, payload: { train, block } };
+}
+
+/** A `cancel_wanted` frame: end this train's request without it arriving.
+ *  It names the train and no request, and the dispatcher ends whatever that
+ *  train has, pending and active
+ *  ([ADR-0049](../../../docs/adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)). */
+export function cancellation(train: string): Frame {
+  return { topic: CANCEL_WANTED, payload: { train } };
 }
 
 /** A `run_wanted` frame: hold the run, release it, or drain it. It says where
