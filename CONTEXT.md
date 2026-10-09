@@ -301,7 +301,9 @@ than a sentinel block name
 ([ADR-0039](docs/adr/0039-a-train-may-be-off-the-layout.md)). Every placed
 train is made of cars on the roster; a train may be placed nowhere, and an
 unplaced train has no **facing**, there being no block for a facing to be an
-end of.
+end of. A train just taken off the layout may still hold blocks that read
+occupied, each until it reads clear
+([ADR-0069](docs/adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
 _Avoid_: closet, positioned. *Not on the layout* is the same state said a
 second way, and the state has one phrase.
 
