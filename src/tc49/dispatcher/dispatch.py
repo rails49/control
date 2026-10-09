@@ -53,6 +53,7 @@ from tc49.lib.payload import (
     power,
     readable_id,
     run_state,
+    wanted_point,
 )
 from tc49.lib.rejection import Reason
 from tc49.lib.roster import Roster
@@ -812,9 +813,9 @@ class Dispatcher:
     # -- what is addressed to the dispatcher --------------------------------
 
     def _on_dispatch(self, topic: str, payload: Payload) -> None:
-        """The four topics the dispatcher responds to, on one filter.
+        """The five topics the dispatcher responds to, on one filter.
 
-        A request, and the three gestures a person makes on a page: all four
+        A request, and the four gestures a person makes on a page: all five
         name the dispatcher because the dispatcher is what answers them, and
         none of them says who sent it. The scheduler submits requests today
         and a second one could submit them tomorrow with nothing here to
@@ -835,6 +836,8 @@ class Dispatcher:
             self._place(payload)
         elif leaf == "cancel_wanted":
             self._revoke(payload)
+        elif leaf == "point_wanted":
+            self._throw(payload)
 
     def _set_run(self, payload: Payload) -> None:
         """Hold the run, or release it.
@@ -1658,6 +1661,55 @@ class Dispatcher:
                 "points": [
                     {"addr": point.addr, "position": point.position} for point in needed
                 ],
+            },
+        )
+
+    def _throw(self, payload: Payload) -> None:
+        """A person throwing a point by hand, passed on unless the point is
+        **lit** (ADR-0068).
+
+        Dropped in silence and to the trace, as every gesture the dispatcher
+        cannot act on is (ADR-0034), where the address is one no point on
+        this railroad wears — the one a signal wears would change its aspect
+        instead — and where **any** point wearing it lies on the way of a
+        transit that is locked, a crossing train's included, or committed
+        ahead of an active train. Points sharing an address move together,
+        so one of them on a lit road is the whole address on it.
+
+        Otherwise it goes out as an `align` naming no transit, carrying the
+        one point as asked: on `align` and not a topic of its own so that it
+        keeps its order against a route's (ADR-0008). The dispatcher keeps no
+        record of where it left the point. Every `align` sends all the points
+        its transit needs, so the next route over this one sets it again.
+
+        Neither the hold nor the power stops it. Throwing a point on a road
+        nothing is lit over commits nothing, which is all the hold refuses;
+        with the power off the layout stores the row and the point moves
+        when power returns (ADR-0054).
+        """
+        point = wanted_point(payload)
+        if point is None:
+            return
+        connections = self._state.layout.connections
+        worn = {
+            f"{name}.{transit}"
+            for name, connection in connections.items()
+            for transit, needed in connection.points.items()
+            if any(each.addr == point.addr for each in needed)
+        }
+        if not worn:
+            return
+        lit = set(self._state.locks)
+        for active in self._state.active.values():
+            lit.update(active.route.transits[active.cur_index :])
+        if worn & lit:
+            return
+        self._bus.publish(
+            "tc49/layout/align",
+            {
+                "connection": None,
+                "transit": None,
+                "points": [{"addr": point.addr, "position": point.position}],
             },
         )
 
