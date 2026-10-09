@@ -307,14 +307,17 @@ locomotive on the track and lifting it off are the same act with a different
 destination, so there is one leaf and one answer — `train_placed` or
 `train_removed`, which the picture follows.
 
-Both are **greyed while the run is running** and the pane says why. A
-placement is accepted only while the run is **held**: the dispatcher grants
-against its picture of where the trains are, and a block that fills or empties
-under it invalidates what it has already granted. This is a second
+Placing is **greyed while the run is running** and the pane says why. A
+placement into a block is accepted only while the run is **held**: the
+dispatcher grants against its picture of where the trains are, and a block
+that fills under it invalidates what it has already granted. This is a second
 pre-judgement beside the right-click's, and it earns the exception for the
 same reason — a still row says the run is running, where a swallowed gesture
-says nothing. A drop with no block under it — back on the pane, or on bare
-paper — writes nothing.
+says nothing. Taking a train off is not greyed: it only frees track, and the
+blocks the train reads occupied in stay held by it until they read clear
+([ADR-0069](../adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
+A train between two blocks is picked up from where it is drawn. A drop with
+no block under it — back on the pane, or on bare paper — writes nothing.
 
 A train **mid-request is lifted off with its request**: the dispatcher cancels
 whatever that train has and then takes it off, so `request_cancelled` arrives

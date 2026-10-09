@@ -513,7 +513,9 @@ payload is read defensively, and one that fails the read is dropped.
   block name, or `null` for off the layout. The key's presence is
   load-bearing: a payload without `block` fails the read, while an explicit
   `null` is a positive statement
-  ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
+  ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). A block is
+  accepted only while the run is held; `null` in any run state
+  ([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
 - `tc49/dispatch/cancel_wanted` — browser-writable — `train`. The gesture
   names no request: it ends whatever that train has, pending or active, and
   a train with nothing in flight is dropped like any other gesture the

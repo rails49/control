@@ -1,5 +1,11 @@
 # A train may be off the layout
 
+**Amended under
+[ADR-0069](0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md):**
+taking a train off the layout is accepted in any run state, and the blocks it
+reads occupied in stay held by it until they read clear. Putting a train on a
+block still needs the run held.
+
 A train is **known** by being in its railroad's roster and **placed** by being
 in the dispatcher's `block_of`. The two are separate, and a train that is known
 and placed nowhere is an ordinary state rather than a fault: it is off the
