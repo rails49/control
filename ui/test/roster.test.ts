@@ -181,7 +181,8 @@ describe("what fills it in a live session", () => {
  * a row picked up in the pane places its train, a marker picked up on the
  * canvas asks for a request, and dropping a marker back on the pane takes the
  * train off the layout. Never the run's state — one motion cannot mean two
- * things depending on a word in the band.
+ * things depending on a word in the band. The run's state only refuses: a
+ * placement while running, never a removal (ADR-0069).
  *
  * happy-dom's `getScreenCTM` is the identity, so a client pixel reads as a
  * grid square and a block's centre is the point to let go over.
@@ -314,10 +315,10 @@ describe("its drags", () => {
     ]);
   });
 
-  /** Both are refused while the run is running: the dispatcher would drop
-   *  them, granting against the picture the whole time, and the pane says so
-   *  rather than letting a drag be swallowed. */
-  it("is still while the run is running, and says why", async () => {
+  /** A placement is refused while the run is running: the dispatcher would
+   *  drop it, granting against the picture the whole time, and the pane says
+   *  so rather than letting a drag be swallowed. */
+  it("places nothing while the run is running, and says why", async () => {
     const shell = await joined();
     await said(shell, "tc49/dispatch/state/run", { run: "running" });
     await said(shell, "tc49/dispatch/state/allocation", {
@@ -327,11 +328,32 @@ describe("its drags", () => {
     });
 
     await dragRow(shell, "shunter", MIDDLE.b);
-    await dragMarker(shell, MIDDLE.a, { x: 550, y: 400 });
 
     expect(written()).toEqual([]);
     expect(paneOf(shell).renderRoot.querySelector(".hint")!.textContent).toContain(
-      "the run is running",
+      "the run is running — hold it to place trains",
     );
+  });
+
+  /** A removal is not (ADR-0069): the dispatcher keeps what still reads
+   *  occupied until it reads clear, so taking a train off is safe in any run
+   *  state. */
+  it("takes a train off the layout while the run is running", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/run", { run: "running" });
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { goods: "a" },
+      locks: { a: "goods" },
+      requests: [],
+    });
+
+    await dragMarker(shell, MIDDLE.a, { x: 550, y: 400 });
+
+    expect(written()).toEqual([
+      {
+        topic: "tc49/dispatch/placement_wanted",
+        payload: { train: "goods", block: null },
+      },
+    ]);
   });
 });

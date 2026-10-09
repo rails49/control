@@ -777,8 +777,10 @@ export class TcPanel extends LitElement {
   // The roster's two drags (ADR-0039). **The source decides what a drag
   // means**, never the run's state: a row picked up in the pane places its
   // train, a marker picked up on the canvas asks for a request, and one motion
-  // cannot come to mean two things depending on a word in the band. Both of
-  // these are refused while the run is running, which the pane says.
+  // cannot come to mean two things depending on a word in the band. A
+  // placement is refused while the run is running, which the pane says; a
+  // removal is not, the dispatcher keeping what still reads occupied until it
+  // reads clear (ADR-0069).
 
   /**
    * A row let go somewhere: one `placement_wanted` naming the block under the
@@ -812,10 +814,11 @@ export class TcPanel extends LitElement {
    *
    * The dispatcher releases what it held and answers `train_removed`, and the
    * marker leaves the canvas because the picture no longer has the train —
-   * this view retracts nothing of its own.
+   * this view retracts nothing of its own. In any run state (ADR-0069): a
+   * train taken off while running leaves its occupied blocks held until they
+   * read clear.
    */
   private lift(train: string): void {
-    if (this.panel?.run !== "held") return;
     this.send(placement(train, null));
   }
 
