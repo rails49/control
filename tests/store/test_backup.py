@@ -37,6 +37,10 @@ pytestmark = pytest.mark.skipif(
     shutil.which("git") is None, reason="the app drives git, and there is none here"
 )
 
+keygen = pytest.mark.skipif(
+    shutil.which("ssh-keygen") is None, reason="the store's key is ssh-keygen's"
+)
+
 
 class FakeGit:
     """A git that answers what the test says and remembers what it was asked.
@@ -56,9 +60,19 @@ class FakeGit:
         # What `log @{u}..HEAD --format=%ct` answers: the backups the remote
         # has not been given, newest first, as unix seconds.
         self.uncopied: list[int] = []
+        # Whether `@{u}` resolves: a clone made by hand has a remote and no
+        # upstream, and `log @{u}..HEAD` is then a refusal.
+        self.upstream = True
+        # Every commit on the branch, as `log HEAD --format=%ct` answers.
+        self.branch: list[int] = []
+        # The `-c` settings each push was handed, in order.
+        self.settings: list[tuple[str, ...]] = []
 
-    def __call__(self, root: Path, *args: str, timeout: float | None = None) -> Said:
+    def __call__(self, root: Path, *given: str, timeout: float | None = None) -> Said:
+        settings, args = said_with(given)
         self.calls.append(args)
+        if args[0] == "push":
+            self.settings.append(settings)
         if args[0] == "rev-parse":
             top = self.toplevel if self.toplevel is not None else str(root)
             return Said(self.toplevel != "", top)
@@ -76,12 +90,27 @@ class FakeGit:
             self.deadline = timeout
             return self.pushes
         if args[0] == "log" and "@{u}..HEAD" in args:
+            if not self.upstream:
+                return Said(False, "fatal: no upstream configured for branch 'main'")
             return Said(True, "\n".join(str(made) for made in self.uncopied))
+        if args[0] == "log" and "HEAD" in args:
+            return Said(True, "\n".join(str(made) for made in self.branch))
         return Said(True, "")
 
     @property
     def messages(self) -> list[str]:
         return [call[2] for call in self.calls if call[0] == "commit"]
+
+
+def said_with(given: tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """A command split into the `-c` settings it was handed and the rest,
+    which starts with the git subcommand."""
+    settings: list[str] = []
+    rest = list(given)
+    while len(rest) >= 2 and rest[0] == "-c":
+        settings.append(rest[1])
+        rest = rest[2:]
+    return tuple(settings), tuple(rest)
 
 
 class FakeClock:
@@ -350,7 +379,7 @@ class SlowGit(FakeGit):
         self.release = threading.Event()
 
     def __call__(self, root: Path, *args: str, timeout: float | None = None) -> Said:
-        if args[0] == "push":
+        if said_with(args)[1][0] == "push":
             self.pushing.set()
             self.release.wait(timeout=5.0)
         return super().__call__(root, *args, timeout=timeout)
@@ -400,6 +429,76 @@ def test_the_button_answers_with_the_commit_and_leaves_the_copy_to_the_timer(
 
     backup.due()  # the tick the press asked for, with no timer left to wait
     assert ("push",) in run.calls
+
+
+def test_a_press_pushes_with_automatic_backup_off(
+    tmp_path: Path, clock: FakeClock
+) -> None:
+    """The switch governs what happens unasked: the idle commit and the push
+    timer. A backup somebody pressed for is pushed as well as committed, or
+    it reads a day later as a network fault (#688)."""
+    run = FakeGit(porcelain=" M layouts/reversing-loops.drawing.yaml\n")
+    backup = Backup(tmp_path, run=run, log=lambda _: None, now=clock)
+    assert not backup.automatic
+
+    assert backup.back_up().ok
+    backup.due()
+
+    assert run.messages == ["backup: reversing-loops"]
+    assert ("push",) in run.calls
+
+
+def test_the_timers_still_wait_for_the_switch(tmp_path: Path, clock: FakeClock) -> None:
+    """What a press does with the switch off is the press's: nothing pushes
+    on the timer for a store whose backup is off."""
+    run = FakeGit(porcelain=" M layouts/reversing-loops.drawing.yaml\n")
+    backup = Backup(tmp_path, run=run, log=lambda _: None, now=clock)
+    backup.saved()
+    clock.now += 1000.0
+    backup.due()
+    assert run.messages == []
+    assert ("push",) not in run.calls
+
+
+def test_every_push_names_the_stores_settings(tmp_path: Path, clock: FakeClock) -> None:
+    """Whatever the repository's own config holds: a clone made by hand
+    carries neither the key nor the upstream setting, and pushed under the
+    machine's key into a missing upstream for five weeks (#688)."""
+    run = FakeGit(porcelain=" M layouts/reversing-loops.drawing.yaml\n")
+    backup = backing(tmp_path, run, clock)
+    backup.saved()
+    backup.quit()
+    assert run.settings == [("push.autoSetupRemote=true",)]
+
+
+@keygen
+def test_a_store_with_a_key_pushes_under_it(tmp_path: Path) -> None:
+    keys = tmp_path / "keys"
+    run = FakeGit()
+    backup = Backup(tmp_path / "tc49", run=run, keys=keys)
+    assert backup.push().ok
+    assert run.settings == [
+        (
+            "push.autoSetupRemote=true",
+            f"core.sshCommand=ssh -i {keys / KEY} -o IdentitiesOnly=yes",
+        )
+    ]
+
+
+def test_a_branch_with_no_upstream_is_waiting_in_full(tmp_path: Path) -> None:
+    """A remote and no upstream is a branch never pushed. Read as nothing
+    waiting, a push that never once worked showed nothing (#688)."""
+    day = 24 * 60 * 60
+    run = FakeGit()
+    run.upstream = False
+    run.branch = [10 * day - 60, 10 * day - 2 * day]
+    backup = Backup(tmp_path, run=run, log=lambda _: None, wall=lambda: 10 * day)
+
+    copy = backup.copy()
+
+    assert copy["waiting"] == 2
+    assert copy["since"] == 2 * day
+    assert copy["stale"]
 
 
 def test_a_copy_is_given_a_deadline(tmp_path: Path, clock: FakeClock) -> None:
@@ -708,6 +807,27 @@ def test_it_pushes_to_a_remote_and_says_when_it_cannot(
     assert any("gone.git" in line for line in log)
 
 
+def test_a_clone_made_by_hand_pushes_and_gets_an_upstream(
+    repository: Path, tmp_path: Path
+) -> None:
+    """A store cloned by hand onto a box with no upstream branch: the first
+    push sets one rather than failing with "no upstream branch", and until
+    it does every backup on the branch counts as waiting (#688)."""
+    remote = tmp_path / "remote.git"
+    run_git(tmp_path, "init", "-q", "--bare", "-b", "main", str(remote))
+    run_git(repository, "remote", "add", "origin", str(remote))
+    backup = Backup(repository, log=lambda _: None)
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    assert backup.commit().ok
+    assert backup.copy()["waiting"] == 1
+
+    said = backup.push()
+
+    assert said.ok, said.words
+    assert "backup: reversing-loops" in run_git(remote, "log", "--format=%s")
+    assert backup.copy()["waiting"] == 0
+
+
 def test_the_watch_lets_the_timers_fire(repository: Path) -> None:
     """The thread decides nothing; what is asserted is that it ticks at all,
     and that stopping it stops the ticking."""
@@ -749,10 +869,6 @@ def test_a_machine_with_no_git_says_that_rather_than_run_git_init(
 
 
 # --- adopting a repository the person made (#355) -----------------------------
-
-keygen = pytest.mark.skipif(
-    shutil.which("ssh-keygen") is None, reason="the store's key is ssh-keygen's"
-)
 
 
 @keygen
