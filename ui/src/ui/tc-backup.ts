@@ -12,6 +12,8 @@
  * whether a restore is refused, what a missing remote means — and this draws
  * what came back and presses what a person chose
  * ([ADR-0053](../../../docs/adr/0053-backup-drives-git-and-does-not-own-it.md)).
+ * The one rule it wears is the app's, and is handed in: trains on the layout
+ * freeze a restore as they freeze an edit (#684).
  * git's words are shown as they came: the app knows nothing to add to them,
  * and paraphrasing a rejected push would be inventing an explanation.
  *
@@ -51,6 +53,11 @@ export class TcBackup extends LitElement {
   /** What the app knows about backup, `null` while the dialog is shut. The
    *  same shape the properties dialog takes: closed is nothing to draw. */
   @property({ attribute: false }) backing: Backing | null = null;
+
+  /** Whether trains are on the layout, as `frozen` in model/commands.ts reads
+   *  it. A restore can take away track a train stands on, so it waits for
+   *  them to come off, as an edit does (#684). */
+  @property({ attribute: false }) frozen = false;
 
   /** The backup a person has picked to come back to, `null` while none is.
    *  Restoring takes two presses — the one that chooses and the one that does
@@ -101,11 +108,14 @@ export class TcBackup extends LitElement {
         ${backing.trouble === null
           ? nothing
           : html`<p class="wrong">${backing.trouble}</p>`}
+        ${this.frozen
+          ? html`<p class="hint">trains are on the layout — take them off to restore</p>`
+          : nothing}
         <sl-button slot="footer" @click=${this.close}>Close</sl-button>
         <sl-button
           slot="footer"
           variant="warning"
-          ?disabled=${this.picked === null || backing.busy}
+          ?disabled=${this.picked === null || backing.busy || this.frozen}
           @click=${this.restore}
         >
           Restore
@@ -243,7 +253,7 @@ export class TcBackup extends LitElement {
   }
 
   private restore(): void {
-    if (this.picked !== null) void this.backing?.restore(this.picked);
+    if (this.picked !== null && !this.frozen) void this.backing?.restore(this.picked);
   }
 
   /** Shut it. What was picked goes with it: the next time this opens, the

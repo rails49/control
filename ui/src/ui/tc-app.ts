@@ -171,10 +171,11 @@ export class TcApp extends LitElement {
 
   override render() {
     const name = this.filing.opened === "" ? null : this.filing.opened;
-    // One reading of the rule for the two that wear it: the band says why, and
-    // the editing view is what it is about (model/commands.ts). The band is
-    // told only while that view is current (#517) — the mark explains the
-    // editor's dead verbs, and this is what knows which view is up.
+    // One reading of the rule for the three that wear it: the band says why,
+    // the editing view is what it is about (model/commands.ts), and the backup
+    // dialog will not restore under it (#684). The band is told only while
+    // that view is current (#517) — the mark explains the editor's dead verbs,
+    // and this is what knows which view is up.
     const still = frozen(this.standing);
     return html`
       <tc-header
@@ -252,6 +253,7 @@ export class TcApp extends LitElement {
 
       <tc-backup
         .backing=${this.backingUp ? this.backing : null}
+        .frozen=${still}
         @backup-closed=${() => {
           this.backingUp = false;
         }}

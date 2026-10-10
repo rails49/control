@@ -208,6 +208,13 @@ function press(surface: TcBackup, label: string): void {
   (found as HTMLElement).click();
 }
 
+/** The footer's Restore press. */
+function restoring(surface: TcBackup): HTMLButtonElement {
+  return [...surface.renderRoot.querySelectorAll("sl-button")].find((button) =>
+    (button.textContent ?? "").includes("Restore"),
+  ) as unknown as HTMLButtonElement;
+}
+
 afterEach(() => {
   document.body.replaceChildren();
 });
@@ -307,6 +314,29 @@ describe("the backup dialog", () => {
 
     expect(store.asked).toContain("restore 9f8e7d6");
     expect(reads(surface)).toContain("changed since the last backup");
+  });
+
+  /** A restore can take away track a train stands on, so it is refused
+   *  while any is placed — the rule a layout edit follows (#684). The press
+   *  is greyed and says why, rather than asking the store and being told. */
+  it("will not restore while trains are on the layout", async () => {
+    const { dialog: surface, store } = await dialog();
+    surface.frozen = true;
+    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+    await surface.updateComplete;
+
+    expect(restoring(surface).disabled).toBe(true);
+    expect(reads(surface)).toContain(
+      "trains are on the layout — take them off to restore",
+    );
+    press(surface, "Restore");
+    await new Promise((settle) => setTimeout(settle, 0));
+    expect(store.asked).not.toContain("restore 9f8e7d6");
+
+    surface.frozen = false;
+    await surface.updateComplete;
+    expect(restoring(surface).disabled).toBe(false);
+    expect(reads(surface)).not.toContain("trains are on the layout");
   });
 
   it("says it was closed rather than closing anything itself", async () => {
