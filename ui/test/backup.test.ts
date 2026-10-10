@@ -20,7 +20,7 @@ import type { BackupDoc } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcBackup } from "../src/ui/tc-backup.js";
 import { band, mounted, pressed, serving, settled, UNBACKED } from "./support/shell.js";
-import { brokering, joined, said, unbrokered, written } from "./support/session.js";
+import { brokering, joined, loads, said, unbrokered, written } from "./support/session.js";
 
 /** A store that is a repository with one drawing waiting and one backup in
  *  it: the ordinary state, which is what most of these are about. */
@@ -452,6 +452,15 @@ describe("the backup dialog", () => {
     expect(restoring(surface).disabled).toBe(false);
   });
 
+  /** A person pressing Restore on a run that is up is told what follows it
+   *  before pressing, not after (#699). */
+  it("says the apps and the page reload after a restore", async () => {
+    const { dialog: surface } = await dialog();
+    expect(reads(surface)).toContain(
+      "Restore puts the store back as the picked backup held it; the apps and this page then reload",
+    );
+  });
+
   /** With nothing loaded no app runs a drawing, so any backup will do —
    *  one without a railroad drawn since among them (#697). */
   it("restores any backup with no railroad loaded, whatever the supply", async () => {
@@ -645,8 +654,8 @@ describe("what follows a restore", () => {
     automatic: true,
     outstanding: [],
     ok: true,
-    said: "restored toy from 9f8e7d6",
-    backups: KEPT.backups.map((backup) => ({ ...backup, railroads: ["toy"] })),
+    said: "restored reversing-loops from 9f8e7d6 of 2026-08-30 18:02",
+    backups: KEPT.backups.map((backup) => ({ ...backup, railroads: ["reversing-loops", "toy"] })),
   };
 
   beforeEach(() => {
@@ -655,10 +664,12 @@ describe("what follows a restore", () => {
 
   afterEach(unbrokered);
 
-  async function restores(shell: TcApp): Promise<number> {
-    let reloads = 0;
+  /** Restore the older backup, and what the bus had heard each time the page
+   *  reloaded — so a reload before the press would show as one without it. */
+  async function restores(shell: TcApp): Promise<unknown[][]> {
+    const reloads: unknown[][] = [];
     shell.reload = () => {
-      reloads += 1;
+      reloads.push(written());
     };
     await chooseBackup(shell);
     const surface = open(shell)!;
@@ -670,16 +681,27 @@ describe("what follows a restore", () => {
     return reloads;
   }
 
-  it("asks for the loaded railroad again, then reloads the page", async () => {
-    const shell = await joined("edit");
-    await said(shell, "tc49/layout/state/power", { power: "off" });
-    serving({ drawings: ["toy"], backup: RESTORED });
+  /** What the page has asked for on `railroad_wanted`. */
+  function wants(): unknown[] {
+    return written().filter(
+      (one) => (one as { topic: string }).topic === "tc49/layout/railroad_wanted",
+    );
+  }
 
-    expect(await restores(shell)).toBe(1);
-    expect(written()).toContainEqual({
-      topic: "tc49/layout/railroad_wanted",
-      payload: { railroad: "toy" },
-    });
+  /** Every app builds the loaded railroad again from what the restore wrote,
+   *  and the page reads it afresh, so the editor cannot save back what it
+   *  read before (#699). */
+  it("names the loaded railroad again, then reloads the page", async () => {
+    const shell = await mounted("edit");
+    await loads(shell, "reversing-loops");
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+    serving({ drawings: ["reversing-loops"], backup: RESTORED });
+
+    const wanted = { topic: "tc49/layout/railroad_wanted", payload: { railroad: "reversing-loops" } };
+    const reloads = await restores(shell);
+    expect(reloads).toHaveLength(1);
+    expect(reloads[0]).toContainEqual(wanted);
+    expect(wants()).toEqual([wanted]);
   });
 
   /** The dialog is told the loaded railroad by the app, as it is told the
@@ -697,12 +719,44 @@ describe("what follows a restore", () => {
     expect(reads(surface)).toContain("this backup has no toy — load another railroad first");
   });
 
-  it("reloads the page with no railroad loaded all the same", async () => {
+  /** The track power the app hears is what the dialog wears (#699). */
+  it("will not restore while the loaded railroad's track has power", async () => {
+    const shell = await joined("edit");
+    await said(shell, "tc49/layout/state/power", { power: "on" });
+    serving({ drawings: ["toy"], backup: RESTORED });
+    await chooseBackup(shell);
+    const surface = open(shell)!;
+    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+    await surface.updateComplete;
+
+    expect(restoring(surface).disabled).toBe(true);
+    expect(reads(surface)).toContain("track power is on — turn it off to restore");
+
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+    await surface.updateComplete;
+    expect(restoring(surface).disabled).toBe(false);
+  });
+
+  it("reloads the page with no railroad loaded, naming none", async () => {
     serving({ drawings: [], backup: RESTORED });
     const shell = await mounted("edit");
 
-    expect(await restores(shell)).toBe(1);
+    expect(await restores(shell)).toHaveLength(1);
     expect(written()).toEqual([]);
+  });
+
+  /** A refusal changed nothing, so there is nothing to read again (#699). */
+  it("neither names the railroad nor reloads after a refused restore", async () => {
+    const shell = await mounted("edit");
+    await loads(shell, "reversing-loops");
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+    serving({
+      drawings: ["reversing-loops"],
+      backup: { ...RESTORED, ok: false, said: "refused: reversing-loops changed since the last backup" },
+    });
+
+    expect(await restores(shell)).toEqual([]);
+    expect(wants()).toEqual([]);
   });
 });
 
