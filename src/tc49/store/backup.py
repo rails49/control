@@ -432,10 +432,18 @@ class Backup:
 
         `waiting` is wall-clock seconds since the oldest uncopied backup was
         made, and `stale` is that against :data:`STALE_S`. Both are absent
-        where there is nothing waiting or no upstream to measure against — a
-        store with no remote is :meth:`needs`'s to talk about, not this.
+        where there is nothing waiting. A store with no remote is
+        :meth:`needs`'s to talk about, not this; one with a remote and no
+        upstream counts its whole branch.
         """
         said = self._run(self.root, "log", "@{u}..HEAD", "--format=%ct")
+        if not said.ok and self.remote() is not None:
+            # A remote and no upstream: a clone made by hand, whose branch was
+            # never pushed. Nothing has reached the remote as far as this
+            # repository knows, so every backup on the branch is waiting —
+            # where reading the failure as nothing waiting hid a push that
+            # had never once worked (#688).
+            said = self._run(self.root, "log", "HEAD", "--format=%ct")
         made = [int(line) for line in said.words.split() if line.isdigit()]
         waiting = self._wall() - min(made) if said.ok and made else None
         last = self._push_said
@@ -541,6 +549,25 @@ class Backup:
             )
         return None
 
+    def _settings(self) -> list[str]:
+        """The git settings every push and every clone passes, as `-c` pairs.
+
+        Two of them. The store's own key as git's ssh command, where it has
+        a key and somewhere to keep it, so that git offers that and not
+        whatever else the machine has; and `push.autoSetupRemote`, so the
+        first push of a branch that has never been pushed sets its upstream
+        rather than failing for want of one. Passed on the command line every
+        time, because a repository cloned by hand carries neither in its
+        config and the push must not depend on how the repository was made
+        (#688). A workstation with no place for a key passes only the second
+        and pushes with the machine's own ssh key, as it always did.
+        """
+        settings = ["-c", "push.autoSetupRemote=true"]
+        if self._keys is not None and self.key() is not None:
+            ssh = f"ssh -i {self._keys / KEY} -o IdentitiesOnly=yes"
+            settings += ["-c", f"core.sshCommand={ssh}"]
+        return settings
+
     def status(self) -> dict[str, Any]:
         """The whole of what the UI reads: where the store is, whether it can
         be backed up, whether it is being, what is outstanding and what there
@@ -570,19 +597,27 @@ class Backup:
         """One tick of the watch. Commit where the store has gone quiet, push
         where the timer is up and there is something to push.
 
-        Both are silent where automation is off, which is the state a fresh
-        installation is in: nothing is committed until somebody asks for it,
-        by the switch or by the button.
+        Both timers are silent where automation is off, which is the state a
+        fresh installation is in: nothing is committed until somebody asks for
+        it, by the switch or by the button. **A push a press asked for is
+        made either way** — *Back up now*, a restore — because the switch
+        governs what happens unasked, and a backup somebody asked for that
+        never left the box reads a day later as a network fault (#688).
         """
         with self._lock:
-            if not self.automatic:
-                return
             now = self._now()
-            if self._touched is not None and now - self._touched >= self._idle_s:
+            automatic = self.automatic
+            if (
+                automatic
+                and self._touched is not None
+                and now - self._touched >= self._idle_s
+            ):
                 self._touched = None
                 self._backed_up(self.commit())
-            due = self._push_wanted or now - self._pushed_at >= self._push_s
-            pushing = self._unpushed and due
+            timer = (
+                automatic and self._unpushed and now - self._pushed_at >= self._push_s
+            )
+            pushing = self._push_wanted or timer
             if pushing:
                 # Claimed here, under the lock, so that the next tick does not
                 # decide the same push is due while this one is still running.
@@ -665,15 +700,11 @@ class Backup:
             self.root.mkdir(parents=True, exist_ok=True)
             into = Path(tempfile.mkdtemp(prefix=".adopting-", dir=self.root))
             try:
-                settings = ["-c", "push.autoSetupRemote=true"]
-                if self._keys is not None and self.key() is not None:
-                    ssh = f"ssh -i {self._keys / KEY} -o IdentitiesOnly=yes"
-                    settings += ["-c", f"core.sshCommand={ssh}"]
                 said = self._run(
                     self.root,
                     "clone",
                     "--quiet",
-                    *settings,
+                    *self._settings(),
                     "--",
                     url,
                     str(into),
@@ -719,6 +750,12 @@ class Backup:
         that is out and the upstream it has — none of that is this app's to
         decide, and a store with no remote reads git's own refusal.
 
+        **Under the store's own settings, whatever the repository's config
+        holds** (:meth:`_settings`). A repository adoption made carries them in
+        its config already; one cloned by hand does not, and pushed with
+        whatever key the machine had and failed on its missing upstream for
+        five weeks before anybody looked (#688).
+
         **Called with no lock held**, and given a deadline, because this is
         the one thing here that waits on another machine.
 
@@ -734,7 +771,9 @@ class Backup:
         said = (
             Said(False, unusable)
             if unusable is not None
-            else self._run(self.root, "push", timeout=self._push_timeout_s)
+            else self._run(
+                self.root, *self._settings(), "push", timeout=self._push_timeout_s
+            )
         )
         with self._lock:
             self._pushed_at = self._now()
@@ -757,8 +796,11 @@ class Backup:
             self._touched = None
             said = self.commit()
             self._backed_up(said)
-            if said.ok and self._unpushed:
-                # Asked for rather than made here. The press is answered by
+            if said.ok:
+                # Asked for rather than made here, and asked for whether or
+                # not anything was committed just now: a press means the copy
+                # too, and commits an earlier push never delivered are as
+                # much the press's as the one it made (#688). The press is answered by
                 # the commit, which is the backup; the copy off this machine
                 # is the next tick's, so that a remote nobody can reach does
                 # not hold this reply — and with it every other route the
