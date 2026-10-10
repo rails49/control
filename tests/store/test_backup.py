@@ -818,6 +818,41 @@ def test_a_restore_is_backed_up_and_keeps_the_switch(repository: Path) -> None:
     )
 
 
+def test_a_restore_to_a_backup_without_the_switch_leaves_it_on(
+    repository: Path,
+) -> None:
+    """A backup made before backup was ever switched holds no `backup.yaml`;
+    restoring it does not delete the one the store has since (#695)."""
+    backup = Backup(repository, log=lambda _: None)
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    backup.commit()
+    first = backup.backups()[0]["commit"]
+    assert "backup.yaml" not in run_git(repository, "ls-tree", "--name-only", first)
+    backup.switch(True)
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\nsymbols: {}\n")
+    backup.commit()
+
+    assert backup.restore(first).ok
+    assert backup.automatic
+    assert (repository / SWITCH).exists()
+    assert backup.outstanding() == []
+
+
+def test_restoring_the_backup_the_store_holds_commits_nothing(
+    repository: Path,
+) -> None:
+    """Nothing moved, so there is nothing to back up (#695)."""
+    backup = Backup(repository, log=lambda _: None)
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    backup.commit()
+    held = backup.backups()[0]["commit"]
+
+    said = backup.restore(held)
+
+    assert said.ok, said.words
+    assert [one["commit"] for one in backup.backups()] == [held]
+
+
 def test_a_restore_asks_for_a_push(tmp_path: Path, clock: FakeClock) -> None:
     """Whatever the switch says: it is a press, and the backup it makes
     leaves the box on the next tick (#688)."""
