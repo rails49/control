@@ -593,6 +593,17 @@ def test_a_store_that_is_not_a_repository_says_what_backup_needs(
     assert not backup.push().ok
 
 
+def test_a_store_that_is_not_a_repository_points_a_new_box_to_its_section(
+    tmp_path: Path,
+) -> None:
+    """The other way in from no repository is an old box's: draw nothing, and
+    enter the repository it backed up to. The setup words say so and name
+    the page that walks through it (#694)."""
+    words = Backup(tmp_path, run=FakeGit(toplevel="")).needs()[0]
+    assert "draw nothing" in words
+    assert "Moving to a new box in docs/store/BACKUP.md" in words
+
+
 def test_a_store_inside_a_larger_repository_is_not_one(tmp_path: Path) -> None:
     """A checkout's `bench/` is what a developer runs a session on, and
     committing there would land the store's backups in the control repository
