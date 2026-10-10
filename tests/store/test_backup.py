@@ -855,6 +855,12 @@ def test_a_store_that_is_its_own_repository_is_inside_none(repository: Path) -> 
     assert Backup(repository).status()["inside"] is None
 
 
+def test_a_store_in_no_repository_is_inside_none(tmp_path: Path) -> None:
+    """A fresh installation: nothing around it, and the UI reads that as no
+    backup set up rather than as a checkout's `bench/` (#691)."""
+    assert Backup(tmp_path, run=FakeGit(toplevel="")).status()["inside"] is None
+
+
 def test_a_restore_to_a_backup_that_is_not_there_reads_gits_own_words(
     repository: Path,
 ) -> None:
