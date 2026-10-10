@@ -315,6 +315,15 @@ still the person's** — nothing about whose the documents are changes. A box
 whose account changes uid gets the new name on its next deploy, which rebuilds
 the image anyway.
 
+**A key that has to be replaced is replaced from the dialog.** A key
+GitHub refuses as *Key is already in use* — still held by a repository deleted
+without taking it off first — needs no terminal: *New key* in `File ▸
+Backup…` deletes the pair in the `keys` volume and makes a new one, and shows
+its public half to add under *Settings ▸ Deploy keys* with *Allow write
+access* ([#693](https://github.com/rails49/control/issues/693),
+[store/BACKUP.md](store/BACKUP.md#setting-one-up)). The terminal step below is
+only for a key the store cannot read, which it cannot delete either.
+
 **A box deployed before the store ran as the person is fixed by removing that
 volume once.** Docker fills a named volume from the image only while the
 volume is empty, so a `keys` volume made before

@@ -214,7 +214,9 @@ LAN is still the trust boundary and a browser is not on it
   merged — refused in words naming both — and an address not in ssh form is
   refused before anything is cloned, an https one answered with its ssh form.
   `POST /backup/key` replaces the deploy key pair and answers with the new
-  public half. The push goes out under a deploy key the store makes for
+  public half, refused where the store has nowhere to keep a key or is inside
+  another repository
+  ([#693](https://github.com/rails49/control/issues/693)). The push goes out under a deploy key the store makes for
   itself where it was given somewhere to keep one (`tc49 serve --keys`), named
   on every push whatever the repository's config holds, with the upstream set
   on the first push of a branch that has none;
