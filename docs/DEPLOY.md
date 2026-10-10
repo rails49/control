@@ -292,7 +292,8 @@ railroad is drawn.
 
 Turning the store into a git repository is offered through the app rather
 than needing a terminal (#355): the backup dialog shows the key the store made
-for itself and takes the address of an empty repository the person made. That key lives in the `keys`
+for itself and takes the address of an empty repository the person made, or
+of the one an old box backed up to (#694). That key lives in the `keys`
 docker volume — outside the store, so no commit can carry it, and on no host
 path — and GitHub's host keys are in the image, so the first push is checked
 against them rather than asked about ([store/BACKUP.md](store/BACKUP.md)).
