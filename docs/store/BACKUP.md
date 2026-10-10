@@ -43,7 +43,11 @@ with backup on.
 what github.com shows under *Code ▸ SSH*. The store pushes over ssh with its
 own key, so an https address is refused before anything is cloned, and the
 refusal carries the ssh form of the same repository to paste instead
-([#688](https://github.com/rails49/control/issues/688)).
+([#688](https://github.com/rails49/control/issues/688)) — the same words
+whether the address was copied with `.git`, without it, or with a trailing
+`/` ([#692](https://github.com/rails49/control/issues/692)). A path on this
+machine or a `file://` address is let through too, needing no key; any other
+address is refused.
 
 **What the address does depends on the store and the repository**, and the
 dialog says which happened:
@@ -74,10 +78,11 @@ nowhere to keep a key — `tc49 serve` on a workstation without `--keys` —
 pushes with whatever ssh key that machine already has, and the dialog says so.
 
 **A deploy key opens one repository.** GitHub refuses a key already
-registered on another repository with *Key is already in use* — and a
-repository deleted without its deploy key removed first keeps the key with it.
-Remove the key from a repository's deploy keys before deleting that
-repository. Where that was not done, *New key* in the dialog replaces the
+registered on another repository with *Key is already in use*. To move to
+another, delete it from the old repository under *Settings ▸ Deploy keys*
+before deleting that repository, because a deleted repository keeps its keys
+in use; the dialog's setup text says the same
+([#692](https://github.com/rails49/control/issues/692)). Where that was not done, *New key* in the dialog replaces the
 store's key pair and shows the new public half to add; it asks once first,
 because the key in use stops working until the new one is added
 ([#688](https://github.com/rails49/control/issues/688)).
