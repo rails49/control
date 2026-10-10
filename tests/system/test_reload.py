@@ -86,6 +86,11 @@ UP_S = 30.0
 waits out its own window for the rows the broker holds, and builds. Generous
 because a failure here is asserted on the log rather than waited for."""
 
+PRESS_S = 3.0
+"""How long one press of the picker is given to be taken before it is
+pressed again: well over the second an app waits for the rows it owns on a
+reload, so that a press that landed is not followed by another."""
+
 STALE_TRACTION = "tc49/layout/state/wanted/traction/17"
 """A desired speed for an address neither railroad's roster has, as a
 previous railroad's would be — the row nothing republishes and nothing else
@@ -166,22 +171,32 @@ def pick(bus: MqttBus, railroad: str) -> None:
 
 
 def picks(bus: MqttBus, railroad: str, running: Process) -> None:
-    """The gesture, said again until the app is up on the railroad it names.
+    """The gesture, said again until the app takes it, and then waited out
+    until the app is up on the railroad it names.
 
     For the case where the supply the gesture is conditional on was written
     by this same hand a moment earlier: the two are different topics, and the
     bus orders nothing between two topics (ADR-0008), so a gesture that
     arrived first is a gesture read against the rails as they were. A person
     with a picker in front of them presses it again, and that is the whole of
-    what this does — a press naming the railroad already loaded is ignored,
-    so repeating one that landed costs nothing.
+    what this does. Each press is given `PRESS_S` to be taken before the next,
+    because a press naming the railroad already loaded builds it again
+    (#688): one that landed after the first was taken would be a second
+    reload.
     """
+    loading = f"loading '{railroad}'"
+    up = f"up on '{railroad}'"
+    taken = running.said().count(loading)
+    was_up = running.said().count(up)
 
-    def said() -> bool:
+    def pressed() -> bool:
         pick(bus, railroad)
-        return f"up on '{railroad}'" in running.said()
+        return until(lambda: running.said().count(loading) > taken, PRESS_S)
 
-    assert until(said, UP_S), f"it never came up on '{railroad}':\n{running.said()}"
+    assert until(pressed, UP_S), f"it never took '{railroad}':\n{running.said()}"
+    assert until(
+        lambda: running.said().count(up) > was_up, UP_S
+    ), f"it never came up on '{railroad}':\n{running.said()}"
 
 
 def dark(bus: MqttBus) -> None:
@@ -583,3 +598,64 @@ def test_a_publisher_that_reads_the_store_builds_its_sensor_names_again(
     left = sorted(name for name in watching.names if name.split(".")[0] in WAS_BLOCKS)
     assert not left, f"it still watches {left} of '{WAS}'"
     writing.close()
+
+
+# --- the railroad already loaded, built again (#688) ------------------------
+
+
+@pytest.mark.parametrize("app", ["scheduler", "dispatcher", "driver"])
+def test_a_follower_rebuilds_the_railroad_built_again(
+    app: str, broker: Broker, store: Store, tmp_path: Path
+) -> None:
+    """After a restore the binding of the layout interface builds the loaded
+    railroad again from the store, and its row carries a new stamp. Every app
+    following the row rebuilds on that, so the dispatcher routes over the
+    drawing the store now holds.
+
+    And only on that: the first row naming the railroad an app was started
+    on is the build it runs, and the row the broker hands over again on every
+    subscription a rebuild makes carries the stamp it had. An app that
+    rebuilt on either would rebuild for ever."""
+    running = started(app, broker, store, tmp_path)
+    try:
+        writing = hand(broker)
+        load(writing, WAS)
+        settle(writing, 2.0)
+        assert running.said().count(f"up on '{WAS}'") == 1, running.said()
+
+        load(writing, WAS)
+        assert until(
+            lambda: running.said().count(f"up on '{WAS}'") == 2, UP_S
+        ), running.said()
+
+        settle(writing, 3.0)
+        assert running.said().count(f"up on '{WAS}'") == 2, running.said()
+        assert running.running, f"the {app} stopped:\n{running.said()}"
+        writing.close()
+    finally:
+        running.stop()
+
+
+@pytest.mark.parametrize("app", ["layout", "simulator"])
+def test_the_railroad_already_loaded_is_built_again_when_named(
+    app: str, broker: Broker, store: Store, tmp_path: Path
+) -> None:
+    """Naming the railroad that is loaded means "run what the store holds",
+    under the same precondition as naming another: the binding builds it
+    again and republishes its row with a new stamp, which is what every app
+    following the row rebuilds on (#688)."""
+    running = started(app, broker, store, tmp_path)
+    try:
+        writing = hand(broker)
+        if app == "layout":
+            dark(writing)
+        before = picture(broker)[RAILROAD]
+
+        picks(writing, WAS, running)
+
+        after = picture(broker)[RAILROAD]
+        assert after["name"] == WAS
+        assert after["at"] != before["at"], "the row was not published again"
+        writing.close()
+    finally:
+        running.stop()

@@ -105,11 +105,23 @@ class Loaded:
         bus.subscribe(RAILROAD, self._said)
 
     def _said(self, topic: str, payload: Payload) -> None:
-        """A railroad named on the row. The same one is not a move — the
-        binding of the interface that owns the row republishes it, and an app
-        that rebuilt on every republication would rebuild on its own
-        neighbour's heartbeat. A payload naming nothing readable is dropped:
-        anything at all can arrive on a topic (BUS.md, rule 4).
+        """A railroad named on the row. A payload naming nothing readable is
+        dropped: anything at all can arrive on a topic (BUS.md, rule 4).
+
+        **A build is the name and the stamp**, and this app rebuilds where
+        either differs from the build it runs. The binding that owns the row
+        publishes it once per build, from its constructor, and a retained
+        value is handed over again with the stamp it had — so the same stamp
+        is the same build, handed over again on every subscription this app
+        makes, and is not a move. A new stamp on the same name is that
+        railroad built again from the store, after a restore wrote it, and
+        an app still running what it read before would route over a drawing
+        the store no longer holds (#688).
+
+        An app started on a name knows no stamp for it, and the first row
+        naming its own railroad is taken as the build it is running rather
+        than as a move: it has just read the store. A row on the same name
+        that carries no readable stamp says nothing about a build.
 
         **The row that was refused is not tried again.** A retained value is
         handed over afresh every time this app subscribes, and subscribing is
@@ -121,9 +133,16 @@ class Loaded:
         stamp, and that one is taken (#240).
         """
         name = payload.get("name")
-        if not isinstance(name, str) or not name or name == self._name:
+        if not isinstance(name, str) or not name:
             return
-        self._take(name, (name, payload.get(AT)))
+        row = (name, payload.get(AT))
+        if name == self._name:
+            if row == self._took or row[1] is None:
+                return
+            if self._took[0] != name or self._took[1] is None:
+                self._took = row
+                return
+        self._take(name, row)
 
     def _take(self, name: str, row: tuple[str, object]) -> None:
         """Load `name` next: the row that named it is remembered so that a
@@ -229,10 +248,16 @@ class Answering(Loaded):
 
     def _wanted(self, topic: str, payload: Payload) -> None:
         """A railroad asked for. Dropped where the payload names nothing
-        readable, where it names the railroad already running, or where the
-        supply does not read `off` — a refusal with nowhere to go, this app
-        answering nothing (ADR-0034), and the picker is what says why while
-        the track has power.
+        readable, or where the supply does not read `off` — a refusal with
+        nowhere to go, this app answering nothing (ADR-0034), and the picker
+        is what says why while the track has power.
+
+        **The railroad already running is answered like any other** (#688).
+        Naming a railroad means "run what the store holds", and after a
+        restore the store holds something other than what this app was built
+        from: it is built again, under the same precondition, and the row it
+        publishes from its constructor carries a new stamp, which is what
+        every app following the row rebuilds on.
 
         **The precondition binds a railroad that is loaded.** An app that is
         standing holds `NO_RAILROAD`: nothing is bound to the steel, no
@@ -244,7 +269,7 @@ class Answering(Loaded):
         is not (#564).
         """
         railroad = payload.get("railroad")
-        if not isinstance(railroad, str) or not railroad or railroad == self._name:
+        if not isinstance(railroad, str) or not railroad:
             return
         if self._name and self._precondition is not None and self._power != OFF:
             return
