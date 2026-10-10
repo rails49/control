@@ -322,9 +322,9 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Trace tap | `tc49/#` |
 
 Every app but the layout interface also subscribes
-`tc49/layout/state/railroad`, and acts on one thing only: a name other than
-the one it is running, which is a railroad being loaded under it (ADR-0060,
-above). A translator does so where it reads the store: one publishing
+`tc49/layout/state/railroad`, and acts on one thing only: a name or a stamp
+other than the build it is running, which is a railroad being loaded under it
+(ADR-0060, #688, above). A translator does so where it reads the store: one publishing
 `device/sensor` reads the names the hardware knows those sensors by out of
 the drawing, and those are a railroad's (ADR-0063, below). One that reads
 nothing does not, hardware needing no layout. The layout interface does not
@@ -403,7 +403,15 @@ its two names, as each topic states.
   railroad being loaded while the apps run: the app built on the last one
   stops answering, the retained rows it owns are **cleared**, and it is built
   again on the new one — a cold start that happens without a restart
-  (ADR-0060, `lib/loading.py`). Clearing rather than republishing, because a
+  (ADR-0060, `lib/loading.py`). **So is the same name with another stamp**
+  ([#688](https://github.com/rails49/control/issues/688)): the binding
+  publishes the row once per build, from its constructor, so `at` says when
+  this railroad was built and is unchanged when the broker hands the row over
+  again. A new `at` on the running railroad's name is that railroad built
+  again from the store — after a restore wrote it — and every app following
+  the row rebuilds on it, translators reading sensor names from the drawing
+  and the UI among them. An app started on a railroad knows no stamp for it,
+  and takes the first row naming it as the build it runs. Clearing rather than republishing, because a
   desired speed for a locomotive the new railroad does not have, or occupancy
   for a block end it does not have, is a row nothing would ever republish and
   a page opened afterwards would read as current. A railroad the store cannot
@@ -420,6 +428,11 @@ its two names, as each topic states.
   app follows the **state** row and never this, as the scheduler follows
   `train_placed` and never `placement_wanted`. One writing role (ADR-0035),
   one responder (rule 4).
+  **Naming the railroad already loaded is answered like naming another**
+  ([#688](https://github.com/rails49/control/issues/688)): it means "run
+  what the store holds", so the binding builds it again from the store under
+  the same precondition and republishes the state row with a new `at`. The
+  UI publishes it after a restore, for that reason.
   **Track power off is the precondition.** It is answered only where
   `tc49/layout/state/power` reads `off`, and dropped otherwise — a refusal
   with nowhere to go, this app answering nothing, and the picker is what says

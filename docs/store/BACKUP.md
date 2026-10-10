@@ -36,12 +36,30 @@ The store clones the repository and moves the clone's `.git` in under the
 drawings already there, which become the first backup. Then *Turn automatic
 backup on* in the same dialog, which writes `backup.yaml` in the store. It is
 a document of the installation like the catalogue is, so it is backed up with
-the rest and a restored store comes back with backup still on.
+the rest, and a box that takes the store over from its repository comes back
+with backup on.
 
-A repository that already holds anything is refused: that is a restore onto a
-new box, which is a different act, and the dialog says so rather than
-guessing which was meant. Until a repository is adopted the store still works:
-the server comes up, the editor saves, and backup says what is missing.
+**The address is ssh form**, `git@github.com:you/my-railroad.git`, which is
+what github.com shows under *Code ▸ SSH*. The store pushes over ssh with its
+own key, so an https address is refused before anything is cloned, and the
+refusal carries the ssh form of the same repository to paste instead
+([#688](https://github.com/rails49/control/issues/688)).
+
+**What the address does depends on the store and the repository**, and the
+dialog says which happened:
+
+| Store | Repository | What happens |
+| --- | --- | --- |
+| empty, no repository | empty | backed up to it |
+| has documents, no repository | empty | backed up to it; the documents are the first backup |
+| empty, no repository | has backups | its latest backup is brought in ([Moving to a new box](#moving-to-a-new-box)) |
+| has documents, no repository | has backups | refused, naming both — the two are never merged |
+| a repository | empty | backup moves there ([Moving to another repository](#moving-to-another-repository)) |
+| a repository | has backups | refused |
+
+An empty store has no document in it; `backup.yaml` alone counts as empty.
+Until a repository is adopted the store still works: the server comes up, the
+editor saves, and backup says what is missing.
 
 **The key.** It is made by the store the first time the dialog asks for it,
 where `tc49 serve --keys` gave it somewhere to keep one — on the layout server
@@ -52,6 +70,15 @@ nothing else of yours either. Revoking it is deleting it from the repository's
 deploy keys. A store with nowhere to keep a key — `tc49 serve` on a
 workstation without `--keys` — pushes with whatever ssh key that machine
 already has, and the dialog says so.
+
+**A deploy key opens one repository.** GitHub refuses a key already
+registered on another repository with *Key is already in use* — and a
+repository deleted without its deploy key removed first keeps the key with it.
+Remove the key from a repository's deploy keys before deleting that
+repository. Where that was not done, *New key* in the dialog replaces the
+store's key pair and shows the new public half to add; it asks once first,
+because the key in use stops working until the new one is added
+([#688](https://github.com/rails49/control/issues/688)).
 
 **A key is both halves, and the dialog shows one only where it holds the
 other.** The public half is world-readable and the private half is not, so a
@@ -94,6 +121,13 @@ Which documents those are is `git status`'s answer and not a list this keeps,
 so a roster edited by hand in another window is named as readily as a drawing
 saved from the editor.
 
+**Every push names the store's key and sets an upstream**
+([#688](https://github.com/rails49/control/issues/688)): the key as git's ssh
+command where the store has one, and `push.autoSetupRemote`, passed on every
+push whatever the repository's own config holds. A store cloned onto a box by
+hand carries neither, and its pushes went out under whatever key the machine
+had into a branch with no upstream — for five weeks, with nobody told.
+
 **A push on its own timer**, `PUSH_S`, and on quit. The commit is the backup
 that matters and the push is the copy off this machine, so a remote that
 cannot be reached is logged and the next timer tries again. **A lost network
@@ -109,13 +143,43 @@ tick. And a push is **given up on after `PUSH_TIMEOUT_S`**, because a remote
 that refuses answers at once while one that is unreachable does not answer at
 all, and quitting has to be able to finish.
 
+**A press pushes with automatic backup off.** The switch governs what happens
+unasked — the idle commit and the push timer. *Back up now* and a restore ask
+for a push, which the next tick makes whatever the switch says, so a backup
+somebody asked for leaves the box rather than reading a day later as a network
+fault ([#688](https://github.com/rails49/control/issues/688)).
+
 **A copy that keeps failing does get said out loud, after a day.** Each
 failure on its own is a network coming and going and is only logged. What the
 store reports instead is how far behind the copy is — how many backups the
 remote has not been given and how old the oldest is, which is asked of git
-(`git log @{u}..HEAD`) rather than remembered, so a restart does not forget
-it. Past `STALE_S` the editor marks `File ▸ Backup…`. Without that, a remote
+(`git log @{u}..HEAD`, or the whole branch where a remote has no upstream)
+rather than remembered, so a restart does not forget it. Past `STALE_S` the
+run view says *backup behind* in the band, with git's words from the last push
+as its tooltip — a missing key and a deleted repository read differently —
+and the editor marks `File ▸ Backup…` the same way. Without that, a remote
 that moved is invisible until the disk it was protecting against fails.
+
+**What the band says** ([#688](https://github.com/rails49/control/issues/688)).
+The run view's note and the menu's mark follow one rule, the first that holds:
+
+| The store | Says |
+| --- | --- |
+| inside another repository (a checkout's `bench/`) | nothing |
+| no repository — never set up, or copied to a box without one | *no backup set up* |
+| the copy more than a day behind | *backup behind*, git's words as tooltip |
+| a repository missing something — no remote, a key it cannot read | *backup cannot run*, the reason as tooltip |
+| a repository with automatic backup off | *backup is off* |
+| anything else, a single failed push included | nothing |
+
+Pressing the note opens `File ▸ Backup…`. The app asks again every hour, so a
+copy that went behind after the page loaded still shows.
+
+**A repository edited elsewhere stops pushes.** A commit made on github.com,
+or by another box pushing to the same repository, is one the store does not
+have, and git refuses every push after it. The store does not fetch, merge or
+resolve that: it reports git's words, and after a day the band says *backup
+behind*.
 
 ## Restoring
 
@@ -127,22 +191,71 @@ session you are trying to get out of was itself backed up.
 naming them. Those are exactly the ones git cannot give back. Back the store
 up first — one press — and then restore.
 
-**A restore while any train is placed on the layout is refused** too, the rule
-a layout edit follows: the backup may not have the track a train stands on.
-The dialog greys *Restore* and says *trains are on the layout — take them off
-to restore* (#684). The app wears the rule; the store server does not check it,
-as it checks nothing for edits.
+**A restore waits while the layout could disagree with the store.** The
+dialog greys *Restore* and says why (#684,
+[#688](https://github.com/rails49/control/issues/688)):
+
+- a train placed — *trains are on the layout — take them off to restore*: the
+  backup may not have the track a train stands on;
+- a railroad loaded and track power not off — *track power is on — turn it
+  off to restore*: the rails and the drawing are never changed under a moving
+  train;
+- the picked backup without the loaded railroad — *this backup has no*
+  `<railroad>` *— load another railroad first*: the apps would go on running a
+  railroad the store no longer holds.
+
+The app wears these rules; the store server checks none of them, as it checks
+nothing for edits — it hears nothing from the bus.
+
+**A restore is a complete act.** It leaves `backup.yaml` as it is, so undoing
+a drawing mistake never stops backups; it is committed at once under a message
+naming the backup it came from and the documents it changed, so a power cut
+does not lose it and a wrong pick is one more press; and it is pushed like any
+press. Afterwards the app asks for the loaded railroad again on
+`tc49/layout/railroad_wanted`, which builds it again from the store in every
+app, and reloads the page, so the editor cannot save back a copy it read
+before the restore.
 
 Restoring drops a railroad drawn after that backup along with an edit made
 since, because the store comes back as that backup held it. Nothing is lost by
 it: the backup you came from is still in the history and restoring it is the
 same one press.
 
+## Moving to a new box
+
+The new box's store is empty. In order:
+
+1. On the new box, open `File ▸ Backup…` and copy the key it shows.
+2. On github.com, in the repository's *Settings ▸ Deploy keys*, remove the
+   old box's key — a deploy key opens one repository, and the old box should
+   no longer push here — and add the new box's, with *Allow write access*.
+3. In the dialog, enter the repository's ssh address and press *Back up to
+   it*. The store clones it and holds the latest backup, `backup.yaml` with it,
+   so backup is on again if it was on before, and pushes go out under the new
+   box's key.
+
+Drawing anything on the new box before step 3 makes its store not empty, and
+the dialog then refuses, naming both the store's documents and the
+repository's backups: the two are never merged.
+
+## Moving to another repository
+
+Make an **empty** repository, add the store's key to its deploy keys (remove
+it from the old repository first — see [the key](#setting-one-up)), and enter
+its address in the dialog of the store already backed up, under *back up to
+another repository*. The store pushes its whole history there, so every
+earlier backup stays restorable, and only then points its remote at the new
+address; a move that fails partway leaves it backing up where it did. A
+repository that already holds backups is refused.
+
 ## What it will not do
 
 - **Make the repository or the remote.** The person makes the repository, in
   a web form, and the remote arrives with the address they enter; the store
-  clones and never runs `git init` or `git remote add`.
+  clones and never runs `git init` or `git remote add`. Moving changes the
+  address of the remote there is; a store with none has nothing to move.
+- **Fetch or pull.** The store reaches the repository only to clone it, list
+  its refs and push.
 - **Resolve a conflict.** It reports what git said and stops. A store is one
   person's, and sharing one between people is not something this offers.
 - **Hold a credential of yours.** The key it pushes with is its own, opens one
