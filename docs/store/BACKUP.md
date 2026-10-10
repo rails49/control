@@ -211,7 +211,9 @@ dialog greys *Restore* and says why (#684,
   train;
 - the picked backup without the loaded railroad — *this backup has no*
   `<railroad>` *— load another railroad first*: the apps would go on running a
-  railroad the store no longer holds.
+  railroad the store no longer holds. Each backup lists the railroads it holds
+  by their drawings, so a railroad drawn after it is the one it lacks
+  ([#697](https://github.com/rails49/control/issues/697)).
 
 The app wears these rules; the store server checks none of them, as it checks
 nothing for edits — it hears nothing from the bus.
