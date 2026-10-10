@@ -146,10 +146,10 @@ export class TcApp extends LitElement {
    *  would discard it asks first the same way (#415). */
   @state() private rosterEdits = false;
 
-  /** Whether the backup dialog is up. The store is asked once when the app
-   *  comes up and again whenever the dialog is opened: what a railroad that is
-   *  not being backed up needs is to reach the person who never opens this
-   *  (#321), and that costs one `GET /backup` a page load. */
+  /** Whether the backup dialog is up. The store is asked when the app comes
+   *  up, every hour after, and whenever the dialog is opened: what a railroad
+   *  that is not being backed up needs is to reach the person who never opens
+   *  this (#321), on a page that may stay open for days (#691). */
   @state() private backingUp = false;
 
   /** What the run view says about itself: the broker, how far the run has
