@@ -854,10 +854,9 @@ class Backup:
                 if holds:
                     return Said(
                         False,
-                        f"{self.root} is a repository already"
-                        + (f", backing up to {where}" if where else "")
-                        + f"; {url} holds backups of its own, and backup moves"
-                        " only to an empty repository",
+                        f"{url} already holds backups, and backup moves only"
+                        " to an empty repository"
+                        + (f"; still backing up to {where}" if where else ""),
                     )
                 return self._move(url, where)
             if holds:
@@ -945,39 +944,52 @@ class Backup:
 
     def _move(self, url: str, was: str | None) -> Said:
         """Back up to the empty repository at `url` from now on, the whole
-        history pushed there first (#688).
+        history pushed there first (#688, #698).
 
         **The address changes only once the push has worked**, so a move
         that fails partway — the key not added there yet, the network gone —
-        leaves the store backing up where it did. The second push, to
-        `origin` once it names the new address, sends nothing and is what
-        has git's record of the remote's branches follow it, which is what
-        the copy's report reads.
+        leaves the store backing up where it did. Then the branch follows
+        `origin/<branch>`, its record set to what was just pushed, which is
+        what the push to `origin` would have written and costs no second
+        trip to the network; the copy's report reads it, and reads nothing
+        waiting.
+
+        A store that has not made its first backup has nothing to push, and
+        only its address changes; the first push sets the upstream.
 
         The store still never makes a remote: one with none has nothing to
         move, and is :meth:`needs`'s words.
         """
         if was is None:
             return Said(False, self.needs()[0])
-        pushed = self._run(
-            self.root,
-            *self._settings(),
-            "push",
-            "--quiet",
-            "--",
-            url,
-            "refs/heads/*:refs/heads/*",
-            "refs/tags/*:refs/tags/*",
-            timeout=self._push_timeout_s,
-        )
-        if not pushed.ok:
-            return Said(False, f"still backing up to {was}: {pushed.words}")
+        branch = self._run(self.root, "symbolic-ref", "--short", "HEAD")
+        if not branch.ok:
+            return Said(False, f"still backing up to {was}: {branch.words}")
+        head = self._run(self.root, "rev-parse", "--verify", "--quiet", "HEAD")
+        if head.ok:
+            pushed = self._run(
+                self.root,
+                *self._settings(),
+                "push",
+                "--quiet",
+                "--",
+                url,
+                f"{head.words}:refs/heads/{branch.words}",
+                timeout=self._push_timeout_s,
+            )
+            if not pushed.ok:
+                return Said(False, f"still backing up to {was}: {pushed.words}")
         moved = self._run(self.root, "remote", "set-url", "origin", url)
         if not moved.ok:
             return Said(False, f"still backing up to {was}: {moved.words}")
-        self._unpushed = True
-        self._push_wanted = True
-        return Said(True, f"backing up to {url}, every backup there; was {was}")
+        if not head.ok:
+            return Said(True, f"backing up to {url}, with no backups yet")
+        tracking = f"refs/remotes/origin/{branch.words}"
+        self._run(self.root, "update-ref", tracking, head.words)
+        self._run(self.root, "branch", f"--set-upstream-to=origin/{branch.words}")
+        made = self._run(self.root, "rev-list", "--count", head.words)
+        count = "1 backup" if made.words == "1" else f"{made.words} backups"
+        return Said(True, f"backing up to {url}, with {count}")
 
     def _documents(self) -> list[str]:
         """The documents under the store, named as the store names them: what
