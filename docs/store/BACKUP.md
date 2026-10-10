@@ -82,10 +82,18 @@ registered on another repository with *Key is already in use*. To move to
 another, delete it from the old repository under *Settings ▸ Deploy keys*
 before deleting that repository, because a deleted repository keeps its keys
 in use; the dialog's setup text says the same
-([#692](https://github.com/rails49/control/issues/692)). Where that was not done, *New key* in the dialog replaces the
-store's key pair and shows the new public half to add; it asks once first,
-because the key in use stops working until the new one is added
-([#688](https://github.com/rails49/control/issues/688)).
+([#692](https://github.com/rails49/control/issues/692)).
+
+**New key** is for when that was not done: the old repository is gone and
+GitHub still answers *Key is already in use*, or the key has leaked. It
+deletes the store's key pair and makes a new one, and shows the new public half
+to add to the repository with write access; take the old one off the
+repository that has it, where that repository still exists. It asks once
+first, because the key in use stops working until the new one is added
+([#688](https://github.com/rails49/control/issues/688),
+[#693](https://github.com/rails49/control/issues/693)). A store with nowhere
+to keep a key, or inside another repository, has none to replace and is
+refused.
 
 **A key is both halves, and the dialog shows one only where it holds the
 other.** The public half is world-readable and the private half is not, so a
