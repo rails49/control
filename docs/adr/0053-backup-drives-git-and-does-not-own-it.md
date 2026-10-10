@@ -22,6 +22,11 @@ clause above is read with that exception. What it still never holds is a
 credential of the person's — a token, or the machine's own ssh key, either of
 which opens more than the one repository.
 
+*Amended by [#698](https://github.com/rails49/control/issues/698).* The
+address it backs up to may be changed to an empty repository the person made.
+The store pushes its whole history there and only then points `origin` at it.
+That changes a remote the clone brought; it still never makes one.
+
 *Amended by [#688](https://github.com/rails49/control/issues/688), worded
 for the maintainer's approval.* The store may change the address it backs up
 to, to an empty repository, by pushing its whole history there and then
