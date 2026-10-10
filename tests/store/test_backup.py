@@ -460,6 +460,22 @@ def test_the_timers_still_wait_for_the_switch(tmp_path: Path, clock: FakeClock) 
     assert ("push",) not in run.calls
 
 
+def test_the_push_timer_waits_for_the_switch_with_commits_unpushed(
+    tmp_path: Path, clock: FakeClock
+) -> None:
+    """A commit nobody pressed for — made here by hand — leaves something to
+    push, and with the switch off the push period passing pushes none of it
+    (#690)."""
+    run = FakeGit(porcelain=" M layouts/reversing-loops.drawing.yaml\n")
+    backup = Backup(tmp_path, run=run, log=lambda _: None, now=clock, push_s=300.0)
+    assert not backup.automatic
+    assert backup.commit().ok
+    clock.now += 1000.0
+    backup.due()
+    assert run.messages == ["backup: reversing-loops"]
+    assert ("push",) not in run.calls
+
+
 def test_every_push_names_the_stores_settings(tmp_path: Path, clock: FakeClock) -> None:
     """Whatever the repository's own config holds: a clone made by hand
     carries neither the key nor the upstream setting, and pushed under the
