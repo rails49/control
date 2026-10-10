@@ -876,17 +876,18 @@ def test_a_restore_asks_for_a_push(tmp_path: Path, clock: FakeClock) -> None:
 def test_each_backup_names_the_railroads_it_holds(repository: Path) -> None:
     """What the UI checks a restore against: a backup lacking the railroad
     that is loaded would leave the apps running one the store no longer
-    has (#688)."""
+    has (#688, #697). A roster beside a drawing is no railroad of its own."""
     backup = Backup(repository, log=lambda _: None)
-    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
-    (repository / "layouts" / "reversing-loops.roster.yaml").write_text("trains: {}\n")
+    drawn(repository, "a", "drawing: a\n")
+    drawn(repository, "b", "drawing: b\n")
+    (repository / "layouts" / "a.roster.yaml").write_text("trains: {}\n")
     backup.commit()
-    drawn(repository, "crossover-yard", "drawing: crossover-yard\n")
+    drawn(repository, "c", "drawing: c\n")
     backup.commit()
 
     assert [one["railroads"] for one in backup.backups()] == [
-        ["crossover-yard", "reversing-loops"],
-        ["reversing-loops"],
+        ["a", "b", "c"],
+        ["a", "b"],
     ]
 
 
