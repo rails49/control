@@ -474,6 +474,9 @@ export interface Backup {
   commit: string;
   said: string;
   when: string;
+  /** The railroads this backup holds, by their drawings: what a restore is
+   *  checked against while one is loaded (#688). */
+  railroads: string[];
 }
 
 /**
@@ -489,6 +492,9 @@ export interface Backup {
 export interface BackupDoc {
   root: string;
   repository: boolean;
+  /** The repository the store is inside where that is not the store itself —
+   *  a checkout's bench store — and `null` otherwise (#688). */
+  inside: string | null;
   /** Where the copy off this machine goes, `null` where nowhere. */
   remote: string | null;
   /** The public half of the store's own deploy key, for the person to paste
@@ -554,6 +560,10 @@ export async function restoreBackup(commit: string): Promise<BackupDoc> {
 
 export async function adoptRepository(url: string): Promise<BackupDoc> {
   return await ask<BackupDoc>("POST", "/backup/repository", { url });
+}
+
+export async function newKey(): Promise<BackupDoc> {
+  return await ask<BackupDoc>("POST", "/backup/key", {});
 }
 
 /**

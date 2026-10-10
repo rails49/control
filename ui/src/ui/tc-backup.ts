@@ -12,8 +12,9 @@
  * whether a restore is refused, what a missing remote means — and this draws
  * what came back and presses what a person chose
  * ([ADR-0053](../../../docs/adr/0053-backup-drives-git-and-does-not-own-it.md)).
- * The one rule it wears is the app's, and is handed in: trains on the layout
- * freeze a restore as they freeze an edit (#684).
+ * The one rule it wears is the app's, and is handed in: a restore waits while
+ * the physical layout could disagree with the store — a train placed, track
+ * power on, or the loaded railroad absent from the backup (#684, #688).
  * git's words are shown as they came: the app knows nothing to add to them,
  * and paraphrasing a rejected push would be inventing an explanation.
  *
@@ -33,7 +34,8 @@ import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 
 import type { Backing } from "../model/backup.js";
-import type { Copy } from "../model/store.js";
+import type { Backup, BackupDoc, Copy } from "../model/store.js";
+import type { Power } from "../model/trace.js";
 import { backupStyles } from "./tc-backup.styles.js";
 
 /** How long something has been waiting, in the coarsest words that are still
@@ -59,6 +61,21 @@ export class TcBackup extends LitElement {
    *  them to come off, as an edit does (#684). */
   @property({ attribute: false }) frozen = false;
 
+  /** The supply as the run reads it, `null` with no session joined. A
+   *  restore changes the drawing a loaded railroad runs on, so it waits for
+   *  the rails to be dead as picking a railroad does (#688). */
+  @property({ attribute: false }) power: Power | null = null;
+
+  /** The railroad the apps are running, `null` while none is loaded. A
+   *  backup without it would leave them running a railroad the store no
+   *  longer holds (#688). */
+  @property({ attribute: false }) railroad: string | null = null;
+
+  /** Whether *New key* has been pressed once and is waiting to be confirmed:
+   *  the key in use stops working until the new one is added, which is worth
+   *  one question before a working backup is broken by accident (#688). */
+  @state() private renewing = false;
+
   /** The backup a person has picked to come back to, `null` while none is.
    *  Restoring takes two presses — the one that chooses and the one that does
    *  it — rather than a row that restores where it is clicked. */
@@ -71,6 +88,7 @@ export class TcBackup extends LitElement {
     const backing = this.backing;
     if (backing === null) return nothing;
     const stands = backing.stands;
+    const refused = this.refusal(stands);
     return html`
       <sl-dialog open label="Backup" @sl-after-hide=${this.close}>
         ${stands === null
@@ -82,9 +100,13 @@ export class TcBackup extends LitElement {
                 : html`<p class="hint">the copy goes to ${stands.remote}</p>`}
               ${this.needs(stands.needs)}
               ${stands.repository
-                ? html`${this.waiting(stands.outstanding)} ${this.copy(stands.copy)}`
+                ? html`${this.waiting(stands.outstanding)} ${this.copy(stands.copy)}
+                    <details class="move">
+                      <summary>back up to another repository</summary>
+                      ${this.adopt(stands.key, backing.busy)}
+                    </details>`
                 : this.adopt(stands.key, backing.busy)}
-              ${this.key(stands.key, stands.repository)} ${this.said()}
+              ${this.key(stands.key, stands.repository, backing.busy)} ${this.said()}
               <div class="presses">
                 <sl-button
                   variant="primary"
@@ -108,20 +130,42 @@ export class TcBackup extends LitElement {
         ${backing.trouble === null
           ? nothing
           : html`<p class="wrong">${backing.trouble}</p>`}
-        ${this.frozen
-          ? html`<p class="hint">trains are on the layout — take them off to restore</p>`
-          : nothing}
+        ${refused === null ? nothing : html`<p class="hint refused">${refused}</p>`}
         <sl-button slot="footer" @click=${this.close}>Close</sl-button>
         <sl-button
           slot="footer"
           variant="warning"
-          ?disabled=${this.picked === null || backing.busy || this.frozen}
-          @click=${this.restore}
+          ?disabled=${this.picked === null || backing.busy || refused !== null}
+          @click=${() => void this.restore()}
         >
           Restore
         </sl-button>
       </sl-dialog>
     `;
+  }
+
+  /**
+   * Why Restore cannot be pressed now, `null` where it can. Each is a way the
+   * physical layout could come to disagree with the store, and the app wears
+   * them because the store hears nothing from the bus (#684, #688):
+   *
+   * - a train placed: the backup may not have the track it stands on;
+   * - a railroad loaded with track power not off: the rails and the drawing
+   *   would change under a moving train;
+   * - the picked backup without the loaded railroad: the apps would go on
+   *   running a railroad the store no longer holds.
+   */
+  private refusal(stands: BackupDoc | null): string | null {
+    if (this.frozen) return "trains are on the layout — take them off to restore";
+    if (this.railroad === null) return null;
+    if (this.power !== "off") {
+      return "track power is on — turn it off to restore";
+    }
+    const picked = stands?.backups.find((backup) => backup.commit === this.picked);
+    if (picked !== undefined && !picked.railroads.includes(this.railroad)) {
+      return `this backup has no ${this.railroad} — load another railroad first`;
+    }
+    return null;
   }
 
   /** What backup has not got, each in the words of the command that would
@@ -135,9 +179,11 @@ export class TcBackup extends LitElement {
   }
 
   /**
-   * The way in, for a store that is no repository: the address of an empty
-   * one the person made, and the press that adopts it. Drawn under what
-   * backup needs, which says what to make and where the key goes.
+   * The address of a repository the person made, and the press that backs up
+   * to it: the way in for a store that is no repository, and folded away for
+   * one that is, where the same press moves backup to an empty repository.
+   * Which of those it is, and bringing a repository's backups into an empty
+   * store, is the store's to say (#355, #688).
    */
   private adopt(key: string | null, busy: boolean) {
     return html`<div class="adopt">
@@ -161,7 +207,15 @@ export class TcBackup extends LitElement {
             this store has no key of its own, so git pushes with whatever this
             machine's ssh already has
           </p>`
-        : nothing}
+        : html`<p class="hint">
+            a deploy key opens one repository: remove it from a repository
+            before deleting that repository, or GitHub refuses it on the next
+            as already in use
+          </p>`}
+      <p class="hint">
+        an empty repository is backed up to; one holding backups is brought
+        into an empty store
+      </p>
     </div>`;
   }
 
@@ -171,16 +225,59 @@ export class TcBackup extends LitElement {
    * the repository was remade, the box was — is needed exactly when the
    * store is a repository already, so it folds away rather than going.
    */
-  private key(key: string | null, repository: boolean) {
+  private key(key: string | null, repository: boolean, busy: boolean) {
     if (key === null) return nothing;
     const shown = html`<pre class="key">${key}</pre>
-      <sl-button size="small" @click=${() => void copy(key)}>Copy the key</sl-button>`;
+      <sl-button size="small" @click=${() => void copy(key)}>Copy the key</sl-button>
+      ${this.renewal(busy)}`;
     return repository
       ? html`<details class="key">
           <summary>this store's key</summary>
           ${shown}
         </details>`
       : shown;
+  }
+
+  /**
+   * *New key*, for a key a deleted repository still holds — GitHub refuses one
+   * key on two repositories. Asked once, because the key in use stops working
+   * until the new one is added (#688).
+   */
+  private renewal(busy: boolean) {
+    if (!this.renewing) {
+      return html`<sl-button
+        size="small"
+        ?disabled=${busy}
+        @click=${() => {
+          this.renewing = true;
+        }}
+      >
+        New key
+      </sl-button>`;
+    }
+    return html`<p class="waiting">
+        the key above stops working until the new one is added to the
+        repository's deploy keys
+      </p>
+      <sl-button
+        size="small"
+        variant="warning"
+        ?disabled=${busy}
+        @click=${() => {
+          this.renewing = false;
+          void this.backing?.renewKey();
+        }}
+      >
+        Replace the key
+      </sl-button>
+      <sl-button
+        size="small"
+        @click=${() => {
+          this.renewing = false;
+        }}
+      >
+        Keep this key
+      </sl-button>`;
   }
 
   /** The documents that have moved since the last backup, named. It is what
@@ -228,7 +325,7 @@ export class TcBackup extends LitElement {
   /** The backups there are, newest first, each named by what moved in it. The
    *  newest is rarely the one wanted: the editing session a person is trying
    *  to get out of was backed up like any other. */
-  private backups(backups: readonly { commit: string; said: string; when: string }[]) {
+  private backups(backups: readonly Backup[]) {
     if (backups.length === 0) {
       return html`<p class="hint">no backups yet</p>`;
     }
@@ -252,8 +349,17 @@ export class TcBackup extends LitElement {
     </ul>`;
   }
 
-  private restore(): void {
-    if (this.picked !== null && !this.frozen) void this.backing?.restore(this.picked);
+  /** Restore the picked backup, and say so where it worked: what follows —
+   *  the running apps and this page reading what it wrote — is the app's
+   *  (#688). */
+  private async restore(): Promise<void> {
+    const backing = this.backing;
+    if (backing === null || this.picked === null) return;
+    if (this.refusal(backing.stands) !== null) return;
+    if (!(await backing.restore(this.picked))) return;
+    this.dispatchEvent(
+      new CustomEvent<void>("restored", { bubbles: true, composed: true }),
+    );
   }
 
   /** Shut it. What was picked goes with it: the next time this opens, the
@@ -261,6 +367,7 @@ export class TcBackup extends LitElement {
   private close(): void {
     this.picked = null;
     this.address = "";
+    this.renewing = false;
     this.dispatchEvent(
       new CustomEvent<void>("backup-closed", { bubbles: true, composed: true }),
     );

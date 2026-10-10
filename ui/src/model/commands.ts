@@ -63,23 +63,46 @@ export interface Standing {
 }
 
 /**
- * What backup says from outside its own dialog.
+ * What backup says from outside its own dialog: the run view's note in the
+ * band and the mark on `File ▸ Backup…` both read it, so the two never
+ * disagree (#688).
  *
- * Two things are worth a mark on a menu somebody is not looking at, and both
- * are the same failure: believing the railroad is safe when it is not.
+ * Six values, and the first that holds is the one:
  *
- * - `never` — nothing has ever been backed up and nothing is going to be.
- *   Automated backup is off until a person turns it on (#321), which leaves it
- *   off for exactly the person it was written for: the one who drew a railroad
- *   over months and never thought about backups.
- * - `behind` — backup is on and the copy off this machine has been failing for
- *   more than a day. Each failure on its own is a network coming and going;
- *   a day of them is a remote that moved or a credential that expired.
- *
- * `quiet` is everything else, including a copy that failed an hour ago. Saying
- * so every time would teach a person to ignore it.
+ * - `inside` — the store is inside another repository: a developer's session
+ *   on the bench store of a checkout, which is not meant to be backed up. No
+ *   note and no mark.
+ * - `unset` — the store is no repository: a box deployed and never set up, or
+ *   a store copied to a new box with backup switched on and no repository with
+ *   it. A switch that says on hides nothing here.
+ * - `behind` — the copy off this machine is more than a day behind. Each
+ *   failure on its own is a network coming and going; a day of them is a
+ *   repository that moved or a key that stopped working.
+ * - `blocked` — a repository with something in `needs`: no remote, or a key
+ *   this store cannot read.
+ * - `off` — a repository whose backup a person switched off.
+ * - `quiet` — everything else, including a copy that failed an hour ago, and
+ *   anything before the store has been asked. Saying so every time would
+ *   teach a person to ignore it.
  */
-export type BackupStanding = "quiet" | "never" | "behind";
+export type BackupStanding = "quiet" | "inside" | "unset" | "behind" | "blocked" | "off";
+
+/** What each standing says, in the words the note and the mark both wear;
+ *  `null` where it says nothing. */
+export function backupWords(standing: BackupStanding): string | null {
+  switch (standing) {
+    case "unset":
+      return "no backup set up";
+    case "behind":
+      return "backup behind";
+    case "blocked":
+      return "backup cannot run";
+    case "off":
+      return "backup is off";
+    default:
+      return null;
+  }
+}
 
 /** Where the editor stands before it has been told anything: nothing open,
  *  nothing chosen, nothing to take back. */
@@ -174,19 +197,14 @@ export const COMMANDS: Record<CommandId, Command> = {
 };
 
 /**
- * What the `Backup…` item says without being opened.
+ * What the `Backup…` item says without being opened: the run view's note, in
+ * the same words.
  *
  * The words are the whole of the warning: a mark somebody has to open a dialog
  * to understand is a mark they learn to ignore.
  */
 function backupSays({ backup }: Standing): string | null {
-  if (backup === "never") {
-    return "this railroad has never been backed up";
-  }
-  if (backup === "behind") {
-    return "the copy on the other machine is more than a day behind";
-  }
-  return null;
+  return backupWords(backup);
 }
 
 /** A verb that reads the selection is dead without one. */
