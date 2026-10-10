@@ -423,12 +423,17 @@ describe("the backup dialog", () => {
     expect(restoring(surface).disabled).toBe(false);
   });
 
-  it("restores with no railroad loaded whatever the supply", async () => {
+  /** With nothing loaded no app runs a drawing, so any backup will do —
+   *  one without a railroad drawn since among them (#697). */
+  it("restores any backup with no railroad loaded, whatever the supply", async () => {
     const { dialog: surface } = await dialog();
     surface.power = "on";
-    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
-    await surface.updateComplete;
-    expect(restoring(surface).disabled).toBe(false);
+    for (const row of surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")) {
+      row.click();
+      await surface.updateComplete;
+      expect(restoring(surface).disabled).toBe(false);
+      expect(reads(surface)).not.toContain("this backup has no");
+    }
   });
 
   /** The apps would otherwise go on running a railroad the store no longer
@@ -646,6 +651,21 @@ describe("what follows a restore", () => {
       topic: "tc49/layout/railroad_wanted",
       payload: { railroad: "toy" },
     });
+  });
+
+  /** The dialog is told the loaded railroad by the app, as it is told the
+   *  placed trains (#697): a backup drawn before it is refused by name. */
+  it("refuses a backup without the railroad the app has loaded", async () => {
+    const shell = await joined("edit");
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+    serving({ drawings: ["toy"], backup: KEPT });
+    await chooseBackup(shell);
+    const surface = open(shell)!;
+    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+    await surface.updateComplete;
+
+    expect(restoring(surface).disabled).toBe(true);
+    expect(reads(surface)).toContain("this backup has no toy — load another railroad first");
   });
 
   it("reloads the page with no railroad loaded all the same", async () => {
