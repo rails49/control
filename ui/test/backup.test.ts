@@ -566,6 +566,38 @@ describe("the note in the band", () => {
     await settled(shell);
     expect(open(shell)).not.toBeNull();
   });
+
+  /** The band is the app's, so the note is in every view (#691). */
+  it("says the same in the editing view", async () => {
+    serving({ drawings: ["reversing-loops"], backup: { ...KEPT, automatic: false } });
+    const shell = await mounted("edit");
+    expect(note(shell)?.textContent?.trim()).toBe("backup is off");
+  });
+
+  /** A page left open: an hour after it loaded the app asks again, and the
+   *  note follows the answer (#691). */
+  it("follows the store's answer an hour after load", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const store = serving({
+        drawings: ["reversing-loops"],
+        backup: { ...KEPT, automatic: true },
+      });
+      const shell = await mounted("run");
+      expect(note(shell)).toBeNull();
+      store.backup = {
+        ...KEPT,
+        automatic: true,
+        copy: { waiting: 4, since: 200000, stale: true, ok: false, said: "no route" },
+      };
+      await vi.advanceTimersByTimeAsync(ASK_MS);
+      await settled(shell);
+      expect(note(shell)?.textContent?.trim()).toBe("backup behind");
+      expect(note(shell)?.title).toBe("no route");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 /**
