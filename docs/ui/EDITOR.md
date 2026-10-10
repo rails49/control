@@ -908,6 +908,13 @@ refusal from `/review` does — inside a 200, read rather than caught. The words
 in the dialog are git's own, kept whether the press worked or not: this app
 knows nothing to add to *could not resolve host*.
 
+**Trains on the layout freeze a restore** as they [freeze the
+drawing](#trains-on-the-layout-freeze-the-drawing): a restore can take away
+track a train stands on. While any is placed, *Restore* is greyed and the
+dialog says *trains are on the layout — take them off to restore* (#684). It is
+the one reading of the rule, `frozen` in `model/commands.ts`, handed in by the
+app; the store server does not check it.
+
 ## Validation
 
 **Faults are marked on the drawing, not listed beside it**

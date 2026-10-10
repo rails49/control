@@ -127,6 +127,12 @@ session you are trying to get out of was itself backed up.
 naming them. Those are exactly the ones git cannot give back. Back the store
 up first — one press — and then restore.
 
+**A restore while any train is placed on the layout is refused** too, the rule
+a layout edit follows: the backup may not have the track a train stands on.
+The dialog greys *Restore* and says *trains are on the layout — take them off
+to restore* (#684). The app wears the rule; the store server does not check it,
+as it checks nothing for edits.
+
 Restoring drops a railroad drawn after that backup along with an edit made
 since, because the store comes back as that backup held it. Nothing is lost by
 it: the backup you came from is still in the history and restoring it is the
