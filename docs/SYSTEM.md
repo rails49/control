@@ -349,11 +349,19 @@ LAN is still the trust boundary and a browser is not on it
   authoring tools. What is true during a run is on the bus and what happened
   is in the trace, so a scenario that changed when it was run would no longer
   be a fixture a benchmark could repeat.
-- **Read once at startup** — assets do not change while a run lasts. The
-  contract has no way to announce a change and the bus carries no
-  asset-change event, so editing an asset means starting a new session. A
-  change to the track plan partway through a run would invalidate routes the
-  dispatcher had already committed to and locks it already held.
+- **Read once per build** — an app reads the store when a railroad is built
+  under it, and not again until the next build: assets do not change under a
+  build. The contract has no way to announce a change and the bus carries no
+  asset-change event, so a change to the track plan partway through one would
+  invalidate routes the dispatcher had already committed to and locks it
+  already held. A build is what `tc49/layout/state/railroad` names — its
+  `name` and its `at`, which the binding of the layout interface sets once
+  per build — so another railroad named, or the one loaded **named again**
+  through `tc49/layout/railroad_wanted`, is every app reading the store
+  afresh, under the same track-power precondition
+  ([#696](https://github.com/rails49/control/issues/696), BUS.md). That is
+  how the apps reach a store a restore changed; a republication of the same
+  build is not a build, and nothing is read again on it.
 - **The store validates and consumers derive** — `get` never returns an
   invalid document. The store checks the schema, and the references a document
   makes: that a scenario's layout exists, that the blocks it names exist, and

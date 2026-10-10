@@ -23,7 +23,7 @@ nothing listening, a connection refused or dropped, a reply that is not JSON —
 and the 5xx it sends when it cannot answer a request it should have.
 
 Standard library only: this is what an app is built on, and it fetches three
-documents at startup and nothing after (SYSTEM.md, "read once at startup").
+documents per build and nothing between (SYSTEM.md, "read once per build").
 """
 
 import json
