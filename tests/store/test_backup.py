@@ -1406,18 +1406,46 @@ def test_a_new_key_replaces_the_old_one(tmp_path: Path) -> None:
     old = backup.key()
     assert old is not None
 
+    private = (keys / KEY).read_bytes()
+
     said = backup.new_key()
 
     assert said.ok, said.words
     shown = backup.key()
     assert shown is not None and shown != old
     assert shown in said.words
+    assert (keys / KEY).read_bytes() != private
+
+
+@keygen
+def test_a_new_key_says_where_it_goes_and_what_comes_off(tmp_path: Path) -> None:
+    """The old public half is still listed on whichever repository has it, so
+    the answer says to add the new one with write access and to remove the
+    old one where that repository still exists (#693)."""
+    backup = Backup(tmp_path / "tc49", run=FakeGit(toplevel=""), keys=tmp_path / "k")
+    words = backup.new_key().words
+    assert "Settings ▸ Deploy keys" in words
+    assert "write access" in words
+    assert "where that repository still exists" in words
 
 
 def test_a_store_with_nowhere_to_keep_a_key_gets_no_new_one(tmp_path: Path) -> None:
-    said = Backup(tmp_path, run=FakeGit(toplevel="")).new_key()
+    root = tmp_path / "tc49"
+    said = Backup(root, run=FakeGit(toplevel="")).new_key()
     assert not said.ok
     assert "no key of its own" in said.words
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_store_inside_another_repository_gets_no_new_key(tmp_path: Path) -> None:
+    """`bench/` in a checkout is nobody's to back up, so it has no key to
+    replace, and none is made under `keys` on the way to saying so (#693)."""
+    keys = tmp_path / "k"
+    backup = Backup(tmp_path / "bench", run=FakeGit(toplevel=str(tmp_path)), keys=keys)
+    said = backup.new_key()
+    assert not said.ok
+    assert "is inside the git repository at" in said.words
+    assert not keys.exists()
 
 
 def test_an_address_that_cannot_be_reached_is_refused_in_gits_words(

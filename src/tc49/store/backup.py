@@ -618,7 +618,9 @@ class Backup:
         person to confirm before pressing (#688).
 
         Refused for a store with nowhere to keep a key, which pushes with
-        the machine's own ssh and has no key here to replace.
+        the machine's own ssh and has no key here to replace; and for a store
+        inside another repository, which is nobody's to back up and is
+        answered in :meth:`needs`'s words (#693).
         """
         with self._lock:
             if self._keys is None:
@@ -627,6 +629,8 @@ class Backup:
                     "this store has no key of its own — git pushes with"
                     " whatever this machine's ssh already has",
                 )
+            if self._around() is not None:
+                return Said(False, self.needs()[0])
             try:
                 for half in (self._keys / KEY, self._keys / f"{KEY}.pub"):
                     half.unlink(missing_ok=True)
@@ -641,7 +645,9 @@ class Backup:
             return Said(
                 True,
                 "a new key: add it to the repository under Settings ▸ Deploy"
-                f" keys, with write access, and remove the old one — {shown}",
+                " keys, with write access, and remove the old one from the"
+                " repository that has it, where that repository still exists"
+                f" — {shown}",
             )
 
     def _unusable(self) -> str | None:
