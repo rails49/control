@@ -25,6 +25,7 @@ import pytest
 from tc49.store.backup import (
     KEY,
     PUSH_TIMEOUT_S,
+    SWITCH,
     Backup,
     Said,
     Watch,
@@ -1255,6 +1256,121 @@ def test_an_empty_store_takes_a_repositorys_latest_backup(tmp_path: Path) -> Non
     assert backup.commit().ok
     assert backup.push().ok
     assert "backup: crossover-yard" in run_git(Path(remote), "log", "--format=%s")
+
+
+def held_twice(tmp_path: Path) -> str:
+    """The old box's repository with a second backup on top of :func:`held`'s:
+    a drawing changed and another added, so the latest backup is not the
+    only one."""
+    bare = held(tmp_path)
+    old = tmp_path / "old-box"
+    drawn(old, "reversing-loops", "drawing: reversing-loops\nchanged: true\n")
+    drawn(old, "crossover-yard", "drawing: crossover-yard\n")
+    run_git(old, "add", "-A")
+    run_git(old, "commit", "-q", "-m", "backup: crossover-yard, reversing-loops")
+    run_git(old, "push", "-q", bare, "main")
+    return bare
+
+
+def test_an_empty_store_becomes_the_repository_at_its_latest_backup(
+    tmp_path: Path,
+) -> None:
+    """A new box restored from a repository holding two backups: the store is
+    its own repository at the repository's head, holding what that backup
+    held, both backups offered for a restore, and the answer names the
+    backup it brought in (#694)."""
+    root = tmp_path / "tc49"
+    remote = held_twice(tmp_path)
+    head = run_git(Path(remote), "rev-parse", "HEAD").strip()
+    backup = Backup(root, log=lambda _: None)
+
+    said = backup.adopt(remote)
+
+    assert said.ok, said.words
+    assert backup.repository() and backup.needs() == []
+    assert run_git(root, "rev-parse", "--show-toplevel").strip() == str(root.resolve())
+    assert run_git(root, "rev-parse", "HEAD").strip() == head
+    short = run_git(root, "rev-parse", "--short", "HEAD").strip()
+    assert said.words == f"restored {short} from {remote}"
+    assert (root / "layouts" / "crossover-yard.drawing.yaml").exists()
+    assert (
+        "changed: true"
+        in (root / "layouts" / "reversing-loops.drawing.yaml").read_text()
+    )
+    assert backup.outstanding() == []
+    assert [b["said"] for b in backup.backups()] == [
+        "backup: crossover-yard, reversing-loops",
+        "backup: backup.yaml, reversing-loops",
+    ]
+
+
+@keygen
+def test_a_store_restored_with_a_key_keeps_it_in_its_config_and_pushes(
+    tmp_path: Path,
+) -> None:
+    """The clone writes the store's key into the config it makes, so the
+    repository it leaves behind pushes under that key even read by hand; and
+    the next backup reaches the repository it came from (#694)."""
+    root = tmp_path / "tc49"
+    keys = tmp_path / "keys"
+    remote = held_twice(tmp_path)
+    backup = Backup(root, log=lambda _: None, keys=keys)
+    assert backup.key() is not None
+
+    said = backup.adopt(remote)
+
+    assert said.ok, said.words
+    ssh = run_git(root, "config", "--local", "core.sshCommand").strip()
+    assert ssh == f"ssh -i {keys / KEY} -o IdentitiesOnly=yes"
+    identified(root)
+    drawn(root, "staging-yard", "drawing: staging-yard\n")
+    assert backup.commit().ok
+    pushed = backup.push()
+    assert pushed.ok, pushed.words
+    assert "backup: staging-yard" in run_git(Path(remote), "log", "--format=%s")
+
+
+def test_a_store_holding_only_the_switch_is_empty(tmp_path: Path) -> None:
+    """`backup.yaml` is written before anything is drawn, so a store holding
+    it alone takes the repository's backups — whose own switch replaces it
+    (#694)."""
+    root = tmp_path / "tc49"
+    remote = held_twice(tmp_path)
+    backup = Backup(root, log=lambda _: None)
+    backup.switch(False)
+    assert sorted(p.name for p in root.iterdir()) == [SWITCH]
+
+    said = backup.adopt(remote)
+
+    assert said.ok, said.words
+    assert backup.automatic  # the old box's switch, not this one's
+
+
+def test_a_drawn_store_is_not_restored_over_and_stays_no_repository(
+    tmp_path: Path,
+) -> None:
+    """A store with a drawing given a repository with two backups: refused in
+    words naming the drawing and the repository, and the store left exactly
+    as it was, not a repository (#694)."""
+    root = tmp_path / "tc49"
+    (root / "layouts").mkdir(parents=True)
+    drawn(root, "staging-yard", "drawing: staging-yard\n")
+    remote = held_twice(tmp_path)
+    backup = Backup(root, log=lambda _: None)
+    before = {
+        p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()
+    }
+
+    said = backup.adopt(remote)
+
+    assert not said.ok
+    assert "staging-yard" in said.words and remote in said.words
+    assert not backup.repository()
+    assert not (root / ".git").exists()
+    assert {
+        p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()
+    } == before
+    assert sorted(p.name for p in root.iterdir()) == ["layouts"]
 
 
 def test_backup_moves_to_an_empty_repository_with_its_whole_history(
