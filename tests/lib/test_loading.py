@@ -74,15 +74,67 @@ def test_a_follower_takes_another_name_on_the_row() -> None:
 
 
 def test_a_follower_does_not_move_on_its_own_railroad() -> None:
-    """The binding that owns the row republishes it every time it is built,
-    and an app that rebuilt on that would rebuild on its neighbour's
-    heartbeat."""
+    """An app started on a railroad knows no stamp for it, and the first row
+    naming it is the build it runs: it has just read the store."""
     bus = bused()
     loaded = Loaded(WAS)
     loaded.follow(bus)
 
     bus.publish(RAILROAD, {"name": WAS})
     bus.drain()
+
+    assert loaded.moved is False
+
+
+def test_a_follower_rebuilds_its_railroad_built_again() -> None:
+    """A new stamp on the same name is that railroad built again from the
+    store, as after a restore: an app that kept what it read before would
+    route over a drawing the store no longer holds (#688)."""
+    clock = Clock()
+    bus = InProcessBus(clock)
+    loaded = Loaded(WAS)
+    loaded.follow(bus)
+    bus.publish(RAILROAD, {"name": WAS})
+    bus.drain()
+
+    clock.advance(1.0)
+    bus.publish(RAILROAD, {"name": WAS})
+    bus.drain()
+
+    assert (loaded.name, loaded.moved) == (WAS, True)
+
+
+def test_a_follower_does_not_rebuild_on_the_build_handed_over_again() -> None:
+    """Subscribing is what a rebuild does, and the broker hands the retained
+    row over again with the stamp it had: the same build, not a move. An app
+    that rebuilt on it would rebuild for ever."""
+    clock = Clock()
+    bus = InProcessBus(clock)
+    loaded = Loaded(WAS)
+    loaded.follow(bus)
+    bus.publish(RAILROAD, {"name": WAS})
+    bus.drain()
+    clock.advance(1.0)
+    bus.publish(RAILROAD, {"name": WAS})
+    bus.drain()
+    assert loaded.moved
+
+    loaded.follow(bus)  # rebuilt, and subscribed afresh
+    bus.drain()
+
+    assert loaded.moved is False
+
+
+def test_a_row_on_the_same_name_with_no_stamp_is_not_a_build() -> None:
+    """Anything at all can arrive on a topic (rule 4), and a row with no
+    readable stamp says nothing about which build it is."""
+    bus = bused()
+    loaded = Loaded(WAS)
+    loaded.follow(bus)
+    bus.publish(RAILROAD, {"name": WAS})
+    bus.drain()
+
+    loaded._said(RAILROAD, {"name": WAS})  # pyright: ignore[reportPrivateUsage]
 
     assert loaded.moved is False
 
@@ -203,11 +255,27 @@ def test_a_gesture_naming_nothing_readable_is_dropped() -> None:
     assert (answering.name, answering.moved) == (WAS, False)
 
 
-def test_a_gesture_naming_the_running_railroad_is_not_a_move() -> None:
+def test_a_gesture_naming_the_running_railroad_builds_it_again() -> None:
+    """Naming a railroad means "run what the store holds": after a restore the
+    store holds something other than what the app was built from (#688)."""
     bus = bused()
     answering = Answering(WAS)
     answering.follow(bus)
     dark(bus)
+
+    picking(bus, WAS)
+    bus.drain()
+
+    assert (answering.name, answering.moved) == (WAS, True)
+
+
+def test_the_running_railroad_waits_for_the_supply_like_any_other() -> None:
+    """The same precondition as picking another railroad: the rails and the
+    drawing are never changed under a moving train (#688)."""
+    bus = bused()
+    answering = Answering(WAS)
+    answering.follow(bus)
+    live(bus)
 
     picking(bus, WAS)
     bus.drain()
