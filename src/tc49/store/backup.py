@@ -398,8 +398,9 @@ class Backup:
         send a person to different places. A store **inside** another
         repository is not one to adopt into — it is `bench/`, and the
         repository it is in is this checkout. A store that is in none is told
-        what to make and where to enter it (:meth:`adopt`), with git's own
-        words after it, because git itself may be what is missing and those
+        what to make and where to enter it (:meth:`adopt`) — or, a new box
+        taking an old one's place, which repository to enter into a store
+        with nothing drawn in it (#694) — with git's own words after it, because git itself may be what is missing and those
         words are the only way to tell. Where there is a key to add, it says
         that a deploy key opens one repository, and to take it off the old
         one before deleting that, since a deleted repository keeps its keys
@@ -436,7 +437,10 @@ class Backup:
             wrong.append(
                 f"{self.root} is not a git repository — create an empty"
                 f" private repository on github.com,{key} enter its address"
-                f" below.{one} git said: {said.words}"
+                f" below.{one} A new box taking over an old one's railroad"
+                " is the same press: draw nothing first, and enter the"
+                " address of the repository the old box backed up to (Moving"
+                f" to a new box in docs/store/BACKUP.md). git said: {said.words}"
             )
         elif not self._run(self.root, "remote").words:
             wrong.append(
