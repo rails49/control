@@ -135,7 +135,8 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     PUT  /catalogue/<name>/photo create or replace it
     GET  /scripts/<railroad>    the translator script that railroad carries
     PUT  /scripts/<railroad>    create or replace it
-    GET  /backup                what backup can do here, and what it needs
+    GET  /backup                what backup can do here, what it needs, and the
+                                repository the store is `inside`, if any
     PUT  /backup                turn automated backup on or off
     POST /backup/commit         back the store up now, and attempt a push
     POST /backup/restore        put the store back as a backup held it

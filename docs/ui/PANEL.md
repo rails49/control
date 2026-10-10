@@ -701,7 +701,8 @@ The chrome is the band and the rail the editor also wears (#84,
 [ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)). The **band** is
 the whole system's: the railroad the app has loaded, the unsaved dot, the
 health area — the store or the broker not answering, a fault the hardware
-reports on the supply, and how far the run has got — and the three track-power
+reports on the supply, how far the run has got, and a store that is not
+being backed up ([EDITOR.md](EDITOR.md#the-band)) — and the three track-power
 presses, one of which is marked as where the supply stands. The **rail** is the
 views, and then this view's document's: zoom out, zoom in and fit as icon
 buttons, and **HOLD/GO**.

@@ -105,6 +105,19 @@ this, a marked OFF being a railroad at rest since #585. It is shown verbatim
 and nothing branches on it, and it clears when a frame arrives carrying no
 reason, the trip being a condition that holds until somebody resets it.
 
+**And a store that is not being backed up**, as a press that opens
+`File ▸ Backup…` ([Backing the store up](#backing-the-store-up)).
+The note is one of *no backup set up* (the store is no repository), *backup
+behind* (the copy off this machine is more than a day behind, git's words from
+the last push as its tooltip), *backup cannot run* (something backup needs is
+missing, the first of them as its tooltip) or *backup is off* (switched off),
+the first that holds being the one. A store backing up as it should says
+nothing, and so does one inside another repository — a checkout's `bench/`,
+which `GET /backup` names in `inside`. The app asks again every hour, so a
+page left open shows a copy that fell behind after it loaded; a single failed
+push says nothing, `behind` waiting a day
+([#691](https://github.com/rails49/control/issues/691)).
+
 **Nothing that is going right reads in it**
 ([#517](https://github.com/rails49/control/issues/517)). The band was six
 entries with five of them saying the ordinary thing — `drawing frozen connected
@@ -889,9 +902,10 @@ beside it, and everything else in the editor is unaffected.
 **The item marks itself when nobody is looking.** The app asks the store where
 backup stands when it comes up and every hour after, and `Backup…` carries a
 `!` whose title names what is wrong: *no backup set up*, *backup behind*,
-*backup cannot run* or *backup is off*. The run view's band says the same
-words as a press that opens this dialog, so a person running trains, with the
-editing view shut, is told too; the two follow one rule and never disagree
+*backup cannot run* or *backup is off*. The band says the same words as a
+press that opens this dialog, in every view ([The band](#the-band)), so a
+person running trains, with the editing view shut, is told too; the two follow
+one rule and never disagree
 ([store/BACKUP.md](../store/BACKUP.md#what-it-does-while-you-draw), #688). A
 store inside another repository — a checkout's `bench/` — says nothing. It
 warns and never disables. Nothing else in the editor marks itself, so the mark
