@@ -25,7 +25,11 @@ it anyway. The person makes an empty repository on github.com and gives its
 address; :meth:`Backup.adopt` clones it and moves the clone's `.git` under the
 store, so the documents already there become the first backup. Neither `init`
 nor `remote add` is run: the repository is the person's and the remote came
-with the address.
+with the address. The same press is every other way of changing where backup
+goes (#688): an empty store given a repository with backups takes the latest
+of them, a new box replacing an old one; and a store that is a repository
+already, given an empty one, moves there with its whole history. Two
+histories are never mixed.
 
 **The push goes out under a key the store made for itself**, where it was
 given somewhere to keep one (`keys`). The public half is shown by
@@ -52,6 +56,7 @@ unreachable remote is logged and retried on the next timer, and no caller
 ever waits on the network to write a drawing.
 """
 
+import re
 import shutil
 import subprocess
 import sys
@@ -223,6 +228,39 @@ def documents(porcelain: str) -> list[str]:
     return sorted(names)
 
 
+def ssh_address(url: str) -> str | None:
+    """Why `url` is not an address the store can back up to, and `None`
+    where it is.
+
+    The store pushes over ssh under a key of its own, so an https address is
+    one it has no credential for and fails at the far end with words about a
+    password. It is refused before anything is cloned, and the refusal
+    carries the ssh form of the same repository to paste instead (#688).
+    A path on this machine, or a `file://` one, is a repository reached with
+    no credential at all and is let through.
+    """
+    scheme, sep, rest = url.partition("://")
+    if sep:
+        if scheme in ("ssh", "file"):
+            return None
+        host, _, path = rest.partition("/")
+        host = host.rpartition("@")[2]
+        path = path.strip("/")
+        if scheme in ("http", "https") and host and path:
+            if not path.endswith(".git"):
+                path += ".git"
+            return (
+                f"{url} is an https address, and backup pushes over ssh with"
+                f" this store's own key — enter git@{host}:{path} instead"
+            )
+    elif Path(url).is_absolute() or re.match(r"^[^\s/@:]+@[^\s/:]+:\S", url):
+        return None
+    return (
+        f"{url} is not an ssh address — enter it as github.com shows it under"
+        " Code ▸ SSH, git@github.com:you/my-railroad.git"
+    )
+
+
 class Backup:
     """Git over one store root: the timers, the refusals, and what to say.
 
@@ -340,6 +378,13 @@ class Backup:
         except OSError:
             return None
 
+    def _around(self) -> str | None:
+        """The repository this store is inside where that is not the store
+        itself, `None` otherwise: a checkout's `bench/`, which is not meant to
+        be backed up and about which the UI says nothing (#688)."""
+        top = self._inside()
+        return str(top) if top is not None and top != self.root.resolve() else None
+
     def needs(self) -> list[str]:
         """What backup has not got, in the words a person is offered it in.
 
@@ -401,9 +446,9 @@ class Backup:
         said = self._run(self.root, "status", "--porcelain", "-uall", "--", ".")
         return documents(said.words) if said.ok else []
 
-    def backups(self, count: int = 10) -> list[dict[str, str]]:
+    def backups(self, count: int = 10) -> list[dict[str, Any]]:
         """The last backups, newest first: what to name to :meth:`restore`,
-        what it was called, and when it was made."""
+        what it was called, when it was made, and the railroads it holds."""
         said = self._run(
             self.root,
             "log",
@@ -413,12 +458,33 @@ class Backup:
         )
         if not said.ok:
             return []  # no commits yet, or no repository: nothing to restore to
-        made: list[dict[str, str]] = []
+        made: list[dict[str, Any]] = []
         for line in said.words.splitlines():
             commit, _, rest = line.partition("\t")
             message, _, when = rest.partition("\t")
-            made.append({"commit": commit, "said": message, "when": when})
+            made.append(
+                {
+                    "commit": commit,
+                    "said": message,
+                    "when": when,
+                    "railroads": self._railroads(commit),
+                }
+            )
         return made
+
+    def _railroads(self, commit: str) -> list[str]:
+        """The railroads one backup holds, by their drawings: what the UI
+        checks a restore against, so that the apps are never left running a
+        railroad the store no longer has (#688)."""
+        said = self._run(self.root, "ls-tree", "--name-only", commit, "layouts/")
+        if not said.ok:
+            return []
+        suffix = ".drawing.yaml"
+        return sorted(
+            line.removeprefix("layouts/").removesuffix(suffix)
+            for line in said.words.splitlines()
+            if line.endswith(suffix)
+        )
 
     def copy(self) -> dict[str, Any]:
         """How the copy off this machine stands: how many backups the remote
@@ -490,8 +556,19 @@ class Backup:
         top = self._inside()
         if top is not None and top != self.root.resolve():
             return None
-        self._keys.mkdir(parents=True, exist_ok=True)
+        refused = self._make_key()
+        if refused is not None:
+            self._log(f"backup: no key could be made: {refused}")
+            return None
+        return public.read_text().strip()
+
+    def _make_key(self) -> str | None:
+        """Make the key pair under `keys`, and answer why not where it could
+        not be made — no `ssh-keygen` on this machine, or a directory this
+        process cannot write."""
+        assert self._keys is not None
         try:
+            self._keys.mkdir(parents=True, exist_ok=True)
             done = subprocess.run(
                 [
                     "ssh-keygen",
@@ -510,12 +587,48 @@ class Backup:
                 check=False,
             )
         except OSError as missing:  # no ssh-keygen on this machine
-            self._log(f"backup: no key could be made: {missing}")
-            return None
+            return str(missing)
         if done.returncode != 0:
-            self._log(f"backup: no key could be made: {done.stderr.strip()}")
-            return None
-        return public.read_text().strip()
+            return done.stderr.strip()
+        return None
+
+    def new_key(self) -> Said:
+        """Replace this store's deploy key with a new pair, and answer with
+        the new public half.
+
+        What a person does whose key a deleted repository still holds: GitHub
+        refuses one key on two repositories, "Key is already in use", and a
+        repository deleted without its deploy key removed first takes the key
+        with it. The old pair goes for good, so pushes stop until the new
+        public half is added to the repository — which the dialog asks a
+        person to confirm before pressing (#688).
+
+        Refused for a store with nowhere to keep a key, which pushes with
+        the machine's own ssh and has no key here to replace.
+        """
+        with self._lock:
+            if self._keys is None:
+                return Said(
+                    False,
+                    "this store has no key of its own — git pushes with"
+                    " whatever this machine's ssh already has",
+                )
+            try:
+                for half in (self._keys / KEY, self._keys / f"{KEY}.pub"):
+                    half.unlink(missing_ok=True)
+            except OSError as shut_out:
+                return Said(False, f"the old key could not be removed: {shut_out}")
+            refused = self._make_key()
+            if refused is not None:
+                return Said(False, f"no key could be made: {refused}")
+            shown = self.key()
+            if shown is None:
+                return Said(False, "the new key cannot be read back")
+            return Said(
+                True,
+                "a new key: add it to the repository under Settings ▸ Deploy"
+                f" keys, with write access, and remove the old one — {shown}",
+            )
 
     def _unusable(self) -> str | None:
         """Why the key kept here cannot be pushed with, and `None` where it
@@ -575,6 +688,7 @@ class Backup:
         return {
             "root": str(self.root),
             "repository": self.repository(),
+            "inside": self._around(),
             "remote": self.remote(),
             "key": self.key(),
             "automatic": self.automatic,
@@ -648,81 +762,216 @@ class Backup:
     # --- driving git ---------------------------------------------------------
 
     def adopt(self, url: str) -> Said:
-        """Make the store a repository by cloning the empty one at `url`.
+        """Back the store up to the repository at `url`: the one way into
+        backup, and every way of changing where it goes, from a dialog and
+        with no terminal (#355, #688).
 
-        `git clone` refuses a directory with anything in it, and a store
-        worth backing up has drawings in it, so the clone goes to a directory
-        of its own inside the store and its `.git` is moved up one level. The
-        documents stay where they are and read as outstanding, which makes
-        them the first backup. Inside the store rather than in `/tmp`, so the
-        move is a rename on one filesystem and never a copy of a repository.
+        What it does turns on the two things there are to ask, the store
+        and the repository:
 
-        **Refused where the repository holds anything.** A repository with
-        backups in it is a restore onto a new box, which is a different act
-        with a different question in it — which of two stores wins — and this
-        says so rather than guessing. Refused too for a store that is already
-        a repository, or is inside one; both are :meth:`needs`'s words. And
-        refused under a key this store cannot read, in the same words
-        :meth:`push` is: the clone goes out over ssh under that key, so
-        reaching the network to be told `Permission denied` would say nothing
-        about the file it could not open (#443).
+        | store | repository | answer |
+        |---|---|---|
+        | empty, no repository | empty | adopt |
+        | has documents, no repository | empty | adopt; they are the first backup |
+        | empty, no repository | has backups | clone it: the latest backup, here |
+        | has documents, no repository | has backups | refused, naming both |
+        | its own repository | empty | move: the whole history pushed there |
+        | its own repository | has backups | refused |
 
-        The clone carries two settings into the repository it makes, by
-        `clone -c`, which writes them to the new `.git/config` and nowhere
-        else: where the store's own key is, so that git's ssh offers that and
-        not whatever else the machine has; and `push.autoSetupRemote`, so
-        that the first push of a branch that has never been pushed sets its
-        upstream rather than asking for a flag. Neither is `init`, a branch
-        or a remote: the branch is the one the clone gave and the remote came
-        with the address.
+        **Empty** for a store is no document under it; the backup switch
+        alone counts as empty, being written before anything is drawn.
+        For a repository it is no refs, asked with `ls-remote` before
+        anything else is done. Two histories are never mixed: a store with
+        documents and a repository with backups is a choice between them,
+        and the refusal names both rather than guessing.
+
+        Refused before any of that for an address that is not ssh form, an
+        https address being answered with the ssh form of the same
+        repository (:func:`ssh_address`); for a store inside another
+        repository, which is :meth:`needs`'s words; and under a key this
+        store cannot read, in the words :meth:`push` uses (#443).
+
+        Every command that reaches the repository passes :meth:`_settings`,
+        and the clone writes them into the config it makes. Neither `init`
+        nor `remote add` is run: the remote came with the address.
 
         The one route that waits on the network on the thread serving it,
         because the person who pressed the button is waiting for the answer;
-        it is given the push's deadline.
+        each command is given the push's deadline.
         """
         with self._lock:
             top = self._inside()
-            if top == self.root.resolve():
-                where = self.remote()
-                return Said(
-                    False,
-                    f"{self.root} is a repository already"
-                    + (f", backing up to {where}" if where else ""),
-                )
-            if top is not None:
+            mine = top == self.root.resolve()
+            if top is not None and not mine:
                 return Said(False, self.needs()[0])
             url = url.strip()
             if not url:
                 return Said(False, "no address was given")
+            wrong = ssh_address(url)
+            if wrong is not None:
+                return Said(False, wrong)
             unusable = self._unusable()
             if unusable is not None:
                 return Said(False, unusable)
             self.root.mkdir(parents=True, exist_ok=True)
-            into = Path(tempfile.mkdtemp(prefix=".adopting-", dir=self.root))
-            try:
-                said = self._run(
-                    self.root,
-                    "clone",
-                    "--quiet",
-                    *self._settings(),
-                    "--",
-                    url,
-                    str(into),
-                    timeout=self._push_timeout_s,
-                )
-                if not said.ok:
-                    return said
-                if self._run(into, "rev-parse", "--verify", "--quiet", "HEAD").ok:
+            listed = self._run(
+                self.root,
+                *self._settings(),
+                "ls-remote",
+                "--",
+                url,
+                timeout=self._push_timeout_s,
+            )
+            if not listed.ok:
+                return listed  # git's words: unreachable, refused, no such
+            holds = bool(listed.words)
+            if mine:
+                where = self.remote()
+                if holds:
                     return Said(
                         False,
-                        f"{url} already holds backups. Bringing those onto"
-                        " this box is a restore, not this; to back this store"
-                        " up, give it an empty repository",
+                        f"{self.root} is a repository already"
+                        + (f", backing up to {where}" if where else "")
+                        + f"; {url} holds backups of its own, and backup moves"
+                        " only to an empty repository",
                     )
-                (into / ".git").rename(self.root / ".git")
-            finally:
-                shutil.rmtree(into, ignore_errors=True)
-            return Said(True, f"backing up to {url}; nothing is in it yet")
+                return self._move(url, where)
+            if holds:
+                drawn = self._documents()
+                if drawn:
+                    return Said(
+                        False,
+                        f"refused: this store holds {', '.join(drawn)} and"
+                        f" {url} holds backups, and the two are not merged —"
+                        " to keep this store, back it up to an empty"
+                        " repository; to bring those backups here, start"
+                        " from an empty store",
+                    )
+                return self._clone(url)
+            return self._adopted(url)
+
+    def _adopted(self, url: str) -> Said:
+        """An empty repository adopted: cloned beside the documents, and its
+        `.git` moved in under them so that they read as outstanding and are
+        the first backup.
+
+        `git clone` refuses a directory with anything in it, and a store
+        worth backing up has drawings in it, so the clone goes to a directory
+        of its own inside the store and its `.git` is moved up one level.
+        Inside the store rather than in `/tmp`, so the move is a rename on
+        one filesystem and never a copy of a repository.
+        """
+        into = Path(tempfile.mkdtemp(prefix=".adopting-", dir=self.root))
+        try:
+            said = self._cloned(url, into)
+            if not said.ok:
+                return said
+            if self._run(into, "rev-parse", "--verify", "--quiet", "HEAD").ok:
+                # Listed as empty and cloned holding something: somebody
+                # pushed in between. Nothing here is changed.
+                return Said(False, f"{url} took a backup while it was being adopted")
+            (into / ".git").rename(self.root / ".git")
+        finally:
+            shutil.rmtree(into, ignore_errors=True)
+        return Said(True, f"backing up to {url}; nothing is in it yet")
+
+    def _clone(self, url: str) -> Said:
+        """The repository's latest backup brought into this empty store: a
+        new box taking over an old one's railroad (#688).
+
+        Cloned beside the store and moved in, `.git` and documents both, so
+        that the store is exactly what the repository's latest backup held —
+        its backup switch with it, which is what turns backup on again on
+        the new box without another press. The switch this store held, if
+        any, is the one thing in the way and goes; anything else in the way
+        is a directory with no document in it.
+        """
+        into = Path(tempfile.mkdtemp(prefix=".adopting-", dir=self.root))
+        try:
+            said = self._cloned(url, into)
+            if not said.ok:
+                return said
+            if self._documents():
+                return Said(False, f"{self.root} was drawn in while the clone ran")
+            for held in into.iterdir():
+                there = self.root / held.name
+                if there.is_dir() and not there.is_symlink():
+                    shutil.rmtree(there)
+                elif there.exists() or there.is_symlink():
+                    there.unlink()
+                held.rename(there)
+        finally:
+            shutil.rmtree(into, ignore_errors=True)
+        made = self._run(self.root, "rev-parse", "--short", "HEAD")
+        return Said(True, f"restored {made.words} from {url}")
+
+    def _cloned(self, url: str, into: Path) -> Said:
+        """`url` cloned into `into`, under the store's settings, which the
+        clone writes into the config it makes."""
+        return self._run(
+            self.root,
+            "clone",
+            "--quiet",
+            *self._settings(),
+            "--",
+            url,
+            str(into),
+            timeout=self._push_timeout_s,
+        )
+
+    def _move(self, url: str, was: str | None) -> Said:
+        """Back up to the empty repository at `url` from now on, the whole
+        history pushed there first (#688).
+
+        **The address changes only once the push has worked**, so a move
+        that fails partway — the key not added there yet, the network gone —
+        leaves the store backing up where it did. The second push, to
+        `origin` once it names the new address, sends nothing and is what
+        has git's record of the remote's branches follow it, which is what
+        the copy's report reads.
+
+        The store still never makes a remote: one with none has nothing to
+        move, and is :meth:`needs`'s words.
+        """
+        if was is None:
+            return Said(False, self.needs()[0])
+        pushed = self._run(
+            self.root,
+            *self._settings(),
+            "push",
+            "--quiet",
+            "--",
+            url,
+            "refs/heads/*:refs/heads/*",
+            "refs/tags/*:refs/tags/*",
+            timeout=self._push_timeout_s,
+        )
+        if not pushed.ok:
+            return Said(False, f"still backing up to {was}: {pushed.words}")
+        moved = self._run(self.root, "remote", "set-url", "origin", url)
+        if not moved.ok:
+            return Said(False, f"still backing up to {was}: {moved.words}")
+        self._unpushed = True
+        self._push_wanted = True
+        return Said(True, f"backing up to {url}, every backup there; was {was}")
+
+    def _documents(self) -> list[str]:
+        """The documents under the store, named as the store names them: what
+        makes a store not empty. The backup switch is not one — it is
+        written before anything is drawn — and neither is a clone being made
+        here or a repository's own files."""
+        found: set[str] = set()
+        if not self.root.is_dir():
+            return []
+        for path in self.root.rglob("*"):
+            relative = path.relative_to(self.root)
+            first = relative.parts[0]
+            if first == ".git" or first.startswith(".adopting-"):
+                continue
+            if path.is_dir() or relative.as_posix() == SWITCH:
+                continue
+            found.add(document(relative.as_posix()))
+        return sorted(found)
 
     def commit(self) -> Said:
         """Commit what has moved, under a message naming the documents.
@@ -820,8 +1069,15 @@ class Backup:
         What it does is put the store back **as that backup held it**, staged
         as well as in the working tree, so a document made after it goes as
         well as one edited since. Nothing is lost by that: the later backup is
-        still in the history, restoring it is the same one press, and the next
-        backup records the restore as the change it is.
+        still in the history, and restoring it is the same one press.
+
+        **Three things make it a complete act** (#688). The backup switch is
+        left as it is, because undoing a drawing mistake must not stop
+        backups by bringing back an older switch. The restore is committed at
+        once, under a message naming the backup it came from and the
+        documents it changed, so that a power cut does not lose it and a
+        second restore is not refused over the first. And it asks for a
+        push, which the next tick makes whatever the switch says.
         """
         with self._lock:
             if not self.repository():
@@ -844,18 +1100,39 @@ class Backup:
                 "--staged",
                 "--",
                 ".",
+                f":(exclude){SWITCH}",
             )
             if not said.ok:
                 return said  # git's words: an unknown commit, a lock, a mode
             moved = self.outstanding()
-            return Said(
-                True,
-                (
-                    f"restored {', '.join(moved)} from {commit}"
-                    if moved
-                    else f"the store already held {commit}"
-                ),
+            if not moved:
+                return Said(True, f"the store already held {commit}")
+            named = self._run(
+                self.root,
+                "log",
+                "-1",
+                "--format=%h of %ad",
+                "--date=format:%Y-%m-%d %H:%M",
+                commit,
             )
+            which = named.words if named.ok and named.words else commit
+            staged = self._run(self.root, "add", "-A", "--", ".")
+            made = (
+                self._run(
+                    self.root, "commit", "-m", f"restore {which}: {', '.join(moved)}"
+                )
+                if staged.ok
+                else staged
+            )
+            if not made.ok:
+                return Said(
+                    False,
+                    f"restored {', '.join(moved)} from {which}, but that could"
+                    f" not be backed up: {made.words}",
+                )
+            self._unpushed = True
+            self._push_wanted = True
+            return Said(True, f"restored {', '.join(moved)} from {which}")
 
     # --- saying so -----------------------------------------------------------
 

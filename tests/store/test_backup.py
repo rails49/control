@@ -758,6 +758,87 @@ def test_a_restore_puts_the_store_back_as_that_backup_held_it(
     assert yard.exists()
 
 
+def test_a_restore_is_backed_up_and_keeps_the_switch(repository: Path) -> None:
+    """A restore is a complete act: committed at once under a message naming
+    the backup it came from, so a power cut does not lose it and a second
+    restore is not refused over the first; with backup switched as it was
+    before, so undoing a drawing mistake never stops backups; and with a
+    push asked for (#688)."""
+    backup = Backup(repository, log=lambda _: None)
+    backup.switch(False)
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    backup.commit()
+    yesterday = backup.backups()[0]["commit"]
+    backup.switch(True)
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\nsymbols: {}\n")
+    backup.commit()
+    today = backup.backups()[0]["commit"]
+
+    said = backup.restore(yesterday)
+
+    assert said.ok, said.words
+    assert backup.automatic
+    assert backup.outstanding() == []
+    last = backup.backups()[0]["said"]
+    assert last.startswith(f"restore {yesterday} of ")
+    assert last.endswith(": reversing-loops")
+    assert backup.restore(today).ok  # a wrong pick costs one more press
+    assert (
+        "symbols"
+        in (repository / "layouts" / "reversing-loops.drawing.yaml").read_text()
+    )
+
+
+def test_a_restore_asks_for_a_push(tmp_path: Path, clock: FakeClock) -> None:
+    """Whatever the switch says: it is a press, and the backup it makes
+    leaves the box on the next tick (#688)."""
+
+    class Restoring(FakeGit):
+        def __call__(
+            self, root: Path, *args: str, timeout: float | None = None
+        ) -> Said:
+            if args[0] == "restore":
+                self.porcelain = " M layouts/reversing-loops.drawing.yaml"
+            return super().__call__(root, *args, timeout=timeout)
+
+    run = Restoring()
+    backup = Backup(tmp_path, run=run, log=lambda _: None, now=clock)
+    assert backup.restore("a1b2c3d").ok
+    assert [message.split(":")[1] for message in run.messages] == [" reversing-loops"]
+    backup.due()
+    assert ("push",) in run.calls
+
+
+def test_each_backup_names_the_railroads_it_holds(repository: Path) -> None:
+    """What the UI checks a restore against: a backup lacking the railroad
+    that is loaded would leave the apps running one the store no longer
+    has (#688)."""
+    backup = Backup(repository, log=lambda _: None)
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    (repository / "layouts" / "reversing-loops.roster.yaml").write_text("trains: {}\n")
+    backup.commit()
+    drawn(repository, "crossover-yard", "drawing: crossover-yard\n")
+    backup.commit()
+
+    assert [one["railroads"] for one in backup.backups()] == [
+        ["crossover-yard", "reversing-loops"],
+        ["reversing-loops"],
+    ]
+
+
+def test_a_store_says_which_repository_it_is_inside(tmp_path: Path) -> None:
+    """`bench/` in a checkout: the repository it is inside is said, so that
+    the UI says nothing about backing up a store not meant to be (#688)."""
+    run_git(tmp_path, "init", "-q", "-b", "main", str(tmp_path / "checkout"))
+    bench = tmp_path / "checkout" / "bench"
+    bench.mkdir()
+    assert Backup(bench).status()["inside"] == str((tmp_path / "checkout").resolve())
+
+
+def test_a_store_that_is_its_own_repository_is_inside_none(repository: Path) -> None:
+    assert Backup(repository).status()["inside"] is None
+
+
 def test_a_restore_to_a_backup_that_is_not_there_reads_gits_own_words(
     repository: Path,
 ) -> None:
@@ -1040,30 +1121,206 @@ def test_a_store_adopts_an_empty_repository_and_keeps_its_documents(
     assert "backup: reversing-loops" in run_git(Path(remote), "log", "--format=%s")
 
 
-def test_a_repository_that_already_holds_backups_is_not_adopted(
+def identified(root: Path) -> None:
+    """An identity for commits made in `root`, so that nothing about the
+    machine running the suite decides whether one can be made."""
+    run_git(root, "config", "user.email", "suite@example.invalid")
+    run_git(root, "config", "user.name", "The Suite")
+    run_git(root, "config", "commit.gpgsign", "false")
+
+
+def held(tmp_path: Path) -> str:
+    """A repository holding an old box's backups: a drawing, and the switch
+    that box had on. Made by pushing from a store of its own, as the old box
+    did."""
+    bare = tmp_path / "old-box.git"
+    run_git(tmp_path, "init", "-q", "--bare", "-b", "main", str(bare))
+    old = tmp_path / "old-box"
+    (old / "layouts").mkdir(parents=True)
+    run_git(tmp_path, "init", "-q", "-b", "main", str(old))
+    identified(old)
+    drawn(old, "reversing-loops", "drawing: reversing-loops\n")
+    Backup(old).switch(True)
+    run_git(old, "add", "-A")
+    run_git(old, "commit", "-q", "-m", "backup: backup.yaml, reversing-loops")
+    run_git(old, "push", "-q", str(bare), "main")
+    return str(bare)
+
+
+def test_a_store_with_documents_is_not_filled_from_a_repository_with_backups(
     tmp_path: Path,
 ) -> None:
-    """That is a restore onto a new box — which of two stores wins is a
-    question this does not answer — so it is refused in words, and the store
-    is left exactly as it was: no `.git`, no clone lying about."""
+    """Which of two stores wins is a question this does not answer: two
+    histories are never mixed. The refusal names both, and the store is left
+    as it was: no `.git`, no clone lying about (#688)."""
     root = tmp_path / "tc49"
     (root / "layouts").mkdir(parents=True)
-    other = tmp_path / "other"
-    run_git(tmp_path, "init", "-q", "-b", "main", str(other))
-    run_git(other, "config", "user.email", "suite@example.invalid")
-    run_git(other, "config", "user.name", "The Suite")
-    run_git(other, "config", "commit.gpgsign", "false")
-    (other / "a").write_text("a")
-    run_git(other, "add", "a")
-    run_git(other, "commit", "-q", "-m", "held")
+    drawn(root, "crossover-yard", "drawing: crossover-yard\n")
+    remote = held(tmp_path)
     backup = Backup(root, log=lambda _: None)
 
-    said = backup.adopt(str(other))
+    said = backup.adopt(remote)
 
     assert not said.ok
-    assert "already holds backups" in said.words
+    assert "crossover-yard" in said.words
+    assert remote in said.words and "holds backups" in said.words
     assert not (root / ".git").exists()
     assert sorted(p.name for p in root.iterdir()) == ["layouts"]
+
+
+def test_an_empty_store_takes_a_repositorys_latest_backup(tmp_path: Path) -> None:
+    """A box replacing another: its old repository's address entered on the
+    new box's empty store brings the railroad in, with no terminal. The
+    switch comes with it as the old box had it, and the store pushes from
+    here on as any adopted one does (#688)."""
+    root = tmp_path / "tc49"
+    remote = held(tmp_path)
+    backup = Backup(root, log=lambda _: None)
+    backup.switch(False)  # a switch alone is an empty store
+
+    said = backup.adopt(remote)
+
+    assert said.ok, said.words
+    assert said.words.startswith("restored ") and remote in said.words
+    assert backup.repository()
+    assert backup.remote() == remote
+    assert backup.automatic
+    assert (root / "layouts" / "reversing-loops.drawing.yaml").exists()
+    assert backup.outstanding() == []
+    assert [p.name for p in root.iterdir() if p.name.startswith(".adopting")] == []
+    assert run_git(root, "config", "push.autoSetupRemote").strip() == "true"
+
+    identified(root)
+    drawn(root, "crossover-yard", "drawing: crossover-yard\n")
+    assert backup.commit().ok
+    assert backup.push().ok
+    assert "backup: crossover-yard" in run_git(Path(remote), "log", "--format=%s")
+
+
+def test_backup_moves_to_an_empty_repository_with_its_whole_history(
+    repository: Path, tmp_path: Path
+) -> None:
+    """Moving is entering the new address in the dialog of a store already
+    backed up: every earlier backup is pushed there, so each stays
+    restorable, and the store backs up there from then on (#688)."""
+    old = empty_remote(tmp_path)
+    run_git(repository, "remote", "add", "origin", old)
+    backup = Backup(repository, log=lambda _: None)
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    backup.commit()
+    drawn(repository, "crossover-yard", "drawing: crossover-yard\n")
+    backup.commit()
+    assert backup.push().ok
+    new = tmp_path / "new.git"
+    run_git(tmp_path, "init", "-q", "--bare", "-b", "main", str(new))
+
+    said = backup.adopt(str(new))
+
+    assert said.ok, said.words
+    assert backup.remote() == str(new)
+    assert run_git(new, "log", "--format=%s").split("\n")[:2] == [
+        "backup: crossover-yard",
+        "backup: reversing-loops",
+    ]
+    assert backup.copy()["waiting"] == 0
+    drawn(repository, "facing-pair", "drawing: facing-pair\n")
+    backup.commit()
+    assert backup.push().ok
+    assert "backup: facing-pair" in run_git(new, "log", "--format=%s")
+    assert "facing-pair" not in run_git(Path(old), "log", "--format=%s")
+
+
+def test_a_move_that_fails_leaves_backup_where_it_was(
+    repository: Path, tmp_path: Path
+) -> None:
+    """A move refused partway — here a repository that lists empty and then
+    takes no push — changes nothing: the store still backs up to the old
+    address (#688)."""
+    old = empty_remote(tmp_path)
+    run_git(repository, "remote", "add", "origin", old)
+    backup = Backup(repository, log=lambda _: None)
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    backup.commit()
+    new = tmp_path / "new.git"
+    run_git(tmp_path, "init", "-q", "--bare", "-b", "main", str(new))
+    hook = new / "hooks" / "pre-receive"
+    hook.write_text("#!/bin/sh\necho refused by the far end\nexit 1\n")
+    hook.chmod(0o755)
+
+    said = backup.adopt(str(new))
+
+    assert not said.ok
+    assert f"still backing up to {old}" in said.words
+    assert backup.remote() == old
+
+
+def test_backup_does_not_move_to_a_repository_holding_backups(
+    repository: Path, tmp_path: Path
+) -> None:
+    run_git(repository, "remote", "add", "origin", empty_remote(tmp_path))
+    backup = Backup(repository, log=lambda _: None)
+    said = backup.adopt(held(tmp_path))
+    assert not said.ok
+    assert "is a repository already" in said.words
+    assert "holds backups" in said.words
+
+
+@pytest.mark.parametrize(
+    ("given", "offered"),
+    [
+        (
+            "https://github.com/somebody/railroad",
+            "git@github.com:somebody/railroad.git",
+        ),
+        (
+            "https://github.com/somebody/railroad.git",
+            "git@github.com:somebody/railroad.git",
+        ),
+    ],
+)
+def test_an_https_address_is_answered_with_its_ssh_form(
+    tmp_path: Path, given: str, offered: str
+) -> None:
+    """The store pushes over ssh under its own key, so an https address is
+    one it has no credential for. It is refused before anything reaches the
+    network, with the address to paste instead (#688)."""
+    run = FakeGit(toplevel="")
+    said = Backup(tmp_path, run=run).adopt(given)
+    assert not said.ok
+    assert offered in said.words
+    assert [call[0] for call in run.calls if call[0] in ("clone", "ls-remote")] == []
+
+
+def test_an_address_that_is_no_address_is_refused(tmp_path: Path) -> None:
+    run = FakeGit(toplevel="")
+    said = Backup(tmp_path, run=run).adopt("somebody/railroad")
+    assert not said.ok
+    assert "not an ssh address" in said.words
+    assert "clone" not in [call[0] for call in run.calls]
+
+
+@keygen
+def test_a_new_key_replaces_the_old_one(tmp_path: Path) -> None:
+    """What a person whose key a deleted repository still holds presses: the
+    old pair goes, a new one is made, and the answer carries its public half
+    to paste (#688)."""
+    keys = tmp_path / "keys"
+    backup = Backup(tmp_path / "tc49", run=FakeGit(toplevel=""), keys=keys)
+    old = backup.key()
+    assert old is not None
+
+    said = backup.new_key()
+
+    assert said.ok, said.words
+    shown = backup.key()
+    assert shown is not None and shown != old
+    assert shown in said.words
+
+
+def test_a_store_with_nowhere_to_keep_a_key_gets_no_new_one(tmp_path: Path) -> None:
+    said = Backup(tmp_path, run=FakeGit(toplevel="")).new_key()
+    assert not said.ok
+    assert "no key of its own" in said.words
 
 
 def test_an_address_that_cannot_be_reached_is_refused_in_gits_words(
@@ -1078,13 +1335,6 @@ def test_an_address_that_cannot_be_reached_is_refused_in_gits_words(
     assert "nowhere.git" in said.words
     assert not (root / ".git").exists()
     assert list(root.iterdir()) == []
-
-
-def test_a_store_that_is_a_repository_is_not_adopted_again(repository: Path) -> None:
-    backup = Backup(repository, log=lambda _: None)
-    said = backup.adopt("git@github.com:somebody/railroad.git")
-    assert not said.ok
-    assert "is a repository already" in said.words
 
 
 def test_adopting_nowhere_is_refused(tmp_path: Path) -> None:
