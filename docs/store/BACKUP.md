@@ -238,14 +238,23 @@ The new box's store is empty. In order:
 2. On github.com, in the repository's *Settings ▸ Deploy keys*, remove the
    old box's key — a deploy key opens one repository, and the old box should
    no longer push here — and add the new box's, with *Allow write access*.
+   A dead box's key is removed the same way: it is listed there whether or
+   not the box still runs.
 3. In the dialog, enter the repository's ssh address and press *Back up to
    it*. The store clones it and holds the latest backup, `backup.yaml` with it,
    so backup is on again if it was on before, and pushes go out under the new
    box's key.
 
+The answer names the backup brought in, `restored <short commit> from
+<address>`, and every backup the old box made is in the list to restore from.
+No railroad is loaded until one is chosen.
+
 Drawing anything on the new box before step 3 makes its store not empty, and
 the dialog then refuses, naming both the store's documents and the
-repository's backups: the two are never merged.
+repository's backups: the two are never merged. `backup.yaml` alone is not a
+document, so turning backup on or off first changes nothing. The dialog's
+setup text, on a store that is no repository yet, points here
+([#694](https://github.com/rails49/control/issues/694)).
 
 ## Moving to another repository
 

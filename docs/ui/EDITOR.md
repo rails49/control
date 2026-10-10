@@ -890,8 +890,10 @@ not own it**
 ([ADR-0053](../adr/0053-backup-drives-git-and-does-not-own-it.md),
 [store/BACKUP.md](../store/BACKUP.md)): the presses are *Back up now*, the
 switch that turns automated backup on, and *Back up to it*, which hands the
-address of an empty repository the person made to the store to adopt
-([#355](https://github.com/rails49/control/issues/355)). Neither this dialog
+address of a repository the person made to the store: an empty one to adopt
+([#355](https://github.com/rails49/control/issues/355)), or, on a store with
+nothing drawn in it, the one an old box backed up to, whose latest backup it
+brings in ([#694](https://github.com/rails49/control/issues/694)). Neither this dialog
 nor anything behind it runs `git init`, makes a remote or resolves a conflict.
 
 A store nobody has made a repository is the ordinary state of a fresh
