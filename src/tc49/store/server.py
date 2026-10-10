@@ -25,7 +25,10 @@ rather than to an app of its own — a `ui` package could not import
     PUT  /backup                turn automated backup on or off
     POST /backup/commit         back the store up now, and attempt a push
     POST /backup/restore        put the store back as a backup held it
-    POST /backup/repository     back up to an empty repository the person made
+    POST /backup/repository     back up to a repository the person made: adopt
+                                an empty one, move to one, or bring one's
+                                backups into an empty store
+    POST /backup/key            replace the store's deploy key with a new one
 
 `review` is the one that carries the editor's whole view of topology: red
 pins, the portal labels that pair with nothing, junction membership, the
@@ -398,7 +401,7 @@ def _layout(store: AssetStore, name: str) -> Response:
 
 
 def _backup(backup: Backup, method: str, route: str, body: Any) -> Response:
-    """The five backup routes.
+    """The six backup routes.
 
     **A refusal comes back inside a 200**, the way `review`'s does. Nothing
     here is a bad request: the store not being a repository, a remote that is
@@ -436,6 +439,9 @@ def _backup(backup: Backup, method: str, route: str, body: Any) -> Response:
         ):
             return 400, {"error": "adopting takes {'url': '<address>'}"}
         return _said(backup, backup.adopt(url))
+
+    if method == "POST" and route == "/backup/key":
+        return _said(backup, backup.new_key())
 
     return 404, {"error": f"no route {method} {route}"}
 

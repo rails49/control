@@ -1213,10 +1213,16 @@ class FakeGit:
         self.porcelain = " M layouts/reversing-loops.drawing.yaml\n"
         self.pushes = Said(True, "")
 
-    def __call__(self, root: Path, *args: str, timeout: float | None = None) -> Said:
+    def __call__(self, root: Path, *given: str, timeout: float | None = None) -> Said:
+        rest = list(given)
+        while len(rest) >= 2 and rest[0] == "-c":
+            del rest[:2]  # the store's settings, `test_backup.py`'s to check
+        args = tuple(rest)
         self.calls.append(args)
         if args[0] == "rev-parse":
             return Said(True, str(root))
+        if args[0] == "ls-remote":
+            return Said(True, "a1b2c3d\trefs/heads/main")
         if args[0] == "status":
             # Stripped as `git` strips it, so a first line whose status is
             # ` M` reaches the parser as it really does (#389).
@@ -1314,7 +1320,7 @@ def test_adopting_a_repository_takes_its_address(
 ) -> None:
     """The route hands the address to the backup and answers what it said,
     inside a 200 like every other refusal — here, that the fake's store is a
-    repository already."""
+    repository already and the repository named holds backups."""
     assert handle(store, driven, "POST", "/backup/repository", None)[0] == 400
     assert handle(store, driven, "POST", "/backup/repository", {"url": 3})[0] == 400
     status, body = handle(
@@ -1346,7 +1352,17 @@ def test_a_restore_names_the_backup_to_come_back_to(
         "--staged",
         "--",
         ".",
+        ":(exclude)backup.yaml",
     ) in driving.calls
+
+
+def test_a_new_key_is_a_route(store: AssetStore, driven: Backup) -> None:
+    """*New key*, answered inside a 200 like every other refusal — here,
+    that the fake's store was given nowhere to keep one."""
+    status, body = handle(store, driven, "POST", "/backup/key", None)
+    assert status == 200
+    assert body["ok"] is False
+    assert "no key of its own" in body["said"]
 
 
 def test_an_unknown_backup_route_is_not_found(
