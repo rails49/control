@@ -659,3 +659,87 @@ def test_the_railroad_already_loaded_is_built_again_when_named(
         writing.close()
     finally:
         running.stop()
+
+
+RENAMED = {"yard_w": "siding_w", "yard_e": "siding_e"}
+"""What a restore made of the two yards in the store's drawing of the
+railroad that is running: blocks no build of it had before, so an app built
+again from the store names them and one still running what it read does
+not."""
+
+
+def restored(root: Path, railroad: str) -> None:
+    """The store's drawing of `railroad` changed under the running apps, as a
+    restore changes it: written into the installation's files, which the
+    store reads on every `get`, and announced to nobody (#696).
+
+    Blocks renamed everywhere the drawing says them — the symbol, its
+    connections, its terminal — so the drawing still derives."""
+    path = root / "layouts" / f"{railroad}.drawing.yaml"
+    text = path.read_text()
+    for was, now in RENAMED.items():
+        text = text.replace(was, now)
+    path.write_text(text)
+
+
+def asked(log: Path, railroad: str) -> int:
+    """How many times the store has been asked for `railroad`'s layout: its
+    access log, which is the one witness the two bindings leave of having
+    read the store (BaseHTTPRequestHandler, one line a request)."""
+    return log.read_text(errors="replace").count(f"GET /layouts/{railroad} ")
+
+
+@pytest.mark.parametrize("app", ["scheduler", "dispatcher", "layout", "simulator"])
+def test_the_railroad_built_again_is_the_one_the_store_now_holds(
+    app: str, root: Path, broker: Broker, store: Store, tmp_path: Path
+) -> None:
+    """The point of building the loaded railroad again: after a restore the
+    store holds another drawing under the same name, and every app that reads
+    the store reads that one rather than routing over the drawing it was
+    built from (#696). The driver reads no documents and is not here.
+
+    Each app the way a running system reaches it — a follower by the row the
+    binding republishes with a new stamp, a binding by the gesture with the
+    rails dead — and each shows what it read where it can: the dispatcher's
+    aspects and the scheduler's facing are keyed by block end, and the two
+    bindings, which retain nothing keyed by a block, by asking the store."""
+    running = started(app, broker, store, tmp_path)
+    try:
+        writing = hand(broker)
+        before = asked(tmp_path / "store.log", WAS)
+        restored(root, WAS)
+
+        if named(app).answers:
+            if app == "layout":
+                dark(writing)
+            picks(writing, WAS, running)
+        else:
+            load(writing, WAS)
+            settle(writing, 2.0)
+            load(writing, WAS)
+            assert until(
+                lambda: running.said().count(f"up on '{WAS}'") == 2, UP_S
+            ), running.said()
+
+        assert asked(tmp_path / "store.log", WAS) > before, "it never asked the store"
+        if app == "dispatcher":
+            signalled = picture(broker)["tc49/dispatch/state/aspects"]["aspects"]
+            assert "siding_w.B" in signalled, f"it routes the old drawing: {signalled}"
+            assert "yard_w.B" not in signalled, f"it kept the old drawing: {signalled}"
+        if app == "scheduler":
+            # Placed facing the one end a connection holds, which a scheduler
+            # that knows no such block turns around as it would a wall (#145).
+            writing.publish(
+                "tc49/dispatch/train_placed", {"train": WAS_TRAIN, "block": "siding_e"}
+            )
+
+            def facing() -> str:
+                held = picture(broker)["tc49/schedule/state/facing"]["facing"]
+                return str(held.get(WAS_TRAIN, ""))
+
+            assert until(
+                lambda: facing() == "siding_e.B-to-A", UP_S
+            ), f"it does not know 'siding_e': {facing()!r}\n{running.said()}"
+        writing.close()
+    finally:
+        running.stop()
