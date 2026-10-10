@@ -1477,15 +1477,83 @@ def test_a_move_that_fails_leaves_backup_where_it_was(
     assert backup.remote() == old
 
 
-def test_backup_does_not_move_to_a_repository_holding_backups(
+def backed_up_three_times(repository: Path, tmp_path: Path) -> tuple[Backup, str]:
+    """A store backed up to bare repository A with three backups, every one
+    of them pushed: what gleis49 had when its repository went (#698)."""
+    old = str(tmp_path / "a.git")
+    run_git(tmp_path, "init", "-q", "--bare", "-b", "main", old)
+    run_git(repository, "remote", "add", "origin", old)
+    backup = Backup(repository, log=lambda _: None)
+    for name in ("reversing-loops", "crossover-yard", "facing-pair"):
+        drawn(repository, name, f"drawing: {name}\n")
+        assert backup.commit().ok
+    assert backup.push().ok
+    return backup, old
+
+
+def test_a_store_backed_up_moves_to_an_empty_repository_from_the_dialog(
     repository: Path, tmp_path: Path
 ) -> None:
-    run_git(repository, "remote", "add", "origin", empty_remote(tmp_path))
-    backup = Backup(repository, log=lambda _: None)
-    said = backup.adopt(held(tmp_path))
+    """Moving to empty repository B: B is given all three backups, `origin`
+    names it, the branch follows `origin/main` at once rather than on the
+    next push, and the next backup goes there (#698)."""
+    backup, _ = backed_up_three_times(repository, tmp_path)
+    new = tmp_path / "b.git"
+    run_git(tmp_path, "init", "-q", "--bare", "-b", "main", str(new))
+
+    said = backup.adopt(str(new))
+
+    assert said.ok, said.words
+    assert said.words == f"backing up to {new}, with 3 backups"
+    assert run_git(repository, "remote", "get-url", "origin").strip() == str(new)
+    assert run_git(new, "log", "--format=%s").split("\n")[:3] == [
+        "backup: facing-pair",
+        "backup: crossover-yard",
+        "backup: reversing-loops",
+    ]
+    head = run_git(repository, "rev-parse", "HEAD").strip()
+    assert run_git(repository, "rev-parse", "@{u}").strip() == head
+    assert run_git(repository, "rev-parse", "--abbrev-ref", "@{u}").strip() == (
+        "origin/main"
+    )
+    assert backup.copy()["waiting"] == 0
+    drawn(repository, "staging-yard", "drawing: staging-yard\n")
+    assert backup.commit().ok
+    assert backup.push().ok
+    assert "backup: staging-yard" in run_git(new, "log", "--format=%s")
+
+
+def test_a_store_does_not_move_to_a_repository_holding_a_backup(
+    repository: Path, tmp_path: Path
+) -> None:
+    """B holding a commit of its own: refused in words naming B and saying it
+    holds backups, `origin` still A, and nothing pushed to B (#698)."""
+    backup, old = backed_up_three_times(repository, tmp_path)
+    new = held(tmp_path)
+    before = run_git(Path(new), "for-each-ref")
+
+    said = backup.adopt(new)
+
     assert not said.ok
-    assert "is a repository already" in said.words
-    assert "holds backups" in said.words
+    assert f"{new} already holds backups" in said.words
+    assert run_git(repository, "remote", "get-url", "origin").strip() == old
+    assert run_git(Path(new), "for-each-ref") == before
+
+
+def test_a_store_does_not_move_to_a_repository_it_cannot_reach(
+    repository: Path, tmp_path: Path
+) -> None:
+    """B not there at all: refused in git's own words, `origin` still A
+    (#698)."""
+    backup, old = backed_up_three_times(repository, tmp_path)
+    gone = tmp_path / "no-such.git"
+
+    said = backup.adopt(str(gone))
+
+    assert not said.ok
+    assert str(gone) in said.words
+    assert "does not appear to be a git repository" in said.words
+    assert run_git(repository, "remote", "get-url", "origin").strip() == old
 
 
 @pytest.mark.parametrize(

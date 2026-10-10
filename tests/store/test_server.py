@@ -1319,8 +1319,8 @@ def test_adopting_a_repository_takes_its_address(
     store: AssetStore, driven: Backup, driving: FakeGit
 ) -> None:
     """The route hands the address to the backup and answers what it said,
-    inside a 200 like every other refusal — here, that the fake's store is a
-    repository already and the repository named holds backups."""
+    inside a 200 like every other refusal — here, that the repository named
+    holds backups already and the fake's store backs up elsewhere (#698)."""
     assert handle(store, driven, "POST", "/backup/repository", None)[0] == 400
     assert handle(store, driven, "POST", "/backup/repository", {"url": 3})[0] == 400
     status, body = handle(
@@ -1328,7 +1328,7 @@ def test_adopting_a_repository_takes_its_address(
     )
     assert status == 200
     assert body["ok"] is False
-    assert "is a repository already" in body["said"]
+    assert "git@example:a/b.git already holds backups" in body["said"]
     assert body["repository"] is True
 
 
