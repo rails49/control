@@ -49,6 +49,7 @@ import "@shoelace-style/shoelace/dist/themes/dark.css";
 
 import {
   COMMANDS,
+  backupWords,
   frozen,
   type CommandId,
   type Standing,
@@ -82,6 +83,10 @@ const OUT = 1.25;
  *  puts on screen, and the native ones they are built from. */
 const CONTROLS = "sl-input, sl-select, input, textarea";
 
+/** How long the page waits after a restore before it reloads: long enough for
+ *  the press asking for the loaded railroad again to leave on the bus. */
+const RELOAD_MS = 500;
+
 /** What the run view says about itself before it has said anything. */
 const QUIET: RunStatus = {
   joined: false,
@@ -112,6 +117,13 @@ export class TcApp extends LitElement {
    *  app's rather than a view's, which is why this is held here beside the
    *  filing and not inside the editing view. */
   private backing = new Backing(() => this.redraw());
+
+  /** What stops the hourly ask about backup, held for when the app goes. */
+  private unwatch: (() => void) | null = null;
+
+  /** How the page reloads after a restore. A seam so a suite can see that it
+   *  would, `location.reload` ending the document the suite runs in. */
+  reload: () => void = () => location.reload();
 
   /** The view that is current. The app opens in the run view: it is a control
    *  surface, and the editor is the setup tool you go to deliberately. */
@@ -157,13 +169,18 @@ export class TcApp extends LitElement {
     window.addEventListener("hashchange", this.hashed);
     this.view = viewOf(location.hash);
     void this.filing.load();
-    // Asked for the File menu's mark rather than for the dialog: a copy that
-    // has been failing for a day, and a railroad that has never been backed up
-    // at all, are both things a person finds out by not being told.
+    // Asked for the band's note and the File menu's mark rather than for the
+    // dialog: a copy that has been failing for a day, and a railroad that has
+    // never been backed up at all, are both things a person finds out by not
+    // being told. Asked again every hour, so a copy that went behind after
+    // the page loaded still shows on a page left open for days (#688).
     void this.backing.load();
+    this.unwatch = this.backing.watch();
   }
 
   override disconnectedCallback(): void {
+    this.unwatch?.();
+    this.unwatch = null;
     window.removeEventListener("keydown", this.key);
     window.removeEventListener("hashchange", this.hashed);
     super.disconnectedCallback();
@@ -190,6 +207,8 @@ export class TcApp extends LitElement {
         .power=${this.status.power}
         .draining=${this.status.draining}
         .frozen=${still && this.view === "edit"}
+        .backup=${this.backupNote()}
+        @backup-wanted=${() => this.invoke("backup")}
         @power-wanted=${(event: CustomEvent<Power>) => this.supplying(event.detail)}
         @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}
       ></tc-header>
@@ -254,9 +273,12 @@ export class TcApp extends LitElement {
       <tc-backup
         .backing=${this.backingUp ? this.backing : null}
         .frozen=${still}
+        .power=${this.status.power}
+        .railroad=${name}
         @backup-closed=${() => {
           this.backingUp = false;
         }}
+        @restored=${() => this.restored()}
       ></tc-backup>
 
       ${this.discarding ? this.question() : nothing}
@@ -328,6 +350,30 @@ export class TcApp extends LitElement {
    *  exactly where it was. */
   private wanting(railroad: string): void {
     this.running?.pressRailroad(railroad);
+  }
+
+  // --- backup ---------------------------------------------------------------
+
+  /** What the band says about backup, and why: the same rule as the mark on
+   *  `File ▸ Backup…` (`model/commands.ts`), `null` where it says nothing. */
+  private backupNote(): { says: string; why: string } | null {
+    const says = backupWords(this.backing.standing);
+    return says === null ? null : { says, why: this.backing.why ?? says };
+  }
+
+  /**
+   * A restore worked, and everything that read the store before it reads it
+   * again (#688). The loaded railroad is asked for by name, which the binding
+   * of the layout interface answers by building it again from the store, and
+   * every app following its row rebuilds on that; then the page reloads, so
+   * the editor cannot save back a copy it read before the restore — with no
+   * railroad loaded too, the catalogue and every other document being read
+   * fresh. The reload waits a moment, so the press is on the wire first.
+   */
+  private restored(): void {
+    const loaded = this.filing.opened;
+    if (loaded !== "") this.running?.pressRailroad(loaded);
+    setTimeout(() => this.reload(), RELOAD_MS);
   }
 
   // --- the rail and the keyboard -------------------------------------------

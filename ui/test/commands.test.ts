@@ -270,12 +270,17 @@ describe("what backup says without being opened", () => {
     expect(mark("quiet")).toBeNull();
   });
 
-  it("says a railroad has never been backed up", () => {
-    expect(mark("never")).toMatch(/never been backed up/);
+  /** The run view's note wears the same words, so the two never disagree
+   *  (#688). */
+  it("names what is wrong, in the words the run view's note wears", () => {
+    expect(mark("unset")).toBe("no backup set up");
+    expect(mark("behind")).toBe("backup behind");
+    expect(mark("blocked")).toBe("backup cannot run");
+    expect(mark("off")).toBe("backup is off");
   });
 
-  it("says the copy on the other machine is behind", () => {
-    expect(mark("behind")).toMatch(/more than a day/);
+  it("says nothing of a store inside another repository", () => {
+    expect(mark("inside")).toBeNull();
   });
 
   /** Every other item is silent, so the mark means one thing wherever it is

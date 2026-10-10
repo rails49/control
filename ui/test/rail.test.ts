@@ -210,11 +210,11 @@ describe("what a dead button does", () => {
  *  backed up is a railroad somebody still has to be able to back up. */
 describe("the mark on a command that has something to say", () => {
   it("rides on the button and leaves it live", async () => {
-    const element = await rail({ ...LIVE, backup: "never" });
+    const element = await rail({ ...LIVE, backup: "unset" });
     const backup = button(element, "backup")!;
     expect(backup.querySelector(".mark")).not.toBeNull();
     expect(backup.disabled).toBe(false);
-    expect(backup.title).toBe("this railroad has never been backed up");
+    expect(backup.title).toBe("no backup set up");
   });
 
   it("draws none where there is nothing to say", async () => {

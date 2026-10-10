@@ -42,6 +42,7 @@ import type { TcThrottle } from "../../src/ui/tc-throttle.js";
 export const UNBACKED: BackupDoc = {
   root: "/home/somebody/tc49",
   repository: false,
+  inside: null,
   remote: null,
   key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTheSuite tc49 backup",
   automatic: false,

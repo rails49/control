@@ -174,6 +174,20 @@ export const headerStyles = css`
     opacity: 0.75;
   }
 
+  /* Backup that is not running, as a press that opens its dialog (#688).
+     Quieter than the trouble beside it: nothing is failing this minute, and
+     the railroad runs. */
+  .backup {
+    flex: none;
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 1px dashed currentColor;
+    border-radius: 3px;
+    padding: 0 0.4em;
+    cursor: pointer;
+  }
+
   /* What the app could not do, in the store's or the broker's words. */
   .trouble {
     ${sentence}

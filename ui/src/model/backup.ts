@@ -19,10 +19,11 @@
  * reach rules that have nothing to do with HTTP (EDITOR.md#tests).
  */
 
-import type { BackupStanding } from "./commands.js";
+import { backupWords, type BackupStanding } from "./commands.js";
 import {
   adoptRepository,
   backUpNow,
+  newKey,
   readBackup,
   restoreBackup,
   switchBackup,
@@ -36,6 +37,7 @@ export interface BackupStore {
   backUpNow(): Promise<BackupDoc>;
   restoreBackup(commit: string): Promise<BackupDoc>;
   adoptRepository(url: string): Promise<BackupDoc>;
+  newKey(): Promise<BackupDoc>;
 }
 
 /** The store as it is over HTTP, which is what the app runs against. */
@@ -45,7 +47,12 @@ const live: BackupStore = {
   backUpNow,
   restoreBackup,
   adoptRepository,
+  newKey,
 };
+
+/** How often the app asks again where backup stands: a copy that went behind
+ *  after the page loaded has to show on a page left open for days (#688). */
+export const ASK_MS = 60 * 60 * 1000;
 
 export class Backing {
   private answer: BackupDoc | null = null;
@@ -61,32 +68,57 @@ export class Backing {
 
   /** Where backup stands, `null` until it has been asked.
    *
-   *  The app asks once when it comes up. It did not, on the reasoning that a
-   *  person who never opens the dialog has no interest in git — which is
-   *  exactly backwards for the two things `standing` reports (#321): somebody
-   *  who never opens the dialog is who a railroad that is not being backed up
-   *  has to reach. One `GET /backup` a page load is the cost. */
+   *  The app asks when it comes up and every hour after (`watch`). It did
+   *  not, on the reasoning that a person who never opens the dialog has no
+   *  interest in git — which is exactly backwards for what `standing`
+   *  reports (#321): somebody who never opens the dialog is who a railroad
+   *  that is not being backed up has to reach. */
   get stands(): BackupDoc | null {
     return this.answer;
   }
 
   /**
-   * What backup has to say from outside its own dialog, which the `Backup…`
-   * item on the File menu marks itself with.
-   *
-   * `quiet` until it has been asked, and `quiet` for everything that is only
-   * worth reading once the dialog is open. A store that is not a repository at
-   * all reads as `never` like any other store with no backups: what a person
-   * has to know is the same either way, and the dialog is where the difference
-   * is spelled out.
+   * What backup has to say from outside its own dialog, which the run view's
+   * note and the `Backup…` item on the File menu both wear
+   * (`BackupStanding`, #688). The first that holds is the one.
    */
   get standing(): BackupStanding {
-    if (this.answer === null) return "quiet";
-    if (this.answer.copy.stale) return "behind";
-    if (!this.answer.automatic && this.answer.backups.length === 0) {
-      return "never";
-    }
+    const stands = this.answer;
+    if (stands === null) return "quiet";
+    if (stands.inside !== null) return "inside";
+    if (!stands.repository) return "unset";
+    if (stands.copy.stale) return "behind";
+    if (stands.needs.length > 0) return "blocked";
+    if (!stands.automatic) return "off";
     return "quiet";
+  }
+
+  /** Why, for the note's tooltip: git's own words from the last push for a
+   *  copy that is behind — the difference between a missing key and a
+   *  deleted repository — and the first thing backup needs for one that
+   *  cannot run. `null` where the standing says nothing. */
+  get why(): string | null {
+    const stands = this.answer;
+    const words = backupWords(this.standing);
+    if (stands === null || words === null) return null;
+    switch (this.standing) {
+      case "behind":
+        return stands.copy.said === ""
+          ? "the copy on the other machine is more than a day behind"
+          : stands.copy.said;
+      case "blocked":
+        return stands.needs[0] ?? words;
+      default:
+        return words;
+    }
+  }
+
+  /** Ask again every `every` milliseconds, until the answer is called. What
+   *  keeps a page left open for days honest about a copy that went behind
+   *  after it loaded (#688). */
+  watch(every: number = ASK_MS): () => void {
+    const timer = setInterval(() => void this.load(), every);
+    return () => clearInterval(timer);
   }
 
   /** What git said about the last thing it was asked to do, `null` where it
@@ -133,30 +165,44 @@ export class Backing {
     await this.asked(() => this.store.backUpNow());
   }
 
-  /** Put the store back as one named backup held it. Refused over documents
-   *  that have not been backed up, in words naming them — which is an answer
-   *  and not a failure. */
-  async restore(commit: string): Promise<void> {
-    await this.asked(() => this.store.restoreBackup(commit));
+  /** Put the store back as one named backup held it, and answer whether it
+   *  was. Refused over documents that have not been backed up, in words
+   *  naming them — which is an answer and not a failure. What the app does
+   *  after one that worked is the app's: the running apps and this page both
+   *  read what the restore wrote (#688). */
+  async restore(commit: string): Promise<boolean> {
+    const said = await this.asked(() => this.store.restoreBackup(commit));
+    return said?.ok === true;
   }
 
-  /** Make the store a repository by adopting the empty one at `url`, which
-   *  the person made. The store clones it; nothing here runs git (#355). */
+  /** Back up to the repository at `url`, which the person made: adopting an
+   *  empty one, moving to one, or bringing one's backups into an empty
+   *  store — the store says which (#355, #688). Nothing here runs git. */
   async adopt(url: string): Promise<void> {
     await this.asked(() => this.store.adoptRepository(url));
   }
 
+  /** Replace the store's deploy key with a new one. The old one stops
+   *  working until the new public half is added to the repository, which is
+   *  the dialog's to confirm before this is pressed (#688). */
+  async renewKey(): Promise<void> {
+    await this.asked(() => this.store.newKey());
+  }
+
   /**
    * One ask, and what it leaves behind: the standing, git's words where the
-   * route carried any, and the trouble where there was no answer at all.
+   * route carried any, and the trouble where there was no answer at all. The
+   * answer is handed back too, `null` where there was none.
    *
    * Written once because all four differ only in the route. A press while one
    * is in flight is dropped rather than queued: the button it came from is
    * greyed, so the second click is a double-click on a slow store, and two
    * commits is not what it asked for.
    */
-  private async asked(route: () => Promise<BackupDoc>): Promise<void> {
-    if (this.asking) return;
+  private async asked(
+    route: () => Promise<BackupDoc>,
+  ): Promise<BackupDoc | null> {
+    if (this.asking) return null;
     this.asking = true;
     this.notify();
     try {
@@ -167,8 +213,10 @@ export class Backing {
         this.wording = said.said;
         this.refused = said.ok === false;
       }
+      return said;
     } catch (failure) {
       this.wrong = `the store is not answering: ${String(failure)}`;
+      return null;
     } finally {
       this.asking = false;
       this.notify();

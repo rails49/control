@@ -108,6 +108,12 @@ export class TcHeader extends LitElement {
    *  and left the band with the selector (ADR-0064). */
   @property({ type: Boolean }) frozen = false;
 
+  /** What backup has to say without being asked, and why — `null` where it
+   *  says nothing (`model/backup.ts`, #688). The same rule the mark on
+   *  `File ▸ Backup…` follows, read here so that a person running trains, with
+   *  the editing view shut, learns of a backup that is not running. */
+  @property({ attribute: false }) backup: { says: string; why: string } | null = null;
+
   /** Whether the broker is answering, read only while a session is joined. */
   @property({ type: Boolean }) linked = false;
 
@@ -199,9 +205,15 @@ export class TcHeader extends LitElement {
    *   and the trouble above is the app's, so the two stand beside each other
    *   rather than one standing in for the other.
    *
-   * What is left is the three things that are somebody's mistake — the store
-   * not answering or a broker that is not, a drawing that does not derive, and
-   * hardware saying what is wrong with the supply — and the session clock.
+   * - **Backup that is not running** says so in words naming what is wrong,
+   *   and is a press that opens `File ▸ Backup…` (#688). The copy off the box
+   *   stopped for five weeks once with the only sign a mark in the editing
+   *   view, which is not open while trains run.
+   *
+   * What is left is the four things that are somebody's mistake — the store
+   * not answering or a broker that is not, a drawing that does not derive,
+   * hardware saying what is wrong with the supply, and a backup that is not
+   * running — and the session clock.
    *
    * A region rather than a string, with room in it: per-container reachability
    * and eventually the hardware's belong here too, and what fills the slot is
@@ -226,6 +238,21 @@ export class TcHeader extends LitElement {
         ${this.fault === null
           ? nothing
           : html`<span class="fault" title=${this.fault}>${this.fault}</span>`}
+        ${this.backup === null
+          ? nothing
+          : html`<button
+              class="backup"
+              title=${this.backup.why}
+              @click=${() =>
+                this.dispatchEvent(
+                  new CustomEvent<void>("backup-wanted", {
+                    bubbles: true,
+                    composed: true,
+                  }),
+                )}
+            >
+              ${this.backup.says}
+            </button>`}
         ${this.sessionS === null
           ? nothing
           : html`<span class="session">session ${clocked(this.sessionS)}</span>`}

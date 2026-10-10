@@ -11,29 +11,41 @@
  * it, and nothing is asked of git until it does.
  */
 
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 
 import "../src/ui/tc-backup.js";
 import "../src/ui/tc-app.js";
-import { Backing, type BackupStore } from "../src/model/backup.js";
+import { ASK_MS, Backing, type BackupStore } from "../src/model/backup.js";
 import type { BackupDoc } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcBackup } from "../src/ui/tc-backup.js";
-import { mounted, pressed, serving, settled, UNBACKED } from "./support/shell.js";
+import { band, mounted, pressed, serving, settled, UNBACKED } from "./support/shell.js";
+import { brokering, joined, said, unbrokered, written } from "./support/session.js";
 
 /** A store that is a repository with one drawing waiting and one backup in
  *  it: the ordinary state, which is what most of these are about. */
 const KEPT: BackupDoc = {
   root: "/home/somebody/tc49",
   repository: true,
+  inside: null,
   remote: "git@github.com:somebody/railroad.git",
   key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTheSuite tc49 backup",
   automatic: false,
   needs: [],
   outstanding: ["reversing-loops"],
   backups: [
-    { commit: "a1b2c3d", said: "backup: reversing-loops", when: "2026-09-01 21:40" },
-    { commit: "9f8e7d6", said: "backup: crossover-yard", when: "2026-08-30 18:02" },
+    {
+      commit: "a1b2c3d",
+      said: "backup: reversing-loops",
+      when: "2026-09-01 21:40",
+      railroads: ["crossover-yard", "reversing-loops"],
+    },
+    {
+      commit: "9f8e7d6",
+      said: "backup: crossover-yard",
+      when: "2026-08-30 18:02",
+      railroads: ["crossover-yard"],
+    },
   ],
   copy: { waiting: 0, since: null, stale: false, ok: true, said: "" },
 };
@@ -68,10 +80,28 @@ class Fake implements BackupStore {
     });
   }
 
+  /** What a restore answers: refused over a dirty tree unless a suite says
+   *  it worked. */
+  restores = false;
+
   restoreBackup(commit: string): Promise<BackupDoc> {
+    if (this.restores) {
+      return this.answer(`restore ${commit}`, {
+        ok: true,
+        said: `restored reversing-loops from ${commit}`,
+      });
+    }
     return this.answer(`restore ${commit}`, {
       ok: false,
       said: "refused: reversing-loops changed since the last backup",
+    });
+  }
+
+  newKey(): Promise<BackupDoc> {
+    this.stands = { ...this.stands, key: "ssh-ed25519 AAAANewKey tc49 backup" };
+    return this.answer("new key", {
+      ok: true,
+      said: "a new key: add it to the repository — ssh-ed25519 AAAANewKey tc49 backup",
     });
   }
 
@@ -257,10 +287,44 @@ describe("the backup dialog", () => {
     expect(reads(surface)).toContain("the copy goes to git@github.com:somebody/railroad.git");
   });
 
-  it("keeps the key to hand once the store is a repository", async () => {
+  /** The key and the address both fold away once the store is a
+   *  repository: the key is pasted again when the repository or the box is
+   *  remade, and the address is how backup moves to another repository
+   *  without a terminal (#688). */
+  it("keeps the key and another address to hand once the store is a repository", async () => {
     const { dialog: surface } = await dialog();
     expect(surface.renderRoot.querySelector("details.key")).not.toBeNull();
-    expect(surface.renderRoot.querySelector("sl-input")).toBeNull();
+    expect(surface.renderRoot.querySelector("details.move sl-input")).not.toBeNull();
+  });
+
+  it("says a deploy key opens one repository", async () => {
+    const { dialog: surface } = await dialog(UNBACKED);
+    expect(reads(surface)).toContain("a deploy key opens one repository");
+    expect(reads(surface)).toContain("before deleting that repository");
+  });
+
+  /** The key in use stops working until the new one is added, so *New key*
+   *  asks once before it replaces anything (#688). */
+  it("makes a new key only once it is confirmed", async () => {
+    const { dialog: surface, store } = await dialog(UNBACKED);
+    press(surface, "New key");
+    await surface.updateComplete;
+    expect(store.asked).not.toContain("new key");
+    expect(reads(surface)).toContain("stops working until the new one is added");
+
+    press(surface, "Keep this key");
+    await surface.updateComplete;
+    expect(reads(surface)).not.toContain("stops working");
+    expect(store.asked).not.toContain("new key");
+
+    press(surface, "New key");
+    await surface.updateComplete;
+    press(surface, "Replace the key");
+    await new Promise((settle) => setTimeout(settle, 0));
+    await surface.updateComplete;
+
+    expect(store.asked).toContain("new key");
+    expect(reads(surface)).toContain("ssh-ed25519 AAAANewKey");
   });
 
   it("lists the backups newest first, each by what moved in it", async () => {
@@ -339,6 +403,73 @@ describe("the backup dialog", () => {
     expect(reads(surface)).not.toContain("trains are on the layout");
   });
 
+  /** With a railroad loaded, the rails and the drawing are never changed
+   *  under a moving train (#688). */
+  it("will not restore while a loaded railroad's track has power", async () => {
+    const { dialog: surface, store } = await dialog();
+    surface.railroad = "crossover-yard";
+    surface.power = "on";
+    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+    await surface.updateComplete;
+
+    expect(restoring(surface).disabled).toBe(true);
+    expect(reads(surface)).toContain("track power is on — turn it off to restore");
+    press(surface, "Restore");
+    await new Promise((settle) => setTimeout(settle, 0));
+    expect(store.asked).not.toContain("restore 9f8e7d6");
+
+    surface.power = "off";
+    await surface.updateComplete;
+    expect(restoring(surface).disabled).toBe(false);
+  });
+
+  it("restores with no railroad loaded whatever the supply", async () => {
+    const { dialog: surface } = await dialog();
+    surface.power = "on";
+    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+    await surface.updateComplete;
+    expect(restoring(surface).disabled).toBe(false);
+  });
+
+  /** The apps would otherwise go on running a railroad the store no longer
+   *  holds (#688). */
+  it("will not restore a backup without the loaded railroad", async () => {
+    const { dialog: surface } = await dialog();
+    surface.railroad = "reversing-loops";
+    surface.power = "off";
+    const rows = surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button");
+    rows[1]!.click();
+    await surface.updateComplete;
+
+    expect(restoring(surface).disabled).toBe(true);
+    expect(reads(surface)).toContain(
+      "this backup has no reversing-loops — load another railroad first",
+    );
+
+    rows[0]!.click();
+    await surface.updateComplete;
+    expect(restoring(surface).disabled).toBe(false);
+  });
+
+  it("says a restore that worked, and only one that worked", async () => {
+    const { dialog: surface, store } = await dialog();
+    let restored = 0;
+    surface.addEventListener("restored", () => {
+      restored += 1;
+    });
+    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+    await surface.updateComplete;
+
+    press(surface, "Restore");
+    await new Promise((settle) => setTimeout(settle, 0));
+    expect(restored).toBe(0);
+
+    store.restores = true;
+    press(surface, "Restore");
+    await new Promise((settle) => setTimeout(settle, 0));
+    expect(restored).toBe(1);
+  });
+
   it("says it was closed rather than closing anything itself", async () => {
     const { dialog: surface } = await dialog();
     let closed = 0;
@@ -383,6 +514,117 @@ describe("the app's way in", () => {
   });
 });
 
+/**
+ * The run view's note: backup that is not running, said where a person
+ * running trains is looking, and one press from its dialog (#688).
+ */
+describe("the note in the band", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  function note(shell: TcApp): HTMLButtonElement | null {
+    return band(shell).renderRoot.querySelector<HTMLButtonElement>("button.backup");
+  }
+
+  it("says a store with no repository has no backup set up", async () => {
+    serving({ drawings: ["reversing-loops"], backup: UNBACKED });
+    const shell = await mounted("run");
+    expect(note(shell)?.textContent?.trim()).toBe("no backup set up");
+  });
+
+  it("says a copy that is behind, with git's words as its tooltip", async () => {
+    serving({
+      drawings: ["reversing-loops"],
+      backup: {
+        ...KEPT,
+        automatic: true,
+        copy: {
+          waiting: 4,
+          since: 200000,
+          stale: true,
+          ok: false,
+          said: "ERROR: Repository not found.",
+        },
+      },
+    });
+    const shell = await mounted("run");
+    expect(note(shell)?.textContent?.trim()).toBe("backup behind");
+    expect(note(shell)?.title).toBe("ERROR: Repository not found.");
+  });
+
+  it("says nothing of a store backing up as it should", async () => {
+    serving({ drawings: ["reversing-loops"], backup: { ...KEPT, automatic: true } });
+    const shell = await mounted("run");
+    expect(note(shell)).toBeNull();
+  });
+
+  it("opens the backup dialog when pressed", async () => {
+    serving({ drawings: ["reversing-loops"], backup: UNBACKED });
+    const shell = await mounted("run");
+    note(shell)!.click();
+    await settled(shell);
+    expect(open(shell)).not.toBeNull();
+  });
+});
+
+/**
+ * After a restore, everything that read the store before it reads it again:
+ * the running apps, asked for the loaded railroad by name, and the page,
+ * reloaded so the editor cannot save back what it read before (#688).
+ */
+describe("what follows a restore", () => {
+  const RESTORED: BackupDoc = {
+    ...KEPT,
+    automatic: true,
+    outstanding: [],
+    ok: true,
+    said: "restored toy from 9f8e7d6",
+    backups: KEPT.backups.map((backup) => ({ ...backup, railroads: ["toy"] })),
+  };
+
+  beforeEach(() => {
+    brokering();
+  });
+
+  afterEach(unbrokered);
+
+  async function restores(shell: TcApp): Promise<number> {
+    let reloads = 0;
+    shell.reload = () => {
+      reloads += 1;
+    };
+    await chooseBackup(shell);
+    const surface = open(shell)!;
+    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+    await surface.updateComplete;
+    press(surface, "Restore");
+    await settled(shell);
+    await new Promise((settle) => setTimeout(settle, 600));
+    return reloads;
+  }
+
+  it("asks for the loaded railroad again, then reloads the page", async () => {
+    const shell = await joined("edit");
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+    serving({ drawings: ["toy"], backup: RESTORED });
+
+    expect(await restores(shell)).toBe(1);
+    expect(written()).toContainEqual({
+      topic: "tc49/layout/railroad_wanted",
+      payload: { railroad: "toy" },
+    });
+  });
+
+  it("reloads the page with no railroad loaded all the same", async () => {
+    serving({ drawings: [], backup: RESTORED });
+    const shell = await mounted("edit");
+
+    expect(await restores(shell)).toBe(1);
+    expect(written()).toEqual([]);
+  });
+});
+
 /** The dialog the app has up, `null` while it has none. */
 function open(shell: TcApp): TcBackup | null {
   const surface = shell.renderRoot.querySelector<TcBackup>("tc-backup");
@@ -402,43 +644,55 @@ async function chooseBackup(shell: TcApp): Promise<void> {
  * that is only worth reading once it is open.
  */
 describe("what backup says without being opened", () => {
-  async function standing(stands: Partial<BackupDoc>) {
+  async function held(stands: Partial<BackupDoc>): Promise<Backing> {
     const store = new Fake();
-    store.stands = { ...KEPT, ...stands };
+    store.stands = { ...KEPT, automatic: true, ...stands };
     const backing = new Backing(() => {}, store);
     await backing.load();
-    return backing.standing;
+    return backing;
   }
+
+  async function standing(stands: Partial<BackupDoc>) {
+    return (await held(stands)).standing;
+  }
+
+  const STALE = { waiting: 3, since: 200000, stale: true, ok: false, said: "ERROR: Repository not found." };
 
   it("says nothing until the store has been asked", () => {
     expect(new Backing(() => {}, new Fake()).standing).toBe("quiet");
   });
 
-  it("says a store with no backups and no automation has never been kept", async () => {
-    expect(await standing({ automatic: false, backups: [] })).toBe("never");
+  it("says nothing of a store backing up as it should", async () => {
+    expect(await standing({})).toBe("quiet");
   });
 
-  /** A store that is not a repository at all reads the same way: what a person
-   *  has to know is that nothing is being kept, and the dialog is where the
-   *  difference between having no repository and having no backups is spelled
-   *  out. */
-  it("says the same of a store that is not a repository", async () => {
+  /** A developer's session on the bench store of a checkout, which is not
+   *  meant to be backed up, whatever else is true of it. */
+  it("says nothing of a store inside another repository", async () => {
     expect(
-      await standing({ repository: false, automatic: false, backups: [] }),
-    ).toBe("never");
+      await standing({
+        inside: "/home/somebody/control",
+        repository: false,
+        needs: ["inside"],
+      }),
+    ).toBe("inside");
   });
 
-  it("says nothing of a store that has been backed up", async () => {
-    expect(await standing({ automatic: false })).toBe("quiet");
+  /** A newly deployed box, and a store copied to a new box with backup
+   *  switched on and no repository with it: a switch that says on cannot hide
+   *  that nothing is backed up. */
+  it("says a store that is no repository has no backup set up", async () => {
+    expect(await standing({ repository: false, automatic: false })).toBe("unset");
+    expect(await standing({ repository: false, automatic: true })).toBe("unset");
   });
 
-  it("says nothing of a store waiting on its first automatic backup", async () => {
-    expect(await standing({ automatic: true, backups: [] })).toBe("quiet");
+  it("says a copy that has been failing for a day is behind", async () => {
+    expect(await standing({ copy: STALE, needs: ["no remote"], automatic: false })).toBe(
+      "behind",
+    );
   });
 
-  /** A failed copy an hour old is a network coming and going. A day of them is
-   *  a remote that moved, and somebody believing they have an off-machine copy
-   *  who does not. */
+  /** A failed copy an hour old is a network coming and going. */
   it("says nothing of a copy that failed an hour ago", async () => {
     expect(
       await standing({
@@ -447,11 +701,45 @@ describe("what backup says without being opened", () => {
     ).toBe("quiet");
   });
 
-  it("says a copy that has been failing for a day is behind", async () => {
-    expect(
-      await standing({
-        copy: { waiting: 3, since: 200000, stale: true, ok: false, said: "no route" },
-      }),
-    ).toBe("behind");
+  it("says a repository with something missing cannot run", async () => {
+    expect(await standing({ needs: ["no remote, so a backup stays on this machine"] })).toBe(
+      "blocked",
+    );
+  });
+
+  it("says backup switched off is off", async () => {
+    expect(await standing({ automatic: false })).toBe("off");
+  });
+
+  /** The tooltip tells a missing key from a deleted repository, in git's own
+   *  words; a store that cannot run says which of its needs it is. */
+  it("says why, in git's words or the store's", async () => {
+    expect((await held({ copy: STALE })).why).toBe("ERROR: Repository not found.");
+    expect((await held({ needs: ["no remote, so a backup stays on this machine"] })).why).toBe(
+      "no remote, so a backup stays on this machine",
+    );
+    expect((await held({})).why).toBeNull();
+  });
+
+  /** A page left open for days: a copy that went behind after it loaded
+   *  still shows (#688). */
+  it("asks again every hour", async () => {
+    vi.useFakeTimers();
+    try {
+      const store = new Fake();
+      const backing = new Backing(() => {}, store);
+      const stop = backing.watch();
+      await vi.advanceTimersByTimeAsync(ASK_MS - 1);
+      expect(store.asked).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(store.asked).toEqual(["read"]);
+      await vi.advanceTimersByTimeAsync(ASK_MS);
+      expect(store.asked).toEqual(["read", "read"]);
+      stop();
+      await vi.advanceTimersByTimeAsync(ASK_MS);
+      expect(store.asked).toEqual(["read", "read"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
