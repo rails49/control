@@ -297,6 +297,35 @@ describe("the backup dialog", () => {
     expect(surface.renderRoot.querySelector("details.move sl-input")).not.toBeNull();
   });
 
+  /** A store already backed up, whose repository went or which wants
+   *  another: the address field and the press are there under a label that
+   *  says it moves, and the press hands the store the new address, which
+   *  says whether it moved (#698). */
+  it("moves a store that is a repository to the address entered", async () => {
+    const { dialog: surface, store } = await dialog();
+    const move = surface.renderRoot.querySelector("details.move")!;
+    expect(move.querySelector("summary")!.textContent).toContain(
+      "back up to another repository",
+    );
+    const input = move.querySelector("sl-input")!;
+    const button = [...move.querySelectorAll("sl-button")].find((found) =>
+      (found.textContent ?? "").includes("Back up to it"),
+    );
+    expect(button).toBeDefined();
+
+    input.value = "git@github.com:somebody/railroad-2.git";
+    input.dispatchEvent(new Event("sl-input", { bubbles: true }));
+    await surface.updateComplete;
+    (button as HTMLElement).click();
+    await new Promise((settle) => setTimeout(settle, 0));
+    await surface.updateComplete;
+
+    expect(store.asked).toContain("adopt git@github.com:somebody/railroad-2.git");
+    expect(reads(surface)).toContain(
+      "the copy goes to git@github.com:somebody/railroad-2.git",
+    );
+  });
+
   it("says a deploy key opens one repository", async () => {
     const { dialog: surface } = await dialog(UNBACKED);
     expect(reads(surface)).toContain("a deploy key opens one repository");
