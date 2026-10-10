@@ -148,3 +148,11 @@ still in the history and restoring it is the same one press.
   from the bus, so the UI wears them. A restore leaves the backup switch as it
   was and is committed at once, so a power cut does not lose it and undoing a
   drawing never stops backups.
+
+  *Amended by [#699](https://github.com/rails49/control/issues/699).* A
+  restore reaches a run that is up. It is refused while a train is placed,
+  while the track has power with a railroad loaded, and where the backup lacks
+  the loaded railroad. Once it succeeds the UI names the loaded railroad again
+  on `tc49/layout/railroad_wanted`, so every app builds it again from what the
+  restore wrote, and the page reloads. Backup itself still publishes nothing
+  and hears nothing.

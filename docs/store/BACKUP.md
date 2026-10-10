@@ -202,7 +202,8 @@ up first — one press — and then restore.
 
 **A restore waits while the layout could disagree with the store.** The
 dialog greys *Restore* and says why (#684,
-[#688](https://github.com/rails49/control/issues/688)):
+[#688](https://github.com/rails49/control/issues/688),
+[#699](https://github.com/rails49/control/issues/699)):
 
 - a train placed — *trains are on the layout — take them off to restore*: the
   backup may not have the track a train stands on;
@@ -224,10 +225,18 @@ does not take it away; it is itself a backup, committed at once as
 `restore <short commit> of <date>: <documents>`, so a power cut does not lose
 it and a second restore — a wrong pick put right — is the same one press; and
 it is pushed like any press. Restoring the backup the store already holds
-changes nothing and makes no backup. Afterwards the app asks for the loaded railroad again on
-`tc49/layout/railroad_wanted`, which builds it again from the store in every
-app, and reloads the page, so the editor cannot save back a copy it read
-before the restore.
+changes nothing and makes no backup.
+
+**After a restore that worked, the run and the page read what it wrote.** With
+a railroad loaded, the app names it again on `tc49/layout/railroad_wanted`,
+which every app answers by building it again from the store — the track is
+already off, so this is the same build as picking it in the band — and then
+the page reloads, so the editor cannot save back a copy it read before the
+restore. With no railroad loaded the page only reloads. A refused restore
+changed nothing, so it names nothing and reloads nothing. The dialog says so
+above the backups: *Restore puts the store back as the picked backup held it;
+the apps and this page then reload*
+([#699](https://github.com/rails49/control/issues/699)).
 
 Restoring drops a railroad drawn after that backup along with an edit made
 since, because the store comes back as that backup held it. Nothing is lost by
