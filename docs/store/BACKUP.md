@@ -262,20 +262,34 @@ setup text, on a store that is no repository yet, points here
 
 ## Moving to another repository
 
-Make an **empty** repository, add the store's key to its deploy keys (remove
-it from the old repository first — see [the key](#setting-one-up)), and enter
-its address in the dialog of the store already backed up, under *back up to
-another repository*. The store pushes its whole history there, so every
-earlier backup stays restorable, and only then points its remote at the new
-address; a move that fails partway leaves it backing up where it did. A
-repository that already holds backups is refused.
+A store already backed up can move to another repository from the dialog — the
+old one deleted, or another wanted — with no terminal
+([#698](https://github.com/rails49/control/issues/698)):
+
+1. Make an **empty** repository, as in [Setting one up](#setting-one-up).
+2. Move the deploy key from the old repository to it: remove the key under the
+   old one's *Settings ▸ Deploy keys* first, since GitHub refuses one key on
+   two repositories, then add it to the new one's with write access. An old
+   repository already deleted took the key with it; if GitHub still says the
+   key is in use, *New key* makes another ([the key](#setting-one-up)).
+3. Open *Backup…*, unfold *back up to another repository*, enter the new
+   address and press *Back up to it*.
+
+The store asks the address with `git ls-remote` first. Anything listed there is
+refused — "… already holds backups, and backup moves only to an empty
+repository" — and an address git cannot reach is refused in git's words. An
+empty one is given the store's branch, every earlier backup with it so each
+stays restorable, and only once that push worked does `origin` name the new
+address and the branch follow it; the dialog says "backing up to *address*,
+with *n* backups". A push that fails leaves the store backing up where it did.
 
 ## What it will not do
 
 - **Make the repository or the remote.** The person makes the repository, in
   a web form, and the remote arrives with the address they enter; the store
-  clones and never runs `git init` or `git remote add`. Moving changes the
-  address of the remote there is; a store with none has nothing to move.
+  clones and never runs `git init` or `git remote add`. A move changes the
+  address of the remote the clone brought, and still never adds one: a store
+  with none has nothing to move.
 - **Fetch or pull.** The store reaches the repository only to clone it, list
   its refs and push. A repository edited elsewhere — on github.com, or by a
   second box pushing to it — refuses the store's pushes; the store reports

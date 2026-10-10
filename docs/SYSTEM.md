@@ -142,8 +142,11 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     POST /backup/commit         back the store up now, and attempt a push
     POST /backup/restore        put the store back as a backup held it
     POST /backup/repository     back up to a repository the person made, by
-                                its ssh address: adopt an empty one, move to
-                                one, or bring one's backups into an empty store
+                                its ssh address: adopt an empty one, bring
+                                one's backups into an empty store, or move a
+                                store backed up to an empty one — its branch
+                                pushed there first, `origin` and the upstream
+                                changed only once that worked
     POST /backup/key            replace the store's deploy key with a new one
 
 **One more route sits beside those and is not the store's.** A camera app
