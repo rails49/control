@@ -887,13 +887,15 @@ fault, the key to paste into that repository's deploy keys is on the screen
 beside it, and everything else in the editor is unaffected.
 
 **The item marks itself when nobody is looking.** The app asks the store where
-backup stands once, when it comes up, and `Backup…` carries a `!` in two
-cases: the railroad has never been backed up, and the copy on the other
-machine is more than a day behind. Both are the same failure — believing a
-railroad is safe when it is not — and both reach only a person who does not
-open this dialog, which is why the mark exists at all. It warns and never
-disables. Nothing else in the editor marks itself, so the mark means one
-thing.
+backup stands when it comes up and every hour after, and `Backup…` carries a
+`!` whose title names what is wrong: *no backup set up*, *backup behind*,
+*backup cannot run* or *backup is off*. The run view's band says the same
+words as a press that opens this dialog, so a person running trains, with the
+editing view shut, is told too; the two follow one rule and never disagree
+([store/BACKUP.md](../store/BACKUP.md#what-it-does-while-you-draw), #688). A
+store inside another repository — a checkout's `bench/` — says nothing. It
+warns and never disables. Nothing else in the editor marks itself, so the mark
+means one thing.
 
 The dialog says the same thing at length: how many backups the other machine
 has not been given and how old the oldest is. `Back up now` answers with the
@@ -913,7 +915,11 @@ drawing](#trains-on-the-layout-freeze-the-drawing): a restore can take away
 track a train stands on. While any is placed, *Restore* is greyed and the
 dialog says *trains are on the layout — take them off to restore* (#684). It is
 the one reading of the rule, `frozen` in `model/commands.ts`, handed in by the
-app; the store server does not check it.
+app; the store server does not check it. With a railroad loaded it waits for
+track power to read off too, and refuses a backup that does not hold the
+loaded railroad; after a restore that worked the app asks for the loaded
+railroad again and reloads the page (#688,
+[store/BACKUP.md](../store/BACKUP.md#restoring)).
 
 ## Validation
 

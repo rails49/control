@@ -911,10 +911,16 @@ _Avoid_: snapshot, save (a save is one document written by the editor, and
 several of them make one backup), sync, archive
 
 **Restore**:
-Putting the store back as a named backup held it. Refused where documents have
-changed since the last backup, those being the ones git cannot give back. Not
-the **recovery** of a run's placement, which is about where trains stand and
-is a person's job; nothing about a restore reaches a session that is up.
+Either of two acts. Putting the store back as a named backup held it, the
+backup switch left as it was and the result itself backed up at once; refused
+where documents have changed since the last backup, those being the ones git
+cannot give back. Or, on an empty store, bringing in a repository's latest
+backup, which is how a new box takes over an old one's railroad. A restore
+reaches a run that is up: it is refused while a train is placed or the track
+has power, and afterwards the UI asks for the loaded railroad again so every
+app reads what the restore wrote (ADR-0053 as amended, #688). Not the
+**recovery** of a run's placement, which is about where trains stand and is a
+person's job.
 _Avoid_: revert, roll back, undo (the editor's, over one drawing), recovery
 
 ### Contracts

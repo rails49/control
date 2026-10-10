@@ -139,7 +139,10 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     PUT  /backup                turn automated backup on or off
     POST /backup/commit         back the store up now, and attempt a push
     POST /backup/restore        put the store back as a backup held it
-    POST /backup/repository     back up to an empty repository the person made
+    POST /backup/repository     back up to a repository the person made: adopt
+                                an empty one, move to one, or bring one's
+                                backups into an empty store
+    POST /backup/key            replace the store's deploy key with a new one
 
 **One more route sits beside those and is not the store's.** A camera app
 answers it, and no app of this repository does
@@ -193,17 +196,27 @@ LAN is still the trust boundary and a browser is not on it
 
 - **Backup is git, driven and not owned**
   ([ADR-0053](adr/0053-backup-drives-git-and-does-not-own-it.md),
-  [store/BACKUP.md](store/BACKUP.md)). The five routes above commit, push,
-  restore and adopt; the app never runs `git init`, never makes a branch or a
-  remote and never resolves a conflict, so a store that is not a repository is
-  a normal state that says what it needs. It becomes one by **adopting** an
-  empty repository the person made on github.com: `POST /backup/repository`
-  takes its address, the store clones it and moves the clone's `.git` under
-  the documents already there, which become the first backup
-  ([#355](https://github.com/rails49/control/issues/355)). A repository that
-  already holds anything is refused in words — that is a restore onto a new
-  box, not this. The push goes out under a deploy key the store makes for
-  itself where it was given somewhere to keep one (`tc49 serve --keys`);
+  [store/BACKUP.md](store/BACKUP.md)). The six routes above commit, push,
+  restore, adopt and renew the key; the app never runs `git init`, never makes
+  a branch or a remote and never resolves a conflict, so a store that is not a
+  repository is a normal state that says what it needs. It becomes one by
+  **adopting** an empty repository the person made on github.com:
+  `POST /backup/repository` takes its address, the store clones it and moves
+  the clone's `.git` under the documents already there, which become the
+  first backup ([#355](https://github.com/rails49/control/issues/355)). The
+  same route is every other way of changing where backup goes
+  ([#688](https://github.com/rails49/control/issues/688)): an empty store given
+  a repository with backups takes the latest of them, switch and all; a store
+  that is a repository, given an empty one, pushes its whole history there and
+  then points its remote at it, the address changing only once the push
+  worked. A store with documents and a repository with backups are never
+  merged — refused in words naming both — and an address not in ssh form is
+  refused before anything is cloned, an https one answered with its ssh form.
+  `POST /backup/key` replaces the deploy key pair and answers with the new
+  public half. The push goes out under a deploy key the store makes for
+  itself where it was given somewhere to keep one (`tc49 serve --keys`), named
+  on every push whatever the repository's config holds, with the upstream set
+  on the first push of a branch that has none;
   `GET /backup` shows the public half in `key` for the person to paste into
   that one repository's deploy keys, and `remote` says where the copy goes.
   `key` is null where there is none to push with — nowhere to keep one, and a
@@ -216,10 +229,19 @@ LAN is still the trust boundary and a browser is not on it
   The switch is a document of the installation, `backup.yaml` in the store, so
   automated backup stays on across the restart that follows turning it on.
   `GET /backup` also answers how far behind the copy off the machine is, in
-  `copy`: how many backups the remote has not been given, how long the oldest
-  has been waiting and whether that is longer than a day. No route ever waits
-  on the network — a push runs on the store's own timer, never on the thread
-  serving a request — so an unreachable remote costs a save nothing.
+  `copy`: how many backups the remote has not been given — every one on the
+  branch where a remote has no upstream — how long the oldest has been waiting
+  and whether that is longer than a day. It answers `inside`, the repository
+  the store is inside where that is not the store itself and null otherwise,
+  and each listed backup's `railroads`, the railroads it holds. A restore
+  leaves `backup.yaml` as it is, commits at once under a message naming the
+  backup it came from, and asks for a push; a press asks for a push whether
+  or not automated backup is on. The store checks nothing about placed trains,
+  track power or the loaded railroad — it hears nothing from the bus — and the
+  UI wears those conditions. Adopting, moving and cloning wait on the network
+  on the thread serving them, under the push's deadline, because the person
+  who pressed is waiting for the answer; every other route leaves the push to
+  the store's own timer, so an unreachable remote costs a save nothing.
 
 - **Five document types** — `drawing`, `roster`, `scenario`, the catalogue's
   `model` and a railroad's `script` — each fetched and stored whole. Symbols, wires, trains and requests live inside a

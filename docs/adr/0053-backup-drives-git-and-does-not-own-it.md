@@ -22,6 +22,15 @@ clause above is read with that exception. What it still never holds is a
 credential of the person's — a token, or the machine's own ssh key, either of
 which opens more than the one repository.
 
+*Amended by [#688](https://github.com/rails49/control/issues/688), worded
+for the maintainer's approval.* The store may change the address it backs up
+to, to an empty repository, by pushing its whole history there and then
+pointing its remote at it; the address changes only once that push worked. It
+still never makes a remote: a store with none has nothing to move. The same
+press brings a repository's latest backup into an empty store, which is how a
+new box takes over an old one's railroad, and refuses a store with documents
+and a repository with backups rather than mixing two histories.
+
 The two rejected positions are on either side of it.
 
 **Owning the repository** — initializing it, choosing a branch, holding a
@@ -124,3 +133,13 @@ still in the history and restoring it is the same one press.
 - **Nothing in the dispatch path changes.** Backup reads and writes files in
   the store between sessions' worth of edits; no app learns about it, no event
   carries it, and a run that is up neither waits for it nor hears about it.
+
+  *Amended by [#688](https://github.com/rails49/control/issues/688), worded
+  for the maintainer's approval.* A restore reaches a run that is up. It is
+  refused while a train is placed or the track has power, and afterwards the
+  UI asks for the loaded railroad again on `tc49/layout/railroad_wanted`, so
+  every app reads what the restore wrote. Backup still publishes nothing on
+  the bus, and the store checks none of those conditions: it hears nothing
+  from the bus, so the UI wears them. A restore leaves the backup switch as it
+  was and is committed at once, so a power cut does not lose it and undoing a
+  drawing never stops backups.
