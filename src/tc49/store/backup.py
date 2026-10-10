@@ -235,7 +235,10 @@ def ssh_address(url: str) -> str | None:
     The store pushes over ssh under a key of its own, so an https address is
     one it has no credential for and fails at the far end with words about a
     password. It is refused before anything is cloned, and the refusal
-    carries the ssh form of the same repository to paste instead (#688).
+    carries the ssh form of the same repository to paste instead (#688) —
+    in words that do not echo the address, so the three ways github.com's
+    https address is copied, with `.git`, without and with a trailing `/`,
+    are answered alike (#692).
     A path on this machine, or a `file://` one, is a repository reached with
     no credential at all and is let through.
     """
@@ -250,7 +253,7 @@ def ssh_address(url: str) -> str | None:
             if not path.endswith(".git"):
                 path += ".git"
             return (
-                f"{url} is an https address, and backup pushes over ssh with"
+                "that is an https address, and backup pushes over ssh with"
                 f" this store's own key — enter git@{host}:{path} instead"
             )
     elif Path(url).is_absolute() or re.match(r"^[^\s/@:]+@[^\s/:]+:\S", url):
@@ -397,7 +400,10 @@ class Backup:
         repository it is in is this checkout. A store that is in none is told
         what to make and where to enter it (:meth:`adopt`), with git's own
         words after it, because git itself may be what is missing and those
-        words are the only way to tell.
+        words are the only way to tell. Where there is a key to add, it says
+        that a deploy key opens one repository, and to take it off the old
+        one before deleting that, since a deleted repository keeps its keys
+        in use (#692).
 
         A key this store cannot push with is the fourth, and it is appended
         rather than returned on its own: a store may be no repository *and*
@@ -419,10 +425,18 @@ class Backup:
                 if self.key() is not None
                 else ""
             )
+            one = (
+                " A deploy key opens one repository: to move to another, delete"
+                " it from the old repository under Settings ▸ Deploy keys"
+                " before deleting that repository, because a deleted"
+                " repository keeps its keys in use."
+                if key
+                else ""
+            )
             wrong.append(
                 f"{self.root} is not a git repository — create an empty"
                 f" private repository on github.com,{key} enter its address"
-                f" below. git said: {said.words}"
+                f" below.{one} git said: {said.words}"
             )
         elif not self._run(self.root, "remote").words:
             wrong.append(

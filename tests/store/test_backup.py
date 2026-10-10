@@ -31,6 +31,7 @@ from tc49.store.backup import (
     document,
     documents,
     git,
+    ssh_address,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -1015,6 +1016,18 @@ def test_a_store_makes_a_key_of_its_own_on_first_ask(tmp_path: Path) -> None:
     assert backup.status()["key"] == shown
 
 
+@keygen
+def test_what_backup_needs_says_a_deploy_key_opens_one_repository(
+    tmp_path: Path,
+) -> None:
+    """A deleted repository keeps its keys in use, so the setup text says to
+    take the key off the old repository before deleting it (#692)."""
+    backup = Backup(tmp_path / "tc49", run=FakeGit(toplevel=""), keys=tmp_path / "keys")
+    need = backup.needs()[0]
+    assert "opens one repository" in need
+    assert "before deleting that repository" in need
+
+
 def test_a_store_given_nowhere_to_keep_a_key_has_none(tmp_path: Path) -> None:
     """A workstation: git pushes with whatever the person's ssh already has."""
     assert Backup(tmp_path, run=FakeGit(toplevel="")).key() is None
@@ -1336,6 +1349,43 @@ def test_an_https_address_is_answered_with_its_ssh_form(
     assert not said.ok
     assert offered in said.words
     assert [call[0] for call in run.calls if call[0] in ("clone", "ls-remote")] == []
+
+
+def test_an_https_address_is_refused_before_any_clone_with_its_ssh_form(
+    tmp_path: Path,
+) -> None:
+    """The address github.com offers first, under Code ▸ HTTPS (#692)."""
+    run = FakeGit(toplevel="")
+    said = Backup(tmp_path, run=run).adopt("https://github.com/you/r.git")
+    assert not said.ok
+    assert "git@github.com:you/r.git" in said.words
+    assert "clone" not in [call[0] for call in run.calls]
+
+
+def test_an_https_address_gives_the_same_words_however_it_ends(
+    tmp_path: Path,
+) -> None:
+    """With `.git`, without it, and with a trailing `/` the repository is the
+    same one, and so is what the person is told to paste (#692)."""
+    words = {
+        Backup(tmp_path, run=FakeGit(toplevel="")).adopt(given).words
+        for given in (
+            "https://github.com/you/r.git",
+            "https://github.com/you/r",
+            "https://github.com/you/r/",
+        )
+    }
+    assert len(words) == 1
+    assert "git@github.com:you/r.git" in words.pop()
+
+
+@pytest.mark.parametrize(
+    "given", ["git@github.com:you/r.git", "ssh://git@github.com/you/r.git"]
+)
+def test_an_ssh_address_is_not_refused_for_its_form(given: str) -> None:
+    """Both ssh forms pass the check on form, and what becomes of them is the
+    far end's to say (#692)."""
+    assert ssh_address(given) is None
 
 
 def test_an_address_that_is_no_address_is_refused(tmp_path: Path) -> None:
