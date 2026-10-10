@@ -217,10 +217,12 @@ The app wears these rules; the store server checks none of them, as it checks
 nothing for edits — it hears nothing from the bus.
 
 **A restore is a complete act.** It leaves `backup.yaml` as it is, so undoing
-a drawing mistake never stops backups; it is committed at once under a message
-naming the backup it came from and the documents it changed, so a power cut
-does not lose it and a wrong pick is one more press; and it is pushed like any
-press. Afterwards the app asks for the loaded railroad again on
+a drawing mistake never stops backups, and a backup made before there was one
+does not take it away; it is itself a backup, committed at once as
+`restore <short commit> of <date>: <documents>`, so a power cut does not lose
+it and a second restore — a wrong pick put right — is the same one press; and
+it is pushed like any press. Restoring the backup the store already holds
+changes nothing and makes no backup. Afterwards the app asks for the loaded railroad again on
 `tc49/layout/railroad_wanted`, which builds it again from the store in every
 app, and reloads the page, so the editor cannot save back a copy it read
 before the restore.
