@@ -67,9 +67,11 @@ a docker volume, `keys`, so that it is outside the store and no commit can
 carry it, and on nothing the host has to make. It opens that one repository
 and nothing else of yours, so a box on a wireless anybody can join reaches
 nothing else of yours either. Revoking it is deleting it from the repository's
-deploy keys. A store with nowhere to keep a key — `tc49 serve` on a
-workstation without `--keys` — pushes with whatever ssh key that machine
-already has, and the dialog says so.
+deploy keys. The store names its key on every push, whatever the
+repository's own config holds, so a repository cloned by hand pushes under it
+too; and every push sets the branch's upstream where it has none. A store with
+nowhere to keep a key — `tc49 serve` on a workstation without `--keys` —
+pushes with whatever ssh key that machine already has, and the dialog says so.
 
 **A deploy key opens one repository.** GitHub refuses a key already
 registered on another repository with *Key is already in use* — and a
@@ -175,12 +177,6 @@ The run view's note and the menu's mark follow one rule, the first that holds:
 Pressing the note opens `File ▸ Backup…`. The app asks again every hour, so a
 copy that went behind after the page loaded still shows.
 
-**A repository edited elsewhere stops pushes.** A commit made on github.com,
-or by another box pushing to the same repository, is one the store does not
-have, and git refuses every push after it. The store does not fetch, merge or
-resolve that: it reports git's words, and after a day the band says *backup
-behind*.
-
 ## Restoring
 
 *Restore*, in the footer of the `File ▸ Backup…` dialog, lists the backups
@@ -255,7 +251,9 @@ repository that already holds backups is refused.
   clones and never runs `git init` or `git remote add`. Moving changes the
   address of the remote there is; a store with none has nothing to move.
 - **Fetch or pull.** The store reaches the repository only to clone it, list
-  its refs and push.
+  its refs and push. A repository edited elsewhere — on github.com, or by a
+  second box pushing to it — refuses the store's pushes; the store reports
+  git's words, reads as behind after a day, and does not fetch or merge.
 - **Resolve a conflict.** It reports what git said and stops. A store is one
   person's, and sharing one between people is not something this offers.
 - **Hold a credential of yours.** The key it pushes with is its own, opens one
