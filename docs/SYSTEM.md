@@ -140,9 +140,9 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     PUT  /backup                turn automated backup on or off
     POST /backup/commit         back the store up now, and attempt a push
     POST /backup/restore        put the store back as a backup held it
-    POST /backup/repository     back up to a repository the person made: adopt
-                                an empty one, move to one, or bring one's
-                                backups into an empty store
+    POST /backup/repository     back up to a repository the person made, by
+                                its ssh address: adopt an empty one, move to
+                                one, or bring one's backups into an empty store
     POST /backup/key            replace the store's deploy key with a new one
 
 **One more route sits beside those and is not the store's.** A camera app
