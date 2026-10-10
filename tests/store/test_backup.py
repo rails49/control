@@ -909,6 +909,31 @@ def test_a_clone_made_by_hand_pushes_and_gets_an_upstream(
     assert backup.copy()["waiting"] == 0
 
 
+def test_a_store_cloned_from_an_empty_repository_pushes_its_first_backup(
+    tmp_path: Path,
+) -> None:
+    """gleis49's own case: `git clone` of a repository made empty in a web
+    form, with none of the settings adoption writes. The clone has a remote
+    and no branch on it, and the store's first push is what makes one (#689)."""
+    remote = tmp_path / "remote.git"
+    run_git(tmp_path, "init", "-q", "--bare", "-b", "main", str(remote))
+    root = tmp_path / "tc49"
+    run_git(tmp_path, "clone", "-q", str(remote), str(root))
+    run_git(root, "config", "user.email", "suite@example.invalid")
+    run_git(root, "config", "user.name", "The Suite")
+    run_git(root, "config", "commit.gpgsign", "false")
+    assert "sshCommand" not in run_git(root, "config", "--list", "--local")
+    (root / "layouts").mkdir()
+    drawn(root, "reversing-loops", "drawing: reversing-loops\n")
+    backup = Backup(root, log=lambda _: None)
+    assert backup.commit().ok
+
+    said = backup.push()
+
+    assert said.ok, said.words
+    assert "backup: reversing-loops" in run_git(remote, "log", "--format=%s")
+
+
 def test_the_watch_lets_the_timers_fire(repository: Path) -> None:
     """The thread decides nothing; what is asserted is that it ticks at all,
     and that stopping it stops the ticking."""
