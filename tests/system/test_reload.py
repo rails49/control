@@ -40,8 +40,9 @@ import yaml
 
 from tc49.lib.bus import Payload
 from tc49.lib.inventory import OFF, ON
-from tc49.lib.loading import Loaded
+from tc49.lib.loading import NO_RAILROAD, Loaded
 from tc49.lib.mqtt import MqttBus
+from tc49.store import AssetStore
 from tests.apps import APPS, App, Process, Store
 from tests.brokers import Broker, drained, settle, until
 from tests.harness import ASSETS, catalogued
@@ -673,6 +674,40 @@ def test_the_railroad_already_loaded_is_built_again_when_named(
         writing.close()
     finally:
         running.stop()
+
+
+@pytest.mark.parametrize("app", ["layout", "simulator"])
+def test_a_binding_started_again_with_no_railroad_named_comes_up_on_the_one_loaded(
+    app: str, root: Path, broker: Broker, store: Store, tmp_path: Path
+) -> None:
+    """A box comes back on the railroad its rails were built to and not on
+    the one its env file named (ADR-0072, decision 5): the binding records
+    each railroad it is built on in the store, and a binding started with no
+    railroad named starts on what the store records.
+
+    The record and not the row: the broker still holds the row the stopped
+    binding left, so what shows the restarted one read the store is its own
+    log line and a row published again under a new stamp."""
+    running = started(app, broker, store, tmp_path)
+    try:
+        writing = hand(broker)
+        dark(writing)
+        picks(writing, NOW, running)
+        writing.close()
+    finally:
+        running.stop()
+    assert AssetStore(root).loaded() == NOW, "the load was not recorded"
+    left = picture(broker)[RAILROAD]
+
+    again = named(app).process(broker, store, NO_RAILROAD, tmp_path)
+    again.start()
+    try:
+        up_on(again, NOW)
+        back = picture(broker)[RAILROAD]
+        assert back["name"] == NOW
+        assert back["at"] != left["at"], "the row was not published again"
+    finally:
+        again.stop()
 
 
 RENAMED = {"yard_w": "siding_w", "yard_e": "siding_e"}
