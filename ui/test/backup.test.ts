@@ -472,38 +472,16 @@ describe("the backup dialog", () => {
     it("shows a refusal rather than the question", async () => {
       const { dialog: surface, store } = await dialog();
       surface.unsaved = "the drawing";
-      surface.frozen = true;
+      surface.railroad = "crossover-yard";
+      surface.power = "on";
       surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
       await surface.updateComplete;
       press(surface, "Restore");
       await surface.updateComplete;
-      expect(reads(surface)).toContain("trains are on the layout");
+      expect(reads(surface)).toContain("track power is on");
       expect(reads(surface)).not.toContain("restoring discards them");
       expect(store.asked).not.toContain("restore 9f8e7d6");
     });
-  });
-
-  /** A restore can take away track a train stands on, so it is refused
-   *  while any is placed — the rule a layout edit follows (#684). The press
-   *  is greyed and says why, rather than asking the store and being told. */
-  it("will not restore while trains are on the layout", async () => {
-    const { dialog: surface, store } = await dialog();
-    surface.frozen = true;
-    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
-    await surface.updateComplete;
-
-    expect(restoring(surface).disabled).toBe(true);
-    expect(reads(surface)).toContain(
-      "trains are on the layout — take them off to restore",
-    );
-    press(surface, "Restore");
-    await new Promise((settle) => setTimeout(settle, 0));
-    expect(store.asked).not.toContain("restore 9f8e7d6");
-
-    surface.frozen = false;
-    await surface.updateComplete;
-    expect(restoring(surface).disabled).toBe(false);
-    expect(reads(surface)).not.toContain("trains are on the layout");
   });
 
   /** With a railroad loaded, the rails and the drawing are never changed
@@ -820,8 +798,42 @@ describe("what follows a restore", () => {
     expect(wants()).toEqual([wanted]);
   });
 
-  /** The dialog is told the loaded railroad by the app, as it is told the
-   *  placed trains (#697): a backup drawn before it is refused by name. */
+  /** A rebuild keeps the placements that still fit and lists those that do
+   *  not, so trains on the layout no longer hold a restore back: with the
+   *  track off and the backup holding the loaded railroad, it restores
+   *  (#710, ADR-0071). */
+  it("restores with trains on the layout", async () => {
+    const shell = await mounted("edit");
+    await loads(shell, "reversing-loops");
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { goods: "a" },
+      locks: { a: "goods" },
+      requests: [],
+    });
+    serving({ drawings: ["reversing-loops"], backup: RESTORED });
+    await chooseBackup(shell);
+    const surface = open(shell)!;
+    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+    await surface.updateComplete;
+    expect(restoring(surface).disabled).toBe(false);
+    expect(reads(surface)).not.toContain("trains are on the layout");
+
+    let reloads = 0;
+    shell.reload = () => {
+      reloads += 1;
+    };
+    press(surface, "Restore");
+    await settled(shell);
+    await new Promise((settle) => setTimeout(settle, 600));
+    expect(reloads).toBe(1);
+    expect(wants()).toEqual([
+      { topic: "tc49/layout/railroad_wanted", payload: { railroad: "reversing-loops" } },
+    ]);
+  });
+
+  /** The dialog is told the loaded railroad by the app (#697): a backup drawn
+   *  before it is refused by name. */
   it("refuses a backup without the railroad the app has loaded", async () => {
     const shell = await joined("edit");
     await said(shell, "tc49/layout/state/power", { power: "off" });
