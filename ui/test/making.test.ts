@@ -745,12 +745,12 @@ describe("the roster's Save with a length corrected", () => {
 /** Save is dead while its own write is in flight and the rest of the screen
  *  is not: an edit made meanwhile is written by the next Save (#723). */
 describe("the roster's Save in flight", () => {
-  /** The roster's next `PUT` held in flight, and the press that lets it
-   *  answer, settled. */
-  function holding(shell: TcApp): () => Promise<void> {
+  /** The next `PUT` on a path starting with `prefix` held in flight, and the
+   *  press that lets it answer, settled. */
+  function holding(shell: TcApp, prefix = "/rosters/"): () => Promise<void> {
     let answer: () => void = () => {};
     store.held = (path) =>
-      path.startsWith("/rosters/")
+      path.startsWith(prefix)
         ? new Promise<void>((resolve) => (answer = resolve))
         : null;
     return async () => {
@@ -777,6 +777,22 @@ describe("the roster's Save in flight", () => {
     await answer();
 
     expect(puts()).toBe(1);
+    expect(saving(shell).disabled).toBe(true);
+  });
+
+  it("is dead while a corrected model is written", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    store.saved.length = 0;
+    await typed(shell, parts(shell, "li.product input.length")[1]!, "110");
+    const answer = holding(shell, "/catalogue/");
+
+    await pressed(shell, "sl-button.save");
+    expect(saving(shell).disabled).toBe(true);
+    await screen(shell)["save"]();
+    await answer();
+
+    expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper", "/rosters/toy"]);
     expect(saving(shell).disabled).toBe(true);
   });
 

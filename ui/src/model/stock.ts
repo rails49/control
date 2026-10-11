@@ -359,10 +359,10 @@ export class Stock {
   private models: Record<string, ModelDoc>;
   /** Edits made to the roster, counted, and the count each document was made
    *  at, so `kept` can tell which edits the written one held. */
-  private made = 0;
-  private counts = new WeakMap<RosterDoc, number>();
+  private edited = 0;
+  private countOf = new WeakMap<RosterDoc, number>();
   /** The count the store holds, and the count at the latest length edit. */
-  private held = 0;
+  private stored = 0;
   private lengthAt = 0;
   /** The models whose length was corrected and not yet written, by name. */
   private corrected = new Set<string>();
@@ -370,7 +370,7 @@ export class Stock {
   constructor(roster: RosterDoc, catalogue: Record<string, ModelDoc>) {
     this.doc = roster;
     this.models = catalogue;
-    this.counts.set(roster, 0);
+    this.countOf.set(roster, 0);
   }
 
   /** The roster as it stands, which is what `PUT` is given. */
@@ -386,14 +386,14 @@ export class Stock {
    *  has not been given. A model made in the dialog is not counted: it was
    *  written when it was made. */
   get edits(): boolean {
-    return this.made > this.held;
+    return this.edited > this.stored;
   }
 
   /** Whether those edits change a length, which is what makes the roster's
    *  Save wait for power off and, once it lands, name the railroad again so
    *  the dispatcher fits trains with the new length (ADR-0071). */
   get lengthEdits(): boolean {
-    return this.lengthAt > this.held;
+    return this.lengthAt > this.stored;
   }
 
   /** The models whose length was corrected and not yet written, as Save is
@@ -411,7 +411,7 @@ export class Stock {
   /** The store took the roster, as `roster` gave it. An edit made since is
    *  still to write, and so is a model still in `corrections` (#723). */
   kept(written: RosterDoc): void {
-    this.held = this.counts.get(written)!;
+    this.stored = this.countOf.get(written)!;
   }
 
   /** Why the roster's Save waits, or `null` where it does not: a length edit
@@ -660,13 +660,13 @@ export class Stock {
     if (mm === null) {
       const { length: _was, ...rest } = car;
       this.write({ cars: { ...this.doc.cars, [name]: rest } });
-      this.lengthAt = this.made;
+      this.lengthAt = this.edited;
       return null;
     }
     const trouble = lengthTrouble(mm);
     if (trouble !== null) return trouble;
     this.write({ cars: { ...this.doc.cars, [name]: { ...car, length: mm } } });
-    this.lengthAt = this.made;
+    this.lengthAt = this.edited;
     return null;
   }
 
@@ -722,8 +722,9 @@ export class Stock {
     this.corrected.add(name);
     // Counted as an edit to the roster, which Save writes after the models:
     // the correction is outstanding until a roster written after it lands.
+    // `edits` and `lengthEdits` read this count and not `corrected`.
     this.write({});
-    this.lengthAt = this.made;
+    this.lengthAt = this.edited;
     return null;
   }
 
@@ -733,8 +734,8 @@ export class Stock {
    *  screen marked as holding something the store has not been given. */
   private write(part: Partial<RosterDoc>): void {
     this.doc = { ...this.doc, ...part };
-    this.made += 1;
-    this.counts.set(this.doc, this.made);
+    this.edited += 1;
+    this.countOf.set(this.doc, this.edited);
   }
 
   /**

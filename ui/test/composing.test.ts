@@ -627,6 +627,17 @@ describe("an edit made during a Save", () => {
     expect(screen.lengthEdits).toBe(true);
   });
 
+  it("keeps a model corrected while only the roster is written", () => {
+    const screen = stock();
+    screen.carAddress("krokodil-a", "7");
+    const written = screen.roster;
+    screen.modelLength("coach", 50, "off");
+    screen.kept(written);
+    expect(screen.corrections.map((model) => model.model)).toEqual(["coach"]);
+    expect(screen.edits).toBe(true);
+    expect(screen.lengthEdits).toBe(true);
+  });
+
   it("keeps a model corrected again with its newer length", () => {
     const screen = stock();
     screen.modelLength("hopper", 110, "off");
