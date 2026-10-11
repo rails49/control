@@ -30,6 +30,7 @@ from tc49.lib.loading import (
     RAILROAD_WANTED,
     Answering,
     Loaded,
+    dropped,
     named,
     standing,
     taken,
@@ -542,3 +543,30 @@ def test_a_railroad_is_named_in_a_log_line_or_said_to_be_absent() -> None:
     being the one that prints it with no railroad: it reads no documents, so
     it never stands."""
     assert (named(WAS), named(NO_RAILROAD)) == (f"'{WAS}'", "no railroad")
+
+
+# -- what a rebuild drops ----------------------------------------------------
+
+
+def test_a_rebuild_drops_its_rows_but_the_ones_it_keeps() -> None:
+    """A rebuild under the same name keeps what a person told the apps about
+    the steel (ADR-0071): the topic handed as `keep` stays on the broker, and
+    every other row under the app's filters goes."""
+    bus = bused()
+    bus.publish("tc49/dispatch/state/allocation", {"trains": {"t": "b"}})
+    bus.publish("tc49/dispatch/state/run", {"run": "held"})
+    bus.publish("tc49/schedule/state/facing", {"facing": {}})
+
+    gone = dropped(
+        bus,
+        ("tc49/dispatch/state/#",),
+        threading.Event(),
+        0.0,
+        keep=("tc49/dispatch/state/allocation",),
+    )
+
+    assert gone == ["tc49/dispatch/state/run"]
+    assert set(bus.last_values) == {
+        "tc49/dispatch/state/allocation",
+        "tc49/schedule/state/facing",
+    }

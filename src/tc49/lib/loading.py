@@ -389,7 +389,11 @@ def taken[Read](
 
 
 def dropped(
-    bus: Bus, filters: Sequence[str], stop: threading.Event, retained_s: float
+    bus: Bus,
+    filters: Sequence[str],
+    stop: threading.Event,
+    retained_s: float,
+    keep: Sequence[str] = (),
 ) -> list[str]:
     """The railroad that was running, left: the app built on it stops
     answering and the rows it owns go, so that what is built next starts on a
@@ -406,12 +410,20 @@ def dropped(
 
     `retained_s` is that moment, waited on `stop` so a signal arriving in it
     ends the process rather than being sat on.
+
+    **A rebuild under the same name keeps what a person told the apps about
+    the steel** (ADR-0071). With track power off a restore or a saved edit
+    changes the drawing and not the track, and every train stands where it
+    stood, so the app hands over `keep` — topics, not filters — and those
+    rows stay on the broker for the app built next to adopt, as it would
+    after a restart. Under another name nothing is kept: a block's name in
+    one railroad says nothing about the steel of another.
     """
     bus.forget()
     for owned in filters:
         bus.subscribe(owned, _nothing)
     stop.wait(retained_s)
-    gone = cleared(bus, filters)
+    gone = cleared(bus, filters, keep)
     bus.forget()
     return gone
 
@@ -422,9 +434,12 @@ def _nothing(topic: str, payload: Payload) -> None:
     subscribing is it (ADR-0035)."""
 
 
-def cleared(bus: Bus, filters: Sequence[str]) -> list[str]:
+def cleared(
+    bus: Bus, filters: Sequence[str], keep: Sequence[str] = ()
+) -> list[str]:
     """Every retained row the bus holds under `filters`, dropped, and their
-    topics in the order they were held.
+    topics in the order they were held — but for the topics in `keep`, which
+    stay (`dropped`).
 
     What the bus holds and not what this process published: the rows that
     matter are the ones a **previous** railroad left — one per address, one
@@ -435,7 +450,7 @@ def cleared(bus: Bus, filters: Sequence[str]) -> list[str]:
     gone = [
         topic
         for topic in bus.last_values
-        if any(matches(one, topic) for one in filters)
+        if topic not in keep and any(matches(one, topic) for one in filters)
     ]
     for topic in gone:
         bus.clear(topic)
