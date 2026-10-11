@@ -1,3 +1,7 @@
+{"time":0.0,"event":"railroad","at":0.0,"name":"crossover-yard"}
+{"time":0.0,"event":"power","at":0.0,"power":"off"}
+{"time":0.0,"event":"power_wanted","power":"on"}
+{"time":0.0,"event":"power","at":0.0,"power":"on"}
 {"time":0.0,"event":"facing","at":0.0,"facing":{"express_2":"up_e.B-to-A","freight_1":"yard_w.A-to-B"}}
 {"time":0.0,"event":"request_submitted","id":"freight_1-1","train":"freight_1","depart":"yard_w.B","dest":["yard_e.A","yard_e.B"]}
 {"time":0.0,"event":"request_submitted","id":"express_2-1","train":"express_2","depart":"up_e.A","dest":["yard_w.A","yard_w.B"]}
@@ -9,8 +13,6 @@
 {"time":0.0,"event":"aspects","at":0.0,"aspects":{"dn_e.A":"stop","dn_e.B":"stop","dn_w.A":"stop","dn_w.B":"stop","up_e.A":"stop","up_e.B":"stop","up_w.A":"stop","up_w.B":"stop","yard_e.A":"stop","yard_w.B":"stop"}}
 {"time":0.0,"event":"allocation","at":0.0,"trains":{"express_2":"up_e","freight_1":"yard_w"},"crossing":{},"locks":{"up_e":"express_2","yard_w":"freight_1"},"requests":[]}
 {"time":0.0,"event":"disputed","at":0.0,"trains":[],"blocks":[]}
-{"time":0.0,"event":"railroad","at":0.0,"name":"crossover-yard"}
-{"time":0.0,"event":"power","at":0.0,"power":"on"}
 {"time":0.0,"event":"request_admitted","id":"freight_1-1","dest":["yard_e.A"],"pruned":[{"end":"yard_e.B","reason":"no_entry"}]}
 {"time":0.0,"event":"route_chosen","id":"freight_1-1","route":["yard_w","west_ladder.to_dn","dn_w","crossover.dn_straight","dn_e","east_ladder.from_dn","yard_e"],"k_tried":1}
 {"time":0.0,"event":"lock_granted","train":"freight_1","resources":["west_ladder.to_dn","dn_w","crossover.dn_straight","dn_e","east_ladder.from_dn","yard_e"]}

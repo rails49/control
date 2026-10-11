@@ -13,7 +13,7 @@ decision 3, `tc49/simulator/__main__.py`).
 Driven at the layout interface: a `move` command in, sensor events out.
 """
 
-from tc49.bench.runner import placement
+from tc49.bench.runner import placement, powered
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import TOPICS
@@ -26,8 +26,11 @@ MOVE = "tc49/layout/move"
 
 def simulator(bus: InProcessBus, layout: Layout, stood: dict[str, str]) -> Simulator:
     """The binding under test, with zero delays: a move's two sensor events
-    fire on the next tick rather than a simulated minute out."""
-    return Simulator(bus, layout, Clock(), stood, transit_s=0.0, clear_s=0.0)
+    fire on the next tick rather than a simulated minute out. Powered, as a
+    person powers a box that has just come up (ADR-0070)."""
+    return powered(
+        bus, Simulator(bus, layout, Clock(), stood, transit_s=0.0, clear_s=0.0)
+    )
 
 
 def sensors(bus: InProcessBus) -> list[tuple[str, Payload]]:
@@ -108,7 +111,9 @@ def test_the_placement_reaches_no_topic() -> None:
 def timed(bus: InProcessBus, layout: Layout, stood: dict[str, str]) -> Simulator:
     """The binding with a delay on each reading, so a test can stop a move
     between its head and its tail: each `step` fires exactly one of them."""
-    return Simulator(bus, layout, Clock(), stood, transit_s=10.0, clear_s=10.0)
+    return powered(
+        bus, Simulator(bus, layout, Clock(), stood, transit_s=10.0, clear_s=10.0)
+    )
 
 
 def step(sim: Simulator, readings: int) -> None:

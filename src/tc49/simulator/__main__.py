@@ -87,8 +87,7 @@ transit spending half a minute on one move."""
 
 OWNED = ("tc49/layout/state/railroad", "tc49/layout/state/power")
 """The retained rows this binding of the layout interface writes: which
-railroad it is standing in for, and a supply that is live because simulated
-rails always are. The block events it publishes as trains move are events and
+railroad it is standing in for, and the supply each answered press set. The block events it publishes as trains move are events and
 carry no retained value to drop (ADR-0060)."""
 
 
@@ -121,13 +120,10 @@ def serve(
     wire come off wall time in the binding (ADR-0059, decision 1) — so a
     restart resetting it is news to nobody (ADR-0009).
     """
-    # No precondition, because this binding drives no hardware: the power row
-    # it publishes is a constant `on` — a power cut is a physical act ADR-0030
-    # keeps out of the simulation — so a gesture waiting for `off` here would
-    # wait for ever. There is no steel that could disagree with the drawing
-    # just loaded, so there is nothing for a person to confirm (ADR-0060 as
-    # amended).
-    loaded = Answering(railroad, precondition=None)
+    # The gesture waits for `off` here as it does in `layout`: this binding
+    # answers the band's power presses as that one does and comes up `off`, so
+    # a railroad is picked before a person presses ON or after OFF (ADR-0070).
+    loaded = Answering(railroad)
     if not connected(bus, stop, log):
         return
     layout = standing(bus, loaded, stop, log, documents.layout, period_s)
@@ -141,10 +137,10 @@ def serve(
         # not retained, so a press landing in the instant between the rows
         # and the subscription would simply be gone (ADR-0059, decision 5).
         # It also picks up the supply this app is about to state, which is
-        # the precondition on the gesture — and simulated rails are always
-        # live, so what this binding hears is `on` and the gesture is
-        # refused. A power cut is a physical act, and simulating one would
-        # be the branch ADR-0030 keeps out of every app (ADR-0060).
+        # the precondition on the gesture: `off` from the constructor, and
+        # then whatever each answered press commanded, so the gesture is
+        # answered while the rails read `off` and refused otherwise
+        # (ADR-0070).
         loaded.follow(bus)
         clock = Clock()
         simulator = Simulator(bus, layout, clock, transit_s=transit_s, clear_s=clear_s)

@@ -65,9 +65,11 @@ else the core app `layout` is handed (#287): the power a page commands, the
 aspects the dispatcher shows, and the two device rows the railroad's power is
 folded from. They arrive from four different publishers and `layout` answers
 none of them — it reports observations — so every one of them is a frame that
-must be droppable. The milestone-1 simulator reads none of these: its points
-are always aligned and its track is always live, which is why `align` had no
-reader at all until there was an app that throws something.
+must be droppable. The milestone-1 simulator reads the power a page commands
+and the run row its plain `off` is checked against, answering the band's
+presses as `layout` does (ADR-0070), and none of the rest: its points are
+always aligned, which is why `align` had no reader at all until there was an
+app that throws something.
 
 The throttle's **two gestures** are read here for the first reason of them all
 (#297): a person's page writes both, any number of pages may write either, and

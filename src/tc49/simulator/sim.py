@@ -1,13 +1,13 @@
 """Simulator: the milestone-1 layout interface, as a discrete-event engine.
 
 Commands in, observations out, plus ownership of time (SYSTEM.md, layout
-interface; ADR-0009, ADR-0047). The two commands it responds to,
-`tc49/layout/align` and `tc49/layout/move`, are named for it rather than for
-whoever sends them, and it never asks which component did: today the
-dispatcher sends one and the driver the other, and nothing here would change
-if that moved. It names its two commands rather than filtering by prefix,
-which is the one exception rule 3 allows: a `tc49/layout/#` filter would
-hand it back its own sensor events. It acts on a `move` only if that train
+interface; ADR-0009, ADR-0047). The commands it responds to,
+`tc49/layout/align`, `tc49/layout/move` and `tc49/layout/power_wanted`, are
+named for it rather than for whoever sends them, and it never asks which
+component did: today the dispatcher sends one, the driver another and a page
+the third, and nothing here would change if that moved. It names its commands
+rather than filtering by prefix, which is the one exception rule 3 allows: a
+`tc49/layout/#` filter would hand it back its own sensor events. It acts on a `move` only if that train
 is standing at the transit's near end (ADR-0047): a stale redelivery
 arrives after the train has left, so it is a no-op on state alone — no
 clock, no stamp, no agreement between apps.
@@ -32,6 +32,15 @@ the physical order (ADR-0047). Both delays are configurable, private to
 this app, and never on any topic (ADR-0030). No RNG: transit times are
 fixed, so a run is reproducible by construction.
 
+It answers the band's **power** presses as the layout interface does
+(ADR-0070). It comes up `off`, and states on `state/power` the word each
+answered `power_wanted` commanded, having no hardware to report one; a plain
+`off` is applied only while the run is held and nothing moves (ADR-0062), the
+check being `lib.power`'s and the layout's own. While the power is not `on`
+no move starts and none advances: a `move` is dropped, and the sensor events
+of a transit under way wait, firing at ON with the time they had left — a
+train under an emergency stop on steel goes on at its kept speed.
+
 The **speed** the command carries is ignored here for that same reason
 (#283): a delay this app chose is not a distance divided by a speed, so
 running the transit at 0.4 would take exactly as long as running it at 1.0
@@ -42,8 +51,8 @@ where the field means something.
 One event queue, ordered by (time, sequence), advances the run clock
 (`tc49.lib.clock`), with the wait injected: batch (``run``) jumps the clock
 to the next scheduled event and stops when the queue is empty — nothing is
-pending and no train is rolling; the event budget is a backstop against
-live-lock bugs only. Live (``run_live``, #69) sleeps the same spans on a
+pending and no train is rolling — or when everything queued waits on power
+that is not `on`; the event budget is a backstop against live-lock bugs only. Live (``run_live``, #69) sleeps the same spans on a
 wall clock, polls for commands each period, and never terminates on
 quiescence. The dispatcher cannot tell the modes apart: ADR-0009 stands,
 and the same run leaves the same trace.
@@ -56,15 +65,28 @@ lives in the broker and nowhere else, and a placement is nothing the
 inventory names (ADR-0030, ADR-0059 decision 3, `tc49/simulator/__main__.py`).
 """
 
+import logging
 import time
 from collections.abc import Callable
 from heapq import heapify, heappop, heappush
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.inventory import ON
+from tc49.lib.inventory import OFF, ON
 from tc49.lib.layout import Layout, block_of, end_across
-from tc49.lib.payload import Command, command, named_train, placement
+from tc49.lib.payload import (
+    Command,
+    Ordering,
+    Run,
+    command,
+    commanded_power,
+    kept_run,
+    named_train,
+    placement,
+)
+from tc49.lib.power import off_refused
+
+_log = logging.getLogger(__name__)
 
 # One scheduled sensor event: fires at a time, in scheduling order among
 # equals, and says which train's head or tail passed which detector.
@@ -109,6 +131,15 @@ class Simulator:
         # clears (ADR-0069 decision 7). A block a train was put in and never
         # read occupied for it is not here.
         self._occupied: dict[str, list[str]] = {}
+        # The word this binding last stated on `state/power`, and the run
+        # clock's reading when it last left `on`: what the waiting events are
+        # moved later by when it comes back (ADR-0070, decision 4).
+        self._power = OFF
+        self._cut_at = clock.now
+        # The last run row the dispatcher stated, for the check on a plain
+        # `off` (ADR-0062), stamp-guarded as `layout` keeps it (#240).
+        self._run: Run | None = None
+        self._ordering = Ordering()
         # The commands, subscribed **before** a word is published. A publish
         # is asynchronous where a subscribe waits to be acknowledged, so an
         # app that published first would be deaf for as long as its own
@@ -125,6 +156,8 @@ class Simulator:
         bus.subscribe("tc49/layout/move", self._on_move)
         bus.subscribe("tc49/dispatch/train_placed", self._on_placed)
         bus.subscribe("tc49/dispatch/train_removed", self._on_removed)
+        bus.subscribe("tc49/layout/power_wanted", self._on_power_wanted)
+        bus.subscribe("tc49/dispatch/state/run", self._on_run)
         # Which railroad this binding stands in for, stated from the
         # constructor like the supply below: one broker runs one railroad and
         # a view needs to know which, and the binding of the layout interface
@@ -134,12 +167,58 @@ class Simulator:
         bus.publish("tc49/layout/state/railroad", {"name": layout.name})
         # Whether a train may move at all, stated from the constructor so a
         # joining client is served a value rather than left to read one out
-        # of an absence (ADR-0032, ADR-0041). Simulated track is always live
-        # and this binding never says otherwise: a power cut is a physical
-        # act, and simulating one would be a field or a branch that ADR-0030
-        # keeps out of every app. What exercises the dispatcher's side of it
-        # is the topic, published by a test.
-        bus.publish("tc49/layout/state/power", {"power": ON})
+        # of an absence (ADR-0032, ADR-0041). `off`, as the layout interface
+        # comes up: a person presses ON, and the bench harness publishes
+        # `power_wanted: on` before a run (ADR-0070, decision 2).
+        bus.publish("tc49/layout/state/power", {"power": OFF})
+
+    def _on_run(self, topic: str, payload: Payload) -> None:
+        """Where the dispatcher holds the run, and whether anything moves
+        under it: what a plain `off` is checked against (ADR-0062). Read as
+        `layout` reads it — an earlier stamp is ignored, and a value that
+        cannot be read leaves the run already held standing."""
+        if not self._ordering.accepts(topic, payload):
+            return
+        held = kept_run(payload)
+        if held is None:
+            return
+        self._run = held
+
+    def _on_power_wanted(self, topic: str, payload: Payload) -> None:
+        """A person asked for power, an emergency stop, or the supply removed,
+        and this binding answers it as the layout interface does (ADR-0070).
+        There is no hardware to report the supply, so the word commanded is
+        the word stated, and `stopped` stands until `on`.
+
+        A press that cannot be read is dropped, and so is a plain `off` that
+        `lib.power.off_refused` refuses, to the log with the reason: the
+        supply is removed only while the run is held and nothing moves
+        (ADR-0062).
+
+        Leaving `on` stops the scheduled sensor events where they are; coming
+        back to it moves each one later by the time the power was not `on`,
+        so a transit goes on with the time it had left and the events keep
+        their order (decision 4).
+        """
+        wanted = commanded_power(payload)
+        if wanted is None:
+            return
+        if wanted == OFF:
+            refusal = off_refused(self._run)
+            if refusal is not None:
+                _log.info("power off refused: %s", refusal)
+                return
+        if self._power == ON and wanted != ON:
+            self._cut_at = self._clock.now
+        elif self._power != ON and wanted == ON:
+            waited = self._clock.now - self._cut_at
+            self._events = [
+                (at + waited, seq, leaf, train, block)
+                for at, seq, leaf, train, block in self._events
+            ]
+            heapify(self._events)
+        self._power = wanted
+        self._bus.publish("tc49/layout/state/power", {"power": wanted})
 
     def _on_placed(self, topic: str, payload: Payload) -> None:
         """A hand lifted a locomotive and put it somewhere else (#152).
@@ -228,7 +307,7 @@ class Simulator:
         no near end to be standing at, and a train that happens to stand at
         one end of it is not being asked for a run this railroad can make."""
         commanded = command(payload)
-        if commanded is None:
+        if commanded is None or self._power != ON:
             return
         train, into = commanded.train, commanded.into
         origin = self._near_end(commanded)
@@ -262,10 +341,14 @@ class Simulator:
 
     def run(self, event_limit: int = 100_000) -> None:
         """Batch: jump the clock event to event and stop at quiescence —
-        nothing scheduled means nothing pending and no train rolling."""
+        nothing scheduled means nothing pending and no train rolling.
+
+        It stops too where every queued event is waiting on power that is not
+        `on`: nothing can fire, and a batch run never sends STOP, so that case
+        is only for safety."""
         self._bus.drain()  # the startup cascade: the whole timetable goes in
         for _ in range(event_limit):
-            if not self._events:
+            if not self._events or self._power != ON:
                 return
             event = heappop(self._events)
             self._clock.advance(event[0])
@@ -285,15 +368,23 @@ class Simulator:
         from the bus are drained while nothing is scheduled; `stop` is
         polled once per wait, and the deployed process sets it never and
         stops on a signal instead. No quiescence termination: an idle
-        railroad keeps waiting until it is stopped."""
+        railroad keeps waiting until it is stopped.
+
+        While the power is not `on` the scheduled events wait: a turn is the
+        whole period, and nothing fires until a press brings the power back
+        and moves them later by the time it was gone."""
         self._bus.drain()  # the startup cascade: standing locks reach the trace
         while not stop():
             step = period_s
-            if self._events:
+            if self._events and self._power == ON:
                 step = min(step, self._events[0][0] - self._clock.now)
             sleep(max(step, 0.0))
             self._clock.advance(self._clock.now + max(step, 0.0))
-            while self._events and self._events[0][0] <= self._clock.now:
+            while (
+                self._power == ON
+                and self._events
+                and self._events[0][0] <= self._clock.now
+            ):
                 self._fire(heappop(self._events))
                 self._bus.drain()
             self._bus.drain()

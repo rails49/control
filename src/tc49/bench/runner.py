@@ -22,6 +22,7 @@ from tc49.dispatcher import Dispatcher, FullRoute, Incremental, LockingStrategy
 from tc49.driver import Driver
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
+from tc49.lib.inventory import ON
 from tc49.lib.layout import Layout, connected_facing
 from tc49.lib.roster import Roster
 from tc49.lib.scenario import Scenario, TrainSpec
@@ -160,6 +161,24 @@ class Assembly:
         return self._out.getvalue()
 
 
+def powered(bus: InProcessBus, simulator: Simulator) -> Simulator:
+    """The simulator with ON pressed and answered, before the apps above it
+    come up.
+
+    It comes up `off`, as the layout interface does, and a run needs the
+    power on before anything moves (ADR-0070, decision 2). The press is
+    drained here, ahead of the scheduler and the dispatcher, so they come up
+    on a railroad that already has power — as apps started on a box where a
+    person has pressed ON do (ADR-0059, decision 5). Pressed after them
+    instead, the `off` would reach the dispatcher first and hold the run, and
+    power returning releases nothing (ADR-0041): the harness would have to
+    press GO as well, after grants the startup cascade had already made.
+    """
+    bus.publish("tc49/layout/power_wanted", {"power": ON})
+    bus.drain()
+    return simulator
+
+
 def assemble(
     layout: Layout,
     roster: Roster,
@@ -172,21 +191,13 @@ def assemble(
     out = io.StringIO()
     TraceTap(bus, out, clock)
     stood = placement(scenario.trains)
+    simulator = powered(bus, Simulator(bus, layout, clock, stood))
     Scheduler(
         bus, layout, facing(layout, scenario.trains), scenario.requests, nonce=NONCE
     )
     dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
-    return Assembly(
-        bus,
-        dispatcher,
-        Simulator(bus, layout, clock, stood),
-        layout,
-        roster,
-        k,
-        out,
-        clock,
-    )
+    return Assembly(bus, dispatcher, simulator, layout, roster, k, out, clock)
 
 
 def assemble_live(
@@ -243,19 +254,11 @@ def assemble_live(
     bus.drain()
     out = io.StringIO()
     TraceTap(bus, out, clock)
+    simulator = powered(bus, Simulator(bus, layout, clock, stood))
     Scheduler(bus, layout, facing(layout, document), nonce=NONCE)
     dispatcher = Dispatcher(bus, layout, roster, stood, make_strategy(layout, k))
     Driver(bus)
-    return Assembly(
-        bus,
-        dispatcher,
-        Simulator(bus, layout, clock, stood),
-        layout,
-        roster,
-        k,
-        out,
-        clock,
-    )
+    return Assembly(bus, dispatcher, simulator, layout, roster, k, out, clock)
 
 
 def run_scenario(
