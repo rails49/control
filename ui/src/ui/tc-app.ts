@@ -51,6 +51,8 @@ import {
   COMMANDS,
   backupWords,
   frozen,
+  isLoaded,
+  unbuilt,
   type CommandId,
   type Standing,
 } from "../model/commands.js";
@@ -90,6 +92,7 @@ const RELOAD_MS = 500;
 /** What the run view says about itself before it has said anything. */
 const QUIET: RunStatus = {
   joined: false,
+  railroad: null,
   linked: false,
   run: null,
   power: null,
@@ -199,6 +202,7 @@ export class TcApp extends LitElement {
         .drawing=${name}
         .drawings=${this.filing.drawings}
         .unsaved=${!this.filing.saved}
+        .unbuilt=${unbuilt(this.standing)}
         .derives=${this.filing.derives}
         .trouble=${this.filing.trouble ?? this.status.trouble}
         .fault=${this.status.fault}
@@ -382,10 +386,11 @@ export class TcApp extends LitElement {
    *  (model/commands.ts). Nothing here decides what is dead; that module
    *  does, and it is what both the rail and the keyboard ask. */
   private get standing(): Standing {
-    // Trains on the layout freeze the drawing (ADR-0038, #169), and the run
-    // view is what knows of any: the count comes up here with the rest of what
-    // it says about itself, and goes back down to the band that says why and
-    // the editing view whose gestures it kills.
+    // Track power freezes the drawing, and the loaded railroad's edits hold
+    // ON (ADR-0071). The run view is what knows either: power and the
+    // railroad's name come up here with the rest of what it says about
+    // itself, and go back down to the band that says why and the editing view
+    // whose gestures it kills.
     const one = this.inspecting;
     const spec = one === null ? undefined : this.editor.drawing.symbols[one];
     return {
@@ -395,9 +400,23 @@ export class TcApp extends LitElement {
       editable: spec !== undefined && editable(spec.kind),
       undo: this.editor.canUndo,
       redo: this.editor.canRedo,
-      placed: this.status.placed.length,
+      power: this.status.power,
+      loaded: this.status.railroad,
       backup: this.backing.standing,
     };
+  }
+
+  /**
+   * The open drawing, given to the store, and then — where it is the loaded
+   * railroad — named again on `railroad_wanted`, so every app builds what was
+   * written and keeps the trains that fit (ADR-0071), as `restored` does. No
+   * reload: the page already holds what it saved, and `loaded` ignores a row
+   * naming the drawing already open. A save that did not land names nothing.
+   */
+  private async saving(): Promise<void> {
+    const loaded = isLoaded(this.standing);
+    await this.filing.save(this.editor);
+    if (loaded && this.filing.saved) this.running?.pressRailroad(this.filing.opened);
   }
 
   /** The one symbol the netlist pane inspects, where exactly one is selected.
@@ -422,7 +441,7 @@ export class TcApp extends LitElement {
         this.discard();
         return;
       case "save":
-        void this.filing.save(this.editor);
+        void this.saving();
         return;
       case "save-as": {
         const said = this.ask("Save as", this.filing.opened);

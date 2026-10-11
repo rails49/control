@@ -103,6 +103,11 @@ import type { RosterDrag, TcRoster } from "./tc-roster.js";
  */
 export interface RunStatus {
   joined: boolean;
+  /** The railroad the broker says it runs, `null` while it has not said
+   *  (#371). The app reads it to know whether the open drawing is the loaded
+   *  railroad, whose save names it again and whose unsaved edits hold ON
+   *  (`model/commands.ts`, ADR-0071). */
+  railroad: string | null;
   linked: boolean;
   /** How the run stands, `null` while no session is joined or before the
    *  dispatcher has said (ADR-0037). It is what the rail's HOLD/GO reads. */
@@ -127,12 +132,10 @@ export interface RunStatus {
    *  ([ADR-0050](../../../docs/adr/0050-broken-hardware-is-reported-never-worked-around.md),
    *  [#602](https://github.com/rails49/control/issues/602)). */
   fault: string | null;
-  /** The trains the run has on the layout, by name. The rail reads how many
-   *  there are as the rule that trains on the layout freeze the drawing
-   *  (`model/commands.ts`, ADR-0038), and the stock screen reads which they
-   *  are as the rule that a placed train's length may not be corrected
-   *  (ui/STOCK.md): only this view knows, and neither of the two views where
-   *  it is felt does. */
+  /** The trains the run has on the layout, by name. The stock screen reads
+   *  which they are as the rule that a placed train's length may not be
+   *  corrected (ui/STOCK.md): only this view knows, and the view where it is
+   *  felt does not. */
   placed: readonly string[];
 }
 
@@ -944,6 +947,7 @@ export class TcPanel extends LitElement {
   private get status(): RunStatus {
     return {
       joined: this.session !== null,
+      railroad: this.session,
       linked: this.connected,
       run: this.session === null ? null : (this.panel?.run ?? null),
       power: this.session === null ? null : (this.panel?.power ?? null),
@@ -964,9 +968,10 @@ export class TcPanel extends LitElement {
    *
    * Nothing, with no session joined, as the run's value and the supply's are.
    * `leave` keeps the model so that rejoining does not flash, but a page that
-   * has left a session is being told nothing — and what this answers freezes
-   * the drawing, which must not outlive the knowledge it rests on: a page
-   * reloaded is not frozen, and a page that has left is in the same position.
+   * has left a session is being told nothing — and what this answers guards
+   * the stock view's lengths, which must not outlive the knowledge they rest
+   * on: a page reloaded guards nothing, and a page that has left is in the
+   * same position.
    */
   private get standing(): Placed[] {
     if (this.session === null) return [];
@@ -1046,6 +1051,7 @@ export class TcPanel extends LitElement {
     if (
       was !== null &&
       was.joined === now.joined &&
+      was.railroad === now.railroad &&
       was.linked === now.linked &&
       was.run === now.run &&
       was.power === now.power &&

@@ -18,6 +18,7 @@
  * command without a glyph is a compile error rather than a drift.
  */
 
+import type { Power } from "./trace.js";
 import type { ViewId } from "./views.js";
 
 export type CommandId =
@@ -52,12 +53,17 @@ export interface Standing {
   /** Whether there is a snapshot behind, and one ahead. */
   undo: boolean;
   redo: boolean;
-  /** How many trains stand on the layout, as the run says. Any of them
-   *  freezes the drawing (`frozen` below). A count and not a flag, because
-   *  what the run knows is which trains are placed and the rule is read off
-   *  it afresh — nothing here is latched, so the last train leaving thaws
-   *  the drawing on its own. */
-  placed: number;
+  /** The run's track power, as `state/power` says, `null` with no session.
+   *  Power on or stopped freezes the drawing (`frozen` below); it is read
+   *  afresh and nothing is latched, so switching it off thaws the drawing on
+   *  its own. Trains standing on the layout do not freeze it: a save names
+   *  the railroad again and the rebuild keeps them where they fit (ADR-0071). */
+  power: Power | null;
+  /** The railroad the run has loaded, as `tc49/layout/state/railroad` names
+   *  it, `null` with no session. Where it is the open drawing, a save is what
+   *  the apps build next, so Save waits for power off and ON waits for the
+   *  save (`isLoaded` below). */
+  loaded: string | null;
   /** Whether backup has anything to say without being asked (#321). */
   backup: BackupStanding;
 }
@@ -113,22 +119,43 @@ export const NOTHING: Standing = {
   editable: false,
   undo: false,
   redo: false,
-  placed: 0,
+  power: null,
+  loaded: null,
   backup: "quiet",
 };
 
 /**
- * Whether the drawing is frozen: any train placed, and it is
- * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md),
- * #169). You do not rewire track with locomotives standing on it.
+ * Whether the drawing is frozen: track power on or stopped, and it is
+ * ([ADR-0071](../../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
+ * decision 5). With power on the run moves trains over what the dispatcher
+ * built, so the drawing must not drift from it; with power off nothing moves,
+ * and a save of the loaded railroad builds it again with the trains kept where
+ * they fit. Stopped is frozen too: it is an emergency stop somebody clears
+ * back to on, not a rest. With no session (`null`) there is no run to drift
+ * from.
  *
  * The one reading of the rule. `editing` below kills the commands that would
  * change the document, the editing view's gestures ask it before they mean
- * anything, and the band prints its word off it rather than counting trains
- * of its own.
+ * anything, and the band prints its word off it rather than reading power of
+ * its own.
  */
-export function frozen({ placed }: Standing): boolean {
-  return placed > 0;
+export function frozen({ power }: Standing): boolean {
+  return power === "on" || power === "stopped";
+}
+
+/** Whether the open drawing is the railroad the run has loaded: the one whose
+ *  save the apps build next (ADR-0071). A drawing forked by Save As, or one
+ *  started with New, is not, and its saves name nothing. */
+export function isLoaded({ opened, loaded }: Standing): boolean {
+  return opened !== "" && opened === loaded;
+}
+
+/** Whether ON waits for a save: the loaded railroad's drawing holds edits the
+ *  store has not been given, and the run view draws the open drawing, so power
+ *  on would run trains under track the dispatcher is not running (ADR-0071,
+ *  decision 6). STOP and OFF never wait. */
+export function unbuilt(standing: Standing): boolean {
+  return isLoaded(standing) && !standing.saved;
 }
 
 export interface Command {
@@ -150,7 +177,13 @@ export const COMMANDS: Record<CommandId, Command> = {
   save: {
     label: "Save",
     key: "⌘S",
-    enabled: ({ opened, saved }) => opened !== "" && !saved,
+    // Saving the loaded railroad names it again, and the layout builds only
+    // with power off, so while it is frozen the save would write a drawing no
+    // app runs (ADR-0071). Any other drawing is only a file.
+    enabled: (standing) =>
+      standing.opened !== "" &&
+      !standing.saved &&
+      !(frozen(standing) && isLoaded(standing)),
   },
   "save-as": {
     label: "Save As…",
@@ -219,8 +252,8 @@ function hasSelection({ selection }: Standing): boolean {
  * Written as a wrapper so that the category is named once and a command joins
  * it by wearing it: a new verb that draws is frozen by being declared with
  * this, rather than by someone remembering to repeat the condition. Saving is
- * not one of them — it writes the document out rather than changing it, and
- * the edits it carries were made before the train arrived.
+ * not one of them — it writes the document out rather than changing it — and
+ * its own rule is above.
  */
 function editing(rule: (standing: Standing) => boolean): Command["enabled"] {
   return (standing) => !frozen(standing) && rule(standing);

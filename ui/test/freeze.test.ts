@@ -1,19 +1,20 @@
 // @vitest-environment happy-dom
 
 /**
- * Trains on the layout freeze the drawing
- * ([ADR-0038](../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md),
- * #169): you do not rewire track with locomotives standing on it.
+ * Track power on or stopped freezes the drawing
+ * ([ADR-0071](../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
+ * decision 5): the run moves trains over what the dispatcher built, and the
+ * drawing must not drift from it. Trains standing with power off freeze
+ * nothing — a save of the loaded railroad names it again, and the rebuild
+ * keeps them where they fit.
  *
  * The rule itself is `commands.test.ts`, where it lives without a DOM. What is
- * here is the path it travels — a picture off the bus, up to the shell as the
- * run's count, and back down to a view whose verbs are dead, whose canvas
- * means nothing by a press, and whose palette has nothing to give. It crosses
- * every one of those, which is why it is a DOM suite.
- *
- * Putting every train away thaws it. There is no gesture that does so from the
- * browser until #170, so what stands in for one here is the picture the
- * dispatcher publishes with nothing placed.
+ * here is the path it travels — `state/power` off the bus, up to the shell as
+ * the run's reading, and back down to a view whose verbs are dead, whose
+ * canvas means nothing by a press, and whose palette has nothing to give. It
+ * crosses every one of those, which is why it is a DOM suite. So do the two
+ * rules that come with it: Save of the loaded railroad names it again, and ON
+ * waits for that save.
  */
 
 import type { LitElement } from "lit";
@@ -25,17 +26,33 @@ import { centreOf } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { TcProperties } from "../src/ui/tc-properties.js";
-import { band, editing, inside, session, settled, shows } from "./support/shell.js";
+import {
+  band,
+  editing,
+  inside,
+  mounted,
+  pressed as pressedOnRail,
+  railButton,
+  serving,
+  session,
+  settled,
+  shows,
+} from "./support/shell.js";
 import {
   brokering,
+  DERIVES,
   joined,
   loads,
   said,
+  STOCK,
   stored,
   unbrokered,
+  written,
 } from "./support/session.js";
 
 const ALLOCATION = "tc49/dispatch/state/allocation";
+const POWER = "tc49/layout/state/power";
+const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
 
 /** The run's picture with one train standing in block `a`. */
 const STANDING = {
@@ -43,10 +60,6 @@ const STANDING = {
   locks: { a: "goods" },
   requests: [],
 };
-
-/** The same picture with the layout empty: every train off it, which is
- *  absence and not a sentinel (ADR-0039). */
-const EMPTY = { trains: {}, locks: {}, requests: [] };
 
 beforeEach(brokering);
 
@@ -61,10 +74,10 @@ async function editor(): Promise<TcApp> {
   return shell;
 }
 
-/** The editing view with a train standing on the railroad it is showing. */
+/** The editing view with track power on. */
 async function frozen(): Promise<TcApp> {
   const shell = await editor();
-  await said(shell, ALLOCATION, STANDING);
+  await said(shell, POWER, { power: "on" });
   return shell;
 }
 
@@ -118,7 +131,7 @@ function says(shell: TcApp): string | null {
 
 const drawn = (shell: TcApp): Drawing => structuredClone(session(shell).drawing);
 
-describe("a train standing on the railroad", () => {
+describe("track power on", () => {
   /** The bar and the keyboard are one path through `model/commands.ts`, so a
    *  verb that is dead does nothing however it was reached — and the drawing
    *  is what says it did nothing. */
@@ -157,6 +170,20 @@ describe("a train standing on the railroad", () => {
     expect(session(shell).pending).toBeNull();
   });
 
+  /** Stopped is an emergency stop somebody clears back to on, not a rest. */
+  it("is frozen stopped as well", async () => {
+    const shell = await editor();
+    await said(shell, POWER, { power: "stopped" });
+    session(shell).select(["a"]);
+    const was = drawn(shell);
+
+    await typed(shell, "r");
+    await pressed(shell, centreOf(stored("toy").symbols.b!));
+
+    expect(drawn(shell)).toEqual(was);
+    expect(editing(shell).hasAttribute("frozen")).toBe(true);
+  });
+
   /** The freeze can land under an open dialog, whose Apply is an edit. */
   it("takes down a properties dialog it lands under", async () => {
     const shell = await editor();
@@ -165,7 +192,7 @@ describe("a train standing on the railroad", () => {
     await settled(shell);
     expect(dialog(shell)).not.toBeNull();
 
-    await said(shell, ALLOCATION, STANDING);
+    await said(shell, POWER, { power: "on" });
 
     expect(dialog(shell)).toBeNull();
   });
@@ -178,7 +205,7 @@ describe("a train standing on the railroad", () => {
     await clicked(shell, centreOf(stored("toy").symbols.a!));
     expect(items(shell)).not.toEqual([]);
 
-    await said(shell, ALLOCATION, STANDING);
+    await said(shell, POWER, { power: "on" });
 
     expect(items(shell)).toEqual([]);
   });
@@ -192,7 +219,7 @@ describe("a train standing on the railroad", () => {
     await pressed(shell, centreOf(stored("toy").symbols.a!)); // selects it
     session(shell).startWire("a.B");
 
-    await said(shell, ALLOCATION, STANDING);
+    await said(shell, POWER, { power: "on" });
 
     expect(session(shell).pendingFrom).toBeNull();
   });
@@ -213,10 +240,10 @@ describe("a train standing on the railroad", () => {
    * The band says it in the editing view alone (#517).
    *
    * The mark exists to explain the verbs the freeze kills, and they are the
-   * editor's. Trains standing on the layout are the ordinary state of a
-   * railroad being run, so in the run view the same mark is a warning about
-   * nothing — and the freeze itself is unchanged, the editing view still being
-   * read-only when it is switched back to.
+   * editor's. Power on is the ordinary state of a railroad being run, so in
+   * the run view the same mark is a warning about nothing — and the freeze
+   * itself is unchanged, the editing view still being read-only when it is
+   * switched back to.
    */
   it("says nothing in the views the dead verbs are not in", async () => {
     const shell = await frozen();
@@ -237,7 +264,7 @@ describe("loading another railroad", () => {
   /** The freeze rests on what a joined session is saying about *this*
    *  railroad. Loading another is how a session ends now that the loaded
    *  railroad is the session (#171), and the new run has said nothing yet — so
-   *  the drawing must thaw rather than stay locked on a picture of somewhere
+   *  the drawing must thaw rather than stay locked on a reading of somewhere
    *  else. */
   it("thaws the drawing, the new run having said nothing yet", async () => {
     const shell = await frozen();
@@ -250,13 +277,15 @@ describe("loading another railroad", () => {
   });
 });
 
-describe("putting every train away", () => {
-  it("thaws the drawing, the band and the palette with it", async () => {
-    const shell = await frozen();
+describe("track power off", () => {
+  /** A train standing with power off freezes nothing: the rebuild a save sets
+   *  off keeps it where it fits (ADR-0071). */
+  it("leaves the drawing editable with trains placed", async () => {
+    const shell = await editor();
+    await said(shell, POWER, { power: "off" });
+    await said(shell, ALLOCATION, STANDING);
     session(shell).select(["a"]);
     const was = drawn(shell);
-
-    await said(shell, ALLOCATION, EMPTY);
 
     expect(says(shell)).toBeNull();
     expect(editing(shell).hasAttribute("frozen")).toBe(false);
@@ -264,14 +293,171 @@ describe("putting every train away", () => {
     expect(drawn(shell)).not.toEqual(was);
   });
 
-  /** The rule is read off the count afresh rather than latched, so a press
-   *  means something again the moment the layout is empty. */
+  it("thaws the drawing, the band and the palette with it", async () => {
+    const shell = await frozen();
+    session(shell).select(["a"]);
+    const was = drawn(shell);
+
+    await said(shell, POWER, { power: "off" });
+
+    expect(says(shell)).toBeNull();
+    expect(editing(shell).hasAttribute("frozen")).toBe(false);
+    await typed(shell, "r");
+    expect(drawn(shell)).not.toEqual(was);
+  });
+
+  /** The rule is read off power afresh rather than latched, so a press means
+   *  something again the moment it is off. */
   it("gives the sheet its gestures back", async () => {
     const shell = await frozen();
-    await said(shell, ALLOCATION, EMPTY);
+    await said(shell, POWER, { power: "off" });
 
     await pressed(shell, centreOf(stored("toy").symbols.a!));
 
     expect([...session(shell).selection]).toEqual(["a"]);
+  });
+});
+
+describe("no reading of power", () => {
+  /** No session is no run to drift from. */
+  it("leaves the drawing editable with no session", async () => {
+    const shell = await mounted("edit");
+
+    inside(shell, "tc-palette").dispatchEvent(
+      new CustomEvent("take", { detail: "block", bubbles: true, composed: true }),
+    );
+    await settled(shell);
+
+    expect(says(shell)).toBeNull();
+    expect(editing(shell).hasAttribute("frozen")).toBe(false);
+    expect(session(shell).pending).not.toBeNull();
+  });
+
+  /** A session whose layout has not said is the same: nothing is known to
+   *  move, and a train the dispatcher shows freezes nothing on its own. */
+  it("leaves the drawing editable before the layout has said", async () => {
+    const shell = await editor();
+    await said(shell, ALLOCATION, STANDING);
+    session(shell).select(["a"]);
+    const was = drawn(shell);
+
+    await typed(shell, "r");
+
+    expect(drawn(shell)).not.toEqual(was);
+  });
+});
+
+/** What the page has asked for on `railroad_wanted`. */
+function wants(): unknown[] {
+  return written().filter((one) => (one as { topic: string }).topic === RAILROAD_WANTED);
+}
+
+/** The loaded railroad, with an edit in it the store has not been given. */
+async function unsaved(power: "on" | "off"): Promise<TcApp> {
+  const shell = await editor();
+  await said(shell, POWER, { power: "off" });
+  session(shell).select(["a"]);
+  await typed(shell, "r");
+  await said(shell, POWER, { power });
+  return shell;
+}
+
+/**
+ * Saving the loaded railroad names it again on `railroad_wanted`, so every app
+ * builds what was written and keeps the trains that fit (ADR-0071). The layout
+ * builds only with power off, so while power is on the save waits.
+ */
+describe("saving the loaded railroad", () => {
+  it("is dead while power is on", async () => {
+    const shell = await unsaved("on");
+    expect(railButton(shell, "save")!.disabled).toBe(true);
+  });
+
+  it("writes the drawing and then names the railroad again, with power off", async () => {
+    const store = serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+    });
+    const shell = await unsaved("off");
+
+    await pressedOnRail(shell, "save");
+
+    expect(store.saved.map(({ path }) => path)).toContain("/drawings/toy");
+    expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
+  });
+
+  /** A fork is only a file: no app runs it. */
+  it("names nothing on Save As", async () => {
+    const shell = await unsaved("off");
+    const prompt = window.prompt;
+    window.prompt = () => "fork";
+    try {
+      await pressedOnRail(shell, "save-as");
+    } finally {
+      window.prompt = prompt;
+    }
+    expect(wants()).toEqual([]);
+  });
+
+  /** The fork's own saves are the same: the loaded railroad is still toy. */
+  it("names nothing for a drawing that is not the loaded railroad", async () => {
+    const shell = await unsaved("off");
+    const prompt = window.prompt;
+    window.prompt = () => "fork";
+    try {
+      await pressedOnRail(shell, "save-as");
+    } finally {
+      window.prompt = prompt;
+    }
+    await typed(shell, "r");
+    await pressedOnRail(shell, "save");
+
+    expect(band(shell).drawing).toBe("fork");
+    expect(wants()).toEqual([]);
+  });
+});
+
+/**
+ * ON waits for the save (ADR-0071, decision 6). The run view draws the open
+ * drawing, so power on with the loaded railroad's edits unsaved would run
+ * trains under track no app built. STOP and OFF never wait.
+ */
+describe("ON with the loaded railroad's edits unsaved", () => {
+  /** The band's ON, STOP and OFF. */
+  function supply(shell: TcApp): HTMLButtonElement[] {
+    return [
+      ...band(shell).renderRoot.querySelectorAll<HTMLButtonElement>("button.press"),
+    ];
+  }
+
+  it("is dead, says why, and leaves STOP and OFF alone", async () => {
+    const shell = await unsaved("off");
+    const [on, stop, off] = supply(shell);
+    expect(on!.disabled).toBe(true);
+    expect(on!.title).toBe("the drawing has unsaved edits — save it first");
+    expect(stop!.disabled).toBe(false);
+    expect(off!.disabled).toBe(false);
+  });
+
+  it("comes back once the save lands", async () => {
+    const shell = await unsaved("off");
+    await pressedOnRail(shell, "save");
+    expect(supply(shell)[0]!.disabled).toBe(false);
+  });
+
+  /** A fork with edits is only a file: nothing it holds is what the run draws. */
+  it("does not wait on a drawing that is not the loaded railroad", async () => {
+    const shell = await unsaved("off");
+    const prompt = window.prompt;
+    window.prompt = () => "fork";
+    try {
+      await pressedOnRail(shell, "save-as");
+    } finally {
+      window.prompt = prompt;
+    }
+    await typed(shell, "r");
+    expect(supply(shell)[0]!.disabled).toBe(false);
   });
 });

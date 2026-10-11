@@ -164,10 +164,10 @@ export const headerStyles = css`
     ${alarm}
   }
 
-  /* Trains on the layout freeze the drawing (ADR-0038, #169). The other thing
-     the band says about the drawing itself, and the quieter of the two: a
-     frozen drawing is the ordinary state of a railroad with trains on it, and
-     nothing is wrong with it. So it reads as the session clock does and not as the
+  /* Track power freezes the drawing (ADR-0071). The other thing the band says
+     about the drawing itself, and the quieter of the two: a frozen drawing is
+     the ordinary state of a railroad with power on, and nothing is wrong with
+     it. So it reads as the session clock does and not as the
      refusal above. */
   .frozen {
     flex: none;
