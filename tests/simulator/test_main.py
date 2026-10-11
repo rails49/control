@@ -22,12 +22,14 @@ import threading
 from collections.abc import Iterator
 from http.server import HTTPServer
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from tc49.lib.bus import Payload
 from tc49.lib.documents import Documents
 from tc49.lib.mqtt import MqttBus
+from tc49.simulator import Simulator
 from tc49.simulator.__main__ import serve
 from tc49.store.server import make_server
 from tests.brokers import Broker, drained, settle
@@ -247,5 +249,54 @@ def test_it_carries_a_train_across_a_transit_it_finds_on_the_broker(
     assert rows(heard, OCCUPIED)[-1]["block"] == "dn_w"
     assert rows(heard, VACATED)[-1]["block"] == "yard_w"
     assert app.running, "the app stopped on its own"
+    hand.close()
+    witness.close()
+
+
+RAILROAD_WANTED = "tc49/layout/railroad_wanted"
+
+
+@pytest.fixture
+def built(monkeypatch: pytest.MonkeyPatch) -> list[Simulator]:
+    """Every simulator the app builds, in order: the one it came up on, then
+    one per rebuild. What a rebuild carries over is held in no row — it is
+    the steel's own memory, on no topic (ADR-0030) — so it is read off the
+    object."""
+    simulators: list[Simulator] = []
+
+    class Recorded(Simulator):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            simulators.append(self)
+
+    monkeypatch.setattr("tc49.simulator.__main__.Simulator", Recorded)
+    return simulators
+
+
+def test_a_rebuild_under_the_same_name_keeps_the_trains_whose_blocks_remain(
+    broker: Broker, store: Store, root: Path, app: App, built: list[Simulator]
+) -> None:
+    """With track power off a saved edit changes the drawing and not the
+    track, so the steel stands where it stood (ADR-0071). The edit here
+    renames `yard_e`: the train standing in it has no block left in the
+    drawing to stand in, and the one in `yard_w` is kept."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, POWER) != []), "it never came up"
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    hand.publish(PLACED, {"train": "freight_1", "block": "yard_w"})
+    hand.publish(PLACED, {"train": "express_2", "block": "yard_e"})
+    assert drained(
+        witness, lambda: len(built[0].position) == 2
+    ), "the placements never landed"
+
+    drawing = root / "layouts" / f"{RAILROAD_NAME}.drawing.yaml"
+    drawing.write_text(drawing.read_text().replace("yard_e", "siding_e"))
+    hand.publish(RAILROAD_WANTED, {"railroad": RAILROAD_NAME})
+
+    assert drained(witness, lambda: len(built) == 2), "it was never rebuilt"
+    assert built[1].position == {"freight_1": "yard_w"}
     hand.close()
     witness.close()

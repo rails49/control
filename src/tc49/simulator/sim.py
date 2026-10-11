@@ -112,7 +112,9 @@ class Simulator:
         `position`: where the steel stands before anything has run, train to
         block, which is the harness's — a run built from a scenario document
         (`bench/runner.py`). A run an operator drives is given none: its steel
-        arrives block by block as the dispatcher accepts each placement.
+        arrives block by block as the dispatcher accepts each placement. A
+        rebuild under the same railroad name is given the last build's, less
+        any train whose block the new drawing lacks (ADR-0071).
 
         `transit_s` and `clear_s`: the fixed delays — head to the far
         detector, then tail past the near one.
@@ -171,6 +173,13 @@ class Simulator:
         # comes up: a person presses ON, and the bench harness publishes
         # `power_wanted: on` before a run (ADR-0070, decision 2).
         bus.publish("tc49/layout/state/power", {"power": OFF})
+
+    @property
+    def position(self) -> dict[str, str]:
+        """Where each train stands on this binding's steel, train to block:
+        what a rebuild under the same name carries into the next one
+        (ADR-0071), as the layout interface's own `position` is."""
+        return dict(self._position)
 
     def _on_run(self, topic: str, payload: Payload) -> None:
         """Where the dispatcher holds the run, and whether anything moves

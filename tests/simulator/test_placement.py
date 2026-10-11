@@ -262,3 +262,19 @@ def test_a_train_placed_between_blocks_takes_its_next_move() -> None:
         ("tc49/layout/block_occupied", {"block": "dn_e"}),
         ("tc49/layout/block_vacated", {"block": "up_w"}),
     ]
+
+
+def test_position_is_where_the_steel_stands_and_a_copy() -> None:
+    """What a rebuild under the same name carries into the next build
+    (ADR-0071): where it was put, then where a hand moved it — and a copy, so
+    the build reading it cannot move this one's steel."""
+    layout, _, _ = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    sim = simulator(bus, layout, {"freight_1": "yard_w"})
+    bus.publish("tc49/dispatch/train_placed", {"train": "express_2", "block": "up_e"})
+    bus.drain()
+
+    seen = sim.position
+    seen["freight_1"] = "dn_e"
+
+    assert sim.position == {"freight_1": "yard_w", "express_2": "up_e"}
