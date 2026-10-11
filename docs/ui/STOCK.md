@@ -88,7 +88,7 @@ the button as the dialog's other refusals are, and sends no `PUT`.
 `PUT /catalogue/<name>` replaces the document whole, so Create under a name in
 use would rewrite that product's kind, length and functions for every railroad
 in the installation, saying nothing, and would step around the length guard
-below: a placed train's derived length would move under the dispatcher.
+below: a train's derived length would move under the dispatcher.
 **Changing an existing product is done on its row**, behind that guard
 ([#413](https://github.com/rails49/control/issues/413)).
 
@@ -297,17 +297,26 @@ A length lives on the **model** as well as on the **car** — `stock._car` takes
 changes every item of that product, including the one under a train the
 dispatcher is fitting into blocks right now.
 
-So **length editing is disabled for a train the run shows as placed, and for a
-model used by such a train**, with the reason said on the control: the field
-keeps its box, takes the hint colour, and carries `'ore' is on the layout —
-take it off to correct a length` both as its title and beside it. A field that
-vanished would leave a person looking for it.
+So **length editing is disabled while track power is on or stopped**, with the
+reason said on the control: the field keeps its box, takes the hint colour, and
+carries `track power is on — turn it off to correct a length` both as its title
+and beside it. A field that vanished would leave a person looking for it. With
+power off, or with no session, a length can be corrected whether or not a train
+is placed ([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
 
-This is a **UI guard in one browser**. `tc-app.ts` holds the run state — which
-trains the run view says are placed — and passes it down, the same path the
-throttle's cabs take. A second browser editing stock during a run is not
-covered, and closing that properly is the same hole as
-[#390](https://github.com/rails49/control/issues/390).
+A correction is an edit to the page, and reaches the store on the roster's
+**Save**. While power is on or stopped, **Save is disabled if the unsaved edits
+change a length**, titled `a length has changed — turn track power off to save`:
+the layout builds only with power off, so a length saved then could not be
+built. Other roster edits save as before. **A save that changed a length names
+the loaded railroad again** on `tc49/layout/railroad_wanted`, so the dispatcher
+fits trains with the new length; a train now longer than its block comes off
+the layout and is listed as **unfit**.
+
+This is a **UI guard in one browser**. `tc-app.ts` holds the run state — track
+power, and which trains the run view says are placed — and passes it down, the
+same path the throttle's cabs take. A second browser editing stock during a run
+is not covered, and the store enforces none of it (ADR-0071).
 
 ## With nothing loaded to write into
 
@@ -444,7 +453,8 @@ shape, against one answering a train that states its length — and drives the
 controls: a model written the moment it is made, the dialog refusing a name the
 catalogue already has, a train made up of a locomotive and three hoppers, the document that reaches
 `PUT /rosters/<railroad>` with one car entry and three model entries, the guard
-killing a field while the run has that train placed, the run view showing a
+killing a field while track power is on, the roster's Save waiting for power
+off when a length changed and then naming the railroad again, the run view showing a
 train made up here without a reload, the row an older roster's train draws and
 the first entry converting it, the current train moving when the one it named
 is unmade and carried when that one is renamed, the dialog's refusal staying
