@@ -1,5 +1,7 @@
 # The UI is one app: views of one railroad
 
+*Amended by [ADR-0072](0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md) (#733): the band names the loaded railroad and does not load another; a settings dialog behind a gear does, and every view holds the loaded railroad and no other.*
+
 **Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** `tc49 live` and the bridge below are deleted. The page reaches the bus as a client of the broker on `/mqtt`, and the store, the containers and the hardware answer it as before. One page, one loaded railroad, a list of views: unchanged.
 
 The browser ships one page. It holds **one loaded railroad** and a list of
