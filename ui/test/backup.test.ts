@@ -461,6 +461,15 @@ describe("the backup dialog", () => {
     );
   });
 
+  /** JMRI writes back the roster it read at launch, so a restore under an
+   *  open DecoderPro is undone by its next save; the dialog says so (#714). */
+  it("says to quit DecoderPro and PanelPro before a restore", async () => {
+    const { dialog: surface } = await dialog();
+    expect(reads(surface)).toContain(
+      "Quit DecoderPro and PanelPro before restoring, and open them again after.",
+    );
+  });
+
   /** With nothing loaded no app runs a drawing, so any backup will do —
    *  one without a railroad drawn since among them (#697). */
   it("restores any backup with no railroad loaded, whatever the supply", async () => {
