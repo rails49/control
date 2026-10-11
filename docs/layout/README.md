@@ -59,19 +59,33 @@ python -m tc49.layout --broker <host:port> --railroad <name> --store <url>
 ```
 
 Three flags, the ones a compose service passes: where the broker is, which
-railroad it runs, and where the store serves the documents that railroad is
-built from ([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
+railroad it starts on where the store records none, and where the store serves
+the documents that railroad is built from
+([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
 decision 5). Started against an empty broker with no store and no other app
-running, it waits for the broker, reads its two documents — retrying until the
+running, it waits for the broker, reads the store's record of the railroad
+loaded last (`GET /loaded`) and then its two documents — retrying until the
 store answers — waits out the moment the broker takes to hand back whatever
 traction rows the last process left, publishes its own retained rows and stays
 up. It exits on nothing but a signal.
 
+**It starts on the railroad the store records**
+([ADR-0072](../adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md),
+decision 5). Each time it is built on a railroad — on the way up, and on each
+gesture it answers — it writes that railroad's name to the record (`PUT
+/loaded`), so a box comes back on the railroad its rails were built to rather
+than on the one its env file named. `--railroad` is where it starts only where
+the store records none; a recorded railroad the store no longer has is refused
+as any starting point is, and the record is left for the next load to
+overwrite.
+
 The broker before the documents, because a railroad the store has not got is
-one this app **stands** on: up, with nothing published, until a person picks
+one this app **stands** on: up, naming no railroad (`""`) on
+`tc49/layout/state/railroad` and publishing nothing else, until a person picks
 one it can read
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
-[#564](https://github.com/rails49/control/issues/564)). A box whose store is
+[#564](https://github.com/rails49/control/issues/564),
+[#727](https://github.com/rails49/control/issues/727)). A box whose store is
 empty is an ordinary state, and the gesture that ends it comes over the bus.
 
 That last wait is what the constructor's zeroing needs on this binding: a

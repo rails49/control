@@ -833,8 +833,11 @@ contains one; not every cold start is a restart.
 _Avoid_: reset, reload (a page reload is a **rejoin**), reboot, restart
 
 **Standing**:
-An app that is **up with no railroad**: the one it was started on is not one
-the store has, or the box named none. It publishes nothing, except that the
+An app that is **up with no railroad**: the one it was started on — the one
+the store records as loaded, for the binding of the layout interface
+([ADR-0072](docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)),
+or the one the box named — is not one the store has, or neither named one. It
+publishes nothing, except that the
 binding of the layout interface names no railroad (`""`) on the row
 ([#727](https://github.com/rails49/control/issues/727)); it follows the row
 or the gesture it follows anyway, and is built on the first railroad named

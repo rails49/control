@@ -20,7 +20,12 @@ what the code does (#432):
 2. **The documents of the railroad it comes up on**, waited for the same way.
    An app with no layout has nothing to do, and there are two things to wait
    for: a store that is not up yet, which is `lib/documents.py`'s retry, and
-   a railroad it has not got, which is `standing`.
+   a railroad it has not got, which is `standing`. The binding of the layout
+   interface reads the store's record first — which railroad was loaded last
+   (`Documents.loaded`) — and comes up on that where it names one, the
+   railroad on its command line being where it starts only where the store
+   records none (ADR-0072, decision 5); every other app follows the row the
+   binding then publishes.
 3. **The rows this app already owns**, if the broker is holding any
    (`retained` below), and then the loop. A row a process of its own left
    behind is what an app restarted under a running railroad adopts rather
