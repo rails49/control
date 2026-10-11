@@ -201,9 +201,10 @@ app while they run, and every app follows without a restart
 ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
 
 **It has no default, and a box that names none comes up with no railroad.**
-An app with none **stands**: it is up, it publishes nothing, and it is built
-on the first railroad named that the store can give. So a box that has done
-nothing but install reaches a steady state with nothing restarting, and what
+An app with none **stands**: it is up, and it is built on the first railroad
+named that the store can give. It publishes nothing, except that the binding
+of the layout interface names no railroad (`""`) on
+`tc49/layout/state/railroad`. So a box that has done nothing but install reaches a steady state with nothing restarting, and what
 it is waiting for is a railroad to exist — see
 [the store, and the documents it serves](#the-store-and-the-documents-it-serves).
 A default naming a railroad would be a default that cannot resolve: nothing

@@ -276,7 +276,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 
 | Topic | Kind | Writer | Meaning |
 | --- | --- | --- | --- |
-| `tc49/layout/state/railroad` | state | layout | the railroad this broker runs ([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)) |
+| `tc49/layout/state/railroad` | state | layout | the railroad this broker runs, `""` while the binding stands ([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)) |
 | `tc49/layout/railroad_wanted` | event | any (browser) | load this railroad, the apps staying up ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)) |
 | `tc49/layout/alive_confirmed` | event | layout | `layout` is up and built on a railroad, said once a second ([#716](https://github.com/rails49/control/issues/716)) |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
@@ -422,6 +422,12 @@ its two names, as each topic states.
   a page opened afterwards would read as current. A railroad the store cannot
   give is said on stderr and not taken: the app goes on running the one it
   has (ADR-0050). `tests/system/test_reload.py` holds this for every app.
+  **`""` is no railroad** ([#727](https://github.com/rails49/control/issues/727)):
+  a binding that **stands** publishes `{"name": ""}` each time it comes to
+  stand, before it waits for a pick, and the next build's constructor
+  replaces it. So a page tells "no railroad loaded" from "layout not
+  running". A follower drops a row naming `""`: one standing keeps standing,
+  one built on a railroad keeps running it.
 - `tc49/layout/railroad_wanted` — browser-writable — `railroad`: the railroad
   to load, as the store lists it. The gesture behind the row above: a person
   chooses which railroad the apps run **while they run**, so creating one
