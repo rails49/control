@@ -13,8 +13,10 @@
  * what came back and presses what a person chose
  * ([ADR-0053](../../../docs/adr/0053-backup-drives-git-and-does-not-own-it.md)).
  * The one rule it wears is the app's, and is handed in: a restore waits while
- * the physical layout could disagree with the store — a train placed, track
- * power on, or the loaded railroad absent from the backup (#684, #688).
+ * the physical layout could disagree with the store — track power on, or the
+ * loaded railroad absent from the backup (#688). Trains on the layout do not
+ * hold it back: the rebuild keeps the ones that still fit and lists the rest
+ * as unfit (#710, ADR-0071).
  * git's words are shown as they came: the app knows nothing to add to them,
  * and paraphrasing a rejected push would be inventing an explanation.
  *
@@ -55,11 +57,6 @@ export class TcBackup extends LitElement {
   /** What the app knows about backup, `null` while the dialog is shut. The
    *  same shape the properties dialog takes: closed is nothing to draw. */
   @property({ attribute: false }) backing: Backing | null = null;
-
-  /** Whether trains are on the layout, as `frozen` in model/commands.ts reads
-   *  it. A restore can take away track a train stands on, so it waits for
-   *  them to come off, as an edit does (#684). */
-  @property({ attribute: false }) frozen = false;
 
   /** The supply as the run reads it, `null` with no session joined. A
    *  restore changes the drawing a loaded railroad runs on, so it waits for
@@ -158,16 +155,14 @@ export class TcBackup extends LitElement {
   /**
    * Why Restore cannot be pressed now, `null` where it can. Each is a way the
    * physical layout could come to disagree with the store, and the app wears
-   * them because the store hears nothing from the bus (#684, #688):
+   * them because the store hears nothing from the bus (#688):
    *
-   * - a train placed: the backup may not have the track it stands on;
    * - a railroad loaded with track power not off: the rails and the drawing
    *   would change under a moving train;
    * - the picked backup without the loaded railroad: the apps would go on
    *   running a railroad the store no longer holds.
    */
   private refusal(stands: BackupDoc | null): string | null {
-    if (this.frozen) return "trains are on the layout — take them off to restore";
     if (this.railroad === null) return null;
     if (this.power !== "off") {
       return "track power is on — turn it off to restore";
