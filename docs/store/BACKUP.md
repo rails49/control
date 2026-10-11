@@ -216,12 +216,10 @@ naming them. Those are exactly the ones git cannot give back. Back the store
 up first — one press — and then restore.
 
 **A restore waits while the layout could disagree with the store.** The
-dialog greys *Restore* and says why (#684,
-[#688](https://github.com/rails49/control/issues/688),
+dialog greys *Restore* and says why
+([#688](https://github.com/rails49/control/issues/688),
 [#699](https://github.com/rails49/control/issues/699)):
 
-- a train placed — *trains are on the layout — take them off to restore*: the
-  backup may not have the track a train stands on;
 - a railroad loaded and track power not off — *track power is on — turn it
   off to restore*: the rails and the drawing are never changed under a moving
   train;
@@ -233,6 +231,14 @@ dialog greys *Restore* and says why (#684,
 
 The app wears these rules; the store server checks none of them, as it checks
 nothing for edits — it hears nothing from the bus.
+
+**Trains on the layout do not hold a restore back.** The rebuild that follows
+it is under the same railroad name, so it keeps every placement whose block is
+still drawn and still long enough for the train; the trains that no longer fit
+come off the layout and are listed as **unfit** — on
+`tc49/dispatch/state/unfit`, and in the run view — for a person to place again
+([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
+[#710](https://github.com/rails49/control/issues/710)).
 
 **A restore is a complete act.** It leaves `backup.yaml` as it is, so undoing
 a drawing mistake never stops backups, and a backup made before there was one
