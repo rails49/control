@@ -23,7 +23,7 @@ from typing import Any
 
 from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
-from tc49.dispatcher.dispatch import ALLOCATION, ASPECTS
+from tc49.dispatcher.dispatch import ALLOCATION, ASPECTS, Adopted, restored
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
@@ -491,3 +491,52 @@ def test_it_subscribes_before_it_publishes_anything() -> None:
         bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
     )
     subscribed_before_publishing(bus)
+
+
+# -- a picture kept through a rebuild under the same name (ADR-0071) ---------
+
+
+def rebuilt(blocks: dict[str, int]) -> Adopted:
+    """What a run an operator drives — no cold placement — takes from
+    `MOVED` once the railroad is rebuilt with the drawing's blocks replaced
+    by `blocks`: the picture was kept through the rebuild, and the drawing
+    it was taken against may since have lost a block or shortened one."""
+    layout, roster, _ = load("crossover-yard/meet")
+    return restored(MOVED, replace(layout, blocks=blocks), roster, {})
+
+
+def test_a_pictured_train_whose_block_exists_and_fits_is_placed() -> None:
+    adopted = rebuilt({"up_w": 3200, "dn_e": 3200})
+
+    assert adopted.standing == {"express_2": "up_w", "freight_1": "dn_e"}
+
+
+def test_a_pictured_train_whose_block_is_gone_comes_up_off_the_layout() -> None:
+    adopted = rebuilt({"up_w": 3200})
+
+    assert adopted.standing == {"express_2": "up_w"}
+
+
+def test_a_pictured_train_longer_than_its_block_comes_up_off_the_layout() -> None:
+    """`freight_1` is 1100 long: a `dn_e` cut to 1000 no longer holds it."""
+    adopted = rebuilt({"up_w": 3200, "dn_e": 1000})
+
+    assert adopted.standing == {"express_2": "up_w"}
+
+
+def test_a_train_left_off_carries_no_crossing_hint() -> None:
+    layout, roster, _ = load("crossover-yard/meet")
+    crossing = {**MOVED, "crossing": {"freight_1": "crossover.dn_straight"}}
+
+    adopted = restored(crossing, replace(layout, blocks={"up_w": 3200}), roster, {})
+
+    assert adopted.crossing == {}
+
+
+def test_a_pictured_train_the_roster_lacks_is_dropped_on_a_rebuild() -> None:
+    layout, roster, _ = load("crossover-yard/meet")
+    picture = {**MOVED, "trains": {**MOVED["trains"], "ghost": "up_e"}}
+
+    adopted = restored(picture, layout, roster, {})
+
+    assert adopted.standing == {"express_2": "up_w", "freight_1": "dn_e"}
