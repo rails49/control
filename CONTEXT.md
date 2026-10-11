@@ -929,11 +929,12 @@ several of them make one backup), sync, archive
 Putting the store back as a named backup held it, or, on an empty store,
 bringing in the latest backup of a repository the person names. Refused where
 documents have changed since the last backup, those being the ones git cannot
-give back; and while a train is placed, the track has power, or the backup
-lacks the loaded railroad. The backup switch is left as it was and the result
-is itself backed up at once. Afterwards the UI names the loaded railroad
-again, so the running apps read what the restore wrote (ADR-0053 as amended,
-#699). Not the **recovery** of a run's placement, which is about where trains
+give back; and while the track has power or the backup lacks the loaded
+railroad. The backup switch is left as it was and the result is itself backed
+up at once. Afterwards the UI names the loaded railroad again, so the running
+apps read what the restore wrote (ADR-0053 as amended, #699); the rebuild keeps
+the trains that still fit, and those that do not come off and are listed as
+**unfit** (ADR-0071). Not the **recovery** of a run's placement, which is about where trains
 stand and is a person's job.
 _Avoid_: revert, roll back, undo (the editor's, over one drawing), recovery
 

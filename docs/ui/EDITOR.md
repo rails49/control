@@ -926,16 +926,14 @@ refusal from `/review` does — inside a 200, read rather than caught. The words
 in the dialog are git's own, kept whether the press worked or not: this app
 knows nothing to add to *could not resolve host*.
 
-**Trains on the layout freeze a restore** as they [freeze the
-drawing](#trains-on-the-layout-freeze-the-drawing): a restore can take away
-track a train stands on. While any is placed, *Restore* is greyed and the
-dialog says *trains are on the layout — take them off to restore* (#684). It is
-the one reading of the rule, `frozen` in `model/commands.ts`, handed in by the
-app; the store server does not check it. With a railroad loaded it waits for
-track power to read off too, and refuses a backup that does not hold the
-loaded railroad; after a restore that worked the app asks for the loaded
-railroad again and reloads the page (#688,
-[store/BACKUP.md](../store/BACKUP.md#restoring)).
+**Trains on the layout do not freeze a restore**, as they [freeze the
+drawing](#trains-on-the-layout-freeze-the-drawing): the rebuild after it keeps
+the trains that still fit, and those that do not come off and are listed as
+unfit (#710, ADR-0071). With a railroad loaded a restore waits for track power
+to read off, and refuses a backup that does not hold the loaded railroad —
+rules the app hands the dialog and the store server does not check; after a
+restore that worked the app asks for the loaded railroad again and reloads the
+page (#688, [store/BACKUP.md](../store/BACKUP.md#restoring)).
 
 ## Validation
 
