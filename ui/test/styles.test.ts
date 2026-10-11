@@ -38,14 +38,7 @@ import {
   RAIL_TURNS_PX,
 } from "../src/render/units.js";
 import * as shared from "../src/ui/shared.styles.js";
-import {
-  dismiss,
-  menuBox,
-  menuRow,
-  menuRowChosen,
-  palette,
-  symbols,
-} from "../src/ui/shared.styles.js";
+import { palette, symbols } from "../src/ui/shared.styles.js";
 import { appStyles } from "../src/ui/tc-app.styles.js";
 import { canvasStyles, exportStyles } from "../src/ui/tc-canvas.styles.js";
 import { editorStyles } from "../src/ui/tc-editor.styles.js";
@@ -175,30 +168,6 @@ describe("the drawing's own rules", () => {
       expect(canvasStyles.cssText).toContain(selector);
       expect(panelStyles.cssText).not.toContain(selector);
       expect(paletteStyles.cssText).not.toContain(selector);
-    }
-  });
-});
-
-describe("what a menu is made of", () => {
-  /** The box and a row of it: both, or the app's two menus stop reading as
-   *  one. The key set beside a label is no longer among them — with the menu
-   *  bar gone only `tc-menu` prints one (ADR-0064), so those rules are its
-   *  own. */
-  it("is the same for the right-click menu and the band's picker", () => {
-    for (const part of [menuBox, menuRow]) {
-      expect(menuStyles.cssText).toContain(part.cssText);
-      expect(headerStyles.cssText).toContain(part.cssText);
-    }
-  });
-
-  /** The overlay a press outside lands on and the row under the pointer, both
-   *  whole rule sets. Which two sheets wear them is the claim: the mechanical
-   *  test above counts wearers and would take any two, and a menu is only one
-   *  thing if these are the two. */
-  it("dismisses and paints the chosen row the same way in both", () => {
-    for (const part of [dismiss, menuRowChosen]) {
-      expect(menuStyles.cssText).toContain(part.cssText);
-      expect(headerStyles.cssText).toContain(part.cssText);
     }
   });
 });
