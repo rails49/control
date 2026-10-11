@@ -31,9 +31,10 @@
  * run. It is made up here and put on the layout in the run view.
  *
  * The run state comes down from the app because the app is the only thing on
- * the page that has any: the length guard reads it, and a second browser
- * editing stock during a run is not covered (ui/STOCK.md#the-length-guard,
- * [#390](https://github.com/rails49/control/issues/390)).
+ * the page that has any: the length guard reads its power, the trains' rows
+ * read which are placed, and a second browser editing stock during a run is
+ * not covered (ui/STOCK.md#the-length-guard,
+ * [ADR-0071](../../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
  *
  * **A model's photo is on every row**, and the camera behind Take photo is the
  * one thing this screen fetches that the store does not answer: a camera app
@@ -73,6 +74,7 @@ import {
   type ModelFn,
   type Picture,
 } from "../model/store.js";
+import type { Power } from "../model/trace.js";
 import { stockStyles } from "./tc-stock.styles.js";
 
 /**
@@ -144,9 +146,13 @@ export class TcStock extends LitElement {
    *  run and come back as they were left. */
   @property({ type: Boolean }) current = false;
 
-  /** The trains the run has on the layout, as the run view says. The length
-   *  guard is the only thing that reads it. */
+  /** The trains the run has on the layout, as the run view says. The trains'
+   *  rows say which of them are. */
   @property({ attribute: false }) placed: readonly string[] = [];
+
+  /** The run's track power, as the run view says, `null` with no session. The
+   *  length guard and the roster's Save read it (ADR-0071). */
+  @property({ attribute: false }) power: Power | null = null;
 
   /** The roster and the catalogue, and every edit to either
    *  (`model/stock.ts`). `null` until the store has answered. */
@@ -365,8 +371,8 @@ export class TcStock extends LitElement {
     const stock = this.stock;
     return html`
       <section class="parts">
-        ${this.carList(stock?.cars(this.placed) ?? [])}
-        ${this.modelList(stock?.modelRows(this.placed) ?? [])}
+        ${this.carList(stock?.cars(this.power) ?? [])}
+        ${this.modelList(stock?.modelRows(this.power) ?? [])}
       </section>
       ${this.trainList(stock?.trains(this.placed) ?? [])}
       ${this.dialog()} ${this.photoDialog()}
@@ -434,7 +440,7 @@ export class TcStock extends LitElement {
           ?disabled=${car.held !== null}
           @change=${(event: Event) =>
             this.did(
-              this.stock?.carLength(car.name, millimetres(event), this.placed),
+              this.stock?.carLength(car.name, millimetres(event), this.power),
               `car:${car.name}:length`,
             )}
         />
@@ -512,7 +518,7 @@ export class TcStock extends LitElement {
           ?disabled=${model.held !== null}
           @change=${(event: Event) =>
             this.did(
-              this.stock?.modelLength(model.model, millimetres(event) ?? 0, this.placed),
+              this.stock?.modelLength(model.model, millimetres(event) ?? 0, this.power),
               `model:${model.model}:length`,
             )}
         />
@@ -796,7 +802,10 @@ export class TcStock extends LitElement {
             class="save"
             size="small"
             variant="primary"
-            ?disabled=${this.stock === null || !this.stock.edits}
+            title=${this.stock?.waitsForPower(this.power) ?? nothing}
+            ?disabled=${this.stock === null ||
+            !this.stock.edits ||
+            this.stock.waitsForPower(this.power) !== null}
             @click=${this.save}
             >Save</sl-button
           >
@@ -1031,6 +1040,12 @@ export class TcStock extends LitElement {
    * car removed (#388), and the store validates it against the catalogue and
    * writes nothing where it does not validate — which is why a refusal is
    * shown here rather than left to be discovered later.
+   *
+   * A save that changed a length tells the app, which names the loaded
+   * railroad again so the dispatcher fits trains with the new length and a
+   * train now longer than its block comes off and is listed (ADR-0071). Save
+   * is dead while such an edit waits for power off, so the guard below is a
+   * second answer and not a press met with silence.
    */
   private save = async (): Promise<void> => {
     // Save is dead with no roster read, so nobody is waiting on this return.
@@ -1039,11 +1054,13 @@ export class TcStock extends LitElement {
     // Asked before the `PUT` so the words are this screen's own and the saved
     // roster is untouched: a train with nothing in it is one the store
     // refuses whole, and the refusal names the row to go and fill (#412).
-    const stopped = stock.stopsSaving();
+    const stopped = stock.stopsSaving() ?? stock.waitsForPower(this.power);
     if (stopped !== null) {
       this.did(stopped);
       return;
     }
+    const lengths = stock.lengthEdits;
+    const railroad = this.held;
     try {
       await saveRoster(stock.roster);
       stock.kept();
@@ -1051,6 +1068,16 @@ export class TcStock extends LitElement {
       this.beat++;
     } catch (trouble) {
       this.trouble = said(trouble);
+      return;
+    }
+    if (lengths && railroad !== null) {
+      this.dispatchEvent(
+        new CustomEvent<string>("lengths-saved", {
+          detail: railroad,
+          bubbles: true,
+          composed: true,
+        }),
+      );
     }
   };
 
