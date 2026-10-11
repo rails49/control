@@ -25,13 +25,7 @@ which opens more than the one repository.
 *Amended by [#698](https://github.com/rails49/control/issues/698).* The
 address it backs up to may be changed to an empty repository the person made.
 The store pushes its whole history there and only then points `origin` at it.
-That changes a remote the clone brought; it still never makes one.
-
-*Amended by [#688](https://github.com/rails49/control/issues/688), worded
-for the maintainer's approval.* The store may change the address it backs up
-to, to an empty repository, by pushing its whole history there and then
-pointing its remote at it; the address changes only once that push worked. It
-still never makes a remote: a store with none has nothing to move. The same
+That changes a remote the clone brought; it still never makes one. The same
 press brings a repository's latest backup into an empty store, which is how a
 new box takes over an old one's railroad, and refuses a store with documents
 and a repository with backups rather than mixing two histories.
@@ -113,8 +107,10 @@ silence for a month is the failure backup exists to prevent, so the store
 reports how far behind the copy is — how many backups the remote has not been
 given and how old the oldest is, asked of git rather than remembered so a
 restart does not forget it — and the editor marks its `Backup…` item once that
-passes a day. The same mark says when a store has never been backed up at all,
-which is what automated backup being off by default leaves a person with.
+passes a day. The same mark says when backup is not running at all: no
+repository set up, the store inside another repository, something it needs
+missing, or automated backup off, which is what its being off by default leaves
+a person with.
 
 ## Restore is refused over a dirty tree
 
@@ -148,20 +144,12 @@ still in the history and restoring it is the same one press.
   the store between sessions' worth of edits; no app learns about it, no event
   carries it, and a run that is up neither waits for it nor hears about it.
 
-  *Amended by [#688](https://github.com/rails49/control/issues/688), worded
-  for the maintainer's approval.* A restore reaches a run that is up. It is
-  refused while a train is placed or the track has power, and afterwards the
-  UI asks for the loaded railroad again on `tc49/layout/railroad_wanted`, so
-  every app reads what the restore wrote. Backup still publishes nothing on
-  the bus, and the store checks none of those conditions: it hears nothing
-  from the bus, so the UI wears them. A restore leaves the backup switch as it
-  was and is committed at once, so a power cut does not lose it and undoing a
-  drawing never stops backups.
-
   *Amended by [#699](https://github.com/rails49/control/issues/699).* A
   restore reaches a run that is up. It is refused while a train is placed,
   while the track has power with a railroad loaded, and where the backup lacks
   the loaded railroad. Once it succeeds the UI names the loaded railroad again
   on `tc49/layout/railroad_wanted`, so every app builds it again from what the
   restore wrote, and the page reloads. Backup itself still publishes nothing
-  and hears nothing.
+  and hears nothing. A restore leaves the backup switch as it was and is
+  committed at once, so a power cut does not lose it and undoing a drawing
+  never stops backups.
