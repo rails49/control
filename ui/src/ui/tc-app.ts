@@ -275,6 +275,7 @@ export class TcApp extends LitElement {
         .frozen=${still}
         .power=${this.status.power}
         .railroad=${name}
+        .unsaved=${this.filing.edits || this.rosterEdits ? this.losing : null}
         @backup-closed=${() => {
           this.backingUp = false;
         }}

@@ -19,7 +19,17 @@ import { ASK_MS, Backing, type BackupStore } from "../src/model/backup.js";
 import type { BackupDoc } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcBackup } from "../src/ui/tc-backup.js";
-import { band, mounted, pressed, serving, settled, UNBACKED } from "./support/shell.js";
+import {
+  band,
+  edited,
+  mounted,
+  pressed,
+  rail,
+  serving,
+  session,
+  settled,
+  UNBACKED,
+} from "./support/shell.js";
 import { brokering, joined, loads, said, unbrokered, written } from "./support/session.js";
 
 /** A store that is a repository with one drawing waiting and one backup in
@@ -409,6 +419,70 @@ describe("the backup dialog", () => {
     expect(reads(surface)).toContain("changed since the last backup");
   });
 
+  /** The page reloads after a restore that worked, so edits it holds that
+   *  the store has not been given are asked about first, as *New key* asks
+   *  before replacing a key (#703). */
+  describe("over edits that have not been saved", () => {
+    const ASKED = "the drawing has edits that have not been saved; restoring discards them";
+
+    async function asking(): Promise<{ dialog: TcBackup; store: Fake }> {
+      const held = await dialog();
+      held.dialog.unsaved = "the drawing";
+      held.dialog.renderRoot
+        .querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!
+        .click();
+      await held.dialog.updateComplete;
+      press(held.dialog, "Restore");
+      await new Promise((settle) => setTimeout(settle, 0));
+      await held.dialog.updateComplete;
+      return held;
+    }
+
+    it("asks on the first press, naming what would be lost", async () => {
+      const { dialog: surface, store } = await asking();
+      expect(store.asked).not.toContain("restore 9f8e7d6");
+      expect(reads(surface)).toContain(ASKED);
+    });
+
+    it("restores once the edits are discarded", async () => {
+      const { dialog: surface, store } = await asking();
+      press(surface, "Discard and restore");
+      await new Promise((settle) => setTimeout(settle, 0));
+      await surface.updateComplete;
+      expect(store.asked).toContain("restore 9f8e7d6");
+    });
+
+    it("restores nothing when the edits are kept, and stops asking", async () => {
+      const { dialog: surface, store } = await asking();
+      press(surface, "Keep the edits");
+      await new Promise((settle) => setTimeout(settle, 0));
+      await surface.updateComplete;
+      expect(store.asked).not.toContain("restore 9f8e7d6");
+      expect(reads(surface)).not.toContain("restoring discards them");
+    });
+
+    it("stops asking when another backup is picked", async () => {
+      const { dialog: surface } = await asking();
+      surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[0]!.click();
+      await surface.updateComplete;
+      expect(reads(surface)).not.toContain("restoring discards them");
+    });
+
+    /** A refused restore says why it is refused, not what it would lose. */
+    it("shows a refusal rather than the question", async () => {
+      const { dialog: surface, store } = await dialog();
+      surface.unsaved = "the drawing";
+      surface.frozen = true;
+      surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+      await surface.updateComplete;
+      press(surface, "Restore");
+      await surface.updateComplete;
+      expect(reads(surface)).toContain("trains are on the layout");
+      expect(reads(surface)).not.toContain("restoring discards them");
+      expect(store.asked).not.toContain("restore 9f8e7d6");
+    });
+  });
+
   /** A restore can take away track a train stands on, so it is refused
    *  while any is placed — the rule a layout edit follows (#684). The press
    *  is greyed and says why, rather than asking the store and being told. */
@@ -563,6 +637,39 @@ describe("the app's way in", () => {
     await settled(shell);
 
     expect(open(shell)).toBeNull();
+  });
+});
+
+describe("what a restore would discard", () => {
+  afterEach(unbrokered);
+
+  /** What a restore would discard is the app's to say, in the words its
+   *  own discard question uses, and by the same test: edits, not `saved`
+   *  (#703). */
+  it("tells the dialog the drawing has edits until it is saved", async () => {
+    brokering();
+    serving({
+      drawings: ["reversing-loops"],
+      backup: KEPT,
+      read: (name) => ({
+        drawing: name,
+        symbols: { e1: { kind: "terminal", at: [0, 0] } },
+        wires: [],
+      }),
+    });
+    const shell = await mounted();
+    await loads(shell, "reversing-loops");
+    await chooseBackup(shell);
+    expect(open(shell)!.unsaved).toBeNull();
+
+    session(shell).place("block", [4, 0]);
+    edited(shell);
+    await settled(shell);
+    expect(open(shell)!.unsaved).toBe("the drawing");
+
+    rail(shell).dispatchEvent(new CustomEvent<string>("command", { detail: "save" }));
+    await settled(shell);
+    expect(open(shell)!.unsaved).toBeNull();
   });
 });
 
