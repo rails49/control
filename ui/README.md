@@ -41,7 +41,8 @@ container of its own, `1883` for native clients and `9001` for the browser,
 reached through the app's own origin at `/mqtt`. It starts no app: each has a
 command line of its own and comes up alone (ADR-0059, decision 5), so a
 simulated railroad to drive is `python -m tc49.simulator --broker
-127.0.0.1:1883 --railroad reversing-loops --store http://127.0.0.1:8765`.
+127.0.0.1:1883 --store http://127.0.0.1:8765`, which comes up on the railroad
+the store records as loaded and stands where it records none (ADR-0072).
 **The broker is the only thing that loads a railroad**: the layout interface
 publishes its name on a retained row and the app reads its documents off the
 store. The settings dialog behind the band's gear does not load one itself —
