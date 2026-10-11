@@ -834,7 +834,9 @@ _Avoid_: reset, reload (a page reload is a **rejoin**), reboot, restart
 
 **Standing**:
 An app that is **up with no railroad**: the one it was started on is not one
-the store has, or the box named none. It publishes nothing, follows the row
+the store has, or the box named none. It publishes nothing, except that the
+binding of the layout interface names no railroad (`""`) on the row
+([#727](https://github.com/rails49/control/issues/727)); it follows the row
 or the gesture it follows anyway, and is built on the first railroad named
 that the store can give, which is a **cold start**
 ([ADR-0060](docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
