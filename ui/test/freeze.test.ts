@@ -388,35 +388,32 @@ describe("saving the loaded railroad", () => {
     expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
   });
 
-  /** A fork is only a file: no app runs it. */
-  it("names nothing on Save As", async () => {
+  /** ⇧⌘S was Save As, which went with #734: the editor holds the loaded
+   *  railroad and no other (ADR-0072, decision 3). The key is still taken
+   *  from the browser, and does nothing else. */
+  it("writes nothing and renames nothing on ⇧⌘S", async () => {
+    const store = serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+    });
     const shell = await unsaved("off");
-    const prompt = window.prompt;
-    window.prompt = () => "fork";
-    try {
-      await pressedOnRail(shell, "save-as");
-    } finally {
-      window.prompt = prompt;
-    }
-    expect(wants()).toEqual([]);
-  });
 
-  /** The fork's own saves are the same: the loaded railroad is still toy. */
-  it("names nothing for a drawing that is not the loaded railroad", async () => {
-    const shell = await unsaved("off");
-    const prompt = window.prompt;
-    window.prompt = () => "fork";
-    try {
-      await pressedOnRail(shell, "save-as");
-    } finally {
-      window.prompt = prompt;
-    }
-    await typed(shell, "r");
-    await pressedOnRail(shell, "save");
+    const event = new KeyboardEvent("keydown", {
+      key: "S",
+      metaKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(event);
+    await settled(shell);
 
-    // The band names what runs, not what the editor holds (#732).
-    expect(band(shell).drawing).toBe("toy");
-    expect(wants()).toEqual([]);
+    expect(event.defaultPrevented).toBe(true);
+    expect(store.saved).toEqual([]);
+    expect(session(shell).drawing.drawing).toBe("toy");
+    expect(band(shell).unsaved).toBe(true);
   });
 });
 
@@ -445,20 +442,6 @@ describe("ON with the loaded railroad's edits unsaved", () => {
   it("comes back once the save lands", async () => {
     const shell = await unsaved("off");
     await pressedOnRail(shell, "save");
-    expect(supply(shell)[0]!.disabled).toBe(false);
-  });
-
-  /** A fork with edits is only a file: nothing it holds is what the run draws. */
-  it("does not wait on a drawing that is not the loaded railroad", async () => {
-    const shell = await unsaved("off");
-    const prompt = window.prompt;
-    window.prompt = () => "fork";
-    try {
-      await pressedOnRail(shell, "save-as");
-    } finally {
-      window.prompt = prompt;
-    }
-    await typed(shell, "r");
     expect(supply(shell)[0]!.disabled).toBe(false);
   });
 });

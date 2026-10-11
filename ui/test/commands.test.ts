@@ -39,7 +39,7 @@ describe("the rail", () => {
   it("carries the editor's groups in the order the rail draws them", () => {
     expect(RAIL.edit.map((group) => [group.name, group.items])).toEqual([
       ["View", ["zoom-out", "zoom-in", "fit", "netlist"]],
-      ["File", ["new", "save", "save-as", "export-svg"]],
+      ["File", ["save", "export-svg"]],
       ["Edit", ["undo", "redo"]],
     ]);
   });
@@ -97,9 +97,7 @@ describe("the key beside the label", () => {
       Object.entries(COMMANDS).map(([id, command]) => [id, command.key]),
     );
     expect(keys).toEqual({
-      new: undefined,
       save: "⌘S",
-      "save-as": "⇧⌘S",
       "export-svg": undefined,
       undo: "⌘Z",
       redo: "⇧⌘Z",
@@ -122,12 +120,6 @@ describe("what a drawing has to be open for", () => {
     expect(on("save", { opened: "reversing-loops", saved: false })).toBe(true);
   });
 
-  it("forks only what is open, saved or not", () => {
-    expect(on("save-as")).toBe(false);
-    expect(on("save-as", { opened: "reversing-loops" })).toBe(true);
-    expect(on("save-as", { opened: "reversing-loops", saved: false })).toBe(true);
-  });
-
   /** The export writes the drawing that is open, saved or not: it is a
    *  picture of what is on the sheet, so unsaved edits belong in it. */
   it("exports only a drawing that is open", () => {
@@ -135,11 +127,6 @@ describe("what a drawing has to be open for", () => {
     expect(on("export-svg", { opened: "reversing-loops" })).toBe(true);
     expect(on("export-svg", { opened: "reversing-loops", saved: false })).toBe(true);
   });
-
-  it("always offers a new drawing", () => {
-    expect(on("new")).toBe(true);
-  });
-
 });
 
 describe("what the selection has to hold", () => {
@@ -220,8 +207,6 @@ describe("what track power freezes", () => {
     }
     expect(on("netlist", open)).toBe(true);
     expect(on("export-svg", open)).toBe(true);
-    expect(on("save-as", open)).toBe(true);
-    expect(on("new", open)).toBe(true);
   });
 
   /** One reading of the freeze, for whoever says why: the band prints its
@@ -256,11 +241,12 @@ describe("saving the loaded railroad", () => {
     expect(on("save", { ...edited, power: "off" })).toBe(true);
   });
 
-  /** A fork, or a drawing started with New, is only a file: its save builds
-   *  nothing, so power does not hold it. */
+  /** The rule reads the two names and not the editor: a drawing that is not
+   *  the loaded railroad is only a file, and its save builds nothing, so
+   *  power does not hold it. The editor opens no such drawing now (ADR-0072,
+   *  decision 3), so the case is the rule's and not a path to it. */
   it("leaves another drawing's Save alone", () => {
     expect(on("save", { ...edited, opened: "fork", power: "on" })).toBe(true);
-    expect(on("save-as", { ...edited, power: "on" })).toBe(true);
   });
 
   it("is what ON waits for", () => {

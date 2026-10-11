@@ -38,13 +38,14 @@
  * out the way the band's power presses go
  * ([ADR-0060](../../../docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)),
  * so what is loaded is still whatever the row says and the run view and this
- * cannot come to name different ones.
+ * cannot come to name different ones. The editor holds that railroad and no
+ * other (ADR-0072, decision 3): nothing here starts or forks a drawing, and a
+ * row naming none closes the one open, so nothing asks before edits are
+ * thrown away — no gesture of a person's throws them away.
  */
 
-import { LitElement, html, nothing } from "lit";
+import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import "@shoelace-style/shoelace/dist/components/button/button.js";
-import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 import "@shoelace-style/shoelace/dist/themes/light.css";
 import "@shoelace-style/shoelace/dist/themes/dark.css";
 
@@ -139,16 +140,10 @@ export class TcApp extends LitElement {
    *  rather than the view's. */
   @state() private netlist = false;
 
-  /** Whether the operator's word is being waited on before the loaded
-   *  railroad is thrown away for a new one. `File ▸ New` is the only gesture
-   *  that asks: the railroad itself arrives on the bus (#371), which is not a
-   *  press anybody made. */
-  @state() private discarding = false;
-
   /** Whether the stock view holds roster edits the store has not been given,
    *  as that view last said. The drawing's own are the filing's; the roster is
-   *  the second document a person can lose when the railroad changes, and what
-   *  would discard it asks first the same way (#415). */
+   *  the second document a person can lose when the railroad changes, and a
+   *  restore and a load are refused over either (#415, #703, #733). */
   @state() private rosterEdits = false;
 
   /** Whether the backup dialog is up. The store is asked when the app comes
@@ -307,8 +302,6 @@ export class TcApp extends LitElement {
           this.settling = false;
         }}
       ></tc-settings>
-
-      ${this.discarding ? this.question() : nothing}
     `;
   }
 
@@ -489,17 +482,9 @@ export class TcApp extends LitElement {
   private invoke(id: CommandId): void {
     if (!COMMANDS[id].enabled(this.standing)) return;
     switch (id) {
-      case "new":
-        this.discard();
-        return;
       case "save":
         void this.saving();
         return;
-      case "save-as": {
-        const said = this.ask("Save as", this.filing.opened);
-        void this.filing.saveAs(said, this.editor);
-        return;
-      }
       case "export-svg":
         this.exportSvg();
         return;
@@ -567,43 +552,19 @@ export class TcApp extends LitElement {
   // --- the loaded railroad --------------------------------------------------
 
   /** The railroad the apps run, as the layout interface's row names it, and
-   *  `null` where it names none or has not said (#732). Not the drawing open
-   *  in the editor: after New or Save As that is a drawing nothing runs, and
-   *  the band, the restore's refusal and the name a restore asks for again
-   *  are all about what runs. */
+   *  `null` where it names none or has not said (#732). The band, the
+   *  restore's refusal and the name a restore asks for again are all about
+   *  what runs. */
   private get loadedRailroad(): string | null {
     const railroad = this.status.railroad;
     return railroad === null || railroad === "" ? null : railroad;
   }
 
-  /** The one thing the app asks rather than does. Edits the store has not been
-   *  given are the operator's, and a click is a thin thing to lose an
-   *  evening's drawing to (#101), so what would discard them says so and
-   *  waits. It is a dialog of the app's own, not a native `confirm`, which the
-   *  page cannot style and a browser may suppress. */
-  private question() {
-    // Nothing is loaded until the broker names a railroad, and what is drawn
-    // on the canvas before that is still an evening's work.
-    const losing =
-      this.filing.opened === "" ? "The canvas" : `'${this.filing.opened}'`;
-    return html`
-      <sl-dialog open label="Discard unsaved edits?" @sl-after-hide=${this.kept}>
-        <p>
-          ${losing} has edits that have not been saved: ${this.losing}.
-          Starting a new railroad discards them.
-        </p>
-        <sl-button slot="footer" @click=${this.kept}>Cancel</sl-button>
-        <sl-button slot="footer" variant="danger" @click=${this.discarded}>
-          Discard
-        </sl-button>
-      </sl-dialog>
-    `;
-  }
-
-  /** Which document the question is about: the drawing, the roster, or both.
-   *  A person who spent the evening composing a rake is told that is what is
-   *  at stake, rather than reading a sentence about a drawing they have not
-   *  touched (#415). */
+  /** Which document a refusal is about: the drawing, the roster, or both. A
+   *  person who spent the evening composing a rake is told that is what is at
+   *  stake, rather than reading a sentence about a drawing they have not
+   *  touched (#415). The backup dialog and the settings dialog both read it,
+   *  through `unsaved`. */
   private get losing(): string {
     if (!this.rosterEdits) return "the drawing";
     return this.filing.edits ? "the drawing and the roster" : "the roster";
@@ -616,23 +577,6 @@ export class TcApp extends LitElement {
     return this.filing.edits || this.rosterEdits ? this.losing : null;
   }
 
-  /** Throw the loaded railroad away for a new one, which is what `File ▸ New`
-   *  asks for and the one gesture of a person's that discards whatever has
-   *  been drawn since the last save — the railroad itself arrives on the bus
-   *  (#371), which nobody pressed. Edits an operator would recognise as lost
-   *  are asked about first; with nothing to lose there is nothing to ask, and
-   *  the canvas empties as it always did (#101). What is asked about is
-   *  `edits` and not `saved`: a canvas just started is unsaved and has nothing
-   *  on it (#136).
-   *
-   *  **Two documents, one question.** The drawing is the filing's and the
-   *  roster is the stock view's, and changing the railroad throws both away —
-   *  so either one being unsaved asks, and the words name which (#415). */
-  private discard(): void {
-    if (this.filing.edits || this.rosterEdits) this.discarding = true;
-    else void this.opening(null);
-  }
-
   /**
    * The railroad the broker runs, as the run view read it off the retained row
    * the layout interface owns
@@ -641,58 +585,38 @@ export class TcApp extends LitElement {
    * One broker runs one railroad at a time. The row arrives as the run view's
    * subscription lands, and again whenever another railroad is loaded while
    * the apps run (ADR-0060). Either way it is not a person's press: the
-   * settings dialog asks on the bus and the load comes back here as a fact the layout
-   * interface reports, so nothing is asked at this point.
+   * settings dialog asks on the bus and the load comes back here as a fact the
+   * layout interface reports, so nothing is asked at this point. A row naming
+   * none is a broker with no railroad loaded (#727), and the editor and the
+   * stock view hold nothing for it: there is no drawing called `""` to open,
+   * and whatever was open is a railroad nothing runs (ADR-0072, decision 3).
    */
   private loaded(railroad: string): void {
-    // A row naming none is a broker with no railroad loaded (#727): there is
-    // no drawing called `""` to open.
-    if (railroad === "" || railroad === this.filing.opened) return;
+    if (railroad === this.filing.opened) return;
+    if (railroad === "") {
+      this.netlist = false;
+      this.filing.close(this.editor);
+      return;
+    }
     void this.opening(railroad);
   }
 
-  /** The operator said the edits can go. */
-  private discarded(): void {
-    if (!this.discarding) return;
-    this.discarding = false;
-    void this.opening(null);
-  }
-
-  /** The operator said they cannot — by the Cancel button, by Escape, or by
-   *  the dialog's own close. Nothing has been read or reset by this point, the
-   *  question having come first. */
-  private kept(): void {
-    this.discarding = false;
-  }
-
   /**
-   * What was asked for, once there is nothing in the way of it. A railroad
-   * arrives with the netlist shut, whatever the last one left open: it belongs
-   * to the railroad being replaced, and the netlist is opened when something
-   * looks wrong rather than kept up (ADR-0024).
+   * The railroad the row names, read off the store. It arrives with the
+   * netlist shut, whatever the last one left open: it belongs to the railroad
+   * being replaced, and the netlist is opened when something looks wrong
+   * rather than kept up (ADR-0024).
    *
-   * A new railroad is named here, after the question and not before it: a
-   * prompt answered and then a discard declined would have asked for nothing.
    * Fitting the editor's canvas is what is left over for the app — the two DOM
    * touches `Filing` cannot take with it, and it says whether a railroad
    * arrived to fit to. The run view fits its own.
    */
-  private async opening(wanted: string | null): Promise<void> {
+  private async opening(wanted: string): Promise<void> {
     this.netlist = false;
-    const arrived =
-      wanted === null
-        ? await this.filing.create(this.ask("New railroad", ""), this.editor)
-        : await this.filing.open(wanted, this.editor);
+    const arrived = await this.filing.open(wanted, this.editor);
     if (!arrived) return;
     await this.updateComplete;
     this.edit?.fit();
-  }
-
-  /** A one-field prompt. A dialog for a single word would be more of the app
-   *  than naming a railroad is worth (EDITOR.md's simplicity). */
-  private ask(what: string, was: string): string | null {
-    const said = window.prompt(what, was);
-    return said === null || said.trim() === "" ? null : said.trim();
   }
 
   // --- edits ---------------------------------------------------------------
@@ -735,22 +659,12 @@ export class TcApp extends LitElement {
     ) {
       return;
     }
-    // The question about to discard the railroad is up, so the keyboard is the
-    // dialog's: Escape answers it and nothing else reaches anything. `r`
-    // rotating the selection behind a modal, or Escape clearing it while
-    // taking the question down, is the same bug the open menu has below.
-    if (this.discarding) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        this.kept();
-      }
-      return;
-    }
-    // The backup dialog is up, so the keyboard is the dialog's the same way:
-    // `r` behind a modal must not rotate the selection under it. Shoelace
-    // closes on Escape itself, and `backup-closed` comes back from that. The
-    // settings dialog is a modal the same way, and `settings-closed` comes
-    // back the same way.
+    // The backup dialog is up, so the keyboard is the dialog's: `r` behind a
+    // modal must not rotate the selection under it, and Escape clearing the
+    // selection while taking the dialog down is the same bug the open menu
+    // has below. Shoelace closes on Escape itself, and `backup-closed` comes
+    // back from that. The settings dialog is a modal the same way, and
+    // `settings-closed` comes back the same way.
     if (this.backingUp || this.settling) return;
     // Nothing on the rail or the band comes down over the work, so there is no
     // state in which the keyboard belongs to the chrome (ADR-0064).
@@ -777,9 +691,11 @@ export class TcApp extends LitElement {
       this.invoke(event.shiftKey ? "redo" : "undo");
       return;
     }
+    // ⇧⌘S was Save As, which went with #734; it is still taken from the
+    // browser, so a hand that remembers it saves nothing as a web page either.
     if (meta && event.key.toLowerCase() === "s") {
       event.preventDefault();
-      this.invoke(event.shiftKey ? "save-as" : "save");
+      if (!event.shiftKey) this.invoke("save");
       return;
     }
     // A symbol on its way out of the palette takes the same two keys the

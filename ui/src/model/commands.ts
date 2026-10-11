@@ -22,9 +22,7 @@ import type { Power } from "./trace.js";
 import type { ViewId } from "./views.js";
 
 export type CommandId =
-  | "new"
   | "save"
-  | "save-as"
   | "export-svg"
   | "undo"
   | "redo"
@@ -140,8 +138,8 @@ export function frozen({ power }: Standing): boolean {
 }
 
 /** Whether the open drawing is the railroad the run has loaded: the one whose
- *  save the apps build next (ADR-0071). A drawing forked by Save As, or one
- *  started with New, is not, and its saves name nothing. */
+ *  save the apps build next (ADR-0071). The editor holds no other (ADR-0072,
+ *  decision 3), but before the row arrives the open drawing is `""`. */
 export function isLoaded({ opened, loaded }: Standing): boolean {
   return opened !== "" && opened === loaded;
 }
@@ -157,15 +155,12 @@ export function unbuilt(standing: Standing): boolean {
 export interface Command {
   label: string;
   /** The key that does the same thing, as it reads beside the label.
-   *  Undefined where there is none to name: Chrome keeps `⌘N` for a new
-   *  window and it never reaches the page, so a blank is better than a
-   *  binding the browser eats. */
+   *  Undefined where there is none to name. */
   key?: string;
   enabled(standing: Standing): boolean;
 }
 
 export const COMMANDS: Record<CommandId, Command> = {
-  new: { label: "New…", enabled: () => true },
   save: {
     label: "Save",
     key: "⌘S",
@@ -176,11 +171,6 @@ export const COMMANDS: Record<CommandId, Command> = {
       standing.opened !== "" &&
       !standing.saved &&
       !(frozen(standing) && isLoaded(standing)),
-  },
-  "save-as": {
-    label: "Save As…",
-    key: "⇧⌘S",
-    enabled: ({ opened }) => opened !== "",
   },
   // The picture is of what is on the sheet, so unsaved edits are in it and
   // only having nothing open makes it dead.
@@ -262,8 +252,10 @@ export interface Group {
  * Which railroad is loaded is not here. That is the whole system's and the
  * settings dialog behind the band's gear sets it, so `File ▸ Open` is gone
  * from both views ([#167](https://github.com/rails49/control/issues/167),
- * ADR-0072). Backup is the store's and not the drawing's, so it is there too
- * and not in `File` (#733).
+ * ADR-0072). Making one is the dialog's too, so `New` and `Save As` are gone
+ * with it: the editor holds the loaded railroad and no other (#734). Backup
+ * is the store's and not the drawing's, so it is there too and not in `File`
+ * (#733).
  *
  * Rotate, Flip, Delete and Properties are not here either. They apply to a
  * selection and already read in the right-click menu with their keys beside
@@ -273,7 +265,7 @@ export interface Group {
 export const RAIL: Record<ViewId, Group[]> = {
   edit: [
     { name: "View", items: ["zoom-out", "zoom-in", "fit", "netlist"] },
-    { name: "File", items: ["new", "save", "save-as", "export-svg"] },
+    { name: "File", items: ["save", "export-svg"] },
     { name: "Edit", items: ["undo", "redo"] },
   ],
   run: [{ name: "View", items: ["zoom-out", "zoom-in", "fit"] }],

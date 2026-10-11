@@ -74,12 +74,6 @@ export const ZOOM_OUT = icon(svg`
   <path d="M5 7h4" />
 `);
 
-/** A page with its corner turned: the empty drawing New… opens. */
-export const NEW = icon(svg`
-  <path d="M9 2.5H4.5A1 1 0 0 0 3.5 3.5v9a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V6z" />
-  <path d="M9 2.5V6h3.5" />
-`);
-
 /** A folder: the railroads the store has, which the settings dialog lists. */
 export const OPEN = icon(svg`
   <path d="M2 12.5v-9h4l1.5 2H14v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
@@ -91,15 +85,6 @@ export const SAVE = icon(svg`
   <path d="M2.5 3.5a1 1 0 0 1 1-1h7l3 3v7a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" />
   <path d="M5 2.5v3.5h4.5V2.5" />
   <path d="M4.5 13.5V9.5h7v4" />
-`);
-
-/** The same disk, smaller, with a pen beside its corner: the copy is written
- *  under a name that is typed. */
-export const SAVE_AS = icon(svg`
-  <path d="M1.8 3.3a.8.8 0 0 1 .8-.8h5.6l2.6 2.6v5.6a.8.8 0 0 1-.8.8H2.6a.8.8 0 0 1-.8-.8z" />
-  <path d="M4 2.5v2.9h3.6V2.5" />
-  <path d="M3.7 11.5V8.6h5.1v2.9" />
-  <path d="M14.2 9.1 9.9 13.4l-2.1.6.6-2.1z" />
 `);
 
 /** A tray with an arrow leaving it: the drawing on its way out as a file. */
@@ -148,9 +133,7 @@ export const NETLIST = icon(svg`
  *  button — the label and its key are what a pointer resting there says.
  *  Exhaustive over `CommandId` by its type. */
 export const GLYPHS: Record<CommandId, SVGTemplateResult> = {
-  new: NEW,
   save: SAVE,
-  "save-as": SAVE_AS,
   "export-svg": EXPORT,
   undo: UNDO,
   redo: REDO,
