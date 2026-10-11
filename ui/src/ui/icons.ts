@@ -144,15 +144,6 @@ export const NETLIST = icon(svg`
   <path d="M11 6.5h1.5M11 9.5h1.5" />
 `);
 
-/** A drum with an arrow curving off it: the store's documents kept somewhere
- *  else, which is the whole of what backup is. */
-export const BACKUP = icon(svg`
-  <ellipse cx="6.5" cy="4" rx="4" ry="1.8" />
-  <path d="M2.5 4v5c0 1 1.8 1.8 4 1.8" />
-  <path d="M9.5 13.5a3.5 3.5 0 1 0-3.2-4.9" />
-  <path d="M6 6.6 6.2 9.2 8.8 8.7" />
-`);
-
 /** The picture on a command's button on the rail, which is the whole of that
  *  button — the label and its key are what a pointer resting there says.
  *  Exhaustive over `CommandId` by its type. */
@@ -171,7 +162,6 @@ export const GLYPHS: Record<CommandId, SVGTemplateResult> = {
   "zoom-out": ZOOM_OUT,
   fit: FIT,
   netlist: NETLIST,
-  backup: BACKUP,
 };
 
 /** A pencil: the view the drawing is drawn in. */

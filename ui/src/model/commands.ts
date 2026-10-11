@@ -35,8 +35,7 @@ export type CommandId =
   | "zoom-in"
   | "zoom-out"
   | "fit"
-  | "netlist"
-  | "backup";
+  | "netlist";
 
 /** Where the editor stands, as far as a command needs to know. */
 export interface Standing {
@@ -64,14 +63,12 @@ export interface Standing {
    *  the apps build next, so Save waits for power off and ON waits for the
    *  save (`isLoaded` below). */
   loaded: string | null;
-  /** Whether backup has anything to say without being asked (#321). */
-  backup: BackupStanding;
 }
 
 /**
- * What backup says from outside its own dialog: the run view's note in the
- * band and the mark on `File ▸ Backup…` both read it, so the two never
- * disagree (#688).
+ * What backup says from outside its own dialog: the note in the band and the
+ * words beside `Settings ▸ Backup…` both read it, so the two never disagree
+ * (#688, #733).
  *
  * Six values, and the first that holds is the one:
  *
@@ -93,8 +90,8 @@ export interface Standing {
  */
 export type BackupStanding = "quiet" | "inside" | "unset" | "behind" | "blocked" | "off";
 
-/** What each standing says, in the words the note and the mark both wear;
- *  `null` where it says nothing. */
+/** What each standing says, in the words the note and the settings dialog
+ *  both wear; `null` where it says nothing. */
 export function backupWords(standing: BackupStanding): string | null {
   switch (standing) {
     case "unset":
@@ -121,7 +118,6 @@ export const NOTHING: Standing = {
   redo: false,
   power: null,
   loaded: null,
-  backup: "quiet",
 };
 
 /**
@@ -160,10 +156,6 @@ export function unbuilt(standing: Standing): boolean {
 
 export interface Command {
   label: string;
-  /** What the item has to say before anybody opens it, or `null` for the
-   *  ordinary case of nothing. The rail draws a mark and says these words; the
-   *  command still runs, so this warns and never disables. */
-  mark?(standing: Standing): string | null;
   /** The key that does the same thing, as it reads beside the label.
    *  Undefined where there is none to name: Chrome keeps `⌘N` for a new
    *  window and it never reaches the page, so a blank is better than a
@@ -221,24 +213,7 @@ export const COMMANDS: Record<CommandId, Command> = {
     key: "N",
     enabled: ({ opened }) => opened !== "",
   },
-  // The store's and not the drawing's, so nothing about what is open makes it
-  // dead: a store with no railroad in it yet is one somebody is about to draw
-  // in, and what backup says about it — that it is no git repository, and the
-  // command that would make it one — is worth reading before the first save
-  // rather than after it (ADR-0053).
-  backup: { label: "Backup…", enabled: () => true, mark: backupSays },
 };
-
-/**
- * What the `Backup…` item says without being opened: the run view's note, in
- * the same words.
- *
- * The words are the whole of the warning: a mark somebody has to open a dialog
- * to understand is a mark they learn to ignore.
- */
-function backupSays({ backup }: Standing): string | null {
-  return backupWords(backup);
-}
 
 /** A verb that reads the selection is dead without one. */
 function hasSelection({ selection }: Standing): boolean {
@@ -285,8 +260,10 @@ export interface Group {
  * learnt where Fit is does not learn it again on the other view.
  *
  * Which railroad is loaded is not here. That is the whole system's and the
- * band's picker sets it, so `File ▸ Open` is gone from both views
- * ([#167](https://github.com/rails49/control/issues/167)).
+ * settings dialog behind the band's gear sets it, so `File ▸ Open` is gone
+ * from both views ([#167](https://github.com/rails49/control/issues/167),
+ * ADR-0072). Backup is the store's and not the drawing's, so it is there too
+ * and not in `File` (#733).
  *
  * Rotate, Flip, Delete and Properties are not here either. They apply to a
  * selection and already read in the right-click menu with their keys beside
@@ -296,7 +273,7 @@ export interface Group {
 export const RAIL: Record<ViewId, Group[]> = {
   edit: [
     { name: "View", items: ["zoom-out", "zoom-in", "fit", "netlist"] },
-    { name: "File", items: ["new", "save", "save-as", "export-svg", "backup"] },
+    { name: "File", items: ["new", "save", "save-as", "export-svg"] },
     { name: "Edit", items: ["undo", "redo"] },
   ],
   run: [{ name: "View", items: ["zoom-out", "zoom-in", "fit"] }],

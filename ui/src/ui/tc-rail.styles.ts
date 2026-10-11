@@ -118,23 +118,6 @@ export const railStyles = css`
     background: rgb(255 255 255 / 0.28);
   }
 
-  /* What a command has to say before anybody presses it, which is backup's
-     alone (#321). It warns and never disables, so it rides on the button
-     rather than changing it. */
-  button {
-    position: relative;
-  }
-
-  .mark {
-    position: absolute;
-    top: 0.1rem;
-    right: 0.2rem;
-    color: var(--amber);
-    font-size: 0.7rem;
-    font-weight: 700;
-    line-height: 1;
-  }
-
   /* HOLD and GO: the run view's own press, and the one thing on the rail that
      is not a command (ADR-0037). A word and not a glyph, because what it says
      is what the press will do and the two words are not the same picture. */

@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  backupWords,
   COMMANDS,
   frozen,
   isLoaded,
@@ -38,7 +39,7 @@ describe("the rail", () => {
   it("carries the editor's groups in the order the rail draws them", () => {
     expect(RAIL.edit.map((group) => [group.name, group.items])).toEqual([
       ["View", ["zoom-out", "zoom-in", "fit", "netlist"]],
-      ["File", ["new", "save", "save-as", "export-svg", "backup"]],
+      ["File", ["new", "save", "save-as", "export-svg"]],
       ["Edit", ["undo", "redo"]],
     ]);
   });
@@ -110,7 +111,6 @@ describe("the key beside the label", () => {
       "zoom-out": "−",
       fit: "0",
       netlist: "N",
-      backup: undefined,
     });
   });
 });
@@ -295,40 +295,23 @@ describe("the view", () => {
 });
 
 /**
- * What the `Backup…` item says before anybody opens it (#321).
- *
- * The mark is the only thing in the editor that reports a store which is not
- * being kept anywhere. It warns and never disables: a railroad nobody is
- * backing up is one somebody still has to be able to back up.
+ * What backup says without being opened (#321): the band's note and the words
+ * beside `Settings ▸ Backup…` both wear these, so the two never disagree
+ * (#688, #733).
  */
 describe("what backup says without being opened", () => {
-  function mark(backup: Standing["backup"]): string | null {
-    return COMMANDS.backup.mark!(standing({ backup })) ?? null;
-  }
-
   it("says nothing where there is nothing to say", () => {
-    expect(mark("quiet")).toBeNull();
+    expect(backupWords("quiet")).toBeNull();
   });
 
-  /** The run view's note wears the same words, so the two never disagree
-   *  (#688). */
-  it("names what is wrong, in the words the run view's note wears", () => {
-    expect(mark("unset")).toBe("no backup set up");
-    expect(mark("behind")).toBe("backup behind");
-    expect(mark("blocked")).toBe("backup cannot run");
-    expect(mark("off")).toBe("backup is off");
+  it("names what is wrong", () => {
+    expect(backupWords("unset")).toBe("no backup set up");
+    expect(backupWords("behind")).toBe("backup behind");
+    expect(backupWords("blocked")).toBe("backup cannot run");
+    expect(backupWords("off")).toBe("backup is off");
   });
 
   it("says nothing of a store inside another repository", () => {
-    expect(mark("inside")).toBeNull();
-  });
-
-  /** Every other item is silent, so the mark means one thing wherever it is
-   *  seen. */
-  it("is backup's alone", () => {
-    const marked = (Object.keys(COMMANDS) as CommandId[]).filter(
-      (id) => COMMANDS[id].mark !== undefined,
-    );
-    expect(marked).toEqual(["backup"]);
+    expect(backupWords("inside")).toBeNull();
   });
 });

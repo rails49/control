@@ -26,7 +26,6 @@ const LIVE: Standing = {
   editable: true,
   undo: true,
   redo: true,
-  backup: "quiet",
   power: null,
   loaded: null,
 };
@@ -134,7 +133,6 @@ describe("what each view's rail carries", () => {
       "Save  ⌘S",
       "Save As…  ⇧⌘S",
       "Export SVG…",
-      "Backup…",
       "Undo  ⌘Z",
       "Redo  ⇧⌘Z",
     ]);
@@ -203,25 +201,6 @@ describe("what a dead button does", () => {
   it("asks for nothing when it is clicked", async () => {
     const element = await rail(NOTHING);
     expect(await asked(element, () => button(element, "save")!.click())).toEqual([]);
-  });
-});
-
-/** What a command has to say before anybody presses it, which is backup's
- *  alone (#321). It warns and never disables: a railroad that is not being
- *  backed up is a railroad somebody still has to be able to back up. */
-describe("the mark on a command that has something to say", () => {
-  it("rides on the button and leaves it live", async () => {
-    const element = await rail({ ...LIVE, backup: "unset" });
-    const backup = button(element, "backup")!;
-    expect(backup.querySelector(".mark")).not.toBeNull();
-    expect(backup.disabled).toBe(false);
-    expect(backup.title).toBe("no backup set up");
-  });
-
-  it("draws none where there is nothing to say", async () => {
-    const backup = button(await rail(), "backup")!;
-    expect(backup.querySelector(".mark")).toBeNull();
-    expect(backup.title).toBe("Backup…");
   });
 });
 
