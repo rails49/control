@@ -1440,6 +1440,42 @@ def test_a_store_holding_only_the_switch_is_empty(tmp_path: Path) -> None:
     assert backup.automatic  # the old box's switch, not this one's
 
 
+def test_a_store_holding_the_switch_and_a_hidden_file_is_empty(
+    tmp_path: Path,
+) -> None:
+    """Finder leaves a `.DS_Store` wherever a person looks, and a file whose
+    name starts with `.` is nobody's drawing: the store still takes the
+    repository's backups (#706)."""
+    root = tmp_path / "tc49"
+    remote = held(tmp_path)
+    backup = Backup(root, log=lambda _: None)
+    backup.switch(False)
+    (root / ".DS_Store").write_bytes(b"\x00\x00\x00\x01Bud1")
+
+    said = backup.adopt(remote)
+
+    assert said.ok, said.words
+    assert (root / "layouts" / "reversing-loops.drawing.yaml").exists()
+
+
+def test_a_drawn_store_with_a_hidden_file_is_still_drawn(tmp_path: Path) -> None:
+    """A hidden file does not make a store empty either: the drawing beside
+    it is what is named, and the store is left as it was (#706)."""
+    root = tmp_path / "tc49"
+    (root / "layouts").mkdir(parents=True)
+    drawn(root, "crossover-yard", "drawing: crossover-yard\n")
+    (root / ".DS_Store").write_bytes(b"\x00\x00\x00\x01Bud1")
+    remote = held(tmp_path)
+    backup = Backup(root, log=lambda _: None)
+
+    said = backup.adopt(remote)
+
+    assert not said.ok
+    assert "crossover-yard" in said.words and ".DS_Store" not in said.words
+    assert remote in said.words and "holds backups" in said.words
+    assert not (root / ".git").exists()
+
+
 def test_a_drawn_store_is_not_restored_over_and_stays_no_repository(
     tmp_path: Path,
 ) -> None:
@@ -1693,6 +1729,34 @@ def test_a_new_key_replaces_the_old_one(tmp_path: Path) -> None:
     assert shown is not None and shown != old
     assert shown in said.words
     assert (keys / KEY).read_bytes() != private
+
+
+@keygen
+def test_a_new_key_that_cannot_be_made_keeps_the_old_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The new pair is made beside the old one and only then moved over it,
+    so an `ssh-keygen` that fails leaves the store the key it had rather
+    than none (#706)."""
+    keys = tmp_path / "keys"
+    backup = Backup(tmp_path / "tc49", run=FakeGit(toplevel=""), keys=keys)
+    assert backup.key() is not None
+    before = {p.name: p.read_bytes() for p in keys.iterdir()}
+    failing = tmp_path / "bin"
+    failing.mkdir()
+    script = failing / "ssh-keygen"
+    script.write_text(
+        '#!/bin/sh\nfor f; do :; done\necho half > "$f"\n'
+        'echo "no entropy" >&2\nexit 1\n'
+    )
+    script.chmod(0o755)
+    monkeypatch.setenv("PATH", str(failing))
+
+    said = backup.new_key()
+
+    assert not said.ok
+    assert said.words == "no key could be made: no entropy"
+    assert {p.name: p.read_bytes() for p in keys.iterdir()} == before
 
 
 @keygen
