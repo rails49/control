@@ -520,7 +520,7 @@ block ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 gestures it responds to sit under its own name, its own announcements come
 back past it ignored, and the two commands on the layout filter pass by
 unread. *Publishes* the eleven `tc49/dispatch/*` events, plus `state/run`,
-`state/aspects`, `state/disputed` and `state/allocation`. The last of those is
+`state/aspects`, `state/disputed`, `state/unfit` and `state/allocation`. The last of those is
 its picture of the run, written out from the lock table whenever it changes,
 so a client that joins an idle railroad has something to draw
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).

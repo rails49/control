@@ -844,8 +844,20 @@ decision about is running, and a fresh hold is a fresh decision
 is gone: the broker says which railroad is on screen and the app loads it
 ([#371](https://github.com/rails49/control/issues/371)), and the one control
 that asks for another is the band's, both views being of one railroad
-(ADR-0038, ADR-0060). What its header still draws is the release notice, and
-only while there is one.
+(ADR-0038, ADR-0060). What its header still draws is the release notice and
+the trains a rebuild took off, and only while there is one or the other.
+
+**A rebuild that took trains off says which, one line each.** A rebuild under
+the same name places a train again only where its block is still in the
+drawing and still holds it
+([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)),
+and the dispatcher lists the rest on `tc49/dispatch/state/unfit`. The view
+draws a line per train under the release notice — *`<train>: block <block> is
+gone`* or *`<train>: block <block> is shorter than the train — place it
+again`* — and nothing while the list is empty. The dispatcher drops a train
+from the list once it is placed, so the lines go as a person puts the trains
+back, and the view keeps no copy of its own
+([#709](https://github.com/rails49/control/issues/709)).
 
 **The run view's one source is the bus.** It could read a recorded trace and
 step through it, which is how it was built before there was anything live to
