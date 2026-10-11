@@ -312,6 +312,7 @@ class LayoutInterface:
         roster: Roster,
         clock: Clock,
         settling_s: float = SETTLING_S,
+        position: dict[str, str] | None = None,
     ) -> None:
         """`layout`: the railroad this app answers for — the transits a `move`
         may name, and the signal standing at each block end. The whole of what
@@ -334,6 +335,12 @@ class LayoutInterface:
         `SETTLING_S` by default. Injected because what it is worth is a fact
         about the detectors a railroad has (ADR-0030), and so that a test can
         drive it rather than sleep through it.
+
+        `position`: where each train stands as this app comes up, train to
+        block. None from a process starting, which knows of no train until
+        the dispatcher places one; the last build's, less any train whose
+        block this drawing lacks, from a rebuild under the same railroad name
+        (ADR-0071).
         """
         self._bus = bus
         self._layout = layout
@@ -344,7 +351,7 @@ class LayoutInterface:
         # and which way each one points, which is half of the traction write's
         # sign. The one is this app's own record and the other is read off the
         # scheduler's state topic, there being nowhere else facing lives.
-        self._position: dict[str, str] = {}
+        self._position: dict[str, str] = dict(position or {})
         self._facing: dict[str, str] = {}
         # Who drives each train. Only the manual ones are held: `automatic` is
         # the resting value and a train the map does not name is automatic, so

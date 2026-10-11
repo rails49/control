@@ -32,6 +32,7 @@ from tc49.lib.loading import (
     Loaded,
     dropped,
     named,
+    still_standing,
     standing,
     taken,
 )
@@ -570,3 +571,14 @@ def test_a_rebuild_drops_its_rows_but_the_ones_it_keeps() -> None:
         "tc49/dispatch/state/allocation",
         "tc49/schedule/state/facing",
     }
+
+
+def test_a_train_whose_block_the_new_drawing_lacks_is_not_carried() -> None:
+    """What a binding of the layout interface carries into a rebuild under
+    the same name: every train whose block remains, however short it now is
+    — that is where the steel has it (ADR-0071)."""
+    layout, _, _ = load("crossover-yard/meet")
+
+    carried = still_standing({"freight_1": "yard_w", "express_2": "gone"}, layout)
+
+    assert carried == {"freight_1": "yard_w"}

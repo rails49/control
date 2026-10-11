@@ -55,7 +55,14 @@ from tc49.layout.interface import WANTED_TRACTION, LayoutInterface
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
-from tc49.lib.loading import Answering, dropped, named, standing, taken
+from tc49.lib.loading import (
+    Answering,
+    dropped,
+    named,
+    standing,
+    still_standing,
+    taken,
+)
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
@@ -121,7 +128,10 @@ def serve(
     apps run and the layout interface is what says which one is loaded
     (ADR-0060). The desired rows go with the old one — a speed for a
     locomotive the new railroad does not have, a position for a point it does
-    not have, and nothing would ever republish either.
+    not have, and nothing would ever republish either. Where each train
+    stands goes too under another name, and **stays under the same one**:
+    the new build starts from the old one's, less any train whose block the
+    new drawing lacks (ADR-0071).
     """
     loaded = Answering(railroad)
     if not connected(bus, stop, log):
@@ -133,6 +143,7 @@ def serve(
         return
     layout, roster = read
     log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
+    position: dict[str, str] = {}
     while not stop.is_set():
         # First of all, where the scheduler, the dispatcher and the driver
         # subscribe to the state row after they are built: what this one
@@ -144,7 +155,7 @@ def serve(
         loaded.follow(bus)
         _retained(bus, stop)
         clock = Clock()
-        app = LayoutInterface(bus, layout, roster, clock)
+        app = LayoutInterface(bus, layout, roster, clock, position=position)
         built = loaded.name
         log(f"up on {named(built)}, draining every {period_s}s")
         started = time.monotonic()
@@ -158,6 +169,7 @@ def serve(
         layout, roster = taken(
             loaded, built, log, lambda name: _documents(documents, name)
         )
+        position = still_standing(app.position, layout) if loaded.name == built else {}
         gone = dropped(bus, OWNED, stop, RETAINED_S)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
 
