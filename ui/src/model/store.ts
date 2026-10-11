@@ -181,6 +181,19 @@ export async function saveDrawing(drawing: Drawing): Promise<void> {
   await ask("PUT", `/drawings/${encodeURIComponent(drawing.drawing)}`, drawing);
 }
 
+/**
+ * Every document of railroad `from` — drawing, roster and script, those that
+ * exist — written again under `to`: what the settings dialog's Copy loaded
+ * as… asks for, so the copy has stock to place and a script to run from the
+ * start (#729, #737,
+ * [ADR-0072](../../../docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
+ * The store refuses a `to` that is already a railroad (409) and a `from` it
+ * has no drawing for (404), in its own words, and then writes nothing.
+ */
+export async function copyRailroad(from: string, to: string): Promise<void> {
+  await ask("POST", `/railroads/${encodeURIComponent(from)}/copy`, { to });
+}
+
 export async function review(drawing: Drawing): Promise<Review> {
   return await ask<Review>("POST", "/review", drawing);
 }

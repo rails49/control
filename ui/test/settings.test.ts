@@ -1,5 +1,6 @@
 /**
- * When the settings dialog's railroad part is refused, with no DOM (#733).
+ * When the settings dialog's railroad part is refused, with no DOM (#733,
+ * #737).
  *
  * The first condition that holds is the reason, so each row of the table is
  * checked with every row below it also holding: the order is the claim.
@@ -7,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { refusal } from "../src/model/settings.js";
+import { copyRefusal, refusal } from "../src/model/settings.js";
 
 describe("why the railroad part is refused", () => {
   it("is refused while the layout has not said which railroad is loaded", () => {
@@ -45,5 +46,29 @@ describe("why the railroad part is refused", () => {
    *  a new box is loaded from the dialog (ADR-0072, decision 6). */
   it("is open with no railroad loaded, whatever the supply has said", () => {
     expect(refusal("", null, null)).toBeNull();
+  });
+});
+
+/** Copy loaded as… waits on everything a load does, and then on there being a
+ *  loaded railroad to copy (#737). */
+describe("why Copy loaded as… is refused", () => {
+  it("is refused for the railroad part's reason first", () => {
+    expect(copyRefusal(null, "off", null)).toBe(
+      "the layout has not said which railroad is loaded",
+    );
+    expect(copyRefusal("otira", "on", null)).toBe(
+      "the track has power: switch it off to load another railroad",
+    );
+    expect(copyRefusal("", "off", "the roster")).toBe(
+      "the roster has unsaved edits — save first",
+    );
+  });
+
+  it("is refused with no railroad loaded, there being nothing to copy", () => {
+    expect(copyRefusal("", null, null)).toBe("no railroad is loaded to copy");
+  });
+
+  it("is open with a railroad loaded, the track dead and nothing unsaved", () => {
+    expect(copyRefusal("otira", "off", null)).toBeNull();
   });
 });
