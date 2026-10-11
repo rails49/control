@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../src/ui/tc-app.js";
 import type { RosterDoc } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
+import type { TcBackup } from "../src/ui/tc-backup.js";
 import type { TcStock } from "../src/ui/tc-stock.js";
 import { RETRY_MS } from "../src/model/store.js";
 import {
@@ -631,6 +632,103 @@ describe("the roster's Save with a length corrected", () => {
 
     expect(trouble(shell)).not.toBeNull();
     expect(wants()).toEqual([]);
+  });
+
+  /** A model's length corrected on its row is written on Save, before the
+   *  roster, and names the railroad again like any other length (#718). */
+  describe("on a model's row", () => {
+    /** Correct the hopper, which is the second product row. */
+    async function corrected(shell: TcApp, length: string): Promise<void> {
+      await typed(shell, parts(shell, "li.product input.length")[1]!, length);
+    }
+
+    function paths(): string[] {
+      return store.saved.map((one) => one.path);
+    }
+
+    it("writes the model, then the roster, then names the railroad again", async () => {
+      const shell = await opened();
+      await placed(shell, "off");
+      store.saved.length = 0;
+      await corrected(shell, "110");
+      expect(store.saved).toEqual([]);
+      expect(saving(shell).disabled).toBe(false);
+
+      await pressed(shell, "sl-button.save");
+
+      expect(paths()).toEqual(["/catalogue/hopper", "/rosters/toy"]);
+      expect(store.saved[0]!.body).toEqual({
+        model: "hopper",
+        kind: "freight",
+        length: 110,
+      });
+      expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
+      expect(saving(shell).disabled).toBe(true);
+    });
+
+    it.each(["on", "stopped"] as const)(
+      "is dead while power is %s, and says why",
+      async (power) => {
+        const shell = await opened();
+        await placed(shell, "off");
+        await corrected(shell, "110");
+        await said(shell, POWER, { power });
+
+        expect(saving(shell).disabled).toBe(true);
+        expect(saving(shell).title).toBe(WAITS);
+      },
+    );
+
+    /** Power is off, so the railroad can be named again, and the dispatcher
+     *  must not go on fitting trains by a length the store no longer holds. */
+    it("names the railroad again where the roster is refused after the model", async () => {
+      const shell = await opened();
+      await placed(shell, "off");
+      store.saved.length = 0;
+      await corrected(shell, "110");
+      between((path) => path.startsWith("/rosters/"));
+
+      await pressed(shell, "sl-button.save");
+
+      expect(paths()).toEqual(["/catalogue/hopper"]);
+      expect(trouble(shell)).not.toBeNull();
+      expect(wants()).toHaveLength(1);
+      expect(saving(shell).disabled).toBe(false);
+
+      store.intercepted = () => null;
+      store.saved.length = 0;
+      await pressed(shell, "sl-button.save");
+      expect(paths()).toEqual(["/rosters/toy"]);
+      expect(trouble(shell)).toBeNull();
+    });
+
+    it("writes nothing else where the model is refused, and keeps it", async () => {
+      const shell = await opened();
+      await placed(shell, "off");
+      store.saved.length = 0;
+      await corrected(shell, "110");
+      between((path) => path.startsWith("/catalogue/"));
+
+      await pressed(shell, "sl-button.save");
+
+      expect(store.saved).toEqual([]);
+      expect(trouble(shell)).not.toBeNull();
+      expect(wants()).toEqual([]);
+      expect(saving(shell).disabled).toBe(false);
+
+      store.intercepted = () => null;
+      await pressed(shell, "sl-button.save");
+      expect(paths()).toEqual(["/catalogue/hopper", "/rosters/toy"]);
+    });
+
+    it("is an edit a restore asks about", async () => {
+      const shell = await opened();
+      await placed(shell, "off");
+      await corrected(shell, "110");
+
+      const backup = shell.renderRoot.querySelector<TcBackup>("tc-backup")!;
+      expect(backup.unsaved).toBe("the roster");
+    });
   });
 
   /** With nothing loaded there is no roster to write into: Save is dead and

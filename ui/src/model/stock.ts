@@ -346,7 +346,8 @@ export interface TrainRow {
  * **A model is written the moment it is made and the roster when Save is
  * pressed.** They are two documents on two routes: a roster naming a model the
  * installation has not got is refused whole, so the product exists before
- * anything refers to it (#392).
+ * anything refers to it (#392). A model's length corrected on its row is
+ * written on Save too, before the roster (#718).
  *
  * Every method that can refuse answers with the words to show and changes
  * nothing, rather than throwing: a refusal here is an ordinary answer about a
@@ -358,6 +359,8 @@ export class Stock {
   private models: Record<string, ModelDoc>;
   private dirty = false;
   private lengthy = false;
+  /** The models whose length was corrected and not yet written, by name. */
+  private corrected = new Set<string>();
 
   constructor(roster: RosterDoc, catalogue: Record<string, ModelDoc>) {
     this.doc = roster;
@@ -373,8 +376,9 @@ export class Stock {
     return this.models;
   }
 
-  /** Whether the roster holds edits the store has not been given. A model is
-   *  not counted: it was written when it was made. */
+  /** Whether the roster, or a model's corrected length, holds edits the store
+   *  has not been given. A model made in the dialog is not counted: it was
+   *  written when it was made. */
   get edits(): boolean {
     return this.dirty;
   }
@@ -386,10 +390,22 @@ export class Stock {
     return this.lengthy;
   }
 
+  /** The models whose length was corrected and not yet written, as Save is
+   *  to write them: each once, with its latest length. */
+  get corrections(): ModelDoc[] {
+    return [...this.corrected].map((name) => this.models[name]!);
+  }
+
+  /** The store took one corrected model. */
+  wrote(name: string): void {
+    this.corrected.delete(name);
+  }
+
   /** The store took the roster. */
   kept(): void {
     this.dirty = false;
     this.lengthy = false;
+    this.corrected.clear();
   }
 
   /** Why the roster's Save waits, or `null` where it does not: a length edit
@@ -688,7 +704,7 @@ export class Stock {
 
   /** Correcting a product's length changes every item of that product, which
    *  is the whole reason the length lives here as well as on the car. Refused
-   *  while track power is on or stopped. */
+   *  while track power is on or stopped. Written on the roster's Save. */
   modelLength(name: string, mm: number, power: Power | null = null): string | null {
     const model = this.models[name];
     if (model === undefined) return null;
@@ -697,6 +713,8 @@ export class Stock {
     const trouble = lengthTrouble(mm);
     if (trouble !== null) return trouble;
     this.putModel({ ...model, length: mm });
+    this.corrected.add(name);
+    this.dirty = true;
     this.lengthy = true;
     return null;
   }
