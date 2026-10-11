@@ -35,7 +35,10 @@ dropped for the same reason a stale one is — the train is not standing at the
 transit's near end (ADR-0047) — and never a train invented under a command.
 Decision 3 answers #123 for every row the broker holds; this one is on no
 topic by ADR-0030, so where the steel's memory lives in a container is open,
-and not this command line's to invent. A railroad the store does not have
+and not this command line's to invent. A **rebuild** is not a restart: the
+process is still holding its steel, and under the same railroad name it hands
+that to the next build, less any train whose block the new drawing lacks
+(ADR-0071). A railroad the store does not have
 leaves it **standing** — up, with no railroad, built on the first one a person
 picks that the store can give (#564, `lib/loading.py`).
 
@@ -64,7 +67,14 @@ from collections.abc import Callable
 
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
-from tc49.lib.loading import Answering, dropped, named, standing, taken
+from tc49.lib.loading import (
+    Answering,
+    dropped,
+    named,
+    standing,
+    still_standing,
+    taken,
+)
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
 from tc49.simulator.sim import Simulator
@@ -130,6 +140,7 @@ def serve(
     if layout is None:
         return
     log(f"'{loaded.name}': {len(layout.blocks)} blocks")
+    position: dict[str, str] = {}
     while not stop.is_set():
         # Before the app's opening rows and not after, where the scheduler,
         # the dispatcher and the driver subscribe to the state row
@@ -143,7 +154,9 @@ def serve(
         # (ADR-0070).
         loaded.follow(bus)
         clock = Clock()
-        simulator = Simulator(bus, layout, clock, transit_s=transit_s, clear_s=clear_s)
+        simulator = Simulator(
+            bus, layout, clock, position, transit_s=transit_s, clear_s=clear_s
+        )
         built = loaded.name
         log(f"up on {named(built)}, waiting at most {period_s}s a turn")
         # The loop the app already owns, ended by a signal or by the railroad
@@ -157,6 +170,12 @@ def serve(
         if not loaded.moved:
             return
         layout = taken(loaded, built, log, documents.layout)
+        # The steel stands where it stood under the same name, a train
+        # longer than its block included: that is where the steel has it
+        # (ADR-0071). Under another name nothing is placed.
+        position = (
+            still_standing(simulator.position, layout) if loaded.name == built else {}
+        )
         gone = dropped(bus, OWNED, stop, RETAINED_S)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
 
