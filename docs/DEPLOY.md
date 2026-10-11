@@ -442,10 +442,12 @@ What is `control`'s here is the one thing JMRI talks to: the command station,
 as a plain client of `dccex-usb` on 2560 over the LAN, like any hand-held
 throttle (ADR-0043). Its connection is a DCC++ over TCP one, and the host in
 it is the box rather than a compose service name now that JMRI is in another
-project — set it in DecoderPro once and save. The rest of what is configured
-through the GUI lives in a volume of that project's
-([#299](https://github.com/rails49/control/issues/299) is the last time that
-volume needed a click here).
+project — set it in DecoderPro once and save. That setting, the roster and every
+loco's CV file are JMRI's profile, which lives in the store under `jmri/` and
+is backed up, restored and moved to a new box with it
+([rails49/.github ADR-0013](https://github.com/rails49/.github/blob/main/docs/adr/0013-jmris-profile-lives-in-the-store.md),
+[#713](https://github.com/rails49/control/issues/713)). The rest of JMRI's
+home stays in a volume of that project's.
 
 ### The router
 

@@ -126,6 +126,16 @@ skipped and the store was away for those ten seconds. The signal now raises
 the same interrupt Ctrl-C does, so both leave by the one door: the listener
 stops accepting, the watch stops, and the quit commits and pushes.
 
+**What moved without a save is committed on the push timer**
+([#713](https://github.com/rails49/control/issues/713)). Every `PUSH_S`, with
+automatic backup on and no save waiting on the idle window, the store commits
+whatever git says has moved. A document edited by hand is backed up that way,
+and so is DecoderPro's profile, which JMRI keeps in the store under `jmri/`
+([rails49/.github ADR-0013](https://github.com/rails49/.github/blob/main/docs/adr/0013-jmris-profile-lives-in-the-store.md)).
+The store knows nothing of JMRI: a file it has no name for is named by its
+path, `backup: jmri/roster/e10.xml`. With automatic backup off only a press
+commits it.
+
 **The message names the documents that moved**, in the store's own names:
 
 ```

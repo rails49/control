@@ -77,6 +77,15 @@ saves into one commit covering the editing session, and a quiet store produces
 no commits at all — the store is committed only where git says something
 moved, so nothing empty is ever recorded.
 
+*Amended by [#713](https://github.com/rails49/control/issues/713).* A commit
+is not only a save's. Every push period, with automated backup on and no save
+waiting on the idle deadline, the store commits whatever git says has moved
+under it, whoever wrote it, so a file another program keeps in the store —
+DecoderPro's profile
+([rails49/.github ADR-0013](https://github.com/rails49/.github/blob/main/docs/adr/0013-jmris-profile-lives-in-the-store.md))
+— is backed up within one push period. The store names a path it does not
+know by its path, and learns nothing about the program that wrote it.
+
 **The message names the documents that moved**, in the store's own names:
 `backup: reversing-loops, re460 model` rather than a path or a date. A timer
 commit with a generic message is exactly the noise the timer exists to avoid,
