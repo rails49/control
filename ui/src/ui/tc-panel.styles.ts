@@ -30,11 +30,13 @@ export const panelStyles = css`
   }
 
   /* Only drawn while there is something to say, so the row collapses and the
-     sheet starts at the top of the view. */
+     sheet starts at the top of the view. One line per note: the release
+     notice, then a line per train a rebuild took off. */
   header {
     grid-area: notice;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     padding: 0.4rem 0.6rem;
     border-bottom: 1px solid var(--rule);
   }

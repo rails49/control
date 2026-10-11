@@ -656,3 +656,51 @@ describe("releasing with disputes outstanding", () => {
     expect(notice(shell)).toBeNull();
   });
 });
+
+/**
+ * #709. A rebuild under the same name places a pictured train again only
+ * where its block is still in the drawing and still holds it (ADR-0071), and
+ * the dispatcher lists the ones it left off on `state/unfit`. The run view
+ * says which, and why, one line per train, for as long as the list stands.
+ */
+describe("the trains a rebuild took off", () => {
+  /** The lines the run view is showing about them, in order. */
+  function unfit(shell: TcApp): string[] {
+    return [...running(shell).renderRoot.querySelectorAll(".unfit")].map(
+      (line) => line.textContent!.trim(),
+    );
+  }
+
+  it("says one line per listed train, and why", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/unfit", {
+      trains: [
+        { train: "ore", block: "S3", why: "gone" },
+        { train: "t1", block: "b", why: "short" },
+      ],
+    });
+
+    expect(unfit(shell)).toEqual([
+      "ore: block S3 is gone",
+      "t1: block b is shorter than the train — place it again",
+    ]);
+  });
+
+  it("says nothing for an empty list", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/unfit", { trains: [] });
+
+    expect(unfit(shell)).toEqual([]);
+    expect(running(shell).renderRoot.querySelector("header")).toBeNull();
+  });
+
+  it("drops a train's line when the list is republished without it", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/unfit", {
+      trains: [{ train: "ore", block: "S3", why: "gone" }],
+    });
+    await said(shell, "tc49/dispatch/state/unfit", { trains: [] });
+
+    expect(unfit(shell)).toEqual([]);
+  });
+});
