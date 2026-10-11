@@ -132,10 +132,9 @@ export interface RunStatus {
    *  ([ADR-0050](../../../docs/adr/0050-broken-hardware-is-reported-never-worked-around.md),
    *  [#602](https://github.com/rails49/control/issues/602)). */
   fault: string | null;
-  /** The trains the run has on the layout, by name. The stock screen reads
-   *  which they are as the rule that a placed train's length may not be
-   *  corrected (ui/STOCK.md): only this view knows, and the view where it is
-   *  felt does not. */
+  /** The trains the run has on the layout, by name. The stock screen marks
+   *  their rows "on the layout" (ui/STOCK.md): only this view knows, and the
+   *  view where it is shown does not. */
   placed: readonly string[];
 }
 
