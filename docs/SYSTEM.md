@@ -803,7 +803,11 @@ that drives realistically later grows behind the same topic.
 
 ### Layout interface
 
-*Reads* the layout and the roster. *Subscribes* `tc49/layout/align`,
+*Reads* the layout and the roster, and `/loaded` as it starts; *writes*
+`/loaded` each time it is built on a railroad, the one write any app makes to
+the store
+([ADR-0072](adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
+*Subscribes* `tc49/layout/align`,
 `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` /
 `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/run`,
 `tc49/schedule/state/facing` and `tc49/layout/state/device/#`. *Publishes*
