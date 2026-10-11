@@ -136,14 +136,11 @@ def serve(
     happens to be — in the loop, or in any of the waits above it — and `main`
     lets that out.
 
-    `railroad` is where this app starts **where the store records nothing**:
-    the store's record of the railroad loaded last is read first, once the
-    broker is there, and wins where it names one (ADR-0072, decision 5).
-    `main` passes `NO_RAILROAD`, no command line naming one, and a suite
-    starting this app on a railroad passes its name. A recorded railroad the
-    store no longer has is refused as any starting point is, and the app
-    stands; the record is left as it is, the next load being what overwrites
-    it.
+    `railroad` is where this app starts **where the store records nothing**
+    (`Answering.recorded`), read once the broker is there. A recorded
+    railroad the store no longer has is refused as any starting point is,
+    and the app stands; the record is left as it is, the next load being
+    what overwrites it.
 
     The clock starts here and at zero, and every turn puts it where wall time
     is. Seconds since this process started, which is what a settling time is
@@ -165,10 +162,7 @@ def serve(
     """
     if not connected(bus, stop, log):
         return
-    recorded = documents.loaded()
-    if recorded:
-        log(f"the store records '{recorded}' as loaded")
-    loaded = Answering(recorded or railroad)
+    loaded = Answering.recorded(documents, railroad, log)
     read = standing(
         bus, loaded, stop, log, lambda name: _documents(documents, name), period_s
     )
