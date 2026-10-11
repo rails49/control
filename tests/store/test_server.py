@@ -874,6 +874,61 @@ def test_a_name_with_a_slash_in_it_is_no_script_route(
     assert handle(store, backup, "GET", "/scripts/crossover-yard/meet", None)[0] == 404
 
 
+def test_a_store_with_no_record_has_no_railroad_loaded(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """A fresh box, or one that has never loaded a railroad: an answer and
+    not a 404, because there is nothing wrong with a store that records
+    nothing loaded (ADR-0072 decision 5)."""
+    assert handle(AssetStore(tmp_path), backup, "GET", "/loaded", None) == (
+        200,
+        {"railroad": ""},
+    )
+
+
+def test_the_loaded_railroad_is_written_and_read_back(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Not checked against the drawings, as a script is not: the store keeps
+    the record, and the binding that writes it knows what it loaded."""
+    store = AssetStore(tmp_path)
+    assert handle(store, backup, "PUT", "/loaded", {"railroad": "shed"}) == (
+        200,
+        {"loaded": "shed"},
+    )
+    assert handle(store, backup, "GET", "/loaded", None) == (
+        200,
+        {"railroad": "shed"},
+    )
+    assert (tmp_path / "loaded.yaml").read_text() == "railroad: shed\n"
+
+
+def test_a_loaded_record_names_a_railroad_and_nothing_else_will_do(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Every way the body can be wrong, and none of them writes the record."""
+    store = AssetStore(tmp_path)
+    for body in (None, ["shed"], {}, {"railroad": ""}, {"railroad": 3}):
+        status, said = handle(store, backup, "PUT", "/loaded", body)
+        assert status == 400, body
+        assert "railroad" in said["error"]
+    assert not (tmp_path / "loaded.yaml").exists()
+
+
+def test_a_loaded_railroad_arms_the_backup_as_a_save_does(tmp_path: Path) -> None:
+    """A load moves the store as a save does, so it is backed up with the
+    rest of it."""
+    saved: list[bool] = []
+
+    class Saving(Backup):
+        def saved(self) -> None:
+            saved.append(True)
+
+    backup = Saving(tmp_path, log=lambda _: None)
+    handle(AssetStore(tmp_path), backup, "PUT", "/loaded", {"railroad": "shed"})
+    assert saved == [True]
+
+
 def test_the_layout_a_drawing_derives_to_is_served(
     store: AssetStore, backup: Backup
 ) -> None:
@@ -1353,6 +1408,7 @@ def test_a_restore_names_the_backup_to_come_back_to(
         "--",
         ".",
         ":(exclude)backup.yaml",
+        ":(exclude)loaded.yaml",
     ) in driving.calls
 
 

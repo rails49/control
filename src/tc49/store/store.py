@@ -34,6 +34,10 @@ names a model and is complete only once merged onto one. Both stock documents
 are validated in :mod:`tc49.lib.stock`. A model's **photo** is the one thing
 here that is not a document: the JPEG beside its document, kept because the
 file is there and named by nothing inside it (#626).
+
+The **loaded railroad** is the installation's as well: which railroad the
+layout binding last loaded, recorded so that it starts on that one after a
+reboot, the broker keeping nothing across a restart (ADR-0072 decision 5).
 """
 
 import math
@@ -50,6 +54,9 @@ from tc49.lib.roster import Model, Roster
 from tc49.lib.scenario import Scenario, named, validate_scenario
 from tc49.store import yamlfile
 from tc49.store.drawing import Drawing
+
+LOADED = "loaded.yaml"
+"""The file at the store root recording which railroad is loaded."""
 
 _TIMESTAMP = "tag:yaml.org,2002:timestamp"
 """The one implicit tag this store's reader does not resolve (`_Reader`)."""
@@ -235,6 +242,27 @@ class AssetStore:
         path = self._script_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(text.encode())
+
+    def loaded(self) -> str:
+        """The railroad the layout binding last loaded, and `""` where
+        nothing records one: a fresh box, or one that has never loaded a
+        railroad. Not checked against the drawings — the binding that wrote
+        the name is the one that reads it, and says so if it is gone."""
+        path = self._root / LOADED
+        if not path.exists():
+            return ""
+        doc = self._read(path)
+        railroad = (
+            cast(dict[str, Any], doc).get("railroad") if isinstance(doc, dict) else None
+        )
+        if not isinstance(railroad, str):
+            raise TypeError(f"{LOADED}: 'railroad' is the railroad's name, as text")
+        return railroad
+
+    def put_loaded(self, name: str) -> None:
+        """Record `name` as the railroad loaded, replacing what was."""
+        self._root.mkdir(parents=True, exist_ok=True)
+        (self._root / LOADED).write_text(yaml.safe_dump({"railroad": name}))
 
     def catalogue(self) -> dict[str, Model]:
         """The models this installation knows, by name.

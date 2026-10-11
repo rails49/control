@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pytest
 
+from tc49.store import AssetStore
 from tc49.store.backup import (
     KEY,
     PUSH_TIMEOUT_S,
@@ -885,6 +886,81 @@ def test_a_restore_to_a_backup_without_the_switch_leaves_it_on(
     assert backup.outstanding() == []
 
 
+def loaded(root: Path, railroad: str) -> None:
+    AssetStore(root).put_loaded(railroad)
+
+
+def test_the_loaded_railroad_is_backed_up_as_a_document(repository: Path) -> None:
+    """Named for what it is in the list a person reads (ADR-0072)."""
+    loaded(repository, "reversing-loops")
+    backup = Backup(repository, log=lambda _: None)
+
+    assert backup.outstanding() == ["loaded railroad"]
+    assert backup.commit().ok
+    assert "backup: loaded railroad" in run_git(repository, "log", "--format=%s")
+
+
+def test_a_restore_leaves_the_loaded_railroad_as_it_is(repository: Path) -> None:
+    """The record says what the railroad is running, which a restore of the
+    documents does not change — whatever the picked backup holds, or whether
+    it holds one at all."""
+    backup = Backup(repository, log=lambda _: None)
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    backup.commit()
+    bare = backup.backups()[0]["commit"]
+    loaded(repository, "reversing-loops")
+    backup.commit()
+    held = backup.backups()[0]["commit"]
+    drawn(repository, "crossover-yard", "drawing: crossover-yard\n")
+    loaded(repository, "crossover-yard")
+    backup.commit()
+
+    assert backup.restore(held).ok
+    assert AssetStore(repository).loaded() == "crossover-yard"
+    assert backup.restore(bare).ok
+    assert AssetStore(repository).loaded() == "crossover-yard"
+    assert backup.outstanding() == []
+
+
+def test_a_load_since_the_last_backup_does_not_refuse_a_restore(
+    repository: Path,
+) -> None:
+    """Loading a railroad is not editing one: the record is not restored, so
+    there is nothing a restore would write over (ADR-0072). The load stays
+    outstanding, to be backed up as any change is."""
+    backup = Backup(repository, log=lambda _: None)
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    loaded(repository, "reversing-loops")
+    backup.commit()
+    yesterday = backup.backups()[0]["commit"]
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\nsymbols: {}\n")
+    backup.commit()
+    loaded(repository, "crossover-yard")
+
+    said = backup.restore(yesterday)
+
+    assert said.ok, said.words
+    assert "loaded railroad" not in said.words
+    assert AssetStore(repository).loaded() == "crossover-yard"
+    assert backup.outstanding() == ["loaded railroad"]
+
+
+def test_a_restore_over_a_changed_document_is_refused_without_the_load(
+    repository: Path,
+) -> None:
+    backup = Backup(repository, log=lambda _: None)
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    backup.commit()
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\nsymbols: {}\n")
+    loaded(repository, "reversing-loops")
+
+    said = backup.restore()
+
+    assert not said.ok
+    assert "reversing-loops" in said.words
+    assert "loaded railroad" not in said.words
+
+
 def test_restoring_the_backup_the_store_holds_commits_nothing(
     repository: Path,
 ) -> None:
@@ -1350,6 +1426,27 @@ def test_an_empty_store_takes_a_repositorys_latest_backup(tmp_path: Path) -> Non
     assert backup.commit().ok
     assert backup.push().ok
     assert "backup: crossover-yard" in run_git(Path(remote), "log", "--format=%s")
+
+
+def test_an_empty_store_takes_the_loaded_railroad_over_with_the_rest(
+    tmp_path: Path,
+) -> None:
+    """A box replacing another comes up on the railroad the old one had
+    loaded, once its binding next starts (ADR-0072)."""
+    remote = held(tmp_path)
+    old = tmp_path / "old-box"
+    loaded(old, "reversing-loops")
+    run_git(old, "add", "-A")
+    run_git(old, "commit", "-q", "-m", "backup: loaded railroad")
+    run_git(old, "push", "-q", remote, "main")
+    root = tmp_path / "tc49"
+    backup = Backup(root, log=lambda _: None)
+
+    said = backup.adopt(remote)
+
+    assert said.ok, said.words
+    assert AssetStore(root).loaded() == "reversing-loops"
+    assert backup.outstanding() == []
 
 
 def held_twice(tmp_path: Path) -> str:

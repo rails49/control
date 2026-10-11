@@ -107,6 +107,20 @@ def test_a_drawing_that_does_not_derive_is_raised_with_the_stores_words(
     assert "crossover-yard" in str(refused.value)
 
 
+def test_the_loaded_railroad_is_what_was_put(url: str) -> None:
+    """The binding's record of what it loaded, read back as it starts
+    (ADR-0072 decision 5); nothing recorded is no railroad."""
+    documents = client(url)
+    assert documents.loaded() == ""
+    documents.put_loaded(RAILROAD)
+    assert documents.loaded() == RAILROAD
+
+
+def test_a_loaded_record_the_store_refuses_is_raised(url: str) -> None:
+    with pytest.raises(ValueError, match="railroad"):
+        client(url).put_loaded("")
+
+
 def test_it_returns_once_the_store_comes_up_after_it_was_asked(root: Path) -> None:
     """An app coming up before the store is an ordinary state: the request
     waits, says so on stderr, and is answered when the store opens its socket

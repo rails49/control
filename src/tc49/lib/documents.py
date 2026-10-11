@@ -24,6 +24,8 @@ and the 5xx it sends when it cannot answer a request it should have.
 
 Standard library only: this is what an app is built on, and it fetches three
 documents per build and nothing between (SYSTEM.md, "read once per build").
+The one write is the layout binding's record of which railroad it loaded
+(`put_loaded`, ADR-0072 decision 5).
 """
 
 import json
@@ -104,8 +106,24 @@ class Documents:
             for name, doc in cast(dict[str, Any], models).items()
         }
 
-    def _get(self, *path: str) -> dict[str, Any]:
-        """One document, waited for until the store answers. The route is
+    def loaded(self) -> str:
+        """The railroad the store records as loaded, and `""` where it records
+        none (ADR-0072 decision 5). The layout binding's, read once as it
+        starts; every other app follows the binding's state on the bus."""
+        railroad = self._get("loaded").get("railroad")
+        if not isinstance(railroad, str):
+            raise TypeError(f"{self._base}/loaded: no railroad in the reply")
+        return railroad
+
+    def put_loaded(self, name: str) -> None:
+        """Record `name` as the railroad loaded, for the binding to start on
+        next time. Waited for as a read is: a binding that has loaded a
+        railroad before the store is up still has to say which."""
+        self._get("loaded", body={"railroad": name})
+
+    def _get(self, *path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+        """One document, waited for until the store answers — or, given a
+        `body`, put there and the store's answer waited for. The route is
         given a level at a time and each is escaped: a name is one level, so
         a railroad called `a/b` is a name the store does not have rather than
         a route of its own."""
@@ -113,7 +131,7 @@ class Documents:
         backoff = self._first_backoff_s
         while True:
             try:
-                return _fetch(where, self._timeout_s)
+                return _fetch(where, self._timeout_s, body)
             except _Unanswered as away:
                 self._log(f"{where}: {away}, retrying in {backoff:.1f}s")
                 time.sleep(backoff)
@@ -125,9 +143,21 @@ class _Unanswered(Exception):
     thing this file retries; everything else it was told is raised."""
 
 
-def _fetch(where: str, timeout_s: float) -> dict[str, Any]:
+def _fetch(
+    where: str, timeout_s: float, sent: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    asked = (
+        urllib.request.Request(
+            where,
+            data=json.dumps(sent).encode(),
+            headers={"Content-Type": "application/json"},
+            method="PUT",
+        )
+        if sent is not None
+        else where
+    )
     try:
-        with urllib.request.urlopen(where, timeout=timeout_s) as answer:
+        with urllib.request.urlopen(asked, timeout=timeout_s) as answer:
             body = json.load(answer)
     except urllib.error.HTTPError as answered:
         raise _answered(where, answered) from None
