@@ -325,14 +325,17 @@ export class TcBackup extends LitElement {
   /** The backups there are, newest first, each named by what moved in it. The
    *  newest is rarely the one wanted: the editing session a person is trying
    *  to get out of was backed up like any other. Above them, what a restore
-   *  does to a run that is up, said before the press (#699). */
+   *  does to a run that is up, said before the press (#699), and that JMRI,
+   *  which reads its profile in the store once at launch and nothing here can
+   *  see, is quit first (#714). */
   private backups(backups: readonly Backup[]) {
     if (backups.length === 0) {
       return html`<p class="hint">no backups yet</p>`;
     }
     return html`<p class="hint">
         Restore puts the store back as the picked backup held it; the apps and
-        this page then reload
+        this page then reload. Quit DecoderPro and PanelPro before restoring,
+        and open them again after.
       </p>
       <ul class="backups">
       ${backups.map(
