@@ -5,17 +5,17 @@ broker with nothing else running, this connects, subscribes and stays up; it
 exits on nothing but a signal. Nothing here is ordered by anything else coming
 up first, which is why compose carries no `depends_on`.
 
-Two flags, the ones a compose service passes: where the broker is, and which
-railroad it runs. **No `--store`**, because the driver reads no documents: it
-holds no state and reads no assets (SYSTEM.md, driver footprint), the grant
-and the two speeds being between them every field `move` needs. The railroad's
-name is here because one broker runs one railroad and every app process is
-given its name at start (ADR-0059, decision 2); the driver holds nothing keyed
-to a railroad, so the name is what a person watching the containers reads and
-nothing this app looks anything up by. It is the one app that comes up with
-**no railroad at all** and says so, a box having named none: the scheduler,
-the dispatcher, `layout` and `simulator` read documents and stand until one
-is named, and this one has nothing to stand for (#564, `lib/loading.py`).
+One flag, the one every compose service passes: where the broker is. **No
+`--store`**, because the driver reads no documents: it holds no state and
+reads no assets (SYSTEM.md, driver footprint), the grant and the two speeds
+being between them every field `move` needs. No railroad either, which no
+app is told (ADR-0072, decision 5): the driver holds nothing keyed to one and
+looks nothing up by its name, and follows the row that names it all the same,
+so that what a person watching the containers reads is which railroad this
+one is driving. It is the one app that is **up with no railroad** rather than
+standing on none: the scheduler, the dispatcher, `layout` and `simulator`
+read documents and stand until one is named, and this one has nothing to
+stand for (#564, `lib/loading.py`).
 The drain period is not a flag either — nothing outside this process has an
 opinion about how often it takes what the broker's network thread left
 waiting, and it is short enough that a grant is commanded in the same tenth
@@ -50,7 +50,7 @@ import threading
 from collections.abc import Callable
 
 from tc49.driver.driver import Driver
-from tc49.lib.loading import Loaded, named
+from tc49.lib.loading import NO_RAILROAD, Loaded, named
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.startup import PERIOD_S, command_line, connected
 
@@ -133,7 +133,7 @@ def main() -> None:
     bus = MqttBus(host, port, client_id=CLIENT_ID)
     try:
         with contextlib.suppress(KeyboardInterrupt):
-            serve(bus, args.railroad, threading.Event())
+            serve(bus, NO_RAILROAD, threading.Event())
     finally:
         bus.close()
 

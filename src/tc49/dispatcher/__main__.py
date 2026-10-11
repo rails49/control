@@ -6,9 +6,11 @@ store, publishes its own retained rows and stays up; it exits on nothing but a
 signal. Nothing here is ordered by anything else coming up first, which is why
 compose carries no `depends_on`.
 
-Three flags, the ones a compose service passes: where the broker is, which
-railroad it runs, and where the store serves the documents that railroad is
-built from. Neither the drain period nor the route budget is one of them —
+Two flags, the ones a compose service passes: where the broker is, and where
+the store serves the documents of the railroad it comes up on. Which railroad
+is not one of them: the store records which is loaded, the binding of the
+layout interface starts on that and this app follows the row it publishes
+(ADR-0072, decision 5). Neither the drain period nor the route budget is one either —
 nothing outside this process has an opinion about how often it takes what the
 broker's network thread left waiting, or about how many candidates a launch
 tries, and `bench` is where a budget is a number somebody varies.
@@ -46,7 +48,7 @@ from tc49.dispatcher.dispatch import ALLOCATION, Dispatcher
 from tc49.dispatcher.locking import Incremental
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
-from tc49.lib.loading import Loaded, dropped, named, standing, taken
+from tc49.lib.loading import NO_RAILROAD, Loaded, dropped, named, standing, taken
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
 from tc49.lib.startup import (
@@ -181,7 +183,7 @@ def main() -> None:
     bus = MqttBus(host, port, client_id=CLIENT_ID)
     try:
         with contextlib.suppress(KeyboardInterrupt):
-            serve(bus, Documents(args.store), args.railroad, threading.Event())
+            serve(bus, Documents(args.store), NO_RAILROAD, threading.Event())
     finally:
         bus.close()
 

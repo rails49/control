@@ -358,9 +358,9 @@ def test_a_layout_standing_with_no_railroad_says_nothing(
 def test_it_starts_on_the_railroad_the_store_records(
     broker: Broker, store: Store, root: Path
 ) -> None:
-    """A box comes back on the railroad its rails were built to and not on
-    the one its env file named (ADR-0072, decision 5): started with no
-    railroad named, the app reads the store's record and comes up on that."""
+    """A box comes back on the railroad its rails were built to (ADR-0072,
+    decision 5): started with no railroad named, as every command line
+    starts it, the app reads the store's record and comes up on that."""
     recorded(root, NAME)
     store.start()
     app = App(broker, store, railroad=NO_RAILROAD)

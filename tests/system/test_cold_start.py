@@ -9,7 +9,12 @@ an order it has to be started in still passes its own suite, because its suite
 constructs whatever it needs first.
 
 So each app is started with nothing there, left alone for a few seconds, and
-only then given a store. What it owns is asserted from a client that connects
+only then given a store and named a railroad. **Named on the bus**, as a
+running system names one: nothing on a command line does, the binding of the
+layout interface starting on the railroad the store records and every other
+app following its row (ADR-0072, decision 5), and a store that records none
+— every one here — is a box whose apps stand until one is named. What it
+owns is asserted from a client that connects
 **after** it published: a row a late subscriber is handed is a retained row,
 and being handed it is what a browser opened an hour into a run depends on
 (ADR-0032, ADR-0059 decision 3). Nothing else is running, so everything the
@@ -79,6 +84,29 @@ def drawn(root: Path) -> None:
         )
 
 
+def name(app: App, running: Process, broker: Broker) -> None:
+    """`RAILROAD` named to the app the way a running system names one
+    (`App.naming`), by a client that is nobody and then leaves.
+
+    An app that reads documents is named once it says it stands: the
+    gesture a binding answers is an event, and one sent before the app is
+    listening is gone. The driver never stands and is handed the row
+    whenever it subscribes. Either way the app says when it is up on the
+    railroad, which is the one signal every app has."""
+    if app.store:
+        assert until(
+            lambda: "standing" in running.said(), UP_S
+        ), f"'{app.name}' never stood:\n{running.said()}"
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected(), "the hand never reached the broker"
+    topic, payload = app.naming(RAILROAD)
+    hand.publish(topic, payload)
+    assert until(
+        lambda: f"up on '{RAILROAD}'" in running.said(), UP_S
+    ), f"'{app.name}' never came up on '{RAILROAD}':\n{running.said()}"
+    hand.close()
+
+
 def standing_rows(app: App) -> dict[str, object]:
     """What an app leaves retained while it stands: the binding of the layout
     interface names no railroad on the row it writes, and every other app
@@ -119,9 +147,9 @@ def test_an_app_comes_up_alone_and_leaves_its_rows_retained(
     app: App, broker: Broker, store: Store, tmp_path: Path
 ) -> None:
     """Started against nothing, it waits rather than exits; given what it
-    reads, it publishes its own rows and nobody else's, and a client that
-    arrives afterwards is handed them."""
-    running: Process = app.process(broker, store, RAILROAD, tmp_path)
+    reads and named a railroad, it publishes its own rows and nobody else's,
+    and a client that arrives afterwards is handed them."""
+    running: Process = app.process(broker, store, tmp_path)
     running.start()
     try:
         # Nothing is up but the broker, and for the driver, which reads no
@@ -131,6 +159,7 @@ def test_an_app_comes_up_alone_and_leaves_its_rows_retained(
         ), f"'{app.name}' exited rather than waiting:\n{running.said()}"
         if app.store:
             store.start()
+        name(app, running, broker)
 
         # A client that connects after it published, which is the only way to
         # tell a retained row from a message that happened to be in flight.
@@ -144,10 +173,12 @@ def test_an_app_comes_up_alone_and_leaves_its_rows_retained(
         ), f"'{app.name}' never published {sorted(app.rows)}:\n{running.said()}"
 
         # And nothing else: with no other app running, every row the broker
-        # holds is this one's (ADR-0035).
+        # holds is this one's (ADR-0035) — or the row the railroad was named
+        # on, which a binding wrote itself and a follower was handed.
         settle(late)
-        assert set(late.last_values) == set(
-            app.rows
+        owned = set(app.rows) | {ROW}
+        assert (
+            set(late.last_values) == owned
         ), f"'{app.name}' left a row it does not own"
         assert running.running, f"'{app.name}' stopped on its own:\n{running.said()}"
         late.close()
@@ -176,19 +207,19 @@ def test_the_stores_face_comes_up_on_an_empty_root(tmp_path: Path) -> None:
 def test_an_app_stands_on_a_box_whose_store_is_empty(
     app: App, broker: Broker, fresh: Path, tmp_path: Path
 ) -> None:
-    """The defect (#564): started with no railroad named and a store holding
-    none, an app stays up and says so, and the railroad drawn afterwards is
-    what it is built on.
+    """The defect (#564): started with a store holding no railroad and none
+    recorded as loaded, an app stays up and says so, and the railroad drawn
+    afterwards is what it is built on.
 
-    `NO_RAILROAD` is what a compose service passes where the box has chosen
-    none — `TC49_RAILROAD` has no default — so this is the out-of-box command
-    line and not a case invented for the suite. What it used to do is exit 1
-    on the store's 404 and be restarted for ever, on a box in exactly the
-    state `docs/DEPLOY.md` calls ordinary.
+    This is the out-of-box command line and not a case invented for the
+    suite: no command line names a railroad, and a box that has done nothing
+    but install records none (ADR-0072, decision 5). What it used to do is
+    exit 1 on the store's 404 and be restarted for ever, on a box in exactly
+    the state `docs/DEPLOY.md` calls ordinary.
     """
     serving = Store(fresh, tmp_path / "store.log")
     serving.start()
-    running: Process = app.process(broker, serving, NO_RAILROAD, tmp_path)
+    running: Process = app.process(broker, serving, tmp_path)
     running.start()
     try:
         assert not until(

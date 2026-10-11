@@ -7,7 +7,7 @@ tc49.<app>` with the flags its `__main__` parses — and the two system suites
 that hold ADR-0059 decision 5 both want the same one.
 
 Nothing here is a fixture. A test that starts an app decides when it starts,
-when the store appears and which railroad it comes up on, and those are the
+when the store appears and when a railroad is named to it, and those are the
 orders under test.
 """
 
@@ -114,14 +114,15 @@ class App:
     leaves retained on the way up.
 
     The flags are the app's own — the driver reads no documents and so takes
-    no store. A table rather than five of everything, because what is
-    asserted is one rule and the differences between the apps are the rule's
-    own consequences.
+    no store. No app is told a railroad: the store records which is loaded
+    and the binding of the layout interface starts on it (ADR-0072, decision
+    5), so a test names one on the bus with `naming`. A table rather than
+    five of everything, because what is asserted is one rule and the
+    differences between the apps are the rule's own consequences.
     """
 
     name: str
     rows: tuple[str, ...]
-    railroad: bool = True
     store: bool = False
     answers: bool = False
     """Whether it **answers** the picker rather than following the row: the
@@ -130,19 +131,17 @@ class App:
     (ADR-0060). It is how a test names a railroad to an app, and it is the
     one thing here that the flags do not already say."""
 
-    def command(self, broker: Broker, store: Store, railroad: str) -> list[str]:
+    def command(self, broker: Broker, store: Store) -> list[str]:
         """What a compose service for this app runs, as it runs it."""
         args = [sys.executable, "-m", f"tc49.{self.name}"]
         args += ["--broker", f"127.0.0.1:{broker.port}"]
-        if self.railroad:
-            args += ["--railroad", railroad]
         if self.store:
             args += ["--store", store.url]
         return args
 
-    def process(self, broker: Broker, store: Store, railroad: str, at: Path) -> Process:
+    def process(self, broker: Broker, store: Store, at: Path) -> Process:
         """That command, ready to start, logging into `at`."""
-        return Process(self.command(broker, store, railroad), at / f"{self.name}.log")
+        return Process(self.command(broker, store), at / f"{self.name}.log")
 
     def naming(self, railroad: str) -> tuple[str, Payload]:
         """The frame that names a railroad to this app: the gesture for the

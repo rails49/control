@@ -351,9 +351,9 @@ def test_a_rebuild_under_the_same_name_keeps_the_trains_whose_blocks_remain(
 def test_it_starts_on_the_railroad_the_store_records(
     broker: Broker, store: Store, root: Path
 ) -> None:
-    """A box comes back on the railroad it was left on and not on the one its
-    env file named (ADR-0072, decision 5): started with no railroad named,
-    the app reads the store's record and comes up on that, as `layout` does."""
+    """A box comes back on the railroad it was left on (ADR-0072, decision
+    5): started with no railroad named, as every command line starts it, the
+    app reads the store's record and comes up on that, as `layout` does."""
     recorded(root, RAILROAD_NAME)
     store.start()
     app = App(broker, store, railroad=NO_RAILROAD)

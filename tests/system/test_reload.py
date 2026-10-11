@@ -40,7 +40,7 @@ import yaml
 
 from tc49.lib.bus import Payload
 from tc49.lib.inventory import OFF, ON
-from tc49.lib.loading import NO_RAILROAD, Loaded
+from tc49.lib.loading import Loaded
 from tc49.lib.mqtt import MqttBus
 from tc49.store import AssetStore
 from tests.apps import APPS, App, Process, Store
@@ -130,12 +130,33 @@ def named(app: str) -> App:
     return next(one for one in APPS if one.name == app)
 
 
-def started(app: str, broker: Broker, store: Store, tmp_path: Path) -> Process:
-    """The app up on the railroad that is about to leave."""
-    running = named(app).process(broker, store, WAS, tmp_path)
+def started(
+    app: str, broker: Broker, store: Store, tmp_path: Path, naming: bool = True
+) -> Process:
+    """The app up on the railroad that is about to leave.
+
+    Started on none, as a compose service starts it — nothing on a command
+    line names a railroad, and this store records none (ADR-0072, decision
+    5) — and named `WAS` the way a running system names one: the gesture to
+    a binding, once it says it stands, and the row to a follower. `naming`
+    is off for a follower started beside a binding, which is handed the row
+    that binding wrote and must not have it overwritten by a hand."""
+    one = named(app)
+    running = one.process(broker, store, tmp_path)
     running.start()
     try:
+        if not naming:
+            up_on(running, WAS)
+            return running
+        writing = hand(broker)
+        if one.answers:
+            assert until(
+                lambda: "standing" in running.said(), UP_S
+            ), f"it never stood:\n{running.said()}"
+        topic, payload = one.naming(WAS)
+        writing.publish(topic, payload)
         up_on(running, WAS)
+        writing.close()
     except AssertionError:
         running.stop()
         raise
@@ -628,14 +649,12 @@ def test_a_follower_rebuilds_the_railroad_built_again(
     following the row rebuilds on that, so the dispatcher routes over the
     drawing the store now holds.
 
-    And only on that: the first row naming the railroad an app was started
-    on is the build it runs, and the row the broker hands over again on every
-    subscription a rebuild makes carries the stamp it had. An app that
-    rebuilt on either would rebuild for ever."""
+    And only on that: the row the broker hands over again on every
+    subscription a rebuild makes carries the stamp it had, and an app that
+    rebuilt on it would rebuild for ever."""
     running = started(app, broker, store, tmp_path)
     try:
         writing = hand(broker)
-        load(writing, WAS)
         settle(writing, 2.0)
         assert running.said().count(f"up on '{WAS}'") == 1, running.said()
 
@@ -680,10 +699,10 @@ def test_the_railroad_already_loaded_is_built_again_when_named(
 def test_a_binding_started_again_with_no_railroad_named_comes_up_on_the_one_loaded(
     app: str, root: Path, broker: Broker, store: Store, tmp_path: Path
 ) -> None:
-    """A box comes back on the railroad its rails were built to and not on
-    the one its env file named (ADR-0072, decision 5): the binding records
-    each railroad it is built on in the store, and a binding started with no
-    railroad named starts on what the store records.
+    """A box comes back on the railroad its rails were built to (ADR-0072,
+    decision 5): the binding records each railroad it is built on in the
+    store, and a binding started again — nothing on its command line naming
+    one — starts on what the store records.
 
     The record and not the row: the broker still holds the row the stopped
     binding left, so what shows the restarted one read the store is its own
@@ -699,7 +718,7 @@ def test_a_binding_started_again_with_no_railroad_named_comes_up_on_the_one_load
     assert AssetStore(root).loaded() == NOW, "the load was not recorded"
     left = picture(broker)[RAILROAD]
 
-    again = named(app).process(broker, store, NO_RAILROAD, tmp_path)
+    again = named(app).process(broker, store, tmp_path)
     again.start()
     try:
         up_on(again, NOW)
@@ -807,8 +826,9 @@ class Placed:
     def __init__(self, broker: Broker, store: Store, tmp_path: Path) -> None:
         self.broker = broker
         self.apps: dict[str, Process] = {}
-        for app in ("layout", "scheduler", "dispatcher"):
-            self.apps[app] = started(app, broker, store, tmp_path)
+        self.apps["layout"] = started("layout", broker, store, tmp_path)
+        for app in ("scheduler", "dispatcher"):
+            self.apps[app] = started(app, broker, store, tmp_path, naming=False)
         self.hand = hand(broker)
         dark(self.hand)
         self.hand.publish(

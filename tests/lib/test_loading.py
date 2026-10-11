@@ -475,9 +475,10 @@ def test_the_railroad_a_box_named_is_what_the_app_comes_up_on() -> None:
 
 
 def test_an_app_that_was_named_no_railroad_waits_for_one() -> None:
-    """A box that has chosen none passes `NO_RAILROAD` — `TC49_RAILROAD` has
-    no default (#564) — so there is nothing to read and nothing to fail on:
-    the app stands, and the row naming a railroad is what builds it."""
+    """Every app starts holding `NO_RAILROAD` — nothing on a command line
+    names a railroad (ADR-0072, decision 5, #564) — so there is nothing to
+    read and nothing to fail on: the app stands, and the row naming a
+    railroad is what builds it."""
     bus = bused()
     bus.publish(RAILROAD, {"name": NOW})
     said: list[str] = []

@@ -9,10 +9,11 @@ deployment, and an app then waits on a store's container being up rather than
 on the store answering, which is not the same thing and is not what any of
 them was written to survive.
 
-So the file is read here and six rules are asserted on what it says: one
-service per app, no app run twice, nothing ordered, no service claiming a
-device, the two bindings of the layout interface sharing no profile, and the
-deploy asking only for profiles the file declares. The device rule is what
+So the file is read here and seven rules are asserted on what it says: one
+service per app, no app run twice, nothing ordered, no service naming a
+railroad, no service claiming a device, the two bindings of the layout
+interface sharing no profile, and the deploy asking only for profiles the
+file declares. The device rule is what
 makes one file both boxes': `docker compose up` on a machine with no steel
 under it starts nothing that reaches for a cable, because nothing here reaches
 for one at all. The services that did were translators, and no translator is
@@ -53,6 +54,12 @@ the command line each app's `__main__` parses."""
 FACE = ("tc49", "serve")
 """The one app started by name rather than by module: the store's face is a
 subcommand of the `tc49` script, which is what a wheel installs (ADR-0014)."""
+
+RAILROAD = "--railroad"
+"""The flag that named a railroad on every app's command line until #731,
+filled from `TC49_RAILROAD` in a box's env file. Which railroad a box comes up
+on is the store's record now (ADR-0072, decision 5), and nothing here may
+name one."""
 
 SOFTWARE = "layout"
 """The profile every box asks for: the software of a running railroad, which
@@ -154,6 +161,25 @@ def test_nothing_depends_on_anything() -> None:
         f"{ordered} depend on another service; every app waits for what it"
         " reads instead"
     )
+
+
+def test_no_service_names_a_railroad() -> None:
+    """The store records which railroad is loaded and the binding of the
+    layout interface starts on it (ADR-0072, decision 5): a service passing
+    `--railroad` would start an app on the railroad an env file named rather
+    than on the one its rails were built to, and the app refuses the flag
+    anyway. Nor is `TC49_RAILROAD` read anywhere in the file: compose ignores
+    an unused variable, so a box whose env file still sets it starts as any
+    other does."""
+    naming = sorted(
+        name for name, service in services().items() if RAILROAD in words(service)
+    )
+    assert not naming, f"{naming} pass {RAILROAD}; the store records the railroad"
+    assert "TC49_RAILROAD" not in "".join(
+        line
+        for line in COMPOSE.read_text().splitlines()
+        if not line.lstrip().startswith("#")
+    ), "deploy/compose.yaml reads TC49_RAILROAD; nothing names a railroad at deploy time"
 
 
 def test_nothing_claims_a_device() -> None:
