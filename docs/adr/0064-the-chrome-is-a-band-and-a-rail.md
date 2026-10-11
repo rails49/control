@@ -1,5 +1,7 @@
 # The chrome is a band and a rail
 
+*Amended by [ADR-0072](0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md) (#733): the band's left names the loaded railroad and is not pressed; a settings gear sits just left of track power.*
+
 Amends "The band is the system; the bar is the document" in
 [ADR-0038](0038-the-ui-is-one-app-with-views-of-one-railroad.md).
 

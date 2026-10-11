@@ -3,6 +3,8 @@
 Amends decision 2 of
 [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md).
 
+*Amended by [ADR-0072](0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md) (#733): the gesture is sent from a settings dialog, not the band's picker; the store records the loaded railroad and the layout binding starts on it, so `TC49_RAILROAD` and `--railroad` go; a binding with no railroad publishes `""`, so the page can load a new box's first one.*
+
 ADR-0059 made one broker run one railroad, named to every app process when it
 starts, and added a clause: "switching railroads is restarting the apps, and
 the band's railroad picker goes with the bridge."

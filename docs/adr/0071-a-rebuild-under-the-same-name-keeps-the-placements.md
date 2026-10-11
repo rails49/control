@@ -1,5 +1,7 @@
 # A rebuild under the same name keeps the placements
 
+*Amended by [ADR-0072](0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md) (#733): the editor has no Save As, so decision 5's "Save As names nothing" has nothing to apply to.*
+
 The decision is [#707](https://github.com/rails49/control/issues/707). Amends
 [ADR-0060](0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)
 (a load is a cold start with no trains placed),

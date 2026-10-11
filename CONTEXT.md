@@ -911,8 +911,11 @@ railroad — and then loads that railroad from the store. Which one is loaded is
 a person's choice made while the apps run, on `tc49/layout/railroad_wanted` and
 only while track power reads `off`
 ([ADR-0060](docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+The store records which one is loaded, so a box comes back on the railroad it
+was left on ([ADR-0072](docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
 _Avoid_: installation (the box and its store, which may hold several
-railroads), site, world, session (one run of one railroad)
+railroads), site, world, session (one run of one railroad), layout (the
+interface app), active layout (a railroad is **loaded**; *active* is a train's)
 
 **Backup**:
 A commit of an installation's store, made by the app driving git over the
