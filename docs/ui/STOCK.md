@@ -313,6 +313,17 @@ the loaded railroad again** on `tc49/layout/railroad_wanted`, so the dispatcher
 fits trains with the new length; a train now longer than its block comes off
 the layout and is listed as **unfit**.
 
+A **model** corrected on its row is written by that Save too, with
+`PUT /catalogue/<name>`, before the roster: each corrected model once, with its
+latest length, then the roster
+([#718](https://github.com/rails49/control/issues/718)). A refusal stops the
+Save where it happened and is said beside Save. A model already written stays
+written; what was not written is still an edit, and the next Save writes it. If
+a model was written before the refusal, the railroad is named again all the
+same: power is off, and the dispatcher must not go on fitting trains by a length
+the store no longer holds. A model correction names the railroad again whether
+or not the loaded roster uses that model.
+
 This is a **UI guard in one browser**. `tc-app.ts` holds the run state — track
 power, and which trains the run view says are placed — and passes it down, the
 same path the throttle's cabs take. A second browser editing stock during a run
@@ -454,7 +465,8 @@ controls: a model written the moment it is made, the dialog refusing a name the
 catalogue already has, a train made up of a locomotive and three hoppers, the document that reaches
 `PUT /rosters/<railroad>` with one car entry and three model entries, the guard
 killing a field while track power is on, the roster's Save waiting for power
-off when a length changed and then naming the railroad again, the run view showing a
+off when a length changed and then naming the railroad again, a corrected
+model written before the roster and kept for the next Save where it is refused, the run view showing a
 train made up here without a reload, the row an older roster's train draws and
 the first entry converting it, the current train moving when the one it named
 is unmade and carried when that one is renamed, the dialog's refusal staying
