@@ -37,7 +37,7 @@ running, shows a plan that does not match the track.
 3. **Every view holds the loaded railroad and no other.** The editor loses
    New and Save As. Making a railroad is the dialog's: New writes an empty
    drawing and loads it; Copy writes every document of the loaded railroad —
-   drawing, roster, scenarios, script — under the new name and loads it.
+   drawing, roster, script — under the new name and loads it.
 4. **Load, New and Copy need track power `off`**, as loading does under
    ADR-0060, and no unsaved edits in the editor, as ON does under ADR-0071.
    Refused, New and Copy write nothing.

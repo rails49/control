@@ -135,6 +135,8 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     PUT  /catalogue/<name>/photo create or replace it
     GET  /scripts/<railroad>    the translator script that railroad carries
     PUT  /scripts/<railroad>    create or replace it
+    POST /railroads/<from>/copy its drawing, roster and script under the name
+                                `{"to": …}` gives; 409 where that is taken
     GET  /loaded                the railroad the store records as loaded, or ""
     PUT  /loaded                record which railroad is loaded
     GET  /backup                what backup can do here, what it needs, the
