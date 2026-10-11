@@ -103,6 +103,8 @@ rather than cosmetic, and it is still one prefix filter naming one role
 
 ## Consequences
 
+*Reversed by [ADR-0070](0070-the-simulator-obeys-the-bands-power-presses.md) (#702): the simulator comes up `off` and answers the band's power presses as the layout does.*
+
 **The simulator publishes `on` and never changes it.** Simulated track is
 always live; a power cut is a physical act, and simulating one would be the
 field or the branch that stays out of every app

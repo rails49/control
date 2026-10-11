@@ -329,11 +329,11 @@ other than the build it is running, which is a railroad being loaded under it
 the drawing, and those are a railroad's (ADR-0063, below). One that reads
 nothing does not, hardware needing no layout. The layout interface does not
 either, being the row's writer: it follows
-`tc49/layout/railroad_wanted` instead, which is the gesture it answers. The
-binding of it that drives hardware reads back its own
-`tc49/layout/state/power` for the precondition on that gesture; a binding that
-drives none has no precondition and answers with the rails live, having no
-steel that could disagree with the drawing just loaded (ADR-0060 as amended).
+`tc49/layout/railroad_wanted` instead, which is the gesture it answers. Every
+binding of it reads back its own `tc49/layout/state/power` for the
+precondition on that gesture and waits for `off`, the one that drives no
+hardware included: the simulator answers the band's power presses as the
+layout does and comes up `off` (ADR-0070).
 
 Two things the inventory has to keep true:
 
@@ -443,9 +443,7 @@ its two names, as each topic states.
   orchestrates a shutdown — turning the power off is a gesture a person
   already has, and the layout interface never writes `off` of its own accord.
   A railroad the store cannot give is refused the same way and the running
-  one is unchanged. On the simulator the rails are always live, so this is
-  always refused there: a power cut is a physical act and simulating one
-  would be the branch ADR-0030 keeps out of every app.
+  one is unchanged.
 - `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
   block a detector reported on. Anonymous: no train field, because a detector
   cannot name one. A detector reports a **level**, so a repeated reading
@@ -462,14 +460,21 @@ its two names, as each topic states.
   `layout` holds no run at all, and it is dropped with its reason to the trace
   where the run reads `running` or `draining` or something is moving
   ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
-  `on` and `stopped` are applied in every run state.
+  `on` and `stopped` are applied in every run state. Whichever binding of the
+  layout interface is running answers it, the simulator included: it has no
+  translator to write to, so it states the word on `state/power` itself,
+  under the same guard, and while the power is not `on` it starts no move and
+  advances none
+  ([ADR-0070](adr/0070-the-simulator-obeys-the-bands-power-presses.md)).
 - `tc49/layout/state/power` — `power`: enum `on`, `stopped` or `off`. An
   unreadable payload reads as `off`: dropping it would mean *not* holding the
   run, over track whose state could not be read. `on` and `off` are folded
   from `device/track` and the links; `stopped` is `layout`'s own, published on
   writing `wanted/track: stopped` and held over the fold until a
   `power_wanted: on` clears it, no hardware being able to report an emergency
-  stop (ADR-0063).
+  stop (ADR-0063). The simulator publishes `off` from its constructor, as
+  `layout` does, and then the word each answered `power_wanted` commanded
+  (ADR-0070).
 - `tc49/layout/align` — `connection`; `transit`: bare name within the
   connection; `points`: list of `{addr, position}`, `position` enum `closed`
   or `thrown`; `[]` where nothing needs throwing. `connection` and `transit`

@@ -551,8 +551,9 @@ Nothing here closes it and neither gate changes: the outcome is a train
 holding locks for a move no sensor will answer, which ADR-0040 as amended by
 ADR-0049 already calls safe but wedged, with hold plus a placement as the
 recourse. How long the window is nobody has measured, and the simulator
-cannot show it at all, publishing `state/power: on` once at construction and
-never again (ADR-0030).
+cannot show it at all: it has no station, so the word it states is the word it
+was commanded, with nothing in between
+([ADR-0070](../adr/0070-the-simulator-obeys-the-bands-power-presses.md)).
 
 A refused `off` is **dropped**, in silence and to the trace with the reason,
 as every gesture this app cannot act on is

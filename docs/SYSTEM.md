@@ -807,9 +807,10 @@ core app `layout` folds a block's two detectors into the sensor events and
 debounces the levels on the way
 ([layout/README.md](layout/README.md)); the milestone-1 simulator answers the
 two commands and the two placement facts, publishes the sensors from delays of
-its own, and states a railroad that is always live
-([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)). A run
-has one of them.
+its own
+([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)), and
+answers the band's power presses as `layout` does
+([ADR-0070](adr/0070-the-simulator-obeys-the-bands-power-presses.md)). A run has one of them.
 
 The layout interface is where the system meets the track: **commands in,
 observations out**, and it owns time. What it publishes is exactly what
@@ -957,8 +958,9 @@ run on either
 It is also the one word here that is not an observation: no hardware can
 report an emergency stop, so `layout` holds `stopped` from the command it
 wrote and a person clears it with `power_wanted: on` (ADR-0063, below).
-The milestone-1 **simulator** publishes `on` and never changes it, simulated
-track being always live (ADR-0030).
+The milestone-1 **simulator** comes up `off` and publishes the word each
+press it answers commanded, having no hardware to report one (ADR-0070,
+below).
 
 **Power is also commanded**, on `power_wanted`, which carries the same three
 values in the other direction
@@ -1001,8 +1003,11 @@ it, over any fold, until a person asks for the power back with
 ([ADR-0063](adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md),
 [layout/README.md](layout/README.md#power)). It is the one value on the row
 not read off hardware, and it is held because no hardware can hold it. The
-simulator answers none of this — simulated track is always live, and a power
-cut is a physical act (ADR-0030).
+simulator answers the same presses under the same guard, `tc49.lib.power`
+holding the one check both bindings make: it comes up `off`, states the word
+each answered press commanded, and while the power is not `on` starts no move
+and advances none, a transit under way at a STOP going on at ON with the time
+it had left ([ADR-0070](adr/0070-the-simulator-obeys-the-bands-power-presses.md)).
 
 `train_placed` is the one thing besides a `move` that moves a train, and what
 a binding does with it is its own business. The simulator stands in for a
