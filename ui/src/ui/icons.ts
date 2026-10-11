@@ -80,7 +80,7 @@ export const NEW = icon(svg`
   <path d="M9 2.5V6h3.5" />
 `);
 
-/** A folder: the railroads the store has, which the band's picker lists. */
+/** A folder: the railroads the store has, which the settings dialog lists. */
 export const OPEN = icon(svg`
   <path d="M2 12.5v-9h4l1.5 2H14v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
 `);
@@ -204,6 +204,16 @@ export const STOCK = icon(svg`
   <path d="M2.5 4.5h11v5h-11z" />
   <circle cx="5.5" cy="11.5" r="1.6" />
   <circle cx="10.5" cy="11.5" r="1.6" />
+`);
+
+/** A wheel with eight teeth: the band's way into Settings, which holds what
+ *  belongs to all of control rather than to one railroad (ADR-0072). Neither a
+ *  command nor a view, so it is in neither table below. */
+export const GEAR = icon(svg`
+  <circle cx="8" cy="8" r="4.5" />
+  <circle cx="8" cy="8" r="1.8" />
+  <path d="M12.5 8h2M11.2 11.2l1.4 1.4M8 12.5v2M4.8 11.2l-1.4 1.4" />
+  <path d="M3.5 8h-2M4.8 4.8 3.4 3.4M8 3.5v-2M11.2 4.8l1.4-1.4" />
 `);
 
 /** The picture on the selector's button for a view. Exhaustive over `ViewId`

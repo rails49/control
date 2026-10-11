@@ -18,7 +18,8 @@
  * is what its length guard reads (ui/STOCK.md).
  *
  * It also holds everything the chrome needs. The band is the system's, so the
- * picker that asks for a railroad reports here; the rail is the current view's
+ * gear that opens the settings dialog, where a railroad is asked for, reports
+ * here; the rail is the current view's
  * document's, so a command comes here and is either run against the document
  * this holds or passed to the view that owns the surface, and the selector that
  * switches view reports here too
@@ -32,7 +33,7 @@
  * railroad and the layout interface says which on a retained row
  * ([ADR-0059](../../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
  * decision 2), so the run view reads that row and hands the name up here; this
- * reads the documents off the store. The band's picker does not load one
+ * reads the documents off the store. The settings dialog does not load one
  * either: it asks on `tc49/layout/railroad_wanted` and this carries the press
  * out the way the band's power presses go
  * ([ADR-0060](../../../docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)),
@@ -69,6 +70,7 @@ import "./tc-editor.js";
 import "./tc-header.js";
 import "./tc-panel.js";
 import "./tc-rail.js";
+import "./tc-settings.js";
 import "./tc-stock.js";
 import "./tc-throttle.js";
 import type { TcBackup } from "./tc-backup.js";
@@ -155,6 +157,11 @@ export class TcApp extends LitElement {
    *  this (#321), on a page that may stay open for days (#691). */
   @state() private backingUp = false;
 
+  /** Whether the settings dialog is up: loading a railroad, and the way into
+   *  backup (ADR-0072). The list of railroads is asked for again each time it
+   *  opens, so a railroad another page made is there to load. */
+  @state() private settling = false;
+
   /** What the run view says about itself: the broker, how far the run has
    *  got, and what went wrong. The band reads it, and the run view is the only
    *  thing that knows any of it. */
@@ -201,7 +208,6 @@ export class TcApp extends LitElement {
     return html`
       <tc-header
         .drawing=${loaded}
-        .drawings=${this.filing.drawings}
         .unsaved=${!this.filing.saved}
         .unbuilt=${unbuilt(this.standing)}
         .derives=${this.filing.derives}
@@ -213,9 +219,9 @@ export class TcApp extends LitElement {
         .draining=${this.status.draining}
         .frozen=${still && this.view === "edit"}
         .backup=${this.backupNote()}
-        @backup-wanted=${() => this.invoke("backup")}
+        @backup-wanted=${() => this.backingOpen()}
+        @settings-wanted=${() => this.settingsOpen()}
         @power-wanted=${(event: CustomEvent<Power>) => this.supplying(event.detail)}
-        @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}
       ></tc-header>
 
       <tc-rail
@@ -281,12 +287,26 @@ export class TcApp extends LitElement {
         .backing=${this.backingUp ? this.backing : null}
         .power=${this.status.power}
         .railroad=${loaded}
-        .unsaved=${this.filing.edits || this.rosterEdits ? this.losing : null}
+        .unsaved=${this.unsaved}
         @backup-closed=${() => {
           this.backingUp = false;
         }}
         @restored=${() => this.restored()}
       ></tc-backup>
+
+      <tc-settings
+        .open=${this.settling}
+        .drawings=${this.filing.drawings}
+        .railroad=${this.status.railroad}
+        .power=${this.status.power}
+        .unsaved=${this.unsaved}
+        .backup=${backupWords(this.backing.standing)}
+        @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}
+        @backup-wanted=${() => this.backingOpen()}
+        @settings-closed=${() => {
+          this.settling = false;
+        }}
+      ></tc-settings>
 
       ${this.discarding ? this.question() : nothing}
     `;
@@ -348,7 +368,7 @@ export class TcApp extends LitElement {
     this.running?.pressPower(power);
   }
 
-  /** A railroad chosen in the band's picker. The same path again, and it
+  /** A railroad pressed in the settings dialog. The same path again, and it
    *  loads nothing here: the gesture goes out on the bus, the binding of the
    *  layout interface that is running answers it, and what arrives back is
    *  the row that says which railroad is loaded — which is the one thing this
@@ -359,10 +379,26 @@ export class TcApp extends LitElement {
     this.running?.pressRailroad(railroad);
   }
 
-  // --- backup ---------------------------------------------------------------
+  // --- settings and backup -------------------------------------------------
 
-  /** What the band says about backup, and why: the same rule as the mark on
-   *  `File ▸ Backup…` (`model/commands.ts`), `null` where it says nothing. */
+  /** The gear was pressed. The store's list is asked for again, so the dialog
+   *  lists what is there now and not what was there when the page loaded. */
+  private settingsOpen(): void {
+    this.settling = true;
+    void this.filing.load();
+  }
+
+  /** The backup dialog, from the settings dialog's Backup… or the band's note
+   *  (#688). The settings dialog goes as it comes up: one modal at a time. The
+   *  store is asked afresh, the note's reading being up to an hour old. */
+  private backingOpen(): void {
+    this.settling = false;
+    this.backingUp = true;
+    void this.backing.load();
+  }
+
+  /** What the band says about backup, and why: the same words `Settings ▸
+   *  Backup…` wears (`model/commands.ts`), `null` where it says nothing. */
   private backupNote(): { says: string; why: string } | null {
     const says = backupWords(this.backing.standing);
     return says === null ? null : { says, why: this.backing.why ?? says };
@@ -496,8 +532,7 @@ export class TcApp extends LitElement {
         this.netlist = !this.netlist;
         return;
       case "backup":
-        this.backingUp = true;
-        void this.backing.load();
+        this.backingOpen();
         return;
       // A command with no arm above narrows to something other than `never`
       // here and fails to typecheck, so adding one to `CommandId` cannot leave
@@ -575,6 +610,13 @@ export class TcApp extends LitElement {
     return this.filing.edits ? "the drawing and the roster" : "the roster";
   }
 
+  /** What changing the railroad would discard, in `losing`'s words, `null`
+   *  while nothing is unsaved: what a restore and a load are both refused
+   *  over (#703, #733). */
+  private get unsaved(): string | null {
+    return this.filing.edits || this.rosterEdits ? this.losing : null;
+  }
+
   /** Throw the loaded railroad away for a new one, which is what `File ▸ New`
    *  asks for and the one gesture of a person's that discards whatever has
    *  been drawn since the last save — the railroad itself arrives on the bus
@@ -600,7 +642,7 @@ export class TcApp extends LitElement {
    * One broker runs one railroad at a time. The row arrives as the run view's
    * subscription lands, and again whenever another railroad is loaded while
    * the apps run (ADR-0060). Either way it is not a person's press: the
-   * picker asks on the bus and the load comes back here as a fact the layout
+   * settings dialog asks on the bus and the load comes back here as a fact the layout
    * interface reports, so nothing is asked at this point.
    */
   private loaded(railroad: string): void {
@@ -707,12 +749,12 @@ export class TcApp extends LitElement {
     }
     // The backup dialog is up, so the keyboard is the dialog's the same way:
     // `r` behind a modal must not rotate the selection under it. Shoelace
-    // closes on Escape itself, and `backup-closed` comes back from that.
-    if (this.backingUp) return;
-    // Nothing on the rail comes down over the work, so there is no state in
-    // which the keyboard belongs to the chrome (ADR-0064). The band's picker is
-    // the one thing that hangs over anything, and a press outside it lands on
-    // the overlay it drops rather than reaching here.
+    // closes on Escape itself, and `backup-closed` comes back from that. The
+    // settings dialog is a modal the same way, and `settings-closed` comes
+    // back the same way.
+    if (this.backingUp || this.settling) return;
+    // Nothing on the rail or the band comes down over the work, so there is no
+    // state in which the keyboard belongs to the chrome (ADR-0064).
     const meta = event.metaKey || event.ctrlKey;
     // The view's own commands, and then its verbs. Zoom is every view's, and
     // is asked for first so that it keeps working wherever there is a viewport

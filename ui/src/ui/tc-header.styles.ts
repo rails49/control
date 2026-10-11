@@ -1,7 +1,5 @@
 import { css } from "lit";
 
-import { dismiss, menuBox, menuRow, menuRowChosen } from "./shared.styles.js";
-
 /**
  * What a fault reads as on a coloured band: a pale chip carrying its own
  * ground, rather than red text that fights the blue behind it. One block, worn
@@ -37,7 +35,7 @@ const sentence = css`
 
 /**
  * The band across the top (tc-header): what is true of the whole system, and
- * the controls that act on it — the railroad picker at the left and the three
+ * the controls that act on it — the gear that opens Settings and the three
  * track-power presses beside the reading they act on. The spacer parts what is
  * loaded from what is going on, and the rest is text. The view selector is the
  * rail's (ADR-0064).
@@ -58,71 +56,6 @@ export const headerStyles = css`
     box-sizing: border-box;
     background: var(--band);
     color: var(--band-ink);
-  }
-
-  ${dismiss}
-
-  /* The picker's list hangs off the name, so the name is what it is
-     positioned against, and both sit above the overlay that dismisses it. */
-  .picker {
-    position: relative;
-    z-index: 12;
-  }
-
-  .chosen {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.15rem 0.4rem;
-    border: none;
-    border-radius: 4px;
-    background: none;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-  }
-
-  .chosen:hover:not(:disabled) {
-    background: rgb(255 255 255 / 0.18);
-  }
-
-  /* Nothing to pick — the rails have power, or the store lists nothing — so
-     the name is text again and reads as text. The button says why when it is
-     hovered (ADR-0060). */
-  .chosen:disabled {
-    cursor: default;
-  }
-
-  /* The list itself is paper and not band: it hangs over the work, where the
-     page's own ink and rules are what everything else is drawn in. */
-  menu.drawings {
-    color: var(--ink);
-    position: absolute;
-    top: calc(100% + 0.2rem);
-    left: 0;
-    z-index: 13;
-    min-width: 10rem;
-    ${menuBox}
-  }
-
-  menu.drawings li button {
-    ${menuRow}
-  }
-
-  ${menuRowChosen}
-
-  /* A name is one word however long it is, and never wraps. */
-  .label {
-    flex: 1;
-    white-space: nowrap;
-  }
-
-  .tick {
-    width: 16px;
-  }
-
-  .more {
-    opacity: 0.7;
   }
 
   .drawing {
@@ -199,6 +132,24 @@ export const headerStyles = css`
      not do something, or the railroad has a fault on it. */
   .fault {
     ${sentence}
+  }
+
+  /* The gear that opens Settings (ADR-0072): a glyph in the band's ink, as
+     the rail's buttons are, before the presses it is not one of. */
+  button.settings {
+    display: flex;
+    flex: none;
+    align-items: center;
+    padding: 0.2rem;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  button.settings:hover {
+    background: rgb(255 255 255 / 0.18);
   }
 
   /* ON, STOP and OFF (ADR-0051). They read as the rail's HOLD/GO reads —
