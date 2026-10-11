@@ -65,7 +65,7 @@ ALLOCATION = "tc49/dispatch/state/allocation"
 ASPECTS = "tc49/dispatch/state/aspects"
 UNFIT = "tc49/dispatch/state/unfit"
 """The trains the last rebuild under the same name took off the layout (#709).
-Named in full for the tests that read it; no app does."""
+The UI's run view reads it."""
 
 GONE = "gone"
 """`unfit`'s `why` for a train whose block the new drawing lacks."""
