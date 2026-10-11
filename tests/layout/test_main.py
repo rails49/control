@@ -16,7 +16,8 @@ thing about this app that no other app's command line has to do.
 
 import shutil
 import threading
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
 from http.server import HTTPServer
 from pathlib import Path
 
@@ -24,6 +25,7 @@ import pytest
 
 from tc49.layout.__main__ import serve
 from tc49.layout.interface import (
+    ALIVE_CONFIRMED,
     BLOCK_OCCUPIED,
     DEVICE_SENSOR,
     MODE,
@@ -102,7 +104,13 @@ class App:
     """The layout interface running as `python -m tc49.layout` runs it, on a
     thread so the test can watch the bus while it is up."""
 
-    def __init__(self, broker: Broker, store: Store) -> None:
+    def __init__(
+        self,
+        broker: Broker,
+        store: Store,
+        railroad: str = NAME,
+        log: Callable[[str], None] | None = None,
+    ) -> None:
         self.bus = MqttBus(port=broker.port)
         self._documents = Documents(
             store.url, log=quiet, first_backoff_s=0.01, max_backoff_s=0.05
@@ -110,8 +118,8 @@ class App:
         self._stop = threading.Event()
         self._thread = threading.Thread(
             target=serve,
-            args=(self.bus, self._documents, NAME, self._stop, 0.01),
-            kwargs={"log": quiet},
+            args=(self.bus, self._documents, railroad, self._stop, 0.01),
+            kwargs={"log": log or quiet},
             daemon=True,
         )
 
@@ -275,3 +283,54 @@ def test_a_level_settles_on_seconds_passing(
     assert app.running, "the app stopped on its own"
     detector.close()
     witness.close()
+
+
+def listening(witness: MqttBus, seconds: float) -> None:
+    """Drain for a stretch of wall time: what is under test is a rate, so the
+    seconds have to pass rather than a condition come true."""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        witness.drain()
+        time.sleep(0.01)
+
+
+def test_a_layout_built_on_a_railroad_says_once_a_second_that_it_is_up(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """What something off the box watches to cut track power when the box goes
+    silent (#716): at least once in any two seconds, so a watcher's timeout
+    has a margin, and once a second on the monotonic clock rather than once a
+    turn — the loop here turns every 10 ms, and a hundred frames a second
+    would be the period leaking onto the wire."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, MODE) != []), "it never came up"
+
+    began = len(rows(heard, ALIVE_CONFIRMED))
+    listening(witness, 3.5)
+    said = rows(heard, ALIVE_CONFIRMED)[began:]
+
+    assert 3 <= len(said) <= 5, f"{len(said)} in 3.5 s, where once a second is 3 or 4"
+    assert all(payload == {} for payload in said)
+    witness.close()
+
+
+def test_a_layout_standing_with_no_railroad_says_nothing(
+    broker: Broker, store: Store
+) -> None:
+    """Standing is up with nothing built, and nothing a cut of track power
+    would interrupt: loading a railroad needs the power off anyway."""
+    store.start()
+    said: list[str] = []
+    app = App(broker, store, railroad="nowhere", log=said.append)
+    witness, heard = watching(broker)
+    try:
+        app.start()
+        assert until(lambda: any("standing" in line for line in said)), "never stood"
+        listening(witness, 2.5)
+        assert rows(heard, ALIVE_CONFIRMED) == [], "it said it was up on no railroad"
+        assert app.running, "the app stopped on its own"
+    finally:
+        app.stop()
+        witness.close()

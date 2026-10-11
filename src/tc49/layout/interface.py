@@ -210,6 +210,7 @@ FACING = "tc49/schedule/state/facing"
 DEVICE = "tc49/layout/state/device/#"
 
 RAILROAD = "tc49/layout/state/railroad"
+ALIVE_CONFIRMED = "tc49/layout/alive_confirmed"
 BLOCK_OCCUPIED = "tc49/layout/block_occupied"
 BLOCK_VACATED = "tc49/layout/block_vacated"
 POWER = "tc49/layout/state/power"
