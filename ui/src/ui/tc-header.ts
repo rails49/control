@@ -365,7 +365,7 @@ export class TcHeader extends LitElement {
    * is a page with nothing to ask at all, so the one condition covers both.
    */
   private picker() {
-    const name = this.drawing ?? "no railroad";
+    const name = this.drawing ?? "no railroad loaded";
     const why = this.reason;
     return html`
       ${this.picking ? dismissal(() => this.pick(false)) : nothing}

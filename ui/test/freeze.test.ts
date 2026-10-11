@@ -414,7 +414,8 @@ describe("saving the loaded railroad", () => {
     await typed(shell, "r");
     await pressedOnRail(shell, "save");
 
-    expect(band(shell).drawing).toBe("fork");
+    // The band names what runs, not what the editor holds (#732).
+    expect(band(shell).drawing).toBe("toy");
     expect(wants()).toEqual([]);
   });
 });

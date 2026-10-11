@@ -75,7 +75,7 @@ describe("what the band names", () => {
   });
 
   it("says plainly when none is", async () => {
-    expect(reads(await band(), ".drawing")).toBe("no railroad");
+    expect(reads(await band(), ".drawing")).toBe("no railroad loaded");
   });
 });
 

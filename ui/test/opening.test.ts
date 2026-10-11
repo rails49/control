@@ -97,8 +97,14 @@ async function answer(shell: TcApp, said: string): Promise<void> {
   await settled(shell);
 }
 
-/** The drawing the band names as open. */
+/** The drawing open in the editor. Not what the band names: that is the
+ *  railroad the apps run, which New does not change (#732). */
 function open(shell: TcApp): string {
+  return session(shell).drawing.drawing;
+}
+
+/** What the band names, which is the loaded railroad (#732). */
+function named(shell: TcApp): string {
   const band = shell.renderRoot.querySelector("tc-header")!;
   return band.renderRoot.querySelector(".drawing")!.textContent!.trim();
 }
@@ -159,6 +165,8 @@ describe("starting a new drawing over unsaved edits", () => {
 
     expect(asked(shell)).toBeNull();
     expect(open(shell)).toBe(NAMED);
+    // The band names what runs, which New does not change (#732).
+    expect(named(shell)).toBe("reversing-loops");
   });
 
   /** Nothing is loaded until the broker names a railroad, and what is drawn

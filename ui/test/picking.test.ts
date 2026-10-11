@@ -23,7 +23,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { band, rail, serving, settled } from "./support/shell.js";
+import { band, mounted, pressed, rail, serving, settled } from "./support/shell.js";
 import {
   brokering,
   joined,
@@ -108,6 +108,54 @@ describe("the picker asks on the bus", () => {
   it("opens the railroad when the row moves to it", async () => {
     const shell = await dark();
     await pick(shell, "otira");
+
+    await loads(shell, "otira");
+
+    expect(loaded(shell)).toBe("otira");
+  });
+});
+
+/**
+ * The band names the railroad the apps run, which is the row's, and not the
+ * drawing the editor holds (#732): after Save As that is a drawing nothing
+ * runs.
+ */
+describe("what the band names as loaded", () => {
+  it("goes on naming the loaded railroad after Save As", async () => {
+    const shell = await mounted("edit");
+    await loads(shell, "reversing-loops");
+    const prompt = window.prompt;
+    window.prompt = () => "fork";
+    try {
+      await pressed(shell, "save-as");
+    } finally {
+      window.prompt = prompt;
+    }
+
+    expect(loaded(shell)).toBe("reversing-loops");
+  });
+
+  /** A row naming `""` is a broker with no railroad loaded (#727): nothing is
+   *  read for it, neither a roster nor a drawing called `""`. */
+  it("says no railroad is loaded where the row names none, and reads nothing for it", async () => {
+    const shell = await joined();
+    const asked: string[] = [];
+    const store = globalThis.fetch;
+    globalThis.fetch = ((path: string, init?: RequestInit) => {
+      asked.push(path);
+      return store(path, init);
+    }) as typeof fetch;
+
+    await loads(shell, "");
+
+    expect(loaded(shell)).toBe("no railroad loaded");
+    expect(asked.filter((path) => path.startsWith("/rosters/"))).toEqual([]);
+    expect(asked.filter((path) => path.startsWith("/drawings/"))).toEqual([]);
+  });
+
+  it("names the railroad again once the row does", async () => {
+    const shell = await joined();
+    await loads(shell, "");
 
     await loads(shell, "otira");
 

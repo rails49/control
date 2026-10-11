@@ -104,7 +104,7 @@ import type { RosterDrag, TcRoster } from "./tc-roster.js";
 export interface RunStatus {
   joined: boolean;
   /** The railroad the broker says it runs, `null` while it has not said
-   *  (#371). The app reads it to know whether the open drawing is the loaded
+   *  (#371) and `""` where it says it runs none (#727). The app reads it to know whether the open drawing is the loaded
    *  railroad, whose save names it again and whose unsaved edits hold ON
    *  (`model/commands.ts`, ADR-0071). */
   railroad: string | null;
@@ -242,6 +242,9 @@ export class TcPanel extends LitElement {
   /** The railroad the broker says it runs, `null` while it has not said —
    *  before the connection lands, and again after it has gone (#371). */
   @state() private session: string | null = null;
+  /** Whether the row names no railroad, `""`: there is no session to join,
+   *  but the broker has said, which is not the same as not having said. */
+  @state() private nameless = false;
   @state() private connected = false;
   @state() private trouble: string | null = null;
   /** The railroad's roster: every train it owns, how long each is and what a
@@ -453,6 +456,18 @@ export class TcPanel extends LitElement {
    * scheduler's (ADR-0032, ADR-0036).
    */
   private named(railroad: string): void {
+    if (railroad === "") {
+      // No railroad loaded (#727): nothing to join and no roster to read, so
+      // the session goes and what is said instead is that none is.
+      if (this.nameless) return;
+      this.leave();
+      this.nameless = true;
+      this.beat++;
+      this.dispatchEvent(
+        new CustomEvent<string>("railroad", { detail: "", bubbles: true, composed: true }),
+      );
+      return;
+    }
     if (railroad === this.session) return;
     // What arrived before this row did, which is this railroad's and not the
     // last one's: on a fresh connection the panel is still null and the rows
@@ -739,6 +754,7 @@ export class TcPanel extends LitElement {
     // next session's first `held` would be this one's press arriving late.
     this.draining = false;
     this.session = null;
+    this.nameless = false;
   }
 
   // --- scheduling by drag ---------------------------------------------------
@@ -946,7 +962,7 @@ export class TcPanel extends LitElement {
   private get status(): RunStatus {
     return {
       joined: this.session !== null,
-      railroad: this.session,
+      railroad: this.nameless ? "" : this.session,
       linked: this.connected,
       run: this.session === null ? null : (this.panel?.run ?? null),
       power: this.session === null ? null : (this.panel?.power ?? null),

@@ -873,6 +873,52 @@ describe("what follows a restore", () => {
     expect(written()).toEqual([]);
   });
 
+  /** Save As in the editor to a name nothing runs, with the track off. The
+   *  run view builds its model again for the renamed drawing and forgets the
+   *  power row, so it is said again; Save As goes with #734. */
+  async function forked(shell: TcApp): Promise<void> {
+    const prompt = window.prompt;
+    window.prompt = () => "fork";
+    try {
+      await pressed(shell, "save-as");
+    } finally {
+      window.prompt = prompt;
+    }
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+  }
+
+  /** The railroad named again is the one the apps run, not the drawing the
+   *  editor holds (#732). */
+  it("names the loaded railroad again after Save As, not the fork", async () => {
+    const shell = await mounted("edit");
+    await loads(shell, "reversing-loops");
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+    await forked(shell);
+    serving({ drawings: ["fork", "reversing-loops"], backup: RESTORED });
+
+    await restores(shell);
+    expect(wants()).toEqual([
+      { topic: "tc49/layout/railroad_wanted", payload: { railroad: "reversing-loops" } },
+    ]);
+  });
+
+  /** A backup is checked for the railroad that runs, so one without the fork
+   *  is not refused for lacking it (#732). */
+  it("does not refuse a backup for lacking the fork the editor holds", async () => {
+    const shell = await mounted("edit");
+    await loads(shell, "reversing-loops");
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+    await forked(shell);
+    serving({ drawings: ["fork", "reversing-loops"], backup: RESTORED });
+    await chooseBackup(shell);
+    const surface = open(shell)!;
+    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+    await surface.updateComplete;
+
+    expect(restoring(surface).disabled).toBe(false);
+    expect(reads(surface)).not.toContain("this backup has no");
+  });
+
   /** A refusal changed nothing, so there is nothing to read again (#699). */
   it("neither names the railroad nor reloads after a refused restore", async () => {
     const shell = await mounted("edit");
