@@ -86,7 +86,9 @@ def serve(
     forgotten, the rows it owns are cleared and the whole of the above is
     done again. A railroad the store cannot give is said and not taken: an
     app still running the last one is worth more than one running none
-    (ADR-0050, `lib/loading.py`).
+    (ADR-0050, `lib/loading.py`). Under the same name `facing` stays and is
+    adopted as after a restart: a train kept placed keeps the way it points
+    (ADR-0071).
     """
     loaded = Loaded(railroad)
     if not connected(bus, stop, log):
@@ -112,7 +114,8 @@ def serve(
         if not loaded.moved:
             return
         layout = taken(loaded, built, log, documents.layout)
-        gone = dropped(bus, OWNED, stop, retained_s)
+        kept = (FACING,) if loaded.name == built else ()
+        gone = dropped(bus, OWNED, stop, retained_s, keep=kept)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
 
 
