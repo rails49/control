@@ -11,13 +11,13 @@ beside it: a run has one binding of the layout interface and neither knows the
 other exists (ADR-0030), so which one a box starts is the only difference
 between a simulated railroad and steel, and nothing above them can tell.
 
-Three flags, the ones a compose service passes: where the broker is, which
-railroad it starts on where the store records none, and where the store serves
-the drawing that railroad derives from. **The record first**, as `layout`
-reads it: the store says which railroad was loaded last (`/loaded`), this
-binding starts on that one and falls back to the flag only where the store
-records none, and each railroad it is built on is written back to the record
-before the build (ADR-0072, decision 5). **One document and not two**, where
+Two flags, the ones a compose service passes: where the broker is, and where
+the store serves the drawing the railroad derives from. **The record first**,
+as `layout` reads it: the store says which railroad was loaded last
+(`/loaded`), this binding starts on that one — nothing on the command line
+names a railroad, and a box that records none stands — and each railroad it
+is built on is written back to the record before the build (ADR-0072,
+decision 5). **One document and not two**, where
 `layout` reads a roster as well: an address is what a roster answers with and
 this binding sends no command to anything, so the track alone is what it
 stands in for. Neither the drain
@@ -74,6 +74,7 @@ from collections.abc import Callable
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.loading import (
+    NO_RAILROAD,
     Answering,
     dropped,
     named,
@@ -141,9 +142,10 @@ def serve(
     # a railroad is picked before a person presses ON or after OFF (ADR-0070).
     if not connected(bus, stop, log):
         return
-    # The store's record of the railroad loaded last wins over the flag, as
-    # it does in `layout`; where the store records none, `railroad` is where
-    # this process starts (ADR-0072, decision 5).
+    # The store's record of the railroad loaded last wins, as it does in
+    # `layout`; where the store records none, `railroad` is where this
+    # process starts — `NO_RAILROAD` from `main`, a name from a suite
+    # (ADR-0072, decision 5).
     recorded = documents.loaded()
     if recorded:
         log(f"the store records '{recorded}' as loaded")
@@ -228,7 +230,7 @@ def main() -> None:
     bus = MqttBus(host, port, client_id=CLIENT_ID)
     try:
         with contextlib.suppress(KeyboardInterrupt):
-            serve(bus, Documents(args.store), args.railroad, threading.Event())
+            serve(bus, Documents(args.store), NO_RAILROAD, threading.Event())
     finally:
         bus.close()
 

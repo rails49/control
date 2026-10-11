@@ -61,12 +61,14 @@ own accord" (ADR-0060, ADR-0051)."""
 NO_RAILROAD = ""
 """No railroad: the name an app holds while none is running under it.
 
-A box that has not chosen one passes it — `TC49_RAILROAD` has no default, an
-empty store being an ordinary state and the fixtures in this repository being
-on no box (#564) — and `standing` puts it back where the one that was named
-is a railroad the store cannot give. It is not a railroad called nothing: an
-app holding it has nothing to be built on and is **standing**, waiting for
-the bus to name one (ADR-0060, as amended)."""
+Every app starts holding it — nothing on a command line names a railroad
+(ADR-0072, decision 5): the binding of the layout interface starts on the
+one the store records, which a new box records none of, an empty store being
+an ordinary state and the fixtures in this repository being on no box (#564)
+— and `standing` puts it back where the one that was named is a railroad the
+store cannot give. It is not a railroad called nothing: an app holding it
+has nothing to be built on and is **standing**, waiting for the bus to name
+one (ADR-0060, as amended)."""
 
 
 class Loaded:
@@ -79,11 +81,13 @@ class Loaded:
     """
 
     def __init__(self, name: str) -> None:
-        """`name` is what the process was started on: the `--railroad` a
-        compose service passes, which is where a railroad with no row on the
-        broker yet comes from. `NO_RAILROAD` where the box named none, which
-        is an app that comes up **standing** and is built on whatever the bus
-        names next (#564)."""
+        """`name` is what the process was started on. `NO_RAILROAD` from
+        every app's `main`, nothing on a command line naming a railroad
+        (ADR-0072, decision 5): an app that comes up **standing** and is
+        built on whatever the bus names next (#564). A name is where a
+        railroad with no row on the broker yet comes from — the store's
+        record, for the binding of the layout interface, and a suite
+        starting an app on one."""
         self._name = name
         self._moved = False
         self._took: tuple[str, object] = (name, None)
@@ -306,9 +310,10 @@ def standing[Read](
     """The documents an app comes up on, waited for: what a **cold start**
     does where `taken` is what a reload does.
 
-    An app is started on a railroad and the store may not have it — the box
-    named none, or named one that was never drawn, or the store is empty
-    because nothing seeds it and nobody has drawn yet (docs/DEPLOY.md, #564).
+    An app is started on no railroad, or on one the store may not have —
+    nothing on a command line names one (ADR-0072, decision 5), the store's
+    record names one since deleted, or the store is empty because nothing
+    seeds it and nobody has drawn yet (docs/DEPLOY.md, #564).
     A railroad is a starting point rather than a binding (ADR-0060), so an
     app in that state **stands**: it stays up, holds `NO_RAILROAD`, watches
     the bus, and is built on the first railroad named that the store can
@@ -335,6 +340,11 @@ def standing[Read](
     subscribes once and on its own terms — and so that a railroad named while
     the store is being read cannot leave this returning one railroad's
     documents under another's name.
+
+    The line saying the app stands is said **after** it is listening: a
+    gesture is an event, and one sent by whoever read the line — a person
+    with a shell, or the system suite naming a railroad to a process it
+    started — is heard rather than gone.
     """
     while not stop.is_set():
         bus.forget()
@@ -344,9 +354,9 @@ def standing[Read](
             except (OSError, ValueError, TypeError) as refused:
                 log(f"'{loaded.name}': {refused}")
                 loaded.keep(NO_RAILROAD)
-        log("standing: no railroad to come up on, waiting for one to be named")
         loaded.stands(bus)
         loaded.follow(bus)
+        log("standing: no railroad to come up on, waiting for one to be named")
         while not stop.is_set() and not loaded.moved:
             bus.drain()
             stop.wait(period_s)

@@ -1,8 +1,10 @@
 """The five apps that come up on a broker take their shared flags from one
 place, and `lib` says how many they are (#430, #456, #528, #587).
 
-`lib/startup.py::command_line` writes `--broker`, `--railroad` and `--store`
-once and says which of the three an app takes. An app declaring one of them
+`lib/startup.py::command_line` writes `--broker` and `--store` once and says
+which of the two an app takes — and no `--railroad`, which no app is told
+since the store records which railroad is loaded (ADR-0072, decision 5,
+#731). An app declaring one of them
 itself gets away with it for exactly as long as the two spellings agree, and
 nothing goes red when they stop agreeing: #430 unified four of the six there
 were then and left `driver` and the translator each holding a `--broker` of
@@ -45,9 +47,14 @@ ON_THE_BROKER = (
 """The apps a compose service starts with a broker to run on, each a
 `python -m tc49.<app>` whose `__main__` parses that line."""
 
-SHARED = ("--broker", "--railroad", "--store")
+SHARED = ("--broker", "--store")
 """The flags `command_line` writes. An app takes some of them or none, and
 declares none of them."""
+
+GONE = ("--railroad",)
+"""The flags `command_line` wrote once and no longer does: which railroad an
+app comes up on is the store's record and not a flag (ADR-0072, decision 5,
+#731). An app declaring one of these would be bringing it back alone."""
 
 STARTUP = SRC / "lib" / "startup.py"
 """Where the shared line is written, read as text rather than imported: one of
@@ -147,6 +154,19 @@ def test_the_command_line_is_built_in_lib(app: ast.Module) -> None:
 def test_no_app_declares_a_shared_flag(app: ast.Module) -> None:
     both = declared(app) & set(SHARED)
     assert not both, f"declared here as well as in lib: {sorted(both)}"
+
+
+def test_no_app_declares_a_flag_that_went(app: ast.Module) -> None:
+    """`--railroad` left every command line with #731, `lib`'s first: an app
+    declaring it again would be started on a railroad other than the one the
+    store records as loaded."""
+    back = declared(app) & set(GONE)
+    assert not back, f"a flag that went is declared again: {sorted(back)}"
+
+
+def test_lib_writes_no_flag_that_went() -> None:
+    back = declared(ast.parse(STARTUP.read_text())) & set(GONE)
+    assert not back, f"lib/startup.py writes a flag that went: {sorted(back)}"
 
 
 def test_every_main_that_starts_in_lib_is_listed_here() -> None:

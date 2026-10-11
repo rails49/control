@@ -13,19 +13,19 @@ what the code does (#432):
    a broker that is not there is dropped rather than queued (ADR-0050), and
    what an app publishes first are its opening rows, so the wait comes before
    them. Before the documents as well, because the railroad they are read for
-   is named on the bus where the one a box named is not one the store has
-   (`lib/loading.py`, `standing`): an app that cannot hear the row has
-   nothing to stand for and no way out of a railroad that was never drawn
-   (#564).
+   is named on the bus — nothing on a command line names one (ADR-0072,
+   decision 5) — and a recorded one the store has not got leaves an app
+   standing (`lib/loading.py`, `standing`): an app that cannot hear the row
+   has nothing to stand for and no way out of a railroad that was never
+   drawn (#564).
 2. **The documents of the railroad it comes up on**, waited for the same way.
    An app with no layout has nothing to do, and there are two things to wait
    for: a store that is not up yet, which is `lib/documents.py`'s retry, and
    a railroad it has not got, which is `standing`. The binding of the layout
    interface reads the store's record first — which railroad was loaded last
-   (`Documents.loaded`) — and comes up on that where it names one, the
-   railroad on its command line being where it starts only where the store
-   records none (ADR-0072, decision 5); every other app follows the row the
-   binding then publishes.
+   (`Documents.loaded`) — and comes up on that where it names one, standing
+   where the store records none (ADR-0072, decision 5); every other app
+   follows the row the binding then publishes.
 3. **The rows this app already owns**, if the broker is holding any
    (`retained` below), and then the loop. A row a process of its own left
    behind is what an app restarted under a running railroad adopts rather
@@ -148,31 +148,34 @@ def _nothing(topic: str, payload: Payload) -> None:
 
 
 def command_line(
-    prog: str, description: str, railroad: bool = True, store: bool = True
+    prog: str, description: str, store: bool = True
 ) -> argparse.ArgumentParser:
-    """The flags a compose service passes an app: where the broker is, which
-    railroad it runs, and where the store serves the documents that railroad
-    is built from.
+    """The flags a compose service passes an app: where the broker is, and
+    where the store serves the documents of the railroad it comes up on.
 
     **All five start here**, the translator in another repository with them,
-    and the two arguments say which of the three an app takes rather than
-    which apps write a parser of their own. Every app is given a broker,
-    having nowhere to publish and nothing to read without one.
-    `railroad=False` is the translator's alone, which is told about no
-    railroad at all — hardware needs no layout, and an address is the string
-    the hardware answers to rather than something looked up (ADR-0059,
-    decisions 5 and 6). `store=False` is the driver's as well, which reads no
-    documents (SYSTEM.md, driver footprint). What an app adds on top of what it is
-    handed here — a station, a startup file, an id — it adds to the parser this
-    returns.
+    and the argument says which of the two an app takes rather than which
+    apps write a parser of their own. Every app is given a broker, having
+    nowhere to publish and nothing to read without one. `store=False` is the
+    driver's, which reads no documents (SYSTEM.md, driver footprint), and the
+    translator's, which is told about no documents at all — hardware needs no
+    layout, and an address is the string the hardware answers to rather than
+    something looked up (ADR-0059, decisions 5 and 6). What an app adds on
+    top of what it is handed here — a station, a startup file, an id — it
+    adds to the parser this returns.
 
-    **The railroad may be empty, and is on a box that has named none.**
-    `TC49_RAILROAD` has no default — an empty store is an ordinary state and
-    the railroads in this repository are fixtures on no box — so a compose
-    service passes the flag with nothing in it and the app comes up standing,
-    built on whatever the bus names (`lib/loading.py`, #564). Not an app
-    taking the flag or leaving it: one app, one command line, and which
-    railroad is running is not a fact about which app this is.
+    **Which railroad is not a flag.** The store records which railroad is
+    loaded: the binding of the layout interface writes the record each time
+    it is built on one and starts on it, and every other app follows the row
+    the binding publishes (ADR-0072, decision 5). A box that records none —
+    a new one, an empty store being an ordinary state that nothing seeds —
+    comes up standing, built on the first railroad loaded or created from
+    the settings dialog (`lib/loading.py`, #564). `--railroad` was the
+    starting point until #731, filled from `TC49_RAILROAD` in a box's env
+    file, and a box came back on the railroad the env file named rather than
+    on the one its rails were built to. The translator passed
+    `railroad=False` here while the flag existed; it pins `tc49` by commit
+    and drops the argument with rails49/dccex#240.
 
     Taking fewer flags was what let two apps declare their own and drift from
     the words here while a commit said six of them shared these (#430, #456).
@@ -189,13 +192,6 @@ def command_line(
         metavar="HOST:PORT",
         help=f"the broker to run on, e.g. {BROKER_EXAMPLE}",
     )
-    if railroad:
-        parser.add_argument(
-            "--railroad",
-            required=True,
-            help="the railroad this broker runs, as the store lists it; empty"
-            " where the box has named none, and the app waits for one",
-        )
     if store:
         parser.add_argument(
             "--store",

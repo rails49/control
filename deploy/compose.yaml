@@ -219,21 +219,23 @@ services:
   # would say a container being up is a store answering, which it is not, and
   # `tests/system/test_compose.py` refuses one.
   #
-  # Which railroad they come up on is `TC49_RAILROAD`, a box's own answer in
-  # its env file. It is a starting point rather than a binding: a person
-  # loads another railroad from the app while these run, and every one of
-  # them follows the row that says so without a restart (ADR-0060), so
-  # changing it here is not how a railroad is chosen.
+  # Which railroad they come up on is not written here. The store records
+  # which railroad is loaded: the binding of the layout interface writes the
+  # record each time it is built on one and starts on it, and every other
+  # app follows the row the binding publishes (ADR-0072, decision 5). A
+  # person loads another railroad from the app's settings dialog while these
+  # run, and every one of them follows without a restart (ADR-0060).
   #
-  # **It has no default**, and the flag below is passed empty where a box
-  # has named none: an app with no railroad **stands** — up, publishing
-  # nothing, built on the first one named that the store can give
-  # (`lib/loading.py`). A default naming a railroad is a default that cannot
-  # resolve. An empty store is an ordinary state and nothing seeds it
-  # (docs/DEPLOY.md), the railroads in this repository are fixtures under
-  # `bench/` on nobody's box, and `gotthard` — what stood here — named no
-  # drawing anywhere, so it put four of these into a restart loop on the
-  # first box booted against an empty store (#564).
+  # **A new box records none**, and an app with no railroad **stands** — up,
+  # publishing nothing but the binding's row naming none, built on the first
+  # railroad loaded or created from the settings dialog (`lib/loading.py`,
+  # docs/DEPLOY.md). An empty store is an ordinary state and nothing seeds
+  # it, and the railroads in this repository are fixtures under `bench/` on
+  # nobody's box. `TC49_RAILROAD` in a box's env file was the starting point
+  # until #731, with no default since `gotthard` put four of these into a
+  # restart loop on the first box booted against an empty store (#564); a box
+  # came back on the railroad the env file named rather than on the one its
+  # rails were built to, and an env file still setting it is ignored.
   #
   # `layout` and `simulator` are two bindings of one interface and never run
   # together: one writing role (ADR-0035) means each is asked for by a profile
@@ -249,7 +251,6 @@ services:
     command:
       ["python", "-m", "tc49.scheduler",
        "--broker", "broker:1883",
-       "--railroad", "${TC49_RAILROAD:-}",
        "--store", "http://store:8765"]
 
   dispatcher:
@@ -259,19 +260,16 @@ services:
     command:
       ["python", "-m", "tc49.dispatcher",
        "--broker", "broker:1883",
-       "--railroad", "${TC49_RAILROAD:-}",
        "--store", "http://store:8765"]
 
-  # No `--store`: the driver reads no documents. The railroad is named all
-  # the same, because a container's log says which railroad it is driving.
+  # No `--store`: the driver reads no documents.
   driver:
     build: *app
     profiles: [layout]
     restart: unless-stopped
     command:
       ["python", "-m", "tc49.driver",
-       "--broker", "broker:1883",
-       "--railroad", "${TC49_RAILROAD:-}"]
+       "--broker", "broker:1883"]
 
   # The layout interface: the one app bound to a railroad, and the writer of
   # what the hardware is asked to do. Only the box wired to steel runs it, so
@@ -284,7 +282,6 @@ services:
     command:
       ["python", "-m", "tc49.layout",
        "--broker", "broker:1883",
-       "--railroad", "${TC49_RAILROAD:-}",
        "--store", "http://store:8765"]
 
   # The simulator standing in for the steel, on a box that has none: the
@@ -297,7 +294,6 @@ services:
     command:
       ["python", "-m", "tc49.simulator",
        "--broker", "broker:1883",
-       "--railroad", "${TC49_RAILROAD:-}",
        "--store", "http://store:8765"]
 
   # A translator was the sixth service: the device vocabulary turned into the

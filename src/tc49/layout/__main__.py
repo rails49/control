@@ -6,9 +6,9 @@ store, publishes its own retained rows and stays up; it exits on nothing but a
 signal. Nothing here is ordered by anything else coming up first, which is why
 compose carries no `depends_on`.
 
-Three flags, the ones a compose service passes: where the broker is, which
-railroad it starts on where the store records none, and where the store serves
-the documents that railroad is built from. Neither the drain period nor the
+Two flags, the ones a compose service passes: where the broker is, and where
+the store serves the documents the railroad is built from. Which railroad is
+not one of them, the store recording that (ADR-0072, decision 5). Neither the drain period nor the
 settling time is one of them — nothing outside this process has an opinion
 about how often it takes what the broker's network thread left waiting, and
 what a settling time is worth is a fact about the detectors a railroad has,
@@ -16,9 +16,10 @@ which is `LayoutInterface`'s argument and the suite's to drive (ADR-0030).
 
 The startup order is `lib/startup.py`'s, with the picker in it. **The
 record first**: the store says which railroad was loaded last (`/loaded`), and
-this app starts on that one, falling back to the flag only where the store
-records none — so a box comes back on the railroad its rails were built to and
-not on the one its env file named (ADR-0072, decision 5). Then **two
+this app starts on that one — nothing on the command line names a railroad,
+so a box comes back on the railroad its rails were built to and not on one an
+env file named, and a box that records none stands (ADR-0072, decision 5).
+Then **two
 documents**: the transits a `move` may name and the signal at each block end
 come off the layout, and the addresses that answer for a train off the roster,
 no address ever reaching a command (#199). Between the broker and the rows,
@@ -67,6 +68,7 @@ from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
 from tc49.lib.loading import (
+    NO_RAILROAD,
     Answering,
     dropped,
     named,
@@ -136,10 +138,12 @@ def serve(
 
     `railroad` is where this app starts **where the store records nothing**:
     the store's record of the railroad loaded last is read first, once the
-    broker is there, and wins where it names one (ADR-0072, decision 5). A
-    recorded railroad the store no longer has is refused as any starting point
-    is, and the app stands; the record is left as it is, the next load being
-    what overwrites it.
+    broker is there, and wins where it names one (ADR-0072, decision 5).
+    `main` passes `NO_RAILROAD`, no command line naming one, and a suite
+    starting this app on a railroad passes its name. A recorded railroad the
+    store no longer has is refused as any starting point is, and the app
+    stands; the record is left as it is, the next load being what overwrites
+    it.
 
     The clock starts here and at zero, and every turn puts it where wall time
     is. Seconds since this process started, which is what a settling time is
@@ -265,7 +269,7 @@ def main() -> None:
     bus = MqttBus(host, port, client_id=CLIENT_ID)
     try:
         with contextlib.suppress(KeyboardInterrupt):
-            serve(bus, Documents(args.store), args.railroad, threading.Event())
+            serve(bus, Documents(args.store), NO_RAILROAD, threading.Event())
     finally:
         bus.close()
 
