@@ -452,7 +452,6 @@ export class TcApp extends LitElement {
       redo: this.editor.canRedo,
       power: this.status.power,
       loaded: this.status.railroad,
-      backup: this.backing.standing,
     };
   }
 
@@ -530,9 +529,6 @@ export class TcApp extends LitElement {
         return;
       case "netlist":
         this.netlist = !this.netlist;
-        return;
-      case "backup":
-        this.backingOpen();
         return;
       // A command with no arm above narrows to something other than `never`
       // here and fails to typecheck, so adding one to `CommandId` cannot leave

@@ -125,15 +125,11 @@ export class TcRail extends LitElement {
   private button(id: CommandId) {
     const command = COMMANDS[id];
     const alive = command.enabled(this.standing);
-    // What the button has to say before it is pressed, which is backup's alone
-    // (#321). It warns and never disables: a railroad that is not being backed
-    // up is a railroad somebody still has to be able to back up.
-    const says = command.mark?.(this.standing) ?? null;
     const said = `${command.label}  ${command.key ?? ""}`.trim();
     return html`
       <button
         data-command=${id}
-        title=${says ?? said}
+        title=${said}
         aria-label=${said}
         ?disabled=${!alive}
         @click=${() =>
@@ -146,7 +142,6 @@ export class TcRail extends LitElement {
           )}
       >
         ${GLYPHS[id]}
-        ${says === null ? nothing : html`<span class="mark" aria-label=${says}>!</span>`}
       </button>
     `;
   }
