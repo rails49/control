@@ -205,7 +205,7 @@ services:
       - traefik.enable=true
       - traefik.docker.network=rails49
       - traefik.http.services.tc49-store.loadbalancer.server.port=8765
-      - traefik.http.routers.tc49-store.rule=Host(`control.${BOX_DOMAIN}`) && (PathPrefix(`/backup`) || PathPrefix(`/drawings`) || PathPrefix(`/review`) || PathPrefix(`/layouts`) || PathPrefix(`/rosters`) || PathPrefix(`/catalogue`))
+      - traefik.http.routers.tc49-store.rule=Host(`control.${BOX_DOMAIN}`) && (PathPrefix(`/backup`) || PathPrefix(`/drawings`) || PathPrefix(`/review`) || PathPrefix(`/layouts`) || PathPrefix(`/rosters`) || PathPrefix(`/catalogue`) || PathPrefix(`/railroads`))
       - traefik.http.routers.tc49-store.priority=2
       - traefik.http.routers.tc49-store.entrypoints=websecure
       - traefik.http.routers.tc49-store.service=tc49-store

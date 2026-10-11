@@ -41,6 +41,7 @@ reboot, the broker keeping nothing across a restart (ADR-0072 decision 5).
 """
 
 import math
+import shutil
 from pathlib import Path
 from typing import Any, cast
 
@@ -242,6 +243,38 @@ class AssetStore:
         path = self._script_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(text.encode())
+
+    def copy(self, source: str, to: str) -> None:
+        """Copy railroad `source`'s documents under the name `to`: its drawing,
+        its roster where it has one, and its script where it has one, each
+        naming itself `to` (ADR-0072).
+
+        Every document is read and validated before anything is written, so a
+        refusal leaves the store as it was. A `source` with no drawing raises
+        `FileNotFoundError`, and a `to` any of whose three files exists raises
+        `FileExistsError` — a roster or a script alone is somebody's railroad
+        already, and a copy laid over it would mix two.
+
+        Scenarios are the harness's and the catalogue is every railroad's, so
+        neither is copied. Each document's file is taken as it is before the
+        one naming `to` is merged onto it, so the copy keeps the prose its
+        source was written with (ADR-0018).
+        """
+        drawing = self.drawing(source)
+        roster = (
+            self.roster_document(source) if self._roster_path(source).exists() else None
+        )
+        script = self.script(source) if self._script_path(source).exists() else None
+        taken = (self._drawing_path(to), self._roster_path(to), self._script_path(to))
+        if any(path.exists() for path in taken):
+            raise FileExistsError(f"'{to}' is already a railroad")
+        shutil.copyfile(self._drawing_path(source), self._drawing_path(to))
+        self.put({**drawing, "drawing": to})
+        if roster is not None:
+            shutil.copyfile(self._roster_path(source), self._roster_path(to))
+            self.put_roster({**roster, "roster": to}, to)
+        if script is not None:
+            self.put_script(script, to)
 
     def loaded(self) -> str:
         """The railroad the layout binding last loaded, and `""` where

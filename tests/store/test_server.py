@@ -874,6 +874,143 @@ def test_a_name_with_a_slash_in_it_is_no_script_route(
     assert handle(store, backup, "GET", "/scripts/crossover-yard/meet", None)[0] == 404
 
 
+def test_a_railroad_is_copied_with_its_roster_and_script(
+    store: AssetStore, tmp_path: Path, backup: Backup
+) -> None:
+    """Every document the railroad has, each naming itself by the new name,
+    and the drawing keeping the prose it was written with (ADR-0072)."""
+    store.put_script(SCRIPT, "reversing-loops-v0")
+    assert handle(
+        store, backup, "POST", "/railroads/reversing-loops-v0/copy", {"to": "b"}
+    ) == (200, {"copied": "b"})
+
+    assert "b" in handle(store, backup, "GET", "/drawings", None)[1]["drawings"]
+    source = store.drawing("reversing-loops-v0")
+    drawing = handle(store, backup, "GET", "/drawings/b", None)[1]
+    assert drawing["drawing"] == "b"
+    assert drawing["symbols"] == source["symbols"]
+    assert drawing["wires"] == source["wires"]
+    text = (tmp_path / "layouts" / "b.drawing.yaml").read_text()
+    assert "# The WX310, west of the station" in text
+
+    held = store.roster_document("reversing-loops-v0")
+    roster = handle(store, backup, "GET", "/rosters/b", None)[1]
+    assert roster["roster"] == "b"
+    assert roster["cars"] == held["cars"]
+    assert roster["trains"] == held["trains"]
+    assert handle(store, backup, "GET", "/scripts/b", None) == (
+        200,
+        {"script": "b", "text": SCRIPT},
+    )
+
+
+def test_a_railroad_with_only_a_drawing_copies_only_the_drawing(
+    tmp_path: Path, backup: Backup
+) -> None:
+    store = AssetStore(tmp_path)
+    (tmp_path / "layouts").mkdir()
+    shutil.copy(
+        ASSETS / "layouts" / "facing-pair.drawing.yaml",
+        tmp_path / "layouts" / "facing-pair.drawing.yaml",
+    )
+    status, _ = handle(
+        store, backup, "POST", "/railroads/facing-pair/copy", {"to": "b"}
+    )
+    assert status == 200
+    assert store.drawing("b")["drawing"] == "b"
+    assert not (tmp_path / "layouts" / "b.roster.yaml").exists()
+    assert not (tmp_path / "layouts" / "b.script.py").exists()
+
+
+@pytest.mark.parametrize(
+    "taken",
+    ["facing-pair.drawing.yaml", "facing-pair.roster.yaml", "facing-pair.script.py"],
+)
+def test_a_copy_onto_a_name_taken_by_any_document_is_a_conflict(
+    store: AssetStore, tmp_path: Path, backup: Backup, taken: str
+) -> None:
+    """A roster or a script alone is a railroad already, and a copy laid over
+    it would mix two: refused, and nothing under the name changes."""
+    layouts = tmp_path / "layouts"
+    for name in ("facing-pair.drawing.yaml", "facing-pair.roster.yaml"):
+        if name != taken:
+            (layouts / name).unlink()
+    if taken.endswith(".py"):
+        store.put_script(SCRIPT, "facing-pair")
+    before = {path.name: path.read_bytes() for path in layouts.glob("facing-pair.*")}
+
+    status, body = handle(
+        store,
+        backup,
+        "POST",
+        "/railroads/reversing-loops-v0/copy",
+        {"to": "facing-pair"},
+    )
+    assert (status, body) == (409, {"error": "'facing-pair' is already a railroad"})
+    assert {path.name: path.read_bytes() for path in layouts.glob("facing-pair.*")} == (
+        before
+    )
+
+
+def test_a_copy_of_a_railroad_with_no_drawing_is_not_found(
+    store: AssetStore, backup: Backup
+) -> None:
+    assert handle(store, backup, "POST", "/railroads/atlantis/copy", {"to": "b"}) == (
+        404,
+        {"error": "no drawing 'atlantis'"},
+    )
+
+
+def test_a_copy_names_its_railroad_and_nothing_else_will_do(
+    store: AssetStore, tmp_path: Path, backup: Backup
+) -> None:
+    """Every way the name can be wrong, and none of them writes a file."""
+    before = sorted(path.name for path in (tmp_path / "layouts").iterdir())
+    for body in (None, ["b"], {}, {"to": ""}, {"to": "a/b"}, {"to": 3}):
+        status, said = handle(
+            store, backup, "POST", "/railroads/facing-pair/copy", body
+        )
+        assert status == 400, body
+        assert "to" in said["error"]
+    assert sorted(path.name for path in (tmp_path / "layouts").iterdir()) == before
+
+
+def test_a_copy_whose_source_does_not_validate_writes_nothing(
+    store: AssetStore, tmp_path: Path, backup: Backup
+) -> None:
+    """Every source document is read before any is written, so a roster that
+    will not load leaves no drawing behind under the new name."""
+    (tmp_path / "layouts" / "facing-pair.roster.yaml").write_text("roster: [\n")
+    status, _ = handle(
+        store, backup, "POST", "/railroads/facing-pair/copy", {"to": "b"}
+    )
+    assert status == 400
+    assert not list((tmp_path / "layouts").glob("b.*"))
+
+
+def test_a_copy_arms_the_backup_as_a_save_does(
+    store: AssetStore, tmp_path: Path
+) -> None:
+    saved: list[bool] = []
+
+    class Saving(Backup):
+        def saved(self) -> None:
+            saved.append(True)
+
+    backup = Saving(tmp_path, log=lambda _: None)
+    handle(store, backup, "POST", "/railroads/facing-pair/copy", {"to": "b"})
+    assert saved == [True]
+
+
+def test_a_name_with_a_slash_in_it_is_no_copy_route(
+    store: AssetStore, backup: Backup
+) -> None:
+    assert (
+        handle(store, backup, "POST", "/railroads/facing/pair/copy", {"to": "b"})[0]
+        == 404
+    )
+
+
 def test_a_store_with_no_record_has_no_railroad_loaded(
     tmp_path: Path, backup: Backup
 ) -> None:
