@@ -71,6 +71,12 @@ export class TcBackup extends LitElement {
    *  longer holds (#688). */
   @property({ attribute: false }) railroad: string | null = null;
 
+  /** What a restore would discard, in the words of the app's own discard
+   *  question — `"the drawing"`, `"the roster"` or both — and `null` while
+   *  nothing is unsaved. The page reloads after a restore that worked, and
+   *  edits held in it are not on disk for the store to refuse over (#703). */
+  @property({ attribute: false }) unsaved: string | null = null;
+
   /** Whether *New key* has been pressed once and is waiting to be confirmed:
    *  the key in use stops working until the new one is added, which is worth
    *  one question before a working backup is broken by accident (#688). */
@@ -80,6 +86,10 @@ export class TcBackup extends LitElement {
    *  Restoring takes two presses — the one that chooses and the one that does
    *  it — rather than a row that restores where it is clicked. */
   @state() private picked: string | null = null;
+
+  /** Whether Restore has been pressed over unsaved edits and is waiting to
+   *  be told they may go, as *New key* waits (#703). */
+  @state() private discarding = false;
 
   /** The address typed so far of the repository to adopt. */
   @state() private address = "";
@@ -131,12 +141,13 @@ export class TcBackup extends LitElement {
           ? nothing
           : html`<p class="wrong">${backing.trouble}</p>`}
         ${refused === null ? nothing : html`<p class="hint refused">${refused}</p>`}
+        ${refused === null ? this.discard(backing.busy) : nothing}
         <sl-button slot="footer" @click=${this.close}>Close</sl-button>
         <sl-button
           slot="footer"
           variant="warning"
           ?disabled=${this.picked === null || backing.busy || refused !== null}
-          @click=${() => void this.restore()}
+          @click=${() => this.asked()}
         >
           Restore
         </sl-button>
@@ -346,6 +357,7 @@ export class TcBackup extends LitElement {
               aria-pressed=${this.picked === backup.commit}
               @click=${() => {
                 this.picked = backup.commit;
+                this.discarding = false;
               }}
             >
               <span class="when">${backup.when}</span>
@@ -355,6 +367,46 @@ export class TcBackup extends LitElement {
         `,
       )}
     </ul>`;
+  }
+
+  /** The press on Restore: over unsaved edits it asks first, since the
+   *  reload after a restore that worked discards them; otherwise it
+   *  restores (#703). */
+  private asked(): void {
+    if (this.unsaved !== null) {
+      this.discarding = true;
+      return;
+    }
+    void this.restore();
+  }
+
+  /** The question Restore asks over unsaved edits, nothing while it has not
+   *  been asked. Answered either way, it goes. */
+  private discard(busy: boolean) {
+    if (!this.discarding || this.unsaved === null) return nothing;
+    return html`<p class="waiting">
+        ${this.unsaved} has edits that have not been saved; restoring discards
+        them
+      </p>
+      <sl-button
+        size="small"
+        variant="danger"
+        ?disabled=${busy}
+        @click=${() => {
+          this.discarding = false;
+          void this.restore();
+        }}
+      >
+        Discard and restore
+      </sl-button>
+      <sl-button
+        size="small"
+        @click=${() => {
+          this.discarding = false;
+        }}
+      >
+        Keep the edits
+      </sl-button>`;
   }
 
   /** Restore the picked backup, and say so where it worked: what follows —
@@ -376,6 +428,7 @@ export class TcBackup extends LitElement {
     this.picked = null;
     this.address = "";
     this.renewing = false;
+    this.discarding = false;
     this.dispatchEvent(
       new CustomEvent<void>("backup-closed", { bubbles: true, composed: true }),
     );
