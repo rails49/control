@@ -304,6 +304,9 @@ unplaced train has no **facing**, there being no block for a facing to be an
 end of. A train just taken off the layout may still hold blocks that read
 occupied, each until it reads clear
 ([ADR-0069](docs/adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
+A placement survives a rebuild of the railroad under the same name where it
+still fits: its block is still in the drawing and still holds the train
+([ADR-0071](docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
 _Avoid_: closet, positioned. *Not on the layout* is the same state said a
 second way, and the state has one phrase.
 
@@ -835,8 +838,10 @@ which a person moves)
 **Recovery**:
 Coming back after the layout lost power. Everything a restart lost, and what
 was believed is now *suspect*: a train that stalled in a tunnel gets lifted
-out by hand. Ends with a person confirming placement however much was
-persisted; persistence makes that cheaper, never automatic.
+out by hand. Ends with a person confirming each train's placement. No
+placement is persisted to save that step: a train may have moved, and a swap
+between two occupied blocks is not something the detectors can see
+([ADR-0071](docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
 _Avoid_: restart, resync
 
 **Emergency stop**:

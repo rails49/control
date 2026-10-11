@@ -153,3 +153,6 @@ still in the history and restoring it is the same one press.
   and hears nothing. A restore leaves the backup switch as it was and is
   committed at once, so a power cut does not lose it and undoing a drawing
   never stops backups.
+
+  *Amended by [ADR-0071](0071-a-rebuild-under-the-same-name-keeps-the-placements.md) (#708): a restore keeps the placements that still fit,
+  and is no longer refused while a train is placed.*
