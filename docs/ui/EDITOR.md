@@ -119,12 +119,11 @@ status line's job, and #85 took that button off the screen entirely.
 **What the app could not do reads here**, in a health area at the right. That
 is what is wrong that is not the author's doing — the store not answering, or a
 broker that is not ([PANEL.md](PANEL.md)) — and what the author has to fix is
-marked on the drawing ([Validation](#validation)). A name no drawing can wear is
-the one refusal that joins it: it is typed at a prompt that is gone by the time
-it is refused, and nothing on the canvas is wrong ([Files](#files)). It is a
-region with room in it rather than a string, because per-container and
-eventually hardware reachability belong beside those, and the slot in it is
-where they go.
+marked on the drawing ([Validation](#validation)). A save that did not land
+is the one refusal that joins it: nothing on the canvas is wrong
+([Files](#files)). It is a region with room in it rather than a string,
+because per-container and eventually hardware reachability belong beside
+those, and the slot in it is where they go.
 
 **And what the hardware says is wrong with the supply**, in the sentence it
 published, beside the trouble above and in the same weight
@@ -228,7 +227,7 @@ does the same thing in the title a pointer resting there reads.
 
     views  Run  ·  Throttle  ·  Stock  ·  Edit
     View   Zoom out −  ·  Zoom in +  ·  Fit 0  ·  Netlist N
-    File   New…  ·  Save ⌘S  ·  Save As… ⇧⌘S  ·  Export SVG…
+    File   Save ⌘S  ·  Export SVG…
     Edit   Undo ⌘Z  ·  Redo ⇧⌘Z
 
 The run view's rail is the views, the three `View` commands and HOLD/GO
@@ -242,14 +241,16 @@ selection and read in the right-click menu with their keys beside them; four
 buttons that are dead whenever nothing is selected say less than a menu that
 opens on the thing they act on.
 
-**There is no `Open`.** Which railroad is loaded is the whole system's and the
-settings dialog picks it, with the tick rule the old `File` menu used to carry
-([The band](#the-band)). Backup is the store's and not the drawing's, so it is
-there too.
+**There is no `Open`, no `New` and no `Save As`.** Which railroad is loaded
+is the whole system's and the settings dialog picks it, with the tick rule the
+old `File` menu used to carry ([The band](#the-band)); making one is the
+dialog's too (ADR-0072, decision 3), so the editor holds the loaded railroad
+and no other, and `File` is what can be done to that one drawing. Backup is
+the store's and not the drawing's, so it is there too.
 
-**New… shows no key.** Chrome keeps `⌘N` for a new window; it never reaches the
-page and cannot be `preventDefault`ed. A blank is better than a binding the
-browser eats. `⌘S` and `⇧⌘S` are the editor's.
+**`⌘S` is the editor's.** `⇧⌘S`, which was Save As, is still taken from the
+browser and does nothing else, so a hand that remembers it saves no web page
+either.
 
 **`View` comes first wherever there is one.** Zoom and fit are pressed
 constantly — while drawing, and while following a train across a railroad too
@@ -855,45 +856,32 @@ Derivation refusing is shown the same way, at the edit that caused it.
 A drawing is a file, `layouts/<name>.drawing.yaml`, in the installation's
 store — `~/tc49/` unless something says otherwise
 ([#320](https://github.com/rails49/control/issues/320)) — and what keeps a copy
-of it is [backup](#backing-the-store-up). `File ▸ New…`
-asks for a name up front and opens an empty canvas under it; nothing is
-written until the first Save, so an abandoned start leaves no file. Save As…
-writes the open drawing, unsaved edits included, under a new name at once, and
-Save targets that name from then on; the file under the old name keeps its
-last-saved state, which is how a test variant forks from a committed railroad.
-Both refuse a name a drawing already has, and a name no file can wear;
-overwriting one deliberately is opening it and pressing Save. The refusal reads
-in the band ([The band](#the-band)) rather than asking again — the prompt is
-gone by then, and asking is one click away — and it goes on the next accepted
-edit. Deleting or renaming a file stays in git, where
-it is reviewable.
+of it is [backup](#backing-the-store-up). **The open drawing is the loaded
+railroad's and no other** (ADR-0072, decision 3): the row the layout
+interface publishes names it, and `model/filing.ts` opens it off the store.
+A row naming `""` — a box with no railroad loaded (#727) — closes it: the
+editor holds an empty drawing under no name, the filing reads as saved with
+no trouble and no review, Save and Export are dead, and the
+[stock view](STOCK.md) beside it holds no railroad either. `File ▸ New…` and
+`Save As…`, which left the editor and the stock view on a drawing nothing
+runs while the band named what did, went with #734; making a railroad is the
+settings dialog's, where New writes an empty drawing and Copy loaded as…
+copies every document of the loaded one, and each then asks for what it
+wrote ([The band](#the-band)). Deleting or renaming a file stays in git,
+where it is reviewable.
 
-**Unsaved edits are not discarded silently.** Opening another drawing and
-starting a new one both throw away whatever has been drawn since the last
-Save, so where there is something to lose they ask first (#101). It is a
-dialog of the editor's own, rather than a native `confirm` the page cannot
-style. **Both of the railroad's documents are asked about**: the drawing here
-and the roster the [stock view](STOCK.md) is composing, either one unsaved
-raising the question and the words naming which — *the drawing*, *the roster*,
-or *the drawing and the roster*
-([#415](https://github.com/rails49/control/issues/415)). Declining leaves the
-editor exactly as it was — the same drawing, the
-same edits, the same dot, the same undo history — because the question comes
-before anything is read or reset, `New…` asking for its name only once the
-edits have been given up. Accepting opens what was asked for. With nothing to
-lose nothing is asked, and the question does not offer to save first: Save is
-one key away, and discarding or cancelling is the whole of it. While it is up
-the keyboard is the dialog's, as it is under an open menu: Escape declines it
-and no bare key reaches the canvas behind it.
-
-What counts as something to lose is not the band's dot. A drawing shows as
-unsaved from the moment `New…` names it, the file not existing until the first
-Save, and that stays true. But nothing has been placed on that canvas, so a
-second `New…` over it discards it without a question: a dialog that fires over
-an empty canvas is the kind that gets dismissed without reading, which is how
-the guard fails at the moment it is there for (#136). The question comes back
-with the first edit of any kind, and a drawing that arrived needing staging
-counts as edited, because it has changes to save.
+**Nothing asks before edits are thrown away, because no gesture of a person's
+throws them away.** The railroad arrives on the bus as a fact the layout
+interface reports (#371), and the row moving over unsaved edits is a load
+somebody asked for elsewhere — which the settings dialog refuses while
+anything is unsaved, in words naming which document, *the drawing*, *the
+roster* or *the drawing and the roster*
+([#415](https://github.com/rails49/control/issues/415), #733), as a restore
+is refused (#703). Both of the railroad's documents count: the drawing here
+and the roster the stock view is composing. What counts as unsaved is the
+band's dot: the only drawing open is one the store gave, so there is nothing
+unsaved that is not an edit, and a drawing that arrived needing staging
+counts, because it has changes to save.
 
 `File ▸ Export SVG…` downloads the open drawing as a standalone SVG named for
 it (#86). The picture is the canvas's own markup, cloned rather than composed
@@ -1024,8 +1012,9 @@ mark, and lights nothing.
 
 A name the drawing already has is refused in the properties dialog, where it was
 typed, and is never a fault of the drawing at all ([Properties](#properties)).
-A name no *drawing* can wear is typed at a prompt instead, so its refusal reads
-in the band ([The band](#the-band)) — the one thing here said in words.
+A name no *drawing* can wear is typed in the settings dialog instead, and is
+refused there ([The band](#the-band)); a save that did not land reads in the
+band — the one thing here said in words.
 
 Two states are prevented at the gesture that would otherwise create
 them, rather than only reported once created. A wire in flight does not outlive
@@ -1058,9 +1047,10 @@ has loaded — the name on `tc49/layout/state/railroad` — writes it and then
 publishes `railroad_wanted` naming it, so every app builds what was written and
 keeps the trains that fit; those that do not are listed as unfit. The page does
 not reload: it already holds what it saved. The layout builds only with power
-off, so while power is on or stopped that Save is dead. Save As names nothing,
-and neither does a save of any drawing that is not the loaded railroad: it is
-only a file.
+off, so while power is on or stopped that Save is dead. The rule reads the
+two names and not the editor: a save of a drawing that is not the loaded
+railroad would name nothing, being only a file, though the editor opens no
+such drawing now.
 
 **ON waits for the save.** The run view draws the open drawing, so power on
 with the loaded railroad's edits unsaved would run trains under track no app
@@ -1085,8 +1075,8 @@ the rest of them and every command that changes the document is declared
 through it — a verb joins the frozen category by wearing it rather than by
 someone remembering the condition. The bar and the keyboard are the one path
 through that module, so a frozen `r` does nothing wherever it is pressed. Zoom,
-fit, Netlist and Save As stay alive, a frozen drawing being read-only rather
-than gone; Save stays alive for any drawing that is not the loaded railroad.
+fit, Netlist and Export stay alive, a frozen drawing being read-only rather
+than gone.
 
 The gestures answer the same rule rather than a second copy of it. The canvas's
 machine abandons every press while the drawing is frozen ([Canvas](#canvas)),
@@ -1130,9 +1120,8 @@ editing view listens on the window and routes.
 
 **The page is one entry**, `index.html`, and `tc-app` is what it holds
 (ADR-0038). The app owns the loaded railroad — the `Editor`, the `Filing` that
-talks to the store, the `Backing` that says where backup stands, and the
-question asked before unsaved edits are thrown away — and the two rows of
-chrome; `tc-editor` is the editing view and holds
+talks to the store, and the `Backing` that says where backup stands — and the
+two rows of chrome; `tc-editor` is the editing view and holds
 what only editing has. Both views stay on the page and the one that is not
 current is hidden rather than taken away: taking it away would close the live
 session on every toggle, and `visibility` leaves the hidden view its real
@@ -1260,9 +1249,7 @@ together, because a refusal and the unsaved dot are written from both and
 splitting them puts the pair back in the shell. It is the app's now, the
 railroad being the app's. It takes the store as a
 dependency so a test hands it a fake rather than forging an HTTP answer, and
-takes the editor per call as `Gesture` does. The prompt stays in the component,
-a modal question being the DOM's; the component asks and `Filing` vets what
-came back.
+takes the editor per call as `Gesture` does.
 
 The suites that still mount the shell stand it up from one place,
 `ui/test/support/shell.ts` (#131): the store behind `fetch`, parameterised per
