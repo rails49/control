@@ -86,10 +86,12 @@ export interface Answers {
    *  installation that has written none answers an empty map — a fresh box,
    *  and not a fault (#392). */
   catalogue: Record<string, ModelDoc>;
-  /** Every document a `PUT` has been given, in the order they arrived: what a
-   *  suite about a screen that writes reads to see what was written. A photo's
-   *  body is the bytes it arrived as, that route being the only one whose body
-   *  is not JSON (`sent`, docs/SYSTEM.md). */
+  /** Every write the store has been given, in the order they arrived: what a
+   *  suite about a screen that writes reads to see what was written. Each
+   *  `PUT`, and the `POST` that copies a railroad (#729), which writes
+   *  documents of its own and is a write for the same reason. A photo's body
+   *  is the bytes it arrived as, that route being the only one whose body is
+   *  not JSON (`sent`, docs/SYSTEM.md). */
   saved: { path: string; body: unknown }[];
   /** What `/drawings/<name>` answers with. */
   read: (name: string) => Drawing;
@@ -122,6 +124,12 @@ export interface Answers {
    *  every write by default. What the answer then **is** stays `intercepted`'s,
    *  so a held write the store refuses is the two of them together. */
   held: (path: string) => Promise<void> | null;
+  /** What the store refuses a write with, in its own words under its own
+   *  status: a JSON body carrying `error`, which is the store answering and not
+   *  something in front of it (`intercepted`). Nothing is recorded in `saved`
+   *  for it — a refusal writes nothing. `null` for a write the store takes,
+   *  which is every write by default. */
+  refuses: (path: string) => { status: number; error: string } | null;
 }
 
 /** One answer from the camera: the status, the words the browser puts on it,
@@ -160,6 +168,7 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     // picture has to answer in words whatever comes back (#629).
     camera: () => ({ status: 502, statusText: "Bad Gateway" }),
     held: () => null,
+    refuses: () => null,
     ...answers,
   };
   globalThis.fetch = ((path: string, init?: RequestInit) => {
@@ -171,9 +180,12 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     // Read on the call rather than on the answer: what is in front of the
     // store is in front of it when the call arrives, whenever it is answered.
     const between = store.intercepted(path);
-    if ((init?.method ?? "GET") === "PUT") {
+    const method = init?.method ?? "GET";
+    if (method === "PUT" || (method === "POST" && path.startsWith("/railroads/"))) {
       const written = (): Response => {
         if (between !== null) return interposed(between);
+        const refusal = store.refuses(path);
+        if (refusal !== null) return refused(refusal);
         store.saved.push({ path, body: sent(init?.body) });
         return {
           ok: true,
@@ -227,6 +239,19 @@ function interposed(what: { status: number; statusText: string }): Response {
     statusText: what.statusText,
     headers: new Headers({ "content-type": "text/html; charset=utf-8" }),
     json: () => Promise.reject(new SyntaxError("Unexpected token '<'")),
+  } as unknown as Response;
+}
+
+/** What the store answers a write it refuses with: its status, and its own
+ *  words under `error` in a JSON body, which is how `model/store.ts` tells a
+ *  refusal from an answer that is not the store's. */
+function refused(what: { status: number; error: string }): Response {
+  return {
+    ok: false,
+    status: what.status,
+    statusText: "",
+    headers: new Headers({ "content-type": "application/json" }),
+    json: () => Promise.resolve({ error: what.error }),
   } as unknown as Response;
 }
 

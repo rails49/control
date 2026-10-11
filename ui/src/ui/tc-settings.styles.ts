@@ -8,7 +8,10 @@ import { css } from "lit";
  * one asks the bus and the row answers, so there is nothing to confirm. The
  * tick says which is loaded and the row under the pointer says which would
  * be asked for. A refusal reads as a hint beneath the list, as `tc-backup`
- * reads its own.
+ * reads its own. The name field and the two presses that make a railroad sit
+ * in one row beneath, the field taking the width the presses leave, and what
+ * refused a name or a write reads under that row in the weight a thing wrong
+ * reads in.
  */
 export const settingsStyles = css`
   h3 {
@@ -65,6 +68,21 @@ export const settingsStyles = css`
 
   .tick {
     width: 1rem;
+  }
+
+  .making {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+  }
+
+  .making sl-input {
+    flex: 1;
+  }
+
+  .wrong {
+    color: var(--unfinished);
   }
 
   .backup {

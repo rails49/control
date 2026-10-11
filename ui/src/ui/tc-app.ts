@@ -368,15 +368,18 @@ export class TcApp extends LitElement {
     this.running?.pressPower(power);
   }
 
-  /** A railroad pressed in the settings dialog. The same path again, and it
-   *  loads nothing here: the gesture goes out on the bus, the binding of the
-   *  layout interface that is running answers it, and what arrives back is
-   *  the row that says which railroad is loaded — which is the one thing this
-   *  app opens a railroad on (ADR-0060). A gesture nothing answered, because
-   *  the rails have power or the store has no such railroad, leaves the app
-   *  exactly where it was. */
+  /** A railroad pressed in the settings dialog, or one its New or Copy
+   *  loaded as… just wrote (#737). The same path again, and it loads nothing
+   *  here: the gesture goes out on the bus, the binding of the layout
+   *  interface that is running answers it, and what arrives back is the row
+   *  that says which railroad is loaded — which is the one thing this app
+   *  opens a railroad on (ADR-0060). A gesture nothing answered, because the
+   *  rails have power or the store has no such railroad, leaves the app
+   *  exactly where it was. The store's list is asked for again, so a railroad
+   *  the dialog just made is there to tick when the row names it. */
   private wanting(railroad: string): void {
     this.running?.pressRailroad(railroad);
+    void this.filing.load();
   }
 
   // --- settings and backup -------------------------------------------------
