@@ -221,6 +221,13 @@ export class TcStock extends LitElement {
    *  cost it. */
   @state() private keeping: Shot | null = null;
 
+  /** The documents whose Save is in flight, `null` where none is. Save is dead
+   *  from the press until the roster's write answers, so one press writes the
+   *  roster once; the rest of the screen stays editable, and an edit made
+   *  meanwhile is written by the next Save (#723). The `Stock` rather than a
+   *  flag, so a railroad loaded meanwhile has its own Save live. */
+  @state() private saving: Stock | null = null;
+
   /** How many times a model's photo has been saved from this screen, by model.
    *  It is what the `?v=<n>` on a thumbnail carries: the bytes at that URL have
    *  changed and the browser is holding the ones from before, and the store
@@ -804,6 +811,7 @@ export class TcStock extends LitElement {
             variant="primary"
             title=${this.stock?.waitsForPower(this.power) ?? nothing}
             ?disabled=${this.stock === null ||
+            this.saving === this.stock ||
             !this.stock.edits ||
             this.stock.waitsForPower(this.power) !== null}
             @click=${this.save}
@@ -1058,7 +1066,7 @@ export class TcStock extends LitElement {
   private save = async (): Promise<void> => {
     // Save is dead with no roster read, so nobody is waiting on this return.
     const stock = this.stock;
-    if (stock === null) return;
+    if (stock === null || this.saving === stock) return;
     // Asked before the `PUT` so the words are this screen's own and the saved
     // roster is untouched: a train with nothing in it is one the store
     // refuses whole, and the refusal names the row to go and fill (#412).
@@ -1069,21 +1077,24 @@ export class TcStock extends LitElement {
     }
     const lengths = stock.lengthEdits;
     const railroad = this.held;
+    const written = stock.roster;
     let reached = false;
+    this.saving = stock;
     try {
       for (const model of stock.corrections) {
         await saveModel(model);
         stock.landed(model);
         reached = true;
       }
-      await saveRoster(stock.roster);
-      stock.kept();
+      await saveRoster(written);
+      stock.kept(written);
       if (lengths) reached = true;
       this.trouble = null;
       this.beat++;
     } catch (trouble) {
       this.trouble = said(trouble);
     }
+    if (this.saving === stock) this.saving = null;
     if (reached && railroad !== null) {
       this.dispatchEvent(
         new CustomEvent<string>("lengths-saved", {

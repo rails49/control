@@ -742,6 +742,94 @@ describe("the roster's Save with a length corrected", () => {
   });
 });
 
+/** Save is dead while its own write is in flight and the rest of the screen
+ *  is not: an edit made meanwhile is written by the next Save (#723). */
+describe("the roster's Save in flight", () => {
+  /** The roster's next `PUT` held in flight, and the press that lets it
+   *  answer, settled. */
+  function holding(shell: TcApp): () => Promise<void> {
+    let answer: () => void = () => {};
+    store.held = (path) =>
+      path.startsWith("/rosters/")
+        ? new Promise<void>((resolve) => (answer = resolve))
+        : null;
+    return async () => {
+      store.held = () => null;
+      answer();
+      await settled(shell);
+    };
+  }
+
+  function puts(): number {
+    return store.saved.filter((one) => one.path.startsWith("/rosters/")).length;
+  }
+
+  it("is dead from the press until the write answers, and writes once", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    store.saved.length = 0;
+    await typed(shell, parts(shell, "li.car input.addr")[0]!, "7");
+    const answer = holding(shell);
+
+    await pressed(shell, "sl-button.save");
+    expect(saving(shell).disabled).toBe(true);
+    await screen(shell)["save"]();
+    await answer();
+
+    expect(puts()).toBe(1);
+    expect(saving(shell).disabled).toBe(true);
+  });
+
+  it("is live again once the write is refused", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    await typed(shell, parts(shell, "li.car input.addr")[0]!, "7");
+    const answer = holding(shell);
+    between((path) => path.startsWith("/rosters/"));
+
+    await pressed(shell, "sl-button.save");
+    expect(saving(shell).disabled).toBe(true);
+    await answer();
+
+    expect(trouble(shell)).not.toBeNull();
+    expect(saving(shell).disabled).toBe(false);
+  });
+
+  it("keeps an edit typed during the write, and is live for it", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    await typed(shell, parts(shell, "li.car input.addr")[0]!, "7");
+    const answer = holding(shell);
+
+    await pressed(shell, "sl-button.save");
+    await typed(shell, parts(shell, "li.car input.addr")[0]!, "8");
+    await answer();
+
+    expect(written()!.cars!["arnold-ce68-1"]!.addr).toBe("7");
+    expect((parts(shell, "li.car input.addr")[0] as HTMLInputElement).value).toBe("8");
+    expect(saving(shell).disabled).toBe(false);
+
+    await pressed(shell, "sl-button.save");
+    expect(written()!.cars!["arnold-ce68-1"]!.addr).toBe("8");
+    expect(saving(shell).disabled).toBe(true);
+  });
+
+  it("keeps a length typed during the write waiting for power off", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    await typed(shell, parts(shell, "li.car input.addr")[0]!, "7");
+    const answer = holding(shell);
+
+    await pressed(shell, "sl-button.save");
+    await typed(shell, parts(shell, "li.car input.length")[0]!, "150");
+    await answer();
+    await said(shell, POWER, { power: "on" });
+
+    expect(saving(shell).disabled).toBe(true);
+    expect(saving(shell).title).toBe(WAITS);
+  });
+});
+
 /** A roster written before #223 states a train's length and names no cars.
  *  The store keeps that shape legal for an older file and answers it as
  *  written, so the screen has to draw one: it used to throw on the first
