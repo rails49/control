@@ -41,6 +41,7 @@ MOVE = "tc49/layout/move"
 OCCUPIED = "tc49/layout/block_occupied"
 VACATED = "tc49/layout/block_vacated"
 PLACED = "tc49/dispatch/train_placed"
+POWER_WANTED = "tc49/layout/power_wanted"
 
 TRANSIT_S = 0.05
 CLEAR_S = 0.1
@@ -168,8 +169,8 @@ def test_a_cold_start_publishes_the_apps_own_rows(
 
     Which railroad this is, which is the row a view reads whichever binding of
     the layout interface is running (ADR-0059 decision 2, as ADR-0060 amends
-    it), and a track that is live — simulated rails always are, a power cut
-    being a physical act this binding never simulates (ADR-0030).
+    it), and a track that is off, as the layout interface comes up: a
+    simulated box needs ON after it starts, as a real one does (ADR-0070).
     """
     store.start()
     witness, heard = watching(broker)
@@ -177,7 +178,7 @@ def test_a_cold_start_publishes_the_apps_own_rows(
 
     assert drained(witness, lambda: rows(heard, POWER) != []), "it published nothing"
     assert rows(heard, RAILROAD)[-1]["name"] == RAILROAD_NAME
-    assert rows(heard, POWER)[-1]["power"] == "on"
+    assert rows(heard, POWER)[-1]["power"] == "off"
     assert app.running, "the app stopped on its own"
     witness.close()
 
@@ -203,14 +204,14 @@ def test_it_carries_a_train_across_a_transit_it_finds_on_the_broker(
     broker: Broker, store: Store, app: App
 ) -> None:
     """The loop is what makes the app an app, and this one is both halves of
-    it at once: a hand's placement and a granted move are drained, the two
-    sensor events are scheduled on the delays, and the seconds pass on a wall
-    clock until each fires — the head into the destination first and the tail
-    off the origin after it, the only order the physical railroad can produce
-    (ADR-0047).
+    it at once: a press of ON, a hand's placement and a granted move are
+    drained, the two sensor events are scheduled on the delays, and the
+    seconds pass on a wall clock until each fires — the head into the
+    destination first and the tail off the origin after it, the only order
+    the physical railroad can produce (ADR-0047).
 
-    Both frames are published by another client, which is what the broker
-    makes of them: neither says who sent it and nothing here asks (rule 4).
+    All three frames are published by another client, which is what the broker
+    makes of them: none says who sent it and nothing here asks (rule 4).
     """
     store.start()
     witness, heard = watching(broker)
@@ -223,6 +224,12 @@ def test_it_carries_a_train_across_a_transit_it_finds_on_the_broker(
     # app among them — before the move that depends on it is sent.
     hand = MqttBus(port=broker.port)
     assert hand.wait_connected()
+    # ON first, as a person presses it on a box that has just come up: with
+    # the power off a `move` is dropped, as the layout drops it (ADR-0070).
+    hand.publish(POWER_WANTED, {"power": "on"})
+    assert drained(
+        witness, lambda: rows(heard, POWER)[-1]["power"] == "on"
+    ), "the press went unanswered"
     hand.publish(PLACED, {"train": "freight_1", "block": "yard_w"})
     assert drained(witness, lambda: rows(heard, PLACED) != []), "the drag was dropped"
 

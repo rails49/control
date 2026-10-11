@@ -201,10 +201,10 @@ def picks(bus: MqttBus, railroad: str, running: Process) -> None:
 
 def dark(bus: MqttBus) -> None:
     """Wait until the supply reads `off`, which is the precondition on the
-    gesture (ADR-0060). The layout interface writes it from its constructor —
-    the railroad comes up dark — so what this waits for is the broker holding
-    it, and a gesture published afterwards reaches that app behind the echo of
-    its own row."""
+    gesture (ADR-0060). Either binding of the layout interface writes it from
+    its constructor — the railroad comes up dark (ADR-0070) — so what this
+    waits for is the broker holding it, and a gesture published afterwards
+    reaches that app behind the echo of its own row."""
     bus.subscribe(POWER, lambda topic, payload: None)
     assert until(
         lambda: bus.last_values.get(POWER, {}).get("power") == OFF, UP_S
@@ -514,33 +514,48 @@ def test_the_simulator_stands_in_for_the_new_railroads_steel(
     and not one that fails to clear — this app owns no row keyed by anything
     the old railroad had.
 
-    **It answers the gesture with the rails live**, which is the whole of what
-    this asserts: nothing writes `off` anywhere below, and the supply reads
-    `on` before the pick and after it. The precondition binds the binding that
-    drives hardware, because what it buys is a person confirming that the steel
-    matches the drawing just loaded; this binding has no steel and so nothing
-    to confirm (ADR-0060 as amended, `lib/loading.py`).
-
-    Written the other way — the precondition applied here too — a deployed
-    simulator could never answer the picker at all, since it is the only writer
-    of its own supply and that supply is a constant. The reload could then only
-    be reached by a hand publishing `off`, which is a test driving the system
-    through a contract violation to demonstrate an acceptance criterion.
-    """
+    It answers the gesture with the rails dead, as the layout interface does
+    (ADR-0070, decision 5), and the binding built on the new railroad comes
+    up dark again."""
     running = started("simulator", broker, store, tmp_path)
     try:
         writing = hand(broker)
-        writing.subscribe(POWER, lambda topic, payload: None)
-        assert until(
-            lambda: writing.last_values.get(POWER, {}).get("power") == ON, UP_S
-        ), "the simulated rails never came alive"
+        dark(writing)
 
         picks(writing, NOW, running)
 
         held = picture(broker)
         assert held[RAILROAD]["name"] == NOW
-        assert held[POWER]["power"] == ON, "the rebuilt binding forgot its own supply"
+        assert held[POWER]["power"] == OFF, "the rebuilt binding came up live"
         no_trace_of_the_old_railroad(held)
+        writing.close()
+    finally:
+        running.stop()
+
+
+def test_the_simulator_drops_the_gesture_while_its_rails_have_power(
+    broker: Broker, store: Store, tmp_path: Path
+) -> None:
+    """The precondition binds every binding (ADR-0070, decision 5): with the
+    power on a railroad loaded under a moving train would be loaded under it,
+    so the gesture is dropped and the state row is unmoved. The supply is a
+    press here, which this binding answers as the layout interface does."""
+    running = started("simulator", broker, store, tmp_path)
+    try:
+        writing = hand(broker)
+        dark(writing)
+        writing.publish("tc49/layout/power_wanted", {"power": ON})
+        assert until(
+            lambda: writing.last_values.get(POWER, {}).get("power") == ON, UP_S
+        ), "the simulated rails never came alive"
+
+        pick(writing, NOW)
+        settle(writing)
+
+        held = picture(broker)
+        assert held[RAILROAD]["name"] == WAS, "it loaded a railroad under a live track"
+        assert f"up on '{NOW}'" not in running.said(), running.said()
+        assert running.running, f"the simulator stopped:\n{running.said()}"
         writing.close()
     finally:
         running.stop()
@@ -647,8 +662,7 @@ def test_the_railroad_already_loaded_is_built_again_when_named(
     running = started(app, broker, store, tmp_path)
     try:
         writing = hand(broker)
-        if app == "layout":
-            dark(writing)
+        dark(writing)
         before = picture(broker)[RAILROAD]
 
         picks(writing, WAS, running)
@@ -710,8 +724,7 @@ def test_the_railroad_built_again_is_the_one_the_store_now_holds(
         restored(root, WAS)
 
         if named(app).answers:
-            if app == "layout":
-                dark(writing)
+            dark(writing)
             picks(writing, WAS, running)
         else:
             load(writing, WAS)

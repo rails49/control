@@ -34,6 +34,8 @@ from tc49.lib.loading import (
     standing,
     taken,
 )
+from tc49.simulator import Simulator
+from tests.harness import load
 
 WAS = "crossover-yard"
 NOW = "single-track-meet"
@@ -319,40 +321,42 @@ def test_a_refused_row_is_not_tried_again_by_a_follower() -> None:
     assert (loaded.name, loaded.moved) == (WAS, False)
 
 
-def test_a_binding_with_no_hardware_answers_with_the_rails_live() -> None:
-    """The precondition guards a person confirming that the steel matches the
-    drawing just loaded, so a binding with no steel has nothing to confirm and
-    no precondition (ADR-0060 as amended).
-
-    Written the other way, a deployed simulator could never answer the picker
-    at all: it is the only writer of its own supply and that supply is the
-    constant `on`, a power cut being a physical act ADR-0030 keeps out of the
-    simulation.
-    """
-    bus = bused()
-    answering = Answering(WAS, precondition=None)
-    answering.follow(bus)
-    live(bus)
-
-    picking(bus, NOW)
-    bus.drain()
-
-    assert (answering.name, answering.moved) == (NOW, True)
-
-
-def test_a_binding_with_hardware_still_waits_for_the_supply() -> None:
-    """The exemption is the absence of a precondition, not a looser one: the
-    default is unchanged, so the binding that drives steel refuses exactly as
-    before."""
-    bus = bused()
+def simulated(bus: InProcessBus) -> Answering:
+    """The answerer as `python -m tc49.simulator` builds it, following before
+    the simulator states its rows, with that binding on the same bus."""
     answering = Answering(WAS)
     answering.follow(bus)
-    live(bus)
+    layout, _roster, _scenario = load("crossover-yard/meet")
+    Simulator(bus, layout, Clock())
+    bus.drain()
+    return answering
+
+
+def test_the_simulator_powered_drops_the_gesture() -> None:
+    """Every binding waits for `off` before loading a railroad (ADR-0070,
+    decision 5): the simulator answers ON as the layout does, and once its
+    rails read `on` the gesture is dropped like the layout's."""
+    bus = bused()
+    answering = simulated(bus)
+    bus.publish("tc49/layout/power_wanted", {"power": "on"})
+    bus.drain()
 
     picking(bus, NOW)
     bus.drain()
 
     assert (answering.name, answering.moved) == (WAS, False)
+
+
+def test_the_simulator_dark_answers_the_gesture() -> None:
+    """It comes up `off`, as the layout interface does, so a railroad can be
+    picked on a simulated box until somebody presses ON — and after OFF."""
+    bus = bused()
+    answering = simulated(bus)
+
+    picking(bus, NOW)
+    bus.drain()
+
+    assert (answering.name, answering.moved) == (NOW, True)
 
 
 # -- the documents a moved railroad is rebuilt on --------------------------

@@ -16,7 +16,7 @@ injected, and what it asked for is what is asserted.
 
 from io import StringIO
 
-from tc49.bench.runner import placement
+from tc49.bench.runner import placement, powered
 from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import leaf
@@ -39,20 +39,23 @@ SENSORS = ("tc49/layout/block_occupied", "tc49/layout/block_vacated")
 def build() -> tuple[InProcessBus, Clock, Simulator, StringIO]:
     """The binding under test on a bus of its own, its steel stood where the
     scenario document stands it, with the trace tap in front of it so the
-    run's whole record — the power it states from its constructor included —
-    is on the stream."""
+    run's whole record — the power it states from its constructor and the
+    ON that powers it included — is on the stream."""
     layout, _roster, scenario = load("crossover-yard/meet")
     clock = Clock()
     bus = InProcessBus(clock)
     out = StringIO()
     TraceTap(bus, out, clock)
-    simulator = Simulator(
+    simulator = powered(
         bus,
-        layout,
-        clock,
-        placement(scenario.trains),
-        transit_s=TRANSIT_S,
-        clear_s=CLEAR_S,
+        Simulator(
+            bus,
+            layout,
+            clock,
+            placement(scenario.trains),
+            transit_s=TRANSIT_S,
+            clear_s=CLEAR_S,
+        ),
     )
     return bus, clock, simulator, out
 
