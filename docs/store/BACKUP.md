@@ -246,7 +246,11 @@ restore. With no railroad loaded the page only reloads. A refused restore
 changed nothing, so it names nothing and reloads nothing. The dialog says so
 above the backups: *Restore puts the store back as the picked backup held it;
 the apps and this page then reload*
-([#699](https://github.com/rails49/control/issues/699)).
+([#699](https://github.com/rails49/control/issues/699)). With drawing or
+roster edits not yet saved, Restore asks first — *Discard and restore* or
+*Keep the edits* — since the reload discards them, and the store, which
+refuses only over documents changed on disk, cannot see them
+([#703](https://github.com/rails49/control/issues/703)).
 
 **Quit DecoderPro first.** It reads its profile in the store once, at
 launch, and writes the roster it holds back on its next save, so a restore
