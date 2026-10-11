@@ -7,14 +7,18 @@ signal. Nothing here is ordered by anything else coming up first, which is why
 compose carries no `depends_on`.
 
 Three flags, the ones a compose service passes: where the broker is, which
-railroad it runs, and where the store serves the documents that railroad is
-built from. Neither the drain period nor the settling time is one of them —
-nothing outside this process has an opinion about how often it takes what the
-broker's network thread left waiting, and what a settling time is worth is a
-fact about the detectors a railroad has, which is `LayoutInterface`'s argument
-and the suite's to drive (ADR-0030).
+railroad it starts on where the store records none, and where the store serves
+the documents that railroad is built from. Neither the drain period nor the
+settling time is one of them — nothing outside this process has an opinion
+about how often it takes what the broker's network thread left waiting, and
+what a settling time is worth is a fact about the detectors a railroad has,
+which is `LayoutInterface`'s argument and the suite's to drive (ADR-0030).
 
-The startup order is `lib/startup.py`'s, with the picker in it. **Two
+The startup order is `lib/startup.py`'s, with the picker in it. **The
+record first**: the store says which railroad was loaded last (`/loaded`), and
+this app starts on that one, falling back to the flag only where the store
+records none — so a box comes back on the railroad its rails were built to and
+not on the one its env file named (ADR-0072, decision 5). Then **two
 documents**: the transits a `move` may name and the signal at each block end
 come off the layout, and the addresses that answer for a train off the roster,
 no address ever reaching a command (#199). Between the broker and the rows,
@@ -26,7 +30,8 @@ it (`lib/loading.py`). **The rows it adopts** are the traction rows a previous
 process left, which the constructor zeroes as it runs. A railroad the store
 does not have leaves it **standing** — up, naming no railroad (`""`) on
 `tc49/layout/state/railroad`, built on the first one a person picks that the
-store can give (#564, #727, `lib/loading.py`).
+store can give (#564, #727, `lib/loading.py`). Each railroad it is built on is
+**written back to the record** before the build, so the next start finds it.
 
 Then the loop, which is this app's own and not the drain the other apps run:
 advance the clock to wall time, `settle()`, drain, once per period. It moves
@@ -129,6 +134,13 @@ def serve(
     happens to be — in the loop, or in any of the waits above it — and `main`
     lets that out.
 
+    `railroad` is where this app starts **where the store records nothing**:
+    the store's record of the railroad loaded last is read first, once the
+    broker is there, and wins where it names one (ADR-0072, decision 5). A
+    recorded railroad the store no longer has is refused as any starting point
+    is, and the app stands; the record is left as it is, the next load being
+    what overwrites it.
+
     The clock starts here and at zero, and every turn puts it where wall time
     is. Seconds since this process started, which is what a settling time is
     measured in and the only thing that reads it; nothing on the bus carries
@@ -143,11 +155,16 @@ def serve(
     not have, and nothing would ever republish either. Where each train
     stands goes too under another name, and **stays under the same one**:
     the new build starts from the old one's, less any train whose block the
-    new drawing lacks (ADR-0071).
+    new drawing lacks (ADR-0071). And each turn **records** the railroad it
+    is about to build on, so that the next start of this process comes up on
+    it: the same name written again leaves the store as it was.
     """
-    loaded = Answering(railroad)
     if not connected(bus, stop, log):
         return
+    recorded = documents.loaded()
+    if recorded:
+        log(f"the store records '{recorded}' as loaded")
+    loaded = Answering(recorded or railroad)
     read = standing(
         bus, loaded, stop, log, lambda name: _documents(documents, name), period_s
     )
@@ -166,6 +183,7 @@ def serve(
         # app is about to state, which is the precondition on the gesture.
         loaded.follow(bus)
         _retained(bus, stop)
+        documents.put_loaded(loaded.name)
         clock = Clock()
         app = LayoutInterface(bus, layout, roster, clock, position=position)
         built = loaded.name

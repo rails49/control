@@ -12,10 +12,15 @@ other exists (ADR-0030), so which one a box starts is the only difference
 between a simulated railroad and steel, and nothing above them can tell.
 
 Three flags, the ones a compose service passes: where the broker is, which
-railroad it runs, and where the store serves the drawing that railroad derives
-from. **One document and not two**, where `layout` reads a roster as well: an
-address is what a roster answers with and this binding sends no command to
-anything, so the track alone is what it stands in for. Neither the drain
+railroad it starts on where the store records none, and where the store serves
+the drawing that railroad derives from. **The record first**, as `layout`
+reads it: the store says which railroad was loaded last (`/loaded`), this
+binding starts on that one and falls back to the flag only where the store
+records none, and each railroad it is built on is written back to the record
+before the build (ADR-0072, decision 5). **One document and not two**, where
+`layout` reads a roster as well: an address is what a roster answers with and
+this binding sends no command to anything, so the track alone is what it
+stands in for. Neither the drain
 period nor the two delays is a flag — nothing outside this process has an
 opinion about how often it takes what the broker's network thread left
 waiting, and what a transit costs is this binding's own stand-in for travel
@@ -134,9 +139,15 @@ def serve(
     # The gesture waits for `off` here as it does in `layout`: this binding
     # answers the band's power presses as that one does and comes up `off`, so
     # a railroad is picked before a person presses ON or after OFF (ADR-0070).
-    loaded = Answering(railroad)
     if not connected(bus, stop, log):
         return
+    # The store's record of the railroad loaded last wins over the flag, as
+    # it does in `layout`; where the store records none, `railroad` is where
+    # this process starts (ADR-0072, decision 5).
+    recorded = documents.loaded()
+    if recorded:
+        log(f"the store records '{recorded}' as loaded")
+    loaded = Answering(recorded or railroad)
     layout = standing(bus, loaded, stop, log, documents.layout, period_s)
     if layout is None:
         return
@@ -154,6 +165,7 @@ def serve(
         # answered while the rails read `off` and refused otherwise
         # (ADR-0070).
         loaded.follow(bus)
+        documents.put_loaded(loaded.name)
         clock = Clock()
         simulator = Simulator(
             bus, layout, clock, position, transit_s=transit_s, clear_s=clear_s
