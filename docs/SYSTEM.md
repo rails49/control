@@ -135,6 +135,8 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     PUT  /catalogue/<name>/photo create or replace it
     GET  /scripts/<railroad>    the translator script that railroad carries
     PUT  /scripts/<railroad>    create or replace it
+    GET  /loaded                the railroad the store records as loaded, or ""
+    PUT  /loaded                record which railroad is loaded
     GET  /backup                what backup can do here, what it needs, the
                                 repository the store is `inside`, if any, and
                                 the `railroads` each backup holds
@@ -235,13 +237,18 @@ LAN is still the trust boundary and a browser is not on it
   request.
   The switch is a document of the installation, `backup.yaml` in the store, so
   automated backup stays on across the restart that follows turning it on.
+  Beside it is `loaded.yaml`, the railroad the layout binding last loaded,
+  which it writes and reads back as it starts so that a reboot comes up on
+  the same railroad
+  ([ADR-0072](adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
   `GET /backup` also answers how far behind the copy off the machine is, in
   `copy`: how many backups the remote has not been given — every one on the
   branch where a remote has no upstream — how long the oldest has been waiting
   and whether that is longer than a day. It answers `inside`, the repository
   the store is inside where that is not the store itself and null otherwise,
   and each listed backup's `railroads`, the railroads it holds. A restore
-  leaves `backup.yaml` as it is, commits at once under a message naming the
+  leaves `backup.yaml` and `loaded.yaml` as they are — a load since the last
+  backup does not refuse one — commits at once under a message naming the
   backup it came from, and asks for a push; a press asks for a push whether
   or not automated backup is on. The store checks nothing about placed trains,
   track power or the loaded railroad — it hears nothing from the bus — and the

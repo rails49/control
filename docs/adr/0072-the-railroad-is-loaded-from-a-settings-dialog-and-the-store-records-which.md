@@ -43,8 +43,8 @@ running, shows a plan that does not match the track.
    Refused, New and Copy write nothing.
 5. **The store records which railroad is loaded.** The layout binding writes
    it each time it is built on one and starts on it. `TC49_RAILROAD` and
-   `--railroad` go. A restore brings the record back with the rest of the
-   store.
+   `--railroad` go. A restore leaves the record as it is, as it leaves the
+   backup switch, and a load since the last backup does not refuse one.
 6. **A binding with no railroad says so.** It publishes `""` on
    `tc49/layout/state/railroad`, so a page can tell "nothing loaded" from
    "layout not running", and the dialog loads or creates the first railroad

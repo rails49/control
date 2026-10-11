@@ -213,7 +213,9 @@ session you are trying to get out of was itself backed up.
 
 **A restore over documents that have not been backed up is refused**, in words
 naming them. Those are exactly the ones git cannot give back. Back the store
-up first — one press — and then restore.
+up first — one press — and then restore. Loading a railroad is not one of
+them: the record of which railroad is loaded is not restored, so a load since
+the last backup refuses nothing.
 
 **A restore waits while the layout could disagree with the store.** The
 dialog greys *Restore* and says why
@@ -242,7 +244,9 @@ come off the layout and are listed as **unfit** — on
 
 **A restore is a complete act.** It leaves `backup.yaml` as it is, so undoing
 a drawing mistake never stops backups, and a backup made before there was one
-does not take it away; it is itself a backup, committed at once as
+does not take it away; it leaves `loaded.yaml`, the loaded railroad, as it is
+as well, since that says what the layout is running rather than what is
+drawn, and leaves a load not yet backed up for the next backup; it is itself a backup, committed at once as
 `restore <short commit> of <date>: <documents>`, so a power cut does not lose
 it and a second restore — a wrong pick put right — is the same one press; and
 it is pushed like any press. Restoring the backup the store already holds
@@ -294,7 +298,10 @@ The new box's store is empty. In order:
 
 The answer names the backup brought in, `restored <short commit> from
 <address>`, and every backup the old box made is in the list to restore from.
-No railroad is loaded until one is chosen.
+No railroad is loaded until one is chosen, or until the layout binding next
+starts: it reads the loaded railroad the backup records, `loaded.yaml`, so a
+box that took a backup over comes up after a restart on the railroad the old
+box had loaded.
 
 Drawing anything on the new box before step 3 makes its store not empty, and
 the dialog then refuses, naming both the store's documents and the
