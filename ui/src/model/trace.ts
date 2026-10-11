@@ -226,10 +226,11 @@ export function powerWanted(power: Power): Frame {
  *  press (ADR-0035), so a gesture that is refused leaves the page showing the
  *  railroad that is still running.
  *
- *  **Track power off is the precondition**, and the band is what says so: the
- *  picker is inert while the rails have power, because with the power off
- *  nothing moves and no turnout throws, and the person who turns it back on is
- *  the one confirming the rails match the drawing just loaded (ADR-0051). */
+ *  **Track power off is the precondition**, and the settings dialog is what
+ *  says so: its list is dead while the rails have power
+ *  (`model/settings.ts`), because with the power off nothing moves and no
+ *  turnout throws, and the person who turns it back on is the one confirming
+ *  the rails match the drawing just loaded (ADR-0051). */
 export function railroadWanted(railroad: string): Frame {
   return { topic: RAILROAD_WANTED, payload: { railroad } };
 }
