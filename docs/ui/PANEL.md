@@ -63,10 +63,9 @@ connection is open and every retained topic has been replayed, so re-joining
 would take a live picture down to bring back a document.
 
 Trains standing nowhere have rows because those rows are what there is to drag
-back onto the railroad. It is also the pane that unfreezes the drawing
-([EDITOR.md](EDITOR.md#trains-on-the-layout-freeze-the-drawing)): while a
-session has trains placed the editing view is read-only, and taking the last
-one off is what ends that.
+back onto the railroad. They do not freeze the drawing: track power does
+([EDITOR.md](EDITOR.md#track-power-freezes-the-drawing)), and a save with power
+off keeps the trains that still fit.
 
 **A train between two blocks is drawn on the connection**, midway between the
 two block ends its transit joins, and stands in no block. The picture's
@@ -712,8 +711,8 @@ buttons, and **HOLD/GO**.
 with five of them saying the ordinary thing, and a status line that is always
 full is one nobody reads. Track power is the mark on the press naming where it
 stands rather than a word repeating it; the frozen drawing reads in the editing
-view alone, trains on the layout being the ordinary state of a railroad being
-run; and the link has no word at all.
+view alone, power on being the ordinary state of a railroad being run; and the
+link has no word at all.
 
 **HOLD and GO are one press and no confirmation.** The button says HOLD while
 the run is running and GO while it is held, which is what the press will do,
@@ -768,7 +767,11 @@ of the device vocabulary — a page never reaches a translator.
 emergency stop that asks "are you sure?" is not one, and `stopped` is cheap to
 recover from with the points still where you left them. **ON** writes nothing
 on `run_wanted`: returning to `on` releases nothing on its own (ADR-0041), so
-an explicit GO still follows.
+an explicit GO still follows. **ON waits for the save** while the open drawing
+is the loaded railroad and has unsaved edits, since this view draws the open
+drawing; its title then says *the drawing has unsaved edits — save it first*,
+and STOP and OFF never wait
+([EDITOR.md](EDITOR.md#track-power-freezes-the-drawing), ADR-0071).
 
 **OFF is the drain trigger, never an immediate cut.** The press publishes
 `tc49/dispatch/run_wanted: draining` — always, a run already reading `held`

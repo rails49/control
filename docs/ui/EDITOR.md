@@ -142,10 +142,10 @@ both being drawings that derive
 ([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
 
 And beside that, the other thing the band says about the drawing: that it is
-**frozen**, trains being on the layout ([Trains on the layout freeze the
-drawing](#trains-on-the-layout-freeze-the-drawing)). It reads as the session
-clock does rather than as the refusal above it — a railroad with trains on it
-is the ordinary state and nothing about it is wrong — and it is what explains a
+**frozen**, track power being on or stopped ([Track power freezes the
+drawing](#track-power-freezes-the-drawing)). It reads as the session clock
+does rather than as the refusal above it — a railroad with power on is the
+ordinary state and nothing about it is wrong — and it is what explains a
 rail of dead verbs to whoever looks at one. **In the editing view alone**
 (#517): the dead verbs it explains are the editor's, so anywhere else it is a
 warning about nothing. The band decides that itself no more than it decides
@@ -926,8 +926,8 @@ refusal from `/review` does — inside a 200, read rather than caught. The words
 in the dialog are git's own, kept whether the press worked or not: this app
 knows nothing to add to *could not resolve host*.
 
-**Trains on the layout do not freeze a restore**, as they [freeze the
-drawing](#trains-on-the-layout-freeze-the-drawing): the rebuild after it keeps
+**Trains on the layout do not freeze a restore**, as they no longer [freeze
+the drawing](#track-power-freezes-the-drawing): the rebuild after it keeps
 the trains that still fit, and those that do not come off and are listed as
 unfit (#710, ADR-0071). With a railroad loaded a restore waits for track power
 to read off, and refuses a backup that does not hold the loaded railroad —
@@ -1001,14 +1001,39 @@ placement: deleting one portal of a pair still strands the other, and that is
 left to the mark on the canvas, being a deliberate act
 ([ADR-0020](../adr/0020-a-portal-is-placed-as-a-pair.md)).
 
-## Trains on the layout freeze the drawing
+## Track power freezes the drawing
 
-With any train placed, this view is read-only: look, zoom, inspect the
-netlist, do not draw. You do not rewire track with locomotives standing on it
+With track power on or stopped, this view is read-only: look, zoom, inspect
+the netlist, do not draw. The run moves trains over what the dispatcher built,
+and the drawing must not drift from it
+([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
+decision 5). With power off, or with no session, it is editable — trains
+standing on the layout included. Nothing moves with power off, and the save
+brings the apps up to date.
+
+This was a freeze on trains placed
 ([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md),
-[#169](https://github.com/rails49/control/issues/169)).
+[#169](https://github.com/rails49/control/issues/169)), back when every rebuild
+dropped every placement: an edit meant taking every train off and dragging each
+one back. A rebuild under the same name now keeps the trains that still fit
+([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)),
+so power is what the freeze rests on (#711).
 
-It replaces the permission this page carried — "Editing and running the same
+**A save of the loaded railroad names it again.** Saving the drawing the run
+has loaded — the name on `tc49/layout/state/railroad` — writes it and then
+publishes `railroad_wanted` naming it, so every app builds what was written and
+keeps the trains that fit; those that do not are listed as unfit. The page does
+not reload: it already holds what it saved. The layout builds only with power
+off, so while power is on or stopped that Save is dead. Save As names nothing,
+and neither does a save of any drawing that is not the loaded railroad: it is
+only a file.
+
+**ON waits for the save.** The run view draws the open drawing, so power on
+with the loaded railroad's edits unsaved would run trains under track no app
+built. While they are unsaved the band's ON is dead and says *the drawing has
+unsaved edits — save it first*. STOP and OFF never wait.
+
+The freeze replaces the permission this page carried — "Editing and running the same
 railroad at once is not prevented. The store snapshots at startup, so a run in
 progress keeps the layout it began with and an edit lands for the next one" —
 which was safe when editing and running were two pages a person navigated
@@ -1026,9 +1051,8 @@ the rest of them and every command that changes the document is declared
 through it — a verb joins the frozen category by wearing it rather than by
 someone remembering the condition. The bar and the keyboard are the one path
 through that module, so a frozen `r` does nothing wherever it is pressed. Zoom,
-fit and Netlist stay alive, a frozen drawing being read-only rather than gone,
-and so does Save: it writes the document out rather than changing it, and the
-edits it carries were made before the train arrived.
+fit, Netlist and Save As stay alive, a frozen drawing being read-only rather
+than gone; Save stays alive for any drawing that is not the loaded railroad.
 
 The gestures answer the same rule rather than a second copy of it. The canvas's
 machine abandons every press while the drawing is frozen ([Canvas](#canvas)),
@@ -1037,19 +1061,16 @@ and writes nothing. A palette drag starts on a tile rather than on the sheet,
 so this view refuses that one itself and the tiles are greyed while it holds
 ([Palette](#palette)).
 
-**Putting every train away thaws it.** The rule is read off the count of placed
-trains afresh and nothing latches it. Dragging a train's marker onto the run
-view's roster pane takes it off the layout
-([PANEL.md](PANEL.md), [#170](https://github.com/rails49/control/issues/170)),
-so the freeze lifts when the last one is put away — that, or the run's own
-picture coming back with nothing placed. Leaving the session lifts it too:
-the freeze rests on what a joined session is saying, and a page that has left
-one is told nothing about the layout, exactly as a page that has just loaded
-is. It does not rest on the last thing the page happened to hear, which would
-be a state no reload could reproduce and nothing could clear.
+**Power off thaws it.** The rule is read off `state/power` afresh and nothing
+latches it, so the band's OFF — once the run has drained — lifts the freeze.
+Leaving the session lifts it too: the freeze rests on what a joined session is
+saying, and a page that has left one is told nothing about the layout, exactly
+as a page that has just loaded is. It does not rest on the last thing the page
+happened to hear, which would be a state no reload could reproduce and nothing
+could clear.
 
-Which trains are placed is the run's knowledge, and it reaches this view
-through the shell, as everything the two views share does. The band says so in
+Track power and which railroad is loaded are the run's knowledge, and they
+reach this view through the shell, as everything the two views share does. The band says so in
 one quiet phrase, which is what explains a menu full of dead verbs
 ([The band](#the-band)).
 
