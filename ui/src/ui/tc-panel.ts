@@ -10,8 +10,8 @@
  * the layout interface publishes its name on a retained row
  * ([ADR-0059](../../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
  * decision 2), so this reads that row and the app loads the documents from the
- * store. It has no session of its own to choose: the band's picker asks for a
- * railroad on the bus and this carries the press, exactly as it carries the
+ * store. It has no session of its own to choose: the settings dialog asks for
+ * a railroad on the bus and this carries the press, exactly as it carries the
  * band's power presses
  * ([ADR-0060](../../../docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)),
  * and what the page then shows is the row coming back — so the two cannot come
@@ -447,8 +447,8 @@ export class TcPanel extends LitElement {
    *
    * It is the whole of the page's choice. The app holds the loaded railroad
    * and hands the documents down (ADR-0038), so this says which and the app
-   * reads it from the store. The picker asks on `railroad_wanted` and is
-   * answered here or not at all: what a person pressed never loads anything
+   * reads it from the store. The settings dialog asks on `railroad_wanted` and
+   * is answered here or not at all: what a person pressed never loads anything
    * by itself (ADR-0060). The roster is read here because it is the railroad's
    * asset and not the run's — what stock there is to place, which no topic
    * carries (ADR-0039). Everything else comes off the bus: placement, locks

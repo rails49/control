@@ -44,10 +44,11 @@ simulated railroad to drive is `python -m tc49.simulator --broker
 127.0.0.1:1883 --railroad reversing-loops --store http://127.0.0.1:8765`.
 **The broker is the only thing that loads a railroad**: the layout interface
 publishes its name on a retained row and the app reads its documents off the
-store. The band's picker does not load one itself — it asks, on
-`tc49/layout/railroad_wanted`, and the layout interface answers by publishing
-the row (ADR-0060). The picker is live only while `tc49/layout/state/power`
-reads `off`, and says why when it is not.
+store. The settings dialog behind the band's gear does not load one itself —
+it asks, on `tc49/layout/railroad_wanted`, and the layout interface answers by
+publishing the row (ADR-0060, ADR-0072). Its list is live only while
+`tc49/layout/state/power` reads `off` with a railroad loaded and nothing is
+unsaved, and says why when it is not.
 
 `../scripts/dev.sh stop` puts down everything the script started and leaves
 alone anything it did not.
@@ -101,6 +102,8 @@ src/
                    run together
     tc-properties.ts  the properties dialog
     tc-menu.ts     the right-click menu
+    tc-settings.ts the settings dialog behind the band's gear: which railroad
+                   is loaded, and the way into backup
     tc-panel.ts    the run view: the session, and the overlay it hands the
                    canvas to paint
     tc-throttle.ts the throttle view: pick a train, take it, drive it, give
@@ -111,8 +114,8 @@ src/
                    menu systems: the press outside that dismisses, and the
                    right-click that is handed on to what is underneath
     <component>.styles.ts  a component's styles, beside it
-    shared.styles.ts   what more than one of them wears: the palette, the
-                   symbol rules, and what a menu is made of
+    shared.styles.ts   what more than one of them wears: the palette and the
+                   symbol rules
     theme.ts       which Shoelace theme the page wears, which is whichever
                    the operating system asks for
 test/            vitest; the suites that mount a component need a DOM

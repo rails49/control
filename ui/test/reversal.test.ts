@@ -111,8 +111,8 @@ describe("what the right-click offers", () => {
 
   /** A railroad on screen that no session is feeding: the picture the last
    *  session left is still painted, so the train is there to click, and there
-   *  is nowhere to gesture at. The band's picker is what gets back in
-   *  (#171). */
+   *  is nowhere to gesture at. Loading a railroad in the settings dialog is
+   *  what gets back in (#171). */
   it("offers nothing over a train with no session joined", async () => {
     const shell = await standing();
     Broker.last!.closes();

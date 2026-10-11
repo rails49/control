@@ -103,7 +103,7 @@ export function unbrokered(): void {
 }
 
 /** The railroad this broker runs, on the retained row that says so (#371).
- *  It is the only thing that loads one: the band's picker asks on the bus and
+ *  It is the only thing that loads one: the settings dialog asks on the bus and
  *  the layout interface answers by publishing this row (ADR-0060), so a
  *  session is stood up, and swapped, by the broker saying which railroad it
  *  is and nothing else. */
