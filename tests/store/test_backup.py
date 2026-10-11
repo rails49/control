@@ -247,12 +247,59 @@ def test_the_message_names_the_documents_that_moved(
 
 
 def test_a_quiet_store_produces_no_commits(tmp_path: Path, clock: FakeClock) -> None:
-    """Nothing was saved, so nothing is waiting on the deadline and an hour of
-    ticks says nothing."""
-    run = FakeGit(porcelain=" M layouts/reversing-loops.drawing.yaml\n")
+    """Nothing was saved and nothing moved, so an hour of ticks says
+    nothing."""
+    run = FakeGit(porcelain="")
     backup = backing(tmp_path, run, clock)
     for _ in range(60):
         clock.now += 60.0
+        backup.due()
+    assert run.messages == []
+
+
+def test_a_file_moved_without_a_save_is_committed_on_the_push_period(
+    tmp_path: Path, clock: FakeClock
+) -> None:
+    """DecoderPro writes its profile into `jmri/` and never through a route,
+    so nothing arms the idle deadline. The push period commits it and the
+    push takes it off the box (#713)."""
+    run = FakeGit(porcelain=" M jmri/roster/e10.xml\n")
+    backup = backing(tmp_path, run, clock, [])
+    clock.now += 299.0
+    backup.due()
+    assert run.messages == []
+    clock.now += 1.0
+    backup.due()
+    assert run.messages == ["backup: jmri/roster/e10.xml"]
+    assert ("push",) in run.calls
+
+
+def test_a_save_waiting_on_the_deadline_is_left_to_it(
+    tmp_path: Path, clock: FakeClock
+) -> None:
+    """The push period passing mid-session does not cut the session in two:
+    the idle deadline commits it, once (#713)."""
+    run = FakeGit(porcelain=" M layouts/reversing-loops.drawing.yaml\n")
+    backup = backing(tmp_path, run, clock, [])
+    clock.now += 290.0
+    backup.saved()
+    clock.now += 10.0
+    backup.due()
+    assert run.messages == []
+    clock.now += 10.0
+    backup.due()
+    assert run.messages == ["backup: reversing-loops"]
+
+
+def test_a_file_moved_without_a_save_waits_for_the_switch(
+    tmp_path: Path, clock: FakeClock
+) -> None:
+    """With automated backup off only a press commits, whoever wrote the
+    file (#713)."""
+    run = FakeGit(porcelain=" M jmri/roster/e10.xml\n")
+    backup = Backup(tmp_path, run=run, log=lambda _: None, now=clock, push_s=300.0)
+    for _ in range(10):
+        clock.now += 300.0
         backup.due()
     assert run.messages == []
 

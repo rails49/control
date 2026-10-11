@@ -325,6 +325,9 @@ class Backup:
         # there is something to push keeps a quiet store off the network.
         self._unpushed = False
         self._pushed_at = now()
+        # When the push period last looked for what moved without a save:
+        # a file another program keeps in the store (#713).
+        self._looked_at = now()
         # A push the button asked for, waiting for the next tick to make it.
         self._push_wanted = False
         # What the last attempt to push said, `None` before there was one.
@@ -735,6 +738,11 @@ class Backup:
         """One tick of the watch. Commit where the store has gone quiet, push
         where the timer is up and there is something to push.
 
+        **Every push period, what moved without a save is committed too** — a
+        file another program keeps in the store, DecoderPro's profile under
+        `jmri/`, or a document edited by hand (#713). Only where no save is
+        waiting on the idle deadline, which is the editing session's to end.
+
         Both timers are silent where automation is off, which is the state a
         fresh installation is in: nothing is committed until somebody asks for
         it, by the switch or by the button. **A push a press asked for is
@@ -752,6 +760,14 @@ class Backup:
             ):
                 self._touched = None
                 self._backed_up(self.commit())
+            if (
+                automatic
+                and self._touched is None
+                and now - self._looked_at >= self._push_s
+            ):
+                self._looked_at = now
+                if self.repository() and self.outstanding():
+                    self._backed_up(self.commit())
             timer = (
                 automatic and self._unpushed and now - self._pushed_at >= self._push_s
             )
