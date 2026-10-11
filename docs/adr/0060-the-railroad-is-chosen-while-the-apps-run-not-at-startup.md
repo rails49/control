@@ -115,6 +115,8 @@ its supply is on. One that drives none hands it nothing (`lib/loading.py`,
 
 ## Loading a railroad is a cold start
 
+*Amended by [ADR-0071](0071-a-rebuild-under-the-same-name-keeps-the-placements.md) (#708): a rebuild under the same name keeps the placements that still fit.*
+
 The new railroad comes up at rest, which
 [ADR-0054](0054-the-railroad-comes-up-at-rest-and-points-replay.md) already
 requires. Nothing carries over.

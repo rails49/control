@@ -411,7 +411,10 @@ its two names, as each topic states.
   again from the store — after a restore wrote it — and every app following
   the row rebuilds on it, translators reading sensor names from the drawing
   and the UI among them. An app started on a railroad knows no stamp for it,
-  and takes the first row naming it as the build it runs. Clearing rather than republishing, because a
+  and takes the first row naming it as the build it runs. A build under the
+  same name keeps `tc49/dispatch/state/allocation` and
+  `tc49/schedule/state/facing`, which say where the trains stand on steel a
+  rebuild has not moved ([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)). Clearing rather than republishing, because a
   desired speed for a locomotive the new railroad does not have, or occupancy
   for a block end it does not have, is a row nothing would ever republish and
   a page opened afterwards would read as current. A railroad the store cannot
@@ -522,7 +525,9 @@ payload is read defensively, and one that fails the read is dropped.
   `<block>.A-to-B` would depart through that block's B end (CONTEXT.md,
   **Facing**). The bare end letter this value once carried is refused rather
   than read, a retained row written by an older build losing that train's
-  facing rather than turning it round.
+  facing rather than turning it round. Kept through a rebuild under the same
+  railroad name and adopted as after a restart; cleared when another railroad
+  is loaded ([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
 
 #### `dispatch`
 
@@ -601,7 +606,11 @@ payload is read defensively, and one that fails the read is dropped.
   block; `crossing`: map of crossing train to its transit; `locks`: map of
   resource to holding train; `requests`: list of
   `{id, train, depart, dest, route}` in admission order, `route` *optional*
-  — present once the route is committed.
+  — present once the route is committed. Kept through a rebuild under the
+  same railroad name, then republished by the new build: each train is placed
+  again where its block still exists and still holds it, and the run comes up
+  held. Cleared when another railroad is loaded
+  ([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
 
 ## Time
 

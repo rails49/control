@@ -96,6 +96,8 @@ symbol and label rendering and a run view that has **never had zoom or fit**.
 
 ## Trains on the layout freeze the drawing
 
+*Amended by [ADR-0071](0071-a-rebuild-under-the-same-name-keeps-the-placements.md) (#708): a rebuild under the same name keeps the placements, so track power and not a placed train is what freezes the drawing.*
+
 With any train placed, the editing view is read-only: look, zoom, inspect the
 netlist, do not draw. You do not rewire track with locomotives standing on it.
 
