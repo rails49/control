@@ -540,6 +540,16 @@ the layout has said nothing about is neither: silence is not a clear reading.
 _Avoid_: mismatch, discrepancy, error. Not a **transit conflict**, which is
 two transits that may not be in use at once.
 
+**Unfit**:
+The trains the last rebuild of the railroad under the same name took off the
+layout, each with the block it stood in and why: the block is *gone* from the
+new drawing, or *short* of the train. Published by the dispatcher for a person
+to place again; a train leaves the list when it is **placed**, and the list
+does not outlive the railroad
+([ADR-0071](docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
+[#709](https://github.com/rails49/control/issues/709)). Not **disputed**,
+which compares a placement with the detectors; an unfit train has no placement.
+
 **Unexplained reading**:
 A detector reading no granted move accounts for: a `block_occupied` with
 nothing claiming the block, or a `block_vacated` of a block the dispatcher

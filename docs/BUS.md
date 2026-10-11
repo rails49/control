@@ -311,6 +311,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
 | `tc49/dispatch/state/disputed` | state | dispatcher | where the detectors contradict the placement ([#153](https://github.com/rails49/control/issues/153)) |
+| `tc49/dispatch/state/unfit` | state | dispatcher | the trains the last rebuild under the same name took off the layout, and why ([#709](https://github.com/rails49/control/issues/709)) |
 
 | Consumer | Filter(s) |
 | --- | --- |
@@ -602,6 +603,19 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/dispatch/state/disputed` — `trains`: sorted list of trains standing
   in a block that reads clear; `blocks`: sorted list of blocks reading
   occupied with nothing claiming them. Both empty unless the run is held.
+- `tc49/dispatch/state/unfit` — `trains`: list of `{train, block, why}`, in
+  train order: each train the last rebuild under the same railroad name took
+  off the layout, the block it stood in, and `why` — `gone` where the new
+  drawing has no such block, `short` where the block no longer holds the
+  train. Published from the constructor, `[]` when nothing came off, so a
+  joining client is served a value
+  ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md));
+  republished without a listed train once it is placed (`train_placed`).
+  The next rebuild replaces it, and loading another railroad clears it with
+  the rest of the dispatcher's rows
+  ([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
+  [#709](https://github.com/rails49/control/issues/709)). Read by the run
+  view.
 - `tc49/dispatch/state/allocation` — `trains`: map of train to standing
   block; `crossing`: map of crossing train to its transit; `locks`: map of
   resource to holding train; `requests`: list of
