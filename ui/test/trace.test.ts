@@ -305,6 +305,7 @@ describe("Ordering", () => {
       "power",
       "railroad",
       "run",
+      "unfit",
     ]);
   });
 

@@ -300,6 +300,7 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
   "run",
   "aspects",
   "disputed",
+  "unfit",
   "allocation",
   "device/track",
 ]);

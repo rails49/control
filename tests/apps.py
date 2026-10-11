@@ -167,6 +167,7 @@ APPS = (
             "tc49/dispatch/state/allocation",
             "tc49/dispatch/state/aspects",
             "tc49/dispatch/state/disputed",
+            "tc49/dispatch/state/unfit",
         ),
     ),
     App("driver", rows=()),

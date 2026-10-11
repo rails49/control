@@ -63,6 +63,14 @@ from tc49.lib.roster import Roster
 # test seeding the file a session comes up on.
 ALLOCATION = "tc49/dispatch/state/allocation"
 ASPECTS = "tc49/dispatch/state/aspects"
+UNFIT = "tc49/dispatch/state/unfit"
+"""The trains the last rebuild under the same name took off the layout (#709).
+Named in full for the tests that read it; no app does."""
+
+GONE = "gone"
+"""`unfit`'s `why` for a train whose block the new drawing lacks."""
+SHORT = "short"
+"""`unfit`'s `why` for a train its block, in the new drawing, no longer holds."""
 
 
 @dataclass
@@ -414,6 +422,12 @@ class Adopted:
 
     standing: dict[str, str]  # train -> the block it comes up in
     crossing: dict[str, str]  # train -> the transit it was crossing
+    # train -> (the block the picture stood it in, `GONE` or `SHORT`): the
+    # pictured trains the drawing could not stand again and nothing else
+    # placed, which come up off the layout (#709)
+    unfit: dict[str, tuple[str, str]] = field(
+        default_factory=dict[str, tuple[str, str]]
+    )
 
 
 def restored(
@@ -444,7 +458,10 @@ def restored(
     the railroad under the same name (ADR-0071), and the drawing it was taken
     against may since have lost the block or shortened it. A train placed
     there is treated as one the picture does not name, so a run an operator
-    drives — which has no cold placement — brings it up off the layout.
+    drives — which has no cold placement — brings it up off the layout. Such
+    a train is returned in `unfit` with the block it stood in and why it no
+    longer stands there, `GONE` or `SHORT`, for a person to come and place
+    (#709); one its cold placement stood somewhere else is not.
 
     It is taken **per train** (#164), so only the trains in a collision pay
     for one, and what the all-or-nothing rule protected holds train by train
@@ -462,12 +479,16 @@ def restored(
     stated = kept_allocation(picture)
     named = stated.trains if stated is not None else {}
     lengths = roster.lengths()
+    misfit = {
+        train: (at, GONE if at not in layout.blocks else SHORT)
+        for train, at in named.items()
+        if train in roster.trains
+        and (at not in layout.blocks or lengths[train] > layout.blocks[at])
+    }
     pictured = {
         train: at
         for train, at in named.items()
-        if train in roster.trains
-        and at in layout.blocks
-        and lengths[train] <= layout.blocks[at]
+        if train in roster.trains and train not in misfit
     }
     settled: dict[str, str] = {}
 
@@ -494,6 +515,7 @@ def restored(
     return Adopted(
         standing,
         {train: transit for train, transit in hinted.items() if train in kept},
+        {train: misfit[train] for train in sorted(misfit) if train not in standing},
     )
 
 
@@ -625,6 +647,8 @@ class Dispatcher:
         # The last `state/run` row published, so the topic moves only when
         # what it says moves — the run word or `moving`, either of them.
         self._published_run: Payload | None = None
+        # The trains the rebuild left off, until a person places each one.
+        self._unfit = dict(adopted.unfit)
         # The opening statement is the whole of what the dispatcher holds, in
         # the order a grant phase says it. Aspects are in it because a restart
         # has a previous value on that topic too: the last session's
@@ -641,6 +665,7 @@ class Dispatcher:
         self._publish_aspects()
         self._publish_allocation()
         self._publish_disputed()
+        self._publish_unfit()
 
     # -- live state, for the property tests' oracles ------------------------
 
@@ -1027,6 +1052,8 @@ class Dispatcher:
         # out, that block not being free.
         state.crossing.pop(train, None)
         self._publish("train_placed", {"train": train, "block": block})
+        if self._unfit.pop(train, None) is not None:
+            self._publish_unfit()
         # A transit kept for this block alone has nothing left to wait for:
         # the block is a standing lock now, and no clear reading will come
         # for it as residue.
@@ -1798,6 +1825,22 @@ class Dispatcher:
         if found != self._disputed:
             self._disputed = found
             self._publish("state/disputed", found)
+
+    def _publish_unfit(self) -> None:
+        """The trains the last rebuild under the same name took off the
+        layout, each with the block it stood in and why (#709). Published
+        from the constructor whatever it holds, so a joining client is served
+        a value and the last build's list does not stand (ADR-0032), and
+        again each time a person places one of them."""
+        self._bus.publish(
+            UNFIT,
+            {
+                "trains": [
+                    {"train": train, "block": block, "why": why}
+                    for train, (block, why) in self._unfit.items()
+                ]
+            },
+        )
 
     def _publish(self, leaf: str, payload: Payload) -> None:
         self._bus.publish(f"tc49/dispatch/{leaf}", payload)

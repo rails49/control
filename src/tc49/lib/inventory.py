@@ -102,6 +102,7 @@ TOPICS: dict[str, Topic] = {
     "tc49/dispatch/state/run": Topic((AT, "run", "moving")),
     "tc49/dispatch/state/aspects": Topic((AT, "aspects")),
     "tc49/dispatch/state/disputed": Topic((AT, "trains", "blocks")),
+    "tc49/dispatch/state/unfit": Topic((AT, "trains")),
     "tc49/dispatch/state/allocation": Topic(
         (AT, "trains", "crossing", "locks", "requests")
     ),
