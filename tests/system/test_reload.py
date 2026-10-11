@@ -756,3 +756,96 @@ def test_the_railroad_built_again_is_the_one_the_store_now_holds(
         writing.close()
     finally:
         running.stop()
+
+
+ALLOCATION = "tc49/dispatch/state/allocation"
+FACING = "tc49/schedule/state/facing"
+MODE = "tc49/layout/state/mode"
+
+
+class Placed:
+    """The layout interface, the scheduler and the dispatcher up on `WAS`,
+    with the rails dead and `WAS_TRAIN` placed by a person in `yard_w`: what
+    a railroad looks like when a restore or a saved edit is about to name it
+    again (ADR-0071)."""
+
+    def __init__(self, broker: Broker, store: Store, tmp_path: Path) -> None:
+        self.broker = broker
+        self.apps: dict[str, Process] = {}
+        for app in ("layout", "scheduler", "dispatcher"):
+            self.apps[app] = started(app, broker, store, tmp_path)
+        self.hand = hand(broker)
+        dark(self.hand)
+        self.hand.publish(
+            "tc49/dispatch/placement_wanted", {"train": WAS_TRAIN, "block": "yard_w"}
+        )
+        assert until(
+            lambda: self.facing() != {} and self.placed() != {}, UP_S
+        ), "the placement never landed"
+        self.facing_before = self.facing()
+
+    def placed(self) -> dict[str, Any]:
+        return dict(picture(self.broker)[ALLOCATION]["trains"])
+
+    def facing(self) -> dict[str, Any]:
+        return dict(picture(self.broker).get(FACING, {}).get("facing", {}))
+
+    def rebuilt(self, railroad: str) -> None:
+        """`railroad` picked, and every one of the three up on it again."""
+        before = {
+            name: running.said().count(f"up on '{railroad}'")
+            for name, running in self.apps.items()
+        }
+        picks(self.hand, railroad, self.apps["layout"])
+        for name in ("scheduler", "dispatcher"):
+            running, was = self.apps[name], before[name]
+
+            def again(running: Process = running, was: int = was) -> bool:
+                return running.said().count(f"up on '{railroad}'") > was
+
+            assert until(again, UP_S), f"the {name} never rebuilt:\n{running.said()}"
+
+    def handed_over(self) -> dict[str, Any]:
+        """Every train the layout interface holds a position for: a hand-over
+        of the whole railroad names each one manual (`_modes`), which is the
+        one place that position reaches the bus."""
+        self.hand.publish("tc49/layout/mode_wanted", {"train": None, "mode": "manual"})
+        settle(self.hand, 1.0)
+        return dict(picture(self.broker)[MODE]["modes"])
+
+    def stop(self) -> None:
+        self.hand.close()
+        for running in self.apps.values():
+            running.stop()
+
+
+@pytest.fixture
+def placed(broker: Broker, store: Store, tmp_path: Path) -> Iterator[Placed]:
+    railroad = Placed(broker, store, tmp_path)
+    try:
+        yield railroad
+    finally:
+        railroad.stop()
+
+
+def test_a_rebuild_under_the_same_name_keeps_the_placement(placed: Placed) -> None:
+    """With track power off a restore or a saved edit changes the drawing
+    and not the track, so every train stands where it stood (ADR-0071): the
+    dispatcher keeps it placed and comes up held, the scheduler keeps the way
+    it faces, and the layout interface keeps where it is."""
+    placed.rebuilt(WAS)
+
+    assert placed.placed() == {WAS_TRAIN: "yard_w"}
+    assert picture(placed.broker)["tc49/dispatch/state/run"]["run"] == "held"
+    assert placed.facing() == placed.facing_before
+    assert placed.handed_over() == {WAS_TRAIN: "manual"}
+
+
+def test_loading_another_railroad_places_nothing(placed: Placed) -> None:
+    """A block's name in one railroad says nothing about the steel of
+    another (ADR-0071, decision 2)."""
+    placed.rebuilt(NOW)
+
+    assert placed.placed() == {}
+    assert placed.facing() == {}
+    assert placed.handed_over() == {}
