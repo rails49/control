@@ -117,6 +117,12 @@ else, so an owner that never made it would sit on a quiet railroad holding an
 arrival nobody was told about. The suite drives the clock rather than sleeping
 on it and calls `settle()` itself.
 
+**The same loop says the app is up.** Once a second by the monotonic clock,
+whatever the period, it publishes `tc49/layout/alive_confirmed` with `{}`, so
+something off the box can cut track power when the box goes silent. Standing
+and reloading are outside the loop and say nothing; the simulator never says
+it ([#716](https://github.com/rails49/control/issues/716), BUS.md).
+
 **Whose levels those are, on a physical railroad, is a person's.** No camera
 publishes `device/sensor` yet, so somebody types them a line at a time and
 what they type is published as the row a detector would write, by
