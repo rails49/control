@@ -396,9 +396,10 @@ export class Stock {
     return [...this.corrected].map((name) => this.models[name]!);
   }
 
-  /** The store took one corrected model. */
-  wrote(name: string): void {
-    this.corrected.delete(name);
+  /** The store took one corrected model, as `corrections` gave it. A model
+   *  corrected again since is still pending, with its newer length. */
+  landed(model: ModelDoc): void {
+    if (this.models[model.model] === model) this.corrected.delete(model.model);
   }
 
   /** The store took the roster. */

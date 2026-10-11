@@ -692,7 +692,7 @@ describe("the roster's Save with a length corrected", () => {
 
       expect(paths()).toEqual(["/catalogue/hopper"]);
       expect(trouble(shell)).not.toBeNull();
-      expect(wants()).toHaveLength(1);
+      expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
       expect(saving(shell).disabled).toBe(false);
 
       store.intercepted = () => null;
