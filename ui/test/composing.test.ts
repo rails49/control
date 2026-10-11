@@ -489,7 +489,7 @@ describe("a length edit in the roster", () => {
     const screen = stock();
     expect(screen.carLength("krokodil-a", 130, "off")).toBeNull();
     expect(screen.lengthEdits).toBe(true);
-    screen.kept();
+    screen.kept(screen.roster);
     expect(screen.lengthEdits).toBe(false);
     expect(screen.carLength("krokodil-a", null, "off")).toBeNull();
     expect(screen.lengthEdits).toBe(true);
@@ -537,10 +537,11 @@ describe("a length edit in the roster", () => {
     expect(screen.corrections.map((model) => model.length)).toEqual([120]);
   });
 
-  it("clears the corrections with the rest when the roster is kept", () => {
+  it("is clear once each correction has landed and the roster is kept", () => {
     const screen = stock();
     screen.modelLength("hopper", 110, "off");
-    screen.kept();
+    screen.landed(screen.corrections[0]!);
+    screen.kept(screen.roster);
     expect(screen.corrections).toEqual([]);
     expect(screen.edits).toBe(false);
     expect(screen.lengthEdits).toBe(false);
@@ -567,6 +568,76 @@ describe("a length edit in the roster", () => {
     const screen = stock();
     screen.carAddress("krokodil-a", "7");
     expect(screen.waitsForPower("on")).toBeNull();
+  });
+});
+
+/** Save writes the corrected models and then the roster, and the page stays
+ *  editable while it does: what the store took is cleared and nothing else, so
+ *  an edit made during the write is written by the next Save (#723). */
+describe("an edit made during a Save", () => {
+  const WAITS = "a length has changed — turn track power off to save";
+
+  it("leaves the roster holding edits", () => {
+    const screen = stock();
+    screen.carAddress("krokodil-a", "7");
+    const written = screen.roster;
+    screen.carAddress("krokodil-a", "8");
+    screen.kept(written);
+    expect(screen.edits).toBe(true);
+    expect(screen.lengthEdits).toBe(false);
+  });
+
+  it("is nothing to clear when there was none", () => {
+    const screen = stock();
+    screen.carAddress("krokodil-a", "7");
+    screen.kept(screen.roster);
+    expect(screen.edits).toBe(false);
+  });
+
+  it("keeps a car's length waiting for power off", () => {
+    const screen = stock();
+    screen.carAddress("krokodil-a", "7");
+    const written = screen.roster;
+    expect(screen.carLength("krokodil-a", 130, "off")).toBeNull();
+    screen.kept(written);
+    expect(screen.lengthEdits).toBe(true);
+    expect(screen.waitsForPower("on")).toBe(WAITS);
+  });
+
+  it("clears a car's length that was written, when the edit since is not one", () => {
+    const screen = stock();
+    screen.carLength("krokodil-a", 130, "off");
+    const written = screen.roster;
+    screen.carAddress("krokodil-a", "7");
+    screen.kept(written);
+    expect(screen.edits).toBe(true);
+    expect(screen.lengthEdits).toBe(false);
+  });
+
+  it("keeps a model corrected for the first time to write", () => {
+    const screen = stock();
+    screen.modelLength("hopper", 110, "off");
+    const writing = screen.corrections[0]!;
+    const written = screen.roster;
+    screen.modelLength("coach", 50, "off");
+    screen.landed(writing);
+    screen.kept(written);
+    expect(screen.corrections.map((model) => model.model)).toEqual(["coach"]);
+    expect(screen.edits).toBe(true);
+    expect(screen.lengthEdits).toBe(true);
+  });
+
+  it("keeps a model corrected again with its newer length", () => {
+    const screen = stock();
+    screen.modelLength("hopper", 110, "off");
+    const writing = screen.corrections[0]!;
+    const written = screen.roster;
+    screen.modelLength("hopper", 120, "off");
+    screen.landed(writing);
+    screen.kept(written);
+    expect(screen.corrections.map((model) => model.length)).toEqual([120]);
+    expect(screen.edits).toBe(true);
+    expect(screen.lengthEdits).toBe(true);
   });
 });
 
