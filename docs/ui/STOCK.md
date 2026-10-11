@@ -101,10 +101,8 @@ here and put it on the layout in the run view.
 a car left out is a car removed and removing one needs no verb. The store
 validates it against the catalogue and writes nothing where it does not
 validate, so a refusal arrives in the validator's own words and is shown on the
-screen that caused it. Save is dead from the press until the roster's write
-answers or is refused. The rest of the screen stays editable meanwhile, and an
-edit made after the press stays an edit for the next Save
-([#723](https://github.com/rails49/control/issues/723)).
+screen that caused it. An edit made while Save is writing stays an edit for
+the next Save ([#723](https://github.com/rails49/control/issues/723)).
 
 **A train with nothing in it cannot be saved.** Making one up and pressing
 Save is the order of work this screen invites, so the screen refuses that save
