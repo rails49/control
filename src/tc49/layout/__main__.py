@@ -24,8 +24,9 @@ carries is a gesture, and an event is not retained, so a press landing before
 the subscription is gone; the supply the gesture is conditional on comes with
 it (`lib/loading.py`). **The rows it adopts** are the traction rows a previous
 process left, which the constructor zeroes as it runs. A railroad the store
-does not have leaves it **standing** — up, with no railroad, built on the
-first one a person picks that the store can give (#564, `lib/loading.py`).
+does not have leaves it **standing** — up, naming no railroad (`""`) on
+`tc49/layout/state/railroad`, built on the first one a person picks that the
+store can give (#564, #727, `lib/loading.py`).
 
 Then the loop, which is this app's own and not the drain the other apps run:
 advance the clock to wall time, `settle()`, drain, once per period. It moves

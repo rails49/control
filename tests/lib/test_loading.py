@@ -539,6 +539,59 @@ def test_an_app_that_is_standing_answers_the_picker_with_the_rails_live() -> Non
     assert (answering.name, answering.moved) == (NOW, True)
 
 
+def test_the_answerer_standing_says_so_on_the_row() -> None:
+    """The binding of the layout interface writes the row, and while it
+    stands the row names no railroad: a page can tell "no railroad loaded"
+    from "layout not running" (#727)."""
+    bus = bused()
+
+    def said(line: str) -> None:
+        # A person picks while it stands, which is what ends the wait.
+        picking(bus, NOW)
+
+    standing(bus, Answering(NO_RAILROAD), threading.Event(), said, Reading(), 0.0)
+
+    assert bus.last_values[RAILROAD]["name"] == NO_RAILROAD
+
+
+def test_a_follower_standing_publishes_nothing() -> None:
+    """Only the binding owns the row (ADR-0035): a follower standing on it
+    leaves it as the binding left it."""
+    bus = bused()
+    bus.publish(RAILROAD, {"name": NOW})
+    bus.drain()
+
+    standing_on(Loaded(NO_RAILROAD), Reading(), [], bus)
+
+    assert bus.last_values[RAILROAD]["name"] == NOW
+
+
+def test_a_follower_built_on_a_railroad_keeps_it_when_the_row_names_none() -> None:
+    """The row names no railroad while the binding stands (#727), and an app
+    built on one keeps running it: there is nothing to be rebuilt on."""
+    bus = bused()
+    loaded = Loaded(WAS)
+    loaded.follow(bus)
+
+    bus.publish(RAILROAD, {"name": NO_RAILROAD})
+    bus.drain()
+
+    assert (loaded.name, loaded.moved) == (WAS, False)
+
+
+def test_a_follower_standing_keeps_standing_when_the_row_names_none() -> None:
+    """The other half: an app with no railroad is not handed one by a row
+    that names none."""
+    bus = bused()
+    loaded = Loaded(NO_RAILROAD)
+    loaded.follow(bus)
+
+    bus.publish(RAILROAD, {"name": NO_RAILROAD})
+    bus.drain()
+
+    assert (loaded.name, loaded.moved) == (NO_RAILROAD, False)
+
+
 def test_a_railroad_is_named_in_a_log_line_or_said_to_be_absent() -> None:
     """One spelling of the sentence an app prints when it is up, the driver
     being the one that prints it with no railroad: it reads no documents, so
