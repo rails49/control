@@ -14,8 +14,8 @@
  * app with nothing of its own to join, so what it draws comes down from the
  * view that holds the broker's client and its gestures go back the same way
  * the band's power presses do (ui/THROTTLE.md). The stock screen takes the same route for
- * what it needs of the run: which trains are placed, which is what its length
- * guard is (ui/STOCK.md).
+ * what it needs of the run: which trains are placed, and track power, which
+ * is what its length guard reads (ui/STOCK.md).
  *
  * It also holds everything the chrome needs. The band is the system's, so the
  * picker that asks for a railroad reports here; the rail is the current view's
@@ -259,9 +259,11 @@ export class TcApp extends LitElement {
         .railroad=${name}
         .current=${this.view === "stock"}
         .placed=${this.status.placed}
+        .power=${this.status.power}
         @roster-edits=${(event: CustomEvent<boolean>) => {
           this.rosterEdits = event.detail;
         }}
+        @lengths-saved=${(event: CustomEvent<string>) => this.lengthened(event.detail)}
       ></tc-stock>
 
       <tc-editor
@@ -378,6 +380,17 @@ export class TcApp extends LitElement {
     const loaded = this.filing.opened;
     if (loaded !== "") this.running?.pressRailroad(loaded);
     setTimeout(() => this.reload(), RELOAD_MS);
+  }
+
+  /**
+   * A roster save that changed a length landed, and the railroad it was for
+   * is named again where it is the one loaded, so the dispatcher fits trains
+   * with the new length and a train now longer than its block comes off and
+   * is listed (ADR-0071), as `restored` does. No reload: the stock view holds
+   * what it saved. A roster of any other railroad is only a file.
+   */
+  private lengthened(railroad: string): void {
+    if (railroad === this.status.railroad) this.running?.pressRailroad(railroad);
   }
 
   // --- the rail and the keyboard -------------------------------------------

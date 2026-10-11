@@ -445,32 +445,83 @@ describe("a refusal names what holds the thing", () => {
   });
 });
 
+/**
+ * The length guard reads track power (ADR-0071, decision 5): with power on the
+ * run moves trains over what the dispatcher built, and only a build with power
+ * off can bring it a new length. Placed trains no longer hold it.
+ */
 describe("the length guard", () => {
-  it("is off while the run shows a train made of the item placed", () => {
-    const screen = stock();
-    expect(screen.cars(["ore"])[0]!.held).toBe(
-      "'ore' is on the layout — take it off to correct a length",
-    );
-    expect(screen.carLength("krokodil-a", 130, ["ore"])).toMatch("on the layout");
-    expect(screen.roster.cars!["krokodil-a"]!.length).toBeUndefined();
+  const WORDS = "track power is on — turn it off to correct a length";
+
+  it("is off while power is on or stopped, and moves no length", () => {
+    for (const power of ["on", "stopped"] as const) {
+      const screen = stock();
+      expect(screen.cars(power)[0]!.held).toBe(WORDS);
+      expect(screen.modelRows(power).every((row) => row.held === WORDS)).toBe(true);
+      expect(screen.carLength("krokodil-a", 130, power)).toBe(WORDS);
+      expect(screen.modelLength("hopper", 110, power)).toBe(WORDS);
+      expect(screen.roster.cars!["krokodil-a"]!.length).toBeUndefined();
+      expect(screen.catalogue["hopper"]!.length).toBe(100);
+      expect(screen.edits).toBe(false);
+      expect(screen.lengthEdits).toBe(false);
+    }
   });
 
-  /** A length lives on the model as well, so correcting the product's changes
-   *  every item of it — including the one under a train that is running. */
-  it("is off for a model a placed train uses, through an entry or through a car", () => {
+  /** A train placed with power off holds nothing: the save names the railroad
+   *  again and the rebuild keeps it where it still fits. */
+  it("is on with power off, or with no session", () => {
+    for (const power of ["off", null] as const) {
+      const screen = stock();
+      expect(screen.cars(power)[0]!.held).toBeNull();
+      expect(screen.modelRows(power).every((row) => row.held === null)).toBe(true);
+      expect(screen.modelLength("hopper", 110, power)).toBeNull();
+      expect(screen.catalogue["hopper"]!.length).toBe(110);
+    }
+  });
+});
+
+/** A length correction waits for power off to be saved, and the roster records
+ *  that it holds one until the store takes it (ADR-0071, decision 6). */
+describe("a length edit in the roster", () => {
+  const WAITS = "a length has changed — turn track power off to save";
+
+  it("is recorded by a car's length, set or taken off, and cleared by kept", () => {
     const screen = stock();
-    const held = Object.fromEntries(screen.modelRows(["ore"]).map((row) => [row.model, row.held]));
-    expect(held["hopper"]).toMatch("on the layout");
-    expect(held["arnold-ce68"]).toMatch("on the layout");
-    expect(held["coach"]).toBeNull();
-    expect(screen.modelLength("hopper", 110, ["ore"])).toMatch("on the layout");
+    expect(screen.carLength("krokodil-a", 130, "off")).toBeNull();
+    expect(screen.lengthEdits).toBe(true);
+    screen.kept();
+    expect(screen.lengthEdits).toBe(false);
+    expect(screen.carLength("krokodil-a", null, "off")).toBeNull();
+    expect(screen.lengthEdits).toBe(true);
   });
 
-  it("is on for everything while nothing is placed", () => {
+  it("is recorded by a model's length", () => {
     const screen = stock();
-    expect(screen.cars([])[0]!.held).toBeNull();
-    expect(screen.modelLength("hopper", 110, [])).toBeNull();
-    expect(screen.catalogue["hopper"]!.length).toBe(110);
+    screen.modelLength("hopper", 110, "off");
+    expect(screen.lengthEdits).toBe(true);
+  });
+
+  it("is not recorded by any other edit, or by a refused length", () => {
+    const screen = stock();
+    screen.carAddress("krokodil-a", "7");
+    expect(screen.carLength("krokodil-a", 0, "off")).toMatch("positive whole number");
+    expect(screen.edits).toBe(true);
+    expect(screen.lengthEdits).toBe(false);
+  });
+
+  it("holds the Save while power is on or stopped, and only then", () => {
+    const screen = stock();
+    screen.carLength("krokodil-a", 130, "off");
+    expect(screen.waitsForPower("on")).toBe(WAITS);
+    expect(screen.waitsForPower("stopped")).toBe(WAITS);
+    expect(screen.waitsForPower("off")).toBeNull();
+    expect(screen.waitsForPower(null)).toBeNull();
+  });
+
+  it("holds nothing for another edit with power on", () => {
+    const screen = stock();
+    screen.carAddress("krokodil-a", "7");
+    expect(screen.waitsForPower("on")).toBeNull();
   });
 });
 

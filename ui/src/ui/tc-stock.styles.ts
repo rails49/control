@@ -20,7 +20,7 @@ import { css } from "lit";
  * A row is a grid rather than a flex line, so the addresses and the lengths
  * read down their columns; both are numbers and both are tabular. A control
  * the length guard has killed keeps its box and takes the hint colour, with
- * the reason beside it — a field that vanished while a train was placed would
+ * the reason beside it — a field that vanished while track power was on would
  * leave a person looking for it (ui/STOCK.md#the-length-guard).
  *
  * **A thumbnail starts every row**, a fixed column wide enough to tell two

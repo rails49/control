@@ -37,6 +37,7 @@ import {
   said,
   stored,
   unbrokered,
+  written as published,
 } from "./support/session.js";
 
 let store: Answers;
@@ -452,30 +453,80 @@ describe("making up a train", () => {
   });
 });
 
+const POWER = "tc49/layout/state/power";
+const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
+const HELD = "track power is on — turn it off to correct a length";
+const WAITS = "a length has changed — turn track power off to save";
+
+/** What the page has asked for on `railroad_wanted`. */
+function wants(): unknown[] {
+  return published().filter((one) => (one as { topic: string }).topic === RAILROAD_WANTED);
+}
+
+/** The roster's Save. */
+function saving(shell: TcApp): HTMLElement & { disabled: boolean } {
+  return parts(shell, "sl-button.save")[0] as HTMLElement & { disabled: boolean };
+}
+
+/** The ore train saved and standing in block `a`, with track power as given. */
+async function placed(shell: TcApp, power: "on" | "stopped" | "off"): Promise<void> {
+  await ore(shell);
+  await pressed(shell, "sl-button.save");
+  store.rosterOf = () => ({ ore: { length: 422 } });
+  await said(shell, "tc49/dispatch/state/allocation", {
+    trains: { ore: "a" },
+    locks: { a: "ore" },
+    requests: [],
+  });
+  await said(shell, POWER, { power });
+  await shows(shell, "stock");
+}
+
 describe("the length guard", () => {
-  /** A UI guard in one browser: `tc-app` holds the run state and passes it
-   *  down. A second browser editing stock during a run is not covered, which
-   *  is the same hole as #390. */
-  it("kills length editing while the run shows the train placed, and says why", async () => {
+  /** A UI guard in one browser: `tc-app` holds the run's power and passes it
+   *  down (ADR-0071). A second browser editing stock during a run is not
+   *  covered. */
+  it.each(["on", "stopped"] as const)(
+    "kills length editing while power is %s, and says why",
+    async (power) => {
+      const shell = await opened();
+      await placed(shell, power);
+
+      const car = parts(shell, "li.car input.length")[0] as HTMLInputElement;
+      expect(car.disabled).toBe(true);
+      expect(car.title).toBe(HELD);
+      for (const model of parts(shell, "li.product input.length")) {
+        expect((model as HTMLInputElement).disabled).toBe(true);
+        expect(model.title).toBe(HELD);
+      }
+      expect(parts(shell, ".why")[0]!.textContent).toBe(HELD);
+    },
+  );
+
+  /** Placed trains hold nothing with power off: the save names the railroad
+   *  again and the rebuild keeps them where they still fit. */
+  it("leaves length editing alone with power off and the train placed", async () => {
     const shell = await opened();
-    await ore(shell);
-    await pressed(shell, "sl-button.save");
-    store.rosterOf = () => ({ ore: { length: 422 } });
-
-    await said(shell, "tc49/dispatch/state/allocation", {
-      trains: { ore: "a" },
-      locks: { a: "ore" },
-      requests: [],
-    });
-    await shows(shell, "stock");
-
-    const car = parts(shell, "li.car input.length")[0] as HTMLInputElement;
-    expect(car.disabled).toBe(true);
-    expect(car.title).toMatch("'ore' is on the layout");
+    await placed(shell, "off");
+    expect((parts(shell, "li.car input.length")[0] as HTMLInputElement).disabled).toBe(
+      false,
+    );
     for (const model of parts(shell, "li.product input.length")) {
-      expect((model as HTMLInputElement).disabled).toBe(true);
+      expect((model as HTMLInputElement).disabled).toBe(false);
     }
-    expect(parts(shell, ".why")[0]!.textContent).toMatch("take it off to correct a length");
+    expect(parts(shell, ".why")).toHaveLength(0);
+  });
+
+  it("writes a correction to the store only on Save", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    store.saved.length = 0;
+
+    await typed(shell, parts(shell, "li.car input.length")[0]!, "150");
+    expect(store.saved).toEqual([]);
+
+    await pressed(shell, "sl-button.save");
+    expect(written()!.cars!["arnold-ce68-1"]!.length).toBe(150);
   });
 
   /** The dialog stepped around this guard: New model under a name in use
@@ -515,6 +566,81 @@ describe("the length guard", () => {
       false,
     );
     expect(parts(shell, ".why")).toHaveLength(0);
+  });
+});
+
+/**
+ * A length correction is saved with the roster (ADR-0071, decision 6). The
+ * layout builds only with power off, so while power is on or stopped the Save
+ * waits if its edits change a length; a save that changed one names the loaded
+ * railroad again, so the dispatcher fits trains with the new length.
+ */
+describe("the roster's Save with a length corrected", () => {
+  it("is dead while power is on, and says why", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    await typed(shell, parts(shell, "li.car input.length")[0]!, "150");
+    await said(shell, POWER, { power: "on" });
+
+    expect(saving(shell).disabled).toBe(true);
+    expect(saving(shell).title).toBe(WAITS);
+  });
+
+  it("is live while power is on for any other roster edit", async () => {
+    const shell = await opened();
+    await placed(shell, "on");
+    await typed(shell, parts(shell, "li.car input.addr")[0]!, "7");
+
+    expect(saving(shell).disabled).toBe(false);
+    expect(saving(shell).title).toBe("");
+  });
+
+  it("writes the roster and then names the loaded railroad again, with power off", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    store.saved.length = 0;
+    await typed(shell, parts(shell, "li.car input.length")[0]!, "150");
+    expect(wants()).toEqual([]);
+
+    await pressed(shell, "sl-button.save");
+
+    expect(written()!.cars!["arnold-ce68-1"]!.length).toBe(150);
+    expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
+    expect(saving(shell).disabled).toBe(true);
+  });
+
+  it("names nothing for a save with no length changed", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    await typed(shell, parts(shell, "li.car input.addr")[0]!, "7");
+
+    await pressed(shell, "sl-button.save");
+
+    expect(written()!.cars!["arnold-ce68-1"]!.addr).toBe("7");
+    expect(wants()).toEqual([]);
+  });
+
+  /** A save that did not land changed nothing any app could build. */
+  it("names nothing for a save the store refused", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    await typed(shell, parts(shell, "li.car input.length")[0]!, "150");
+    between((path) => path.startsWith("/rosters/"));
+
+    await pressed(shell, "sl-button.save");
+
+    expect(trouble(shell)).not.toBeNull();
+    expect(wants()).toEqual([]);
+  });
+
+  /** With nothing loaded there is no roster to write into: Save is dead and
+   *  nothing is named. */
+  it("names nothing with no railroad loaded", async () => {
+    const shell = await mounted("stock");
+    expect(saving(shell).disabled).toBe(true);
+    await pressed(shell, "sl-button.save");
+    expect(store.saved).toEqual([]);
+    expect(wants()).toEqual([]);
   });
 });
 
@@ -851,23 +977,18 @@ describe("a refused edit", () => {
     expect(field().value).toBe("arnold-ce68-1");
   });
 
-  it("puts a length the run has placed back to the document's", async () => {
+  it("puts a length refused under power back to the document's", async () => {
     const shell = await opened();
     await ore(shell);
     const field = () => parts(shell, "li.car input.length")[0] as HTMLInputElement;
     await typed(shell, field(), "150");
     await pressed(shell, "sl-button.save");
-    store.rosterOf = () => ({ ore: { length: 450 } });
 
-    await said(shell, "tc49/dispatch/state/allocation", {
-      trains: { ore: "a" },
-      locks: { a: "ore" },
-      requests: [],
-    });
+    await said(shell, POWER, { power: "on" });
     await shows(shell, "stock");
     await typed(shell, field(), "200");
 
-    expect(trouble(shell)).toMatch("'ore' is on the layout");
+    expect(trouble(shell)).toBe(HELD);
     expect(field().value).toBe("150");
   });
 });
