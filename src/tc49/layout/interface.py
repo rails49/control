@@ -153,7 +153,6 @@ from dataclasses import dataclass, replace
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import (
-    HELD,
     MANUAL,
     OCCUPIED,
     OFF,
@@ -193,6 +192,7 @@ from tc49.lib.payload import (
     wanted_mode,
     wanted_throttle,
 )
+from tc49.lib.power import off_refused
 from tc49.lib.roster import FORWARD, Roster
 
 _log = logging.getLogger(__name__)
@@ -1090,29 +1090,6 @@ class LayoutInterface:
             return
         self._run = held
 
-    def _refusal(self) -> str | None:
-        """Why a plain `off` may not be applied now, or None where it may.
-
-        The guard refuses **on evidence that something moves and on nothing
-        else** (ADR-0062). Two things are evidence: a run the dispatcher has
-        not stopped committing over — an `off` on a running railroad would
-        race the next grant by milliseconds — and a train that is moving,
-        which a held run can still have, a move already granted running to
-        its sensor. No `state/run` at all is not evidence: with no dispatcher
-        up nothing has been granted, and a railroad that could not be turned
-        off would be worse than the race.
-        """
-        held = self._run
-        if held is None:
-            return None
-        if held.run != HELD and held.moving:
-            return f"the run reads {held.run} and a train is moving"
-        if held.run != HELD:
-            return f"the run reads {held.run}"
-        if held.moving:
-            return "a train is moving"
-        return None
-
     def _on_power_wanted(self, topic: str, payload: Payload) -> None:
         """A person asked the railroad for power, an emergency stop, or the
         supply removed: the word is written through to the device vocabulary
@@ -1159,7 +1136,7 @@ class LayoutInterface:
         mid-transit and strand it where no sensor will ever say it stopped
         (CONTEXT.md, **Power off**). So this one gesture is re-validated
         against current state on arrival, as every other browser-writable one
-        already is, and `_refusal` is the whole check.
+        already is, and `lib.power.off_refused` is the whole check.
 
         A refused `off` is **dropped**, in silence and to the trace with the
         reason, as every gesture this app cannot act on is (ADR-0034). It is
@@ -1194,7 +1171,7 @@ class LayoutInterface:
         if wanted is None:
             return
         if wanted == OFF:
-            refusal = self._refusal()
+            refusal = off_refused(self._run)
             if refusal is not None:
                 _log.info("power off refused: %s", refusal)
                 return
