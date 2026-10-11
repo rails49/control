@@ -71,6 +71,8 @@ from typing import Any, Protocol, cast
 
 import yaml
 
+from tc49.store.store import LOADED
+
 IDLE_S = 20.0
 """Seconds of quiet after the last save before the store is committed. Long
 enough that a burst of saves is one commit and short enough that a person who
@@ -118,6 +120,11 @@ survive the next restart, and there is nowhere else that belongs to one
 installation. It is a document of the installation like the catalogue is, so
 it is backed up with everything else — a restored store comes back with
 backup still on."""
+
+
+LOADED_RAILROAD = "loaded railroad"
+"""What the store's record of the loaded railroad is called where a person
+reads it (ADR-0072 decision 5)."""
 
 
 @dataclass(frozen=True)
@@ -198,6 +205,8 @@ def document(path: str) -> str:
             return f"{name.removesuffix('.jpg')} photo"
     if path.startswith("scenarios/") and path.endswith(".scenario.yaml"):
         return path.removeprefix("scenarios/").removesuffix(".scenario.yaml")
+    if path == LOADED:
+        return LOADED_RAILROAD
     return path
 
 
@@ -1147,7 +1156,11 @@ class Backup:
 
         **Three things make it a complete act** (#688). The backup switch is
         left as it is, because undoing a drawing mistake must not stop
-        backups by bringing back an older switch. The restore is committed at
+        backups by bringing back an older switch. So is the record of the
+        loaded railroad, which says what the railroad is running rather than
+        what is drawn: a load since the last backup neither refuses a restore
+        nor goes into its commit, and stays outstanding as any change does
+        (ADR-0072). The restore is committed at
         once, under a message naming the backup it came from and the
         documents it changed, so that a power cut does not lose it and a
         second restore is not refused over the first. And it asks for a
@@ -1156,7 +1169,7 @@ class Backup:
         with self._lock:
             if not self.repository():
                 return Said(False, self.needs()[0])
-            dirty = self.outstanding()
+            dirty = self._restorable()
             if dirty:
                 return Said(
                     False,
@@ -1175,10 +1188,11 @@ class Backup:
                 "--",
                 ".",
                 f":(exclude){SWITCH}",
+                f":(exclude){LOADED}",
             )
             if not said.ok:
                 return said  # git's words: an unknown commit, a lock, a mode
-            moved = self.outstanding()
+            moved = self._restorable()
             if not moved:
                 return Said(True, f"the store already held {commit}")
             named = self._run(
@@ -1190,7 +1204,7 @@ class Backup:
                 commit,
             )
             which = named.words if named.ok and named.words else commit
-            staged = self._run(self.root, "add", "-A", "--", ".")
+            staged = self._run(self.root, "add", "-A", "--", ".", f":(exclude){LOADED}")
             made = (
                 self._run(
                     self.root, "commit", "-m", f"restore {which}: {', '.join(moved)}"
@@ -1207,6 +1221,11 @@ class Backup:
             self._unpushed = True
             self._push_wanted = True
             return Said(True, f"restored {', '.join(moved)} from {which}")
+
+    def _restorable(self) -> list[str]:
+        """What :meth:`outstanding` names, less the record a restore leaves
+        as it is."""
+        return [moved for moved in self.outstanding() if moved != LOADED_RAILROAD]
 
     # --- saying so -----------------------------------------------------------
 

@@ -292,6 +292,12 @@ def _route(
     if method == "GET" and route == "/drawings":
         return 200, {"drawings": store.list()}
 
+    if route == "/loaded":
+        if method == "GET":
+            return 200, {"railroad": store.loaded()}
+        if method == "PUT":
+            return _put_loaded(store, backup, body)
+
     if route.startswith("/backup"):
         return _backup(backup, method, route, body)
 
@@ -538,6 +544,25 @@ def _put_script(store: AssetStore, backup: Backup, name: str, body: Any) -> Resp
     # document of the store that has moved.
     backup.saved()
     return 200, {"saved": name}
+
+
+def _put_loaded(store: AssetStore, backup: Backup, body: Any) -> Response:
+    """Which railroad is loaded, recorded for the binding to start on
+    (ADR-0072 decision 5).
+
+    A name and nothing more is checked: whether there is a drawing under it
+    is the binding's to know, as a script's railroad is not checked either.
+    """
+    railroad = (
+        cast(dict[str, Any], body).get("railroad") if isinstance(body, dict) else None
+    )
+    if not isinstance(railroad, str) or not railroad:
+        return 400, {"error": "the record takes {'railroad': '<name>'}"}
+    store.put_loaded(railroad)
+    # A load moves the store as a save does, so it is backed up and taken
+    # over with the rest of it.
+    backup.saved()
+    return 200, {"loaded": railroad}
 
 
 def _refused(constant: str) -> NoReturn:
