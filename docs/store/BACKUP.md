@@ -61,7 +61,10 @@ dialog says which happened:
 | a repository | empty | backup moves there ([Moving to another repository](#moving-to-another-repository)) |
 | a repository | has backups | refused |
 
-An empty store has no document in it; `backup.yaml` alone counts as empty.
+An empty store has no document in it; `backup.yaml` alone counts as empty,
+and so does a file whose name, or a folder's on its path, starts with `.` —
+the `.DS_Store` Finder leaves behind is nobody's drawing
+([#706](https://github.com/rails49/control/issues/706)).
 Until a repository is adopted the store still works: the server comes up, the
 editor saves, and backup says what is missing.
 
@@ -86,8 +89,10 @@ in use; the dialog's setup text says the same
 
 **New key** is for when that was not done: the old repository is gone and
 GitHub still answers *Key is already in use*, or the key has leaked. It
-deletes the store's key pair and makes a new one, and shows the new public half
-to add to the repository with write access; take the old one off the
+makes a new key pair and only then puts it in place of the old one, so a key
+that cannot be made leaves the old one as it was
+([#706](https://github.com/rails49/control/issues/706)); and it shows the new
+public half to add to the repository with write access; take the old one off the
 repository that has it, where that repository still exists. It asks once
 first, because the key in use stops working until the new one is added
 ([#688](https://github.com/rails49/control/issues/688),
