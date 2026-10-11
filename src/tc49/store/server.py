@@ -20,6 +20,8 @@ rather than to an app of its own — a `ui` package could not import
     PUT  /catalogue/<name>/photo save it, replacing any before it
     GET  /scripts/<railroad>    the translator script that railroad carries
     PUT  /scripts/<railroad>    save it, as the text it is
+    POST /railroads/<from>/copy copy that railroad's drawing, roster and
+                                script under the name the body gives
     GET  /backup                whether the store can be backed up, is being,
                                 and what there is to restore to
     PUT  /backup                turn automated backup on or off
@@ -357,6 +359,12 @@ def _route(
         if method == "PUT":
             return _put_script(store, backup, script, body)
 
+    copied = route.removeprefix("/railroads/")
+    if method == "POST" and copied != route:
+        source, _, verb = copied.partition("/")
+        if verb == "copy":
+            return _copy(store, backup, source, body)
+
     railroad = route.removeprefix("/layouts/")
     if method == "GET" and railroad != route and "/" not in railroad:
         return _layout(store, railroad)
@@ -544,6 +552,29 @@ def _put_script(store: AssetStore, backup: Backup, name: str, body: Any) -> Resp
     # document of the store that has moved.
     backup.saved()
     return 200, {"saved": name}
+
+
+def _copy(store: AssetStore, backup: Backup, source: str, body: Any) -> Response:
+    """Railroad `source` copied under the name the body gives (ADR-0072).
+
+    The name is checked here because it becomes a file name: one with a `/`
+    in it would file the copy somewhere no route reads it. A name already
+    taken by any of a railroad's documents is a 409, the store writing
+    nothing — the person picks another name, which is not a fault in what
+    they sent so much as a clash with what is there.
+    """
+    to = cast(dict[str, Any], body).get("to") if isinstance(body, dict) else None
+    if not isinstance(to, str) or not to or "/" in to:
+        return 400, {"error": "a copy takes {'to': '<name>'}, a name with no '/'"}
+    try:
+        store.copy(source, to)
+    except FileExistsError as taken:
+        return 409, {"error": str(taken)}
+    except FileNotFoundError:
+        return 404, {"error": f"no drawing '{source}'"}
+    # As a drawing's save does: the copy is documents of the store that moved.
+    backup.saved()
+    return 200, {"copied": to}
 
 
 def _put_loaded(store: AssetStore, backup: Backup, body: Any) -> Response:

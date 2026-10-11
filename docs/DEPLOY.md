@@ -241,7 +241,7 @@ name, and what the containers below publish is on the LAN beside it.
 | runs on the layout server | port | reached how |
 | --- | --- | --- |
 | the app, over the certificate | the door's 443 | `https://control.gleis49.org` |
-| the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue` under that name |
+| the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue`, `/railroads` under that name |
 | the broker, native clients | 1883 | the LAN address |
 | the broker, a browser | 9001, and `/mqtt` | plaintext on the LAN, or through the door from a TLS page |
 | a camera app's picture route | 8766, and not this stack's | `/camera` under that name, claimed by the camera's own stack |
@@ -484,7 +484,7 @@ not build.
 | container | router | what it claims |
 | --- | --- | --- |
 | `web` | `tc49-app` | the bare host: everything no other router claims |
-| `store` | `tc49-store` | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue`, on `:8765` |
+| `store` | `tc49-store` | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue`, `/railroads`, on `:8765` |
 | `broker` | `tc49-mqtt` | `/mqtt`, prefix stripped, to the WebSocket listener on `:9001` |
 | `broker` | `tc49-mqtt-foreign` | the same from a page on another origin, answered 403 |
 
@@ -551,7 +551,7 @@ of the page's own on both.
 | path | development | the layout box |
 | --- | --- | --- |
 | `/mqtt` | the broker container's websocket listener on `:9001` | the same, as the `broker` container |
-| `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue` | vite's own proxy to the store | the store, `:8765` |
+| `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue`, `/railroads` | vite's own proxy to the store | the store, `:8765` |
 | `/camera` | vite's own proxy to a camera app on `:8766` | the camera's own stack, under the same name |
 | everything else | vite, `:5173` | `ui/dist` through nginx |
 
