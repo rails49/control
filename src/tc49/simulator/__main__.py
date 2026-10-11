@@ -142,14 +142,8 @@ def serve(
     # a railroad is picked before a person presses ON or after OFF (ADR-0070).
     if not connected(bus, stop, log):
         return
-    # The store's record of the railroad loaded last wins, as it does in
-    # `layout`; where the store records none, `railroad` is where this
-    # process starts — `NO_RAILROAD` from `main`, a name from a suite
-    # (ADR-0072, decision 5).
-    recorded = documents.loaded()
-    if recorded:
-        log(f"the store records '{recorded}' as loaded")
-    loaded = Answering(recorded or railroad)
+    # The store's record wins, as it does in `layout` (`Answering.recorded`).
+    loaded = Answering.recorded(documents, railroad, log)
     layout = standing(bus, loaded, stop, log, documents.layout, period_s)
     if layout is None:
         return

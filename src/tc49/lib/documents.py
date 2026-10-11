@@ -119,14 +119,23 @@ class Documents:
         """Record `name` as the railroad loaded, for the binding to start on
         next time. Waited for as a read is: a binding that has loaded a
         railroad before the store is up still has to say which."""
-        self._get("loaded", body={"railroad": name})
+        self._put("loaded", body={"railroad": name})
 
-    def _get(self, *path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
-        """One document, waited for until the store answers — or, given a
-        `body`, put there and the store's answer waited for. The route is
-        given a level at a time and each is escaped: a name is one level, so
-        a railroad called `a/b` is a name the store does not have rather than
-        a route of its own."""
+    def _get(self, *path: str) -> dict[str, Any]:
+        """One document, waited for until the store answers."""
+        return self._asked(path, None)
+
+    def _put(self, *path: str, body: dict[str, Any]) -> dict[str, Any]:
+        """`body` put there, and the store's answer waited for."""
+        return self._asked(path, body)
+
+    def _asked(
+        self, path: tuple[str, ...], body: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        """The store's answer at `path`, retried while it does not answer.
+        The route is given a level at a time and each is escaped: a name is
+        one level, so a railroad called `a/b` is a name the store does not
+        have rather than a route of its own."""
         where = self._base + "".join(f"/{quote(level, safe='')}" for level in path)
         backoff = self._first_backoff_s
         while True:

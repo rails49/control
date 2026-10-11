@@ -37,6 +37,7 @@ import threading
 from collections.abc import Callable, Sequence
 
 from tc49.lib.bus import Bus, Payload, matches
+from tc49.lib.documents import Documents
 from tc49.lib.inventory import AT, OFF, ON, STOPPED
 from tc49.lib.layout import Layout
 
@@ -212,6 +213,23 @@ class Answering(Loaded):
         # rails are dead, and the gesture waits rather than being answered on
         # a guess.
         self._power: str | None = None
+
+    @classmethod
+    def recorded(
+        cls, documents: Documents, railroad: str, log: Callable[[str], None]
+    ) -> "Answering":
+        """The binding as it starts, on the railroad the store records as
+        loaded last, and on `railroad` where it records none.
+
+        The record is the railroad the binding was last built on, written
+        each time it builds (ADR-0072, decision 5). `railroad` is where a box
+        with an empty record starts: `NO_RAILROAD` from a deployment, a name
+        from a suite.
+        """
+        record = documents.loaded()
+        if record:
+            log(f"the store records '{record}' as loaded")
+        return cls(record or railroad)
 
     def follow(self, bus: Bus) -> None:
         """Watch the gesture and the supply it is conditional on.

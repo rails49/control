@@ -23,6 +23,7 @@ import pytest
 
 from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
+from tc49.lib.documents import Documents
 from tc49.lib.loading import (
     NO_RAILROAD,
     POWER,
@@ -359,6 +360,35 @@ def test_the_simulator_dark_answers_the_gesture() -> None:
     bus.drain()
 
     assert (answering.name, answering.moved) == (NOW, True)
+
+
+class Recording(Documents):
+    """A store that records `railroad` as loaded and is asked nothing else."""
+
+    def __init__(self, railroad: str) -> None:
+        super().__init__("http://unused")
+        self._railroad = railroad
+
+    def loaded(self) -> str:
+        return self._railroad
+
+
+def test_the_answerer_starts_on_the_railroad_the_store_records() -> None:
+    said: list[str] = []
+
+    loaded = Answering.recorded(Recording(NOW), WAS, said.append)
+
+    assert loaded.name == NOW
+    assert said == [f"the store records '{NOW}' as loaded"]
+
+
+def test_the_answerer_starts_on_its_own_railroad_where_the_store_records_none() -> None:
+    said: list[str] = []
+
+    loaded = Answering.recorded(Recording(""), WAS, said.append)
+
+    assert loaded.name == WAS
+    assert said == []
 
 
 # -- the documents a moved railroad is rebuilt on --------------------------
