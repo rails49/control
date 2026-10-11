@@ -416,7 +416,9 @@ class Adopted:
     crossing: dict[str, str]  # train -> the transit it was crossing
 
 
-def restored(picture: object, roster: Roster, cold: dict[str, str]) -> Adopted:
+def restored(
+    picture: object, layout: Layout, roster: Roster, cold: dict[str, str]
+) -> Adopted:
     """Placement and crossing hints off the last picture the bus kept across
     a restart, or the run's own `cold` placement where there is none (#123).
 
@@ -436,6 +438,14 @@ def restored(picture: object, roster: Roster, cold: dict[str, str]) -> Adopted:
     for a train it does not carry is dropped, and a train the picture does not
     name falls back to its cold placement.
 
+    The picture's word is taken only where **`layout` can still stand the
+    train there**, with the checks any placement passes (`_stand`): the block
+    exists and the train fits in it. A picture is kept through a rebuild of
+    the railroad under the same name (ADR-0071), and the drawing it was taken
+    against may since have lost the block or shortened it. A train placed
+    there is treated as one the picture does not name, so a run an operator
+    drives — which has no cold placement — brings it up off the layout.
+
     It is taken **per train** (#164), so only the trains in a collision pay
     for one, and what the all-or-nothing rule protected holds train by train
     anyway: no block ends with two trains in it, and no train ends standing in
@@ -451,7 +461,14 @@ def restored(picture: object, roster: Roster, cold: dict[str, str]) -> Adopted:
     """
     stated = kept_allocation(picture)
     named = stated.trains if stated is not None else {}
-    pictured = {train: at for train, at in named.items() if train in roster.trains}
+    lengths = roster.lengths()
+    pictured = {
+        train: at
+        for train, at in named.items()
+        if train in roster.trains
+        and at in layout.blocks
+        and lengths[train] <= layout.blocks[at]
+    }
     settled: dict[str, str] = {}
 
     def place(train: str, block: str) -> None:
@@ -535,7 +552,7 @@ class Dispatcher:
         # at the drain. Being read rather than subscripted is `restored`'s,
         # and what is left here is whether there is a value at all (#278).
         picture = bus.last_values.get(ALLOCATION, {})
-        adopted = restored(picture, roster, placement)
+        adopted = restored(picture, layout, roster, placement)
         self._state = State(
             layout,
             roster.lengths(),

@@ -434,9 +434,7 @@ def _nothing(topic: str, payload: Payload) -> None:
     subscribing is it (ADR-0035)."""
 
 
-def cleared(
-    bus: Bus, filters: Sequence[str], keep: Sequence[str] = ()
-) -> list[str]:
+def cleared(bus: Bus, filters: Sequence[str], keep: Sequence[str] = ()) -> list[str]:
     """Every retained row the bus holds under `filters`, dropped, and their
     topics in the order they were held — but for the topics in `keep`, which
     stay (`dropped`).

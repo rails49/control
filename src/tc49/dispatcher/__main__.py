@@ -104,8 +104,13 @@ def serve(
     while the apps run (ADR-0060), so the row naming another one ends the
     inner loop, the subscriptions of the app built on the last one are
     forgotten, the rows it owns are cleared and the whole of the above is
-    done again — including the placement, which is nobody's: the new railroad
-    comes up empty and the trains are put on it by hand.
+    done again. **Under another name the placement goes with them**: a
+    block's name in one railroad says nothing about the steel of another, so
+    the new railroad comes up empty and the trains are put on it by hand.
+    **Under the same name it stays** (ADR-0071): a restore or a saved edit
+    changed the drawing and not the track, so the picture is kept on the
+    broker and adopted exactly as after a restart — held, and each train
+    placed again where its block still exists and still holds it.
     """
     loaded = Loaded(railroad)
     if not connected(bus, stop, log):
@@ -119,8 +124,10 @@ def serve(
     log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
     while not stop.is_set():
         retained(bus, ALLOCATION, stop, retained_s)
-        # No placement: a run an operator drives comes up with an empty layout
-        # and held, and every train arrives as a gesture (ADR-0039). Locking is
+        # No placement of its own: a run an operator drives comes up held, on
+        # whatever picture the broker kept — one a restart or a rebuild under
+        # the same name left (ADR-0071) — and otherwise with an empty layout,
+        # every train arriving as a gesture (ADR-0039). Locking is
         # **incremental**, which is what the panel's two colours mean — green
         # creeping along a cyan path, and its length saying how far the train
         # may go (#165, ui/PANEL.md). Claiming a whole route up front is a
@@ -143,7 +150,8 @@ def serve(
         layout, roster = taken(
             loaded, built, log, lambda name: _documents(documents, name)
         )
-        gone = dropped(bus, OWNED, stop, retained_s)
+        kept = (ALLOCATION,) if loaded.name == built else ()
+        gone = dropped(bus, OWNED, stop, retained_s, keep=kept)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
 
 
