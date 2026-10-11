@@ -278,6 +278,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | --- | --- | --- | --- |
 | `tc49/layout/state/railroad` | state | layout | the railroad this broker runs ([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)) |
 | `tc49/layout/railroad_wanted` | event | any (browser) | load this railroad, the apps staying up ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)) |
+| `tc49/layout/alive_confirmed` | event | layout | `layout` is up and built on a railroad, said once a second ([#716](https://github.com/rails49/control/issues/716)) |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
 | `tc49/layout/block_vacated` | event | layout | a block is empty: both its ends read clear, or the move this app carried out named it the block behind a train now fully into the block ahead ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
 | `tc49/layout/power_wanted` | event | any (browser) | give the track power, stop every locomotive, or remove the supply ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)) |
@@ -455,6 +456,20 @@ its two names, as each topic states.
   no counter; the physical order is occupied then vacated, the head into the
   next block before the tail clears the last
   ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
+- `tc49/layout/alive_confirmed` — payload `{}`. `layout` publishes it once a
+  second, by the monotonic clock and not once a turn, from its drain loop
+  while it is built on a railroad; a `layout` that is standing, or reloading
+  for another railroad, publishes none, and loading needs the power off, so a
+  cut then changes nothing. Something off the box watches it and **cuts track
+  power when it stops**: each translator that drives trains
+  ([rails49/dccex#236](https://github.com/rails49/dccex/issues/236)) and any
+  device on the bus that cuts track power
+  ([rails49/.github#29](https://github.com/rails49/.github/issues/29)); what
+  a consumer does then is theirs. **Not retained**: a retained value would be
+  handed to a late subscriber after the box had stopped. The simulator does
+  not publish it, driving no hardware. It is not a detector's event, so the
+  rule below that a detector publishes no heartbeat does not reach it
+  ([#716](https://github.com/rails49/control/issues/716)).
 - `tc49/layout/power_wanted` — browser-writable — `power`: enum `on`,
   `stopped` or `off`, the same closed set `state/power` below carries; any
   other value is dropped. `layout` is what answers it, and it answers by
