@@ -56,6 +56,7 @@ unreachable remote is logged and retried on the next timer, and no caller
 ever waits on the network to write a drawing.
 """
 
+import os
 import re
 import shutil
 import subprocess
@@ -583,11 +584,14 @@ class Backup:
             return None
         return public.read_text().strip()
 
-    def _make_key(self) -> str | None:
-        """Make the key pair under `keys`, and answer why not where it could
-        not be made — no `ssh-keygen` on this machine, or a directory this
-        process cannot write."""
+    def _make_key(self, private: Path | None = None) -> str | None:
+        """Make the key pair under `keys` — the private half at `private`,
+        the store's own key where that is not given, and the public half
+        beside it — and answer why not where it could not be made: no
+        `ssh-keygen` on this machine, or a directory this process cannot
+        write."""
         assert self._keys is not None
+        private = private or self._keys / KEY
         try:
             self._keys.mkdir(parents=True, exist_ok=True)
             done = subprocess.run(
@@ -601,7 +605,7 @@ class Backup:
                     "-C",
                     "tc49 backup",
                     "-f",
-                    str(self._keys / KEY),
+                    str(private),
                 ],
                 capture_output=True,
                 text=True,
@@ -624,6 +628,10 @@ class Backup:
         public half is added to the repository — which the dialog asks a
         person to confirm before pressing (#688).
 
+        The new pair is made beside the old one and moved over it only once
+        it is whole, private half first, so a key that cannot be made leaves
+        the store the one it had rather than none (#706).
+
         Refused for a store with nowhere to keep a key, which pushes with
         the machine's own ssh and has no key here to replace; and for a store
         inside another repository, which is nobody's to back up and is
@@ -638,13 +646,26 @@ class Backup:
                 )
             if self._around() is not None:
                 return Said(False, self.needs()[0])
+            made = self._keys / f"{KEY}.new"
+            halves = (
+                (made, self._keys / KEY),
+                (made.with_name(f"{KEY}.new.pub"), self._keys / f"{KEY}.pub"),
+            )
             try:
-                for half in (self._keys / KEY, self._keys / f"{KEY}.pub"):
-                    half.unlink(missing_ok=True)
+                for new, _ in halves:
+                    new.unlink(missing_ok=True)  # ssh-keygen asks before overwriting
             except OSError as shut_out:
-                return Said(False, f"the old key could not be removed: {shut_out}")
-            refused = self._make_key()
+                return Said(False, f"no key could be made: {shut_out}")
+            refused = self._make_key(made)
+            if refused is None:
+                try:
+                    for new, old in halves:
+                        os.replace(new, old)
+                except OSError as shut_out:
+                    refused = str(shut_out)
             if refused is not None:
+                for new, _ in halves:
+                    new.unlink(missing_ok=True)
                 return Said(False, f"no key could be made: {refused}")
             shown = self.key()
             if shown is None:
@@ -1010,15 +1031,16 @@ class Backup:
     def _documents(self) -> list[str]:
         """The documents under the store, named as the store names them: what
         makes a store not empty. The backup switch is not one — it is
-        written before anything is drawn — and neither is a clone being made
-        here or a repository's own files."""
+        written before anything is drawn — and neither is anything with a
+        part whose name starts with `.`: a repository's own files, a clone
+        being made here, or the `.DS_Store` Finder leaves wherever a person
+        looks (#706)."""
         found: set[str] = set()
         if not self.root.is_dir():
             return []
         for path in self.root.rglob("*"):
             relative = path.relative_to(self.root)
-            first = relative.parts[0]
-            if first == ".git" or first.startswith(".adopting-"):
+            if any(part.startswith(".") for part in relative.parts):
                 continue
             if path.is_dir() or relative.as_posix() == SWITCH:
                 continue
