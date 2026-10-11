@@ -71,6 +71,23 @@ been drawn since, which is a lot to ask of a click that looks like it does
 nothing. Its other part is `Backup…`, which closes it and opens the backup
 dialog ([Backing the store up](#backing-the-store-up)).
 
+**Making a railroad is the dialog's too** (ADR-0072, decision 3). Beneath the
+list a `Name` field has two presses beside it. **New** writes an empty drawing
+under the name — no roster and no script, a railroad with neither being an
+ordinary one — and **Copy loaded as…** has the store copy every document of
+the loaded railroad under it, drawing, roster and script where they exist
+(`POST /railroads/<from>/copy`, #729), so the copy has stock to place and a
+script to run from the start, which Save As never gave. Each then asks for
+what it wrote, the way a press on the list does, and the tick lands on the new
+name when the row names it. A name the list already has is refused before the
+store sees it, in the editor's words (`'<name>' is already a railroad`,
+`model/drawing.ts`); a write the store refuses — a name another page took
+since the dialog opened — shows the store's words (`model/store.ts`, `said`).
+Either way nothing is asked for, so what is loaded is always something that
+was written. Both presses are dead while the name is blank and for the list's
+reasons below; Copy is also dead with no railroad loaded, saying
+`no railroad is loaded to copy`, that box's first railroad being New's.
+
 **It asks and does not load.** Which railroad the apps run is a choice made
 while they run, so a press publishes `tc49/layout/railroad_wanted` and stops
 there; whichever binding of the layout interface is running answers it and
@@ -78,7 +95,8 @@ publishes `tc49/layout/state/railroad`, and that row is the one thing the app
 opens a railroad on
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
 ADR-0035). The dialog stays open and the tick moves when the row does. The list
-is dead and says why beneath it (`model/settings.ts`), the first that holds:
+and the two presses are dead and say why once beneath the list
+(`model/settings.ts`), the first that holds:
 
 | Condition | Words |
 | --- | --- |

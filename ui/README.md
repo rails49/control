@@ -48,7 +48,10 @@ store. The settings dialog behind the band's gear does not load one itself —
 it asks, on `tc49/layout/railroad_wanted`, and the layout interface answers by
 publishing the row (ADR-0060, ADR-0072). Its list is live only while
 `tc49/layout/state/power` reads `off` with a railroad loaded and nothing is
-unsaved, and says why when it is not.
+unsaved, and says why when it is not. Making a railroad is the dialog's too:
+New writes an empty drawing and Copy loaded as… has the store copy the loaded
+railroad's documents, and each then asks for what it wrote the same way
+(#737).
 
 `../scripts/dev.sh stop` puts down everything the script started and leaves
 alone anything it did not.
@@ -103,7 +106,7 @@ src/
     tc-properties.ts  the properties dialog
     tc-menu.ts     the right-click menu
     tc-settings.ts the settings dialog behind the band's gear: which railroad
-                   is loaded, and the way into backup
+                   is loaded, New and Copy loaded as…, and the way into backup
     tc-panel.ts    the run view: the session, and the overlay it hands the
                    canvas to paint
     tc-throttle.ts the throttle view: pick a train, take it, drive it, give
