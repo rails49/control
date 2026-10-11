@@ -256,6 +256,32 @@ export function outstanding(disputes: { trains: string[]; blocks: string[] }): s
   return said.length === 0 ? null : `released with ${said.join(", ")}`;
 }
 
+/** A train the last rebuild under the same name took off the layout: the
+ *  block it stood in and why it no longer stands there, `gone` from the
+ *  drawing or `short` of the train (#709). */
+export interface Unfit {
+  train: string;
+  block: string;
+  why: string;
+}
+
+/**
+ * One line per train a rebuild took off, saying why, for the run view to show
+ * while the list stands. A `why` this page does not know is said as it came,
+ * the dispatcher answering being newer than the page reading it.
+ */
+export function takenOff(unfit: Unfit[]): string[] {
+  return unfit.map(({ train, block, why }) => {
+    const said =
+      why === "gone"
+        ? "is gone"
+        : why === "short"
+          ? "is shorter than the train — place it again"
+          : why;
+    return `${train}: block ${block} ${said}`;
+  });
+}
+
 /** The two halves of an end ref, `<block>.<end>`. */
 export function blockOf(end: EndRef): string {
   return end.slice(0, end.lastIndexOf("."));
@@ -295,6 +321,10 @@ export class Panel {
    *  reported on at all is knowledge only the dispatcher holds, and a panel
    *  working it out would call every unreported block clear. */
   private disputed = { trains: new Set<string>(), blocks: new Set<string>() };
+  /** The trains the last rebuild under the same name took off the layout,
+   *  as the dispatcher last said (#709). Read and never derived: which
+   *  trains the last build had standing is the dispatcher's alone. */
+  private unfitRows: Unfit[] = [];
   /** How the run stands, as the dispatcher last said, `null` before it has
    *  said anything (ADR-0037). Read and never derived: a held run is a
    *  decision the dispatcher publishes, not something a picture shows. */
@@ -372,6 +402,7 @@ export class Panel {
     this.crossing.clear();
     this.heading.clear();
     this.disputed = { trains: new Set(), blocks: new Set() };
+    this.unfitRows = [];
     this.runWord = null;
     this.movingWord = null;
     this.powerWord = null;
@@ -597,6 +628,14 @@ export class Panel {
         this.disputed = { trains: new Set(trains), blocks: new Set(blocks) };
         return;
       }
+      case "unfit": {
+        // The trains a rebuild took off, whole from the topic: the
+        // dispatcher republishes it without a train a person has placed, so
+        // last value wins and the list empties as they are put back (#709).
+        const { trains } = event as unknown as { trains?: Unfit[] };
+        this.unfitRows = Array.isArray(trains) ? [...trains] : [];
+        return;
+      }
       case "aspects": {
         const { aspects } = event as unknown as {
           aspects: Record<EndRef, Aspect>;
@@ -721,6 +760,14 @@ export class Panel {
    *  accept, and the marks go with the hold. */
   disputes(): { trains: string[]; blocks: string[] } {
     return { trains: [...this.disputed.trains], blocks: [...this.disputed.blocks] };
+  }
+
+  /** The trains the last rebuild under the same name took off the layout,
+   *  each with the block it stood in and why, as the dispatcher last said
+   *  (#709). Empty until a rebuild leaves one off, and again once each is
+   *  placed. */
+  unfit(): Unfit[] {
+    return [...this.unfitRows];
   }
 
   /** Every block of the layout, at the strongest state that holds for it:

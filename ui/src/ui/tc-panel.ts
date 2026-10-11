@@ -53,6 +53,7 @@ import {
   outstanding,
   Panel,
   roster,
+  takenOff,
   type Overlay,
   type Placed,
   type RosterRow,
@@ -892,6 +893,10 @@ export class TcPanel extends LitElement {
   override render() {
     const drawing = this.drawing;
     const live = this.overlay;
+    // The trains a rebuild took off, one line each, for as long as the
+    // dispatcher lists them (#709). Beside the release notice and drawn the
+    // same way: only while there is something to say.
+    const off = this.session === null ? [] : takenOff(this.panel?.unfit() ?? []);
     return html`
       <tc-roster
         .trains=${this.roster}
@@ -899,9 +904,14 @@ export class TcPanel extends LitElement {
         @roster-dropped=${this.dropped}
       ></tc-roster>
 
-      ${this.released === null
+      ${this.released === null && off.length === 0
         ? nothing
-        : html`<header><span class="released">${this.released}</span></header>`}
+        : html`<header>
+            ${this.released === null
+              ? nothing
+              : html`<span class="released">${this.released}</span>`}
+            ${off.map((line) => html`<span class="unfit">${line}</span>`)}
+          </header>`}
       <main>
         ${drawing === null || live === null
           ? nothing
