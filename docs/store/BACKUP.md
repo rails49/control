@@ -130,9 +130,9 @@ stops accepting, the watch stops, and the quit commits and pushes.
 ([#713](https://github.com/rails49/control/issues/713)). Every `PUSH_S`, with
 automatic backup on and no save waiting on the idle window, the store commits
 whatever git says has moved. A document edited by hand is backed up that way,
-and so is DecoderPro's profile, which JMRI keeps in the store under `jmri/`
+and so is DecoderPro's profile, which it keeps in the store under `jmri/`
 ([rails49/.github ADR-0013](https://github.com/rails49/.github/blob/main/docs/adr/0013-jmris-profile-lives-in-the-store.md)).
-The store knows nothing of JMRI: a file it has no name for is named by its
+The store knows nothing of DecoderPro: a file it has no name for is named by its
 path, `backup: jmri/roster/e10.xml`. With automatic backup off only a press
 commits it.
 
@@ -248,9 +248,9 @@ above the backups: *Restore puts the store back as the picked backup held it;
 the apps and this page then reload*
 ([#699](https://github.com/rails49/control/issues/699)).
 
-**Quit DecoderPro first.** JMRI reads its profile in the store once, at
+**Quit DecoderPro first.** It reads its profile in the store once, at
 launch, and writes the roster it holds back on its next save, so a restore
-under an open DecoderPro is undone by it. Nothing here can see whether JMRI is
+under an open DecoderPro is undone by it. Nothing here can see whether DecoderPro is
 open, so nothing is refused: the dialog says *Quit DecoderPro and PanelPro
 before restoring, and open them again after*
 ([#714](https://github.com/rails49/control/issues/714)). A restore changes no
