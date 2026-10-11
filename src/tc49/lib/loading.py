@@ -37,6 +37,7 @@ from collections.abc import Callable, Sequence
 
 from tc49.lib.bus import Bus, Payload, matches
 from tc49.lib.inventory import AT, OFF, ON, STOPPED
+from tc49.lib.layout import Layout
 
 RAILROAD = "tc49/layout/state/railroad"
 """The row every app follows: the railroad this broker runs, as the store
@@ -386,6 +387,21 @@ def taken[Read](
         log(f"'{loaded.name}': {refused} — staying on '{built}'")
         loaded.keep(built)
         return reading(built)
+
+
+def still_standing(position: dict[str, str], layout: Layout) -> dict[str, str]:
+    """Where each train stood under the last build, less any train whose
+    block `layout` lacks: what a binding of the layout interface carries into
+    a rebuild under the same railroad name (ADR-0071).
+
+    With track power off a restore or a saved edit changes the drawing and
+    not the track, so a train stands where it stood. Only a block that has
+    gone takes a train with it, there being nowhere left in the drawing to
+    say it stands. A train longer than its block stays: that is where the
+    steel has it, and fitting is the dispatcher's question, not the
+    binding's.
+    """
+    return {train: block for train, block in position.items() if block in layout.blocks}
 
 
 def dropped(
