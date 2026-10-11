@@ -70,6 +70,9 @@ TOPICS: dict[str, Topic] = {
     # because a leaf's fields are read beside its own row and this one names
     # the thing wanted rather than naming itself.
     "tc49/layout/railroad_wanted": Topic(("railroad",), browser=True),
+    # `layout` saying it is up, once a second while built on a railroad, for
+    # whatever cuts track power when it stops (#716). Nothing to carry.
+    "tc49/layout/alive_confirmed": Topic(()),
     "tc49/layout/block_occupied": Topic(("block",)),
     "tc49/layout/block_vacated": Topic(("block",)),
     "tc49/layout/power_wanted": Topic(("power",), browser=True),

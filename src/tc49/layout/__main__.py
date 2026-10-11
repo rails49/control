@@ -37,6 +37,11 @@ resolution and nothing else: 0.1 s against 300 ms of settling has a settled
 level acted on between 0.3 s and 0.4 s after it stood, which is the right
 order for a detector.
 
+The loop is also where `layout` says it is up: `alive_confirmed`, once a
+second by the monotonic clock whatever the period, so that something off the
+box can cut track power when the box goes silent (#716). Standing and
+reloading are outside it and say nothing.
+
 `LayoutInterface` is handed a `Bus` and nothing else in the package changes.
 The clock is this process's own: the run clock is read here and advanced
 nowhere else, the steel keeping its own time (ADR-0009, ADR-0047), and the
@@ -51,7 +56,7 @@ import threading
 import time
 from collections.abc import Callable
 
-from tc49.layout.interface import WANTED_TRACTION, LayoutInterface
+from tc49.layout.interface import ALIVE_CONFIRMED, WANTED_TRACTION, LayoutInterface
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
@@ -89,6 +94,12 @@ A filter rather than a list, because the rows that matter on a reload are the
 ones keyed by an address the new railroad does not have — a list of topics
 would be a list of the addresses this railroad has, which is exactly the
 wrong railroad's (ADR-0060)."""
+
+ALIVE_S = 1.0
+"""How often a built `layout` says it is up, in seconds of the monotonic
+clock and not in turns of the loop: something off the box cuts track power
+when `alive_confirmed` stops (#716), and its timeout is set against this
+rate, which the drain period must not move."""
 
 TRACTION = f"{WANTED_TRACTION}/#"
 """Every traction row, which is what has to be on the broker's way here before
@@ -159,8 +170,16 @@ def serve(
         built = loaded.name
         log(f"up on {named(built)}, draining every {period_s}s")
         started = time.monotonic()
+        alive: float | None = None
         while not stop.is_set() and not loaded.moved:
-            clock.advance(time.monotonic() - started)
+            now = time.monotonic()
+            clock.advance(now - started)
+            # Here and only here: standing, or reloading for another railroad,
+            # says nothing, and loading needs the power off, so a cut then
+            # changes nothing (#716).
+            if alive is None or now - alive >= ALIVE_S:
+                bus.publish(ALIVE_CONFIRMED, {})
+                alive = now
             app.settle()
             bus.drain()
             stop.wait(period_s)

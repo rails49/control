@@ -19,6 +19,7 @@ are shortened to milliseconds and a transit is watched rather than stepped.
 
 import shutil
 import threading
+import time
 from collections.abc import Iterator
 from http.server import HTTPServer
 from pathlib import Path
@@ -43,6 +44,7 @@ MOVE = "tc49/layout/move"
 OCCUPIED = "tc49/layout/block_occupied"
 VACATED = "tc49/layout/block_vacated"
 PLACED = "tc49/dispatch/train_placed"
+ALIVE = "tc49/layout/alive_confirmed"
 POWER_WANTED = "tc49/layout/power_wanted"
 
 TRANSIT_S = 0.05
@@ -181,6 +183,25 @@ def test_a_cold_start_publishes_the_apps_own_rows(
     assert drained(witness, lambda: rows(heard, POWER) != []), "it published nothing"
     assert rows(heard, RAILROAD)[-1]["name"] == RAILROAD_NAME
     assert rows(heard, POWER)[-1]["power"] == "off"
+    assert app.running, "the app stopped on its own"
+    witness.close()
+
+
+def test_it_never_says_the_layout_is_up(broker: Broker, store: Store, app: App) -> None:
+    """`alive_confirmed` is what something off the box cuts track power on
+    when it stops, and the simulator drives no hardware: a running one says
+    nothing on it however long it runs (#716)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, POWER) != []), "it never came up"
+
+    deadline = time.monotonic() + 2.5
+    while time.monotonic() < deadline:
+        witness.drain()
+        time.sleep(0.01)
+
+    assert rows(heard, ALIVE) == [], "the simulator said the layout was up"
     assert app.running, "the app stopped on its own"
     witness.close()
 
