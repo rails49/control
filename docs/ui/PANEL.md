@@ -460,9 +460,9 @@ the layout interface publishes its name on `tc49/layout/state/railroad`
 that row and hands the name to the app, which loads the drawing and the review
 off the store — so the picture and what feeds it can never be two railroads.
 A row naming `""` is no railroad loaded: the view leaves the session, reads no
-roster, and the band says `no railroad loaded`. The band names this row's
-railroad and not the drawing open in the editor, which after New or Save As is
-one nothing runs.
+roster, and the band says `no railroad loaded`; the editor and the stock view
+hold nothing for it either (#734). The band names this row's railroad, which
+is the one the editor holds (ADR-0072, decision 3).
 Which railroad that is, is a person's choice made while the apps run: the
 settings dialog behind the band's gear publishes
 `tc49/layout/railroad_wanted` and this view carries the

@@ -94,8 +94,8 @@ src/
     artwork.ts   what each symbol looks like, hand-written against the
                  generated pin names
   ui/
-    tc-app.ts      the app: the loaded railroad, the views, the band, the bar,
-                   the keys and the question before edits are thrown away
+    tc-app.ts      the app: the loaded railroad, the views, the band, the bar
+                   and the keys
     tc-header.ts   the band: what is true of the whole system
     tc-menubar.ts  the bar: the current view's menus, and HOLD/GO
     tc-editor.ts   the editing view: palette, canvas, netlist, dialogs

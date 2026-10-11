@@ -137,23 +137,22 @@ stated length is a property of the older shape that the conversion consumes,
 so the screen owes the price before the press rather than the number
 afterwards ([#448](https://github.com/rails49/control/issues/448)).
 
-**Unsaved roster edits are asked about before the app discards them.** The
-railroad is the app's and both its documents go with it, so pressing New
-railroad asks the same question the drawing has been guarded by since
-[#101](https://github.com/rails49/control/issues/101) — and the words name
-which document is at stake: *the drawing*, *the roster*, or *the drawing and
-the roster*. Cancel leaves everything as it was, the rake being composed
-included; Discard opens what was asked for and this view reads that railroad's
-roster. A railroad arriving on `tc49/layout/state/railroad` is **not** asked
-about: it is what the apps are running, not a press of this page's, and the
-page follows it (#371, ADR-0060). A rake composed and not saved used to go with no trace, the question
-never firing because the drawing was clean
-([#415](https://github.com/rails49/control/issues/415)). The question is
+**Unsaved roster edits refuse what would discard them.** The railroad is the
+app's and both its documents go with it, so a load in the settings dialog and
+a restore are refused while either is unsaved, in words naming which document
+is at stake: *the drawing*, *the roster*, or *the drawing and the roster*
+(#703, #733). A railroad arriving on `tc49/layout/state/railroad` is **not**
+refused: it is what the apps are running, not a press of this page's, and the
+page follows it (#371, ADR-0060); a row naming `""` is no railroad, and this
+view holds none for it. A rake composed and not saved used to go with no
+trace, the guard reading only the drawing
+([#415](https://github.com/rails49/control/issues/415)). The words are
 `tc-app.ts`'s, as the railroad is: this view says whether its `Stock` holds
 edits — a `roster-edits` event, the way the run view says what its session is
-doing — and the app asks before the railroad moves. **Switching view changes no
-railroad**, so nothing is read again and the rake comes back as it was left.
-Closing or reloading the browser is not asked about; neither is the drawing.
+doing — and the app hands the dialogs what to refuse over. **Switching view
+changes no railroad**, so nothing is read again and the rake comes back as it
+was left. Closing or reloading the browser is not refused; neither is the
+drawing.
 
 **A refused edit puts the field back.** A refusal changes the document by
 construction not at all, so the field is written back to what the document
