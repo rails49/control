@@ -466,7 +466,8 @@ catalogue already has, a train made up of a locomotive and three hoppers, the do
 `PUT /rosters/<railroad>` with one car entry and three model entries, the guard
 killing a field while track power is on, the roster's Save waiting for power
 off when a length changed and then naming the railroad again, a corrected
-model written before the roster and kept for the next Save where it is refused, the run view showing a
+model written before the roster and kept for the next Save where it is refused,
+the run view showing a
 train made up here without a reload, the row an older roster's train draws and
 the first entry converting it, the current train moving when the one it named
 is unmade and carried when that one is renamed, the dialog's refusal staying

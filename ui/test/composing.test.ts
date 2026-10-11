@@ -522,9 +522,19 @@ describe("a length edit in the roster", () => {
   it("drops a correction once it is written, and keeps the roster's edits", () => {
     const screen = stock();
     screen.modelLength("hopper", 110, "off");
-    screen.wrote("hopper");
+    screen.landed(screen.corrections[0]!);
     expect(screen.corrections).toEqual([]);
     expect(screen.edits).toBe(true);
+  });
+
+  /** A length typed while the older one is being written is still to write. */
+  it("keeps a correction made again while the older one was written", () => {
+    const screen = stock();
+    screen.modelLength("hopper", 110, "off");
+    const writing = screen.corrections[0]!;
+    screen.modelLength("hopper", 120, "off");
+    screen.landed(writing);
+    expect(screen.corrections.map((model) => model.length)).toEqual([120]);
   });
 
   it("clears the corrections with the rest when the roster is kept", () => {

@@ -1069,22 +1069,22 @@ export class TcStock extends LitElement {
     }
     const lengths = stock.lengthEdits;
     const railroad = this.held;
-    let moved = false;
+    let reached = false;
     try {
       for (const model of stock.corrections) {
         await saveModel(model);
-        stock.wrote(model.model);
-        moved = true;
+        stock.landed(model);
+        reached = true;
       }
       await saveRoster(stock.roster);
       stock.kept();
-      moved = lengths;
+      if (lengths) reached = true;
       this.trouble = null;
       this.beat++;
     } catch (trouble) {
       this.trouble = said(trouble);
     }
-    if (moved && railroad !== null) {
+    if (reached && railroad !== null) {
       this.dispatchEvent(
         new CustomEvent<string>("lengths-saved", {
           detail: railroad,
