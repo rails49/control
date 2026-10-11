@@ -191,6 +191,7 @@ export class TcApp extends LitElement {
 
   override render() {
     const name = this.filing.opened === "" ? null : this.filing.opened;
+    const loaded = this.loadedRailroad;
     // One reading of the rule for the two that wear it: the band says why and
     // the editing view is what it is about (model/commands.ts). A restore
     // does not wear it: its rebuild keeps the trains that fit (#710). The band
@@ -199,7 +200,7 @@ export class TcApp extends LitElement {
     const still = frozen(this.standing);
     return html`
       <tc-header
-        .drawing=${name}
+        .drawing=${loaded}
         .drawings=${this.filing.drawings}
         .unsaved=${!this.filing.saved}
         .unbuilt=${unbuilt(this.standing)}
@@ -279,7 +280,7 @@ export class TcApp extends LitElement {
       <tc-backup
         .backing=${this.backingUp ? this.backing : null}
         .power=${this.status.power}
-        .railroad=${name}
+        .railroad=${loaded}
         .unsaved=${this.filing.edits || this.rosterEdits ? this.losing : null}
         @backup-closed=${() => {
           this.backingUp = false;
@@ -377,8 +378,8 @@ export class TcApp extends LitElement {
    * fresh. The reload waits a moment, so the press is on the wire first.
    */
   private restored(): void {
-    const loaded = this.filing.opened;
-    if (loaded !== "") this.running?.pressRailroad(loaded);
+    const loaded = this.loadedRailroad;
+    if (loaded !== null) this.running?.pressRailroad(loaded);
     setTimeout(() => this.reload(), RELOAD_MS);
   }
 
@@ -531,6 +532,16 @@ export class TcApp extends LitElement {
 
   // --- the loaded railroad --------------------------------------------------
 
+  /** The railroad the apps run, as the layout interface's row names it, and
+   *  `null` where it names none or has not said (#732). Not the drawing open
+   *  in the editor: after New or Save As that is a drawing nothing runs, and
+   *  the band, the restore's refusal and the name a restore asks for again
+   *  are all about what runs. */
+  private get loadedRailroad(): string | null {
+    const railroad = this.status.railroad;
+    return railroad === null || railroad === "" ? null : railroad;
+  }
+
   /** The one thing the app asks rather than does. Edits the store has not been
    *  given are the operator's, and a click is a thin thing to lose an
    *  evening's drawing to (#101), so what would discard them says so and
@@ -593,7 +604,9 @@ export class TcApp extends LitElement {
    * interface reports, so nothing is asked at this point.
    */
   private loaded(railroad: string): void {
-    if (railroad === this.filing.opened) return;
+    // A row naming none is a broker with no railroad loaded (#727): there is
+    // no drawing called `""` to open.
+    if (railroad === "" || railroad === this.filing.opened) return;
     void this.opening(railroad);
   }
 
