@@ -391,8 +391,7 @@ press outside is dismissed by — takes the press, puts the menu down, and hands
 it on to whatever is under the point, so the menu opens on the train that was
 clicked and the browser's own still does not
 ([#180](https://github.com/rails49/control/issues/180),
-`ui/src/ui/dismissal.ts`). It holds for the band's railroad picker too: both
-menus wear the one overlay.
+`ui/src/ui/dismissal.ts`). Any menu that wears the overlay gets it.
 
 The menu a forwarded press opens is a menu like any other: it drops a live
 overlay, and a left press outside it takes it down and reaches nothing
@@ -465,7 +464,8 @@ roster, and the band says `no railroad loaded`. The band names this row's
 railroad and not the drawing open in the editor, which after New or Save As is
 one nothing runs.
 Which railroad that is, is a person's choice made while the apps run: the
-band's picker publishes `tc49/layout/railroad_wanted` and this view carries the
+settings dialog behind the band's gear publishes
+`tc49/layout/railroad_wanted` and this view carries the
 press, the layout interface answers it and the row moves
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
 The press loads nothing by itself, so a gesture the rails' power refuses leaves
