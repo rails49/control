@@ -12,10 +12,12 @@ import { describe, expect, it } from "vitest";
 import {
   COMMANDS,
   frozen,
+  isLoaded,
   NOTHING,
   RAIL,
   type CommandId,
   type Standing,
+  unbuilt,
 } from "../src/model/commands.js";
 
 function standing(parts: Partial<Standing> = {}): Standing {
@@ -169,20 +171,21 @@ describe("the ends of the snapshot stack", () => {
 });
 
 /**
- * Trains on the layout freeze the drawing
- * ([ADR-0038](../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md),
- * #169). You do not rewire track with locomotives standing on it, so with any
- * train placed every command that changes the document is dead and the rest
- * are not.
+ * Track power on or stopped freezes the drawing
+ * ([ADR-0071](../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
+ * decision 5). With power on the run moves trains over what the dispatcher
+ * built, so every command that changes the document is dead and the rest are
+ * not. With power off a train standing on the layout freezes nothing: a save
+ * of the loaded railroad names it again and the rebuild keeps the train.
  *
  * The rule is here rather than on a component for the reason the others are:
  * it is neither the document nor the DOM, and the bar and the keyboard both
  * ask it, so a menu item and the key printed beside it cannot come to mean
  * different things (EDITOR.md#tests).
  */
-describe("what a train standing on the railroad freezes", () => {
+describe("what track power freezes", () => {
   /** Everything that would change the drawing, alive where it would be alive
-   *  on an empty layout. */
+   *  with power off. */
   const CHANGES: Partial<Record<CommandId, Partial<Standing>>> = {
     undo: { undo: true },
     redo: { redo: true },
@@ -192,43 +195,80 @@ describe("what a train standing on the railroad freezes", () => {
     properties: { selection: 1, editable: true },
   };
 
-  it("kills every command that changes the drawing", () => {
+  it("kills every command that changes the drawing while power is on or stopped", () => {
     for (const [id, alive] of Object.entries(CHANGES)) {
-      expect(on(id as CommandId, alive), `${id} with nothing placed`).toBe(true);
-      expect(on(id as CommandId, { ...alive, placed: 1 }), `${id} frozen`).toBe(
-        false,
-      );
+      for (const power of ["on", "stopped"] as const) {
+        expect(on(id as CommandId, { ...alive, power }), `${id} ${power}`).toBe(false);
+      }
+    }
+  });
+
+  /** No session is no run to drift from, and power off is a rebuild away. */
+  it("leaves them alive with power off, or with no session", () => {
+    for (const [id, alive] of Object.entries(CHANGES)) {
+      expect(on(id as CommandId, { ...alive, power: "off" }), `${id} off`).toBe(true);
+      expect(on(id as CommandId, { ...alive, power: null }), `${id} none`).toBe(true);
     }
   });
 
   /** Look, zoom, inspect the netlist: a frozen drawing is read-only and not
-   *  gone. Saving is here too — the edits it writes were made before the
-   *  train arrived, and refusing to store them would strand them. */
+   *  gone. */
   it("leaves looking at the drawing alone", () => {
-    const open = { opened: "reversing-loops", placed: 2 };
+    const open = { opened: "reversing-loops", power: "on" as const };
     for (const id of ["zoom-in", "zoom-out", "fit"] as const) {
       expect(on(id, open), id).toBe(true);
     }
     expect(on("netlist", open)).toBe(true);
     expect(on("export-svg", open)).toBe(true);
-    expect(on("save", { ...open, saved: false })).toBe(true);
     expect(on("save-as", open)).toBe(true);
     expect(on("new", open)).toBe(true);
   });
 
   /** One reading of the freeze, for whoever says why: the band prints its
-   *  word off this rather than counting trains itself. */
+   *  word off this rather than reading power itself. */
   it("is one question, asked of where the app stands", () => {
     expect(frozen(standing())).toBe(false);
-    expect(frozen(standing({ placed: 1 }))).toBe(true);
+    expect(frozen(standing({ power: "off" }))).toBe(false);
+    expect(frozen(standing({ power: "on" }))).toBe(true);
+    expect(frozen(standing({ power: "stopped" }))).toBe(true);
   });
 
-  /** Putting every train away unfreezes it. There is no gesture that does so
-   *  from the browser until #170, and the rule is written as the count it
-   *  reads rather than as a latch, so it comes back on its own. */
-  it("thaws when the last train is off the layout", () => {
-    expect(on("rotate", { selection: 1, placed: 1 })).toBe(false);
-    expect(on("rotate", { selection: 1, placed: 0 })).toBe(true);
+  /** The rule is read off power afresh rather than latched, so switching it
+   *  off thaws the drawing on its own. */
+  it("thaws when power goes off", () => {
+    expect(on("rotate", { selection: 1, power: "on" })).toBe(false);
+    expect(on("rotate", { selection: 1, power: "off" })).toBe(true);
+  });
+});
+
+/**
+ * Saving the loaded railroad names it again, so every app builds what was
+ * written, and the layout builds only with power off (ADR-0071). Save waits
+ * for power off on the loaded railroad and on nothing else; ON waits for the
+ * save.
+ */
+describe("saving the loaded railroad", () => {
+  const edited = { opened: "toy", loaded: "toy", saved: false };
+
+  it("is dead while power is on or stopped", () => {
+    expect(on("save", { ...edited, power: "on" })).toBe(false);
+    expect(on("save", { ...edited, power: "stopped" })).toBe(false);
+    expect(on("save", { ...edited, power: "off" })).toBe(true);
+  });
+
+  /** A fork, or a drawing started with New, is only a file: its save builds
+   *  nothing, so power does not hold it. */
+  it("leaves another drawing's Save alone", () => {
+    expect(on("save", { ...edited, opened: "fork", power: "on" })).toBe(true);
+    expect(on("save-as", { ...edited, power: "on" })).toBe(true);
+  });
+
+  it("is what ON waits for", () => {
+    expect(isLoaded(standing(edited))).toBe(true);
+    expect(unbuilt(standing(edited))).toBe(true);
+    expect(unbuilt(standing({ ...edited, saved: true }))).toBe(false);
+    expect(unbuilt(standing({ ...edited, opened: "fork" }))).toBe(false);
+    expect(unbuilt(standing({ ...edited, loaded: null }))).toBe(false);
   });
 });
 

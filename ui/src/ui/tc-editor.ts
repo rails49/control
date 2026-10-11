@@ -99,8 +99,8 @@ export class TcEditor extends LitElement {
    *  attribute is what `tc-editor.styles.ts` can read. */
   @property({ type: Boolean, reflect: true }) netlist = false;
 
-  /** Whether the drawing is frozen: a train is on the layout, and this view is
-   *  read-only until it is off it (`model/commands.ts`, ADR-0038). The app
+  /** Whether the drawing is frozen: track power is on or stopped, and this
+   *  view is read-only until it is off (`model/commands.ts`, ADR-0071). The app
    *  owns the rule, the run being what knows; it is reflected onto the host
    *  because the palette is greyed by a stylesheet, and an attribute is what
    *  `tc-editor.styles.ts` can read. */
@@ -126,10 +126,10 @@ export class TcEditor extends LitElement {
     // unlight one, so a way left lit with the pane gone would stay lit with
     // nothing to clear it.
     if (changed.has("netlist") && !this.netlist) this.chosen = null;
-    // A train arriving on the layout freezes the drawing under whatever is
-    // open (#169), and each of the three would still write to it. The
-    // properties dialog and the right-click menu are edits this view offers
-    // outside `model/commands.ts`, so they go rather than standing there with
+    // Power going on freezes the drawing under whatever is open (ADR-0071),
+    // and each of the three would still write to it. The properties dialog
+    // and the right-click menu are edits this view offers outside
+    // `model/commands.ts`, so they go rather than standing there with
     // buttons that have stopped meaning anything; the half-drawn wire is the
     // document's rather than the gesture machine's, so abandoning presses does
     // not reach it and it is cancelled here. The canvas is asked to redraw

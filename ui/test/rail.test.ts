@@ -17,7 +17,7 @@ import "../src/ui/tc-rail.js";
 import type { TcRail } from "../src/ui/tc-rail.js";
 
 /** A drawing open with edits in it, one symbol selected that has properties,
- *  a snapshot either way, and nothing standing on the layout to freeze it:
+ *  a snapshot either way, and no track power to freeze it:
  *  everything alive at once. */
 const LIVE: Standing = {
   opened: "reversing-loops",
@@ -27,7 +27,8 @@ const LIVE: Standing = {
   undo: true,
   redo: true,
   backup: "quiet",
-  placed: 0,
+  power: null,
+  loaded: null,
 };
 
 async function rail(

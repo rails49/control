@@ -96,17 +96,24 @@ export class TcHeader extends LitElement {
    *  nothing: the canvas is where you find out where. */
   @property({ type: Boolean }) derives = true;
 
-  /** Whether to say the drawing is frozen: a train is on the layout, so the
-   *  editing view is read-only until it is off it (`model/commands.ts`,
-   *  ADR-0038).
+  /** Whether to say the drawing is frozen: track power is on or stopped, so
+   *  the editing view is read-only until it is off (`model/commands.ts`,
+   *  ADR-0071).
    *
    *  **Whether, and not merely that.** The app hands this over in the editing
    *  view alone (#517). The mark exists to explain the dead verbs, and they are
-   *  the editor's; trains on the layout are the ordinary state of a railroad
-   *  being run, so in the run view the same mark is a warning about nothing.
+   *  the editor's; power on is the ordinary state of a railroad being run, so
+   *  in the run view the same mark is a warning about nothing.
    *  The band decides no such thing itself — which view is current is the app's
    *  and left the band with the selector (ADR-0064). */
   @property({ type: Boolean }) frozen = false;
+
+  /** Whether ON waits for a save: the open drawing is the loaded railroad and
+   *  has unsaved edits (`model/commands.ts`). The run view draws the open
+   *  drawing, so power on would run trains under track no app built; the save
+   *  names the railroad again and ON comes back (ADR-0071, decision 6). STOP
+   *  and OFF never wait. */
+  @property({ type: Boolean }) unbuilt = false;
 
   /** What backup has to say without being asked, and why — `null` where it
    *  says nothing (`model/backup.ts`, #688). The same rule the mark on
@@ -227,7 +234,7 @@ export class TcHeader extends LitElement {
         ${this.frozen
           ? html`<span
               class="frozen"
-              title="trains are on the layout, so the drawing is read-only"
+              title="track power is on, so the drawing is read-only"
             >
               drawing frozen
             </span>`
@@ -298,6 +305,7 @@ export class TcHeader extends LitElement {
       <div class="supply">
         ${SUPPLY.map(({ power, word, says }) => {
           const waiting = power === "off" && this.draining;
+          const unbuilt = power === "on" && this.unbuilt;
           const at = power === this.power;
           return html`
             <button
@@ -305,10 +313,12 @@ export class TcHeader extends LitElement {
               aria-pressed=${at}
               title=${waiting
                 ? "waiting for the run to drain"
-                : at
+                : unbuilt
+                  ? "the drawing has unsaved edits — save it first"
+                  : at
                   ? POWERED[this.power!]
                   : says}
-              ?disabled=${!this.linked || waiting}
+              ?disabled=${!this.linked || waiting || unbuilt}
               @click=${() =>
                 this.dispatchEvent(
                   new CustomEvent<Power>("power-wanted", {
