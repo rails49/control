@@ -1,11 +1,10 @@
 import { css } from "lit";
 
 /**
- * Declaration body. The box a menu drops into, shared by the right-click menu
- * and the band's picker, so that the app's two menus read as one. Position is
- * the caller's: one is pinned to the pointer and the other hangs off the name
- * it lists alternatives to. Named for the menu it belongs to, `tc-panel` being
- * another thing entirely.
+ * Declaration body. The box the menu drops into. Here and not in
+ * shared.styles.ts since the band's picker went (#733): nothing lives there
+ * that fewer than two sheets wear. Named for the menu it belongs to,
+ * `tc-panel` being another thing entirely.
  */
 const menuBox = css`
   margin: 0;
@@ -37,15 +36,14 @@ const menuRow = css`
 `;
 
 /**
- * Whole rule set. The overlay a menu drops over the page: a press anywhere
+ * Whole rule set. The overlay the menu drops over the page: a press anywhere
  * outside the menu lands here and dismisses it, and nothing under it is
- * clicked by the same press. Worn by both menus, which is why it has to be one
- * block — the two z-indices have to agree with each other and with everything
- * `tc-app.styles.ts` lifts above it.
+ * clicked by the same press. Its z-index has to agree with the menu's below
+ * and with everything `tc-app.styles.ts` lifts above it.
  *
  * What the overlay does with a press is `dismissal.ts`, which is the element
- * that wears this, for both components. A right-click is the one it hands on
- * rather than swallows (#180).
+ * that wears this. A right-click is the one it hands on rather than swallows
+ * (#180).
  */
 const dismiss = css`
   .dismiss {
@@ -56,14 +54,14 @@ const dismiss = css`
 `;
 
 /**
- * Whole rule sets. The row under the pointer, in both menus: the one item a
- * press would choose, painted in the chosen colour so that a menu says what it
- * is about to do.
+ * Whole rule sets. The row under the pointer: the one item a press would
+ * choose, painted in the chosen colour so that the menu says what it is about
+ * to do.
  *
- * The selector is `li` deep because both menus wrap every button in one; at
- * (0,2,2) it still beats the `menuRow` the row wears underneath, which the two
- * callers write at (0,0,1) and (0,0,2). A disabled row is left out — an item
- * that does not apply is not about to be chosen.
+ * The selector is `li` deep because the menu wraps every button in one; at
+ * (0,2,2) it still beats the `menuRow` the row wears underneath, written at
+ * (0,0,1). A disabled row is left out — an item that does not apply is not
+ * about to be chosen.
  */
 const menuRowChosen = css`
   li button:hover:not(:disabled) {
@@ -71,11 +69,8 @@ const menuRowChosen = css`
     color: #fff;
   }
 
-  /* Whatever sits beside the label goes with it: the key set, which is
-     tc-menu's, and the .more glyph, which is the picker's — neither renders
-     the other's element, so half of the selector matches nothing in each. */
-  li button:hover:not(:disabled) kbd,
-  li button:hover:not(:disabled) .more {
+  /* The key set beside the label goes with it. */
+  li button:hover:not(:disabled) kbd {
     color: inherit;
     opacity: 0.75;
   }
@@ -101,9 +96,7 @@ export const menuStyles = css`
 
   kbd {
     /* The key that does the same thing, set apart from the words rather than
-       competing with them. Here and not in shared.styles.ts: with the menu
-       bar gone this is the only menu with keys in it, and nothing lives in
-       that module that fewer than two sheets wear (#132, ADR-0064). */
+       competing with them. */
     color: var(--hint);
     font: inherit;
   }
