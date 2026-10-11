@@ -173,51 +173,48 @@ describe("opening a drawing", () => {
   });
 });
 
-describe("starting a drawing", () => {
-  it("empties the canvas under the name, with edits to save", async () => {
-    const { filing, editor } = made(["reversing-loops"]);
-    await filing.load();
+/**
+ * Nothing open: the row the layout interface publishes names no railroad
+ * (#727), so the editor holds nothing and nothing is left to save (ADR-0072,
+ * decision 3).
+ */
+describe("closing the drawing", () => {
+  it("empties the editor and reads as saved, with no trouble and no review", async () => {
+    const { filing, store, editor } = made(["reversing-loops"]);
+    store.answer = () => Promise.resolve(REFUSED);
+    await filing.open("reversing-loops", editor);
+    editor.place("block", [20, 20]);
+    await filing.edited(editor);
 
-    const arrived = await filing.create("arth-goldau", editor);
+    filing.close(editor);
 
-    expect(arrived).toBe(true);
-    expect(filing.opened).toBe("arth-goldau");
-    expect(editor.drawing.symbols).toEqual({});
-    expect(filing.saved).toBe(false);
-  });
-
-  /** The prompt is the shell's, and `null` is the operator closing it. */
-  it("starts nothing where nothing was said", async () => {
-    const { filing, editor } = made(["reversing-loops"]);
-    await filing.load();
-
-    const arrived = await filing.create(null, editor);
-
-    expect(arrived).toBe(false);
     expect(filing.opened).toBe("");
+    expect(filing.saved).toBe(true);
+    expect(filing.edits).toBe(false);
     expect(filing.trouble).toBeNull();
+    expect(filing.reviewed).toBeNull();
+    expect(editor.drawing).toEqual(emptyDrawing(""));
   });
 
-  it("refuses a name no file can wear", async () => {
-    const { filing, editor } = made(["reversing-loops"]);
-    await filing.load();
+  it("tells the shell to redraw", async () => {
+    const { filing, editor, told } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
+    const before = told.times;
 
-    const arrived = await filing.create("a/b", editor);
+    filing.close(editor);
 
-    expect(arrived).toBe(false);
-    expect(filing.opened).toBe("");
-    expect(filing.trouble).toBe("'a/b' cannot name a file");
+    expect(told.times).toBe(before + 1);
   });
 
-  /** A taken name is refused rather than overwritten: overwriting
-   *  deliberately is open-and-save. */
-  it("refuses a name a railroad already has", async () => {
-    const { filing, editor } = made(["reversing-loops"]);
-    await filing.load();
+  /** Save needs a drawing to save into, and `""` is not one. */
+  it("leaves nothing a save would write", async () => {
+    const { filing, store, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
+    filing.close(editor);
 
-    await filing.create("reversing-loops", editor);
+    await filing.save(editor);
 
-    expect(filing.trouble).toBe("'reversing-loops' is already a railroad");
+    expect(store.written).toEqual([]);
   });
 });
 
@@ -234,20 +231,22 @@ describe("saving", () => {
     expect(Object.keys(store.written[0]!.symbols)).toContain("b2");
   });
 
-  /** The first save of a new name is what creates the file, so the list that
-   *  refuses taken names learns it here. */
-  it("learns a new name into the drawings there are", async () => {
-    const { filing, editor } = made(["otira"]);
+  /** A name the list lacks is one another page made since the list was
+   *  asked for; the list learns it on the save all the same. */
+  it("learns a name the drawings there are lacked", async () => {
+    const { filing, store, editor } = made(["otira"]);
     await filing.load();
-    await filing.create("arth-goldau", editor);
+    store.stored["arth-goldau"] = drawn("arth-goldau");
+    await filing.open("arth-goldau", editor);
+    await filing.edited(editor);
 
     await filing.save(editor);
 
     expect(filing.drawings).toEqual(["arth-goldau", "otira"]);
   });
 
-  /** Saving needs a drawing to save into: nothing is open until a railroad is
-   *  chosen, and `untitled` is not a file anyone asked for. */
+  /** Saving needs a drawing to save into: nothing is open until the row names
+   *  a railroad. */
   it("writes nothing with no drawing open", async () => {
     const { filing, store, editor } = made();
 
@@ -269,46 +268,6 @@ describe("saving", () => {
   });
 });
 
-describe("saving under another name", () => {
-  it("writes the open drawing, unsaved edits and all, under the new one", async () => {
-    const { filing, store, editor } = made(["reversing-loops"]);
-    await filing.load();
-    await filing.open("reversing-loops", editor);
-    editor.place("block", [20, 20]);
-    await filing.edited(editor);
-
-    await filing.saveAs("otira", editor);
-
-    expect(filing.opened).toBe("otira");
-    expect(filing.saved).toBe(true);
-    expect(store.written[0]!.drawing).toBe("otira");
-    expect(Object.keys(store.stored["reversing-loops"]!.symbols).sort()).toEqual([
-      "b1",
-      "sw1",
-    ]);
-  });
-
-  it("refuses a name no file can wear, and writes nothing", async () => {
-    const { filing, store, editor } = made(["reversing-loops"]);
-    await filing.load();
-    await filing.open("reversing-loops", editor);
-
-    await filing.saveAs("reversing-loops/2", editor);
-
-    expect(filing.trouble).toBe("'reversing-loops/2' cannot name a file");
-    expect(filing.opened).toBe("reversing-loops");
-    expect(store.written).toEqual([]);
-  });
-
-  it("writes nothing with no drawing open", async () => {
-    const { filing, store, editor } = made();
-
-    await filing.saveAs("otira", editor);
-
-    expect(store.written).toEqual([]);
-  });
-});
-
 describe("an edit", () => {
   it("leaves the drawing with something to save, and re-asks the store", async () => {
     const { filing, store, editor } = made(["reversing-loops"]);
@@ -324,10 +283,12 @@ describe("an edit", () => {
   /** A refusal does not outlive what caused it: the next accepted edit
    *  reviews, and a review that answers clears the band. */
   it("clears a refusal the band was carrying", async () => {
-    const { filing, editor } = made(["reversing-loops"]);
-    await filing.load();
-    await filing.create("a/b", editor);
+    const { filing, store, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
+    store.broken = new Error("disk full");
+    await filing.save(editor);
     expect(filing.trouble).not.toBeNull();
+    store.broken = null;
 
     await filing.edited(editor);
 
@@ -356,42 +317,12 @@ describe("an edit", () => {
 });
 
 /**
- * Whether discarding the drawing would lose anything (#136). Not the same
- * question as `saved`: a drawing that has never been written is unsaved from
- * the moment it is started, the file not existing yet, and a canvas nothing
- * has been placed on still has nothing to discard.
+ * Whether changing the railroad would lose anything, which a restore and a
+ * load are refused over (#703, #733). It follows `saved`: the only drawing
+ * open is one the store gave, so there is nothing unsaved that is not an
+ * edit.
  */
 describe("whether there are edits to lose", () => {
-  it("has nothing to lose on a canvas just started", async () => {
-    const { filing, editor } = made(["reversing-loops"]);
-    await filing.load();
-
-    await filing.create("arth-goldau", editor);
-
-    expect(filing.edits).toBe(false);
-  });
-
-  /** The dot is telling the truth about the file, which does not exist. */
-  it("still says that canvas is unsaved", async () => {
-    const { filing, editor } = made(["reversing-loops"]);
-    await filing.load();
-
-    await filing.create("arth-goldau", editor);
-
-    expect(filing.saved).toBe(false);
-  });
-
-  it("has edits to lose once anything is drawn on it", async () => {
-    const { filing, editor } = made(["reversing-loops"]);
-    await filing.load();
-    await filing.create("arth-goldau", editor);
-
-    editor.place("block", [0, 0]);
-    await filing.edited(editor);
-
-    expect(filing.edits).toBe(true);
-  });
-
   it("has nothing to lose on a drawing as the store gave it", async () => {
     const { filing, editor } = made(["reversing-loops"]);
 
@@ -426,21 +357,21 @@ describe("whether there are edits to lose", () => {
   });
 
   /**
-   * Every place that records an edit clears the flag, not two of the three:
-   * `edited`, `open`, and the review that mints names the drawing did not
-   * hold. The store cannot say this about a canvas nothing is on — which is
-   * why nothing is lost today — so the fake says it, and what is guarded is
-   * the invariant rather than the reachable path to it (#147).
+   * Every place that records an edit puts the dot up: `edited`, `open`, and
+   * the review that mints names the drawing did not hold. The store cannot
+   * say this about a drawing it gave with every name in place, so the fake
+   * says it, and what is guarded is the invariant rather than the reachable
+   * path to it (#147).
    */
   it("has edits to lose once a review named a junction for it", async () => {
-    const { filing, store, editor } = made();
+    const { filing, store, editor } = made(["reversing-loops"]);
     store.answer = () =>
       Promise.resolve({
         ...CLEAN,
         junctions: [{ name: null, names: [], symbols: ["sw1"] }],
       });
 
-    await filing.create("arth-goldau", editor);
+    await filing.open("reversing-loops", editor);
 
     expect(filing.edits).toBe(true);
   });

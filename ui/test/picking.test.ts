@@ -37,7 +37,6 @@ import {
   band,
   edited,
   mounted,
-  pressed,
   serving,
   session,
   settingsOpened,
@@ -182,25 +181,10 @@ describe("the dialog asks on the bus", () => {
 });
 
 /**
- * The band names the railroad the apps run, which is the row's, and not the
- * drawing the editor holds (#732): after Save As that is a drawing nothing
- * runs.
+ * The band names the railroad the apps run, which is the row's (#732), and a
+ * row naming `""` is none.
  */
 describe("what the band names as loaded", () => {
-  it("goes on naming the loaded railroad after Save As", async () => {
-    const shell = await mounted("edit");
-    await loads(shell, "reversing-loops");
-    const prompt = window.prompt;
-    window.prompt = () => "fork";
-    try {
-      await pressed(shell, "save-as");
-    } finally {
-      window.prompt = prompt;
-    }
-
-    expect(loaded(shell)).toBe("reversing-loops");
-  });
-
   /** A row naming `""` is a broker with no railroad loaded (#727): nothing is
    *  read for it, neither a roster nor a drawing called `""`. */
   it("says no railroad is loaded where the row names none, and reads nothing for it", async () => {

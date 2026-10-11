@@ -11,9 +11,12 @@
  * places instead of one.
  *
  * The store is a dependency, so a test hands over a fake rather than forging
- * an HTTP answer to reach rules that have nothing to do with HTTP. The prompt
- * is not: `model/` has no DOM and a modal question is the shell's, so the
- * shell asks and passes the raw answer over, and this vets it.
+ * an HTTP answer to reach rules that have nothing to do with HTTP.
+ *
+ * What is open is the loaded railroad and no other (ADR-0072, decision 3):
+ * the row the layout interface publishes names it, the shell opens it here,
+ * and a row naming none closes it. Nothing here starts or forks a drawing;
+ * making a railroad is the settings dialog's (#737).
  *
  * The `Editor` is taken per call and never held, as `gesture.ts` states the
  * rule and for the same reason: the shell is the single owner of the instance
@@ -21,7 +24,7 @@
  * re-reads `revision` off the instance it was handed.
  */
 
-import { emptyDrawing, nameTrouble, type Drawing } from "./drawing.js";
+import { emptyDrawing, type Drawing } from "./drawing.js";
 import type { Editor } from "./editor.js";
 import {
   listDrawings,
@@ -46,10 +49,6 @@ export class Filing {
   private list: readonly string[] = [];
   private name = "";
   private clean = true;
-  /** Whether the open drawing is one started here that nothing has happened to
-   *  since. It has no file, so `clean` is false and the band's dot is up
-   *  telling the truth, but there is nothing on it anyone could lose (#136). */
-  private untouched = false;
   private wrong: string | null = null;
   private said: Review | null = null;
 
@@ -73,15 +72,13 @@ export class Filing {
     return this.clean;
   }
 
-  /** Whether there are edits an operator would recognise as lost: a drawing
-   *  edited since it was last written, or a never-written one that has been
-   *  drawn on. It is what the question before a discard asks (#101, #136), and
-   *  it is not `saved`: a drawing is unsaved from the moment it is started,
-   *  the file not existing yet, and asking about a canvas nothing has been
-   *  placed on is the dialog that gets dismissed unread — which is how the
-   *  question fails on the evening's drawing that it is there for. */
+  /** Whether there are edits an operator would recognise as lost: the open
+   *  drawing edited since it was last written. It is what a restore and a load
+   *  are refused over (#703, #733). Once it was not `saved` — a drawing
+   *  started with New was unsaved with nothing on it to lose (#136) — but the
+   *  only drawing open now is one the store gave, so the two are one. */
   get edits(): boolean {
-    return !this.clean && !this.untouched;
+    return !this.clean;
   }
 
   /** What the editor could not do — the store not answering, a save that did
@@ -133,7 +130,6 @@ export class Filing {
       // opens with something to save, and something to lose, rather than
       // something already saved.
       this.clean = !editor.stage();
-      this.untouched = false;
       this.wrong = null;
     } catch (failure) {
       this.wrong = String(failure);
@@ -145,38 +141,29 @@ export class Filing {
   }
 
   /**
-   * A named empty canvas, under the name the shell asked for: `untitled` is
-   * not a file anyone asked for, and nothing is written until the first save,
-   * so an abandoned start leaves no file behind.
-   *
-   * `said` is the raw answer to the shell's prompt, `null` where the operator
-   * closed it without one.
+   * Nothing open: the row names no railroad (#727), so the editor is emptied
+   * and the filing reads as saved with no trouble and no review. The stock
+   * view reads the same `""` and holds nothing either (ADR-0072, decision 3).
    */
-  async create(said: string | null, editor: Editor): Promise<boolean> {
-    const name = this.named(said);
-    if (name === null) {
-      this.notify();
-      return false;
-    }
-    editor.reset(emptyDrawing(name));
-    this.name = name;
-    this.clean = false;
-    this.untouched = true;
-    await this.reviewing(editor);
-    return true;
+  close(editor: Editor): void {
+    editor.reset(emptyDrawing(""));
+    this.name = "";
+    this.clean = true;
+    this.wrong = null;
+    this.said = null;
+    this.notify();
   }
 
   /** The open drawing, given to the store. Saving needs a drawing to save
-   *  into: nothing is open until a railroad is chosen, and `untitled` is not a
-   *  file anyone asked for. */
+   *  into: nothing is open until the row names a railroad. */
   async save(editor: Editor): Promise<void> {
     if (this.name === "") return;
     try {
       await this.store.saveDrawing(editor.drawing);
       this.clean = true;
       this.wrong = null;
-      // The first save of a new name is what creates the file, so the list
-      // that refuses taken names learns it here.
+      // The list is asked for again when a railroad is wanted, so a name it
+      // lacks is one another page made; it learns it here all the same.
       if (!this.list.includes(this.name)) {
         this.list = [...this.list, this.name].sort();
       }
@@ -184,20 +171,6 @@ export class Filing {
       this.wrong = String(failure);
     }
     this.notify();
-  }
-
-  /** The fork: the open drawing, unsaved edits and all, written at once under
-   *  a new name. The file under the old name keeps its last-saved state. */
-  async saveAs(said: string | null, editor: Editor): Promise<void> {
-    if (this.name === "") return;
-    const name = this.named(said);
-    if (name === null) {
-      this.notify();
-      return;
-    }
-    editor.rename(name);
-    this.name = name;
-    await this.save(editor);
   }
 
   /** The drawing changed. The dot goes up on the keystroke and the store is
@@ -208,21 +181,8 @@ export class Filing {
    *  does have somewhere. */
   edited(editor: Editor): Promise<void> {
     this.clean = false;
-    this.untouched = false;
     this.notify();
     return this.reviewing(editor);
-  }
-
-  /** One drawing name, as it came back from the shell's prompt, checked. A
-   *  refusal reads in the band rather than re-prompting: the prompt is gone by
-   *  then, nothing on the canvas is wrong, and asking again is one click away
-   *  (ADR-0024). */
-  private named(said: string | null): string | null {
-    if (said === null) return null;
-    const trouble = nameTrouble(said, this.list);
-    if (trouble === null) return said;
-    this.wrong = trouble;
-    return null;
   }
 
   /**
@@ -250,10 +210,8 @@ export class Filing {
       if (named) {
         // Opening a hand-written railroad has edits to save, because the names
         // it was written with are not the ones it now holds. Minting them is
-        // an edit like any other, so it clears `untouched` with the dot it
-        // puts up (#147).
+        // an edit like any other, and puts the dot up (#147).
         this.clean = false;
-        this.untouched = false;
         this.said = await this.store.review(editor.drawing);
       } else {
         this.said = first;

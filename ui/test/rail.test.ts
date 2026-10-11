@@ -129,9 +129,7 @@ describe("what each view's rail carries", () => {
       "Zoom in  +",
       "Fit  0",
       "Netlist  N",
-      "New…",
       "Save  ⌘S",
-      "Save As…  ⇧⌘S",
       "Export SVG…",
       "Undo  ⌘Z",
       "Redo  ⇧⌘Z",
@@ -191,7 +189,6 @@ describe("what a dead button does", () => {
     expect(dead).toEqual([
       "netlist",
       "save",
-      "save-as",
       "export-svg",
       "undo",
       "redo",
