@@ -35,6 +35,7 @@ from pathlib import Path
 import pytest
 
 from tc49.lib.loading import NO_RAILROAD
+from tc49.lib.loading import RAILROAD as ROW
 from tc49.lib.mqtt import MqttBus
 from tests.apps import APPS, App, Process, Store
 from tests.brokers import Broker, drained, settle, until
@@ -76,6 +77,13 @@ def drawn(root: Path) -> None:
             ASSETS / "layouts" / f"{RAILROAD}.{suffix}.yaml",
             root / "layouts" / f"{RAILROAD}.{suffix}.yaml",
         )
+
+
+def standing_rows(app: App) -> dict[str, object]:
+    """What an app leaves retained while it stands: the binding of the layout
+    interface names no railroad on the row it writes, and every other app
+    publishes nothing (#727)."""
+    return {ROW: NO_RAILROAD} if app.answers else {}
 
 
 @pytest.fixture
@@ -190,7 +198,9 @@ def test_an_app_stands_on_a_box_whose_store_is_empty(
         assert late.wait_connected(), "the witness never reached the broker"
         late.subscribe("tc49/#", lambda topic, payload: None)
         settle(late)
-        assert set(late.last_values) == set(), f"'{app.name}' published standing"
+        assert {
+            topic: payload.get("name") for topic, payload in late.last_values.items()
+        } == standing_rows(app), f"'{app.name}' published standing"
         assert "standing" in running.said(), (
             f"'{app.name}' did not say it was waiting for a railroad:"
             f"\n{running.said()}"
@@ -207,6 +217,12 @@ def test_an_app_stands_on_a_box_whose_store_is_empty(
             lambda: set(app.rows) <= set(late.last_values),
             timeout=UP_S,
         ), f"'{app.name}' never came up on the railroad drawn:\n{running.said()}"
+        if app.answers:
+            assert drained(
+                late,
+                lambda: late.last_values[ROW].get("name") == RAILROAD,
+                timeout=UP_S,
+            ), f"'{app.name}' never named the railroad drawn on the row"
         assert running.running, f"'{app.name}' stopped on its own:\n{running.said()}"
         late.close()
     finally:

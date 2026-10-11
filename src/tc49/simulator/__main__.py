@@ -39,8 +39,9 @@ and not this command line's to invent. A **rebuild** is not a restart: the
 process is still holding its steel, and under the same railroad name it hands
 that to the next build, less any train whose block the new drawing lacks
 (ADR-0071). A railroad the store does not have
-leaves it **standing** — up, with no railroad, built on the first one a person
-picks that the store can give (#564, `lib/loading.py`).
+leaves it **standing** — up, naming no railroad (`""`) on
+`tc49/layout/state/railroad`, built on the first one a person picks that the
+store can give (#564, #727, `lib/loading.py`).
 
 Then the loop, which is this app's own and older than its command line: the
 discrete-event queue slept on a wall clock (`run_live`). Where every other

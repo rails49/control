@@ -17,7 +17,8 @@ role (ADR-0035) is what lets each app say exactly which rows are its own.
 
 An app started on a railroad the store cannot give **stands**: it stays up
 with no railroad, watches the bus and is built on the first one named that
-the store can give. A name a process was started on is a starting point and
+the store can give. The binding that writes the row says so on it, naming
+no railroad, and every other app standing publishes nothing (#727). A name a process was started on is a starting point and
 not a binding, so an app that exited over one was treating it as binding —
 and on a box whose store is empty, which is an ordinary state and not a fault
 (docs/DEPLOY.md), that was four containers in a restart loop (#564).
@@ -104,6 +105,11 @@ class Loaded:
         answered. Called once per railroad, as the app on it is built."""
         self._moved = False
         bus.subscribe(RAILROAD, self._said)
+
+    def stands(self, bus: Bus) -> None:
+        """Say on the bus that this app is standing, which a follower does
+        not: the row is the binding's (ADR-0035), and a follower standing
+        leaves it as the binding left it."""
 
     def _said(self, topic: str, payload: Payload) -> None:
         """A railroad named on the row. A payload naming nothing readable is
@@ -216,6 +222,14 @@ class Answering(Loaded):
         bus.subscribe(POWER, self._powered)
         bus.subscribe(RAILROAD_WANTED, self._wanted)
 
+    def stands(self, bus: Bus) -> None:
+        """Name no railroad on the row this app writes: a page tells "no
+        railroad loaded" from "layout not running" by it, and a follower
+        drops it (`_said`), so one standing keeps standing and one built on a
+        railroad keeps running it (#727). The next build's constructor
+        replaces it with that railroad's name."""
+        bus.publish(RAILROAD, {"name": NO_RAILROAD})
+
     def _powered(self, topic: str, payload: Payload) -> None:
         """What the supply is doing, as this app publishes it. A payload
         naming nothing readable leaves the last observation standing: rule 4
@@ -298,9 +312,10 @@ def standing[Read](
     A railroad is a starting point rather than a binding (ADR-0060), so an
     app in that state **stands**: it stays up, holds `NO_RAILROAD`, watches
     the bus, and is built on the first railroad named that the store can
-    give. Exiting instead put four of the six containers on a fresh box into
-    a restart loop that this repository's own deploy page calls an ordinary
-    state.
+    give. The binding of the layout interface publishes `NO_RAILROAD` on the
+    row each time it comes to stand (`Answering.stands`, #727). Exiting
+    instead put four of the six containers on a fresh box into a restart loop
+    that this repository's own deploy page calls an ordinary state.
 
     It is the same rule `taken` states, with nothing to fall back on: an app
     still running the railroad it had is worth more than one running none
@@ -330,6 +345,7 @@ def standing[Read](
                 log(f"'{loaded.name}': {refused}")
                 loaded.keep(NO_RAILROAD)
         log("standing: no railroad to come up on, waiting for one to be named")
+        loaded.stands(bus)
         loaded.follow(bus)
         while not stop.is_set() and not loaded.moved:
             bus.drain()
