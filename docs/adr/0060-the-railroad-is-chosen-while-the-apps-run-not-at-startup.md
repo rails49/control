@@ -84,6 +84,8 @@ case, and no check the software can run would tell it whether the two agree.
 
 *Amended 2026-09-05, after the picker landed dead on every simulated box.*
 
+*Withdrawn by [ADR-0070](0070-the-simulator-obeys-the-bands-power-presses.md) (#702): this amendment is reversed, and every binding waits for `off`.*
+
 The precondition asks a person to confirm something no software can check:
 that the rails in front of them match the drawing just loaded. **A binding
 that drives no hardware has nothing to confirm.** Nothing rolls when its model

@@ -145,6 +145,8 @@ onto a second topic the way `run` is carried onto its own gesture, and
 and one observed (ADR-0043); a district is a hardware fact, and a translator
 maps the one value onto however many districts it drives.
 
+*Reversed by [ADR-0070](0070-the-simulator-obeys-the-bands-power-presses.md) (#702): the simulator answers `power_wanted` as the layout does, and comes up `off`.*
+
 **The simulator is untouched.** Simulated track is always live and a power cut
 is a physical act (ADR-0030), so what exercises this is a test publishing the
 topic, as it is for the observation half.

@@ -52,6 +52,8 @@ rather than keeping it. The **simulator** does not exercise any of this:
 `src/tc49/simulator/sim.py` publishes `state/power: on` once at construction
 and never again (ADR-0030, deliberate), so a simulated run never sees a cut.
 
+*Reversed by [ADR-0070](0070-the-simulator-obeys-the-bands-power-presses.md) (#702): the simulator answers `power_wanted` under the same guard, through `tc49.lib.power`.*
+
 ADR-0051 made OFF a two-step gesture: the panel asks the dispatcher to drain,
 watches `tc49/dispatch/state/run` reach `held`, and only then publishes
 `power_wanted: off`. The guarantee — that the supply is never removed under a
