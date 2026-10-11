@@ -540,3 +540,25 @@ def test_a_pictured_train_the_roster_lacks_is_dropped_on_a_rebuild() -> None:
     adopted = restored(picture, layout, roster, {})
 
     assert adopted.standing == {"express_2": "up_w", "freight_1": "dn_e"}
+
+
+def test_a_train_left_off_is_returned_with_its_block_and_why() -> None:
+    """#709: what the dispatcher lists on `state/unfit`."""
+    assert rebuilt({"up_w": 3200}).unfit == {"freight_1": ("dn_e", "gone")}
+    assert rebuilt({"up_w": 3200, "dn_e": 1000}).unfit == {
+        "freight_1": ("dn_e", "short")
+    }
+
+
+def test_a_train_its_cold_placement_stands_elsewhere_is_not_left_off() -> None:
+    """The harness's batch loop falls back to the document, so nothing came
+    off the layout for a person to place."""
+    layout, roster, scenario = load("crossover-yard/meet")
+    blocks = {block: at for block, at in layout.blocks.items() if block != "dn_e"}
+
+    adopted = restored(
+        MOVED, replace(layout, blocks=blocks), roster, placement(scenario.trains)
+    )
+
+    assert "freight_1" in adopted.standing
+    assert adopted.unfit == {}
