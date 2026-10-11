@@ -32,8 +32,8 @@ from tc49.lib.loading import (
     Loaded,
     dropped,
     named,
-    still_standing,
     standing,
+    still_standing,
     taken,
 )
 from tc49.simulator import Simulator
