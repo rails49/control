@@ -8,8 +8,8 @@
  * by, and that overlay is then the topmost thing over the drawing. A second
  * right-click landed on it: the menu came down, `contextmenu` never reached
  * the canvas, nothing called `preventDefault`, and Chrome put its own menu up
- * over the railroad. Both menus wear the one overlay, so the band's railroad
- * picker did it too.
+ * over the railroad. Every menu wears the one overlay, so the band's railroad
+ * picker did it too while there was one.
  *
  * **No vitest suite can see #180's bug.** happy-dom does not render, so it has
  * no hit testing: `document.elementFromPoint` returns null there whatever is
@@ -28,13 +28,14 @@
  * so where it stands.
  */
 
-import type { LitElement } from "lit";
+import { render, type LitElement } from "lit";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { Point } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { band, chose, running, settled, surface } from "./support/shell.js";
+import { dismissal } from "../src/ui/dismissal.js";
+import { chose, running, settled, surface } from "./support/shell.js";
 import {
   brokering,
   joined,
@@ -46,7 +47,6 @@ import {
 } from "./support/session.js";
 
 const ALLOCATION = "tc49/dispatch/state/allocation";
-const POWER = "tc49/layout/state/power";
 
 /** happy-dom's own answer, put back after each test: the stub below is what
  *  stands in for the browser's hit test. */
@@ -65,9 +65,6 @@ afterEach(() => {
 async function standing(): Promise<TcApp> {
   const shell = await joined();
   await said(shell, "tc49/dispatch/state/run", { run: "held" });
-  // The rails dead, which is the whole of the precondition on the picker
-  // (ADR-0060): it is the second menu that can be down over a canvas one.
-  await said(shell, POWER, { power: "off" });
   await said(shell, ALLOCATION, {
     trains: { goods: "a", shunter: "b" },
     locks: { a: "goods", b: "shunter" },
@@ -105,17 +102,6 @@ function offered(shell: TcApp): string[] {
   return [...menu.renderRoot.querySelectorAll("li button")].map((row) =>
     row.querySelector("span")!.textContent!.trim(),
   );
-}
-
-/** Whether the band's picker has its list down. */
-function down(shell: TcApp): boolean {
-  return band(shell).renderRoot.querySelector("menu.drawings") !== null;
-}
-
-/** Put the picker's list down. */
-async function picking(shell: TcApp): Promise<void> {
-  band(shell).renderRoot.querySelector<HTMLElement>("button.chosen")!.click();
-  await settled(shell);
 }
 
 /**
@@ -190,22 +176,6 @@ describe("a right-click while a canvas menu is open", () => {
   });
 });
 
-describe("a right-click while the band's picker is open", () => {
-  it("dismisses it and opens the menu for the train under the pointer", async () => {
-    const shell = await standing();
-    await picking(shell);
-    expect(down(shell)).toBe(true);
-
-    underneath(shell);
-    expect(await rightClicked(shell, overlay(band(shell)), MIDDLE.a)).toEqual({
-      native: false,
-    });
-
-    expect(down(shell)).toBe(false);
-    expect(offered(shell)).toEqual(["Turn around", "Cancel request"]);
-  });
-});
-
 /**
  * Stands the browser's hit test in for the length of a test, with two overlays
  * stacked over the drawing and `pointer-events` honoured: the press meets the
@@ -242,14 +212,33 @@ function pressesOn(nodes: readonly Element[]): number[] {
   return seen;
 }
 
+/** A second overlay over the page, rendered by `dismissal` alone, and
+ *  whether it has been dismissed. The press and the right-click each dismiss,
+ *  as they do a menu, so this says whether and not how often. */
+function stacked(): { overlay: HTMLElement; dismissed: () => boolean } {
+  let times = 0;
+  const host = document.createElement("div");
+  document.body.append(host);
+  render(
+    dismissal(() => {
+      times += 1;
+    }),
+    host,
+  );
+  return {
+    overlay: host.querySelector<HTMLElement>(".dismiss")!,
+    dismissed: () => times > 0,
+  };
+}
+
 describe("a right-click while two menus are open", () => {
   /**
    * The case `82f2abc` records fixing, and the risk in putting back anything
-   * the forwarding took away. The band's picker is the menu that can be down
-   * over another one: `tc-header` is lifted above the work
-   * (`tc-app.styles.ts`), so a press on the band reaches the picker's own
-   * button rather than the overlay a canvas menu already dropped, and both
-   * overlays are then over the drawing at once.
+   * the forwarding took away. The band's picker was the menu that could be
+   * down over another one, and it went with #733: no two of the app's menus
+   * are down at once now. The walk is `dismissal.ts`'s and not a menu's,
+   * though, so it is held here for whatever menu next can be, with the
+   * topmost overlay rendered by `dismissal` alone over the canvas menu's.
    *
    * The press has to pass each of them once and reach the drawing once, never
    * returning to one it has already passed.
@@ -259,12 +248,11 @@ describe("a right-click while two menus are open", () => {
     const drawing = surface(shell);
     await rightClicked(shell, drawing, MIDDLE.a);
     const menu = running(shell).renderRoot.querySelector("tc-menu")!;
-    await picking(shell);
-    expect(down(shell)).toBe(true);
+    const top = stacked();
     expect(offered(shell)).toEqual(["Turn around", "Cancel request"]);
 
     // Topmost first, which is the order the hit test answers in.
-    const overlays = [overlay(band(shell)), overlay(menu)];
+    const overlays = [top.overlay, overlay(menu)];
     stubHitTest(drawing, overlays);
     const seen = pressesOn([...overlays, drawing]);
     const outcome = await rightClicked(shell, overlays[0], PAPER);
@@ -273,7 +261,7 @@ describe("a right-click while two menus are open", () => {
     // thing it is, where the answers below only come out wrong.
     expect(seen).toEqual([1, 1, 1]);
     expect(outcome).toEqual({ native: false });
-    expect(down(shell)).toBe(false);
+    expect(top.dismissed()).toBe(true);
     expect(offered(shell)).toEqual([]);
     expect(overlays.map((one) => one.style.pointerEvents)).toEqual(["", ""]);
   });

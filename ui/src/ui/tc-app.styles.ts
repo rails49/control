@@ -78,13 +78,7 @@ export const appStyles = css`
     }
   }
 
-  /* The band's picker hangs over the rail and the work. z-index only competes
-     inside one stacking context, and a shadow root establishes none, so the
-     context is made here rather than left to the painting order — which is DOM
-     order, and would put the rail over the list hanging off the band. */
   tc-header {
-    position: relative;
-    z-index: 20;
     grid-area: band;
   }
 

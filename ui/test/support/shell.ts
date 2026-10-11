@@ -33,6 +33,7 @@ import type { TcEditor } from "../../src/ui/tc-editor.js";
 import type { TcHeader } from "../../src/ui/tc-header.js";
 import type { TcPanel } from "../../src/ui/tc-panel.js";
 import type { TcRail } from "../../src/ui/tc-rail.js";
+import type { TcSettings } from "../../src/ui/tc-settings.js";
 import type { TcStock } from "../../src/ui/tc-stock.js";
 import type { TcThrottle } from "../../src/ui/tc-throttle.js";
 
@@ -318,6 +319,19 @@ export function session(shell: TcApp): Editor {
 /** The band across the top, where what is true of the whole system reads. */
 export function band(shell: TcApp): TcHeader {
   return shell.renderRoot.querySelector("tc-header")!;
+}
+
+/** The settings dialog the app holds, open or shut (ADR-0072). */
+export function settings(shell: TcApp): TcSettings {
+  return shell.renderRoot.querySelector("tc-settings")!;
+}
+
+/** Press the band's gear, the way a pointer does, and let the dialog and the
+ *  store's list it asks for again settle. */
+export async function settingsOpened(shell: TcApp): Promise<TcSettings> {
+  band(shell).renderRoot.querySelector<HTMLButtonElement>("button.settings")!.click();
+  await settled(shell);
+  return settings(shell);
 }
 
 /** The rail down the left, which carries the views and the current view's

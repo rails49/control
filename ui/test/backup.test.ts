@@ -7,8 +7,8 @@
  * words, a refusal that is not a failure, the store not answering at all — has
  * nothing to do with HTTP (EDITOR.md#tests). Then the dialog, which decides
  * nothing and is asked only what it draws for the answer it is handed and what
- * it presses. Then the one path through the app: the File menu's item opens
- * it, and nothing is asked of git until it does.
+ * it presses. Then the paths through the app: `Settings ▸ Backup…` and the
+ * band's note open it, and nothing is asked of git until one does.
  */
 
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
@@ -19,6 +19,7 @@ import { ASK_MS, Backing, type BackupStore } from "../src/model/backup.js";
 import type { BackupDoc } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcBackup } from "../src/ui/tc-backup.js";
+import type { TcSettings } from "../src/ui/tc-settings.js";
 import {
   band,
   edited,
@@ -27,6 +28,8 @@ import {
   rail,
   serving,
   session,
+  settings,
+  settingsOpened,
   settled,
   UNBACKED,
 } from "./support/shell.js";
@@ -606,6 +609,36 @@ describe("the app's way in", () => {
     expect(reads(open(shell)!)).toContain("/home/somebody/tc49");
   });
 
+  /** One modal at a time: the settings dialog goes as backup's comes up. */
+  it("closes Settings as it opens the backup dialog", async () => {
+    const shell = await mounted();
+    await chooseBackup(shell);
+
+    expect(open(shell)).not.toBeNull();
+    expect(settings(shell).open).toBe(false);
+  });
+
+  /** The band note's words, beside the press that opens what they are
+   *  about, and the press is never dead. */
+  it("wears the band note's words beside Backup…", async () => {
+    serving({ drawings: ["reversing-loops"], backup: UNBACKED });
+    const shell = await mounted();
+    const dialog = await settingsOpened(shell);
+
+    expect(dialog.renderRoot.querySelector(".note")?.textContent?.trim()).toBe(
+      "no backup set up",
+    );
+    expect(backupPress(dialog).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("says nothing beside Backup… of a store backing up as it should", async () => {
+    serving({ drawings: ["reversing-loops"], backup: { ...KEPT, automatic: true } });
+    const shell = await mounted();
+    const dialog = await settingsOpened(shell);
+
+    expect(dialog.renderRoot.querySelector(".note")).toBeNull();
+  });
+
   it("shuts it again when the dialog says it was closed", async () => {
     const shell = await mounted();
     await chooseBackup(shell);
@@ -940,9 +973,19 @@ function open(shell: TcApp): TcBackup | null {
   return surface === null || surface.backing === null ? null : surface;
 }
 
-/** The rail's Backup button, the way a pointer presses it. */
+/** Settings ▸ Backup…, the way a pointer presses it: the gear on the band,
+ *  and the one button in the dialog's backup part (ADR-0072). */
 async function chooseBackup(shell: TcApp): Promise<void> {
-  await pressed(shell, "backup");
+  const dialog = await settingsOpened(shell);
+  backupPress(dialog).click();
+  await settled(shell);
+}
+
+/** The settings dialog's Backup…. */
+function backupPress(dialog: TcSettings): HTMLElement {
+  return [...dialog.renderRoot.querySelectorAll<HTMLElement>("sl-button")].find(
+    (one) => one.textContent!.trim() === "Backup…",
+  )!;
 }
 
 /**
