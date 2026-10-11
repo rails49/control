@@ -54,24 +54,43 @@ current view's document
 view of the app and the run view is another ([PANEL.md](PANEL.md)); the band is
 the app's and is the same band in both.
 
-**The railroad the app has loaded is named here, and picked here.** It is not
-the editor's `File ▸ Open` with the run view guessing separately: both views
-are of one railroad, so one control asks for it. The picker lists what the
-store has and ticks the one that is loaded, and the tick is all that entry is —
-choosing it closes the list and asks for nothing (#101). Re-reading the loaded
-railroad would throw away whatever has been drawn since, which is a lot to ask
-of a click that looks like it does nothing.
+**The railroad the app has loaded is named here**, as
+`tc49/layout/state/railroad` reports it, and the name is not pressed. Loading
+another is the **settings dialog's**, behind the gear between the health area
+and ON
+([ADR-0072](../adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
+It is not the editor's `File ▸ Open` with the run view guessing separately:
+both views are of one railroad, so one control asks for it. The gear is drawn
+whether or not a session is joined, so with none it is the last thing on the
+band.
+
+The dialog lists what the store has, asked again each time it opens, and ticks
+the one that is loaded. The tick is all that entry is — pressing it asks for
+nothing (#101). Re-reading the loaded railroad would throw away whatever has
+been drawn since, which is a lot to ask of a click that looks like it does
+nothing. Its other part is `Backup…`, which closes it and opens the backup
+dialog ([Backing the store up](#backing-the-store-up)).
 
 **It asks and does not load.** Which railroad the apps run is a choice made
-while they run, so the picker publishes `tc49/layout/railroad_wanted` and stops
+while they run, so a press publishes `tc49/layout/railroad_wanted` and stops
 there; whichever binding of the layout interface is running answers it and
 publishes `tc49/layout/state/railroad`, and that row is the one thing the app
 opens a railroad on
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
-ADR-0035). **Track power off is the precondition**: while the rails have power
-the picker is dead and says why, a train already under a committed route
-keeping its motion whatever the software forgets. Nothing here turns the power
-off — that is the panel's OFF, which drains the run first
+ADR-0035). The dialog stays open and the tick moves when the row does. The list
+is dead and says why beneath it (`model/settings.ts`), the first that holds:
+
+| Condition | Words |
+| --- | --- |
+| the layout has not said which railroad is loaded | `the layout has not said which railroad is loaded` |
+| a railroad is loaded and power is not `off` | `the track has power: switch it off to load another railroad` |
+| the drawing or the roster has unsaved edits | `<the drawing> has unsaved edits — save first` |
+
+**Track power off is the precondition**: a train already under a committed
+route keeps its motion whatever the software forgets. With no railroad loaded
+there are no rails built to change, so power is not asked and a new box loads
+its first railroad here. Nothing here turns the power off — that is the
+panel's OFF, which drains the run first
 ([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
 
 The name is marked with a dot while the railroad holds edits the store has not
@@ -105,8 +124,8 @@ this, a marked OFF being a railroad at rest since #585. It is shown verbatim
 and nothing branches on it, and it clears when a frame arrives carrying no
 reason, the trip being a condition that holds until somebody resets it.
 
-**And a store that is not being backed up**, as a press that opens
-`File ▸ Backup…` ([Backing the store up](#backing-the-store-up)).
+**And a store that is not being backed up**, as a press that opens the backup
+dialog ([Backing the store up](#backing-the-store-up)).
 The note is one of *no backup set up* (the store is no repository), *backup
 behind* (the copy off this machine is more than a day behind, git's words from
 the last push as its tooltip), *backup cannot run* (something backup needs is
@@ -191,7 +210,7 @@ does the same thing in the title a pointer resting there reads.
 
     views  Run  ·  Throttle  ·  Stock  ·  Edit
     View   Zoom out −  ·  Zoom in +  ·  Fit 0  ·  Netlist N
-    File   New…  ·  Save ⌘S  ·  Save As… ⇧⌘S  ·  Export SVG…  ·  Backup…
+    File   New…  ·  Save ⌘S  ·  Save As… ⇧⌘S  ·  Export SVG…
     Edit   Undo ⌘Z  ·  Redo ⇧⌘Z
 
 The run view's rail is the views, the three `View` commands and HOLD/GO
@@ -206,8 +225,9 @@ buttons that are dead whenever nothing is selected say less than a menu that
 opens on the thing they act on.
 
 **There is no `Open`.** Which railroad is loaded is the whole system's and the
-band picks it, with the tick rule the old `File` menu used to carry
-([The band](#the-band)).
+settings dialog picks it, with the tick rule the old `File` menu used to carry
+([The band](#the-band)). Backup is the store's and not the drawing's, so it is
+there too.
 
 **New… shows no key.** Chrome keeps `⌘N` for a new window; it never reaches the
 page and cannot be `preventDefault`ed. A blank is better than a binding the
@@ -222,16 +242,16 @@ Fit is does not learn it again on the other view.
 **Nothing on the rail takes the keyboard.** A rail has nothing that comes down
 over the work, so there is no state in which a bare key belongs to the chrome:
 `r`, `f`, `n`, `0`, `+`, `-`, Delete and Backspace reach the canvas whatever the
-rail is showing, and Escape clears the selection. The band's picker is the one
-control that hangs over anything, and a press outside it lands on the overlay it
-drops rather than reaching the keyboard at all.
+rail is showing, and Escape clears the selection. Nothing on the band hangs over
+the work either. The settings and backup dialogs are modal, and while either is
+up the keyboard is the dialog's.
 
 **A shortcut is still not a bare key.** `⌘S` and `⌘Z` are the editor's and are
 taken from the browser, so Chrome's own `⌘S` never offers to save the page over
 the app.
 
 **Below a short window the rail lies down** along the top of the work, as the
-occupancy UI's does: a column of fifteen buttons does not fit a phone held
+occupancy UI's does: a column of fourteen buttons does not fit a phone held
 sideways, and the throttle is used that way. `RAIL_TURNS_PX` in
 `render/units.ts` is the height, interpolated into both sheets that turn.
 
@@ -251,10 +271,7 @@ an arm fails to compile rather than drawing a live button that does nothing
 (#102).
 
 Export SVG… writes the drawing to a file; what it writes is under
-[Files](#files). Backup… opens the one dialog there is about the **store** —
-every railroad in it rather than the one that is open — which is why it is the
-one button on the rail that nothing about the open drawing can kill
-([Backing the store up](#backing-the-store-up)).
+[Files](#files).
 
 ## Canvas
 
@@ -883,7 +900,8 @@ screenshot and PANEL.md wants nothing here.
 
 ### Backing the store up
 
-`File ▸ Backup…` opens the one dialog about the store as a whole: where it is,
+`Settings ▸ Backup…`, and the band's note, open the one dialog about the store
+as a whole — every railroad in it rather than the one that is open: where it is,
 what has moved since the last backup, what backup has not got, what git last
 said, and the backups there are to come back to. The app **drives git and does
 not own it**
@@ -901,17 +919,15 @@ installation, so what backup needs reads as what to make rather than as a
 fault, the key to paste into that repository's deploy keys is on the screen
 beside it, and everything else in the editor is unaffected.
 
-**The item marks itself when nobody is looking.** The app asks the store where
-backup stands when it comes up and every hour after, and `Backup…` carries a
-`!` whose title names what is wrong: *no backup set up*, *backup behind*,
-*backup cannot run* or *backup is off*. The band says the same words as a
-press that opens this dialog, in every view ([The band](#the-band)), so a
-person running trains, with the editing view shut, is told too; the two follow
-one rule and never disagree
+**It says so when nobody is looking.** The app asks the store where backup
+stands when it comes up and every hour after, and the band says what is wrong
+as a press that opens this dialog, in every view ([The band](#the-band)):
+*no backup set up*, *backup behind*, *backup cannot run* or *backup is off*.
+`Settings ▸ Backup…` wears the same words beside it; the two follow one rule
+and never disagree
 ([store/BACKUP.md](../store/BACKUP.md#what-it-does-while-you-draw), #688). A
-store inside another repository — a checkout's `bench/` — says nothing. It
-warns and never disables. Nothing else in the editor marks itself, so the mark
-means one thing.
+store inside another repository — a checkout's `bench/` — says nothing.
+`Backup…` is never disabled.
 
 The dialog says the same thing at length: how many backups the other machine
 has not been given and how old the oldest is. `Back up now` answers with the

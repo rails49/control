@@ -446,8 +446,8 @@ its two names, as each topic states.
   UI publishes it after a restore, for that reason.
   **Track power off is the precondition.** It is answered only where
   `tc49/layout/state/power` reads `off`, and dropped otherwise — a refusal
-  with nowhere to go, this app answering nothing, and the picker is what says
-  why while the track has power (ADR-0034).
+  with nowhere to go, this app answering nothing, and the UI's settings dialog
+  is what says why while the track has power (ADR-0034, ADR-0072).
   With the power off nothing moves and no turnout throws, and the
   person who turns it back on is the one confirming the rails match the
   drawing just loaded (ADR-0051, the operator as the backstop). Nothing here

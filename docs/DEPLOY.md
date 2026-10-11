@@ -319,7 +319,7 @@ the image anyway.
 
 **A key that has to be replaced is replaced from the dialog.** A key
 GitHub refuses as *Key is already in use* — still held by a repository deleted
-without taking it off first — needs no terminal: *New key* in `File ▸
+without taking it off first — needs no terminal: *New key* in `Settings ▸
 Backup…` deletes the pair in the `keys` volume and makes a new one, and shows
 its public half to add under *Settings ▸ Deploy keys* with *Allow write
 access* ([#693](https://github.com/rails49/control/issues/693),
@@ -348,7 +348,7 @@ docker compose --env-file /etc/rails49/box.env \
   --env-file /etc/rails49/deploy.env -f deploy/compose.yaml up -d --no-deps store
 ```
 
-The store makes itself a new key on the next `File ▸ Backup…`, in a volume
+The store makes itself a new key on the next `Settings ▸ Backup…`, in a volume
 seeded from the image and owned by that person. Paste its public half into the
 repository under *Settings ▸ Deploy keys* with *Allow write access*, and delete
 the old one if it is still listed. The key is the box's identity and nothing
