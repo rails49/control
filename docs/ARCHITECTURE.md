@@ -114,9 +114,9 @@ src/tc49/
                               and submits a timetable whole at the start of a
                               run, mechanical arrival-end expansion,
                               deterministic ids, exhausted state topic
-                __main__.py   `python -m tc49.scheduler --broker … --railroad
-                              … --store …`, the command line a container
-                              runs: the railroad's documents off the store,
+                __main__.py   `python -m tc49.scheduler --broker … --store
+                              …`, the command line a container runs: the
+                              railroad's documents off the store,
                               the broker, this app's own rows, then a drain
                               loop that ends on a signal (ADR-0059)
   dispatcher/   dispatch.py   Dispatcher — admission, queue, lock table,
@@ -127,15 +127,15 @@ src/tc49/
                               every arrival end merged, DISPATCH.md's
                               ordering
                 safety.py     safe()
-                __main__.py   `python -m tc49.dispatcher --broker … --railroad
-                              … --store …`, the command line a container
-                              runs: the railroad's layout and roster off the
+                __main__.py   `python -m tc49.dispatcher --broker … --store
+                              …`, the command line a container runs: the
+                              railroad's layout and roster off the
                               store, the broker, the picture the last process
                               left, then a drain loop that ends on a signal
                               (ADR-0059)
   driver/       driver.py     Driver — move_granted → move
-                __main__.py   `python -m tc49.driver --broker … --railroad
-                              …`, the command line a container runs: the
+                __main__.py   `python -m tc49.driver --broker …`, the
+                              command line a container runs: the
                               broker, the translator on it, then a drain
                               loop that ends on a signal. No store — this
                               app reads no documents (ADR-0059)
@@ -143,8 +143,8 @@ src/tc49/
                               a discrete-event engine that schedules each
                               accepted move's sensors on fixed delays, owns
                               the run clock, pacing and termination
-                __main__.py   `python -m tc49.simulator --broker … --railroad
-                              … --store …`, the command line a box with no
+                __main__.py   `python -m tc49.simulator --broker … --store
+                              …`, the command line a box with no
                               hardware runs in place of `layout`'s: the
                               railroad's drawing off the store, the broker,
                               then the live loop this app already owns, which
@@ -157,9 +157,9 @@ src/tc49/
                               the traction write, whose sign is the train's
                               facing composed with each car's orientation
                               (docs/layout/README.md)
-                __main__.py   `python -m tc49.layout --broker … --railroad …
-                              --store …`, the command line a container runs:
-                              the railroad's layout and roster off the store,
+                __main__.py   `python -m tc49.layout --broker … --store …`,
+                              the command line a container runs: the
+                              railroad's layout and roster off the store,
                               the broker, the traction rows the last process
                               left, then a loop that advances the clock,
                               settles and drains until a signal (ADR-0059)

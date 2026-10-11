@@ -18,15 +18,17 @@
 # railroad the run view can drive is one of them:
 #
 #   uv run python -m tc49.simulator --broker 127.0.0.1:1883 \
-#     --railroad reversing-loops --store http://127.0.0.1:8765
+#     --store http://127.0.0.1:8765
 #
-# and the scheduler, the dispatcher and the driver take the same three flags.
-# The run view reads which railroad the broker runs off the row the layout
-# interface publishes, so the app follows whichever railroad these are started
-# on. The band's picker can ask for another (ADR-0060), but only while
-# `tc49/layout/state/power` reads `off` — and the simulator pins its power to
-# `on` (ADR-0030), so in front of the simulator started above the picker is
-# inert. Whether the simulated binding should be exempt is open on #394.
+# and the scheduler and the dispatcher take the same two flags, the driver
+# the broker alone. Which railroad is not a flag: the simulator comes up on
+# the one the store records as loaded and stands where it records none, and
+# the railroad is loaded from the page — the settings dialog behind the
+# band's gear names one, `reversing-loops` say, while
+# `tc49/layout/state/power` reads `off`, which is how the simulator comes up
+# (ADR-0070, ADR-0072). The run view reads which railroad the broker runs off
+# the row the layout interface publishes, so the app follows whichever
+# railroad is loaded.
 #
 # The store is rooted at this checkout's `bench/`, the benchmark fixtures, and
 # not at the `~/tc49` an installation reads (#320): the railroads a developer
@@ -243,7 +245,9 @@ cat <<EOF
           running; start one, for example:
 
           uv run python -m tc49.simulator --broker 127.0.0.1:$MQTT \\
-            --railroad reversing-loops --store http://127.0.0.1:$STORE
+            --store http://127.0.0.1:$STORE
+
+          and load a railroad from the settings dialog behind the band's gear
 
 logs in out/dev, and: docker logs $BROKER_NAME
 stop them with: scripts/dev.sh stop

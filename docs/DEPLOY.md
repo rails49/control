@@ -48,9 +48,9 @@ credentials — and the declaration stays something you can paste into an issue
 while debugging a headless box.
 
 `control` adds one file of its own in that directory,
-`/etc/rails49/deploy.env`: which railroad the apps come up on, where the store
-is rooted, which device the command station is on. One directory rather than
-two, so the box has one place its settings sit.
+`/etc/rails49/deploy.env`: where the store is rooted, which device the command
+station is on. One directory rather than two, so the box has one place its
+settings sit.
 
 ## Working on the app
 
@@ -195,24 +195,33 @@ that speaks to the command station being
 [`rails49/dccex`](https://github.com/rails49/dccex) now, a stack of its own on
 this box beside the mirror ([#587](https://github.com/rails49/control/issues/587)).
 
-Which railroad the apps come up on is `TC49_RAILROAD` in that env file. It is
-a starting point and not a binding: a person loads another railroad from the
-app while they run, and every app follows without a restart
+**Which railroad the apps come up on is the one the store records as loaded**
+([ADR-0072](adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md),
+decision 5). The binding of the layout interface writes the record each time
+it is built on a railroad and starts on it after a reboot, so a box comes back
+on the railroad its rails were built to; every other app follows the row the
+binding publishes. Nothing in the env file names one: `TC49_RAILROAD` did until
+[#731](https://github.com/rails49/control/issues/731), and a box then came back
+on the railroad the env file named, whatever a person had loaded since. An env
+file still setting it is ignored. A person loads another railroad from the
+settings dialog behind the band's gear while the apps run, and every app
+follows without a restart
 ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
 
-**It has no default, and a box that names none comes up with no railroad.**
-An app with none **stands**: it is up, and it is built on the first railroad
-named that the store can give. It publishes nothing, except that the binding
-of the layout interface names no railroad (`""`) on
-`tc49/layout/state/railroad`. So a box that has done nothing but install reaches a steady state with nothing restarting, and what
-it is waiting for is a railroad to exist — see
+**A new box records none, and comes up with no railroad.** An app with none
+**stands**: it is up, and it is built on the first railroad named that the
+store can give. It publishes nothing, except that the binding of the layout
+interface names no railroad (`""`) on `tc49/layout/state/railroad`. So a box
+that has done nothing but install reaches a steady state with nothing
+restarting, and what it is waiting for is its first railroad, loaded or
+created in that settings dialog — see
 [the store, and the documents it serves](#the-store-and-the-documents-it-serves).
 A default naming a railroad would be a default that cannot resolve: nothing
 seeds a store, and the railroads in this repository are fixtures under
-`bench/` that are on nobody's box. `gotthard` was that default until
-[#564](https://github.com/rails49/control/issues/564), and it named no drawing
-anywhere, so a box following this page ended with four containers in a restart
-loop.
+`bench/` that are on nobody's box. `gotthard` was `TC49_RAILROAD`'s default
+until [#564](https://github.com/rails49/control/issues/564), and it named no
+drawing anywhere, so a box following this page ended with four containers in
+a restart loop.
 
 `--remove-orphans` is there because a container whose service was renamed
 keeps running under the old name and keeps its published port. After

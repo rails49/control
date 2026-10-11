@@ -55,12 +55,11 @@ granted, and a held run grants none.
 ## The command line
 
 ```
-python -m tc49.layout --broker <host:port> --railroad <name> --store <url>
+python -m tc49.layout --broker <host:port> --store <url>
 ```
 
-Three flags, the ones a compose service passes: where the broker is, which
-railroad it starts on where the store records none, and where the store serves
-the documents that railroad is built from
+Two flags, the ones a compose service passes: where the broker is, and where
+the store serves the documents the railroad is built from
 ([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
 decision 5). Started against an empty broker with no store and no other app
 running, it waits for the broker, reads the store's record of the railroad
@@ -73,11 +72,11 @@ up. It exits on nothing but a signal.
 ([ADR-0072](../adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md),
 decision 5). Each time it is built on a railroad — on the way up, and on each
 gesture it answers — it writes that railroad's name to the record (`PUT
-/loaded`), so a box comes back on the railroad its rails were built to rather
-than on the one its env file named. `--railroad` is where it starts only where
-the store records none; a recorded railroad the store no longer has is refused
-as any starting point is, and the record is left for the next load to
-overwrite.
+/loaded`), so a box comes back on the railroad its rails were built to. Nothing
+on the command line names one: a box that records none stands until its first
+railroad is loaded or created in the settings dialog, and a recorded railroad
+the store no longer has is refused as any starting point is, the record left
+for the next load to overwrite.
 
 The broker before the documents, because a railroad the store has not got is
 one this app **stands** on: up, naming no railroad (`""`) on
