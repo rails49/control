@@ -849,3 +849,38 @@ def test_loading_another_railroad_places_nothing(placed: Placed) -> None:
     assert placed.placed() == {}
     assert placed.facing() == {}
     assert placed.handed_over() == {}
+
+
+UNFIT = "tc49/dispatch/state/unfit"
+
+
+def unfit(broker: Broker) -> list[Any]:
+    """The trains the dispatcher says the last rebuild took off (#709)."""
+    return list(picture(broker)[UNFIT]["trains"])
+
+
+def test_a_rebuild_whose_drawing_lost_the_block_lists_the_train_it_took_off(
+    placed: Placed, root: Path
+) -> None:
+    """A restore renamed `yard_w`, so the drawing built again has no block
+    where `WAS_TRAIN` stood: the dispatcher brings it up off the layout and
+    says which block it stood in and why (#709)."""
+    assert unfit(placed.broker) == []
+    restored(root, WAS)
+
+    placed.rebuilt(WAS)
+
+    assert placed.placed() == {}
+    assert unfit(placed.broker) == [
+        {"train": WAS_TRAIN, "block": "yard_w", "why": "gone"}
+    ]
+
+
+def test_loading_another_railroad_lists_no_train(placed: Placed, root: Path) -> None:
+    """The list is the dispatcher's, under `OWNED`, so loading another
+    railroad drops it, and the new build says nothing came off (#709)."""
+    restored(root, WAS)
+    placed.rebuilt(WAS)
+    placed.rebuilt(NOW)
+
+    assert unfit(placed.broker) == []
