@@ -501,6 +501,41 @@ describe("a length edit in the roster", () => {
     expect(screen.lengthEdits).toBe(true);
   });
 
+  /** A corrected model is written on the roster's Save, so it is an edit the
+   *  page holds like any other (#718). */
+  it("marks the roster as holding edits for a model's length", () => {
+    const screen = stock();
+    screen.modelLength("hopper", 110, "off");
+    expect(screen.edits).toBe(true);
+    expect(screen.corrections).toEqual([{ ...screen.catalogue["hopper"]!, length: 110 }]);
+  });
+
+  it("holds one correction per model, with the latest length", () => {
+    const screen = stock();
+    screen.modelLength("hopper", 110, "off");
+    screen.modelLength("hopper", 120, "off");
+    expect(screen.corrections.map((model) => [model.model, model.length])).toEqual([
+      ["hopper", 120],
+    ]);
+  });
+
+  it("drops a correction once it is written, and keeps the roster's edits", () => {
+    const screen = stock();
+    screen.modelLength("hopper", 110, "off");
+    screen.wrote("hopper");
+    expect(screen.corrections).toEqual([]);
+    expect(screen.edits).toBe(true);
+  });
+
+  it("clears the corrections with the rest when the roster is kept", () => {
+    const screen = stock();
+    screen.modelLength("hopper", 110, "off");
+    screen.kept();
+    expect(screen.corrections).toEqual([]);
+    expect(screen.edits).toBe(false);
+    expect(screen.lengthEdits).toBe(false);
+  });
+
   it("is not recorded by any other edit, or by a refused length", () => {
     const screen = stock();
     screen.carAddress("krokodil-a", "7");

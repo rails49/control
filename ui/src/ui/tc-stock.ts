@@ -1041,11 +1041,19 @@ export class TcStock extends LitElement {
    * writes nothing where it does not validate — which is why a refusal is
    * shown here rather than left to be discovered later.
    *
+   * A model whose length was corrected on its row is written first, each in
+   * turn, and the roster after them (#718). A refusal stops the Save where it
+   * happened: what was written stays written, and the rest waits for the next
+   * Save.
+   *
    * A save that changed a length tells the app, which names the loaded
    * railroad again so the dispatcher fits trains with the new length and a
-   * train now longer than its block comes off and is listed (ADR-0071). Save
-   * is dead while such an edit waits for power off, so the guard below is a
-   * second answer and not a press met with silence.
+   * train now longer than its block comes off and is listed (ADR-0071). It
+   * tells it as well where a model was written and the roster then refused:
+   * power is off, and the dispatcher must not go on fitting trains by a length
+   * the store no longer holds. Save is dead while such an edit waits for power
+   * off, so the guard below is a second answer and not a press met with
+   * silence.
    */
   private save = async (): Promise<void> => {
     // Save is dead with no roster read, so nobody is waiting on this return.
@@ -1061,16 +1069,22 @@ export class TcStock extends LitElement {
     }
     const lengths = stock.lengthEdits;
     const railroad = this.held;
+    let moved = false;
     try {
+      for (const model of stock.corrections) {
+        await saveModel(model);
+        stock.wrote(model.model);
+        moved = true;
+      }
       await saveRoster(stock.roster);
       stock.kept();
+      moved = lengths;
       this.trouble = null;
       this.beat++;
     } catch (trouble) {
       this.trouble = said(trouble);
-      return;
     }
-    if (lengths && railroad !== null) {
+    if (moved && railroad !== null) {
       this.dispatchEvent(
         new CustomEvent<string>("lengths-saved", {
           detail: railroad,
