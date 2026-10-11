@@ -248,6 +248,15 @@ above the backups: *Restore puts the store back as the picked backup held it;
 the apps and this page then reload*
 ([#699](https://github.com/rails49/control/issues/699)).
 
+**Quit DecoderPro first.** JMRI reads its profile in the store once, at
+launch, and writes the roster it holds back on its next save, so a restore
+under an open DecoderPro is undone by it. Nothing here can see whether JMRI is
+open, so nothing is refused: the dialog says *Quit DecoderPro and PanelPro
+before restoring, and open them again after*
+([#714](https://github.com/rails49/control/issues/714)). A restore changes no
+decoder; a loco programmed since the picked backup keeps its CVs, and its
+roster file holds the older values until DecoderPro reads it again.
+
 Restoring drops a railroad drawn after that backup along with an edit made
 since, because the store comes back as that backup held it. Nothing is lost by
 it: the backup you came from is still in the history and restoring it is the
