@@ -184,9 +184,8 @@ def test_a_power_value_outside_the_set_is_not_news_about_the_rails() -> None:
     closed set of three. A frame naming a fourth value said nothing, so the
     rails are still dark and the gesture is still answered.
 
-    Adopting it instead wedged the gesture: the stored value was not `off`, so
-    every railroad a person picked was refused until a true frame landed
-    (#492)."""
+    Adopting it instead refused every railroad a person picked until a true
+    frame landed, because the stored value was not `off` (#492)."""
     bus = bused()
     answering = Answering(WAS)
     answering.follow(bus)
