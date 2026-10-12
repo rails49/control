@@ -31,9 +31,9 @@ what the code does (#432):
    behind is what an app restarted under a running railroad adopts rather
    than coming up as if the railroad were new (#123).
 
-An app's `__main__` says only where it differs from this: `driver` and
-`dccex` read no documents, `layout` answers the picker rather than following
-the row, and `simulator` has no rows of a previous process to adopt.
+An app's `__main__` says only where it differs from this: `driver` and `dccex`
+read no documents, `layout` answers `tc49/layout/railroad_wanted` rather than
+following the row, and `simulator` has no rows of a previous process to adopt.
 
 Here rather than in an app, for the reason `lib.mqtt.address` is here: an app
 imports `lib` and itself and never another app (ADR-0013), so `lib` is the

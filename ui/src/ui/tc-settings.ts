@@ -57,8 +57,8 @@ export class TcSettings extends LitElement {
   /** The supply as the run reads it, `null` with no session joined. */
   @property({ attribute: false }) power: Power | null = null;
 
-  /** What a load would discard, in the words of the app's discard question,
-   *  `null` while nothing is unsaved. */
+  /** What a load would discard, in `tc-app.losing`'s words, `null` while
+   *  nothing is unsaved. */
   @property({ attribute: false }) unsaved: string | null = null;
 
   /** What backup has to say without being asked, in the band note's words,

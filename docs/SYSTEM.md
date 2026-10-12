@@ -153,6 +153,9 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
                                 changed only once that worked
     POST /backup/key            replace the store's deploy key with a new one
 
+`/loaded` is not routed to the page: only the layout binding uses it, inside
+the compose network, so traefik and the vite dev server leave it out.
+
 **One more route sits beside those and is not the store's.** A camera app
 answers it, and no app of this repository does
 ([#629](https://github.com/rails49/control/issues/629)):
@@ -804,8 +807,8 @@ that drives realistically later grows behind the same topic.
 ### Layout interface
 
 *Reads* the layout and the roster, and `/loaded` as it starts; *writes*
-`/loaded` each time it is built on a railroad, the one write any app makes to
-the store
+`/loaded` each time it is built on a railroad, the one write to the store any
+app but the UI makes
 ([ADR-0072](adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
 *Subscribes* `tc49/layout/align`,
 `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` /

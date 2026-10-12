@@ -83,7 +83,8 @@ src/tc49/
                   reads a roster too and has no store to import
     documents.py  Documents — the layout, the roster and the catalogue read
                   off the store's HTTP face by name, retried while the store
-                  is not up (ADR-0059 decision 5)
+                  is not up (ADR-0059 decision 5), and the railroad the store
+                  records as loaded, read and recorded (`/loaded`, ADR-0072)
     scenario.py   Scenario, TrainSpec, RequestSpec — the harness's own
                   document, which no app reads (#171)
     inventory.py  the event inventory's leaf fields

@@ -88,9 +88,9 @@ waits out its own window for the rows the broker holds, and builds. Generous
 because a failure here is asserted on the log rather than waited for."""
 
 PRESS_S = 3.0
-"""How long one press of the picker is given to be taken before it is
-pressed again: well over the second an app waits for the rows it owns on a
-reload, so that a press that landed is not followed by another."""
+"""How long one gesture on `tc49/layout/railroad_wanted` is given to be taken
+before it is sent again: well over the second an app waits for the rows it
+owns on a reload, so that a gesture that landed is not followed by another."""
 
 STALE_TRACTION = "tc49/layout/state/wanted/traction/17"
 """A desired speed for an address neither railroad's roster has, as a
@@ -200,8 +200,8 @@ def picks(bus: MqttBus, railroad: str, running: Process) -> None:
     by this same hand a moment earlier: the two are different topics, and the
     bus orders nothing between two topics (ADR-0008), so a gesture that
     arrived first is a gesture read against the rails as they were. A person
-    with a picker in front of them presses it again, and that is the whole of
-    what this does. Each press is given `PRESS_S` to be taken before the next,
+    whose load was refused asks again, and that is the whole of what this
+    does. Each press is given `PRESS_S` to be taken before the next,
     because a press naming the railroad already loaded builds it again
     (#688): one that landed after the first was taken would be a second
     reload.
@@ -427,10 +427,10 @@ def test_the_dispatcher_clears_the_picture_it_held_and_rebuilds(
 def test_the_layout_interface_answers_the_gesture_and_rebuilds(
     broker: Broker, store: Store, tmp_path: Path
 ) -> None:
-    """This app **answers** the picker where the scheduler, the dispatcher
-    and the driver follow the row it writes: it is the one app bound to a
-    railroad, so a person's `railroad_wanted` is what moves `state/railroad`
-    and nothing else is (ADR-0060).
+    """This app **answers** `tc49/layout/railroad_wanted` where the scheduler,
+    the dispatcher and the driver follow the row it writes: it is the one app
+    bound to a railroad, so a person's `railroad_wanted` is what moves
+    `state/railroad` and nothing else is (ADR-0060).
 
     One gesture is enough. It is an event and nothing hands it over a second
     time, so the app is subscribed to it before its own opening rows go out;
@@ -502,7 +502,7 @@ def test_a_railroad_the_store_does_not_have_is_refused(
     railroad it had (ADR-0050), so a name the store cannot answer for is said
     on stderr and the running railroad stands.
 
-    And the picker still works afterwards: a gesture is an event, so there is
+    And the gesture is still answered afterwards: it is an event, so there is
     no row standing to be attempted, refused and attempted again — the app
     forgets the refusal and the next press is taken."""
     running = started("layout", broker, store, tmp_path)

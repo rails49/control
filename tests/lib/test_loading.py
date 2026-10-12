@@ -4,8 +4,8 @@ Two followers of one shape. `Loaded` watches `tc49/layout/state/railroad`,
 which is the apps that are told (the scheduler, the dispatcher and the
 driver); `Answering` watches `tc49/layout/railroad_wanted`, which is the
 binding of the layout interface that is running — the one app bound to a
-railroad, the writer of that row, and so the one that answers the picker
-rather than following it.
+railroad, the writer of that row, and so the one that answers the gesture
+rather than following the row.
 
 Under both of them, the railroad an app is **built on**: the one it was
 started on where the store has it, and otherwise whatever the bus names next,
@@ -184,7 +184,7 @@ def test_a_power_value_outside_the_set_is_not_news_about_the_rails() -> None:
     closed set of three. A frame naming a fourth value said nothing, so the
     rails are still dark and the gesture is still answered.
 
-    Adopting it instead wedged the picker: the stored value was not `off`, so
+    Adopting it instead wedged the gesture: the stored value was not `off`, so
     every railroad a person picked was refused until a true frame landed
     (#492)."""
     bus = bused()
@@ -553,7 +553,7 @@ def test_a_stop_ends_the_wait_with_no_railroad() -> None:
     assert said == []
 
 
-def test_an_app_that_is_standing_answers_the_picker_with_the_rails_live() -> None:
+def test_an_app_that_is_standing_answers_railroad_wanted_with_the_rails_live() -> None:
     """The precondition binds a railroad that is loaded. An app standing has
     none: no turnout can throw under it and there is no drawing for the rails
     to disagree with, so the first railroad a box loads is answerable —

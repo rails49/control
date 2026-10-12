@@ -270,7 +270,7 @@ taken from the browser, so Chrome's own `⌘S` never offers to save the page ove
 the app.
 
 **Below a short window the rail lies down** along the top of the work, as the
-occupancy UI's does: a column of fourteen buttons does not fit a phone held
+occupancy UI's does: a column of twelve buttons does not fit a phone held
 sideways, and the throttle is used that way. `RAIL_TURNS_PX` in
 `render/units.ts` is the height, interpolated into both sheets that turn.
 

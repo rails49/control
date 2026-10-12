@@ -14,22 +14,22 @@ about how often it takes what the broker's network thread left waiting, and
 what a settling time is worth is a fact about the detectors a railroad has,
 which is `LayoutInterface`'s argument and the suite's to drive (ADR-0030).
 
-The startup order is `lib/startup.py`'s, with the picker in it. **The
-record first**: the store says which railroad was loaded last (`/loaded`), and
-this app starts on that one — nothing on the command line names a railroad,
-so a box comes back on the railroad its rails were built to and not on one an
-env file named, and a box that records none stands (ADR-0072, decision 5).
-Then **two
-documents**: the transits a `move` may name and the signal at each block end
-come off the layout, and the addresses that answer for a train off the roster,
-no address ever reaching a command (#199). Between the broker and the rows,
-**the picker**, subscribed before a word is published: this app is the one
-that answers it rather than following the state row (ADR-0060), what it
-carries is a gesture, and an event is not retained, so a press landing before
-the subscription is gone; the supply the gesture is conditional on comes with
-it (`lib/loading.py`). **The rows it adopts** are the traction rows a previous
-process left, which the constructor zeroes as it runs. A railroad the store
-does not have leaves it **standing** — up, naming no railroad (`""`) on
+The startup order is `lib/startup.py`'s, with the subscription to
+`tc49/layout/railroad_wanted` in it. **The record first**: the store says which
+railroad was loaded last (`/loaded`), and this app starts on that one — nothing
+on the command line names a railroad, so a box comes back on the railroad its
+rails were built to and not on one an env file named, and a box that records
+none stands (ADR-0072, decision 5). Then **two documents**: the transits a
+`move` may name and the signal at each block end come off the layout, and the
+addresses that answer for a train off the roster, no address ever reaching a
+command (#199). Between the broker and the rows,
+**`tc49/layout/railroad_wanted`**, subscribed before a word is published: this
+app is the one that answers it rather than following the state row (ADR-0060),
+what it carries is a gesture, and an event is not retained, so a press landing
+before the subscription is gone; the supply the gesture is conditional on comes
+with it (`lib/loading.py`). **The rows it adopts** are the traction rows a
+previous process left, which the constructor zeroes as it runs. A railroad the
+store does not have leaves it **standing** — up, naming no railroad (`""`) on
 `tc49/layout/state/railroad`, built on the first one a person picks that the
 store can give (#564, #727, `lib/loading.py`). Each railroad it is built on is
 **written back to the record** before the build, so the next start finds it.
@@ -148,17 +148,17 @@ def serve(
     it, so a restart resetting it is news to nobody (ADR-0009).
 
     The outer loop is one railroad each time round. This app is the one that
-    publishes which railroad that is, so it is the one that **answers** the
-    picker rather than following the row: a person loads a railroad while the
-    apps run and the layout interface is what says which one is loaded
-    (ADR-0060). The desired rows go with the old one — a speed for a
-    locomotive the new railroad does not have, a position for a point it does
-    not have, and nothing would ever republish either. Where each train
-    stands goes too under another name, and **stays under the same one**:
-    the new build starts from the old one's, less any train whose block the
-    new drawing lacks (ADR-0071). And each turn **records** the railroad it
-    is about to build on, so that the next start of this process comes up on
-    it: the same name written again leaves the store as it was.
+    publishes which railroad that is, so it is the one that **answers**
+    `tc49/layout/railroad_wanted` rather than following the row: a person loads
+    a railroad while the apps run and the layout interface is what says which
+    one is loaded (ADR-0060). The desired rows go with the old one — a speed
+    for a locomotive the new railroad does not have, a position for a point it
+    does not have, and nothing would ever republish either. Where each train
+    stands goes too under another name, and **stays under the same one**: the
+    new build starts from the old one's, less any train whose block the new
+    drawing lacks (ADR-0071). And each turn **records** the railroad it is
+    about to build on, so that the next start of this process comes up on it:
+    the same name written again leaves the store as it was.
     """
     if not connected(bus, stop, log):
         return

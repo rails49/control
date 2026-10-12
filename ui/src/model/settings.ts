@@ -30,7 +30,7 @@ import type { Power } from "./trace.js";
  * heard, `""` none loaded (#727). With none loaded there are no rails built
  * to change under anything, so power is not asked: a binding with nothing
  * loaded reads no supply, and the first railroad on a new box is loaded from
- * here. `unsaved` is what the app's discard question names — `"the drawing"`,
+ * here. `unsaved` is what `tc-app.losing` names — `"the drawing"`,
  * `"the roster"` or both — and `null` while nothing is.
  */
 export function refusal(
