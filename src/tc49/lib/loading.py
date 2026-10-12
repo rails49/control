@@ -181,9 +181,9 @@ class Loaded:
 
 
 class Answering(Loaded):
-    """The railroad the app that **answers** the gesture is running: the
-    binding of the layout interface, which is the one app bound to a railroad
-    and the writer of the state row (ADR-0060).
+    """The railroad the app that **answers** `tc49/layout/railroad_wanted` is
+    running: the binding of the layout interface, which is the one app bound
+    to a railroad and the writer of the state row (ADR-0060).
 
     It follows `tc49/layout/railroad_wanted` where the scheduler, the
     dispatcher and the driver follow the state row. Loading is the same cold
