@@ -3,8 +3,9 @@
 One broker runs one railroad (ADR-0059, decision 2) and
 [ADR-0060](../../../docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)
 makes which one a choice a person makes **while the apps run**: the layout
-interface answers the picker and publishes `tc49/layout/state/railroad`, and
-every other app follows that state row and never the gesture behind it.
+interface answers `tc49/layout/railroad_wanted` and publishes
+`tc49/layout/state/railroad`, and every other app follows that state row and
+never the gesture behind it.
 
 Loading a railroad is a cold start that happens without a restart. An app
 that hears another name on the row **clears the retained rows it owns and
@@ -180,7 +181,7 @@ class Loaded:
 
 
 class Answering(Loaded):
-    """The railroad the app that **answers** the picker is running: the
+    """The railroad the app that **answers** the gesture is running: the
     binding of the layout interface, which is the one app bound to a railroad
     and the writer of the state row (ADR-0060).
 
@@ -263,9 +264,9 @@ class Answering(Loaded):
         about the rails — but adopted, it is a value that is not `off`, and
         `_wanted` below then refuses every railroad a person picks until the
         next true frame lands. Falling to `off` instead is not the answer
-        either: that would answer the picker on a frame nobody could read.
-        The unreadable frame is dropped, which is what the paragraph above
-        says and what the check makes true.
+        either: that would answer `tc49/layout/railroad_wanted` on a frame
+        nobody could read. The unreadable frame is dropped, which is what the
+        paragraph above says and what the check makes true.
 
         The opposite direction from `payload.power`, deliberately, and for the
         reason that reader gives: it hands a value to the dispatcher, which
@@ -278,8 +279,8 @@ class Answering(Loaded):
     def _wanted(self, topic: str, payload: Payload) -> None:
         """A railroad asked for. Dropped where the payload names nothing
         readable, or where the supply does not read `off` — a refusal with
-        nowhere to go, this app answering nothing (ADR-0034), and the picker
-        is what says why while the track has power.
+        nowhere to go, this app answering nothing (ADR-0034), and the UI's
+        settings dialog is what says why while the track has power.
 
         **The railroad already running is answered like any other** (#688).
         Naming a railroad means "run what the store holds", and after a

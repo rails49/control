@@ -125,11 +125,12 @@ class App:
     rows: tuple[str, ...]
     store: bool = False
     answers: bool = False
-    """Whether it **answers** the picker rather than following the row: the
-    binding of the layout interface that is running, which is the one app
-    bound to a railroad and the writer of `tc49/layout/state/railroad`
-    (ADR-0060). It is how a test names a railroad to an app, and it is the
-    one thing here that the flags do not already say."""
+    """Whether it **answers** `tc49/layout/railroad_wanted` rather than
+    following the row: the binding of the layout interface that is running,
+    which is the one app bound to a railroad and the writer of
+    `tc49/layout/state/railroad` (ADR-0060). It is how a test names a railroad
+    to an app, and it is the one thing here that the flags do not already
+    say."""
 
     def command(self, broker: Broker, store: Store) -> list[str]:
         """What a compose service for this app runs, as it runs it."""
@@ -145,8 +146,9 @@ class App:
 
     def naming(self, railroad: str) -> tuple[str, Payload]:
         """The frame that names a railroad to this app: the gesture for the
-        binding of the layout interface, which answers the picker, and the
-        row for the apps that are told (ADR-0060)."""
+        binding of the layout interface, which answers
+        `tc49/layout/railroad_wanted`, and the row for the apps that are told
+        (ADR-0060)."""
         if self.answers:
             return RAILROAD_WANTED, {"railroad": railroad}
         return RAILROAD, {"name": railroad}

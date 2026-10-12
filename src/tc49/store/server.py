@@ -22,6 +22,8 @@ rather than to an app of its own — a `ui` package could not import
     PUT  /scripts/<railroad>    save it, as the text it is
     POST /railroads/<from>/copy copy that railroad's drawing, roster and
                                 script under the name the body gives
+    GET  /loaded                the railroad the store records as loaded, or ""
+    PUT  /loaded                record which railroad is loaded
     GET  /backup                whether the store can be backed up, is being,
                                 and what there is to restore to
     PUT  /backup                turn automated backup on or off
