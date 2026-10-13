@@ -162,6 +162,13 @@ answers it, and no app of this repository does
 
     GET  /camera/snapshot       take one picture now
 
+**And two the installation answers**, only on a box it runs on
+([#745](https://github.com/rails49/control/issues/745),
+[rails49/.github#32](https://github.com/rails49/.github/issues/32)):
+
+    GET  /box                   whether this box can be turned off
+    POST /box/off               turn the box off
+
 Every route the store serves is a store operation, which is why the server
 lives in the store rather than in an app of its own
 ([ADR-0013](adr/0013-apps-are-deployment-units.md)). `review` is the one
@@ -355,6 +362,17 @@ LAN is still the trust boundary and a browser is not on it
   camera app listens on ([DEPLOY.md](DEPLOY.md)). What fetches it is the stock
   view, which puts the picture on a model
   ([#631](https://github.com/rails49/control/issues/631)).
+- **The box routes are the installation's, and the store never answers
+  them** — `GET /box` answers **200** with `{"can_turn_off": true}` or
+  `false`, and the page reads only a 200 whose JSON body has
+  `can_turn_off` `true` as yes; any other answer, or none, is no.
+  `POST /box/off` answers **202** once the box is turning off, and any other
+  status with one line of plain text, which the settings dialog shows as
+  written. Both are on the page's own origin, as the store's routes are. A
+  development machine at `localhost` has no installation and vite proxies
+  no `/box`, so vite's own page answers under a 200 and reads as no. What
+  fetches them is the settings dialog
+  ([ui/EDITOR.md](ui/EDITOR.md)).
 - **A name is the id** — `crossover-yard` for a railroad and its roster, and
   `crossover-yard/meet`, qualified by layout, for one of the harness's
   scenarios. The verbs are `get`, `put` (create or replace a whole document),
