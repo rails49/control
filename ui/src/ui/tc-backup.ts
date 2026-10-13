@@ -31,8 +31,8 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { lookTheme } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
-import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 
 import type { Backing } from "../model/backup.js";
@@ -52,7 +52,7 @@ function days(since: number): string {
 
 @customElement("tc-backup")
 export class TcBackup extends LitElement {
-  static override styles = backupStyles;
+  static override styles = [lookTheme, backupStyles];
 
   /** What the app knows about backup, `null` while the dialog is shut. The
    *  same shape the properties dialog takes: closed is nothing to draw. */
@@ -97,7 +97,7 @@ export class TcBackup extends LitElement {
     const stands = backing.stands;
     const refused = this.refusal(stands);
     return html`
-      <sl-dialog open label="Backup" @sl-after-hide=${this.close}>
+      <look-dialog open label="Backup" @sl-after-hide=${this.close}>
         ${stands === null
           ? html`<p class="hint">asking the store…</p>`
           : html`
@@ -148,7 +148,7 @@ export class TcBackup extends LitElement {
         >
           Restore
         </sl-button>
-      </sl-dialog>
+      </look-dialog>
     `;
   }
 

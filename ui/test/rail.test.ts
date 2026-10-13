@@ -1,310 +1,149 @@
 // @vitest-environment happy-dom
 
 /**
- * The rail down the left: the views, what each view's groups carry, what a
- * dead button does, and the run view's own press (ADR-0064).
- *
- * A DOM test, the whole of the behaviour being what the component renders, as
- * `tc-menu`'s and `tc-header`'s are. What is dead and what is alive is
- * `commands.test.ts`; this asks only that the rail draws it.
+ * The rail down the left, as the app draws it out of look's elements
+ * (ADR-0073): the views, what each view's groups carry, and what a dead
+ * command does. What is dead and what is alive is `commands.test.ts`; HOLD and
+ * GO are `run.test.ts`; this asks that the rail draws what those say.
  */
 
-import { describe, expect, it } from "vitest";
+import type { LookCommand, LookView } from "@rails49/look";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { NOTHING, type CommandId, type Standing } from "../src/model/commands.js";
-import { VIEWS, type ViewId } from "../src/model/views.js";
-import "../src/ui/tc-rail.js";
-import type { TcRail } from "../src/ui/tc-rail.js";
+import { VIEWS } from "../src/model/views.js";
+import "../src/ui/tc-app.js";
+import type { TcApp } from "../src/ui/tc-app.js";
+import {
+  editing,
+  mounted,
+  press,
+  pressed,
+  rail,
+  railButton,
+  serving,
+  settled,
+} from "./support/shell.js";
+import { brokering, joined } from "./support/session.js";
 
-/** A drawing open with edits in it, one symbol selected that has properties,
- *  a snapshot either way, and no track power to freeze it:
- *  everything alive at once. */
-const LIVE: Standing = {
-  opened: "reversing-loops",
-  saved: false,
-  selection: 1,
-  editable: true,
-  undo: true,
-  redo: true,
-  power: null,
-  loaded: null,
-};
+beforeEach(() => {
+  serving();
+});
 
-async function rail(
-  standing: Standing = LIVE,
-  view: ViewId = "edit",
-): Promise<TcRail> {
-  const element = document.createElement("tc-rail");
-  element.view = view;
-  element.standing = standing;
-  document.body.append(element);
-  await element.updateComplete;
-  return element;
+afterEach(() => {
+  document.body.replaceChildren();
+});
+
+/** The commands, top to bottom, whatever group they sit in. */
+function commands(shell: TcApp): LookCommand[] {
+  return [...rail(shell).querySelectorAll<LookCommand>("look-command[data-command]")];
 }
 
-/** The selector's buttons, one per view, in the order they are drawn. */
-function views(element: TcRail): HTMLButtonElement[] {
-  return [...element.renderRoot.querySelectorAll<HTMLButtonElement>("button.view")];
+/** The names the command groups are drawn under, top to bottom. */
+function groups(shell: TcApp): string[] {
+  return [...rail(shell).querySelectorAll("look-group")].map((one) => one.label);
 }
 
-/** The command buttons, top to bottom, whatever group they sit in. */
-function commands(element: TcRail): HTMLButtonElement[] {
-  return [
-    ...element.renderRoot.querySelectorAll<HTMLButtonElement>("button[data-command]"),
-  ];
-}
-
-/** One command's button, by the command it sends. */
-function button(element: TcRail, id: CommandId): HTMLButtonElement | null {
-  return element.renderRoot.querySelector<HTMLButtonElement>(
-    `button[data-command="${id}"]`,
-  );
-}
-
-/** The names the groups are drawn under, top to bottom. */
-function groups(element: TcRail): string[] {
-  return [...element.renderRoot.querySelectorAll(".group")].map(
-    (one) => one.getAttribute("aria-label")!,
-  );
-}
-
-/** The commands the rail dispatched while `act` ran. */
-async function asked(element: TcRail, act: () => void): Promise<CommandId[]> {
-  const heard: CommandId[] = [];
-  element.addEventListener("command", (event) => {
-    heard.push((event as CustomEvent<CommandId>).detail);
-  });
-  act();
-  await element.updateComplete;
-  return heard;
-}
-
-/** Views are a list with one current entry, drawn as one icon-button each with
- *  the current one marked — the selector ADR-0038 said a third view would make
- *  of the toggle two of them were, on the rail since ADR-0064. */
-describe("the view selector", () => {
-  it("is the group at the top of every view's rail", async () => {
-    for (const view of VIEWS) {
-      expect(groups(await rail(LIVE, view.id))[0]).toBe("views");
-    }
-  });
-
-  /** The list is what the views are, so every one of them has a button and
-   *  the current one is marked rather than missing. */
+/** Views are a list with one current entry (ADR-0038), the rail's first group. */
+describe("the views", () => {
   it("offers every view the app has, in the order the list has them", async () => {
-    const buttons = views(await rail(LIVE, "run"));
-    expect(buttons.map((one) => one.getAttribute("aria-label"))).toEqual(
-      VIEWS.map((view) => view.label),
+    const shell = await mounted("run");
+    const views = [...rail(shell).querySelectorAll("look-view")];
+    expect(views.map((one) => [one.name, one.label, one.icon])).toEqual(
+      VIEWS.map((view) => [view.id, view.label, view.icon]),
     );
   });
 
   it("marks the one that is current and no other", async () => {
     for (const view of VIEWS) {
-      const marked = views(await rail(LIVE, view.id))
-        .filter((one) => one.classList.contains("current"))
-        .map((one) => one.dataset["view"]);
+      const shell = await mounted(view.id);
+      const marked = [...rail(shell).querySelectorAll("look-view")]
+        .filter((one) => one.current)
+        .map((one) => one.name);
       expect(marked).toEqual([view.id]);
+      document.body.replaceChildren();
     }
   });
 
-  it("asks for the view whose button was pressed", async () => {
-    const element = await rail(LIVE, "run");
-    const heard: string[] = [];
-    element.addEventListener("view-wanted", (event) => {
-      heard.push((event as CustomEvent<string>).detail);
-    });
-    for (const one of views(element)) one.click();
-    expect(heard).toEqual(VIEWS.map((view) => view.id));
+  it("switches to the view pressed, and says so in the hash", async () => {
+    const shell = await mounted("run");
+    press(rail(shell).querySelector('look-view[name="stock"]')!);
+    await settled(shell);
+    expect(location.hash).toBe("#stock");
+    expect(rail(shell).querySelector<LookView>('look-view[name="stock"]')!.current).toBe(true);
   });
 });
 
 describe("what each view's rail carries", () => {
-  /** Every verb, with its label and its key in the title a pointer resting
-   *  there reads: a glyph on its own says nothing about the key that does the
-   *  same thing, which is what the menu row printed. */
+  /** Every verb, with its label and its key as the tooltip a pointer resting
+   *  there reads; look shows the key per platform. */
   it("names the editor's commands and the keys that do the same thing", async () => {
-    const element = await rail();
-    expect(commands(element).map((one) => one.getAttribute("aria-label"))).toEqual([
-      "Zoom out  −",
-      "Zoom in  +",
-      "Fit  0",
-      "Netlist  N",
-      "Save  ⌘S",
-      "Export SVG…",
-      "Undo  ⌘Z",
-      "Redo  ⇧⌘Z",
+    const shell = await mounted("edit");
+    expect(commands(shell).map((one) => [one.label, one.key])).toEqual([
+      ["Zoom out", "−"],
+      ["Zoom in", "+"],
+      ["Fit", "0"],
+      ["Netlist", "N"],
+      ["Save", "Mod+S"],
+      ["Export SVG…", ""],
+      ["Undo", "Mod+Z"],
+      ["Redo", "Shift+Mod+Z"],
     ]);
   });
 
   it("groups them under the names the menus carried", async () => {
-    expect(groups(await rail())).toEqual(["views", "View", "File", "Edit"]);
+    expect(groups(await mounted("edit"))).toEqual(["View", "File", "Edit"]);
   });
 
   /** The run view's document is a railroad somebody else is running: no File
-   *  and no Edit, and what it presses instead is HOLD and GO. */
-  it("gives the run view the three view commands and nothing else", async () => {
-    const element = await rail(LIVE, "run");
-    expect(commands(element).map((one) => one.dataset["command"])).toEqual([
+   *  and no Edit, and what it presses instead is HOLD and GO, pinned to the
+   *  rail's far end. */
+  it("gives the run view the three view commands and HOLD/GO", async () => {
+    const shell = await mounted("run");
+    expect(commands(shell).map((one) => one.dataset["command"])).toEqual([
       "zoom-out",
       "zoom-in",
       "fit",
     ]);
+    const run = rail(shell).querySelector("look-command[data-run]")!;
+    expect(run.closest("look-group")!.end).toBe(true);
   });
 
-  /** Neither draws a document with a viewport, so neither has a command at
-   *  all — the views are the whole of their rail (ui/THROTTLE.md, ui/STOCK.md). */
-  it.each(["throttle", "stock"] as const)(
-    "gives the %s view no commands",
-    async (view) => {
-      expect(commands(await rail(LIVE, view))).toEqual([]);
-    },
-  );
+  /** Neither draws a document with a viewport, so the views are the whole of
+   *  their rail (ui/THROTTLE.md, ui/STOCK.md). */
+  it.each(["throttle", "stock"] as const)("gives the %s view no commands", async (view) => {
+    const shell = await mounted(view);
+    expect(rail(shell).querySelectorAll("look-command")).toHaveLength(0);
+  });
 
-  /** The four selection verbs read in the right-click menu instead
-   *  (ADR-0064, menu.test.ts). */
-  it("leaves the selection verbs off every view's rail", async () => {
-    for (const view of VIEWS) {
-      const element = await rail(LIVE, view.id);
-      for (const id of ["rotate", "flip", "delete", "properties"] as const) {
-        expect(button(element, id)).toBeNull();
-      }
+  /** The four selection verbs read in the right-click menu instead (menu.test.ts). */
+  it("leaves the selection verbs off the editor's rail", async () => {
+    const shell = await mounted("edit");
+    for (const id of ["rotate", "flip", "delete", "properties"]) {
+      expect(railButton(shell, id)).toBeNull();
     }
   });
 
-  it("asks for the command the button carries", async () => {
-    const element = await rail(LIVE, "run");
-    const heard = await asked(element, () => {
-      for (const one of commands(element)) one.click();
-    });
-    expect(heard).toEqual(["zoom-out", "zoom-in", "fit"]);
+  it("does what the command pressed says", async () => {
+    brokering();
+    const shell = await joined("edit");
+    await pressed(shell, "netlist");
+    expect(editing(shell).netlist).toBe(true);
   });
 });
 
-describe("what a dead button does", () => {
+describe("what a dead command does", () => {
+  /** Nothing open: nothing to save, export, undo or inspect. */
   it("draws it disabled", async () => {
-    const element = await rail(NOTHING);
-    const dead = commands(element)
+    const shell = await mounted("edit");
+    const dead = commands(shell)
       .filter((one) => one.disabled)
       .map((one) => one.dataset["command"]);
-    expect(dead).toEqual([
-      "netlist",
-      "save",
-      "export-svg",
-      "undo",
-      "redo",
-    ]);
+    expect(dead).toEqual(["netlist", "save", "export-svg", "undo", "redo"]);
   });
 
-  it("asks for nothing when it is clicked", async () => {
-    const element = await rail(NOTHING);
-    expect(await asked(element, () => button(element, "save")!.click())).toEqual([]);
-  });
-});
-
-/**
- * HOLD and GO (ADR-0037): the run view's own press, and the one thing on the
- * rail that is not a command. One press, and the word is what the press will
- * do — a clearly labelled button is the explicit GO, so there is no second
- * question to click through.
- */
-describe("holding the run and releasing it", () => {
-  /** The button, wherever it is on the rail. */
-  function press(element: TcRail): HTMLButtonElement | null {
-    return element.renderRoot.querySelector<HTMLButtonElement>("button.run");
-  }
-
-  it("says HOLD while the run is running and GO while it is held", async () => {
-    const running = await rail(LIVE, "run");
-    running.run = "running";
-    await running.updateComplete;
-    expect(press(running)!.textContent!.trim()).toBe("HOLD");
-
-    running.run = "held";
-    await running.updateComplete;
-    expect(press(running)!.textContent!.trim()).toBe("GO");
-  });
-
-  it("asks for the state the word names", async () => {
-    const element = await rail(LIVE, "run");
-    element.run = "held";
-    await element.updateComplete;
-    const heard: string[] = [];
-    element.addEventListener("run-wanted", (event) => {
-      heard.push((event as CustomEvent<string>).detail);
-    });
-
-    press(element)!.click();
-    element.run = "running";
-    await element.updateComplete;
-    press(element)!.click();
-
-    expect(heard).toEqual(["running", "held"]);
-  });
-
-  /** With no session joined there is no run to hold, and before the
-   *  dispatcher has said there is no word to offer the other of. */
-  it("is dead until a session says where the run stands", async () => {
-    const element = await rail(LIVE, "run");
-    expect(press(element)!.disabled).toBe(true);
-
-    element.run = "held";
-    await element.updateComplete;
-    expect(press(element)!.disabled).toBe(false);
-  });
-
-  /**
-   * GO is greyed while the rails are dead (ADR-0041). The dispatcher drops
-   * such a release, so a live button would be one that does nothing; the
-   * reason reads on the band, as the panel's greyed "Turn around" says *this
-   * train is busy* by being greyed at all.
-   */
-  it("greys GO while the layout says a train may not move", async () => {
-    const element = await rail(LIVE, "run");
-    element.run = "held";
-    element.power = "on";
-    await element.updateComplete;
-    expect(press(element)!.disabled).toBe(false);
-
-    for (const state of ["off", "stopped"] as const) {
-      element.power = state;
-      await element.updateComplete;
-      expect(press(element)!.textContent!.trim()).toBe("GO");
-      expect(press(element)!.disabled).toBe(true);
-    }
-
-    element.power = "on";
-    await element.updateComplete;
-    expect(press(element)!.disabled).toBe(false);
-  });
-
-  /** It asks for less than the railroad is already doing, so there is no
-   *  state of the rails it can be refused in. */
-  it("leaves HOLD alone whatever the power is doing", async () => {
-    const element = await rail(LIVE, "run");
-    element.run = "running";
-    element.power = "off";
-    await element.updateComplete;
-
-    expect(press(element)!.textContent!.trim()).toBe("HOLD");
-    expect(press(element)!.disabled).toBe(false);
-  });
-
-  /** A session that has said where the run stands but not what the supply is
-   *  doing is one the dispatcher would honour a GO from: it takes `on` until
-   *  the layout says otherwise, and the button says what the dispatcher would
-   *  do rather than guessing at silence. */
-  it("offers GO while the layout has said nothing", async () => {
-    const element = await rail(LIVE, "run");
-    element.run = "held";
-    await element.updateComplete;
-    expect(press(element)!.disabled).toBe(false);
-  });
-
-  /** The editor's document is a drawing; nothing there runs. */
-  it("is not on the editor's rail", async () => {
-    const element = await rail(LIVE, "edit");
-    element.run = "running";
-    await element.updateComplete;
-    expect(press(element)).toBeNull();
+  it("does nothing when it is pressed", async () => {
+    const shell = await mounted("edit");
+    await pressed(shell, "netlist");
+    expect(editing(shell).netlist).toBe(false);
   });
 });

@@ -20,7 +20,15 @@ import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { editing, inside, mounted, serving, settled } from "./support/shell.js";
+import {
+  editing,
+  inside,
+  mounted,
+  press,
+  railButton,
+  serving,
+  settled,
+} from "./support/shell.js";
 import { loads } from "./support/session.js";
 
 const DRAWING: Drawing = {
@@ -42,11 +50,9 @@ async function open(): Promise<TcApp> {
   return shell;
 }
 
-/** A command asked for on the rail, the way a button's click asks it. */
+/** A command pressed on the rail. */
 async function asked(shell: TcApp, command: string): Promise<void> {
-  shell.renderRoot
-    .querySelector("tc-rail")!
-    .dispatchEvent(new CustomEvent("command", { detail: command }));
+  press(railButton(shell, command)!);
   await settled(shell);
 }
 
@@ -129,7 +135,7 @@ describe("the key and the item", () => {
   });
 
   /** Nothing on the rail comes down over the work, so the key reaches the
-   *  editor whatever the rail is showing (ADR-0064, keys.test.ts). */
+   *  editor whatever the rail is showing (ADR-0073, keys.test.ts). */
   it("reaches the editor whatever the rail is showing", async () => {
     const shell = await open();
     await asked(shell, "netlist");

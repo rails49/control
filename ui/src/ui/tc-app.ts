@@ -17,16 +17,15 @@
  * what it needs of the run: which trains are placed, and track power, which
  * is what its length guard reads (ui/STOCK.md).
  *
- * It also holds everything the chrome needs. The band is the system's, so the
- * gear that opens the settings dialog, where a railroad is asked for, reports
- * here; the rail is the current view's
+ * It also draws the chrome, out of `@rails49/look`'s elements
+ * ([ADR-0073](../../../docs/adr/0073-the-chrome-comes-from-look.md)). The band
+ * is the system's, so the gear that opens the settings dialog, where a
+ * railroad is asked for, reports here; the rail is the current view's
  * document's, so a command comes here and is either run against the document
- * this holds or passed to the view that owns the surface, and the selector that
- * switches view reports here too
- * ([ADR-0064](../../../docs/adr/0064-the-chrome-is-a-band-and-a-rail.md)). The
- * keyboard is the same single path — `model/commands.ts` decides what is dead,
- * and a button and the key its title names cannot come to mean different
- * things.
+ * this holds or passed to the view that owns the surface, and the views that
+ * switch report here too. The keyboard is the same single path —
+ * `model/commands.ts` decides what is dead, and a button and the key its
+ * tooltip names cannot come to mean different things.
  *
  * **The broker is the only thing that loads a railroad**
  * ([#371](https://github.com/rails49/control/issues/371)). One broker runs one
@@ -44,17 +43,17 @@
  * thrown away — no gesture of a person's throws them away.
  */
 
-import { LitElement, html } from "lit";
+import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import "@shoelace-style/shoelace/dist/themes/light.css";
-import "@shoelace-style/shoelace/dist/themes/dark.css";
+import "@rails49/look";
 
 import {
   COMMANDS,
+  RAIL,
   backupWords,
   frozen,
   isLoaded,
-  unbuilt,
+  supply,
   type CommandId,
   type Standing,
 } from "../model/commands.js";
@@ -68,9 +67,7 @@ import { hashOf, viewOf, VIEWS, type ViewId } from "../model/views.js";
 import { appStyles } from "./tc-app.styles.js";
 import "./tc-backup.js";
 import "./tc-editor.js";
-import "./tc-header.js";
 import "./tc-panel.js";
-import "./tc-rail.js";
 import "./tc-settings.js";
 import "./tc-stock.js";
 import "./tc-throttle.js";
@@ -168,6 +165,16 @@ export class TcApp extends LitElement {
    *  here and its gestures go back the way the band's do (ui/THROTTLE.md). */
   @state() private cabs: readonly Cab[] = [];
 
+  /** Seconds the joined session has been on screen, `null` with no session
+   *  joined. The session clock: elapsed time on the page's own clock — a
+   *  view reads a clock for scenery, never for control (ADR-0009, ADR-0047)
+   *  — until a fast clock derived from the railroad's configuration replaces
+   *  it. */
+  @state() private sessionS: number | null = null;
+
+  private sessionStart = 0;
+  private sessionTimer: ReturnType<typeof setInterval> | undefined;
+
   override connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("keydown", this.key);
@@ -188,7 +195,24 @@ export class TcApp extends LitElement {
     this.unwatch = null;
     window.removeEventListener("keydown", this.key);
     window.removeEventListener("hashchange", this.hashed);
+    if (this.sessionTimer !== undefined) clearInterval(this.sessionTimer);
+    this.sessionTimer = undefined;
     super.disconnectedCallback();
+  }
+
+  override updated(): void {
+    const joined = this.status.joined;
+    if (joined && this.sessionTimer === undefined) {
+      this.sessionStart = Date.now();
+      this.sessionS = 0;
+      this.sessionTimer = setInterval(() => {
+        this.sessionS = Math.floor((Date.now() - this.sessionStart) / 1000);
+      }, 1000);
+    } else if (!joined && this.sessionTimer !== undefined) {
+      clearInterval(this.sessionTimer);
+      this.sessionTimer = undefined;
+      this.sessionS = null;
+    }
   }
 
   override render() {
@@ -196,38 +220,34 @@ export class TcApp extends LitElement {
     const loaded = this.loadedRailroad;
     // One reading of the rule for the two that wear it: the band says why and
     // the editing view is what it is about (model/commands.ts). A restore
-    // does not wear it: its rebuild keeps the trains that fit (#710). The band
-    // is told only while that view is current (#517) — the mark explains the
-    // editor's dead verbs, and this is what knows which view is up.
+    // does not wear it: its rebuild keeps the trains that fit (#710).
     const still = frozen(this.standing);
     return html`
-      <tc-header
-        .drawing=${loaded}
-        .unsaved=${!this.filing.saved}
-        .unbuilt=${unbuilt(this.standing)}
-        .derives=${this.filing.derives}
-        .trouble=${this.filing.trouble ?? this.status.trouble}
-        .fault=${this.status.fault}
-        .joined=${this.status.joined}
-        .linked=${this.status.linked}
-        .power=${this.status.power}
-        .draining=${this.status.draining}
-        .frozen=${still && this.view === "edit"}
-        .backup=${this.backupNote()}
-        @backup-wanted=${() => this.backingOpen()}
-        @settings-wanted=${() => this.settingsOpen()}
-        @power-wanted=${(event: CustomEvent<Power>) => this.supplying(event.detail)}
-      ></tc-header>
-
-      <tc-rail
-        .view=${this.view}
-        .standing=${this.standing}
-        .run=${this.status.run}
-        .power=${this.status.power}
-        @view-wanted=${(event: CustomEvent<ViewId>) => this.showing(event.detail)}
-        @command=${(event: CustomEvent<CommandId>) => this.invoke(event.detail)}
-        @run-wanted=${(event: CustomEvent<Run>) => this.held(event.detail)}
-      ></tc-rail>
+      <look-shell>
+        ${this.band(loaded, still)}
+        <look-rail
+          @look-view=${(event: CustomEvent<{ name: string }>) =>
+            this.showing(event.detail.name as ViewId)}
+        >
+          ${VIEWS.map(
+            (view) => html`
+              <look-view
+                name=${view.id}
+                icon=${view.icon}
+                label=${view.label}
+                ?current=${view.id === this.view}
+              ></look-view>
+            `,
+          )}
+          ${RAIL[this.view].map(
+            (group) => html`
+              <look-group label=${group.name}>
+                ${group.items.map((id) => this.command(id))}
+              </look-group>
+            `,
+          )}
+          ${this.view === "run" ? this.holding() : nothing}
+        </look-rail>
 
       <tc-panel
         class=${this.view === "run" ? "" : "off"}
@@ -302,6 +322,107 @@ export class TcApp extends LitElement {
           this.settling = false;
         }}
       ></tc-settings>
+      </look-shell>
+    `;
+  }
+
+  // --- the band and the rail ------------------------------------------------
+
+  /**
+   * The band: what is true of the whole system. The loaded railroad's name and
+   * whether it holds unsaved edits; then only what a person would act on
+   * (#517) — what the app could not do, a drawing that does not derive, what
+   * the hardware says is wrong with the supply, a frozen drawing in the
+   * editing view, and backup that is not running — and the session clock;
+   * then the gear and track power.
+   *
+   * A fault is a chip with the whole sentence as its title, so a long one is
+   * read by hovering. The frozen drawing is told only while the editing view
+   * is current (#517): the mark explains the editor's dead verbs, and power on
+   * is the ordinary state of a railroad being run.
+   */
+  private band(loaded: string | null, still: boolean) {
+    const trouble = this.filing.trouble ?? this.status.trouble;
+    const fault = this.status.fault;
+    const note = this.backupNote();
+    const power = supply(this.standing, this.status);
+    return html`
+      <look-band>
+        <look-about
+          name=${loaded ?? "no railroad loaded"}
+          detail=${this.filing.saved ? "" : "unsaved"}
+        ></look-about>
+        ${this.filing.derives ? nothing : chip("does not derive")}
+        ${still && this.view === "edit"
+          ? html`<look-reading title="track power is on, so the drawing is read-only"
+              >drawing frozen</look-reading
+            >`
+          : nothing}
+        ${trouble === null ? nothing : chip(trouble)} ${fault === null ? nothing : chip(fault)}
+        ${note === null
+          ? nothing
+          : html`<look-band-press
+              word=${note.says}
+              label=${note.why}
+              @look-press=${() => this.backingOpen()}
+            ></look-band-press>`}
+        ${this.sessionS === null
+          ? nothing
+          : html`<look-reading>session ${clocked(this.sessionS)}</look-reading>`}
+        <look-gear @look-press=${() => this.settingsOpen()}></look-gear>
+        <look-power
+          state=${power.state}
+          reason=${power.reason}
+          @look-power=${(event: CustomEvent<{ state: Power }>) =>
+            this.supplying(event.detail.state)}
+        ></look-power>
+      </look-band>
+    `;
+  }
+
+  /** One command on the rail, with its label and key as its tooltip. What is
+   *  dead is `model/commands.ts`'s. */
+  private command(id: CommandId) {
+    const command = COMMANDS[id];
+    return html`
+      <look-command
+        data-command=${id}
+        icon=${command.icon}
+        label=${command.label}
+        key=${command.key ?? ""}
+        ?disabled=${!command.enabled(this.standing)}
+        @look-press=${() => this.invoke(id)}
+      ></look-command>
+    `;
+  }
+
+  /**
+   * HOLD while the run is running and GO while it is held: one press, and the
+   * word is what the press will do (ADR-0037). No confirmation — a clearly
+   * labelled button is the explicit GO.
+   *
+   * Dead with no session joined, there being no run to hold, and dead until
+   * the dispatcher has said where the run stands: a button guessing would
+   * offer to hold a run that is already held.
+   *
+   * **GO is greyed while the rails are dead**, because the dispatcher drops
+   * such a release (ADR-0041); the band's power control says why. HOLD is
+   * never greyed: it asks for less.
+   */
+  private holding() {
+    const going = this.status.run === "running";
+    const power = this.status.power;
+    const dead = this.status.run === null || (!going && power !== null && power !== "on");
+    return html`
+      <look-group end label="Run">
+        <look-command
+          data-run
+          word=${going ? "HOLD" : "GO"}
+          label=${going ? "Hold the run" : "Let the run go"}
+          ?disabled=${dead}
+          @look-press=${() => this.held(going ? "held" : "running")}
+        ></look-command>
+      </look-group>
     `;
   }
 
@@ -354,9 +475,10 @@ export class TcApp extends LitElement {
     this.running?.press(run);
   }
 
-  /** ON, STOP or OFF, pressed on the band. The same path HOLD and GO take and
-   *  for the same reason: the client is the run view's, and the band decides
-   *  nothing about the railroad it is naming (ADR-0051). */
+  /** Track power asked for on the band: `on`, `stopped`, or `off`, which is
+   *  the drain request (ADR-0062). The same path HOLD and GO take and for the
+   *  same reason: the client is the run view's, and the band decides nothing
+   *  about the railroad it is naming (ADR-0051). */
   private supplying(power: Power): void {
     this.running?.pressPower(power);
   }
@@ -520,8 +642,8 @@ export class TcApp extends LitElement {
         return;
       // A command with no arm above narrows to something other than `never`
       // here and fails to typecheck, so adding one to `CommandId` cannot leave
-      // a live menu item that does nothing. The same guarantee `GLYPHS` gives
-      // over the same union, for the verb rather than the glyph.
+      // a live menu item that does nothing. The same guarantee `COMMANDS`
+      // gives over the same union, for the verb rather than its label.
       default: {
         const unhandled: never = id;
         return unhandled;
@@ -667,7 +789,7 @@ export class TcApp extends LitElement {
     // `settings-closed` comes back the same way.
     if (this.backingUp || this.settling) return;
     // Nothing on the rail or the band comes down over the work, so there is no
-    // state in which the keyboard belongs to the chrome (ADR-0064).
+    // state in which the keyboard belongs to the chrome (ADR-0073).
     const meta = event.metaKey || event.ctrlKey;
     // The view's own commands, and then its verbs. Zoom is every view's, and
     // is asked for first so that it keeps working wherever there is a viewport
@@ -754,6 +876,20 @@ export class TcApp extends LitElement {
         return;
     }
   };
+}
+
+/** A fault on the band, its whole sentence the title of the chip that may
+ *  cut it short. */
+function chip(said: string) {
+  return html`<look-chip title=${said}>${said}</look-chip>`;
+}
+
+/** Elapsed seconds as a clock: `mm:ss`, hours in front once there are any. */
+function clocked(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
+  const s = String(seconds % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
 }
 
 declare global {

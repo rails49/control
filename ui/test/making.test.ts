@@ -89,7 +89,7 @@ function trouble(shell: TcApp): string | null {
 
 /** The New-model dialog, `null` while it is shut. */
 function dialog(shell: TcApp): Element | null {
-  return screen(shell).renderRoot.querySelector("sl-dialog");
+  return screen(shell).renderRoot.querySelector("look-dialog");
 }
 
 /** What the dialog is saying went wrong, beside its Create button, `null`
@@ -132,7 +132,7 @@ async function product(
   length: string,
 ): Promise<void> {
   await pressed(shell, "button.new-model");
-  const dialog = screen(shell).renderRoot.querySelector("sl-dialog")!;
+  const dialog = screen(shell).renderRoot.querySelector("look-dialog")!;
   await typed(shell, dialog.querySelector("#model")!, model);
   await typed(shell, dialog.querySelector("#kind")!, kind);
   await typed(shell, dialog.querySelector("#length")!, length);
@@ -279,7 +279,7 @@ describe("a fresh box", () => {
     await product(shell, "hopper", "freight", "95");
 
     expect(store.saved).toEqual([]);
-    const dialog = screen(shell).renderRoot.querySelector("sl-dialog")!;
+    const dialog = screen(shell).renderRoot.querySelector("look-dialog")!;
     expect(dialog.querySelector(".trouble")!.textContent!.trim()).toBe(
       "there is already a model 'hopper'",
     );
@@ -296,7 +296,7 @@ describe("a fresh box", () => {
     const shell = await opened();
     await product(shell, "hopper", "freight", "a hundred");
     expect(store.saved).toEqual([]);
-    const dialog = screen(shell).renderRoot.querySelector("sl-dialog")!;
+    const dialog = screen(shell).renderRoot.querySelector("look-dialog")!;
     expect(dialog.querySelector(".trouble")!.textContent).toMatch("positive whole number");
   });
 });
@@ -550,7 +550,7 @@ describe("the length guard", () => {
     await product(shell, "hopper", "freight", "95");
 
     expect(store.saved).toEqual([]);
-    const dialog = screen(shell).renderRoot.querySelector("sl-dialog")!;
+    const dialog = screen(shell).renderRoot.querySelector("look-dialog")!;
     expect(dialog.querySelector(".trouble")!.textContent!.trim()).toBe(
       "there is already a model 'hopper'",
     );
@@ -1028,7 +1028,7 @@ describe("a store that does not answer with a document", () => {
 
     await product(shell, "hopper", "freight", "100");
 
-    const dialog = screen(shell).renderRoot.querySelector("sl-dialog")!;
+    const dialog = screen(shell).renderRoot.querySelector("look-dialog")!;
     expect(dialog).not.toBeNull();
     expect(dialog.querySelector(".trouble")!.textContent!.trim()).toBe(
       "PUT /catalogue/hopper answered 404",

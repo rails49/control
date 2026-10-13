@@ -35,8 +35,8 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { lookTheme } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
-import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/components/select/select.js";
@@ -61,7 +61,7 @@ export interface Properties {
 
 @customElement("tc-properties")
 export class TcProperties extends LitElement {
-  static override styles = propertiesStyles;
+  static override styles = [lookTheme, propertiesStyles];
 
   /** The symbol being edited, or null when the dialog is closed. */
   @property({ attribute: false }) editing: { name: string; spec: SymbolSpec } | null =
@@ -85,14 +85,14 @@ export class TcProperties extends LitElement {
   override render() {
     if (this.editing === null) return nothing;
     return html`
-      <sl-dialog open label="Properties" @sl-after-hide=${this.close}>
+      <look-dialog open label="Properties" @sl-after-hide=${this.close}>
         ${named(this.draft.kind) ? this.nameField() : nothing}
         ${this.perKind()}
         <sl-button slot="footer" @click=${this.close}>Cancel</sl-button>
         <sl-button slot="footer" variant="primary" @click=${this.apply}>
           Apply
         </sl-button>
-      </sl-dialog>
+      </look-dialog>
     `;
   }
 

@@ -63,15 +63,13 @@ function showing(shell: TcApp): string {
 
 /** What the band names as the loaded railroad. */
 function loaded(shell: TcApp): string {
-  return band(shell).renderRoot.querySelector(".drawing")!.textContent!.trim();
+  return band(shell).querySelector("look-about")!.name;
 }
 
 /** The groups the rail carries under the views, which are the current
  *  view's. */
 function groups(shell: TcApp): string[] {
-  return [...rail(shell).renderRoot.querySelectorAll(".group")]
-    .map((one) => one.getAttribute("aria-label")!)
-    .filter((name) => name !== "views");
+  return [...rail(shell).querySelectorAll("look-group")].map((one) => one.label);
 }
 
 /** The hash, as a view name and no `#`. */
@@ -174,7 +172,7 @@ describe("switching view", () => {
 
     await shows(shell, "run");
 
-    expect(groups(shell)).toEqual(["View"]);
+    expect(groups(shell)).toEqual(["View", "Run"]);
   });
 
   /** The views are the rail's top group and are every view's, so switching
@@ -182,8 +180,6 @@ describe("switching view", () => {
   it("keeps the view selector across a switch", async () => {
     const shell = await mounted("edit");
     await shows(shell, "run");
-    expect(
-      rail(shell).renderRoot.querySelectorAll("button.view"),
-    ).toHaveLength(VIEWS.length);
+    expect(rail(shell).querySelectorAll("look-view")).toHaveLength(VIEWS.length);
   });
 });

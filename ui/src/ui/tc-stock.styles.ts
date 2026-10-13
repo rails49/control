@@ -210,12 +210,12 @@ export const stockStyles = css`
     color: var(--wrong);
   }
 
-  sl-dialog .field {
+  .field {
     display: block;
     margin-bottom: 0.6rem;
   }
 
-  sl-dialog label {
+  .field label {
     display: block;
     font-size: 0.75rem;
     color: var(--hint);

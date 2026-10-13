@@ -7,6 +7,8 @@
 #   pyright        strict, over src and tests
 #   pytest         the Python suite
 #   tsc, vitest    the ui, which carries its own toolchain
+#   vite           the ui's production build
+#   look-check     the ui styles none of look's chrome
 #
 # Every check runs even after one has failed, and the failures are named again
 # at the end. Stopping at the first red would report one broken thing per
@@ -43,6 +45,8 @@ run pytest uv run pytest -q
 # install above.
 run tsc ui/node_modules/.bin/tsc -p ui/tsconfig.json --noEmit
 run vitest ui/node_modules/.bin/vitest run --root ui
+run vite ui/node_modules/.bin/vite build ui --logLevel warn
+run look-check ui/node_modules/.bin/look-check ui/src ui/index.html
 
 if [ -z "$failed" ]; then
   printf '\ngreen\n'

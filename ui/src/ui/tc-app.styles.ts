@@ -1,11 +1,6 @@
 import { css, unsafeCSS } from "lit";
 
-import {
-  DARK,
-  RAIL_BUTTON_PX,
-  RAIL_PAD_PX,
-  RAIL_TURNS_PX,
-} from "../render/units.js";
+import { DARK } from "../render/units.js";
 import { palette } from "./shared.styles.js";
 
 /** Declaration body. What the palette's entries become on a dark page, built
@@ -19,10 +14,9 @@ const afterDark = unsafeCSS(
 /**
  * The app (tc-app): the page every view is laid out on.
  *
- * A band across the top and a rail down the left of the work
- * ([ADR-0064](../../../docs/adr/0064-the-chrome-is-a-band-and-a-rail.md)), and
- * the work itself. The palette of custom properties is declared here, a page
- * being the host every component inherits it from (#86).
+ * The band, the rail and the frame around the work are `@rails49/look`'s, and
+ * this sheet styles none of them. The palette of custom properties is declared
+ * here, a page being the host every component inherits it from (#86).
  *
  * Each view fills the work with a left pane and its surface, and the shell is
  * where that pane's width is declared: one left-pane slot with a view's pane in
@@ -31,7 +25,7 @@ const afterDark = unsafeCSS(
  * on a number would be two places to change it, and the panes would drift
  * apart across a toggle.
  *
- * Every view sits in the work, in the same cell, and the ones that are not
+ * Every view sits in the work, over the others, and the ones that are not
  * current are hidden rather than taken away. Taking it away would close the
  * live session on every toggle, which is the wrong price for looking at the
  * netlist; and visibility leaves the hidden view its real width and height,
@@ -45,28 +39,15 @@ export const appStyles = css`
        run. */
     --pane: 12rem;
 
-    /* The rail's own width, which is the column the work starts after. Stated
-       here as well as read there, the grid being what has to leave room for
-       it: a button and the padding either side of it, both of which the rail
-       is written in too (tc-rail.styles.ts, render/units.ts). */
-    --rail-width: ${RAIL_BUTTON_PX + 2 * RAIL_PAD_PX}px;
-
-    display: grid;
-    grid-template-columns: auto 1fr;
-    grid-template-rows: auto 1fr;
-    grid-template-areas:
-      "band band"
-      "rail work";
-    height: 100vh;
+    display: block;
     background: var(--paper);
     color: var(--ink);
     font: 13px/1.4 system-ui, sans-serif;
   }
 
-  /* The same palette on a dark page, and the operating system decides: both
-     Shoelace themes are linked and there is no toggle (LOOK.md, ADR-0003).
-     Only the entries that move are redeclared, so the band and the rail keep
-     the one value they have in both themes by having no line here at all.
+  /* The same palette on a dark page, and the operating system decides
+     (look#12). Only the work follows it; the chrome is look's and keeps one
+     value in both.
 
      It is on the same host the palette is, which is the page every view
      inherits from, and it is written here rather than in shared.styles.ts
@@ -78,23 +59,12 @@ export const appStyles = css`
     }
   }
 
-  tc-header {
-    grid-area: band;
-  }
-
-  tc-rail {
-    position: relative;
-    z-index: 10;
-    grid-area: rail;
-  }
-
   tc-editor,
   tc-panel,
   tc-stock,
   tc-throttle {
-    grid-area: work;
-    min-width: 0;
-    min-height: 0;
+    position: absolute;
+    inset: 0;
     overflow: hidden;
   }
 
@@ -102,20 +72,5 @@ export const appStyles = css`
      width and height away with it, and the shape is the half worth keeping. */
   .off {
     visibility: hidden;
-  }
-
-  /* A window too short for the rail's column. It lies down along the top of
-     the work and the grid gives it a row of its own to lie in; tc-rail turns
-     its own contents at the same height, which is why the number is
-     RAIL_TURNS_PX in both (render/units.ts). */
-  @media (max-height: ${unsafeCSS(RAIL_TURNS_PX)}px) {
-    :host {
-      grid-template-columns: 1fr;
-      grid-template-rows: auto auto 1fr;
-      grid-template-areas:
-        "band"
-        "rail"
-        "work";
-    }
   }
 `;
