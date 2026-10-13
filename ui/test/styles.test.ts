@@ -173,25 +173,6 @@ describe("the drawing's own rules", () => {
 });
 
 /**
- * The rail turns into a strip along the top of the work below a short window
- * (ADR-0064), and two sheets have to turn with it: `tc-app` gives it the row
- * to lie in and `tc-rail` lies its own contents down. A media query cannot read
- * a custom property, so the height is interpolated into each from
- * `render/units.ts`; switching at different heights would draw the strip inside
- * a column that is still there.
- */
-describe("the height the rail turns at", () => {
-  it("is the one number in both sheets that turn", () => {
-    const turn = `@media (max-height:${RAIL_TURNS_PX}px)`;
-    for (const sheet of [appStyles, railStyles]) {
-      expect(sheet.cssText.replace(/\s+/g, "")).toContain(
-        turn.replace(/\s+/g, ""),
-      );
-    }
-  });
-});
-
-/**
  * Both themes, with the operating system deciding (#547).
  *
  * LOOK.md binds three things here: both Shoelace themes are linked with no

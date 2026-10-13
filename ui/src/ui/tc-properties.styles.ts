@@ -16,15 +16,6 @@ export const propertiesStyles = css`
     color: var(--hint);
   }
 
-  /* A field while it holds what the dialog will not take: a name the drawing
-     already has, or a length the store would refuse. Red is what stops the
-     edit landing, the same weight the canvas marks a fault that stops
-     derivation in (ADR-0024). */
-  sl-input.refused {
-    --sl-input-border-color: var(--wrong);
-    --sl-input-help-text-color: var(--wrong);
-  }
-
   .hint {
     margin: 0 0 0.5rem;
     color: var(--hint);

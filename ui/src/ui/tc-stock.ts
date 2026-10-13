@@ -46,9 +46,9 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { lookTheme } from "@rails49/look";
 import { live } from "lit/directives/live.js";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
-import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 
 import { isName, lengthTrouble } from "../model/rules.js";
 import {
@@ -135,7 +135,7 @@ const UNREAD = "the roster and the catalogue are not read yet";
 
 @customElement("tc-stock")
 export class TcStock extends LitElement {
-  static override styles = stockStyles;
+  static override styles = [lookTheme, stockStyles];
 
   /** The loaded railroad, whose roster this edits. `null` while none is
    *  loaded, which is a screen with nothing to edit and not a fault. */
@@ -582,14 +582,14 @@ export class TcStock extends LitElement {
     const model = this.showing;
     if (model === null) return nothing;
     return html`
-      <sl-dialog
+      <look-dialog
         open
         class="photo"
         label=${`Photo — ${model}`}
         @sl-after-hide=${this.closes}
       >
         ${this.frame(model)}
-      </sl-dialog>
+      </look-dialog>
     `;
   }
 
@@ -1166,7 +1166,7 @@ export class TcStock extends LitElement {
     if (making === null) return nothing;
     const wrote = this.wrote !== null;
     return html`
-      <sl-dialog open label="New model" @sl-after-hide=${this.shut}>
+      <look-dialog open label="New model" @sl-after-hide=${this.shut}>
         <div class="field">
           <label for="model">Name</label>
           <input
@@ -1233,7 +1233,7 @@ export class TcStock extends LitElement {
         >
           Create
         </sl-button>
-      </sl-dialog>
+      </look-dialog>
     `;
   }
 

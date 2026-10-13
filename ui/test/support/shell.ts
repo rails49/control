@@ -18,6 +18,8 @@
  * `tc-app`, and that import is what makes it a DOM suite.
  */
 
+import type { LookBand, LookCommand, LookPower, LookRail } from "@rails49/look";
+
 import type { Drawing } from "../../src/model/drawing.js";
 import type { Editor } from "../../src/model/editor.js";
 import type {
@@ -30,9 +32,7 @@ import type {
 import type { ViewId } from "../../src/model/views.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
 import type { TcEditor } from "../../src/ui/tc-editor.js";
-import type { TcHeader } from "../../src/ui/tc-header.js";
 import type { TcPanel } from "../../src/ui/tc-panel.js";
-import type { TcRail } from "../../src/ui/tc-rail.js";
 import type { TcSettings } from "../../src/ui/tc-settings.js";
 import type { TcStock } from "../../src/ui/tc-stock.js";
 import type { TcThrottle } from "../../src/ui/tc-throttle.js";
@@ -360,12 +360,16 @@ export async function mounted(view: ViewId = "edit"): Promise<TcApp> {
   return shell;
 }
 
-/** Press the rail's view selector for one view, which is the one control that
- *  switches: a button per view, the current one marked (ADR-0038, ADR-0064). */
+/** Press one of look's elements the way a pointer does: the button it draws
+ *  inside itself, which is what its listener is on. */
+export function press(part: Element): void {
+  part.shadowRoot!.querySelector<HTMLElement>("button, sl-icon-button")!.click();
+}
+
+/** Press the rail's view for one view, which is the one control that switches:
+ *  one per view, the current one marked (ADR-0038). */
 export async function shows(shell: TcApp, view: ViewId): Promise<void> {
-  rail(shell)
-    .renderRoot.querySelector<HTMLButtonElement>(`button.view[data-view="${view}"]`)!
-    .click();
+  press(rail(shell).querySelector(`look-view[name="${view}"]`)!);
   await settled(shell);
 }
 
@@ -375,9 +379,25 @@ export function session(shell: TcApp): Editor {
   return (shell as unknown as { editor: Editor }).editor;
 }
 
-/** The band across the top, where what is true of the whole system reads. */
-export function band(shell: TcApp): TcHeader {
-  return shell.renderRoot.querySelector("tc-header")!;
+/** The band across the top, where what is true of the whole system reads.
+ *  What it shows are the app's own children of it. */
+export function band(shell: TcApp): LookBand {
+  return shell.renderRoot.querySelector("look-band")!;
+}
+
+/** The railroad the band names. */
+export function named(shell: TcApp): string {
+  return band(shell).querySelector("look-about")!.name;
+}
+
+/** The faults the band shows, in the order it shows them. */
+export function chips(shell: TcApp): string[] {
+  return [...band(shell).querySelectorAll("look-chip")].map((one) => one.textContent!.trim());
+}
+
+/** Track power on the band. */
+export function power(shell: TcApp): LookPower {
+  return band(shell).querySelector("look-power")!;
 }
 
 /** The settings dialog the app holds, open or shut (ADR-0072). */
@@ -388,28 +408,26 @@ export function settings(shell: TcApp): TcSettings {
 /** Press the band's gear, the way a pointer does, and let the dialog and the
  *  store's list it asks for again settle. */
 export async function settingsOpened(shell: TcApp): Promise<TcSettings> {
-  band(shell).renderRoot.querySelector<HTMLButtonElement>("button.settings")!.click();
+  press(band(shell).querySelector("look-gear")!);
   await settled(shell);
   return settings(shell);
 }
 
 /** The rail down the left, which carries the views and the current view's
  *  commands. */
-export function rail(shell: TcApp): TcRail {
-  return shell.renderRoot.querySelector("tc-rail")!;
+export function rail(shell: TcApp): LookRail {
+  return shell.renderRoot.querySelector("look-rail")!;
 }
 
-/** One of the rail's command buttons, by the command it sends, or `null` where
- *  the current view does not offer it. */
-export function railButton(shell: TcApp, id: string): HTMLButtonElement | null {
-  return rail(shell).renderRoot.querySelector<HTMLButtonElement>(
-    `button[data-command="${id}"]`,
-  );
+/** One of the rail's commands, by the command it sends, or `null` where the
+ *  current view does not offer it. */
+export function railButton(shell: TcApp, id: string): LookCommand | null {
+  return rail(shell).querySelector<LookCommand>(`look-command[data-command="${id}"]`);
 }
 
-/** Press one of the rail's command buttons, the way a pointer does. */
+/** Press one of the rail's commands, the way a pointer does. */
 export async function pressed(shell: TcApp, id: string): Promise<void> {
-  railButton(shell, id)!.click();
+  press(railButton(shell, id)!);
   await settled(shell);
 }
 

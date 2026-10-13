@@ -13,6 +13,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { LookCommand } from "@rails49/look";
+
 import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
 import { centreOf } from "../src/model/geometry.js";
@@ -20,10 +22,13 @@ import { RETRY_MS, type Explained, type Layout } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import { brokerAt, GONE } from "../src/ui/tc-panel.js";
 import {
-  band,
-  rail,
+  chips,
   CLEAN,
   mounted,
+  named,
+  power,
+  press,
+  rail,
   running,
   serving,
   settled,
@@ -46,9 +51,9 @@ beforeEach(brokering);
 
 afterEach(unbrokered);
 
-/** The HOLD/GO button on the rail. */
-function press(shell: TcApp): HTMLButtonElement {
-  return rail(shell).renderRoot.querySelector<HTMLButtonElement>("button.run")!;
+/** The HOLD/GO press on the rail. */
+function hold(shell: TcApp): LookCommand {
+  return rail(shell).querySelector<LookCommand>("look-command[data-run]")!;
 }
 
 /** What the run view is saying about the release, `null` while it says
@@ -58,22 +63,9 @@ function notice(shell: TcApp): string | null {
   return said === null ? null : said.textContent!.trim();
 }
 
-/** What the band's health area is reporting, `null` while it reports
- *  nothing. */
+/** The fault the band is showing, `null` while it shows none. */
 function health(shell: TcApp): string | null {
-  const said = band(shell).renderRoot.querySelector(".trouble");
-  return said === null ? null : said.textContent!.trim();
-}
-
-/** The band's mark on the press the supply is standing at, `null` while
- *  nothing has said where it stands. Since #517 the three presses are the
- *  reading as well as the presses, so this is what the band says about track
- *  power. */
-function supply(shell: TcApp): string | null {
-  const marked = band(shell).renderRoot.querySelector<HTMLButtonElement>(
-    "button.press.at",
-  );
-  return marked === null ? null : marked.title;
+  return chips(shell)[0] ?? null;
 }
 
 describe("where the broker is", () => {
@@ -121,8 +113,7 @@ describe("joining the railroad the broker runs", () => {
     expect(Broker.opened).toHaveLength(1);
     expect(Broker.last!.url).toMatch(/\/mqtt$/);
     expect(Broker.last!.subscriptions).toEqual(["tc49/#"]);
-    const named = band(shell).renderRoot.querySelector(".drawing")!;
-    expect(named.textContent!.trim()).toBe("toy");
+    expect(named(shell)).toBe("toy");
   });
 
   /** Retained values arrive as the subscription lands (ADR-0032): the rows
@@ -141,7 +132,7 @@ describe("joining the railroad the broker runs", () => {
     broker.opens();
     await settled(shell);
 
-    expect(press(shell).textContent!.trim()).toBe("GO");
+    expect(hold(shell).word).toBe("GO");
     expect(
       running(shell)
         .renderRoot.querySelector("tc-canvas")!
@@ -179,7 +170,7 @@ describe("joining the railroad the broker runs", () => {
 
     expect(Broker.opened).toHaveLength(1);
     expect(health(shell)).toBeNull();
-    expect(press(shell).textContent!.trim()).toBe("GO");
+    expect(hold(shell).word).toBe("GO");
   });
 
   /** Nothing at the address at all: the band names where it looked, which is
@@ -456,13 +447,11 @@ describe("the viewport the run view gained", () => {
       .map(Number);
   }
 
-  /** One of the rail's command buttons, by the label it carries. */
-  function tool(shell: TcApp, label: string): HTMLButtonElement {
-    return [
-      ...rail(shell).renderRoot.querySelectorAll<HTMLButtonElement>(
-        "button[data-command]",
-      ),
-    ].find((one) => one.getAttribute("aria-label")!.startsWith(label))!;
+  /** One of the rail's commands, by the label it carries. */
+  function tool(shell: TcApp, label: string): LookCommand {
+    return [...rail(shell).querySelectorAll<LookCommand>("look-command[data-command]")].find(
+      (one) => one.label === label,
+    )!;
   }
 
   it("fits the railroad it was handed, and zooms from the rail", async () => {
@@ -472,11 +461,11 @@ describe("the viewport the run view gained", () => {
     expect(x!).toBeLessThanOrEqual(0);
     expect(x! + w!).toBeGreaterThanOrEqual(8);
 
-    tool(shell, "Zoom in").click();
+    press(tool(shell, "Zoom in"));
     await settled(shell);
     expect(looking(shell)[2]).toBeLessThan(w!);
 
-    tool(shell, "Fit").click();
+    press(tool(shell, "Fit"));
     await settled(shell);
     expect(looking(shell)[2]).toBeCloseTo(w!);
   });
@@ -494,17 +483,17 @@ describe("the viewport the run view gained", () => {
 describe("the word on the button", () => {
   it("is dead until the session says where the run stands", async () => {
     const shell = await joined();
-    expect(press(shell).disabled).toBe(true);
+    expect(hold(shell).disabled).toBe(true);
   });
 
   it("offers GO on a held run and HOLD on a running one", async () => {
     const shell = await joined();
 
     await said(shell, "tc49/dispatch/state/run", { run: "held" });
-    expect(press(shell).textContent!.trim()).toBe("GO");
+    expect(hold(shell).word).toBe("GO");
 
     await said(shell, "tc49/dispatch/state/run", { run: "running" });
-    expect(press(shell).textContent!.trim()).toBe("HOLD");
+    expect(hold(shell).word).toBe("HOLD");
   });
 
   /** A draining run is not a running one: it launches nothing, so the button
@@ -514,9 +503,9 @@ describe("the word on the button", () => {
     const shell = await joined();
 
     await said(shell, "tc49/dispatch/state/run", { run: "draining" });
-    expect(press(shell).textContent!.trim()).toBe("GO");
+    expect(hold(shell).word).toBe("GO");
 
-    press(shell).click();
+    press(hold(shell));
 
     expect(written()).toEqual([
       { topic: "tc49/dispatch/run_wanted", payload: { run: "running" } },
@@ -529,7 +518,7 @@ describe("the word on the button", () => {
     const shell = await joined();
     await said(shell, "tc49/dispatch/state/run", { run: "held" });
 
-    press(shell).click();
+    press(hold(shell));
 
     expect(written()).toEqual([
       { topic: "tc49/dispatch/run_wanted", payload: { run: "running" } },
@@ -548,16 +537,16 @@ describe("what the rails say about the button", () => {
     const shell = await joined();
     await said(shell, "tc49/dispatch/state/run", { run: "held" });
     await said(shell, "tc49/layout/state/power", { power: "on" });
-    expect(press(shell).disabled).toBe(false);
-    expect(supply(shell)).toBe("power on");
+    expect(hold(shell).disabled).toBe(false);
+    expect(power(shell).state).toBe("on");
 
     await said(shell, "tc49/layout/state/power", { power: "off" });
-    expect(press(shell).textContent!.trim()).toBe("GO");
-    expect(press(shell).disabled).toBe(true);
-    expect(supply(shell)).toBe("power off");
+    expect(hold(shell).word).toBe("GO");
+    expect(hold(shell).disabled).toBe(true);
+    expect(power(shell).state).toBe("off");
 
     await said(shell, "tc49/layout/state/power", { power: "on" });
-    expect(press(shell).disabled).toBe(false);
+    expect(hold(shell).disabled).toBe(false);
   });
 
   /** An emergency stop is the other value, and the band tells them apart. */
@@ -566,8 +555,8 @@ describe("what the rails say about the button", () => {
     await said(shell, "tc49/dispatch/state/run", { run: "held" });
     await said(shell, "tc49/layout/state/power", { power: "stopped" });
 
-    expect(supply(shell)).toBe("emergency stop");
-    expect(press(shell).disabled).toBe(true);
+    expect(power(shell).state).toBe("stopped");
+    expect(hold(shell).disabled).toBe(true);
   });
 
   /** HOLD asks for less, and the dispatcher honours it whatever the supply is
@@ -577,10 +566,10 @@ describe("what the rails say about the button", () => {
     await said(shell, "tc49/dispatch/state/run", { run: "running" });
     await said(shell, "tc49/layout/state/power", { power: "off" });
 
-    expect(press(shell).textContent!.trim()).toBe("HOLD");
-    expect(press(shell).disabled).toBe(false);
+    expect(hold(shell).word).toBe("HOLD");
+    expect(hold(shell).disabled).toBe(false);
 
-    press(shell).click();
+    press(hold(shell));
     expect(written()).toEqual([
       { topic: "tc49/dispatch/run_wanted", payload: { run: "held" } },
     ]);
@@ -607,7 +596,7 @@ describe("releasing with disputes outstanding", () => {
       blocks: ["b"],
     });
 
-    press(shell).click();
+    press(hold(shell));
     await settled(shell);
 
     expect(notice(shell)).toBe(
@@ -622,7 +611,7 @@ describe("releasing with disputes outstanding", () => {
     const shell = await held();
     await said(shell, "tc49/dispatch/state/disputed", { trains: [], blocks: [] });
 
-    press(shell).click();
+    press(hold(shell));
     await settled(shell);
 
     expect(notice(shell)).toBeNull();
@@ -634,7 +623,7 @@ describe("releasing with disputes outstanding", () => {
   it("stands while that run runs, and goes with the next hold", async () => {
     const shell = await held();
     await said(shell, "tc49/dispatch/state/disputed", { trains: ["t1"], blocks: [] });
-    press(shell).click();
+    press(hold(shell));
     await settled(shell);
 
     await said(shell, "tc49/dispatch/state/run", { run: "running" });
@@ -650,7 +639,7 @@ describe("releasing with disputes outstanding", () => {
     await said(shell, "tc49/dispatch/state/disputed", { trains: ["t1"], blocks: [] });
     await said(shell, "tc49/dispatch/state/run", { run: "running" });
 
-    press(shell).click();
+    press(hold(shell));
     await settled(shell);
 
     expect(notice(shell)).toBeNull();

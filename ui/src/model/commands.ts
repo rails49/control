@@ -13,10 +13,12 @@
  * component reads off itself and hands over; nothing here touches an `Editor`,
  * so the rules are driven from plain values.
  *
- * The glyphs are not declared here. They are `lit` templates and `model/`
- * imports no `ui/`; `GLYPHS` in `ui/icons.ts` is keyed by `CommandId`, so a
- * command without a glyph is a compile error rather than a drift.
+ * Each command names its glyph: a Bootstrap icon as Shoelace ships it, or one
+ * of look's own (look#12). `COMMANDS` is keyed by `CommandId`, so a command
+ * without one is a compile error.
  */
+
+import type { PowerShown } from "@rails49/look";
 
 import type { Power } from "./trace.js";
 import type { ViewId } from "./views.js";
@@ -152,10 +154,38 @@ export function unbuilt(standing: Standing): boolean {
   return isLoaded(standing) && !standing.saved;
 }
 
+/**
+ * What the band's track-power control shows: where the supply stands, and why
+ * the control is dead, `""` where it is live (look#12). The toggle asking for
+ * `off` is the drain request (ADR-0062), so while the drain is outstanding it
+ * reads `draining`, and pressing it then asks for `on`.
+ *
+ * Dead before the station has said where the supply stands and while the
+ * broker is not answering, which would swallow the press; and dead while the
+ * loaded railroad is unbuilt and off, since power on would run trains under
+ * track no app built (ADR-0071, decision 6).
+ */
+export function supply(
+  standing: Standing,
+  { linked, draining }: { linked: boolean; draining: boolean },
+): { state: PowerShown; reason: string } {
+  const { power } = standing;
+  if (power === null || !linked) {
+    return { state: power ?? "off", reason: "Waiting for the station" };
+  }
+  if (draining) return { state: "draining", reason: "" };
+  if (power === "off" && unbuilt(standing)) {
+    return { state: "off", reason: "Save the railroad first" };
+  }
+  return { state: power, reason: "" };
+}
+
 export interface Command {
   label: string;
-  /** The key that does the same thing, as it reads beside the label.
-   *  Undefined where there is none to name. */
+  /** The glyph on its button on the rail. */
+  icon: string;
+  /** The key that does the same thing, in look's form (`Mod+S`), which the
+   *  rail shows per platform. Undefined where there is none to name. */
   key?: string;
   enabled(standing: Standing): boolean;
 }
@@ -163,7 +193,8 @@ export interface Command {
 export const COMMANDS: Record<CommandId, Command> = {
   save: {
     label: "Save",
-    key: "⌘S",
+    icon: "floppy",
+    key: "Mod+S",
     // Saving the loaded railroad names it again, and the layout builds only
     // with power off, so while it is frozen the save would write a drawing no
     // app runs (ADR-0071). Any other drawing is only a file.
@@ -176,30 +207,48 @@ export const COMMANDS: Record<CommandId, Command> = {
   // only having nothing open makes it dead.
   "export-svg": {
     label: "Export SVG…",
+    icon: "box-arrow-up",
     enabled: ({ opened }) => opened !== "",
   },
-  undo: { label: "Undo", key: "⌘Z", enabled: editing(({ undo }) => undo) },
-  redo: { label: "Redo", key: "⇧⌘Z", enabled: editing(({ redo }) => redo) },
-  rotate: { label: "Rotate", key: "R", enabled: editing(hasSelection) },
-  flip: { label: "Flip", key: "F", enabled: editing(hasSelection) },
-  delete: { label: "Delete", key: "⌫", enabled: editing(hasSelection) },
+  undo: {
+    label: "Undo",
+    icon: "arrow-counterclockwise",
+    key: "Mod+Z",
+    enabled: editing(({ undo }) => undo),
+  },
+  redo: {
+    label: "Redo",
+    icon: "arrow-clockwise",
+    key: "Shift+Mod+Z",
+    enabled: editing(({ redo }) => redo),
+  },
+  rotate: { label: "Rotate", icon: "rotate", key: "R", enabled: editing(hasSelection) },
+  flip: {
+    label: "Flip",
+    icon: "symmetry-vertical",
+    key: "F",
+    enabled: editing(hasSelection),
+  },
+  delete: { label: "Delete", icon: "trash", key: "⌫", enabled: editing(hasSelection) },
   properties: {
     label: "Properties…",
+    icon: "sliders",
     enabled: editing(({ selection, editable }) => selection === 1 && editable),
   },
   // The view is the surface's own, so it is there to be changed whatever the
   // drawing is and whichever view is current: an empty sheet still zooms, and
   // both views draw on the one canvas, which has the one viewport
   // ([#168](https://github.com/rails49/control/issues/168)).
-  "zoom-in": { label: "Zoom in", key: "+", enabled: () => true },
-  "zoom-out": { label: "Zoom out", key: "−", enabled: () => true },
-  fit: { label: "Fit", key: "0", enabled: () => true },
+  "zoom-in": { label: "Zoom in", icon: "zoom-in", key: "+", enabled: () => true },
+  "zoom-out": { label: "Zoom out", icon: "zoom-out", key: "−", enabled: () => true },
+  fit: { label: "Fit", icon: "fullscreen", key: "0", enabled: () => true },
   // Not the canvas's view but what the drawing derives to, so this one does
   // need a drawing: with none open there is nothing derived to consult, and
   // the pane would open on a hint and take a fifth of the width to say it
   // (ADR-0024).
   netlist: {
     label: "Netlist",
+    icon: "layout-sidebar-reverse",
     key: "N",
     enabled: ({ opened }) => opened !== "",
   },

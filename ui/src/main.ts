@@ -1,12 +1,11 @@
-// The app is one component. Shoelace's own controls draw with icons from its
-// system library, which is compiled in, so nothing is fetched at runtime and
-// no asset path has to be set.
-//
-// Both Shoelace themes are linked where the controls are, and which one the
-// page wears is the operating system's answer (ui/theme.ts). It is set here
-// rather than in a component: there is one page, and this is it.
+// The app is one component, and its chrome is `@rails49/look`'s. Shoelace's
+// assets are served from the app's own origin (`vite.config.ts`), and
+// `look.css` carries Shoelace's light and dark themes, the operating system
+// deciding between them.
+
+import "@rails49/look/look.css";
+import { setBasePath } from "@shoelace-style/shoelace/dist/utilities/base-path.js";
 
 import "./ui/tc-app.js";
-import { followTheSystem } from "./ui/theme.js";
 
-followTheSystem();
+setBasePath("/shoelace");

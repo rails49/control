@@ -107,7 +107,7 @@ function thumbnails(shell: TcApp): string[] {
 
 /** Whether a control in the New model dialog is dead. */
 function dead(shell: TcApp, selector: string): boolean {
-  return (part(shell, `sl-dialog ${selector}`) as HTMLInputElement).disabled;
+  return (part(shell, `look-dialog ${selector}`) as HTMLInputElement).disabled;
 }
 
 async function pressed(shell: TcApp, selector: string): Promise<void> {
@@ -121,7 +121,7 @@ async function dialog(shell: TcApp): Promise<void> {
 }
 
 /** A picture taken, whatever the camera answers with. */
-async function takes(shell: TcApp, where = "sl-dialog.photo"): Promise<void> {
+async function takes(shell: TcApp, where = "look-dialog.photo"): Promise<void> {
   await pressed(shell, `${where} button.take`);
 }
 
@@ -136,9 +136,9 @@ async function typed(shell: TcApp, selector: string, value: string): Promise<voi
 /** Write a product in the New model dialog and press Create, the photo in it
  *  left as it stands. */
 async function created(shell: TcApp, model: string): Promise<void> {
-  await typed(shell, "sl-dialog #model", model);
-  await typed(shell, "sl-dialog #length", "120");
-  await pressed(shell, "sl-dialog .create");
+  await typed(shell, "look-dialog #model", model);
+  await typed(shell, "look-dialog #length", "120");
+  await pressed(shell, "look-dialog .create");
 }
 
 /** The first photo `PUT` held in flight, and the press that lets it answer:
@@ -170,7 +170,7 @@ describe("the thumbnail on a row", () => {
 
     await pressed(shell, "li.car button.thumb");
 
-    expect(part(shell, "sl-dialog.photo")!.getAttribute("label")).toBe(
+    expect(part(shell, "look-dialog.photo")!.getAttribute("label")).toBe(
       "Photo — sbb-re460",
     );
   });
@@ -185,14 +185,14 @@ describe("taking a picture", () => {
 
     await takes(shell);
 
-    expect(text(shell, "sl-dialog.photo .picture")).toBe("taking a picture…");
-    expect(part(shell, "sl-dialog.photo button.take")).toHaveProperty(
+    expect(text(shell, "look-dialog.photo .picture")).toBe("taking a picture…");
+    expect(part(shell, "look-dialog.photo button.take")).toHaveProperty(
       "disabled",
       true,
     );
     answer(WORKING());
     await settled(shell);
-    expect(text(shell, "sl-dialog.photo button.take")).toBe("Retake");
+    expect(text(shell, "look-dialog.photo button.take")).toBe("Retake");
   });
 
   it("offers to save the picture the camera answered with", async () => {
@@ -202,8 +202,8 @@ describe("taking a picture", () => {
 
     await takes(shell);
 
-    expect(text(shell, "sl-dialog.photo button.keep")).toBe("Save");
-    expect(text(shell, "sl-dialog.photo p.unkept")).toBe("not saved yet");
+    expect(text(shell, "look-dialog.photo button.keep")).toBe("Save");
+    expect(text(shell, "look-dialog.photo p.unkept")).toBe("not saved yet");
     expect(store.saved).toEqual([]);
   });
 
@@ -213,7 +213,7 @@ describe("taking a picture", () => {
     await dialog(shell);
     await takes(shell);
 
-    await pressed(shell, "sl-dialog.photo button.keep");
+    await pressed(shell, "look-dialog.photo button.keep");
 
     expect(store.saved).toEqual([
       { path: "/catalogue/sbb-re460/photo", body: TOOK },
@@ -229,7 +229,7 @@ describe("taking a picture", () => {
     await dialog(shell);
     await takes(shell);
 
-    await pressed(shell, "sl-dialog.photo button.keep");
+    await pressed(shell, "look-dialog.photo button.keep");
 
     expect(thumbnail(shell, "li.product")).toBe("/catalogue/sbb-re460/photo?v=1");
   });
@@ -244,10 +244,10 @@ describe("taking a picture", () => {
 
     await takes(shell);
 
-    const said = text(shell, "sl-dialog.photo p.no-picture")!;
+    const said = text(shell, "look-dialog.photo p.no-picture")!;
     expect(said.startsWith("no picture:")).toBe(true);
     expect(said).toContain("502");
-    expect(text(shell, "sl-dialog.photo button.take")).toBe("Try again");
+    expect(text(shell, "look-dialog.photo button.take")).toBe("Try again");
   });
 });
 
@@ -259,7 +259,7 @@ describe("a product written with a picture", () => {
     store.camera = WORKING;
     const shell = await opened();
     await pressed(shell, "button.new-model");
-    await takes(shell, "sl-dialog");
+    await takes(shell, "look-dialog");
 
     await created(shell, "hopper");
 
@@ -279,12 +279,12 @@ describe("a product written with a picture", () => {
       path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
     const shell = await opened();
     await pressed(shell, "button.new-model");
-    await takes(shell, "sl-dialog");
+    await takes(shell, "look-dialog");
 
     await created(shell, "hopper");
 
     expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper"]);
-    const said = text(shell, "sl-dialog p.trouble")!;
+    const said = text(shell, "look-dialog p.trouble")!;
     expect(said).toContain("'hopper' is written, but its photo was not saved");
     expect(said).toContain("PUT /catalogue/hopper/photo answered 404");
   });
@@ -304,12 +304,12 @@ describe("a product written with a picture", () => {
     };
     const shell = await opened();
     await pressed(shell, "button.new-model");
-    await takes(shell, "sl-dialog");
+    await takes(shell, "look-dialog");
     await created(shell, "hopper");
 
-    expect(text(shell, "sl-dialog button.keep")).toBe("Save");
+    expect(text(shell, "look-dialog button.keep")).toBe("Save");
 
-    await pressed(shell, "sl-dialog button.keep");
+    await pressed(shell, "look-dialog button.keep");
 
     expect(store.saved.map((one) => one.path)).toEqual([
       "/catalogue/hopper",
@@ -318,7 +318,7 @@ describe("a product written with a picture", () => {
     expect(store.saved[1]!.body).toEqual(TOOK);
     // The photo is saved, so both of the dialog's writes are done: it is put
     // away, and the line that said the photo was not saved goes with it (#644).
-    expect(text(shell, "sl-dialog p.trouble")).toBeNull();
+    expect(text(shell, "look-dialog p.trouble")).toBeNull();
   });
 
   /** One product is written per New model dialog. Pressing Create again
@@ -331,18 +331,18 @@ describe("a product written with a picture", () => {
       path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
     const shell = await opened();
     await pressed(shell, "button.new-model");
-    await takes(shell, "sl-dialog");
+    await takes(shell, "look-dialog");
     await created(shell, "hopper");
 
     expect(
-      (part(shell, "sl-dialog .create") as HTMLElement & { disabled: boolean })
+      (part(shell, "look-dialog .create") as HTMLElement & { disabled: boolean })
         .disabled,
     ).toBe(true);
 
-    await pressed(shell, "sl-dialog .create");
+    await pressed(shell, "look-dialog .create");
 
     expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper"]);
-    expect(text(shell, "sl-dialog p.trouble")).toContain(
+    expect(text(shell, "look-dialog p.trouble")).toContain(
       "'hopper' is written, but its photo was not saved",
     );
   });
@@ -356,10 +356,10 @@ describe("the New model dialog about the model it wrote", () => {
    *  is one to be dead. */
   async function wrote(shell: TcApp): Promise<void> {
     await pressed(shell, "button.new-model");
-    await takes(shell, "sl-dialog");
-    await pressed(shell, "sl-dialog button.add-function");
-    await typed(shell, "sl-dialog li.function input.number", "0");
-    await typed(shell, "sl-dialog li.function input.name", "headlights");
+    await takes(shell, "look-dialog");
+    await pressed(shell, "look-dialog button.add-function");
+    await typed(shell, "look-dialog li.function input.number", "0");
+    await typed(shell, "look-dialog li.function input.name", "headlights");
     await created(shell, "hopper");
   }
 
@@ -405,9 +405,9 @@ describe("the New model dialog about the model it wrote", () => {
     const shell = await opened();
     await wrote(shell);
 
-    await pressed(shell, "sl-dialog button.keep");
+    await pressed(shell, "look-dialog button.keep");
 
-    expect(part(shell, "sl-dialog")).toBeNull();
+    expect(part(shell, "look-dialog")).toBeNull();
     expect(thumbnails(shell)).toContain("/catalogue/hopper/photo?v=1");
   });
 
@@ -430,11 +430,11 @@ describe("the New model dialog about the model it wrote", () => {
         ? new Promise<void>((resolve) => (lands = resolve))
         : null;
 
-    await pressed(shell, "sl-dialog button.keep");
+    await pressed(shell, "look-dialog button.keep");
 
     expect(dead(shell, "button.keep")).toBe(true);
 
-    await pressed(shell, "sl-dialog button.keep");
+    await pressed(shell, "look-dialog button.keep");
 
     expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper"]);
 
@@ -445,7 +445,7 @@ describe("the New model dialog about the model it wrote", () => {
       "/catalogue/hopper",
       "/catalogue/hopper/photo",
     ]);
-    expect(part(shell, "sl-dialog")).toBeNull();
+    expect(part(shell, "look-dialog")).toBeNull();
     expect(thumbnails(shell)).toContain("/catalogue/hopper/photo?v=1");
   });
 
@@ -459,12 +459,12 @@ describe("the New model dialog about the model it wrote", () => {
     const shell = await opened();
     await wrote(shell);
 
-    await pressed(shell, "sl-dialog button.keep");
+    await pressed(shell, "look-dialog button.keep");
 
-    expect(part(shell, "sl-dialog")).not.toBeNull();
-    const said = text(shell, "sl-dialog p.no-picture")!;
+    expect(part(shell, "look-dialog")).not.toBeNull();
+    const said = text(shell, "look-dialog p.no-picture")!;
     expect(said).toContain("PUT /catalogue/hopper/photo answered 404");
-    expect(text(shell, "sl-dialog button.keep")).toBe("Save");
+    expect(text(shell, "look-dialog button.keep")).toBe("Save");
   });
 });
 
@@ -483,24 +483,24 @@ describe("a photo Save whose own PUT is in flight", () => {
     await dialog(shell);
     await takes(shell);
 
-    await pressed(shell, "sl-dialog.photo button.keep");
+    await pressed(shell, "look-dialog.photo button.keep");
 
-    expect(part(shell, "sl-dialog.photo button.keep")).toHaveProperty(
+    expect(part(shell, "look-dialog.photo button.keep")).toHaveProperty(
       "disabled",
       true,
     );
-    expect(part(shell, "sl-dialog.photo button.take")).toHaveProperty(
+    expect(part(shell, "look-dialog.photo button.take")).toHaveProperty(
       "disabled",
       false,
     );
-    expect(part(shell, "sl-dialog.photo button.drop")).toHaveProperty(
+    expect(part(shell, "look-dialog.photo button.drop")).toHaveProperty(
       "disabled",
       false,
     );
 
     // Only the first photo `PUT` is held, so a second would be in `saved`
     // before this press has returned.
-    await pressed(shell, "sl-dialog.photo button.keep");
+    await pressed(shell, "look-dialog.photo button.keep");
 
     expect(store.saved).toEqual([]);
 
@@ -510,7 +510,7 @@ describe("a photo Save whose own PUT is in flight", () => {
     expect(store.saved).toEqual([
       { path: "/catalogue/sbb-re460/photo", body: TOOK },
     ]);
-    expect(text(shell, "sl-dialog.photo p.unkept")).toBeNull();
+    expect(text(shell, "look-dialog.photo p.unkept")).toBeNull();
   });
 
   /** A refused Save is a write that did not happen, so the picture is still
@@ -524,28 +524,28 @@ describe("a photo Save whose own PUT is in flight", () => {
     const refuses = holding();
     await dialog(shell);
     await takes(shell);
-    await pressed(shell, "sl-dialog.photo button.keep");
+    await pressed(shell, "look-dialog.photo button.keep");
 
     refuses();
     await settled(shell);
 
-    expect(part(shell, "sl-dialog.photo button.keep")).toHaveProperty(
+    expect(part(shell, "look-dialog.photo button.keep")).toHaveProperty(
       "disabled",
       false,
     );
-    expect(text(shell, "sl-dialog.photo p.no-picture")).toContain(
+    expect(text(shell, "look-dialog.photo p.no-picture")).toContain(
       "PUT /catalogue/sbb-re460/photo answered 404",
     );
 
     // Nothing in front of the store this time, and the second `PUT` is not
     // held: the press that follows the refusal writes the picture.
     store.intercepted = () => null;
-    await pressed(shell, "sl-dialog.photo button.keep");
+    await pressed(shell, "look-dialog.photo button.keep");
 
     expect(store.saved).toEqual([
       { path: "/catalogue/sbb-re460/photo", body: TOOK },
     ]);
-    expect(text(shell, "sl-dialog.photo p.unkept")).toBeNull();
+    expect(text(shell, "look-dialog.photo p.unkept")).toBeNull();
   });
 });
 
@@ -557,7 +557,7 @@ describe("a photo Save that resolves after its dialog has gone", () => {
   /** The photo dialog put away the way its own close press puts it away, with
    *  whatever the frame was showing. */
   async function closed(shell: TcApp): Promise<void> {
-    part(shell, "sl-dialog.photo")!.dispatchEvent(new CustomEvent("sl-after-hide"));
+    part(shell, "look-dialog.photo")!.dispatchEvent(new CustomEvent("sl-after-hide"));
     await settled(shell);
   }
 
@@ -566,7 +566,7 @@ describe("a photo Save that resolves after its dialog has gone", () => {
   async function retaken(shell: TcApp): Promise<void> {
     await dialog(shell);
     await takes(shell);
-    await pressed(shell, "sl-dialog.photo button.keep");
+    await pressed(shell, "look-dialog.photo button.keep");
     await closed(shell);
     await dialog(shell);
     await takes(shell);
@@ -583,8 +583,8 @@ describe("a photo Save that resolves after its dialog has gone", () => {
     lands();
     await settled(shell);
 
-    expect(text(shell, "sl-dialog.photo p.unkept")).toBe("not saved yet");
-    expect(text(shell, "sl-dialog.photo button.keep")).toBe("Save");
+    expect(text(shell, "look-dialog.photo p.unkept")).toBe("not saved yet");
+    expect(text(shell, "look-dialog.photo button.keep")).toBe("Save");
     expect(thumbnail(shell, "li.product")).toBe("/catalogue/sbb-re460/photo?v=1");
   });
 
@@ -602,9 +602,9 @@ describe("a photo Save that resolves after its dialog has gone", () => {
     refuses();
     await settled(shell);
 
-    expect(text(shell, "sl-dialog.photo p.no-picture")).toBeNull();
-    expect(text(shell, "sl-dialog.photo p.unkept")).toBe("not saved yet");
-    expect(text(shell, "sl-dialog.photo button.keep")).toBe("Save");
+    expect(text(shell, "look-dialog.photo p.no-picture")).toBeNull();
+    expect(text(shell, "look-dialog.photo p.unkept")).toBe("not saved yet");
+    expect(text(shell, "look-dialog.photo button.keep")).toBe("Save");
     expect(thumbnail(shell, "li.product")).toBe("/catalogue/sbb-re460/photo");
   });
 });

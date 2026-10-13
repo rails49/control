@@ -18,10 +18,17 @@ import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
 import type { Editor } from "../src/model/editor.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import type { TcHeader } from "../src/ui/tc-header.js";
 import type { TcProperties } from "../src/ui/tc-properties.js";
 import type SlInput from "@shoelace-style/shoelace/dist/components/input/input.js";
-import { inside, mounted, serving, session, settled } from "./support/shell.js";
+import {
+  chips,
+  editing as view,
+  inside,
+  mounted,
+  serving,
+  session,
+  settled,
+} from "./support/shell.js";
 
 /** Two symbols, so a rename onto a taken name has something to collide with. */
 const DRAWING: Drawing = {
@@ -49,19 +56,11 @@ async function holding(): Promise<{ shell: TcApp; editing: Editor }> {
   return { shell, editing };
 }
 
-/** The band across the top, which is where the editor says what it could not
- *  do. */
-function band(shell: TcApp): TcHeader {
-  return shell.renderRoot.querySelector("tc-header")!;
-}
-
 /** The properties dialog, opened on the one selected symbol the way the
  *  `Properties…` command opens it. */
 async function opened(shell: TcApp, editing: Editor, name: string) {
   editing.select([name]);
-  shell.renderRoot
-    .querySelector("tc-rail")!
-    .dispatchEvent(new CustomEvent("command", { detail: "properties" }));
+  view(shell).editSelected();
   await settled(shell);
   const dialog = inside(shell, "tc-properties") as TcProperties;
   await dialog.updateComplete;
@@ -107,7 +106,7 @@ describe("a name the drawing will not take", () => {
     await apply(dialog);
     await settled(shell);
 
-    expect(dialog.renderRoot.querySelector("sl-dialog")).not.toBeNull();
+    expect(dialog.renderRoot.querySelector("look-dialog")).not.toBeNull();
     expect(editing.drawing.symbols).toHaveProperty("b1");
   });
 
@@ -139,7 +138,7 @@ describe("a name the drawing will not take", () => {
     await typed(dialog, field(dialog), "b1.A");
     await apply(dialog);
 
-    expect(dialog.renderRoot.querySelector("sl-dialog")).not.toBeNull();
+    expect(dialog.renderRoot.querySelector("look-dialog")).not.toBeNull();
     expect(field(dialog).getAttribute("help-text")).toContain("cannot name");
   });
 
@@ -154,7 +153,7 @@ describe("a name the drawing will not take", () => {
     await apply(dialog);
     await settled(shell);
 
-    expect(band(shell).trouble).toBeNull();
+    expect(chips(shell)).toEqual([]);
   });
 
   /** A refusal never reaches the document, so there is no snapshot of it to

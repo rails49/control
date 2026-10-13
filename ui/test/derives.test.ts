@@ -17,8 +17,8 @@ import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
 import type { Review } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import type { TcHeader } from "../src/ui/tc-header.js";
 import {
+  chips,
   CLEAN,
   edited,
   mounted,
@@ -55,14 +55,9 @@ const APART: Drawing["symbols"] = {
   b1: { kind: "block", at: [4, 0] },
 };
 
-function band(shell: TcApp): TcHeader {
-  return shell.renderRoot.querySelector("tc-header")!;
-}
-
 /** What the band's indicator reads, or `null` while it is clean. */
 function indicator(shell: TcApp): string | null {
-  const mark = band(shell).renderRoot.querySelector(".refused");
-  return mark === null ? null : mark.textContent!.trim();
+  return chips(shell).find((one) => one === "does not derive") ?? null;
 }
 
 /** An edit of the drawing, as the canvas reports one. */

@@ -31,6 +31,7 @@ import {
   editing,
   inside,
   mounted,
+  power,
   pressed as pressedOnRail,
   railButton,
   serving,
@@ -119,14 +120,16 @@ function items(shell: TcApp): string[] {
 /** The properties dialog, `null` while none is open. */
 function dialog(shell: TcApp): Element | null {
   return (inside(shell, "tc-properties") as TcProperties).renderRoot.querySelector(
-    "sl-dialog",
+    "look-dialog",
   );
 }
 
 /** What the band says about the freeze, `null` while it says nothing. */
 function says(shell: TcApp): string | null {
-  const said = band(shell).renderRoot.querySelector(".frozen");
-  return said === null ? null : said.textContent!.trim();
+  const said = [...band(shell).querySelectorAll("look-reading")].find(
+    (one) => one.textContent!.trim() === "drawing frozen",
+  );
+  return said === undefined ? null : said.textContent!.trim();
 }
 
 const drawn = (shell: TcApp): Drawing => structuredClone(session(shell).drawing);
@@ -413,35 +416,25 @@ describe("saving the loaded railroad", () => {
     expect(event.defaultPrevented).toBe(true);
     expect(store.saved).toEqual([]);
     expect(session(shell).drawing.drawing).toBe("toy");
-    expect(band(shell).unsaved).toBe(true);
+    expect(band(shell).querySelector("look-about")!.detail).toBe("unsaved");
   });
 });
 
 /**
  * ON waits for the save (ADR-0071, decision 6). The run view draws the open
  * drawing, so power on with the loaded railroad's edits unsaved would run
- * trains under track no app built. STOP and OFF never wait.
+ * trains under track no app built. With the supply off, the power control is
+ * dead until the save, and says why (look#12).
  */
 describe("ON with the loaded railroad's edits unsaved", () => {
-  /** The band's ON, STOP and OFF. */
-  function supply(shell: TcApp): HTMLButtonElement[] {
-    return [
-      ...band(shell).renderRoot.querySelectorAll<HTMLButtonElement>("button.press"),
-    ];
-  }
-
-  it("is dead, says why, and leaves STOP and OFF alone", async () => {
+  it("is dead and says why", async () => {
     const shell = await unsaved("off");
-    const [on, stop, off] = supply(shell);
-    expect(on!.disabled).toBe(true);
-    expect(on!.title).toBe("the drawing has unsaved edits — save it first");
-    expect(stop!.disabled).toBe(false);
-    expect(off!.disabled).toBe(false);
+    expect(power(shell).reason).toBe("Save the railroad first");
   });
 
   it("comes back once the save lands", async () => {
     const shell = await unsaved("off");
     await pressedOnRail(shell, "save");
-    expect(supply(shell)[0]!.disabled).toBe(false);
+    expect(power(shell).reason).toBe("");
   });
 });

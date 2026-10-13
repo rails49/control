@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 
+import { viteStaticCopy } from "vite-plugin-static-copy";
 import { defineConfig } from "vitest/config";
 
 // The store's HTTP face runs separately (`uv run tc49 serve`), so the dev
@@ -17,6 +18,13 @@ const STORE = "http://127.0.0.1:8765";
 const CAMERA = "http://127.0.0.1:8766";
 
 export default defineConfig({
+  // Shoelace's icons and the rest of its assets, served from the app's own
+  // origin at `/shoelace` (`src/main.ts`), so nothing is fetched from a CDN.
+  plugins: [
+    viteStaticCopy({
+      targets: [{ src: "node_modules/@shoelace-style/shoelace/dist/assets", dest: "shoelace" }],
+    }),
+  ],
   server: {
     // A second `pnpm dev` must fail rather than move to the next free port:
     // the tab already open on 5173 keeps fetching its own origin, and when the
@@ -60,6 +68,7 @@ export default defineConfig({
   },
   test: {
     include: ["test/**/*.test.ts"],
+    setupFiles: ["test/setup.ts"],
     // The broker stands where MQTT.js does. The run view is a client of a
     // broker (ADR-0059, decision 4), so what a DOM suite has to drive is the
     // broker's side — a connection that lands, retained rows answering a

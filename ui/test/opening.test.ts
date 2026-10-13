@@ -26,6 +26,7 @@ import { emptyDrawing, type Drawing } from "../src/model/drawing.js";
 import type { ModelDoc, RosterDoc } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import {
+  band,
   edited,
   mounted,
   railButton,
@@ -74,7 +75,7 @@ async function drawn(shell: TcApp): Promise<void> {
 /** The question a discard once asked, `null` while none is up — which is
  *  always, now, and what the suite says of every row. */
 function asked(shell: TcApp): Element | null {
-  return shell.renderRoot.querySelector("sl-dialog[open]");
+  return shell.renderRoot.querySelector("look-dialog[open]");
 }
 
 /** The drawing open in the editor. */
@@ -84,8 +85,7 @@ function open(shell: TcApp): string {
 
 /** Whether the band shows the dot that says there are edits to lose. */
 function unsaved(shell: TcApp): boolean {
-  const band = shell.renderRoot.querySelector("tc-header")!;
-  return band.renderRoot.querySelector(".unsaved") !== null;
+  return band(shell).querySelector("look-about")!.detail === "unsaved";
 }
 
 /**

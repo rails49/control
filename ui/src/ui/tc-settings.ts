@@ -33,8 +33,8 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { lookTheme } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
-import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 
 import { emptyDrawing, nameTrouble } from "../model/drawing.js";
@@ -46,7 +46,7 @@ import { settingsStyles } from "./tc-settings.styles.js";
 
 @customElement("tc-settings")
 export class TcSettings extends LitElement {
-  static override styles = settingsStyles;
+  static override styles = [lookTheme, settingsStyles];
 
   /** Whether the dialog is up. Closed is nothing to draw, as `tc-backup`'s
    *  `backing` is. */
@@ -108,7 +108,7 @@ export class TcSettings extends LitElement {
   override render() {
     if (!this.open) return nothing;
     return html`
-      <sl-dialog open label="Settings" @sl-after-hide=${this.close}>
+      <look-dialog open label="Settings" @sl-after-hide=${this.close}>
         <h3>Railroad</h3>
         ${this.railroads()}
         <h3>Backup</h3>
@@ -121,7 +121,7 @@ export class TcSettings extends LitElement {
               <div class="box">${this.box()}</div>`
           : nothing}
         <sl-button slot="footer" @click=${this.close}>Close</sl-button>
-      </sl-dialog>
+      </look-dialog>
     `;
   }
 

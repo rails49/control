@@ -14,10 +14,7 @@
  * table adds one the same way — which is the whole reason this is a list and
  * not a boolean.
  *
- * The labels are here and the icons are not: an icon is a `lit` template and
- * `model/` imports no `ui/`. `ICONS` in `ui/icons.ts` is keyed by `ViewId`, so
- * a view without one is a compile error, exactly as `GLYPHS` is keyed by
- * `CommandId`.
+ * Each view names its glyph, as each command does (`model/commands.ts`).
  */
 
 export type ViewId = "run" | "throttle" | "stock" | "edit";
@@ -26,16 +23,18 @@ export interface View {
   id: ViewId;
   /** What the view is called, on the control that switches to it. */
   label: string;
+  /** The glyph on that control. */
+  icon: string;
 }
 
 /** Every view, in the order the control offers them. The app opens in the
  *  first of them: it is a control surface, and stock and the editor are the
  *  setup tools you go to deliberately. */
 export const VIEWS: View[] = [
-  { id: "run", label: "Run" },
-  { id: "throttle", label: "Throttle" },
-  { id: "stock", label: "Stock" },
-  { id: "edit", label: "Edit" },
+  { id: "run", label: "Run", icon: "stoplights" },
+  { id: "throttle", label: "Throttle", icon: "throttle" },
+  { id: "stock", label: "Stock", icon: "train-freight-front" },
+  { id: "edit", label: "Edit", icon: "pencil" },
 ];
 
 /** The hash that names a view, so a reload and a bookmark keep it. */

@@ -16,10 +16,12 @@ import {
   isLoaded,
   NOTHING,
   RAIL,
+  supply,
   type CommandId,
   type Standing,
   unbuilt,
 } from "../src/model/commands.js";
+import { VIEWS } from "../src/model/views.js";
 
 function standing(parts: Partial<Standing> = {}): Standing {
   return { ...NOTHING, ...parts };
@@ -97,10 +99,10 @@ describe("the key beside the label", () => {
       Object.entries(COMMANDS).map(([id, command]) => [id, command.key]),
     );
     expect(keys).toEqual({
-      save: "⌘S",
+      save: "Mod+S",
       "export-svg": undefined,
-      undo: "⌘Z",
-      redo: "⇧⌘Z",
+      undo: "Mod+Z",
+      redo: "Shift+Mod+Z",
       rotate: "R",
       flip: "F",
       delete: "⌫",
@@ -110,6 +112,39 @@ describe("the key beside the label", () => {
       fit: "0",
       netlist: "N",
     });
+  });
+});
+
+/** The glyph on each button: Bootstrap Icons as Shoelace ships them, and
+ *  look's own `throttle` and `rotate` where Bootstrap has none (look#12). */
+describe("the glyph on the button", () => {
+  it("names one for every command", () => {
+    const icons = Object.fromEntries(
+      Object.entries(COMMANDS).map(([id, command]) => [id, command.icon]),
+    );
+    expect(icons).toEqual({
+      save: "floppy",
+      "export-svg": "box-arrow-up",
+      undo: "arrow-counterclockwise",
+      redo: "arrow-clockwise",
+      rotate: "rotate",
+      flip: "symmetry-vertical",
+      delete: "trash",
+      properties: "sliders",
+      "zoom-in": "zoom-in",
+      "zoom-out": "zoom-out",
+      fit: "fullscreen",
+      netlist: "layout-sidebar-reverse",
+    });
+  });
+
+  it("names one for every view", () => {
+    expect(VIEWS.map((view) => [view.id, view.icon])).toEqual([
+      ["run", "stoplights"],
+      ["throttle", "throttle"],
+      ["stock", "train-freight-front"],
+      ["edit", "pencil"],
+    ]);
   });
 });
 
@@ -299,5 +334,56 @@ describe("what backup says without being opened", () => {
 
   it("says nothing of a store inside another repository", () => {
     expect(backupWords("inside")).toBeNull();
+  });
+});
+
+/**
+ * What the band's track-power control shows: the state, and why it is dead
+ * (look#12). The toggle asking for `off` is the drain request (ADR-0062), so
+ * while the drain is outstanding it reads `draining`.
+ */
+describe("what the power control shows", () => {
+  const LINKED = { linked: true, draining: false };
+
+  it("shows where the supply stands", () => {
+    for (const power of ["on", "off", "stopped"] as const) {
+      expect(supply(standing({ power }), LINKED)).toEqual({ state: power, reason: "" });
+    }
+  });
+
+  it("is dead, and off, before the station has said", () => {
+    expect(supply(standing({ power: null }), LINKED)).toEqual({
+      state: "off",
+      reason: "Waiting for the station",
+    });
+  });
+
+  /** A broker that is not answering would swallow the press. */
+  it("is dead while the broker is not answering", () => {
+    expect(supply(standing({ power: "on" }), { ...LINKED, linked: false })).toEqual({
+      state: "on",
+      reason: "Waiting for the station",
+    });
+  });
+
+  /** Pressing it then asks for `on`, which is the way out of the wait. */
+  it("reads draining while the drain is outstanding", () => {
+    expect(supply(standing({ power: "on" }), { ...LINKED, draining: true })).toEqual({
+      state: "draining",
+      reason: "",
+    });
+  });
+
+  /** Power on would run trains under track no app built (ADR-0071). */
+  it("waits for a save while the loaded railroad is unbuilt and off", () => {
+    const edited = { opened: "toy", loaded: "toy", saved: false };
+    expect(supply(standing({ ...edited, power: "off" }), LINKED)).toEqual({
+      state: "off",
+      reason: "Save the railroad first",
+    });
+    expect(supply(standing({ ...edited, power: "on" }), LINKED)).toEqual({
+      state: "on",
+      reason: "",
+    });
   });
 });

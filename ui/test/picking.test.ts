@@ -112,7 +112,7 @@ async function pick(shell: TcApp, name: string): Promise<TcSettings> {
 
 /** What the band names as the loaded railroad. */
 function loaded(shell: TcApp): string {
-  return band(shell).renderRoot.querySelector(".drawing")!.textContent!.trim();
+  return band(shell).querySelector("look-about")!.name;
 }
 
 /** Type a name into the dialog's name field, the way a person does. */

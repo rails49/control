@@ -11,6 +11,7 @@
  * band's note open it, and nothing is asked of git until one does.
  */
 
+import type { LookBandPress } from "@rails49/look";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 
 import "../src/ui/tc-backup.js";
@@ -24,7 +25,8 @@ import {
   band,
   edited,
   mounted,
-  rail,
+  press as pressOn,
+  pressed,
   serving,
   session,
   settings,
@@ -677,8 +679,7 @@ describe("what a restore would discard", () => {
     await settled(shell);
     expect(open(shell)!.unsaved).toBe("the drawing");
 
-    rail(shell).dispatchEvent(new CustomEvent<string>("command", { detail: "save" }));
-    await settled(shell);
+    await pressed(shell, "save");
     expect(open(shell)!.unsaved).toBeNull();
   });
 });
@@ -692,14 +693,14 @@ describe("the note in the band", () => {
     document.body.replaceChildren();
   });
 
-  function note(shell: TcApp): HTMLButtonElement | null {
-    return band(shell).renderRoot.querySelector<HTMLButtonElement>("button.backup");
+  function note(shell: TcApp): LookBandPress | null {
+    return band(shell).querySelector("look-band-press");
   }
 
   it("says a store with no repository has no backup set up", async () => {
     serving({ drawings: ["reversing-loops"], backup: UNBACKED });
     const shell = await mounted("run");
-    expect(note(shell)?.textContent?.trim()).toBe("no backup set up");
+    expect(note(shell)?.word).toBe("no backup set up");
   });
 
   it("says a copy that is behind, with git's words as its tooltip", async () => {
@@ -718,8 +719,8 @@ describe("the note in the band", () => {
       },
     });
     const shell = await mounted("run");
-    expect(note(shell)?.textContent?.trim()).toBe("backup behind");
-    expect(note(shell)?.title).toBe("ERROR: Repository not found.");
+    expect(note(shell)?.word).toBe("backup behind");
+    expect(note(shell)?.label).toBe("ERROR: Repository not found.");
   });
 
   it("says nothing of a store backing up as it should", async () => {
@@ -731,7 +732,7 @@ describe("the note in the band", () => {
   it("opens the backup dialog when pressed", async () => {
     serving({ drawings: ["reversing-loops"], backup: UNBACKED });
     const shell = await mounted("run");
-    note(shell)!.click();
+    pressOn(note(shell)!);
     await settled(shell);
     expect(open(shell)).not.toBeNull();
   });
@@ -740,7 +741,7 @@ describe("the note in the band", () => {
   it("says the same in the editing view", async () => {
     serving({ drawings: ["reversing-loops"], backup: { ...KEPT, automatic: false } });
     const shell = await mounted("edit");
-    expect(note(shell)?.textContent?.trim()).toBe("backup is off");
+    expect(note(shell)?.word).toBe("backup is off");
   });
 
   /** A page left open: an hour after it loaded the app asks again, and the
@@ -761,8 +762,8 @@ describe("the note in the band", () => {
       };
       await vi.advanceTimersByTimeAsync(ASK_MS);
       await settled(shell);
-      expect(note(shell)?.textContent?.trim()).toBe("backup behind");
-      expect(note(shell)?.title).toBe("no route");
+      expect(note(shell)?.word).toBe("backup behind");
+      expect(note(shell)?.label).toBe("no route");
     } finally {
       vi.useRealTimers();
     }
