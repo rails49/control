@@ -94,10 +94,8 @@ src/
     artwork.ts   what each symbol looks like, hand-written against the
                  generated pin names
   ui/
-    tc-app.ts      the app: the loaded railroad, the views, the band, the bar
-                   and the keys
-    tc-header.ts   the band: what is true of the whole system
-    tc-menubar.ts  the bar: the current view's menus, and HOLD/GO
+    tc-app.ts      the app: the loaded railroad, the views, the keys, and the
+                   band and the rail, drawn from @rails49/look
     tc-editor.ts   the editing view: palette, canvas, netlist, dialogs
     tc-palette.ts  one tile per placeable kind
     tc-canvas.ts   the one drawing surface, in either of its two modes: the
@@ -120,18 +118,15 @@ src/
     <component>.styles.ts  a component's styles, beside it
     shared.styles.ts   what more than one of them wears: the palette and the
                    symbol rules
-    theme.ts       which Shoelace theme the page wears, which is whichever
-                   the operating system asks for
 test/            vitest; the suites that mount a component need a DOM
                  (happy-dom), the rest run without one
-look/            the look rules' values, copied in and pinned to the commit
-                 they came from; inert, and read by test/styles.test.ts
+  setup.ts       turns off Shoelace's glyph fetches for every suite
 ```
 
-**Four colours and two sizes are not this app's to pick.** The band, the rail,
-the size of a button on it and the height it turns into a strip at are one
-system across the project's UIs, and `look/README.md` says how they get here
-and what keeps them honest.
+**The chrome is `@rails49/look`'s.** The band, the rail, the power control,
+the dialogs and the Shoelace theme come from the package, and the app styles
+none of them. `look-check` in the gate fails if it does
+([ADR-0073](../docs/adr/0073-the-chrome-comes-from-look.md)).
 
 **The front end knows no topology.** Pin degrees, junction membership, the
 derived layout and the explanations come from `POST /review`. TypeScript owns
