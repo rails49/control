@@ -53,6 +53,7 @@ import {
   backupWords,
   frozen,
   isLoaded,
+  holding,
   supply,
   type CommandId,
   type Standing,
@@ -227,7 +228,7 @@ export class TcApp extends LitElement {
         ${this.band(loaded, still)}
         <look-rail
           @look-view=${(event: CustomEvent<{ name: string }>) =>
-            this.showing(event.detail.name as ViewId)}
+            this.showing(viewOf(event.detail.name))}
         >
           ${VIEWS.map(
             (view) => html`
@@ -246,7 +247,7 @@ export class TcApp extends LitElement {
               </look-group>
             `,
           )}
-          ${this.view === "run" ? this.holding() : nothing}
+          ${this.view === "run" ? this.runPress() : nothing}
         </look-rail>
 
       <tc-panel
@@ -396,28 +397,15 @@ export class TcApp extends LitElement {
     `;
   }
 
-  /**
-   * HOLD while the run is running and GO while it is held: one press, and the
-   * word is what the press will do (ADR-0037). No confirmation — a clearly
-   * labelled button is the explicit GO.
-   *
-   * Dead with no session joined, there being no run to hold, and dead until
-   * the dispatcher has said where the run stands: a button guessing would
-   * offer to hold a run that is already held.
-   *
-   * **GO is greyed while the rails are dead**, because the dispatcher drops
-   * such a release (ADR-0041); the band's power control says why. HOLD is
-   * never greyed: it asks for less.
-   */
-  private holding() {
-    const going = this.status.run === "running";
-    const power = this.status.power;
-    const dead = this.status.run === null || (!going && power !== null && power !== "on");
+  /** HOLD or GO, at the rail's far end. What it says and when it is dead
+   *  is `holding` in `model/commands.ts`. */
+  private runPress() {
+    const { word, going, dead } = holding(this.status.run, this.status.power);
     return html`
       <look-group end label="Run">
         <look-command
           data-run
-          word=${going ? "HOLD" : "GO"}
+          word=${word}
           label=${going ? "Hold the run" : "Let the run go"}
           ?disabled=${dead}
           @look-press=${() => this.held(going ? "held" : "running")}

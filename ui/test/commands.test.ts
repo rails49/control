@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   backupWords,
   COMMANDS,
+  holding,
   frozen,
   isLoaded,
   NOTHING,
@@ -385,5 +386,31 @@ describe("what the power control shows", () => {
       state: "on",
       reason: "",
     });
+  });
+});
+
+/** HOLD while the run is running and GO otherwise (ADR-0037). */
+describe("the run's press", () => {
+  it("offers HOLD on a running run and GO on any other", () => {
+    expect(holding("running", "on").word).toBe("HOLD");
+    expect(holding("held", "on").word).toBe("GO");
+    expect(holding("draining", "on").word).toBe("GO");
+  });
+
+  /** No run to hold before the dispatcher has said where it stands. */
+  it("is dead until the run has said", () => {
+    expect(holding(null, "on").dead).toBe(true);
+  });
+
+  /** The dispatcher drops a release while the rails are dead (ADR-0041). */
+  it("greys GO while power is off or stopped, and not before the layout has said", () => {
+    expect(holding("held", "off").dead).toBe(true);
+    expect(holding("held", "stopped").dead).toBe(true);
+    expect(holding("held", "on").dead).toBe(false);
+    expect(holding("held", null).dead).toBe(false);
+  });
+
+  it("leaves HOLD live whatever the power", () => {
+    expect(holding("running", "off").dead).toBe(false);
   });
 });

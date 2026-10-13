@@ -20,7 +20,7 @@
 
 import type { PowerShown } from "@rails49/look";
 
-import type { Power } from "./trace.js";
+import type { Power, Run } from "./trace.js";
 import type { ViewId } from "./views.js";
 
 export type CommandId =
@@ -178,6 +178,21 @@ export function supply(
     return { state: "off", reason: "Save the railroad first" };
   }
   return { state: power, reason: "" };
+}
+
+/**
+ * The run's press on the rail: HOLD while the run is running and GO otherwise
+ * (ADR-0037). Dead until the dispatcher has said where the run stands. GO is
+ * dead while the layout says power is off or stopped, since the dispatcher
+ * drops such a release (ADR-0041). HOLD is never dead.
+ */
+export function holding(
+  run: Run | null,
+  power: Power | null,
+): { word: "HOLD" | "GO"; going: boolean; dead: boolean } {
+  const going = run === "running";
+  const dead = run === null || (!going && power !== null && power !== "on");
+  return { word: going ? "HOLD" : "GO", going, dead };
 }
 
 export interface Command {
