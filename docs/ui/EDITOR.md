@@ -69,7 +69,9 @@ the one that is loaded. The tick is all that entry is — pressing it asks for
 nothing (#101). Re-reading the loaded railroad would throw away whatever has
 been drawn since, which is a lot to ask of a click that looks like it does
 nothing. Its other part is `Backup…`, which closes it and opens the backup
-dialog ([Backing the store up](#backing-the-store-up)).
+dialog ([Backing the store up](#backing-the-store-up)). It also turns the box
+off, where the installation says it can, and only while the track is off
+(#745).
 
 **Making a railroad is the dialog's too** (ADR-0072, decision 3). Beneath the
 list a `Name` field has two presses beside it. **New** writes an empty drawing

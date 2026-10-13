@@ -117,6 +117,15 @@ export interface Answers {
    *  read out of it. A promise for a suite that wants to look at the screen
    *  while the camera is being waited on. */
   camera: () => Take | Promise<Take>;
+  /** What the installation answers `GET /box` with. **Not the store** either:
+   *  the installation answers it, on the page's origin, and only on a box it
+   *  runs on (#745). By default what `localhost` answers, vite's own page
+   *  under a 200, which reads as no, so no suite sees the Box part unless it
+   *  asks for one. */
+  box: () => Reply;
+  /** What the installation answers `POST /box/off` with. A promise for a
+   *  suite that wants to look at the dialog while the request is out. */
+  off: () => Reply | Promise<Reply>;
   /** A write held in flight: the promise a `PUT` on that path waits on before
    *  it is answered, which is what a suite that wants to look at the screen
    *  while a write is still outstanding holds it with — the way a promise from
@@ -139,6 +148,21 @@ export interface Take {
   statusText?: string;
   jpeg?: Uint8Array;
 }
+
+/** One answer from the installation: the status and the body as text, which
+ *  is JSON from `GET /box` and a line of plain text from `POST /box/off`. */
+export interface Reply {
+  status: number;
+  body: string;
+}
+
+/** What vite answers at `localhost` for a path it has no route for: its own
+ *  page under a 200. */
+const FALLBACK: Reply = { status: 200, body: "<!doctype html><html></html>" };
+
+/** The routes the installation answers (#745). */
+const BOX = "/box";
+const OFF = "/box/off";
 
 /** The route the camera answers, which the page fetches on its own origin as
  *  it fetches the store's (docs/DEPLOY.md). */
@@ -167,15 +191,20 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     // A box with no camera, which is most of them: the press that asks for a
     // picture has to answer in words whatever comes back (#629).
     camera: () => ({ status: 502, statusText: "Bad Gateway" }),
+    box: () => FALLBACK,
+    off: () => FALLBACK,
     held: () => null,
     refuses: () => null,
     ...answers,
   };
   globalThis.fetch = ((path: string, init?: RequestInit) => {
     asked += 1;
-    // Before `broken`, which is the store not running: the camera is another
-    // app on another port, and a store that is down says nothing about it.
+    // Before `broken`, which is the store not running: the camera and the
+    // installation are other apps, and a store that is down says nothing
+    // about them.
     if (path === SNAPSHOT) return Promise.resolve(store.camera()).then(pictured);
+    if (path === BOX) return Promise.resolve(store.box()).then(replied);
+    if (path === OFF) return Promise.resolve(store.off()).then(replied);
     if (store.broken !== null) return Promise.reject(store.broken);
     // Read on the call rather than on the answer: what is in front of the
     // store is in front of it when the call arrives, whenever it is answered.
@@ -211,6 +240,11 @@ function sent(body: BodyInit | null | undefined): unknown {
   if (body === undefined || body === null) return undefined;
   if (body instanceof Uint8Array) return body;
   return JSON.parse(String(body));
+}
+
+/** What the installation answers, as `fetch` hands it over. */
+function replied(reply: Reply): Response {
+  return new Response(reply.body, { status: reply.status });
 }
 
 /** What the camera answers: the picture it took under `image/jpeg`, or a status

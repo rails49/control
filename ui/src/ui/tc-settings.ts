@@ -3,7 +3,7 @@
  * railroad (#733, #737,
  * [ADR-0072](../../../docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
  *
- * Two parts. **Railroad** lists what the store holds, the loaded one ticked,
+ * Three parts. **Railroad** lists what the store holds, the loaded one ticked,
  * and a press on another asks for it: it publishes `railroad_wanted` through
  * the app and stops there, and the tick moves when the layout's row names the
  * new railroad, which is the only thing that loads one (ADR-0060). The dialog
@@ -14,13 +14,17 @@
  * document of the loaded railroad under it (#729); each then asks for what
  * it wrote, the same way a press on the list does. **Backup** is the one
  * press that opens `tc-backup`, wearing the band note's words where backup
- * has something to say.
+ * has something to say. **Box** turns the box off (#745), and is drawn only
+ * where the installation says this box can be: it is asked each time the
+ * dialog opens, and the rest of the dialog does not wait on it. The press asks
+ * once more before anything is sent, and then says to unplug the box once its
+ * lights go out.
  *
  * It is a dialog and not a view: a view shows or edits the loaded railroad,
  * and this chooses which one that is (ADR-0072, decision 1).
  *
  * **It decides nothing.** Why the railroad part is refused is
- * `model/settings.ts`, and what is loaded is the row's; the app hands both
+ * `model/settings.ts`, as is why turning the box off is, and what is loaded is the row's; the app hands both
  * in. Whether a name will do is `nameTrouble`'s, as it is for the editor, and
  * a write is refused by the store in its own words (`said`): the dialog shows
  * whichever refused and asks for nothing, so nothing is loaded that was not
@@ -34,7 +38,8 @@ import "@shoelace-style/shoelace/dist/components/dialog/dialog.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 
 import { emptyDrawing, nameTrouble } from "../model/drawing.js";
-import { copyRefusal, refusal } from "../model/settings.js";
+import { canTurnOff, turnOff } from "../model/box.js";
+import { boxRefusal, copyRefusal, refusal } from "../model/settings.js";
 import { copyRailroad, said, saveDrawing } from "../model/store.js";
 import type { Power } from "../model/trace.js";
 import { settingsStyles } from "./tc-settings.styles.js";
@@ -77,6 +82,29 @@ export class TcSettings extends LitElement {
    *  a railroad the first is still writing. */
   @state() private writing = false;
 
+  /** Whether the installation said this box can be turned off, asked each
+   *  time the dialog opens and no until it answers. */
+  @state() private offable = false;
+
+  /** Where turning the box off has got to: not pressed, asking once more,
+   *  the request out, or the box going. */
+  @state() private turning: "idle" | "asking" | "sending" | "going" = "idle";
+
+  /** What the installation refused the last request with, or what kept it
+   *  from arriving, `null` where nothing did. */
+  @state() private refusedOff: string | null = null;
+
+  override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    if (changed.has("open") && this.open) {
+      this.offable = false;
+      this.turning = "idle";
+      this.refusedOff = null;
+      void canTurnOff().then((can) => {
+        this.offable = can;
+      });
+    }
+  }
+
   override render() {
     if (!this.open) return nothing;
     return html`
@@ -88,6 +116,7 @@ export class TcSettings extends LitElement {
           <sl-button @click=${() => this.say("backup-wanted")}>Backup…</sl-button>
           ${this.backup === null ? nothing : html`<span class="note">${this.backup}</span>`}
         </div>
+        ${this.offable ? this.box() : nothing}
         <sl-button slot="footer" @click=${this.close}>Close</sl-button>
       </sl-dialog>
     `;
@@ -163,6 +192,73 @@ export class TcSettings extends LitElement {
         : html`<p class="hint copy">${copyRefused}</p>`}
       ${this.wrong === null ? nothing : html`<p class="hint wrong">${this.wrong}</p>`}
     `;
+  }
+
+  /**
+   * The Box part. **Turn the box off…** is dead while the rule refuses or a
+   * request is out, with the rule's reason beneath; pressed, it gives way to
+   * what turning off costs and **Turn off** and **Cancel**. Once the request
+   * is taken the part says to unplug the box and offers no press.
+   */
+  private box() {
+    if (this.turning === "going") {
+      return html`<h3>Box</h3>
+        <div class="box">
+          <p class="hint">The box is turning off. Unplug it once its lights go out.</p>
+        </div>`;
+    }
+    if (this.turning === "asking") {
+      return html`<h3>Box</h3>
+        <div class="box">
+          <p class="asking">
+            Every app on this box stops, and starting it again takes a person at the box.
+          </p>
+          <div class="presses">
+            <sl-button class="off" size="small" variant="danger" @click=${this.turningOff}>
+              Turn off
+            </sl-button>
+            <sl-button
+              class="cancel"
+              size="small"
+              @click=${() => {
+                this.turning = "idle";
+              }}
+            >
+              Cancel
+            </sl-button>
+          </div>
+        </div>`;
+    }
+    const refused = boxRefusal(this.power);
+    return html`<h3>Box</h3>
+      <div class="box">
+        <sl-button
+          class="turn"
+          ?disabled=${refused !== null || this.turning === "sending"}
+          @click=${() => {
+            this.refusedOff = null;
+            this.turning = "asking";
+          }}
+        >
+          Turn the box off…
+        </sl-button>
+        ${refused === null ? nothing : html`<p class="hint">${refused}</p>`}
+        ${this.refusedOff === null
+          ? nothing
+          : html`<p class="hint wrong">${this.refusedOff}</p>`}
+      </div>`;
+  }
+
+  /** **Turn off** was pressed. The rule is read again, as `wanting` reads
+   *  `refusal` again, so power switched on since the first press sends
+   *  nothing. */
+  private async turningOff(): Promise<void> {
+    this.turning = "idle";
+    if (boxRefusal(this.power) !== null) return;
+    this.turning = "sending";
+    const refused = await turnOff();
+    this.refusedOff = refused;
+    this.turning = refused === null ? "going" : "idle";
   }
 
   /** A railroad was pressed. The dialog says which is wanted and stops there
