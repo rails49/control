@@ -26,27 +26,20 @@
  * unnoticed until the module has grown back into the file it came out of.
  */
 
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 import type { CSSResult } from "lit";
 import { describe, expect, it } from "vitest";
 
-import {
-  COLOURS,
-  DARK,
-  RAIL_BUTTON_PX,
-  RAIL_TURNS_PX,
-} from "../src/render/units.js";
+import { COLOURS, DARK } from "../src/render/units.js";
 import * as shared from "../src/ui/shared.styles.js";
 import { palette, symbols } from "../src/ui/shared.styles.js";
 import { appStyles } from "../src/ui/tc-app.styles.js";
 import { canvasStyles, exportStyles } from "../src/ui/tc-canvas.styles.js";
 import { editorStyles } from "../src/ui/tc-editor.styles.js";
-import { headerStyles } from "../src/ui/tc-header.styles.js";
 import { menuStyles } from "../src/ui/tc-menu.styles.js";
 import { paletteStyles } from "../src/ui/tc-palette.styles.js";
 import { panelStyles } from "../src/ui/tc-panel.styles.js";
-import { railStyles } from "../src/ui/tc-rail.styles.js";
 import { rosterStyles } from "../src/ui/tc-roster.styles.js";
 import { throttleStyles } from "../src/ui/tc-throttle.styles.js";
 
@@ -59,11 +52,9 @@ const sheets: Record<string, CSSResult> = {
   canvasStyles,
   editorStyles,
   exportStyles,
-  headerStyles,
   menuStyles,
   paletteStyles,
   panelStyles,
-  railStyles,
   rosterStyles,
   throttleStyles,
 };
@@ -74,28 +65,6 @@ function rule(sheet: string, selector: string): string {
   const found = sheet.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
   expect(found, `no rule for ${selector}`).not.toBeNull();
   return found![1]!;
-}
-
-/**
- * What a button wearing these classes is drawn with: the blocks of every rule
- * whose selector its classes satisfy, in the order the sheet gives them. It is
- * the cascade as far as a class list decides it, which is what a mark is — the
- * sheet's pseudo-class rules are about the pointer and the press's own state
- * and are left out.
- */
-function worn(sheet: string, classes: string[]): string {
-  const written = sheet.replace(/\/\*[\s\S]*?\*\//g, "");
-  return [...written.matchAll(/([^{}]+)\{([^}]*)\}/g)]
-    .filter(([, selector]) =>
-      selector!.split(",").some((one) => {
-        const named = one.trim().match(/^button((?:\.[a-z-]+)+)$/);
-        if (named === null) return false;
-        const on = named[1]!.split(".").filter(Boolean);
-        return on.every((it) => classes.includes(it));
-      }),
-    )
-    .map(([, , block]) => block)
-    .join("");
 }
 
 /**
@@ -175,24 +144,13 @@ describe("the drawing's own rules", () => {
 /**
  * Both themes, with the operating system deciding (#547).
  *
- * LOOK.md binds three things here: both Shoelace themes are linked with no
- * toggle in the page, the chrome keeps one value in both, and the work pane
- * follows the theme. The first two are checked above and beside this; this is
- * the third, and it is the one a sheet breaks by accident — a ground written
- * as a hex is invisible in the light theme and unreadable in the dark one,
- * where the text over it has moved and the ground has not.
+ * The work pane follows the theme; the chrome is look's (ADR-0073). A sheet
+ * breaks that by accident — a ground written as a hex is invisible in the
+ * light theme and unreadable in the dark one, where the text over it has
+ * moved and the ground has not.
  */
 describe("what a pane paints its ground with", () => {
-  /** The sheets of the work, which is everything but the chrome. The band and
-   *  the rail are the two that must not follow the theme, and they are left
-   *  out by identity rather than by name: renaming a sheet would otherwise
-   *  quietly change what this covers. */
-  const chrome: CSSResult[] = [headerStyles, railStyles];
-  const panes = Object.entries(sheets).filter(
-    ([, sheet]) => !chrome.includes(sheet),
-  );
-
-  it.each(panes)("%s asks the palette rather than naming a colour", (_, sheet) => {
+  it.each(Object.entries(sheets))("%s asks the palette rather than naming a colour", (_, sheet) => {
     const written = sheet.cssText
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(palette.cssText, "");
@@ -214,6 +172,12 @@ describe("what a pane paints its ground with", () => {
     }
   });
 
+  /** A colour added to the palette without a dark value would paint in its
+   *  light value on a dark page. */
+  it("has a dark value for every colour in the palette", () => {
+    expect(Object.keys(DARK).sort()).toEqual(Object.keys(COLOURS).sort());
+  });
+
   /** An export is a file that leaves here: it carries the light palette
    *  whichever theme drew it, so what it looks like does not depend on the
    *  settings of the machine it was saved from (#86). */
@@ -233,161 +197,6 @@ describe("what a pane paints its ground with", () => {
       ([, value]) => value!.trim(),
     );
     expect(grounds).toEqual([COLOURS["--paper"], DARK["--paper"]]);
-  });
-
-  /** Both themes linked, wherever one of them is. Shoelace's dark theme is a
-   *  class rather than a query of its own, so linking it is half the job and
-   *  `ui/theme.ts` is the other half; a module that linked one theme alone
-   *  would leave that page in it whatever the system says. */
-  it("links both Shoelace themes in every module that links one", () => {
-    const dir = new URL("../src/ui/", import.meta.url);
-    for (const file of readdirSync(dir).filter((it) => it.endsWith(".ts"))) {
-      const source = readFileSync(new URL(file, dir), "utf8");
-      expect(
-        source.includes("themes/light.css"),
-        `${file} links one theme and not the other`,
-      ).toBe(source.includes("themes/dark.css"));
-    }
-  });
-});
-
-/**
- * The values the look rules bind, against the copy they came from (#548).
- *
- * Six colours and two sizes are one system across rails49's UIs
- * ([ADR-0003](https://github.com/rails49/.github/blob/main/docs/adr/0003-the-look-rules-bind-place-colour-and-small-screens-not-code.md)),
- * and this app keeps them in its own form: the colours in the table that holds
- * every other colour it draws with, the sizes beside them as numbers a media
- * query and a stylesheet can be interpolated from. `ui/look/tokens.css` is the
- * copy of what they are, verbatim and pinned to a commit (ADR-0005), and this
- * is the assertion that the two agree.
- *
- * It reads the copy and nothing else. A check that fetched the source would go
- * red on somebody else's commit, and under this repository's rule that `main`
- * moves only by a green required check with no bypass, that red-lights every
- * open pull request here until someone syncs.
- */
-describe("the values the look rules bind", () => {
-  /** The copy, as the tokens it declares. Comments out first: they carry a
-   *  `--rail-button` or two in prose, and a regex reading declarations cannot
-   *  tell those from the real ones. */
-  const bound = Object.fromEntries(
-    [
-      ...readFileSync(new URL("../look/tokens.css", import.meta.url), "utf8")
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g),
-    ].map(([, name, value]) => [name!, value!.trim()]),
-  );
-
-  /** The colours among them: the chrome's, which keep one value in both
-   *  themes. */
-  const chrome = Object.keys(bound).filter((name) => bound[name]!.startsWith("#"));
-
-  /** Every token in the copy, so that one added over there fails here rather
-   *  than passing unnoticed: a value this app has not followed yet is the
-   *  whole point of keeping the copy. */
-  it("are the eight the copy holds", () => {
-    expect(Object.keys(bound).sort()).toEqual([
-      "--band",
-      "--band-ink",
-      "--rail",
-      "--rail-button",
-      "--rail-group",
-      "--rail-turns",
-      "--stop",
-      "--stop-ink",
-    ]);
-  });
-
-  it("paint the band and the rail", () => {
-    for (const token of chrome) {
-      expect(COLOURS[token], token).toBe(bound[token]);
-    }
-  });
-
-  /** STOP and every fault on the band are drawn with the copy's red and
-   *  nothing else, so the band's red is the same one in both themes and in
-   *  every app (#582). */
-  it("are the only red the band draws with", () => {
-    const flat = headerStyles.cssText.replace(/\s+/g, "");
-    expect(flat).toContain("background:var(--stop)");
-    expect(flat).toContain("color:var(--stop-ink)");
-    expect(flat).not.toMatch(/var\(--wrong/);
-  });
-
-  it("turn the rail into a strip at the height the copy gives", () => {
-    expect(`${RAIL_TURNS_PX}px`).toBe(bound["--rail-turns"]);
-  });
-
-  it("size every button on the rail", () => {
-    expect(`${RAIL_BUTTON_PX}px`).toBe(bound["--rail-button"]);
-  });
-
-  /** And the number is what the sheet draws with, not a constant beside it: a
-   *  button sized in `rem` next to a `RAIL_BUTTON_PX` nothing reads would pass
-   *  the assertion above with the rule broken. */
-  it("are what the rail's own sheet is written in", () => {
-    const flat = railStyles.cssText.replace(/\s+/g, "");
-    expect(flat).toContain(`width:${RAIL_BUTTON_PX}px`);
-    expect(flat).toContain(`height:${RAIL_BUTTON_PX}px`);
-  });
-
-  /** The chrome keeps one value in both themes and the work pane follows the
-   *  theme, which is the division LOOK.md draws and this is it in code: the
-   *  six colours the copy binds have no dark value, and every other colour
-   *  the app draws with has one. A colour added to the palette without one
-   *  fails here rather than painting in its light value on a dark page. */
-  it("are the colours that keep one value in both themes", () => {
-    for (const name of Object.keys(COLOURS)) {
-      expect(name in DARK, `${name} in the dark palette`).toBe(
-        !chrome.includes(name),
-      );
-    }
-    expect(Object.keys(DARK).every((name) => name in COLOURS)).toBe(true);
-  });
-});
-
-/**
- * What the band marks the track-power press the supply stands at with (#585).
- *
- * Red on the chrome is a stop or a fault and nothing else (LOOK.md), so the
- * alarm is the marked STOP's alone. A supply that is off is neither: off is
- * where the railroad rests and comes up (ADR-0054), and the marked OFF press
- * falls to the plain mark the marked ON press wears. A trip is a fault, but it
- * is somebody's own chip on the band and would still not colour OFF.
- */
-describe("the mark on the press the supply stands at", () => {
-  /** The plain mark, which is the same one the rail puts on the current
-   *  view: a light fill and a bolder word, and no colour of its own. */
-  const plain = rule(headerStyles.cssText, "button.press.at");
-
-  it("wears the alarm on a marked STOP", () => {
-    const marked = worn(headerStyles.cssText, ["press", "stopped", "at"]);
-    expect(marked).toContain("var(--stop)");
-    expect(marked).toContain("var(--stop-ink)");
-  });
-
-  /** And on the STOP that is not marked, the outline and the word alone: the
-   *  press is told apart from its neighbours whatever the supply is doing. */
-  it("keeps an unmarked STOP its red outline and word", () => {
-    const stop = rule(headerStyles.cssText, "button.press.stopped");
-    expect(stop).toContain("border-color: var(--stop)");
-    expect(stop).toContain("color: var(--stop)");
-  });
-
-  it("leaves a marked OFF the plain mark and no red at all", () => {
-    const marked = worn(headerStyles.cssText, ["press", "off", "at"]);
-    expect(marked).toContain(plain);
-    expect(marked).not.toContain("var(--stop)");
-    expect(marked).not.toContain("var(--stop-ink)");
-  });
-
-  /** Which is the marked ON press's mark, and now nothing more: the two that
-   *  are not a stop read the same. */
-  it("marks ON and OFF alike", () => {
-    expect(worn(headerStyles.cssText, ["press", "off", "at"])).toBe(
-      worn(headerStyles.cssText, ["press", "on", "at"]),
-    );
   });
 });
 
@@ -519,28 +328,6 @@ describe("the two weights a fault is marked in", () => {
     expect(rule(canvasStyles.cssText, ".wire.lit.offending")).toContain(
       "var(--wrong)",
     );
-  });
-
-  /** The band's indicator is the coarse counterpart to the canvas's marks and
-   *  shows only for what stopped derivation, so it wears that weight (#91) —
-   *  in the chrome's red, which is the light theme's and stays put on a dark
-   *  page (#582). An overlap and a missing address leave it clean, and nothing
-   *  there should ever read in the quiet one. */
-  it("marks the band in the weight that stops derivation", () => {
-    const mark = rule(headerStyles.cssText, ".refused");
-    expect(mark).toContain("var(--stop-ink)");
-    expect(mark).not.toContain("var(--unfinished)");
-  });
-
-  /** A fault the hardware reports wears the same weight as the trouble beside
-   *  it, the two being wrong in the same way (#602): a chip carrying its own
-   *  ground, rather than red text fighting the band behind it. It is cut off
-   *  rather than wrapped, the band's height being a row of the page's grid. */
-  it("gives the hardware's fault the weight the trouble wears", () => {
-    const fault = rule(headerStyles.cssText, ".fault");
-    expect(fault).toContain("var(--stop-ink)");
-    expect(fault).toContain("text-overflow: ellipsis");
-    expect(fault).toBe(rule(headerStyles.cssText, ".trouble"));
   });
 
   /** The ghost draws the same mark on the squares a drop cannot have, and that

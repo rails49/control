@@ -174,46 +174,6 @@ export const RING = {
 export const NOTE = 0.22;
 
 /**
- * Every button on the rail, square: the minimum a thumb needs, and one of the
- * two sizes the look rules bind across rails49's UIs (`ui/look/tokens.css`,
- * ADR-0003). It was 35 here, which is the drift those rules exist to stop.
- *
- * The rail is driven with a mouse in every view but the throttle, so this is
- * larger than what this app alone would have picked; what it buys is that the
- * two apps a person moves between within one session are the same size under
- * the hand, and that the throttle is drivable from a phone.
- */
-export const RAIL_BUTTON_PX = 44;
-
-/** The padding either side of that button, which with it is the whole of the
- *  rail's width. Two sheets need it — `tc-rail` pads the column and `tc-app`
- *  leaves the grid room for it — so it is one number here rather than two that
- *  agree. */
-export const RAIL_PAD_PX = 4;
-
-/**
- * The window height at or below which the rail lies down along the top of the
- * work instead of standing down its left (ADR-0064). The other size the look
- * rules bind.
- *
- * The editor's rail is fifteen buttons — four views and eleven verbs — which
- * at `RAIL_BUTTON_PX` and the spacing `tc-rail.styles.ts` gives them is about
- * 710px of column, taller than the work in a laptop window. That is not what
- * this height answers: a window between the two is a column the rail scrolls,
- * with its top group — the views — pinned, so the way out of a view is never
- * the thing that got scrolled away (`tc-rail.styles.ts`). This height is the
- * other case, a window too short for a column at all, which is a phone held
- * sideways.
- *
- * A media query cannot read a custom property, which is what stops this
- * reaching the two sheets on its own; it is interpolated into each instead,
- * and `test/styles.test.ts` asserts the two agree. `tc-rail` turning while
- * `tc-app` still holds a column would draw the strip inside the column, which
- * is the bug with extra steps.
- */
-export const RAIL_TURNS_PX = 640;
-
-/**
  * The palette, as the custom properties the stylesheets read. Track is black
  * and a block's rectangle white in edit mode; run mode recolours by toggling
  * classes rather than by editing these.
@@ -267,33 +227,14 @@ export const COLOURS: Record<string, string> = {
   // left is what the panes still read.
   "--tint-1": "#14866d",
   "--tint-2": "#a55b12",
-  // The chrome, which is not the drawing: the band across the top and the rail
-  // down the left (ADR-0064), taken from the occupancy UI so that two apps a
-  // person moves between within one session look like one system. The rail is
-  // two greens — the column and the runs of buttons on it — because a group is
-  // what says which commands belong together once their labels are gone.
-  "--band": "#1d4ed8",
-  "--band-ink": "#ffffff",
-  "--rail": "#064e3b",
-  "--rail-group": "#059669",
-  // Red on the chrome, which means stop or a fault and nothing else: STOP on
-  // the band and the chips a fault reads as there. The same values as the
-  // light theme's --wrong-body and --wrong, but these stay put on a dark page
-  // (#582).
-  "--stop": "#f7dcdf",
-  "--stop-ink": "#cc2936",
 };
 
 /**
  * The same palette on a dark page, entry for entry.
  *
- * Both Shoelace themes are linked and `prefers-color-scheme` decides, with no
- * toggle in the page (LOOK.md, ADR-0003). The work pane follows that; the
- * chrome does not, which is why the band, the rail and their red have no
- * entry here — they are what says *this is the same project* as a person
- * moves between the project's apps, and a colour that moved with the theme
- * would say it twice over. `test/styles.test.ts` asserts that division against the copy: every
- * colour that is not one of the six has a value here.
+ * `prefers-color-scheme` decides, with no toggle in the page (look#12). The
+ * work pane follows it; the chrome is look's and does not.
+ * `test/styles.test.ts` asserts every colour has a value here.
  *
  * The values are not inversions. Track and ink swap ends, because the paper
  * does; a signal lamp, a route's green and cyan, and the two weights a fault is
