@@ -23,9 +23,9 @@
  * It is a dialog and not a view: a view shows or edits the loaded railroad,
  * and this chooses which one that is (ADR-0072, decision 1).
  *
- * **It decides nothing.** Why the railroad part is refused is
- * `model/settings.ts`, as is why turning the box off is, and what is loaded is the row's; the app hands both
- * in. Whether a name will do is `nameTrouble`'s, as it is for the editor, and
+ * **It decides nothing.** Why the railroad part or the Box part is refused
+ * is `model/settings.ts`, and what is loaded is the row's; the app hands in
+ * the row and the power. Whether a name will do is `nameTrouble`'s, as it is for the editor, and
  * a write is refused by the store in its own words (`said`): the dialog shows
  * whichever refused and asks for nothing, so nothing is loaded that was not
  * written.
@@ -84,7 +84,7 @@ export class TcSettings extends LitElement {
 
   /** Whether the installation said this box can be turned off, asked each
    *  time the dialog opens and no until it answers. */
-  @state() private offable = false;
+  @state() private canTurnOff = false;
 
   /** Where turning the box off has got to: not pressed, asking once more,
    *  the request out, or the box going. */
@@ -94,13 +94,13 @@ export class TcSettings extends LitElement {
    *  from arriving, `null` where nothing did. */
   @state() private refusedOff: string | null = null;
 
-  override willUpdate(changed: Map<PropertyKey, unknown>): void {
+  override willUpdate(changed: Map<string, unknown>): void {
     if (changed.has("open") && this.open) {
-      this.offable = false;
-      this.turning = "idle";
+      this.canTurnOff = false;
+      if (this.turning !== "sending") this.turning = "idle";
       this.refusedOff = null;
       void canTurnOff().then((can) => {
-        this.offable = can;
+        this.canTurnOff = can;
       });
     }
   }
@@ -116,7 +116,10 @@ export class TcSettings extends LitElement {
           <sl-button @click=${() => this.say("backup-wanted")}>Backup…</sl-button>
           ${this.backup === null ? nothing : html`<span class="note">${this.backup}</span>`}
         </div>
-        ${this.offable ? this.box() : nothing}
+        ${this.canTurnOff
+          ? html`<h3>Box</h3>
+              <div class="box">${this.box()}</div>`
+          : nothing}
         <sl-button slot="footer" @click=${this.close}>Close</sl-button>
       </sl-dialog>
     `;
@@ -202,51 +205,44 @@ export class TcSettings extends LitElement {
    */
   private box() {
     if (this.turning === "going") {
-      return html`<h3>Box</h3>
-        <div class="box">
-          <p class="hint">The box is turning off. Unplug it once its lights go out.</p>
-        </div>`;
+      return html`<p class="hint">The box is turning off. Unplug it once its lights go out.</p>`;
     }
     if (this.turning === "asking") {
-      return html`<h3>Box</h3>
-        <div class="box">
-          <p class="asking">
-            Every app on this box stops, and starting it again takes a person at the box.
-          </p>
-          <div class="presses">
-            <sl-button class="off" size="small" variant="danger" @click=${this.turningOff}>
-              Turn off
-            </sl-button>
-            <sl-button
-              class="cancel"
-              size="small"
-              @click=${() => {
-                this.turning = "idle";
-              }}
-            >
-              Cancel
-            </sl-button>
-          </div>
-        </div>`;
+      return html`
+        <p class="asking">
+          Every app on this box stops, and starting it again takes a person at the box.
+        </p>
+        <div class="presses">
+          <sl-button class="off" size="small" variant="danger" @click=${this.turningOff}>
+            Turn off
+          </sl-button>
+          <sl-button
+            class="cancel"
+            size="small"
+            @click=${() => {
+              this.turning = "idle";
+            }}
+          >
+            Cancel
+          </sl-button>
+        </div>
+      `;
     }
     const refused = boxRefusal(this.power);
-    return html`<h3>Box</h3>
-      <div class="box">
-        <sl-button
-          class="turn"
-          ?disabled=${refused !== null || this.turning === "sending"}
-          @click=${() => {
-            this.refusedOff = null;
-            this.turning = "asking";
-          }}
-        >
-          Turn the box off…
-        </sl-button>
-        ${refused === null ? nothing : html`<p class="hint">${refused}</p>`}
-        ${this.refusedOff === null
-          ? nothing
-          : html`<p class="hint wrong">${this.refusedOff}</p>`}
-      </div>`;
+    return html`
+      <sl-button
+        class="turn"
+        ?disabled=${refused !== null || this.turning === "sending"}
+        @click=${() => {
+          this.refusedOff = null;
+          this.turning = "asking";
+        }}
+      >
+        Turn the box off…
+      </sl-button>
+      ${refused === null ? nothing : html`<p class="hint">${refused}</p>`}
+      ${this.refusedOff === null ? nothing : html`<p class="hint wrong">${this.refusedOff}</p>`}
+    `;
   }
 
   /** **Turn off** was pressed. The rule is read again, as `wanting` reads

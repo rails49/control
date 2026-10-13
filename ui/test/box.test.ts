@@ -16,7 +16,7 @@ import "../src/ui/tc-app.js";
 import { canTurnOff, turnOff } from "../src/model/box.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcSettings } from "../src/ui/tc-settings.js";
-import { mounted, serving, settingsOpened, settled } from "./support/shell.js";
+import { mounted, type Reply, serving, settingsOpened, settled } from "./support/shell.js";
 import {
   brokering,
   DERIVES,
@@ -125,12 +125,7 @@ afterEach(unbrokered);
 /** The toy railroad behind the store, as `brokering` has it, and beside it the
  *  installation answering `box` and counting each `POST /box/off` it answers
  *  with `off`. */
-function installed(
-  box: { status: number; body: string },
-  off:
-    | { status: number; body: string }
-    | Promise<{ status: number; body: string }> = { status: 202, body: "" },
-): void {
+function installed(box: Reply, off: Reply | Promise<Reply> = { status: 202, body: "" }): void {
   serving({
     drawings: ["toy"],
     rosterOf: () => STOCK,
@@ -293,7 +288,7 @@ describe("the dialog's Box part", () => {
   });
 
   it("is dead while the request is out", async () => {
-    let answer!: (reply: { status: number; body: string }) => void;
+    let answer!: (reply: Reply) => void;
     installed(CAN, new Promise((resolve) => (answer = resolve)));
     const shell = await powered("off");
     const dialog = await settingsOpened(shell);
@@ -302,9 +297,23 @@ describe("the dialog's Box part", () => {
     await pressed(shell, dialog, "off");
 
     expect(press(dialog, "turn")!.hasAttribute("disabled")).toBe(true);
-    press(dialog, "turn")!.click();
+    expect(press(dialog, "off")).toBeNull();
     answer({ status: 202, body: "" });
     await settled(shell);
     expect(asked).toBe(1);
+  });
+
+  it("keeps the press dead when the dialog is opened again while the request is out", async () => {
+    installed(CAN, new Promise(() => {}));
+    const shell = await powered("off");
+    const shut = await settingsOpened(shell);
+    await pressed(shell, shut, "turn");
+    await pressed(shell, shut, "off");
+    shut.dispatchEvent(new CustomEvent("settings-closed", { bubbles: true, composed: true }));
+    await settled(shell);
+
+    const dialog = await settingsOpened(shell);
+
+    expect(press(dialog, "turn")!.hasAttribute("disabled")).toBe(true);
   });
 });
