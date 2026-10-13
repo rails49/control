@@ -11,7 +11,9 @@ import { css } from "lit";
  * reads its own. The name field and the two presses that make a railroad sit
  * in one row beneath, the field taking the width the presses leave, and what
  * refused a name or a write reads under that row in the weight a thing wrong
- * reads in.
+ * reads in. The Box part reads the same way: its press, and beneath it why
+ * it is dead or what the installation refused it with; asked once more, what
+ * turning off costs and the two presses in a row beneath it.
  */
 export const settingsStyles = css`
   h3 {
@@ -95,5 +97,21 @@ export const settingsStyles = css`
      weight a thing missing reads in. */
   .note {
     color: var(--unfinished);
+  }
+
+  .box {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+  }
+
+  .asking {
+    margin: 0;
+  }
+
+  .presses {
+    display: flex;
+    gap: 0.4rem;
   }
 `;

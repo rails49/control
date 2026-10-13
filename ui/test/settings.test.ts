@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { copyRefusal, refusal } from "../src/model/settings.js";
+import { boxRefusal, copyRefusal, refusal } from "../src/model/settings.js";
 
 describe("why the railroad part is refused", () => {
   it("is refused while the layout has not said which railroad is loaded", () => {
@@ -70,5 +70,23 @@ describe("why Copy loaded as… is refused", () => {
 
   it("is open with a railroad loaded, the track dead and nothing unsaved", () => {
     expect(copyRefusal("otira", "off", null)).toBeNull();
+  });
+});
+
+/** Turning the box off waits on the track being dead, a stop included, and on
+ *  the layout having said so (#745). */
+describe("why turning the box off is refused", () => {
+  it("is refused while the layout has not said whether the track has power", () => {
+    expect(boxRefusal(null)).toBe("the layout has not said whether the track has power");
+  });
+
+  it.each(["on", "stopped"] as const)("is refused while the track reads %s", (power) => {
+    expect(boxRefusal(power)).toBe(
+      "the track has power: switch it off before turning the box off",
+    );
+  });
+
+  it("is open with the track dead", () => {
+    expect(boxRefusal("off")).toBeNull();
   });
 });

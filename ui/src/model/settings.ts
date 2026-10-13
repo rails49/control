@@ -10,6 +10,10 @@
  * loaded as… end in a load of what they wrote, so they wait on the same
  * (ADR-0072, decision 4), and Copy on a railroad being loaded to copy.
  *
+ * Turning the box off (#745) waits on the track being dead, as a load does:
+ * a loco left on its last speed with nothing to stop it is what it would
+ * strand.
+ *
  * Pure functions in `model/` with a test, as the enablement rules beside them
  * are (EDITOR.md#tests): the dialog draws what these say and decides nothing.
  */
@@ -59,5 +63,20 @@ export function copyRefusal(
   const refused = refusal(loaded, power, unsaved);
   if (refused !== null) return refused;
   if (loaded === "") return "no railroad is loaded to copy";
+  return null;
+}
+
+/**
+ * Why turning the box off is refused, `null` where it is not: the track has
+ * power — on, or stopped, which is a live track under a stop — or the layout
+ * has not said, which is never read as off. It takes neither the loaded
+ * railroad nor what is unsaved: a box with nothing loaded still has a command
+ * station, and the box going loses no edit a reload would not.
+ */
+export function boxRefusal(power: Power | null): string | null {
+  if (power === null) return "the layout has not said whether the track has power";
+  if (power !== "off") {
+    return "the track has power: switch it off before turning the box off";
+  }
   return null;
 }
