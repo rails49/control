@@ -4,6 +4,8 @@
 
 **Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** "the bridge picks the row up with no change of its own" is stale — the page publishes `power_wanted` to the broker itself. The inbound set is still read off the inventory's browser mark, and is now convention rather than a check.
 
+*Amended by [ADR-0073](0073-the-chrome-comes-from-look.md) (#749): ON, STOP and OFF are look's power toggle and stop sign. The toggle asking for `off` is still the drain trigger, and from stopped it asks for `on`, so stopped to off takes two presses.*
+
 Resolves [#293](https://github.com/rails49/control/issues/293).
 [ADR-0041](0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)
 parked the command half of track power on the reasoning that there was no

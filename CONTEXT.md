@@ -484,7 +484,7 @@ dispatcher writes `held` itself at the first moment none is left. `draining`
 is the third value of the run and not a state of its own, and the gate is on
 launching rather than on admission — admission is cheap and reversible,
 launching is the commitment, so requests queue up through a drain as they do
-through a hold. It is what the panel's OFF asks for and the completion is
+through a hold. It is what the panel's off press asks for and the completion is
 what it waits for before cutting track power
 ([ADR-0051](docs/adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md),
 [#294](https://github.com/rails49/control/issues/294)); an abrupt cut instead
@@ -501,7 +501,7 @@ Of a **run**: some train is **active** or **crossing**, so a power cut now
 would strand it. A boolean beside the run's three values on
 `tc49/dispatch/state/run`, and not a fourth one: a **held** run can be moving,
 because a move already granted runs to its sensor, and a running run with
-nothing granted is not. It is what the panel's OFF waits to see false before
+nothing granted is not. It is what the panel's off press waits to see false before
 cutting power, and what the layout checks before applying a plain `off`
 ([ADR-0062](docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
 A manual train on its route is active and so moving, whatever its throttle

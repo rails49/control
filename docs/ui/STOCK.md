@@ -427,8 +427,8 @@ minted name and refusal is `ui/src/model/stock.ts`'s answer, which holds the
 two documents and every edit to either and knows nothing about the DOM.
 
 The rows are the browser's own `input` and `select` and the new-model dialog is
-Shoelace's, the way the properties dialog is: a dense grid of three fields per
-row is a table, and a form is a form.
+look's `look-dialog`, the way the properties dialog is: a dense grid of three
+fields per row is a table, and a form is a form.
 
 The photo's three calls are `ui/src/model/store.ts`'s, beside the routes the
 rest of this screen reads: where a model's photo is, saving one, and taking a
@@ -450,8 +450,10 @@ to move, and a `Save` there would be a second Save meaning something other than
 the one beside it. The views are the whole of this view's rail
 ([ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)).
 
-`ICONS` in `ui/src/ui/icons.ts` is keyed by `ViewId`, so the wagon on the
-rail's selector is part of this rather than something to remember.
+Its entry in `VIEWS` in `ui/src/model/views.ts` names its glyph,
+`train-freight-front`, so the wagon on the rail's selector is part of this
+rather than something to remember
+([ADR-0073](../adr/0073-the-chrome-comes-from-look.md)).
 
 ## Tests
 

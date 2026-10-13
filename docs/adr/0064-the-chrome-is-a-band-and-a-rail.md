@@ -1,5 +1,7 @@
 # The chrome is a band and a rail
 
+*Superseded by [ADR-0073](0073-the-chrome-comes-from-look.md) (#749): the band and the rail are `@rails49/look`'s elements, and the glyphs are Bootstrap Icons served from control's own origin rather than drawn in `ui/icons.ts`.*
+
 *Amended by [ADR-0072](0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md) (#733): the band's left names the loaded railroad and is not pressed; a settings gear sits just left of track power.*
 
 Amends "The band is the system; the bar is the document" in

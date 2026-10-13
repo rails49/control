@@ -1,5 +1,7 @@
 # The simulator obeys the band's power presses
 
+*Amended by [ADR-0073](0073-the-chrome-comes-from-look.md) (#749): the band's ON, STOP and OFF are look's power toggle and stop sign; the toggle asking for `off` still drains.*
+
 The contract is [#702](https://github.com/rails49/control/issues/702).
 Reverses the "constant `on`" passages of
 [ADR-0041](0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md),

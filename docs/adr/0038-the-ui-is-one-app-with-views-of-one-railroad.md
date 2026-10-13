@@ -4,6 +4,8 @@
 
 **Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** `tc49 live` and the bridge below are deleted. The page reaches the bus as a client of the broker on `/mqtt`, and the store, the containers and the hardware answer it as before. One page, one loaded railroad, a list of views: unchanged.
 
+*Amended by [ADR-0073](0073-the-chrome-comes-from-look.md) (#749): the band and the rail are `@rails49/look`'s elements drawn by `tc-app`, and `tc-header.ts` is deleted; track power on the band is look's power toggle and stop sign.*
+
 The browser ships one page. It holds **one loaded railroad** and a list of
 **views** of it — today an editor and a run view, later stock and schedules —
 with one of them current. This replaces two Vite entries, two pages and a link

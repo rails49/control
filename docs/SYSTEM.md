@@ -608,7 +608,7 @@ reader that wants to know the railroad is still reads `held` with `moving`
 false. The row is published whenever either moves: a running run whose last
 train arrives publishes `running` with `moving` false, and a value that
 changes nothing publishes nothing. `layout` reads it before applying a plain
-`off`, and the panel's OFF waits on it before cutting power
+`off`, and the panel's off press waits on it before cutting power
 ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
 
 **The layout can hold it too.** A `tc49/layout/state/power` value that is

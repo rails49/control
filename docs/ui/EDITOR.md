@@ -50,14 +50,15 @@ A band across the top of the page carrying **what is true of the whole
 system** — as against the rail down the left of the work, which acts on the
 current view's document
 ([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md),
-[ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)). The editor is one
+[ADR-0073](../adr/0073-the-chrome-comes-from-look.md)). The editor is one
 view of the app and the run view is another ([PANEL.md](PANEL.md)); the band is
-the app's and is the same band in both.
+the app's and is the same band in both. It is `@rails49/look`'s `look-band`,
+and `tc-app` fills it.
 
 **The railroad the app has loaded is named here**, as
 `tc49/layout/state/railroad` reports it, and the name is not pressed. Loading
 another is the **settings dialog's**, behind the gear between the health area
-and ON
+and track power
 ([ADR-0072](../adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
 It is not the editor's `File ▸ Open` with the run view guessing separately:
 both views are of one railroad, so one control asks for it. The gear is drawn
@@ -109,15 +110,16 @@ and the two presses are dead and say why once beneath the list
 route keeps its motion whatever the software forgets. With no railroad loaded
 there are no rails built to change, so power is not asked and a new box loads
 its first railroad here. Nothing here turns the power off — that is the
-panel's OFF, which drains the run first
+band's power toggle, which drains the run first
 ([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
 
-The name is marked with a dot while the railroad holds edits the store has not
-been given. That state had no indicator at all before: it was inferrable only
+The band reads *unsaved* beside the name while the railroad holds edits the
+store has not been given. That state had no indicator at all before: it was inferrable only
 from the Save button being enabled, which is a control's affordance doing a
 status line's job, and #85 took that button off the screen entirely.
 
-**What the app could not do reads here**, in a health area at the right. That
+**What the app could not do reads here**, in a health area at the right, each
+fault a red chip with its whole sentence as its title. That
 is what is wrong that is not the author's doing — the store not answering, or a
 broker that is not ([PANEL.md](PANEL.md)) — and what the author has to fix is
 marked on the drawing ([Validation](#validation)). A save that did not land
@@ -137,8 +139,8 @@ districts still carrying trains that frame reads `power: on`, which is what a
 railroad with nothing wrong with it reads as
 ([ADR-0050](../adr/0050-broken-hardware-is-reported-never-worked-around.md),
 [BUS.md](../BUS.md#device-vocabulary)). So it reads whichever way the supply
-stands: the mark on the presses says where it stands and can say nothing about
-this, a marked OFF being a railroad at rest since #585. It is shown verbatim
+stands: the power toggle says where it stands and can say nothing about
+this, a toggle at off being a railroad at rest since #585. It is shown verbatim
 and nothing branches on it, and it clears when a frame arrives carrying no
 reason, the trip being a condition that holds until somebody resets it.
 
@@ -162,17 +164,17 @@ power on session 12:04` — and a status line that is always full is one nobody
 reads, so the entry that matters is not seen either. So the link has no word of
 its own at all: connected is ordinary and says nothing, and not connected is the
 trouble line naming the broker and asking whether the bus is running. Track
-power is the **mark on the press that names where it stands**
+power is the **colour of the power toggle**
 ([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md),
-[Supply](#the-band)) — three buttons plus a word repeating one of them was the
-same fact twice, and the marked one carries which of the two ways of standing
-still it is in what it says when it is hovered. STOP wears the alarm while it
-is the one marked; ON and OFF wear the plain mark, red on the chrome being a
-stop or a fault and nothing else and a supply switched off being neither
+[ADR-0073](../adr/0073-the-chrome-comes-from-look.md)): green when on, dimmed
+when off, red when stopped, its tooltip saying which. A word repeating it would
+be the same fact twice. Red on the chrome is a stop or a fault and nothing
+else, and a supply switched off is neither
 ([ADR-0054](../adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
-STOP is told apart from its neighbours whatever the supply is doing.
+The stop sign beside the toggle is red whatever the supply is doing.
 
-Beside them, one coarse indicator: this drawing derives, or it does not. It
+Beside them, one coarse indicator: a chip reading *does not derive* when the
+drawing does not, and nothing when it does. It
 names no fault and counts nothing, the canvas being where you find out where. A
 drawing with an overlap or a turnout still lacking an address leaves it clean,
 both being drawings that derive
@@ -191,8 +193,9 @@ up, and not otherwise.
 
 **The view selector is on the rail**, not here
 ([ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)). The views are a
-list with one current entry, `{id, label}` in `model/views.ts` with the glyph in
-`ui/icons.ts`, drawn as one icon-button each with the current one marked. Two of
+list with one current entry, `{id, label, icon}` in `model/views.ts`, drawn as
+one `look-view` each with the current one marked; pressing the current one does
+nothing. Two of
 them were a single icon-button wearing the other one's name — which is what a
 toggle is — and the third made it this selector, so a stock screen and a
 schedule table add a line rather than force a redesign. Which view is current is
@@ -217,22 +220,26 @@ the band, then the rail beside the work.
 
 Down the left of the work, a green column carrying **the current view's
 document**: the views at the top, then that view's commands as icon buttons,
-then any press of its own. It replaced a menu bar under the band
-([ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)) — three of the
+then any press of its own. It is `@rails49/look`'s `look-rail`
+([ADR-0073](../adr/0073-the-chrome-comes-from-look.md)), and each group of
+commands is a `look-group` labelled with its name. It replaced a menu bar
+under the band ([ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)) — three of the
 four views carry no menus at all, so the row was empty or nearly so most of the
 time while taking a band's worth of height off the canvas, which is what the
 drawing can least spare.
 
 Every command the editor has is a button on it, with the label and the key that
-does the same thing in the title a pointer resting there reads.
+does the same thing in the tooltip a pointer resting there reads. The key is
+written in look's `Mod+S` form and shown for the platform.
 
     views  Run  ·  Throttle  ·  Stock  ·  Edit
     View   Zoom out −  ·  Zoom in +  ·  Fit 0  ·  Netlist N
     File   Save ⌘S  ·  Export SVG…
     Edit   Undo ⌘Z  ·  Redo ⇧⌘Z
 
-The run view's rail is the views, the three `View` commands and HOLD/GO
-([PANEL.md](PANEL.md)). Its document is a railroad somebody else is running, so
+The run view's rail is the views, the three `View` commands and HOLD/GO, which
+sits in a group labelled Run at the rail's far end ([PANEL.md](PANEL.md)). Its
+document is a railroad somebody else is running, so
 it has no `File` and no `Edit`; the throttle and the stock screen draw no
 document with a viewport and have no commands at all, so the views are the whole
 of their rail. `RAIL` in `model/commands.ts` is a record keyed by view.
@@ -272,8 +279,8 @@ the app.
 
 **Below a short window the rail lies down** along the top of the work, as the
 occupancy UI's does: a column of twelve buttons does not fit a phone held
-sideways, and the throttle is used that way. `RAIL_TURNS_PX` in
-`render/units.ts` is the height, interpolated into both sheets that turn.
+sideways, and the throttle is used that way. The strip and the height it
+turns at are look's.
 
 What is dead and what is alive is not the rail's to decide. Save is dead with
 nothing open or nothing to write, Rotate, Flip and Delete are dead on an empty
@@ -455,12 +462,13 @@ f = 0.15. The fractions and the colours are named constants in one
 TypeScript module, the colours as CSS custom properties; configuring the
 look is editing that module, not a settings UI.
 
-Each colour has a second value for a dark page. Both Shoelace themes are
-linked and `prefers-color-scheme` decides, with no toggle in the page; the work
-follows the theme and the chrome — the band across the top and the rail down
-the left — keeps one value in both. The chrome's colours, the size of a rail
-button and the height the rail turns into a strip at are bound across the
-project's UIs rather than this app's to pick (`ui/look/`).
+Each colour has a second value for a dark page. `look.css` carries both
+Shoelace themes and `prefers-color-scheme` decides, with no toggle in the page;
+the work follows the theme and the chrome — the band across the top and the
+rail down the left — keeps one value in both. The chrome's colours, the size of
+a rail button and the height the rail turns into a strip at are
+`@rails49/look`'s, and this app sets none of them
+([ADR-0073](../adr/0073-the-chrome-comes-from-look.md)).
 
 Track is drawn solid, never patterned: wires run at any angle, so a pattern's
 spacing would vary with direction. A track stroke ends in a round cap and pins
@@ -879,8 +887,8 @@ anything is unsaved, in words naming which document, *the drawing*, *the
 roster* or *the drawing and the roster*
 ([#415](https://github.com/rails49/control/issues/415), #733), as a restore
 is refused (#703). Both of the railroad's documents count: the drawing here
-and the roster the stock view is composing. What counts as unsaved is the
-band's dot: the only drawing open is one the store gave, so there is nothing
+and the roster the stock view is composing. What counts as unsaved is what
+the band marks *unsaved*: the only drawing open is one the store gave, so there is nothing
 unsaved that is not an edit, and a drawing that arrived needing staging
 counts, because it has changes to save.
 
@@ -1053,10 +1061,11 @@ two names and not the editor: a save of a drawing that is not the loaded
 railroad would name nothing, being only a file, though the editor opens no
 such drawing now.
 
-**ON waits for the save.** The run view draws the open drawing, so power on
-with the loaded railroad's edits unsaved would run trains under track no app
-built. While they are unsaved the band's ON is dead and says *the drawing has
-unsaved edits — save it first*. STOP and OFF never wait.
+**Power on waits for the save.** The run view draws the open drawing, so power
+on with the loaded railroad's edits unsaved would run trains under track no app
+built. While they are unsaved and power is off, the band's power control is
+dead and says *Save the railroad first*. With power on or stopped it never
+waits.
 
 The freeze replaces the permission this page carried — "Editing and running the same
 railroad at once is not prevented. The store snapshots at startup, so a run in
@@ -1071,10 +1080,10 @@ rejected there: it needs a second source of every drawing and a way to serve
 one, and the freeze is what the railroad does anyway.
 
 **It is a document rule and not a chrome rule.** What is dead is not the rail's
-to decide ([The bar](#the-bar)), so the rule sits in `model/commands.ts` with
+to decide ([The rail](#the-rail)), so the rule sits in `model/commands.ts` with
 the rest of them and every command that changes the document is declared
 through it — a verb joins the frozen category by wearing it rather than by
-someone remembering the condition. The bar and the keyboard are the one path
+someone remembering the condition. The rail and the keyboard are the one path
 through that module, so a frozen `r` does nothing wherever it is pressed. Zoom,
 fit, Netlist and Export stay alive, a frozen drawing being read-only rather
 than gone.
@@ -1087,7 +1096,8 @@ so this view refuses that one itself and the tiles are greyed while it holds
 ([Palette](#palette)).
 
 **Power off thaws it.** The rule is read off `state/power` afresh and nothing
-latches it, so the band's OFF — once the run has drained — lifts the freeze.
+latches it, so the band's power toggle asking for off — once the run has
+drained — lifts the freeze.
 Leaving the session lifts it too: the freeze rests on what a joined session is
 saying, and a page that has left one is told nothing about the layout, exactly
 as a page that has just loaded is. It does not rest on the last thing the page
@@ -1096,7 +1106,7 @@ could clear.
 
 Track power and which railroad is loaded are the run's knowledge, and they
 reach this view through the shell, as everything the two views share does. The band says so in
-one quiet phrase, which is what explains a menu full of dead verbs
+one quiet phrase, which is what explains a rail full of dead verbs
 ([The band](#the-band)).
 
 **Scenario editing** stood here and is gone with it. Placing trains is the run
@@ -1122,8 +1132,8 @@ editing view listens on the window and routes.
 **The page is one entry**, `index.html`, and `tc-app` is what it holds
 (ADR-0038). The app owns the loaded railroad — the `Editor`, the `Filing` that
 talks to the store, and the `Backing` that says where backup stands — and the
-two rows of chrome; `tc-editor` is the editing view and holds
-what only editing has. Both views stay on the page and the one that is not
+chrome, which it draws from `@rails49/look`; `tc-editor` is the editing view
+and holds what only editing has. Both views stay on the page and the one that is not
 current is hidden rather than taken away: taking it away would close the live
 session on every toggle, and `visibility` leaves the hidden view its real
 shape, so a canvas fitted while hidden fits to what it will be seen at.
@@ -1135,14 +1145,14 @@ pointer is stays with the canvas and dies with the gesture. That split is what
 puts the centring, the footprint a turn transposes, and the refusal over an
 occupied square in the tested layer rather than in a component.
 
-The band's and the rail's icons are inline SVG, one per command and one per
-view, drawn on a 16 unit square in
-`ui/icons.ts`. Shoelace's `sl-icon` fetches from a CDN at runtime unless a base
-path is registered, and the editor has to work on the railroad's own network.
-The maps are keyed by `CommandId` and by `ViewId` and both are exhaustive, so a
-command or a view declared without a glyph is a compile error; it lives beside the drawings rather than beside the
-declarations because a glyph is a `lit` template and `model/` imports no
-`ui/`.
+The band's and the rail's glyphs are Bootstrap Icons, drawn by Shoelace's
+`sl-icon` inside look's elements. Each command and each view names its glyph in
+`model/commands.ts` and `model/views.ts`; `throttle` and `rotate` are look's
+own. `COMMANDS` is keyed by `CommandId` and `icon` is required, so a command
+declared without a glyph is a compile error. Shoelace fetches its glyphs from a
+CDN unless a base path is set, and the editor has to work on the railroad's own
+network, so the build copies Shoelace's assets to `/shoelace` and `main.ts`
+sets that as the base path ([ADR-0073](../adr/0073-the-chrome-comes-from-look.md)).
 
 Diagram libraries (JointJS, GoJS, React Flow) were considered and rejected:
 their value is auto-routing and free-form graph models, the first deliberately
@@ -1246,7 +1256,7 @@ every edit — that six test files could only reach by mounting the component,
 stubbing `fetch` and `window.prompt`, and casting through it to its private
 `Editor`. It is now `model/filing.ts` (#105), which owns what is open, whether
 it is saved, what the store last said, and what went wrong: files and review
-together, because a refusal and the unsaved dot are written from both and
+together, because a refusal and the unsaved mark are written from both and
 splitting them puts the pair back in the shell. It is the app's now, the
 railroad being the app's. It takes the store as a
 dependency so a test hands it a fake rather than forging an HTTP answer, and
